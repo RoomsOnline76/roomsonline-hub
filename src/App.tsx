@@ -9,7 +9,6 @@ import Admin from "./pages/Admin";
 import AdminKeys from "./pages/AdminKeys";
 import AdminUsers from "./pages/AdminUsers";
 import PropertyForm from "./pages/PropertyForm";
-import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -26,14 +25,6 @@ const App = () => (
           <Route path="/" element={<Home />} />
           <Route path="/results" element={<Results />} />
           <Route path="/auth" element={<Auth />} />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            }
-          />
           <Route
             path="/admin"
             element={
