@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X, Plus, Minus, FileText, Check, Upload, Heart, Edit, Trash2 } from "lucide-react";
+import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X, Plus, Minus, FileText, Check, Upload, Heart, Edit, Trash2, Copy, Link } from "lucide-react";
 import { StarRating } from "@/components/StarRating";
 
 const propertySchema = z.object({
@@ -184,12 +184,52 @@ export default function PropertyForm() {
   
   // Room types state
   const [roomTypes, setRoomTypes] = useState<any[]>([
-    { id: '1', name: 'Holiday House', selected: true },
-    { id: '2', name: 'One Bedroom Suite', selected: false },
-    { id: '3', name: 'Petite Hotel Room', selected: false },
-    { id: '4', name: 'Two Bedroom Suite', selected: false }
+    { 
+      id: '1', 
+      name: 'Holiday House', 
+      url: 'https://next.roomsonlinehub.com/property/c0b07393-6603-4ecf-9ceb-c0124272e9df/main/accommodation?sourceprop=c0b07393-6603-4ecf-9ceb-c0124272e9df',
+      selected: true 
+    },
+    { id: '2', name: 'One Bedroom Suite', url: '', selected: false },
+    { id: '3', name: 'Petite Hotel Room', url: '', selected: false },
+    { id: '4', name: 'Two Bedroom Suite', url: '', selected: false }
   ]);
   const [selectedRoomType, setSelectedRoomType] = useState<string>('1');
+  
+  const addRoomType = () => {
+    const newRoom = {
+      id: Date.now().toString(),
+      name: 'New Room Type',
+      url: '',
+      selected: false
+    };
+    setRoomTypes([...roomTypes, newRoom]);
+    setSelectedRoomType(newRoom.id);
+  };
+  
+  const deleteRoomType = (id: string) => {
+    const filtered = roomTypes.filter(r => r.id !== id);
+    setRoomTypes(filtered);
+    if (selectedRoomType === id && filtered.length > 0) {
+      setSelectedRoomType(filtered[0].id);
+    }
+  };
+  
+  const updateRoomTypeName = (id: string, name: string) => {
+    setRoomTypes(roomTypes.map(r => r.id === id ? { ...r, name } : r));
+  };
+  
+  const updateRoomTypeUrl = (id: string, url: string) => {
+    setRoomTypes(roomTypes.map(r => r.id === id ? { ...r, url } : r));
+  };
+  
+  const copyRoomUrl = (url: string) => {
+    navigator.clipboard.writeText(url);
+    toast({
+      title: "URL Copied",
+      description: "Room URL has been copied to clipboard",
+    });
+  };
   
   // Seasons state
   const [seasons, setSeasons] = useState<any[]>([
@@ -1750,26 +1790,60 @@ export default function PropertyForm() {
                 <div className="w-64 border-r bg-muted/30 p-4 space-y-2">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-sm">ROOM TYPES</h3>
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={addRoomType}>
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
                   {roomTypes.map((room) => (
                     <div
                       key={room.id}
-                      onClick={() => setSelectedRoomType(room.id)}
-                      className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors ${
+                      className={`flex items-center justify-between p-3 rounded-md transition-colors ${
                         selectedRoomType === room.id
                           ? 'bg-primary text-primary-foreground'
                           : 'hover:bg-muted'
                       }`}
                     >
-                      <span className="text-sm font-medium">{room.name}</span>
+                      <span 
+                        className="text-sm font-medium flex-1 cursor-pointer"
+                        onClick={() => setSelectedRoomType(room.id)}
+                      >
+                        {room.name}
+                      </span>
                       <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
+                        {room.url && (
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-6 w-6 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyRoomUrl(room.url);
+                            }}
+                            title="Copy room URL"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        )}
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedRoomType(room.id);
+                          }}
+                        >
                           <Edit className="h-3 w-3" />
                         </Button>
-                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteRoomType(room.id);
+                          }}
+                        >
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
@@ -1818,12 +1892,42 @@ export default function PropertyForm() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Room Type Name</Label>
-                          <Input defaultValue="Holiday House" />
+                          <Input 
+                            value={roomTypes.find(r => r.id === selectedRoomType)?.name || ''} 
+                            onChange={(e) => updateRoomTypeName(selectedRoomType, e.target.value)}
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label># of rooms for this type*</Label>
                           <Input type="number" defaultValue="9" />
                         </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          <Link className="h-4 w-4" />
+                          Room URL
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input 
+                            placeholder="https://example.com/property/room-id"
+                            value={roomTypes.find(r => r.id === selectedRoomType)?.url || ''} 
+                            onChange={(e) => updateRoomTypeUrl(selectedRoomType, e.target.value)}
+                          />
+                          {roomTypes.find(r => r.id === selectedRoomType)?.url && (
+                            <Button 
+                              type="button"
+                              variant="outline" 
+                              size="icon"
+                              onClick={() => copyRoomUrl(roomTypes.find(r => r.id === selectedRoomType)?.url || '')}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Link to the specific room page on your property website
+                        </p>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
