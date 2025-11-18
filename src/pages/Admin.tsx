@@ -89,12 +89,18 @@ const Admin = () => {
                   <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <h3 className="text-lg font-semibold mb-2">No Properties Yet</h3>
                   <p className="text-muted-foreground mb-6">
-                    Connect your property management system to start syncing properties
+                    Add your first property or sync from your property management system
                   </p>
-                  <Button onClick={() => navigate('/admin/keys')}>
-                    <Key className="mr-2 h-4 w-4" />
-                    Configure API Keys
-                  </Button>
+                  <div className="flex gap-4 justify-center">
+                    <Button onClick={() => navigate('/admin/properties/new')}>
+                      <Building2 className="mr-2 h-4 w-4" />
+                      Add Property
+                    </Button>
+                    <Button variant="outline" onClick={() => navigate('/admin/keys')}>
+                      <Key className="mr-2 h-4 w-4" />
+                      Configure API Keys
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
