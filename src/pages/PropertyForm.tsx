@@ -17,6 +17,13 @@ import { z } from "zod";
 import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X, Plus, Minus, FileText, Check, Upload, Heart, Edit, Trash2, Copy, Link } from "lucide-react";
 import { StarRating } from "@/components/StarRating";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 
 const propertySchema = z.object({
   name: z.string().min(1, "Property name is required").max(200),
@@ -313,6 +320,46 @@ export default function PropertyForm() {
       description: "The addon has been removed",
     });
   };
+  
+  // Specials state
+  const [specialsCategory, setSpecialsCategory] = useState<string>('accommodations');
+  const [conferenceSpecials, setConferenceSpecials] = useState<any[]>([
+    { id: '1', name: 'Untitled' }
+  ]);
+  const [selectedSpecial, setSelectedSpecial] = useState<string>('1');
+  const [isEditSpecialOpen, setIsEditSpecialOpen] = useState(false);
+  const [specialDialogTab, setSpecialDialogTab] = useState<string>('edit-special');
+  const [specialForm, setSpecialForm] = useState({
+    name: '',
+    isPublic: false,
+    description: '',
+    season: '08/05/2025-30/09/2025',
+    periodFrom: undefined as Date | undefined,
+    periodTo: undefined as Date | undefined,
+    pricingConfig: '' as 'discount' | 'fixed-amount' | 'fixed-price' | '',
+    discountPercent: 0,
+    fixedAmount: 0,
+    fixedPrice: 0,
+    conferenceRateType: '',
+    venueHire: ''
+  });
+  
+  const addNewSpecial = () => {
+    const newSpecial = {
+      id: Date.now().toString(),
+      name: 'Untitled'
+    };
+    setConferenceSpecials([...conferenceSpecials, newSpecial]);
+    setSelectedSpecial(newSpecial.id);
+  };
+  
+  const deleteSpecial = (id: string) => {
+    const filtered = conferenceSpecials.filter(s => s.id !== id);
+    setConferenceSpecials(filtered);
+    if (selectedSpecial === id && filtered.length > 0) {
+      setSelectedSpecial(filtered[0].id);
+    }
+  };
 
   const handleInputChange = (field: keyof PropertyFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -541,6 +588,10 @@ export default function PropertyForm() {
               <TabsTrigger value="addons" className="gap-2">
                 <Package className="h-4 w-4" />
                 Addons
+              </TabsTrigger>
+              <TabsTrigger value="specials" className="gap-2">
+                <Calendar className="h-4 w-4" />
+                Specials
               </TabsTrigger>
             </TabsList>
 
@@ -2040,6 +2091,302 @@ export default function PropertyForm() {
                       </tbody>
                     </table>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Specials Tab */}
+            <TabsContent value="specials">
+              <Card>
+                <CardHeader>
+                  <Tabs value={specialsCategory} onValueChange={setSpecialsCategory}>
+                    <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
+                      <TabsTrigger 
+                        value="accommodations"
+                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                      >
+                        Accommodations
+                      </TabsTrigger>
+                      <TabsTrigger 
+                        value="event-wedding"
+                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                      >
+                        Event/Wedding Venue
+                      </TabsTrigger>
+                      <TabsTrigger 
+                        value="conference"
+                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                      >
+                        Conference Venue
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </CardHeader>
+                <CardContent>
+                  {specialsCategory === 'conference' && (
+                    <div className="flex gap-4">
+                      {/* Left Sidebar - Specials List */}
+                      <div className="w-64 space-y-2">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-semibold text-sm">CONFERENCE SPECIALS</h3>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={addNewSpecial}>
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        {conferenceSpecials.map((special) => (
+                          <div
+                            key={special.id}
+                            className={`flex items-center justify-between p-3 rounded-md transition-colors ${
+                              selectedSpecial === special.id
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted hover:bg-muted/80'
+                            }`}
+                          >
+                            <span 
+                              className="text-sm font-medium flex-1 cursor-pointer"
+                              onClick={() => setSelectedSpecial(special.id)}
+                            >
+                              {special.name}
+                            </span>
+                            <div className="flex gap-1">
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                className="h-6 w-6 p-0"
+                                onClick={() => setIsEditSpecialOpen(true)}
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                className="h-6 w-6 p-0"
+                                onClick={() => deleteSpecial(special.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Main Content - Edit Special Dialog */}
+                      <Dialog open={isEditSpecialOpen} onOpenChange={setIsEditSpecialOpen}>
+                        <DialogTrigger asChild>
+                          <div className="flex-1 flex items-center justify-center border-2 border-dashed rounded-lg p-12 cursor-pointer hover:bg-muted/50">
+                            <div className="text-center">
+                              <p className="text-muted-foreground mb-2">Click to edit special</p>
+                              <Button>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit Special
+                              </Button>
+                            </div>
+                          </div>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                          <DialogHeader>
+                            <div className="flex items-center justify-between">
+                              <DialogTitle>Edit Special</DialogTitle>
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={specialForm.isPublic}
+                                  onCheckedChange={(checked) => 
+                                    setSpecialForm({ ...specialForm, isPublic: checked })
+                                  }
+                                />
+                                <Label>Public</Label>
+                              </div>
+                            </div>
+                          </DialogHeader>
+                          
+                          <Tabs value={specialDialogTab} onValueChange={setSpecialDialogTab}>
+                            <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
+                              <TabsTrigger 
+                                value="edit-special"
+                                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                              >
+                                Edit Special
+                              </TabsTrigger>
+                              <TabsTrigger 
+                                value="special-images"
+                                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                              >
+                                Special Images
+                              </TabsTrigger>
+                            </TabsList>
+
+                            <TabsContent value="edit-special" className="space-y-6 mt-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label>Name*</Label>
+                                  <Input
+                                    value={specialForm.name}
+                                    onChange={(e) => setSpecialForm({ ...specialForm, name: e.target.value })}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Description</Label>
+                                  <Textarea
+                                    rows={1}
+                                    value={specialForm.description}
+                                    onChange={(e) => setSpecialForm({ ...specialForm, description: e.target.value })}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>Seasons</Label>
+                                <div className="flex gap-2">
+                                  <Select
+                                    value={specialForm.season}
+                                    onValueChange={(value) => setSpecialForm({ ...specialForm, season: value })}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="08/05/2025-30/09/2025">08/05/2025-30/09/2025</SelectItem>
+                                      <SelectItem value="01/10/2025-30/09/2026">01/10/2025-30/09/2026</SelectItem>
+                                      <SelectItem value="01/10/2026-30/09/2027">01/10/2026-30/09/2027</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <Button size="icon" variant="outline">
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <h3 className="font-semibold">Period</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label>From / To</Label>
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <Button
+                                          variant="outline"
+                                          className={cn(
+                                            "w-full justify-start text-left font-normal",
+                                            !specialForm.periodFrom && "text-muted-foreground"
+                                          )}
+                                        >
+                                          <CalendarIcon className="mr-2 h-4 w-4" />
+                                          {specialForm.periodFrom ? format(specialForm.periodFrom, "yyyy-MM-dd") : "2025-11-18"}
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0" align="start">
+                                        <CalendarComponent
+                                          mode="single"
+                                          selected={specialForm.periodFrom}
+                                          onSelect={(date) => setSpecialForm({ ...specialForm, periodFrom: date })}
+                                          initialFocus
+                                        />
+                                      </PopoverContent>
+                                    </Popover>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>&nbsp;</Label>
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <Button
+                                          variant="outline"
+                                          className={cn(
+                                            "w-full justify-start text-left font-normal",
+                                            !specialForm.periodTo && "text-muted-foreground"
+                                          )}
+                                        >
+                                          <CalendarIcon className="mr-2 h-4 w-4" />
+                                          {specialForm.periodTo ? format(specialForm.periodTo, "yyyy-MM-dd") : "2025-11-18"}
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0" align="start">
+                                        <CalendarComponent
+                                          mode="single"
+                                          selected={specialForm.periodTo}
+                                          onSelect={(date) => setSpecialForm({ ...specialForm, periodTo: date })}
+                                          initialFocus
+                                        />
+                                      </PopoverContent>
+                                    </Popover>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="space-y-4">
+                                <h3 className="font-semibold">Pricing Config</h3>
+                                {!specialForm.pricingConfig && (
+                                  <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                                    <p className="text-sm text-red-700">
+                                      <strong>Info:</strong> Pricing Config is required
+                                    </p>
+                                  </div>
+                                )}
+                                <RadioGroup 
+                                  value={specialForm.pricingConfig}
+                                  onValueChange={(value: any) => setSpecialForm({ ...specialForm, pricingConfig: value })}
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="discount" id="discount" />
+                                    <Label htmlFor="discount">Discount (%)</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="fixed-amount" id="fixed-amount" />
+                                    <Label htmlFor="fixed-amount">Fixed Amount Off</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="fixed-price" id="fixed-price" />
+                                    <Label htmlFor="fixed-price">Fixed Price</Label>
+                                  </div>
+                                </RadioGroup>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label>Conferences Rate Type</Label>
+                                  <Input
+                                    value={specialForm.conferenceRateType}
+                                    onChange={(e) => setSpecialForm({ ...specialForm, conferenceRateType: e.target.value })}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Venue Hire</Label>
+                                  <Input
+                                    value={specialForm.venueHire}
+                                    onChange={(e) => setSpecialForm({ ...specialForm, venueHire: e.target.value })}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex justify-end gap-4 pt-4">
+                                <Button variant="outline" onClick={() => setIsEditSpecialOpen(false)}>
+                                  Cancel
+                                </Button>
+                                <Button onClick={() => setIsEditSpecialOpen(false)}>
+                                  Save
+                                </Button>
+                              </div>
+                            </TabsContent>
+
+                            <TabsContent value="special-images" className="space-y-4 mt-4">
+                              <p className="text-muted-foreground">Special images functionality coming soon...</p>
+                            </TabsContent>
+                          </Tabs>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  )}
+                  
+                  {specialsCategory === 'accommodations' && (
+                    <div className="text-center py-12 text-muted-foreground">
+                      Accommodation specials functionality coming soon...
+                    </div>
+                  )}
+                  
+                  {specialsCategory === 'event-wedding' && (
+                    <div className="text-center py-12 text-muted-foreground">
+                      Event/Wedding venue specials functionality coming soon...
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
