@@ -184,9 +184,19 @@ export default function PropertyForm() {
   
   // Room types state
   const [roomTypes, setRoomTypes] = useState<any[]>([
-    { id: '1', name: 'Holiday House', selected: true }
+    { id: '1', name: 'Holiday House', selected: true },
+    { id: '2', name: 'One Bedroom Suite', selected: false },
+    { id: '3', name: 'Petite Hotel Room', selected: false },
+    { id: '4', name: 'Two Bedroom Suite', selected: false }
   ]);
   const [selectedRoomType, setSelectedRoomType] = useState<string>('1');
+  
+  // Seasons state
+  const [seasons, setSeasons] = useState<any[]>([
+    { id: '1', title: '08/05/2025-30/09/2025', from: '2025-05-08', to: '2025-09-30', minStay: 5, maxStay: 0 },
+    { id: '2', title: '01/10/2025-30/09/2026', from: '2025-10-01', to: '2026-09-30', minStay: 5, maxStay: 0 },
+    { id: '3', title: '01/10/2026-30/09/2027', from: '2026-10-01', to: '2027-09-30', minStay: 5, maxStay: 0 }
+  ]);
 
   const handleInputChange = (field: keyof PropertyFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -404,7 +414,7 @@ export default function PropertyForm() {
                 <Info className="h-4 w-4" />
                 Room Information
               </TabsTrigger>
-              <TabsTrigger value="rates" className="gap-2" disabled>
+              <TabsTrigger value="rates" className="gap-2">
                 <DollarSign className="h-4 w-4" />
                 Rate Breakdown
               </TabsTrigger>
@@ -1561,6 +1571,175 @@ export default function PropertyForm() {
                   <Save className="mr-2 h-4 w-4" />
                   {loading ? "Saving..." : "Save Property"}
                 </Button>
+              </div>
+            </TabsContent>
+
+            {/* Rate Breakdown Tab */}
+            <TabsContent value="rates" className="space-y-0">
+              <div className="flex gap-4 h-[calc(100vh-250px)]">
+                {/* Left Sidebar - Room Types List */}
+                <div className="w-64 border-r bg-muted/30 p-4 space-y-2">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-sm">ROOM TYPES</h3>
+                    <Button size="sm" variant="outline" className="text-xs px-2 py-1">
+                      Sort by Created At
+                    </Button>
+                  </div>
+                  {roomTypes.map((room) => (
+                    <div
+                      key={room.id}
+                      onClick={() => setSelectedRoomType(room.id)}
+                      className={`p-3 rounded-md cursor-pointer transition-colors ${
+                        selectedRoomType === room.id
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted hover:bg-muted/80'
+                      }`}
+                    >
+                      <span className="text-sm font-medium">{room.name}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Main Content - Rate Breakdown Details */}
+                <div className="flex-1 overflow-auto">
+                  <Tabs defaultValue="season" className="w-full">
+                    <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
+                      <TabsTrigger 
+                        value="season"
+                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                      >
+                        Season
+                      </TabsTrigger>
+                      <TabsTrigger 
+                        value="rate-breakdown"
+                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                      >
+                        Rate Breakdown
+                      </TabsTrigger>
+                      <TabsTrigger 
+                        value="overview"
+                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                      >
+                        Overview
+                      </TabsTrigger>
+                    </TabsList>
+
+                    {/* Season Sub-tab */}
+                    <TabsContent value="season" className="p-6 space-y-4">
+                      <div className="flex justify-end">
+                        <Button className="gap-2">
+                          <Plus className="h-4 w-4" />
+                          Add Season
+                        </Button>
+                      </div>
+
+                      <div className="border rounded-lg overflow-hidden">
+                        <table className="w-full">
+                          <thead className="bg-muted">
+                            <tr>
+                              <th className="text-left p-3 font-semibold text-sm">TITLE</th>
+                              <th className="text-left p-3 font-semibold text-sm">FROM</th>
+                              <th className="text-left p-3 font-semibold text-sm">TO</th>
+                              <th className="w-20"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {seasons.map((season) => (
+                              <tr key={season.id} className="border-t hover:bg-muted/50">
+                                <td className="p-3">{season.title}</td>
+                                <td className="p-3 text-muted-foreground">{season.from}</td>
+                                <td className="p-3 text-muted-foreground">{season.to}</td>
+                                <td className="p-3">
+                                  <div className="flex gap-2 justify-end">
+                                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-blue-600">
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </TabsContent>
+
+                    {/* Rate Breakdown Sub-tab */}
+                    <TabsContent value="rate-breakdown" className="p-6 space-y-6">
+                      {seasons.map((season) => (
+                        <div key={season.id} className="space-y-4">
+                          <h3 className="text-lg font-semibold text-muted-foreground">
+                            Season: {season.title}
+                          </h3>
+                          
+                          <div className="border rounded-lg p-6 space-y-4 bg-card">
+                            <div className="text-center text-sm text-muted-foreground mb-4">
+                              Self Catering
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-6 max-w-md">
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium">UnitRate</Label>
+                                <Input 
+                                  type="number" 
+                                  defaultValue={season.id === '3' ? '7000' : '6500'}
+                                  className="text-center"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-sm font-medium">WeekendRate</Label>
+                                <Input 
+                                  type="number" 
+                                  defaultValue="0"
+                                  className="text-center"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      <div className="flex justify-end gap-4 pt-4">
+                        <Button variant="outline">Cancel</Button>
+                        <Button>Save</Button>
+                      </div>
+                    </TabsContent>
+
+                    {/* Overview Sub-tab */}
+                    <TabsContent value="overview" className="p-6 space-y-6">
+                      {seasons.map((season) => (
+                        <div key={season.id} className="space-y-4">
+                          <div className="flex items-baseline gap-4">
+                            <h3 className="font-semibold">{season.title}</h3>
+                            <div className="flex gap-6 text-sm text-muted-foreground">
+                              <div>
+                                <span className="font-medium">Minimum Stay</span>
+                                <span className="ml-2">{season.minStay}</span>
+                              </div>
+                              <div>
+                                <span className="font-medium">Maximum Stay</span>
+                                <span className="ml-2">{season.maxStay}</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="border rounded-lg p-6 bg-card">
+                            <div className="text-center text-sm text-muted-foreground">
+                              Self Catering
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      <div className="flex justify-end gap-4 pt-4">
+                        <Button variant="outline">Cancel</Button>
+                        <Button>Save</Button>
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </div>
               </div>
             </TabsContent>
 
