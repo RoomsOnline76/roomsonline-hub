@@ -178,16 +178,14 @@ const Admin = () => {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
-                              {property.property_url && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => window.open(property.property_url, "_blank")}
-                                  title="View Property Website"
-                                >
-                                  <Home className="h-4 w-4" />
-                                </Button>
-                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => window.open(`https://next.bookroomsonline.com/property/${property.id}/main/accommodation?sourceprop=${property.id}`, "_blank")}
+                                title="View Property Website"
+                              >
+                                <Home className="h-4 w-4" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
