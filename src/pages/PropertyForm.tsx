@@ -46,12 +46,15 @@ export default function PropertyForm() {
   const [isEvent, setIsEvent] = useState(false);
   const [isConference, setIsConference] = useState(false);
 
-  // Handle venues checkbox - if checked, check event and conference too
+  // Handle venues checkbox - if checked, check event and conference too; if unchecked, clear both
   const handleVenuesChange = (checked: boolean) => {
     setIsVenues(checked);
     if (checked) {
       setIsEvent(true);
       setIsConference(true);
+    } else {
+      setIsEvent(false);
+      setIsConference(false);
     }
   };
 
