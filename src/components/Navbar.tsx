@@ -1,8 +1,11 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Building2 } from "lucide-react";
+import { Building2, Key, LogOut } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Navbar = () => {
+  const { user, isAdmin, signOut } = useAuth();
+
   return (
     <nav className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4">
@@ -21,9 +24,29 @@ export const Navbar = () => {
             <Link to="/">
               <Button variant="ghost">Home</Button>
             </Link>
-            <Link to="/admin">
-              <Button variant="ghost">Admin</Button>
-            </Link>
+            {isAdmin && (
+              <>
+                <Link to="/admin">
+                  <Button variant="ghost">Admin</Button>
+                </Link>
+                <Link to="/admin/keys">
+                  <Button variant="ghost" className="flex items-center gap-2">
+                    <Key className="h-4 w-4" />
+                    API Keys
+                  </Button>
+                </Link>
+              </>
+            )}
+            {user ? (
+              <Button variant="ghost" onClick={signOut} className="flex items-center gap-2">
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </Button>
+            ) : (
+              <Link to="/auth">
+                <Button variant="default">Sign In</Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>

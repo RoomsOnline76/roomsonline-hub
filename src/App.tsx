@@ -6,7 +6,10 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import Results from "./pages/Results";
 import Admin from "./pages/Admin";
+import AdminKeys from "./pages/AdminKeys";
+import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -19,7 +22,23 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/results" element={<Results />} />
-          <Route path="/admin" element={<Admin />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <Admin />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/keys"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <AdminKeys />
+              </ProtectedRoute>
+            }
+          />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
