@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Building2, Settings, Edit, Trash2 } from "lucide-react";
+import { Building2, Settings, Edit, Trash2, Home, ExternalLink, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,13 +22,29 @@ const Admin = () => {
   const { data: properties, isLoading } = useQuery({
     queryKey: ["properties"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: propertiesData, error: propertiesError } = await supabase
         .from("properties")
         .select("*")
         .order("created_at", { ascending: false });
       
-      if (error) throw error;
-      return data;
+      if (propertiesError) throw propertiesError;
+
+      // Get booking counts for each property
+      const propertiesWithBookings = await Promise.all(
+        (propertiesData || []).map(async (property) => {
+          const { count } = await supabase
+            .from("bookings")
+            .select("*", { count: "exact", head: true })
+            .eq("property_id", property.id);
+          
+          return {
+            ...property,
+            total_bookings: count || 0,
+          };
+        })
+      );
+      
+      return propertiesWithBookings;
     },
   });
 
@@ -129,36 +145,54 @@ const Admin = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Property Name</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>City</TableHead>
-                        <TableHead>Country</TableHead>
-                        <TableHead>Max Guests</TableHead>
-                        <TableHead>Price/Night</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead>PROPERTY NAME</TableHead>
+                        <TableHead>OWNER NAME</TableHead>
+                        <TableHead>OWNER EMAIL</TableHead>
+                        <TableHead>OWNERLIST</TableHead>
+                        <TableHead>TOTAL BOOKINGS</TableHead>
+                        <TableHead>STATUS</TableHead>
+                        <TableHead className="text-right">ACTION</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {properties.map((property) => (
                         <TableRow key={property.id}>
                           <TableCell className="font-medium">{property.name}</TableCell>
-                          <TableCell className="capitalize">{property.property_type}</TableCell>
-                          <TableCell>{property.city}</TableCell>
-                          <TableCell>{property.country}</TableCell>
-                          <TableCell>{property.max_guests}</TableCell>
-                          <TableCell>${property.price_per_night}</TableCell>
+                          <TableCell>{property.owner_name || "-"}</TableCell>
+                          <TableCell>{property.owner_email || "-"}</TableCell>
                           <TableCell>
-                            <Badge variant={property.is_active ? "default" : "secondary"}>
+                            <div className="flex items-center justify-center">
+                              <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center">
+                                <CheckCircle2 className="h-5 w-5 text-white" />
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{property.total_bookings || 0}</TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={property.is_active ? "default" : "secondary"}
+                              className={property.is_active ? "bg-green-100 text-green-800 hover:bg-green-100" : ""}
+                            >
                               {property.is_active ? "Active" : "Inactive"}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
+                              {property.property_url && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => window.open(property.property_url, "_blank")}
+                                  title="View Property Website"
+                                >
+                                  <Home className="h-4 w-4" />
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => navigate(`/admin/properties/${property.id}`)}
+                                title="Edit Property"
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
@@ -166,6 +200,7 @@ const Admin = () => {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => handleDeleteProperty(property.id)}
+                                title="Delete Property"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
