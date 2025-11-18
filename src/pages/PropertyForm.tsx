@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X, Plus, Minus, FileText, Check } from "lucide-react";
+import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X, Plus, Minus, FileText, Check, Upload, Heart } from "lucide-react";
 import { StarRating } from "@/components/StarRating";
 
 const propertySchema = z.object({
@@ -179,6 +179,8 @@ export default function PropertyForm() {
     { forfeit: "10", type: "% of Total", days: "999" },
     { forfeit: "100", type: "% of Total", days: "30" },
   ]);
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   const handleInputChange = (field: keyof PropertyFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -204,6 +206,58 @@ export default function PropertyForm() {
     const updated = [...cancellationPolicies];
     updated[index] = { ...updated[index], [field]: value };
     setCancellationPolicies(updated);
+  };
+
+  const handleImageUpload = async (files: FileList | null) => {
+    if (!files) return;
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith("image/")) continue;
+
+      try {
+        const fileExt = file.name.split(".").pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("property-images")
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from("property-images")
+          .getPublicUrl(filePath);
+
+        setUploadedImages((prev) => [...prev, publicUrl]);
+      } catch (error) {
+        toast({
+          title: "Upload failed",
+          description: "Failed to upload image",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleImageUpload(e.dataTransfer.files);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const removeImage = (index: number) => {
+    setUploadedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const facilities = {
@@ -336,7 +390,7 @@ export default function PropertyForm() {
                 <FileText className="h-4 w-4" />
                 House Rules
               </TabsTrigger>
-              <TabsTrigger value="images" className="gap-2" disabled>
+              <TabsTrigger value="images" className="gap-2">
                 <Image className="h-4 w-4" />
                 Property Images
               </TabsTrigger>
@@ -1409,6 +1463,99 @@ export default function PropertyForm() {
                   </Button>
                 </div>
               </form>
+            </TabsContent>
+
+            <TabsContent value="images">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Property Images</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    {/* Upload Area */}
+                    <div
+                      className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer transition-colors ${
+                        isDragging
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary"
+                      }`}
+                      onDrop={handleDrop}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onClick={() => document.getElementById("image-upload")?.click()}
+                    >
+                      <Upload className="h-12 w-12 text-muted-foreground mb-4" />
+                      <p className="text-sm text-muted-foreground text-center">
+                        Click or Drag and drop image to upload
+                      </p>
+                      <input
+                        id="image-upload"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => handleImageUpload(e.target.files)}
+                      />
+                    </div>
+
+                    {/* Image Grid */}
+                    <div className="lg:col-span-3">
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {/* Render uploaded images */}
+                        {uploadedImages.map((imageUrl, index) => (
+                          <div
+                            key={index}
+                            className="relative aspect-square rounded-lg overflow-hidden border border-border group"
+                          >
+                            <img
+                              src={imageUrl}
+                              alt={`Property ${index + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            {index === 0 && (
+                              <div className="absolute top-2 left-2 bg-destructive rounded-full p-1.5">
+                                <Heart className="h-4 w-4 text-white fill-white" />
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => removeImage(index)}
+                              className="absolute top-2 right-2 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="h-4 w-4 text-white" />
+                            </button>
+                          </div>
+                        ))}
+
+                        {/* Empty slots */}
+                        {Array.from(
+                          { length: Math.max(0, 12 - uploadedImages.length) },
+                          (_, index) => (
+                            <div
+                              key={`empty-${index}`}
+                              className="relative aspect-square rounded-lg border-2 border-dashed border-border bg-muted/20 flex items-center justify-center"
+                            >
+                              <div className="absolute top-2 right-2 bg-muted rounded-full p-1.5">
+                                <X className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="flex justify-end gap-4 mt-6">
+                <Button type="button" variant="outline" onClick={() => navigate("/admin")}>
+                  Cancel
+                </Button>
+                <Button type="button" disabled={loading}>
+                  <Save className="mr-2 h-4 w-4" />
+                  {loading ? "Saving..." : "Save Property"}
+                </Button>
+              </div>
             </TabsContent>
           </Tabs>
         </div>
