@@ -13,20 +13,37 @@ import { Building2, Settings, Edit, Trash2, Home, ExternalLink, CheckCircle2 } f
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 const Admin = () => {
   const navigate = useNavigate();
+  const { user, isAdmin } = useAuth();
   const [businessName, setBusinessName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [currency, setCurrency] = useState("USD");
 
   const { data: properties, isLoading } = useQuery({
-    queryKey: ["properties"],
+    queryKey: ["properties", user?.id, isAdmin],
     queryFn: async () => {
-      const { data: propertiesData, error: propertiesError } = await supabase
+      // Get current user's profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("id", user?.id)
+        .single();
+
+      // Build query based on role
+      let query = supabase
         .from("properties")
         .select("*")
         .order("created_at", { ascending: false });
+
+      // If not admin, filter by owner email
+      if (!isAdmin && profile?.email) {
+        query = query.eq("owner_email", profile.email);
+      }
+
+      const { data: propertiesData, error: propertiesError } = await query;
       
       if (propertiesError) throw propertiesError;
 

@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Building2, Key, LogOut, User, ChevronDown } from "lucide-react";
+import { Building2, Key, LogOut, User, ChevronDown, Shield } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,10 +71,16 @@ export const Navbar = () => {
                 <Link to="/admin">
                   <Button variant="ghost">Admin</Button>
                 </Link>
-                <Link to="/admin/keys">
+                <Link to="/admin-keys">
                   <Button variant="ghost" className="flex items-center gap-2">
                     <Key className="h-4 w-4" />
                     API Keys
+                  </Button>
+                </Link>
+                <Link to="/admin-users">
+                  <Button variant="ghost" className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Users
                   </Button>
                 </Link>
               </>
@@ -90,7 +96,7 @@ export const Navbar = () => {
                     <div className="flex flex-col items-start">
                       <span className="text-sm font-medium">{profile?.email || user.email}</span>
                       <span className="text-xs text-muted-foreground capitalize">
-                        {profile?.role === "user" ? "PropertyOwner" : profile?.role}
+                        {isAdmin ? "Admin" : "Property Owner"}
                       </span>
                     </div>
                     <ChevronDown className="h-4 w-4" />
