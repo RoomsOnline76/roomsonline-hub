@@ -85,6 +85,22 @@ export default function PropertyForm() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [owners, setOwners] = useState<any[]>([]);
+
+  // Load owners list
+  useEffect(() => {
+    const loadOwners = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("full_name");
+      
+      if (data) {
+        setOwners(data);
+      }
+    };
+    loadOwners();
+  }, []);
 
   // Offerings
   const [isAccommodation, setIsAccommodation] = useState(true);
@@ -1307,23 +1323,26 @@ export default function PropertyForm() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="owner_name">Owner Name</Label>
-                        <Input
-                          id="owner_name"
-                          value={formData.owner_name}
-                          onChange={(e) => handleInputChange("owner_name", e.target.value)}
-                          placeholder="Owner name"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="owner_email">Owner Email</Label>
-                        <Input
-                          id="owner_email"
-                          type="email"
+                        <Label htmlFor="owner_email">Select Owner</Label>
+                        <Select
                           value={formData.owner_email}
-                          onChange={(e) => handleInputChange("owner_email", e.target.value)}
-                          placeholder="owner@example.com"
-                        />
+                          onValueChange={(value) => {
+                            const selectedOwner = owners.find(o => o.email === value);
+                            handleInputChange("owner_email", value);
+                            handleInputChange("owner_name", selectedOwner?.full_name || "");
+                          }}
+                        >
+                          <SelectTrigger id="owner_email">
+                            <SelectValue placeholder="Select an owner" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {owners.map((owner) => (
+                              <SelectItem key={owner.id} value={owner.email}>
+                                {owner.full_name || owner.email}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </CardContent>
