@@ -51,14 +51,11 @@ serve(async (req) => {
       throw new Error('Invalid role');
     }
 
-    // Check if user already exists
-    const { data: existingUser } = await supabaseAdmin
-      .from('profiles')
-      .select('id')
-      .eq('email', email)
-      .maybeSingle();
+    // Check if user already exists in auth
+    const { data: { users: existingAuthUsers } } = await supabaseAdmin.auth.admin.listUsers();
+    const userExists = existingAuthUsers.some(u => u.email === email);
 
-    if (existingUser) {
+    if (userExists) {
       throw new Error('User with this email already exists');
     }
 
@@ -73,23 +70,27 @@ serve(async (req) => {
 
     if (createError) throw createError;
 
-    // Create profile
+    // Create or update profile
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
-      .insert({
+      .upsert({
         id: newUser.user.id,
         email,
         full_name,
+      }, {
+        onConflict: 'id'
       });
 
     if (profileError) throw profileError;
 
-    // Create role
+    // Create or update role
     const { error: roleError } = await supabaseAdmin
       .from('user_roles')
-      .insert({
+      .upsert({
         user_id: newUser.user.id,
         role,
+      }, {
+        onConflict: 'user_id,role'
       });
 
     if (roleError) throw roleError;
@@ -100,7 +101,15 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error('Error creating user:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    let errorMessage = 'An unknown error occurred';
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'object' && error !== null) {
+      // Handle Postgres errors and other structured errors
+      errorMessage = (error as any).message || JSON.stringify(error);
+    }
+    
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
