@@ -22,7 +22,7 @@ const Admin = () => {
   const [contactEmail, setContactEmail] = useState("");
   const [currency, setCurrency] = useState("USD");
 
-  const { data: properties, isLoading } = useQuery({
+  const { data: properties, isLoading, refetch } = useQuery({
     queryKey: ["properties", user?.id, isAdmin],
     queryFn: async () => {
       // Get current user's profile

@@ -13,11 +13,13 @@ import { Building2, Key, LogOut, User, ChevronDown, Shield } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { ProfileModal } from "@/components/ProfileModal";
 
 export const Navbar = () => {
   const { user, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -46,6 +48,10 @@ export const Navbar = () => {
       return profile.email.substring(0, 2).toUpperCase();
     }
     return "U";
+  };
+
+  const handleProfileUpdate = () => {
+    loadProfile();
   };
 
   return (
@@ -94,7 +100,7 @@ export const Navbar = () => {
                       <AvatarFallback className="text-xs">{getInitials()}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col items-start">
-                      <span className="text-sm font-medium">{profile?.email || user.email}</span>
+                      <span className="text-sm font-medium">{profile?.full_name || profile?.email || user.email}</span>
                       <span className="text-xs text-muted-foreground capitalize">
                         {isAdmin ? "Admin" : "Property Owner"}
                       </span>
@@ -105,7 +111,7 @@ export const Navbar = () => {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate("/profile")}>
+                  <DropdownMenuItem onClick={() => setProfileModalOpen(true)}>
                     <User className="mr-2 h-4 w-4" />
                     Your profile
                   </DropdownMenuItem>
@@ -124,6 +130,12 @@ export const Navbar = () => {
           </div>
         </div>
       </div>
+
+      <ProfileModal 
+        open={profileModalOpen} 
+        onOpenChange={setProfileModalOpen}
+        onProfileUpdate={handleProfileUpdate}
+      />
     </nav>
   );
 };
