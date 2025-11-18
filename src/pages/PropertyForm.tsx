@@ -276,11 +276,58 @@ export default function PropertyForm() {
     saturday: false
   });
   const [addonDialogTab, setAddonDialogTab] = useState<string>('addon');
+  const [addonImages, setAddonImages] = useState<string[]>([]);
+  const [isAddonImageDragging, setIsAddonImageDragging] = useState(false);
+  
+  const handleAddonImageUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      try {
+        const { error: uploadError } = await supabase.storage
+          .from('addon-images')
+          .upload(filePath, file);
+
+        if (uploadError) {
+          toast({
+            title: "Upload Failed",
+            description: uploadError.message,
+            variant: "destructive",
+          });
+          continue;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('addon-images')
+          .getPublicUrl(filePath);
+
+        setAddonImages([...addonImages, publicUrl]);
+      } catch (error) {
+        console.error('Error uploading image:', error);
+      }
+    }
+  };
+
+  const handleAddonImageDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsAddonImageDragging(false);
+    handleAddonImageUpload(e.dataTransfer.files);
+  };
+
+  const removeAddonImage = (index: number) => {
+    setAddonImages(addonImages.filter((_, i) => i !== index));
+  };
   
   const handleAddAddon = () => {
     const newAddon = {
       id: Date.now().toString(),
       ...addonForm,
+      images: addonImages,
       offerings: [
         addonForm.offeringsAccommodation && 'Accommodation',
         addonForm.offeringsVenue && 'Venue'
@@ -307,6 +354,7 @@ export default function PropertyForm() {
       friday: false,
       saturday: false
     });
+    setAddonImages([]);
     toast({
       title: "Addon Added",
       description: "The addon has been added successfully",
@@ -2036,7 +2084,82 @@ export default function PropertyForm() {
                         </TabsContent>
 
                         <TabsContent value="addon-images" className="space-y-4 mt-4">
-                          <p className="text-muted-foreground">Addon images functionality coming soon...</p>
+                          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                            {/* Upload Area */}
+                            <div
+                              className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer transition-colors ${
+                                isAddonImageDragging
+                                  ? "border-primary bg-primary/5"
+                                  : "border-border hover:border-primary"
+                              }`}
+                              onDrop={handleAddonImageDrop}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                setIsAddonImageDragging(true);
+                              }}
+                              onDragLeave={() => setIsAddonImageDragging(false)}
+                              onClick={() => document.getElementById("addon-image-upload")?.click()}
+                            >
+                              <Upload className="h-12 w-12 text-muted-foreground mb-4" />
+                              <p className="text-sm text-muted-foreground text-center">
+                                Click or Drag and drop image to upload
+                              </p>
+                              <input
+                                id="addon-image-upload"
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                className="hidden"
+                                onChange={(e) => handleAddonImageUpload(e.target.files)}
+                              />
+                            </div>
+
+                            {/* Image Grid */}
+                            <div className="lg:col-span-3">
+                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                {/* Render uploaded images */}
+                                {addonImages.map((imageUrl, index) => (
+                                  <div
+                                    key={index}
+                                    className="relative aspect-square rounded-lg overflow-hidden border border-border group"
+                                  >
+                                    <img
+                                      src={imageUrl}
+                                      alt={`Addon ${index + 1}`}
+                                      className="w-full h-full object-cover"
+                                    />
+                                    {index === 0 && (
+                                      <div className="absolute top-2 left-2 bg-destructive rounded-full p-1.5">
+                                        <Heart className="h-4 w-4 text-white fill-white" />
+                                      </div>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => removeAddonImage(index)}
+                                      className="absolute top-2 right-2 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                      <X className="h-4 w-4 text-white" />
+                                    </button>
+                                  </div>
+                                ))}
+
+                                {/* Empty slots */}
+                                {Array.from(
+                                  { length: Math.max(0, 12 - addonImages.length) },
+                                  (_, index) => (
+                                    <div
+                                      key={`empty-${index}`}
+                                      className="relative aspect-square rounded-lg border-2 border-dashed border-border bg-muted/20 flex items-center justify-center"
+                                    >
+                                      <div className="absolute top-2 right-2 bg-muted rounded-full p-1.5">
+                                        <X className="h-4 w-4 text-muted-foreground" />
+                                      </div>
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </TabsContent>
                       </Tabs>
                     </DialogContent>
