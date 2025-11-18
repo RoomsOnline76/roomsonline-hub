@@ -27,6 +27,10 @@ const propertySchema = z.object({
   suburb: z.string().optional(),
   postal_code: z.string().optional(),
   bb_id: z.string().optional(),
+  venue_id: z.string().optional(),
+  channel_id: z.string().optional(),
+  account_id: z.string().optional(),
+  agent_id: z.string().optional(),
 });
 
 type PropertyFormData = z.infer<typeof propertySchema>;
@@ -60,6 +64,10 @@ export default function PropertyForm() {
     suburb: "",
     postal_code: "",
     bb_id: "",
+    venue_id: "",
+    channel_id: "",
+    account_id: "",
+    agent_id: "",
   });
 
   const handleInputChange = (field: keyof PropertyFormData, value: string) => {
@@ -81,7 +89,13 @@ export default function PropertyForm() {
         address: formData.address,
         city: formData.city,
         country: formData.country,
-        external_system: isNightsBridge ? "nightsbridge" : isSemperProperty ? "semper" : null,
+        external_system: isNightsBridge && isSemperProperty 
+          ? "nightsbridge,semper" 
+          : isNightsBridge 
+          ? "nightsbridge" 
+          : isSemperProperty 
+          ? "semper" 
+          : null,
         external_id: formData.bb_id || null,
         is_active: true,
         max_guests: 2, // Default value, can be updated later
@@ -103,6 +117,13 @@ export default function PropertyForm() {
             postal_code: formData.postal_code,
           },
           currency: formData.currency,
+          external_ids: {
+            nightsbridge_bb_id: isNightsBridge ? formData.bb_id : null,
+            semper_venue_id: isSemperProperty ? formData.venue_id : null,
+            semper_channel_id: isSemperProperty ? formData.channel_id : null,
+            semper_account_id: isSemperProperty ? formData.account_id : null,
+            semper_agent_id: isSemperProperty ? formData.agent_id : null,
+          },
         },
       };
 
@@ -225,10 +246,7 @@ export default function PropertyForm() {
                           <Checkbox
                             id="nightsbridge"
                             checked={isNightsBridge}
-                            onCheckedChange={(checked) => {
-                              setIsNightsBridge(checked as boolean);
-                              if (checked) setIsSemperProperty(false);
-                            }}
+                            onCheckedChange={(checked) => setIsNightsBridge(checked as boolean)}
                           />
                           <Label htmlFor="nightsbridge" className="cursor-pointer">
                             NightsBridge Property
@@ -238,10 +256,7 @@ export default function PropertyForm() {
                           <Checkbox
                             id="semper"
                             checked={isSemperProperty}
-                            onCheckedChange={(checked) => {
-                              setIsSemperProperty(checked as boolean);
-                              if (checked) setIsNightsBridge(false);
-                            }}
+                            onCheckedChange={(checked) => setIsSemperProperty(checked as boolean)}
                           />
                           <Label htmlFor="semper" className="cursor-pointer">
                             Semper Property
@@ -249,15 +264,56 @@ export default function PropertyForm() {
                         </div>
                       </div>
 
-                      {(isNightsBridge || isSemperProperty) && (
+                      {isNightsBridge && (
                         <div className="max-w-xs">
-                          <Label htmlFor="bb_id">BB ID</Label>
+                          <Label htmlFor="bb_id">BBID</Label>
                           <Input
                             id="bb_id"
                             value={formData.bb_id}
                             onChange={(e) => handleInputChange("bb_id", e.target.value)}
-                            placeholder="Enter BB ID"
+                            placeholder="13402"
                           />
+                        </div>
+                      )}
+
+                      {isSemperProperty && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="venue_id">VENUE ID</Label>
+                            <Input
+                              id="venue_id"
+                              value={formData.venue_id}
+                              onChange={(e) => handleInputChange("venue_id", e.target.value)}
+                              placeholder="Enter venue ID"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="channel_id">CHANNEL ID</Label>
+                            <Input
+                              id="channel_id"
+                              value={formData.channel_id}
+                              onChange={(e) => handleInputChange("channel_id", e.target.value)}
+                              placeholder="Enter channel ID"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="account_id">ACCOUNT ID</Label>
+                            <Input
+                              id="account_id"
+                              value={formData.account_id}
+                              onChange={(e) => handleInputChange("account_id", e.target.value)}
+                              placeholder="Enter account ID"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="agent_id">AGENT ID</Label>
+                            <Input
+                              id="agent_id"
+                              value={formData.agent_id}
+                              onChange={(e) => handleInputChange("agent_id", e.target.value)}
+                              placeholder="Enter agent ID"
+                            />
+                          </div>
                         </div>
                       )}
                     </div>
