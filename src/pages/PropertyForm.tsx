@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X, Plus, Minus, FileText, Check, Upload, Heart, Edit, Trash2, Copy, Link } from "lucide-react";
 import { StarRating } from "@/components/StarRating";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 const propertySchema = z.object({
   name: z.string().min(1, "Property name is required").max(200),
@@ -245,6 +246,73 @@ export default function PropertyForm() {
   const [preMailerHours, setPreMailerHours] = useState<number>(0);
   const [postMailerDays, setPostMailerDays] = useState<number>(0);
   const [postMailerHours, setPostMailerHours] = useState<number>(0);
+  
+  // Addons state
+  const [addons, setAddons] = useState<any[]>([]);
+  const [isAddAddonOpen, setIsAddAddonOpen] = useState(false);
+  const [addonForm, setAddonForm] = useState({
+    name: '',
+    offeringsAccommodation: false,
+    offeringsVenue: false,
+    description: '',
+    priceType: 'Price Per Item',
+    price: 0,
+    hasCapacity: false,
+    capacity: 0,
+    allDays: false,
+    sunday: false,
+    monday: false,
+    tuesday: false,
+    wednesday: false,
+    thursday: false,
+    friday: false,
+    saturday: false
+  });
+  const [addonDialogTab, setAddonDialogTab] = useState<string>('addon');
+  
+  const handleAddAddon = () => {
+    const newAddon = {
+      id: Date.now().toString(),
+      ...addonForm,
+      offerings: [
+        addonForm.offeringsAccommodation && 'Accommodation',
+        addonForm.offeringsVenue && 'Venue'
+      ].filter(Boolean).join(', ')
+    };
+    setAddons([...addons, newAddon]);
+    setIsAddAddonOpen(false);
+    // Reset form
+    setAddonForm({
+      name: '',
+      offeringsAccommodation: false,
+      offeringsVenue: false,
+      description: '',
+      priceType: 'Price Per Item',
+      price: 0,
+      hasCapacity: false,
+      capacity: 0,
+      allDays: false,
+      sunday: false,
+      monday: false,
+      tuesday: false,
+      wednesday: false,
+      thursday: false,
+      friday: false,
+      saturday: false
+    });
+    toast({
+      title: "Addon Added",
+      description: "The addon has been added successfully",
+    });
+  };
+  
+  const deleteAddon = (id: string) => {
+    setAddons(addons.filter(a => a.id !== id));
+    toast({
+      title: "Addon Deleted",
+      description: "The addon has been removed",
+    });
+  };
 
   const handleInputChange = (field: keyof PropertyFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -469,6 +537,10 @@ export default function PropertyForm() {
               <TabsTrigger value="templates" className="gap-2">
                 <Bell className="h-4 w-4" />
                 Templates and Notifications
+              </TabsTrigger>
+              <TabsTrigger value="addons" className="gap-2">
+                <Package className="h-4 w-4" />
+                Addons
               </TabsTrigger>
             </TabsList>
 
@@ -1744,6 +1816,232 @@ export default function PropertyForm() {
                   Save
                 </Button>
               </div>
+            </TabsContent>
+
+            {/* Addons Tab */}
+            <TabsContent value="addons">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>ADDONS</CardTitle>
+                  <Dialog open={isAddAddonOpen} onOpenChange={setIsAddAddonOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        Add Addon
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Add Addon</DialogTitle>
+                      </DialogHeader>
+                      
+                      <Tabs value={addonDialogTab} onValueChange={setAddonDialogTab}>
+                        <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
+                          <TabsTrigger 
+                            value="addon"
+                            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                          >
+                            Addon
+                          </TabsTrigger>
+                          <TabsTrigger 
+                            value="addon-images"
+                            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                          >
+                            Addon Images
+                          </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="addon" className="space-y-4 mt-4">
+                          <div className="space-y-2">
+                            <Label>Name</Label>
+                            <Input
+                              value={addonForm.name}
+                              onChange={(e) => setAddonForm({ ...addonForm, name: e.target.value })}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Offerings for: *</Label>
+                            <div className="flex gap-4">
+                              <div className="flex items-center gap-2">
+                                <Checkbox
+                                  id="addon-accommodation"
+                                  checked={addonForm.offeringsAccommodation}
+                                  onCheckedChange={(checked) => 
+                                    setAddonForm({ ...addonForm, offeringsAccommodation: checked as boolean })
+                                  }
+                                />
+                                <Label htmlFor="addon-accommodation" className="cursor-pointer">
+                                  Accommodation
+                                </Label>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Checkbox
+                                  id="addon-venue"
+                                  checked={addonForm.offeringsVenue}
+                                  onCheckedChange={(checked) => 
+                                    setAddonForm({ ...addonForm, offeringsVenue: checked as boolean })
+                                  }
+                                />
+                                <Label htmlFor="addon-venue" className="cursor-pointer">
+                                  Venue
+                                </Label>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Description</Label>
+                            <Textarea
+                              rows={4}
+                              value={addonForm.description}
+                              onChange={(e) => setAddonForm({ ...addonForm, description: e.target.value })}
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Price Type</Label>
+                              <Select
+                                value={addonForm.priceType}
+                                onValueChange={(value) => setAddonForm({ ...addonForm, priceType: value })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Price Per Item">Price Per Item</SelectItem>
+                                  <SelectItem value="Price Per Person">Price Per Person</SelectItem>
+                                  <SelectItem value="Price Per Night">Price Per Night</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Price</Label>
+                              <Input
+                                type="number"
+                                value={addonForm.price}
+                                onChange={(e) => setAddonForm({ ...addonForm, price: Number(e.target.value) })}
+                                min="0"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Capacity</Label>
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id="addon-capacity"
+                                checked={addonForm.hasCapacity}
+                                onCheckedChange={(checked) => 
+                                  setAddonForm({ ...addonForm, hasCapacity: checked as boolean })
+                                }
+                              />
+                              <Label htmlFor="addon-capacity" className="cursor-pointer">Capacity</Label>
+                              <Input
+                                type="number"
+                                className="w-32"
+                                value={addonForm.capacity}
+                                onChange={(e) => setAddonForm({ ...addonForm, capacity: Number(e.target.value) })}
+                                min="0"
+                                disabled={!addonForm.hasCapacity}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Days*</Label>
+                            <div className="flex flex-wrap gap-4">
+                              <div className="flex items-center gap-2">
+                                <Checkbox
+                                  id="addon-all-days"
+                                  checked={addonForm.allDays}
+                                  onCheckedChange={(checked) => 
+                                    setAddonForm({ ...addonForm, allDays: checked as boolean })
+                                  }
+                                />
+                                <Label htmlFor="addon-all-days" className="cursor-pointer">All days</Label>
+                              </div>
+                              {['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].map((day) => (
+                                <div key={day} className="flex items-center gap-2">
+                                  <Checkbox
+                                    id={`addon-${day}`}
+                                    checked={addonForm[day as keyof typeof addonForm] as boolean}
+                                    onCheckedChange={(checked) => 
+                                      setAddonForm({ ...addonForm, [day]: checked as boolean })
+                                    }
+                                  />
+                                  <Label htmlFor={`addon-${day}`} className="cursor-pointer capitalize">
+                                    {day}
+                                  </Label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end pt-4">
+                            <Button onClick={handleAddAddon}>Create</Button>
+                          </div>
+                        </TabsContent>
+
+                        <TabsContent value="addon-images" className="space-y-4 mt-4">
+                          <p className="text-muted-foreground">Addon images functionality coming soon...</p>
+                        </TabsContent>
+                      </Tabs>
+                    </DialogContent>
+                  </Dialog>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-muted">
+                        <tr>
+                          <th className="text-left p-3 font-semibold text-sm">ITEM</th>
+                          <th className="text-left p-3 font-semibold text-sm">DESCRIPTION</th>
+                          <th className="text-left p-3 font-semibold text-sm">PRICE TYPE</th>
+                          <th className="text-left p-3 font-semibold text-sm">CAPACITY</th>
+                          <th className="text-left p-3 font-semibold text-sm">PRICE</th>
+                          <th className="text-left p-3 font-semibold text-sm">OPTIONS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {addons.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                              No addons yet. Click "+ Add Addon" to create one.
+                            </td>
+                          </tr>
+                        ) : (
+                          addons.map((addon) => (
+                            <tr key={addon.id} className="border-t hover:bg-muted/50">
+                              <td className="p-3">{addon.name}</td>
+                              <td className="p-3 text-sm text-muted-foreground">{addon.description}</td>
+                              <td className="p-3">{addon.priceType}</td>
+                              <td className="p-3">{addon.hasCapacity ? addon.capacity : '-'}</td>
+                              <td className="p-3">{addon.price}</td>
+                              <td className="p-3">
+                                <div className="flex gap-2">
+                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost" 
+                                    className="h-8 w-8 p-0 text-destructive"
+                                    onClick={() => deleteAddon(addon.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             {/* Rate Breakdown Tab */}
