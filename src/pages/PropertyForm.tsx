@@ -33,7 +33,6 @@ const propertySchema = z.object({
   currency: z.string().min(1, "Currency is required"),
   owner_name: z.string().optional(),
   owner_email: z.string().email("Invalid email address").optional().or(z.literal("")),
-  property_url: z.string().url("Invalid URL").optional().or(z.literal("")),
   country: z.string().min(1, "Country is required"),
   city: z.string().min(1, "City is required"),
   address: z.string().min(1, "Street name is required"),
@@ -143,7 +142,6 @@ export default function PropertyForm() {
     currency: "ZAR",
     owner_name: "",
     owner_email: "",
-    property_url: "",
     country: "South Africa",
     city: "",
     address: "",
@@ -628,7 +626,6 @@ export default function PropertyForm() {
             currency: amenities?.currency || "ZAR",
             owner_name: data.owner_name || "",
             owner_email: data.owner_email || "",
-            property_url: data.property_url || "",
             country: data.country || "South Africa",
             city: data.city || "",
             address: data.address || "",
@@ -920,7 +917,6 @@ export default function PropertyForm() {
         country: formData.country,
         owner_name: formData.owner_name || null,
         owner_email: formData.owner_email || null,
-        property_url: formData.property_url || null,
         external_system: isNightsBridge && isSemperProperty 
           ? "nightsbridge,semper" 
           : isNightsBridge 
@@ -1323,16 +1319,6 @@ export default function PropertyForm() {
                           value={formData.owner_email}
                           onChange={(e) => handleInputChange("owner_email", e.target.value)}
                           placeholder="owner@example.com"
-                        />
-                      </div>
-                      <div className="space-y-2 md:col-span-3">
-                        <Label htmlFor="property_url">Property URL</Label>
-                        <Input
-                          id="property_url"
-                          type="url"
-                          value={formData.property_url}
-                          onChange={(e) => handleInputChange("property_url", e.target.value)}
-                          placeholder="https://next.bookroomsonline.com/property/..."
                         />
                       </div>
                     </div>
