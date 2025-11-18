@@ -409,6 +409,146 @@ export default function PropertyForm() {
     }
   };
 
+  // Packages state
+  const [packagesCategory, setPackagesCategory] = useState<"accommodations" | "event" | "conference">("accommodations");
+  const [packages, setPackages] = useState<any[]>([]);
+  const [selectedPackage, setSelectedPackage] = useState<any>(null);
+  const [isEditPackageOpen, setIsEditPackageOpen] = useState(false);
+  const [isPackageImagesOpen, setIsPackageImagesOpen] = useState(false);
+  const [packageDialogTab, setPackageDialogTab] = useState("edit");
+  const [packageForm, setPackageForm] = useState({
+    name: "",
+    description: "",
+    minimumStay: 1,
+    maximumStay: 1,
+    season: "",
+    periodFrom: undefined as Date | undefined,
+    periodTo: undefined as Date | undefined,
+    pricingType: "discount",
+    isPublic: false,
+    images: [] as string[],
+  });
+  const [packageImages, setPackageImages] = useState<string[]>([]);
+  const [isPackageImageDragging, setIsPackageImageDragging] = useState(false);
+
+  const addNewPackage = () => {
+    const newPackage = {
+      id: Date.now().toString(),
+      ...packageForm,
+      category: packagesCategory,
+    };
+    setPackages([...packages, newPackage]);
+    setSelectedPackage(newPackage);
+    setIsEditPackageOpen(false);
+    setPackageForm({
+      name: "",
+      description: "",
+      minimumStay: 1,
+      maximumStay: 1,
+      season: "",
+      periodFrom: undefined,
+      periodTo: undefined,
+      pricingType: "discount",
+      isPublic: false,
+      images: [],
+    });
+    toast({
+      title: "Package created",
+      description: "The package has been created successfully.",
+    });
+  };
+
+  const deletePackage = (id: string) => {
+    setPackages(packages.filter(p => p.id !== id));
+    if (selectedPackage?.id === id) {
+      setSelectedPackage(null);
+    }
+    toast({
+      title: "Package deleted",
+      description: "The package has been removed successfully.",
+    });
+  };
+
+  const handlePackageImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `packages/${fileName}`;
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('package-images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from('package-images')
+        .getPublicUrl(filePath);
+
+      setPackageImages([...packageImages, data.publicUrl]);
+      setPackageForm({ ...packageForm, images: [...packageForm.images, data.publicUrl] });
+
+      toast({
+        title: "Image uploaded",
+        description: "Package image has been uploaded successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Upload failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePackageImageDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsPackageImageDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `packages/${fileName}`;
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('package-images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from('package-images')
+        .getPublicUrl(filePath);
+
+      setPackageImages([...packageImages, data.publicUrl]);
+      setPackageForm({ ...packageForm, images: [...packageForm.images, data.publicUrl] });
+
+      toast({
+        title: "Image uploaded",
+        description: "Package image has been uploaded successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Upload failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const removePackageImage = (imageUrl: string) => {
+    setPackageImages(packageImages.filter(img => img !== imageUrl));
+    setPackageForm({ ...packageForm, images: packageForm.images.filter(img => img !== imageUrl) });
+  };
+
   const handleInputChange = (field: keyof PropertyFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -640,6 +780,10 @@ export default function PropertyForm() {
               <TabsTrigger value="specials" className="gap-2">
                 <Calendar className="h-4 w-4" />
                 Specials
+              </TabsTrigger>
+              <TabsTrigger value="packages" className="gap-2">
+                <Package className="h-4 w-4" />
+                Packages
               </TabsTrigger>
             </TabsList>
 
@@ -3107,9 +3251,533 @@ export default function PropertyForm() {
                 </div>
               </div>
             </TabsContent>
+
+            {/* Packages Tab */}
+            <TabsContent value="packages" className="space-y-6">
+              <Tabs value={packagesCategory} onValueChange={(v) => setPackagesCategory(v as any)} className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="accommodations">Accommodations</TabsTrigger>
+                  <TabsTrigger value="event">Event/Wedding Venue</TabsTrigger>
+                  <TabsTrigger value="conference">Conference Venue</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="accommodations" className="mt-6">
+                  <div className="grid grid-cols-[250px_1fr] gap-6">
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">PACKAGES</CardTitle>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setIsEditPackageOpen(true)}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {packages.filter(p => p.category === "accommodations").length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No items yet...</p>
+                        ) : (
+                          packages.filter(p => p.category === "accommodations").map((pkg) => (
+                            <div
+                              key={pkg.id}
+                              className={cn(
+                                "p-2 rounded cursor-pointer hover:bg-accent flex items-center justify-between",
+                                selectedPackage?.id === pkg.id && "bg-accent"
+                              )}
+                              onClick={() => setSelectedPackage(pkg)}
+                            >
+                              <span className="text-sm">{pkg.name}</span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deletePackage(pkg.id);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <div className="flex gap-2">
+                      <Button variant="destructive" onClick={() => setIsEditPackageOpen(true)}>
+                        Edit Package
+                      </Button>
+                      <Button variant="destructive" onClick={() => setIsPackageImagesOpen(true)}>
+                        Package Images
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="event" className="mt-6">
+                  <div className="grid grid-cols-[250px_1fr] gap-6">
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">PACKAGES</CardTitle>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setIsEditPackageOpen(true)}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {packages.filter(p => p.category === "event").length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No items yet...</p>
+                        ) : (
+                          packages.filter(p => p.category === "event").map((pkg) => (
+                            <div
+                              key={pkg.id}
+                              className={cn(
+                                "p-2 rounded cursor-pointer hover:bg-accent flex items-center justify-between",
+                                selectedPackage?.id === pkg.id && "bg-accent"
+                              )}
+                              onClick={() => setSelectedPackage(pkg)}
+                            >
+                              <span className="text-sm">{pkg.name}</span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deletePackage(pkg.id);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <div className="flex gap-2">
+                      <Button variant="destructive" onClick={() => setIsEditPackageOpen(true)}>
+                        Edit Package
+                      </Button>
+                      <Button variant="destructive" onClick={() => setIsPackageImagesOpen(true)}>
+                        Package Images
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="conference" className="mt-6">
+                  <div className="grid grid-cols-[250px_1fr] gap-6">
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">PACKAGES</CardTitle>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setIsEditPackageOpen(true)}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {packages.filter(p => p.category === "conference").length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No items yet...</p>
+                        ) : (
+                          packages.filter(p => p.category === "conference").map((pkg) => (
+                            <div
+                              key={pkg.id}
+                              className={cn(
+                                "p-2 rounded cursor-pointer hover:bg-accent flex items-center justify-between",
+                                selectedPackage?.id === pkg.id && "bg-accent"
+                              )}
+                              onClick={() => setSelectedPackage(pkg)}
+                            >
+                              <span className="text-sm">{pkg.name}</span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deletePackage(pkg.id);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <div className="flex gap-2">
+                      <Button variant="destructive" onClick={() => setIsEditPackageOpen(true)}>
+                        Edit Package
+                      </Button>
+                      <Button variant="destructive" onClick={() => setIsPackageImagesOpen(true)}>
+                        Package Images
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </TabsContent>
           </Tabs>
         </div>
       </div>
+
+      {/* Edit Package Dialog */}
+      <Dialog open={isEditPackageOpen} onOpenChange={setIsEditPackageOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Edit Package</DialogTitle>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={packageForm.isPublic}
+                  onCheckedChange={(checked) => setPackageForm({ ...packageForm, isPublic: checked })}
+                />
+                <Badge variant={packageForm.isPublic ? "default" : "secondary"}>
+                  {packageForm.isPublic ? "Public" : "Private"}
+                </Badge>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="package-name">Name*</Label>
+              <Input
+                id="package-name"
+                value={packageForm.name}
+                onChange={(e) => setPackageForm({ ...packageForm, name: e.target.value })}
+                placeholder="Package name"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="package-description">Description</Label>
+              <Textarea
+                id="package-description"
+                value={packageForm.description}
+                onChange={(e) => setPackageForm({ ...packageForm, description: e.target.value })}
+                rows={4}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="minimum-stay">Minimum Stay</Label>
+                <Input
+                  id="minimum-stay"
+                  type="number"
+                  value={packageForm.minimumStay}
+                  onChange={(e) => setPackageForm({ ...packageForm, minimumStay: parseInt(e.target.value) })}
+                  min={1}
+                />
+              </div>
+              <div>
+                <Label htmlFor="maximum-stay">Maximum Stay</Label>
+                <Input
+                  id="maximum-stay"
+                  type="number"
+                  value={packageForm.maximumStay}
+                  onChange={(e) => setPackageForm({ ...packageForm, maximumStay: parseInt(e.target.value) })}
+                  min={1}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="package-season">Seasons</Label>
+              <Select value={packageForm.season} onValueChange={(value) => setPackageForm({ ...packageForm, season: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select season" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="08/05/2025-30/09/2025">08/05/2025-30/09/2025</SelectItem>
+                  <SelectItem value="summer">Summer</SelectItem>
+                  <SelectItem value="winter">Winter</SelectItem>
+                  <SelectItem value="spring">Spring</SelectItem>
+                  <SelectItem value="autumn">Autumn</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold">Period</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>From / To</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !packageForm.periodFrom && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {packageForm.periodFrom ? format(packageForm.periodFrom, "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <CalendarComponent
+                        mode="single"
+                        selected={packageForm.periodFrom}
+                        onSelect={(date) => setPackageForm({ ...packageForm, periodFrom: date })}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div>
+                  <Label>&nbsp;</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !packageForm.periodTo && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {packageForm.periodTo ? format(packageForm.periodTo, "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <CalendarComponent
+                        mode="single"
+                        selected={packageForm.periodTo}
+                        onSelect={(date) => setPackageForm({ ...packageForm, periodTo: date })}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold">Pricing Config</h3>
+              <RadioGroup value={packageForm.pricingType} onValueChange={(value) => setPackageForm({ ...packageForm, pricingType: value })}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="discount" id="pkg-discount" />
+                  <Label htmlFor="pkg-discount">Discount (%)</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="fixed-off" id="pkg-fixed-off" />
+                  <Label htmlFor="pkg-fixed-off">Fixed Amount Off</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="fixed-price" id="pkg-fixed-price" />
+                  <Label htmlFor="pkg-fixed-price">Fixed Price</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            <div className="space-y-2">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2 text-sm font-medium"></th>
+                      <th className="text-center p-2 text-sm font-medium">Room Only</th>
+                      <th className="text-center p-2 text-sm font-medium">Bed & Breakfast</th>
+                      <th className="text-center p-2 text-sm font-medium">Self Catering</th>
+                      <th className="text-center p-2 text-sm font-medium">Half Board</th>
+                      <th className="text-center p-2 text-sm font-medium">Full Board</th>
+                      <th className="text-center p-2 text-sm font-medium">All Included</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {roomTypes.map((room) => (
+                      <tr key={room.id} className="border-b">
+                        <td className="p-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Checkbox />
+                            <span>{room.name}</span>
+                            <Link className="h-4 w-4 text-primary" />
+                          </div>
+                        </td>
+                        <td className="p-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">UnitRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">SingleRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">PerPersonRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">UnitRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">SingleRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">PerPersonRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">UnitRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">SingleRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">PerPersonRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">UnitRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">SingleRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">PerPersonRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">UnitRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">SingleRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">PerPersonRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">UnitRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">SingleRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">PerPersonRate</span>
+                              <Input className="h-8 text-xs" placeholder="Not Available" />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsEditPackageOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={addNewPackage}>
+                Create Package
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Package Images Dialog */}
+      <Dialog open={isPackageImagesOpen} onOpenChange={setIsPackageImagesOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Package Images</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div
+              className={cn(
+                "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
+                isPackageImageDragging ? "border-primary bg-primary/5" : "border-border"
+              )}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsPackageImageDragging(true);
+              }}
+              onDragLeave={() => setIsPackageImageDragging(false)}
+              onDrop={handlePackageImageDrop}
+              onClick={() => document.getElementById('package-image-upload')?.click()}
+            >
+              <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                Drag and drop images here, or click to select
+              </p>
+              <input
+                id="package-image-upload"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePackageImageUpload}
+              />
+            </div>
+
+            {packageImages.length > 0 && (
+              <div className="grid grid-cols-4 gap-4">
+                {packageImages.map((imageUrl, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={imageUrl}
+                      alt={`Package ${index + 1}`}
+                      className="w-full h-32 object-cover rounded-lg"
+                    />
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => removePackageImage(imageUrl)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
