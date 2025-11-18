@@ -6,13 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { Home, Building2, MapPin, Save } from "lucide-react";
+import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X } from "lucide-react";
+import { StarRating } from "@/components/StarRating";
 
 const propertySchema = z.object({
   name: z.string().min(1, "Property name is required").max(200),
@@ -39,6 +42,9 @@ const propertySchema = z.object({
   account_number: z.string().optional(),
   account_type: z.string().optional(),
   swift_code: z.string().optional(),
+  description: z.string().optional(),
+  star_rating: z.number().min(0).max(5),
+  facilities: z.array(z.string()).optional(),
 });
 
 type PropertyFormData = z.infer<typeof propertySchema>;
@@ -122,10 +128,33 @@ export default function PropertyForm() {
     account_number: "",
     account_type: "",
     swift_code: "",
+    description: "",
+    star_rating: 0,
+    facilities: [],
   });
+
+  const [starRating, setStarRating] = useState(0);
+  const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
 
   const handleInputChange = (field: keyof PropertyFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const toggleFacility = (facility: string) => {
+    setSelectedFacilities((prev) =>
+      prev.includes(facility)
+        ? prev.filter((f) => f !== facility)
+        : [...prev, facility]
+    );
+  };
+
+  const facilities = {
+    general: ["Free Parking", "Free Secure Parking", "Gym", "Outdoor Swimming Pool", "Indoor Swimming Pool", "Spa"],
+    bar: ["Bar", "Wine Cellar"],
+    business: ["Business centre", "Meeting rooms"],
+    conferenceRoom: ["Conference room", "Boardroom"],
+    meals: ["Restaurant", "Breakfast included", "Room service"],
+    utility: ["WiFi", "Air conditioning", "Heating", "Laundry service"],
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -241,13 +270,21 @@ export default function PropertyForm() {
                 <Home className="h-4 w-4" />
                 General
               </TabsTrigger>
-              <TabsTrigger value="facilities" className="gap-2" disabled>
+              <TabsTrigger value="info-facilities" className="gap-2">
                 <Building2 className="h-4 w-4" />
                 Property Info & Facilities
               </TabsTrigger>
-              <TabsTrigger value="location" className="gap-2" disabled>
-                <MapPin className="h-4 w-4" />
+              <TabsTrigger value="images" className="gap-2" disabled>
+                <Image className="h-4 w-4" />
+                Property Images
+              </TabsTrigger>
+              <TabsTrigger value="rooms" className="gap-2" disabled>
+                <Info className="h-4 w-4" />
                 Room Information
+              </TabsTrigger>
+              <TabsTrigger value="rates" className="gap-2" disabled>
+                <DollarSign className="h-4 w-4" />
+                Rate Breakdown
               </TabsTrigger>
             </TabsList>
 
@@ -631,6 +668,272 @@ export default function PropertyForm() {
                         />
                       </div>
                     </div>
+                  </CardContent>
+                </Card>
+
+                <div className="flex justify-end gap-4">
+                  <Button type="button" variant="outline" onClick={() => navigate("/admin")}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={loading}>
+                    <Save className="mr-2 h-4 w-4" />
+                    {loading ? "Saving..." : "Save Property"}
+                  </Button>
+                </div>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="info-facilities">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Property Info */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Property Info</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea
+                        id="description"
+                        value={formData.description}
+                        onChange={(e) => handleInputChange("description", e.target.value)}
+                        placeholder="Describe your property, its unique features, amenities, and what makes it special..."
+                        rows={5}
+                        className="resize-none"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Stars</Label>
+                      <StarRating rating={starRating} onRatingChange={setStarRating} />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Facilities */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Facilities</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950 p-3 rounded-md border border-blue-200 dark:border-blue-800">
+                      <Info className="h-4 w-4 inline mr-2" />
+                      Checked items will be highlighted on your property listing
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {/* General */}
+                      <div>
+                        <h3 className="font-semibold mb-3 text-sm">General</h3>
+                        <div className="space-y-2">
+                          {facilities.general.map((facility) => (
+                            <div key={facility} className="flex items-center justify-between group">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={facility}
+                                  checked={selectedFacilities.includes(facility)}
+                                  onCheckedChange={() => toggleFacility(facility)}
+                                />
+                                <Label htmlFor={facility} className="cursor-pointer text-sm">
+                                  {facility}
+                                </Label>
+                              </div>
+                              {selectedFacilities.includes(facility) && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                                  onClick={() => toggleFacility(facility)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Bar */}
+                      <div>
+                        <h3 className="font-semibold mb-3 text-sm">Bar</h3>
+                        <div className="space-y-2">
+                          {facilities.bar.map((facility) => (
+                            <div key={facility} className="flex items-center justify-between group">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={facility}
+                                  checked={selectedFacilities.includes(facility)}
+                                  onCheckedChange={() => toggleFacility(facility)}
+                                />
+                                <Label htmlFor={facility} className="cursor-pointer text-sm">
+                                  {facility}
+                                </Label>
+                              </div>
+                              {selectedFacilities.includes(facility) && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                                  onClick={() => toggleFacility(facility)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Business */}
+                      <div>
+                        <h3 className="font-semibold mb-3 text-sm">Business</h3>
+                        <div className="space-y-2">
+                          {facilities.business.map((facility) => (
+                            <div key={facility} className="flex items-center justify-between group">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={facility}
+                                  checked={selectedFacilities.includes(facility)}
+                                  onCheckedChange={() => toggleFacility(facility)}
+                                />
+                                <Label htmlFor={facility} className="cursor-pointer text-sm">
+                                  {facility}
+                                </Label>
+                              </div>
+                              {selectedFacilities.includes(facility) && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                                  onClick={() => toggleFacility(facility)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Conference Room */}
+                      <div>
+                        <h3 className="font-semibold mb-3 text-sm">Conference Room</h3>
+                        <div className="space-y-2">
+                          {facilities.conferenceRoom.map((facility) => (
+                            <div key={facility} className="flex items-center justify-between group">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={facility}
+                                  checked={selectedFacilities.includes(facility)}
+                                  onCheckedChange={() => toggleFacility(facility)}
+                                />
+                                <Label htmlFor={facility} className="cursor-pointer text-sm">
+                                  {facility}
+                                </Label>
+                              </div>
+                              {selectedFacilities.includes(facility) && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                                  onClick={() => toggleFacility(facility)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Meals */}
+                      <div>
+                        <h3 className="font-semibold mb-3 text-sm">Meals</h3>
+                        <div className="space-y-2">
+                          {facilities.meals.map((facility) => (
+                            <div key={facility} className="flex items-center justify-between group">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={facility}
+                                  checked={selectedFacilities.includes(facility)}
+                                  onCheckedChange={() => toggleFacility(facility)}
+                                />
+                                <Label htmlFor={facility} className="cursor-pointer text-sm">
+                                  {facility}
+                                </Label>
+                              </div>
+                              {selectedFacilities.includes(facility) && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                                  onClick={() => toggleFacility(facility)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Utility */}
+                      <div>
+                        <h3 className="font-semibold mb-3 text-sm">Utility</h3>
+                        <div className="space-y-2">
+                          {facilities.utility.map((facility) => (
+                            <div key={facility} className="flex items-center justify-between group">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={facility}
+                                  checked={selectedFacilities.includes(facility)}
+                                  onCheckedChange={() => toggleFacility(facility)}
+                                />
+                                <Label htmlFor={facility} className="cursor-pointer text-sm">
+                                  {facility}
+                                </Label>
+                              </div>
+                              {selectedFacilities.includes(facility) && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                                  onClick={() => toggleFacility(facility)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {selectedFacilities.length > 0 && (
+                      <div className="pt-4">
+                        <Label className="mb-2 block">Selected Facilities</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedFacilities.map((facility) => (
+                            <Badge key={facility} variant="secondary" className="gap-1">
+                              {facility}
+                              <button
+                                type="button"
+                                onClick={() => toggleFacility(facility)}
+                                className="ml-1 hover:text-destructive"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
