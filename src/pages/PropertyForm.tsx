@@ -43,7 +43,8 @@ const propertySchema = z.object({
   channel_id: z.string().optional(),
   account_id: z.string().optional(),
   agent_id: z.string().optional(),
-  vat_number: z.string().min(1, "VAT number is required"),
+  has_vat: z.boolean().optional(),
+  vat_number: z.string().optional(),
   property_registration: z.string().optional(),
   bank_name: z.string().optional(),
   branch_code: z.string().optional(),
@@ -152,6 +153,7 @@ export default function PropertyForm() {
     channel_id: "",
     account_id: "",
     agent_id: "",
+    has_vat: false,
     vat_number: "",
     property_registration: "",
     bank_name: "",
@@ -636,6 +638,7 @@ export default function PropertyForm() {
             channel_id: amenities?.external_ids?.semper_channel_id || "",
             account_id: amenities?.external_ids?.semper_account_id || "",
             agent_id: amenities?.external_ids?.semper_agent_id || "",
+            has_vat: amenities?.banking?.has_vat ?? !!amenities?.banking?.vat_number,
             vat_number: amenities?.banking?.vat_number || "",
             property_registration: amenities?.banking?.property_registration || "",
             bank_name: amenities?.banking?.bank_name || "",
@@ -813,7 +816,7 @@ export default function PropertyForm() {
     }
   };
 
-  const handleInputChange = (field: keyof PropertyFormData, value: string) => {
+  const handleInputChange = (field: keyof PropertyFormData, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -946,7 +949,8 @@ export default function PropertyForm() {
           },
           currency: formData.currency,
           banking: {
-            vat_number: formData.vat_number,
+            has_vat: formData.has_vat,
+            vat_number: formData.has_vat ? formData.vat_number : null,
             property_registration: formData.property_registration,
             bank_name: formData.bank_name,
             branch_code: formData.branch_code,
@@ -1408,81 +1412,96 @@ export default function PropertyForm() {
                     <CardTitle>Property and Banking Details for Invoicing</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="vat_number">
-                          VAT # <span className="text-destructive">*</span>
-                        </Label>
-                        <Input
-                          id="vat_number"
-                          value={formData.vat_number}
-                          onChange={(e) => handleInputChange("vat_number", e.target.value)}
-                          placeholder="4930161700"
-                          required
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="has_vat">VAT Registered</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Does this property have a VAT registration number?
+                          </p>
+                        </div>
+                        <Switch
+                          id="has_vat"
+                          checked={formData.has_vat}
+                          onCheckedChange={(checked) => handleInputChange("has_vat", checked)}
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="property_registration">Property Registration #</Label>
-                        <Input
-                          id="property_registration"
-                          value={formData.property_registration}
-                          onChange={(e) => handleInputChange("property_registration", e.target.value)}
-                          placeholder="1998/012413/07"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="bank_name">Bank Name</Label>
-                        <Input
-                          id="bank_name"
-                          value={formData.bank_name}
-                          onChange={(e) => handleInputChange("bank_name", e.target.value)}
-                          placeholder="First National Bank"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="branch_code">Branch Code</Label>
-                        <Input
-                          id="branch_code"
-                          value={formData.branch_code}
-                          onChange={(e) => handleInputChange("branch_code", e.target.value)}
-                          placeholder="203809"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="account_holder">Account Holder</Label>
-                        <Input
-                          id="account_holder"
-                          value={formData.account_holder}
-                          onChange={(e) => handleInputChange("account_holder", e.target.value)}
-                          placeholder="Property name or business name"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="account_number">Account Number</Label>
-                        <Input
-                          id="account_number"
-                          value={formData.account_number}
-                          onChange={(e) => handleInputChange("account_number", e.target.value)}
-                          placeholder="62453541700"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="account_type">Account Type</Label>
-                        <Input
-                          id="account_type"
-                          value={formData.account_type}
-                          onChange={(e) => handleInputChange("account_type", e.target.value)}
-                          placeholder="Gold Business Account"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="swift_code">SWIFT Code</Label>
-                        <Input
-                          id="swift_code"
-                          value={formData.swift_code}
-                          onChange={(e) => handleInputChange("swift_code", e.target.value)}
-                          placeholder="Enter Swift Code"
-                        />
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {formData.has_vat && (
+                          <div className="space-y-2">
+                            <Label htmlFor="vat_number">VAT #</Label>
+                            <Input
+                              id="vat_number"
+                              value={formData.vat_number}
+                              onChange={(e) => handleInputChange("vat_number", e.target.value)}
+                              placeholder="4930161700"
+                            />
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          <Label htmlFor="property_registration">Property Registration #</Label>
+                          <Input
+                            id="property_registration"
+                            value={formData.property_registration}
+                            onChange={(e) => handleInputChange("property_registration", e.target.value)}
+                            placeholder="1998/012413/07"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="bank_name">Bank Name</Label>
+                          <Input
+                            id="bank_name"
+                            value={formData.bank_name}
+                            onChange={(e) => handleInputChange("bank_name", e.target.value)}
+                            placeholder="First National Bank"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="branch_code">Branch Code</Label>
+                          <Input
+                            id="branch_code"
+                            value={formData.branch_code}
+                            onChange={(e) => handleInputChange("branch_code", e.target.value)}
+                            placeholder="203809"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="account_holder">Account Holder</Label>
+                          <Input
+                            id="account_holder"
+                            value={formData.account_holder}
+                            onChange={(e) => handleInputChange("account_holder", e.target.value)}
+                            placeholder="Property name or business name"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="account_number">Account Number</Label>
+                          <Input
+                            id="account_number"
+                            value={formData.account_number}
+                            onChange={(e) => handleInputChange("account_number", e.target.value)}
+                            placeholder="62453541700"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="account_type">Account Type</Label>
+                          <Input
+                            id="account_type"
+                            value={formData.account_type}
+                            onChange={(e) => handleInputChange("account_type", e.target.value)}
+                            placeholder="Gold Business Account"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="swift_code">SWIFT Code</Label>
+                          <Input
+                            id="swift_code"
+                            value={formData.swift_code}
+                            onChange={(e) => handleInputChange("swift_code", e.target.value)}
+                            placeholder="Enter Swift Code"
+                          />
+                        </div>
                       </div>
                     </div>
                   </CardContent>
