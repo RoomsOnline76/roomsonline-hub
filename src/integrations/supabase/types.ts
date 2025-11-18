@@ -171,8 +171,11 @@ export type Database = {
           longitude: number | null
           max_guests: number
           name: string
+          owner_email: string | null
+          owner_name: string | null
           price_per_night: number
           property_type: string
+          property_url: string | null
           updated_at: string | null
         }
         Insert: {
@@ -193,8 +196,11 @@ export type Database = {
           longitude?: number | null
           max_guests?: number
           name: string
+          owner_email?: string | null
+          owner_name?: string | null
           price_per_night: number
           property_type: string
+          property_url?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -215,8 +221,11 @@ export type Database = {
           longitude?: number | null
           max_guests?: number
           name?: string
+          owner_email?: string | null
+          owner_name?: string | null
           price_per_night?: number
           property_type?: string
+          property_url?: string | null
           updated_at?: string | null
         }
         Relationships: []
