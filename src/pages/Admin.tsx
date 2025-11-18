@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Building2, Key, Settings, ArrowRight, Edit, Trash2 } from "lucide-react";
+import { Building2, Settings, Edit, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -65,31 +65,16 @@ const Admin = () => {
           </p>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate('/admin/keys')}>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <Key className="h-5 w-5 text-primary" />
-                  API Keys
-                </span>
-                <ArrowRight className="h-5 w-5 text-muted-foreground" />
-              </CardTitle>
-              <CardDescription>
-                Manage integration keys for external services
-              </CardDescription>
-            </CardHeader>
-          </Card>
-
+        {/* Quick Stats */}
+        <div className="mb-8">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Building2 className="h-5 w-5 text-primary" />
-                Properties
+                Properties Overview
               </CardTitle>
               <CardDescription>
-                {properties?.length || 0} properties synced
+                {properties?.length || 0} properties in your system
               </CardDescription>
             </CardHeader>
           </Card>
@@ -133,18 +118,12 @@ const Admin = () => {
                     <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No Properties Yet</h3>
                     <p className="text-muted-foreground mb-6">
-                      Add your first property or sync from your property management system
+                      Add your first property to get started
                     </p>
-                    <div className="flex gap-4 justify-center">
-                      <Button onClick={() => navigate('/admin/properties/new')}>
-                        <Building2 className="mr-2 h-4 w-4" />
-                        Add Property
-                      </Button>
-                      <Button variant="outline" onClick={() => navigate('/admin/keys')}>
-                        <Key className="mr-2 h-4 w-4" />
-                        Configure API Keys
-                      </Button>
-                    </div>
+                    <Button onClick={() => navigate('/admin/properties/new')}>
+                      <Building2 className="mr-2 h-4 w-4" />
+                      Add Property
+                    </Button>
                   </div>
                 ) : (
                   <Table>
