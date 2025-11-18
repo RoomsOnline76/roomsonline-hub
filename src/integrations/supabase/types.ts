@@ -14,7 +14,177 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bookings: {
+        Row: {
+          adults: number
+          check_in_date: string
+          check_out_date: string
+          children: number | null
+          created_at: string | null
+          guest_email: string
+          guest_name: string
+          guest_phone: string | null
+          id: string
+          infants: number | null
+          payment_intent_id: string | null
+          property_id: string
+          special_requests: string | null
+          status: string
+          total_price: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          adults?: number
+          check_in_date: string
+          check_out_date: string
+          children?: number | null
+          created_at?: string | null
+          guest_email: string
+          guest_name: string
+          guest_phone?: string | null
+          id?: string
+          infants?: number | null
+          payment_intent_id?: string | null
+          property_id: string
+          special_requests?: string | null
+          status?: string
+          total_price: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          adults?: number
+          check_in_date?: string
+          check_out_date?: string
+          children?: number | null
+          created_at?: string | null
+          guest_email?: string
+          guest_name?: string
+          guest_phone?: string | null
+          id?: string
+          infants?: number | null
+          payment_intent_id?: string | null
+          property_id?: string
+          special_requests?: string | null
+          status?: string
+          total_price?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          email: string
+          full_name: string | null
+          id: string
+          phone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          full_name?: string | null
+          id: string
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      properties: {
+        Row: {
+          address: string
+          amenities: Json | null
+          bathrooms: number | null
+          bedrooms: number | null
+          city: string
+          country: string
+          created_at: string | null
+          description: string | null
+          external_id: string | null
+          external_system: string | null
+          id: string
+          images: Json | null
+          is_active: boolean | null
+          latitude: number | null
+          longitude: number | null
+          max_guests: number
+          name: string
+          price_per_night: number
+          property_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          address: string
+          amenities?: Json | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          city: string
+          country: string
+          created_at?: string | null
+          description?: string | null
+          external_id?: string | null
+          external_system?: string | null
+          id?: string
+          images?: Json | null
+          is_active?: boolean | null
+          latitude?: number | null
+          longitude?: number | null
+          max_guests?: number
+          name: string
+          price_per_night: number
+          property_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string
+          amenities?: Json | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          city?: string
+          country?: string
+          created_at?: string | null
+          description?: string | null
+          external_id?: string | null
+          external_system?: string | null
+          id?: string
+          images?: Json | null
+          is_active?: boolean | null
+          latitude?: number | null
+          longitude?: number | null
+          max_guests?: number
+          name?: string
+          price_per_night?: number
+          property_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
