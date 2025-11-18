@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X } from "lucide-react";
+import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X, Plus, Minus, FileText, Check } from "lucide-react";
 import { StarRating } from "@/components/StarRating";
 
 const propertySchema = z.object({
@@ -45,6 +45,26 @@ const propertySchema = z.object({
   description: z.string().optional(),
   star_rating: z.number().min(0).max(5),
   facilities: z.array(z.string()).optional(),
+  items_non_refundable: z.boolean().optional(),
+  smoking_allowed: z.boolean().optional(),
+  pets_allowed: z.boolean().optional(),
+  children_allowed: z.boolean().optional(),
+  parties_allowed: z.boolean().optional(),
+  check_in_24h: z.boolean().optional(),
+  deposit_allowed: z.boolean().optional(),
+  deposit_percentage: z.string().optional(),
+  deposit_days: z.string().optional(),
+  same_day_bookings: z.boolean().optional(),
+  same_day_cutoff: z.string().optional(),
+  check_in_from: z.string().optional(),
+  check_in_to: z.string().optional(),
+  check_out_from: z.string().optional(),
+  check_out_to: z.string().optional(),
+  children_policy: z.string().optional(),
+  infant_age_from: z.string().optional(),
+  infant_age_to: z.string().optional(),
+  children_age_from: z.string().optional(),
+  children_age_to: z.string().optional(),
 });
 
 type PropertyFormData = z.infer<typeof propertySchema>;
@@ -131,10 +151,34 @@ export default function PropertyForm() {
     description: "",
     star_rating: 0,
     facilities: [],
+    items_non_refundable: false,
+    smoking_allowed: false,
+    pets_allowed: false,
+    children_allowed: true,
+    parties_allowed: false,
+    check_in_24h: false,
+    deposit_allowed: false,
+    deposit_percentage: "50",
+    deposit_days: "2",
+    same_day_bookings: false,
+    same_day_cutoff: "16:00",
+    check_in_from: "15:00",
+    check_in_to: "20:00",
+    check_out_from: "06:00",
+    check_out_to: "11:00",
+    children_policy: "Children are welcome\nChildren up until the age of 12 - Stay free",
+    infant_age_from: "1",
+    infant_age_to: "2",
+    children_age_from: "3",
+    children_age_to: "12",
   });
 
   const [starRating, setStarRating] = useState(0);
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
+  const [cancellationPolicies, setCancellationPolicies] = useState([
+    { forfeit: "10", type: "% of Total", days: "999" },
+    { forfeit: "100", type: "% of Total", days: "30" },
+  ]);
 
   const handleInputChange = (field: keyof PropertyFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -146,6 +190,20 @@ export default function PropertyForm() {
         ? prev.filter((f) => f !== facility)
         : [...prev, facility]
     );
+  };
+
+  const addCancellationPolicy = () => {
+    setCancellationPolicies([...cancellationPolicies, { forfeit: "", type: "% of Total", days: "" }]);
+  };
+
+  const removeCancellationPolicy = (index: number) => {
+    setCancellationPolicies(cancellationPolicies.filter((_, i) => i !== index));
+  };
+
+  const updateCancellationPolicy = (index: number, field: string, value: string) => {
+    const updated = [...cancellationPolicies];
+    updated[index] = { ...updated[index], [field]: value };
+    setCancellationPolicies(updated);
   };
 
   const facilities = {
@@ -273,6 +331,10 @@ export default function PropertyForm() {
               <TabsTrigger value="info-facilities" className="gap-2">
                 <Building2 className="h-4 w-4" />
                 Property Info & Facilities
+              </TabsTrigger>
+              <TabsTrigger value="house-rules" className="gap-2">
+                <FileText className="h-4 w-4" />
+                House Rules
               </TabsTrigger>
               <TabsTrigger value="images" className="gap-2" disabled>
                 <Image className="h-4 w-4" />
@@ -936,6 +998,406 @@ export default function PropertyForm() {
                     )}
                   </CardContent>
                 </Card>
+
+                <div className="flex justify-end gap-4">
+                  <Button type="button" variant="outline" onClick={() => navigate("/admin")}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={loading}>
+                    <Save className="mr-2 h-4 w-4" />
+                    {loading ? "Saving..." : "Save Property"}
+                  </Button>
+                </div>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="house-rules">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left Column */}
+                  <div className="lg:col-span-2 space-y-6">
+                    {/* Payment Policies */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Payment Policies</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="items_non_refundable"
+                            checked={formData.items_non_refundable}
+                            onCheckedChange={(checked) =>
+                              setFormData({ ...formData, items_non_refundable: checked as boolean })
+                            }
+                          />
+                          <Label htmlFor="items_non_refundable" className="cursor-pointer">
+                            Items Non Refundable
+                          </Label>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Cancellation Policies */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Cancellation Policies</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {cancellationPolicies.map((policy, index) => (
+                          <div key={index} className="flex items-center gap-2">
+                            <span className="text-sm font-medium whitespace-nowrap">Forfeit</span>
+                            <Input
+                              className="w-20"
+                              value={policy.forfeit}
+                              onChange={(e) =>
+                                updateCancellationPolicy(index, "forfeit", e.target.value)
+                              }
+                            />
+                            <Select
+                              value={policy.type}
+                              onValueChange={(value) =>
+                                updateCancellationPolicy(index, "type", value)
+                              }
+                            >
+                              <SelectTrigger className="w-32">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-background z-50">
+                                <SelectItem value="% of Total">% of Total</SelectItem>
+                                <SelectItem value="Fixed Amount">Fixed Amount</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <span className="text-sm whitespace-nowrap">if guest cancels</span>
+                            <Input
+                              className="w-20"
+                              value={policy.days}
+                              onChange={(e) =>
+                                updateCancellationPolicy(index, "days", e.target.value)
+                              }
+                            />
+                            <span className="text-sm whitespace-nowrap">Days before arrival</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => removeCancellationPolicy(index)}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            {index === cancellationPolicies.length - 1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={addCancellationPolicy}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+
+                    {/* Policy Toggles */}
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="flex flex-wrap gap-8">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`h-8 w-8 rounded-full flex items-center justify-center cursor-pointer ${
+                                formData.smoking_allowed ? "bg-green-500" : "bg-destructive"
+                              }`}
+                              onClick={() =>
+                                setFormData({
+                                  ...formData,
+                                  smoking_allowed: !formData.smoking_allowed,
+                                })
+                              }
+                            >
+                              {formData.smoking_allowed ? (
+                                <Check className="h-4 w-4 text-white" />
+                              ) : (
+                                <X className="h-4 w-4 text-white" />
+                              )}
+                            </div>
+                            <span className="text-sm">Smoking</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`h-8 w-8 rounded-full flex items-center justify-center cursor-pointer ${
+                                formData.pets_allowed ? "bg-green-500" : "bg-destructive"
+                              }`}
+                              onClick={() =>
+                                setFormData({ ...formData, pets_allowed: !formData.pets_allowed })
+                              }
+                            >
+                              {formData.pets_allowed ? (
+                                <Check className="h-4 w-4 text-white" />
+                              ) : (
+                                <X className="h-4 w-4 text-white" />
+                              )}
+                            </div>
+                            <span className="text-sm">Pets</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`h-8 w-8 rounded-full flex items-center justify-center cursor-pointer ${
+                                formData.children_allowed ? "bg-green-500" : "bg-destructive"
+                              }`}
+                              onClick={() =>
+                                setFormData({
+                                  ...formData,
+                                  children_allowed: !formData.children_allowed,
+                                })
+                              }
+                            >
+                              {formData.children_allowed ? (
+                                <Check className="h-4 w-4 text-white" />
+                              ) : (
+                                <X className="h-4 w-4 text-white" />
+                              )}
+                            </div>
+                            <span className="text-sm">Children</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`h-8 w-8 rounded-full flex items-center justify-center cursor-pointer ${
+                                formData.parties_allowed ? "bg-green-500" : "bg-destructive"
+                              }`}
+                              onClick={() =>
+                                setFormData({
+                                  ...formData,
+                                  parties_allowed: !formData.parties_allowed,
+                                })
+                              }
+                            >
+                              {formData.parties_allowed ? (
+                                <Check className="h-4 w-4 text-white" />
+                              ) : (
+                                <X className="h-4 w-4 text-white" />
+                              )}
+                            </div>
+                            <span className="text-sm">Parties/Events</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`h-8 w-8 rounded-full flex items-center justify-center cursor-pointer ${
+                                formData.check_in_24h ? "bg-green-500" : "bg-destructive"
+                              }`}
+                              onClick={() =>
+                                setFormData({ ...formData, check_in_24h: !formData.check_in_24h })
+                              }
+                            >
+                              {formData.check_in_24h ? (
+                                <Check className="h-4 w-4 text-white" />
+                              ) : (
+                                <X className="h-4 w-4 text-white" />
+                              )}
+                            </div>
+                            <span className="text-sm">24 Hour Check in/out</span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Bottom Row - Deposit, Same Day, Check-in, Check-out */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {/* Deposit */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Deposit</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="deposit_allowed"
+                              checked={formData.deposit_allowed}
+                              onCheckedChange={(checked) =>
+                                setFormData({ ...formData, deposit_allowed: checked as boolean })
+                              }
+                            />
+                            <Label htmlFor="deposit_allowed" className="cursor-pointer text-sm">
+                              Deposit Allowed
+                            </Label>
+                          </div>
+                          <div className="space-y-2">
+                            <Input
+                              placeholder="50"
+                              value={formData.deposit_percentage}
+                              onChange={(e) =>
+                                handleInputChange("deposit_percentage", e.target.value)
+                              }
+                            />
+                            <span className="text-xs text-muted-foreground">Deposit amount %</span>
+                          </div>
+                          <div className="space-y-2">
+                            <Input
+                              placeholder="2"
+                              value={formData.deposit_days}
+                              onChange={(e) => handleInputChange("deposit_days", e.target.value)}
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              Number of days allowed for deposit
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Same Day Bookings */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Same Day Bookings</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="same_day_bookings"
+                              checked={formData.same_day_bookings}
+                              onCheckedChange={(checked) =>
+                                setFormData({ ...formData, same_day_bookings: checked as boolean })
+                              }
+                            />
+                            <Label htmlFor="same_day_bookings" className="cursor-pointer text-sm">
+                              Same Day Bookings Allowed
+                            </Label>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Cut off Time</Label>
+                            <Input
+                              type="time"
+                              value={formData.same_day_cutoff}
+                              onChange={(e) => handleInputChange("same_day_cutoff", e.target.value)}
+                            />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Check-in */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Check-in</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">From</Label>
+                            <Input
+                              type="time"
+                              value={formData.check_in_from}
+                              onChange={(e) => handleInputChange("check_in_from", e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">To</Label>
+                            <Input
+                              type="time"
+                              value={formData.check_in_to}
+                              onChange={(e) => handleInputChange("check_in_to", e.target.value)}
+                            />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Check-out */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Check-out</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">From</Label>
+                            <Input
+                              type="time"
+                              value={formData.check_out_from}
+                              onChange={(e) => handleInputChange("check_out_from", e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">To</Label>
+                            <Input
+                              type="time"
+                              value={formData.check_out_to}
+                              onChange={(e) => handleInputChange("check_out_to", e.target.value)}
+                            />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Age Ranges */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Infant Ages</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-xs text-muted-foreground">From</Label>
+                              <Input
+                                value={formData.infant_age_from}
+                                onChange={(e) => handleInputChange("infant_age_from", e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs text-muted-foreground">To</Label>
+                              <Input
+                                value={formData.infant_age_to}
+                                onChange={(e) => handleInputChange("infant_age_to", e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Children Ages</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-xs text-muted-foreground">From</Label>
+                              <Input
+                                value={formData.children_age_from}
+                                onChange={(e) =>
+                                  handleInputChange("children_age_from", e.target.value)
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs text-muted-foreground">To</Label>
+                              <Input
+                                value={formData.children_age_to}
+                                onChange={(e) => handleInputChange("children_age_to", e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+
+                  {/* Right Column - Children Policy */}
+                  <div>
+                    <Card className="sticky top-4">
+                      <CardHeader>
+                        <CardTitle>Children Policy</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <Textarea
+                          value={formData.children_policy}
+                          onChange={(e) => handleInputChange("children_policy", e.target.value)}
+                          placeholder="Enter children policy details..."
+                          rows={10}
+                          className="resize-none"
+                        />
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
 
                 <div className="flex justify-end gap-4">
                   <Button type="button" variant="outline" onClick={() => navigate("/admin")}>
