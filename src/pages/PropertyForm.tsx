@@ -46,6 +46,41 @@ export default function PropertyForm() {
   const [isEvent, setIsEvent] = useState(false);
   const [isConference, setIsConference] = useState(false);
 
+  // Handle venues checkbox - if checked, check event and conference too
+  const handleVenuesChange = (checked: boolean) => {
+    setIsVenues(checked);
+    if (checked) {
+      setIsEvent(true);
+      setIsConference(true);
+    }
+  };
+
+  // Handle event checkbox - if checked, venues must be checked
+  const handleEventChange = (checked: boolean) => {
+    setIsEvent(checked);
+    if (checked) {
+      setIsVenues(true);
+    } else {
+      // If unchecking and conference is also unchecked, uncheck venues
+      if (!isConference) {
+        setIsVenues(false);
+      }
+    }
+  };
+
+  // Handle conference checkbox - if checked, venues must be checked
+  const handleConferenceChange = (checked: boolean) => {
+    setIsConference(checked);
+    if (checked) {
+      setIsVenues(true);
+    } else {
+      // If unchecking and event is also unchecked, uncheck venues
+      if (!isEvent) {
+        setIsVenues(false);
+      }
+    }
+  };
+
   // Property source
   const [isNightsBridge, setIsNightsBridge] = useState(true);
   const [isSemperProperty, setIsSemperProperty] = useState(false);
@@ -210,7 +245,7 @@ export default function PropertyForm() {
                         <Checkbox
                           id="venues"
                           checked={isVenues}
-                          onCheckedChange={(checked) => setIsVenues(checked as boolean)}
+                          onCheckedChange={(checked) => handleVenuesChange(checked as boolean)}
                         />
                         <Label htmlFor="venues" className="cursor-pointer">
                           Venues
@@ -220,7 +255,7 @@ export default function PropertyForm() {
                         <Checkbox
                           id="event"
                           checked={isEvent}
-                          onCheckedChange={(checked) => setIsEvent(checked as boolean)}
+                          onCheckedChange={(checked) => handleEventChange(checked as boolean)}
                         />
                         <Label htmlFor="event" className="cursor-pointer">
                           Event/Wedding
@@ -230,7 +265,7 @@ export default function PropertyForm() {
                         <Checkbox
                           id="conference"
                           checked={isConference}
-                          onCheckedChange={(checked) => setIsConference(checked as boolean)}
+                          onCheckedChange={(checked) => handleConferenceChange(checked as boolean)}
                         />
                         <Label htmlFor="conference" className="cursor-pointer">
                           Conference
