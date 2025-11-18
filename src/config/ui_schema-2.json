@@ -1,0 +1,539 @@
+{
+  "metadata": {
+    "source_file": "Litchi Screenshot Scrape - UI Fornt End Demo.pdf",
+    "source_file_citation": ":contentReference[oaicite:1]{index=1}",
+    "generated_at": "2025-11-18T09:00:00+01:00",
+    "version": "1.0",
+    "notes": "Best-effort mapping from attached UI document. Send single-page screenshots to refine any ambiguous or custom fields."
+  },
+  "pages": [
+    {
+      "id": "home_search",
+      "title": "Home / Search",
+      "description": "Entry point: search for availability (flights / rooms / booking items depending on product).",
+      "components": [
+        {
+          "key": "search_type",
+          "label": "Search Type",
+          "type": "radio",
+          "uiComponent": "segmented-control",
+          "required": true,
+          "options": [
+            {"value": "one_way", "label": "One-way"},
+            {"value": "round_trip", "label": "Round-trip"},
+            {"value": "multi_city", "label": "Multi-city"}
+          ],
+          "outputKey": "search.type",
+          "validation": null,
+          "placeholder": null,
+          "notes": "If the design supports flights/hotels toggle include here."
+        },
+        {
+          "key": "origin",
+          "label": "Origin",
+          "type": "autocomplete",
+          "uiComponent": "airport-autocomplete",
+          "required": true,
+          "outputKey": "search.origin",
+          "validation": {"pattern": "IATA|free-text", "maxLength": 100},
+          "placeholder": "City or airport",
+          "sample": "AMS",
+          "notes": "Return object with name, code, lat/lng for backend consumption."
+        },
+        {
+          "key": "destination",
+          "label": "Destination",
+          "type": "autocomplete",
+          "uiComponent": "airport-autocomplete",
+          "required": true,
+          "outputKey": "search.destination",
+          "validation": {"pattern": "IATA|free-text", "maxLength": 100},
+          "placeholder": "City or airport",
+          "sample": "LON",
+          "notes": "If site supports non-flight products, same field used for hotels/destinations."
+        },
+        {
+          "key": "depart_date",
+          "label": "Depart Date",
+          "type": "date",
+          "uiComponent": "datepicker",
+          "required": true,
+          "outputKey": "search.depart_date",
+          "validation": {"minDate": "today", "format": "YYYY-MM-DD"},
+          "placeholder": "Select departure date",
+          "notes": "Support flexible dates toggle if present in designs."
+        },
+        {
+          "key": "return_date",
+          "label": "Return Date",
+          "type": "date",
+          "uiComponent": "datepicker",
+          "required": false,
+          "outputKey": "search.return_date",
+          "validation": {"minDate": "depart_date", "format": "YYYY-MM-DD"},
+          "placeholder": "Select return date",
+          "notes": "Only shown when search_type == round_trip."
+        },
+        {
+          "key": "passengers",
+          "label": "Passengers",
+          "type": "compound",
+          "uiComponent": "passenger-selector",
+          "required": true,
+          "outputKey": "search.passengers",
+          "validation": {"maxTotal": 9, "minTotal": 1},
+          "children": [
+            {"key": "adults", "label": "Adults", "type": "number", "min": 1, "max": 9, "default": 1},
+            {"key": "children", "label": "Children", "type": "number", "min": 0, "max": 8, "default": 0},
+            {"key": "infants", "label": "Infants", "type": "number", "min": 0, "max": 4, "default": 0}
+          ],
+          "notes": "Return counts and breakdown in output."
+        },
+        {
+          "key": "cabin_class",
+          "label": "Cabin / Room Class",
+          "type": "select",
+          "uiComponent": "dropdown",
+          "required": false,
+          "options": [
+            {"value": "economy", "label": "Economy"},
+            {"value": "premium_economy", "label": "Premium Economy"},
+            {"value": "business", "label": "Business"},
+            {"value": "first", "label": "First"}
+          ],
+          "outputKey": "search.cabin_class",
+          "placeholder": "Choose class",
+          "notes": "If booking is not flight-focused, map to room type options."
+        },
+        {
+          "key": "promo_code",
+          "label": "Promo code",
+          "type": "text",
+          "uiComponent": "input-text",
+          "required": false,
+          "outputKey": "search.promo_code",
+          "validation": {"maxLength": 32},
+          "placeholder": "Add promo / discount code",
+          "notes": "Validate on apply; return discount metadata."
+        },
+        {
+          "key": "search_button",
+          "label": "Search",
+          "type": "action",
+          "uiComponent": "button",
+          "required": true,
+          "outputKey": null,
+          "notes": "Trigger search with current model; include debounce and loading state."
+        },
+        {
+          "key": "flexible_dates_toggle",
+          "label": "Flexible Dates",
+          "type": "checkbox",
+          "uiComponent": "toggle",
+          "required": false,
+          "outputKey": "search.flexible_dates",
+          "notes": "When enabled, return +/- 3 days results."
+        }
+      ]
+    },
+    {
+      "id": "search_results",
+      "title": "Search Results / Availability",
+      "description": "List of available options with filters, sorting and quick actions.",
+      "components": [
+        {
+          "key": "results_list",
+          "label": "Results List",
+          "type": "list",
+          "uiComponent": "result-cards",
+          "required": true,
+          "outputKey": "results.items[]",
+          "item_schema": {
+            "id": {"type": "string"},
+            "provider": {"type": "string"},
+            "price": {"type": "number", "currency": "EUR"},
+            "currency": {"type": "string"},
+            "stops": {"type": "number"},
+            "duration": {"type": "string"},
+            "depart_time": {"type": "string"},
+            "arrival_time": {"type": "string"},
+            "leg_details": {"type": "array"},
+            "fare_type": {"type": "string"},
+            "baggage_info": {"type": "string"},
+            "seat_available": {"type": "boolean"},
+            "cancellation_policy": {"type": "string"},
+            "selected": {"type": "boolean"}
+          },
+          "notes": "Each card supports expand/collapse to show fare breakdown."
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "compound",
+          "uiComponent": "sidebar",
+          "required": false,
+          "outputKey": "results.filters",
+          "children": [
+            {"key": "price_range", "label": "Price Range", "type": "range", "min": 0, "max": 5000, "outputKey": "filters.price"},
+            {"key": "stops", "label": "Stops", "type": "checkbox-group", "options": [{"value":"nonstop"},{"value":"1_stop"},{"value":"2_plus"}], "outputKey": "filters.stops"},
+            {"key": "times", "label": "Departure / Arrival Time", "type": "time-range", "outputKey": "filters.time_windows"},
+            {"key": "airlines", "label": "Providers", "type": "multi-select", "outputKey": "filters.providers"},
+            {"key": "refundable", "label": "Refundable only", "type": "checkbox", "outputKey": "filters.refundableOnly"}
+          ],
+          "notes": "Search UI shows active filters count and clear-all."
+        },
+        {
+          "key": "sort",
+          "label": "Sort",
+          "type": "select",
+          "uiComponent": "select",
+          "options": [
+            {"value": "price_asc", "label": "Price (low to high)"},
+            {"value": "price_desc", "label": "Price (high to low)"},
+            {"value": "duration", "label": "Shortest duration"},
+            {"value": "best", "label": "Best match"}
+          ],
+          "outputKey": "results.sortBy"
+        },
+        {
+          "key": "results_pagination",
+          "label": "Pagination / Load more",
+          "type": "pagination",
+          "uiComponent": "infinite-scroll",
+          "required": false,
+          "outputKey": "results.pagination",
+          "notes": "Support infinite scroll and page numbers."
+        }
+      ]
+    },
+    {
+      "id": "detail_page",
+      "title": "Item Detail / Fare Breakdown",
+      "description": "Detailed breakdown and selection for a single result.",
+      "components": [
+        {"key": "fare_summary", "label": "Fare Summary", "type": "object", "outputKey": "detail.fare_summary", "notes": "base fare, taxes, fees, total"},
+        {"key": "rules_and_tnc", "label": "Rules & T&Cs", "type": "text", "outputKey": "detail.terms", "notes": "Cancellation, changes, baggage rules."},
+        {"key": "select_button", "label": "Select fare", "type": "action", "uiComponent": "button", "outputKey": "detail.select", "notes": "Proceed to passenger details."},
+        {
+          "key": "fare_options",
+          "label": "Fare Options (bundle upgrades)",
+          "type": "radio-group",
+          "uiComponent": "cards",
+          "outputKey": "detail.selected_option",
+          "options": [
+            {"value": "basic", "label": "Basic - lowest price"},
+            {"value": "standard", "label": "Standard - includes baggage"},
+            {"value": "flex", "label": "Flex - refundable"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "passenger_details",
+      "title": "Passenger Details",
+      "description": "Collect passenger names, DOB, document details and contact info.",
+      "components": [
+        {
+          "key": "passenger_records",
+          "label": "Passengers",
+          "type": "repeating-group",
+          "uiComponent": "passenger-forms",
+          "required": true,
+          "minItems": 1,
+          "outputKey": "booking.passengers[]",
+          "item_schema": [
+            {"key": "type", "label": "Passenger Type", "type": "select", "options":[{"value":"adult"},{"value":"child"},{"value":"infant"}], "required": true, "outputKey": "type"},
+            {"key": "first_name", "label": "First name", "type": "text", "required": true, "validation": {"maxLength": 50}, "outputKey": "firstName"},
+            {"key": "last_name", "label": "Last name", "type": "text", "required": true, "validation": {"maxLength": 50}, "outputKey": "lastName"},
+            {"key": "gender", "label": "Gender", "type": "select", "options":[{"value":"male"},{"value":"female"},{"value":"other"},{"value":"unspecified"}], "required": false, "outputKey": "gender"},
+            {"key": "dob", "label": "Date of birth", "type": "date", "required": false, "outputKey": "dob"},
+            {"key": "document_type", "label": "Document type", "type": "select", "options":[{"value":"passport"},{"value":"id_card"}], "required": true, "outputKey": "docType"},
+            {"key": "document_number", "label": "Document number", "type": "text", "required": true, "outputKey": "docNumber"},
+            {"key": "document_country", "label": "Issuing country", "type": "autocomplete", "required": true, "outputKey": "docCountry"},
+            {"key": "document_expiry", "label": "Document expiry date", "type": "date", "required": false, "outputKey": "docExpiry"}
+          ],
+          "notes": "Each passenger form should show required field indicators and inline validation messages."
+        },
+        {
+          "key": "contact_info",
+          "label": "Contact information",
+          "type": "object",
+          "uiComponent": "form",
+          "required": true,
+          "outputKey": "booking.contact",
+          "fields": [
+            {"key": "email", "label": "Email address", "type": "email", "required": true, "validation": {"pattern": "email"}, "outputKey": "email"},
+            {"key": "phone_country", "label": "Phone country", "type": "select", "required": true, "outputKey": "phone.country"},
+            {"key": "phone_number", "label": "Phone number", "type": "tel", "required": true, "validation": {"pattern": "phone"}, "outputKey": "phone.number"}
+          ],
+          "notes": "Phone validation should accept E.164 or local formats and return normalized number."
+        },
+        {
+          "key": "special_requests",
+          "label": "Special requests / notes",
+          "type": "textarea",
+          "uiComponent": "textarea",
+          "required": false,
+          "outputKey": "booking.special_requests",
+          "validation": {"maxLength": 500},
+          "placeholder": "Seat preference, dietary, assistance..."
+        }
+      ]
+    },
+    {
+      "id": "extras_and_seats",
+      "title": "Extras & Seat Selection",
+      "description": "Optional add-ons like baggage, seats, meals and insurance.",
+      "components": [
+        {
+          "key": "seat_map",
+          "label": "Seat Map",
+          "type": "interactive",
+          "uiComponent": "seat-map",
+          "required": false,
+          "outputKey": "booking.seats[]",
+          "notes": "Return seat id, price, passenger reference."
+        },
+        {
+          "key": "baggage_selection",
+          "label": "Baggage",
+          "type": "list",
+          "uiComponent": "addon-list",
+          "required": false,
+          "outputKey": "booking.addons.baggage",
+          "item_schema": {"id":"string","name":"string","price":"number","qty":"number"}
+        },
+        {
+          "key": "meal_preference",
+          "label": "Meal preference",
+          "type": "select",
+          "uiComponent": "select",
+          "required": false,
+          "options": [{"value":"standard"},{"value":"vegetarian"},{"value":"vegan"},{"value":"kosher"},{"value":"halal"}],
+          "outputKey": "booking.addons.meal"
+        },
+        {
+          "key": "insurance",
+          "label": "Travel insurance",
+          "type": "checkbox",
+          "uiComponent": "checkbox",
+          "required": false,
+          "outputKey": "booking.addons.insurance",
+          "notes": "If selected show insurance options and prices."
+        }
+      ]
+    },
+    {
+      "id": "payment",
+      "title": "Payment",
+      "description": "Collect payment data and billing info. Should comply with PCI (tokenize card data).",
+      "components": [
+        {
+          "key": "payment_methods",
+          "label": "Payment Methods",
+          "type": "tabs",
+          "uiComponent": "payment-tabs",
+          "required": true,
+          "outputKey": "payment.method",
+          "options": [
+            {"value": "card", "label": "Credit / Debit Card"},
+            {"value": "apple_pay", "label": "Apple Pay"},
+            {"value": "google_pay", "label": "Google Pay"},
+            {"value": "paypal", "label": "PayPal"},
+            {"value": "bank_transfer", "label": "Bank transfer"}
+          ],
+          "notes": "Card input should be hosted/iframe or tokenized. Never store raw PAN in frontend payloads."
+        },
+        {
+          "key": "card_holder_name",
+          "label": "Card holder name",
+          "type": "text",
+          "uiComponent": "input-text",
+          "required": true,
+          "outputKey": "payment.card.name",
+          "validation": {"maxLength": 100}
+        },
+        {
+          "key": "card_number",
+          "label": "Card number",
+          "type": "card",
+          "uiComponent": "card-input",
+          "required": true,
+          "outputKey": "payment.card.token",
+          "validation": {"pattern": "card-luhn"},
+          "notes": "Prefer tokenization; output should be a token or payment method id."
+        },
+        {
+          "key": "card_expiry",
+          "label": "Expiry (MM/YY)",
+          "type": "text",
+          "uiComponent": "input-text",
+          "required": true,
+          "outputKey": "payment.card.expiry",
+          "validation": {"pattern": "MM/YY"}
+        },
+        {
+          "key": "card_cvc",
+          "label": "CVC",
+          "type": "password",
+          "uiComponent": "input-password",
+          "required": true,
+          "outputKey": "payment.card.cvc",
+          "validation": {"length": [3,4]}
+        },
+        {
+          "key": "billing_address",
+          "label": "Billing address",
+          "type": "object",
+          "uiComponent": "address-autocomplete",
+          "required": false,
+          "outputKey": "payment.billing_address",
+          "fields": [
+            {"key": "line1", "label": "Address line 1", "type": "text", "required": true},
+            {"key": "line2", "label": "Address line 2", "type": "text", "required": false},
+            {"key": "city", "label": "City", "type": "text", "required": true},
+            {"key": "postcode", "label": "Postcode", "type": "text", "required": true},
+            {"key": "country", "label": "Country", "type": "select", "required": true}
+          ]
+        },
+        {
+          "key": "save_card",
+          "label": "Save card for future",
+          "type": "checkbox",
+          "uiComponent": "checkbox",
+          "required": false,
+          "outputKey": "payment.save_card",
+          "notes": "Only if your privacy policy and PCI approach allows it."
+        },
+        {
+          "key": "pay_button",
+          "label": "Pay / Complete Booking",
+          "type": "action",
+          "uiComponent": "button",
+          "required": true,
+          "outputKey": "payment.complete",
+          "notes": "Show loading state, disable double clicks, display errors."
+        }
+      ]
+    },
+    {
+      "id": "review_confirm",
+      "title": "Review & Confirm",
+      "description": "Final review of the booking before payment; aggregated totals and acceptance of terms.",
+      "components": [
+        {"key": "itinerary_preview", "label": "Itinerary Preview", "type": "object", "outputKey": "review.itinerary"},
+        {"key": "price_breakdown", "label": "Price breakdown", "type": "object", "outputKey": "review.price"},
+        {
+          "key": "terms_and_conditions",
+          "label": "Terms & Conditions",
+          "type": "checkbox",
+          "uiComponent": "checkbox",
+          "required": true,
+          "outputKey": "review.tnc_accepted",
+          "notes": "User must agree before payment is allowed."
+        },
+        {
+          "key": "email_receipt_toggle",
+          "label": "Send receipt by email",
+          "type": "checkbox",
+          "required": false,
+          "outputKey": "review.send_receipt"
+        },
+        {"key": "final_confirm_button", "label": "Confirm & Pay", "type": "action", "uiComponent": "button", "outputKey": "review.confirm"}
+      ]
+    },
+    {
+      "id": "confirmation",
+      "title": "Confirmation",
+      "description": "Success screen with booking reference, printable receipt & next steps.",
+      "components": [
+        {"key": "booking_reference", "label": "Booking reference", "type": "string", "outputKey": "confirmation.reference"},
+        {"key": "summary", "label": "Summary", "type": "object", "outputKey": "confirmation.summary"},
+        {"key": "download_invoice", "label": "Download invoice", "type": "action", "uiComponent": "button", "outputKey": "confirmation.downloadInvoice"},
+        {"key": "send_to_email", "label": "Send to email", "type": "action", "uiComponent": "button", "outputKey": "confirmation.sendEmail"},
+        {"key": "share", "label": "Share booking", "type": "share", "uiComponent": "share-buttons", "outputKey": "confirmation.share"}
+      ],
+      "notes": "Show clear next steps (check-in links, baggage allowance, contact support)."
+    },
+    {
+      "id": "account_profile",
+      "title": "Account / Profile (optional)",
+      "description": "Login, register and manage saved passengers, cards and preferences.",
+      "components": [
+        {"key": "login_email", "label": "Email", "type": "email", "outputKey": "account.email"},
+        {"key": "login_password", "label": "Password", "type": "password", "outputKey": "account.password"},
+        {"key": "remember_me", "label": "Remember me", "type": "checkbox", "outputKey": "account.remember"},
+        {"key": "saved_passengers", "label": "Saved passengers", "type": "list", "outputKey": "account.savedPassengers"},
+        {"key": "saved_cards", "label": "Saved cards (tokenized)", "type": "list", "outputKey": "account.savedCards"},
+        {"key": "preferences", "label": "Travel preferences", "type": "object", "outputKey": "account.preferences"}
+      ]
+    },
+    {
+      "id": "admin_analytics",
+      "title": "Admin / Analytics (optional)",
+      "description": "Management page for bookings, status and support tools.",
+      "components": [
+        {"key": "booking_search_admin", "label": "Search booking by ref / email", "type": "text", "outputKey": "admin.search"},
+        {"key": "booking_detail_admin", "label": "Booking detail view", "type": "object", "outputKey": "admin.booking"},
+        {"key": "change_status", "label": "Change booking status", "type": "select", "options":[{"value":"confirmed"},{"value":"cancelled"},{"value":"on_hold"}], "outputKey": "admin.status"}
+      ],
+      "notes": "Admin tools should be behind auth and role-based access."
+    }
+  ],
+  "global_ui_and_validation_rules": {
+    "date_format": "YYYY-MM-DD",
+    "currency_default": "EUR",
+    "phone_format": "E.164",
+    "required_field_indicator": "asterisk",
+    "error_display": {"type": "inline", "summary": "top"},
+    "accessibility": {
+      "labels_for_controls": true,
+      "aria_live_regions": true,
+      "keyboard_navigation": true,
+      "color_contrast": "WCAG AA"
+    },
+    "i18n": {
+      "supported_languages": ["en", "nl"],
+      "currency_switcher": true,
+      "locale_date_handling": true
+    },
+    "security_and_privacy": {
+      "pci_compliance": "card fields must be tokenized/hosted",
+      "gdpr_compliance": true,
+      "consent_capture": {"marketing_opt_in": true}
+    }
+  },
+  "api_contract_suggestions": {
+    "search_endpoint": {
+      "method": "POST",
+      "url": "/api/search",
+      "payload": "search.* (origin,destination,dates,passengers,cabin_class,promo_code,flexible_dates)",
+      "response": "results.items[], pagination"
+    },
+    "booking_create_endpoint": {
+      "method": "POST",
+      "url": "/api/bookings",
+      "payload": "booking.contact, passengers[], selected_fare_id, addons[], payment.method (tokenized)",
+      "response": "confirmation.reference, status, receipts"
+    },
+    "validate_promo_endpoint": {
+      "method": "POST",
+      "url": "/api/promos/validate",
+      "payload": "promo_code, price_context",
+      "response": "validity, discount_amount, new_total"
+    }
+  },
+  "suggested_additional_fields_and_notes": {
+    "1": "Session timeout warning with 'save for later' option (useful on long passenger forms).",
+    "2": "Guest checkout flow (minimal fields) vs. registered user flow.",
+    "3": "Prominent help / support contact and chat widget fields (support reference in confirmation).",
+    "4": "Audit trail fields for admins: created_by, created_at, modified_by, modified_at.",
+    "5": "Mobile-specific considerations: sticky 'continue' CTA, optimized datepicker/keyboard.",
+    "6": "Error & retry metadata for payment (error_code, user_message, recoverable boolean).",
+    "7": "A 'price lock' or 'hold booking' flow if backend supports it (hold_expiry timestamp).",
+    "8": "Fields for marketing/source attribution (utm, affiliate_id) to track bookings.",
+    "9": "Locale/currency detection with override in UI.",
+    "10": "Accessibility toggles (larger text, high contrast) if required by client."
+  },
+  "final_notes": "This JSON is intentionally exhaustive to reduce back-and-forth. If you want the schema trimmed to only the fields visible in your PDF, reply with single-page screenshots of any page you want exact-matched and I will update the JSON to map every exact label, placeholder and microcopy from the visuals."
+}
