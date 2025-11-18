@@ -237,6 +237,14 @@ export default function PropertyForm() {
     { id: '2', title: '01/10/2025-30/09/2026', from: '2025-10-01', to: '2026-09-30', minStay: 5, maxStay: 0 },
     { id: '3', title: '01/10/2026-30/09/2027', from: '2026-10-01', to: '2027-09-30', minStay: 5, maxStay: 0 }
   ]);
+  
+  // Templates and Notifications state
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('confirmation-mailer');
+  const [templateContent, setTemplateContent] = useState<string>('');
+  const [preMailerDays, setPreMailerDays] = useState<number>(0);
+  const [preMailerHours, setPreMailerHours] = useState<number>(0);
+  const [postMailerDays, setPostMailerDays] = useState<number>(0);
+  const [postMailerHours, setPostMailerHours] = useState<number>(0);
 
   const handleInputChange = (field: keyof PropertyFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -457,6 +465,10 @@ export default function PropertyForm() {
               <TabsTrigger value="rates" className="gap-2">
                 <DollarSign className="h-4 w-4" />
                 Rate Breakdown
+              </TabsTrigger>
+              <TabsTrigger value="templates" className="gap-2">
+                <Bell className="h-4 w-4" />
+                Templates and Notifications
               </TabsTrigger>
             </TabsList>
 
@@ -1610,6 +1622,126 @@ export default function PropertyForm() {
                 <Button type="button" disabled={loading}>
                   <Save className="mr-2 h-4 w-4" />
                   {loading ? "Saving..." : "Save Property"}
+                </Button>
+              </div>
+            </TabsContent>
+
+            {/* Templates and Notifications Tab */}
+            <TabsContent value="templates">
+              <Card>
+                <CardContent className="p-6 space-y-6">
+                  {/* Template Selection Buttons */}
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      type="button"
+                      variant={selectedTemplate === 'confirmation-mailer' ? 'default' : 'outline'}
+                      onClick={() => setSelectedTemplate('confirmation-mailer')}
+                    >
+                      Confirmation Mailer Template
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={selectedTemplate === 'confirmation-property' ? 'default' : 'outline'}
+                      onClick={() => setSelectedTemplate('confirmation-property')}
+                    >
+                      Confirmation Property Template
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={selectedTemplate === 'pre-mailer' ? 'default' : 'outline'}
+                      onClick={() => setSelectedTemplate('pre-mailer')}
+                    >
+                      Pre Mailer Template
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={selectedTemplate === 'post-mailer' ? 'default' : 'outline'}
+                      onClick={() => setSelectedTemplate('post-mailer')}
+                    >
+                      Post Mailer Template
+                    </Button>
+                  </div>
+
+                  {/* Template Content Textarea */}
+                  <div className="space-y-2">
+                    <Label>Template</Label>
+                    <Textarea
+                      rows={10}
+                      value={templateContent}
+                      onChange={(e) => setTemplateContent(e.target.value)}
+                      placeholder="Enter your email template content here..."
+                      className="font-mono text-sm"
+                    />
+                  </div>
+
+                  {/* Mailer Timing Settings */}
+                  <div className="grid grid-cols-2 gap-6">
+                    {/* Pre Mailer Settings */}
+                    <div className="space-y-4">
+                      <Label className="text-sm font-medium">Send Pre Mailer before checkin:</Label>
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            value={preMailerDays}
+                            onChange={(e) => setPreMailerDays(Number(e.target.value))}
+                            className="w-24"
+                            min="0"
+                          />
+                          <span className="text-sm text-muted-foreground">Days</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            value={preMailerHours}
+                            onChange={(e) => setPreMailerHours(Number(e.target.value))}
+                            className="w-24"
+                            min="0"
+                            max="23"
+                          />
+                          <span className="text-sm text-muted-foreground">Hours</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Post Mailer Settings */}
+                    <div className="space-y-4">
+                      <Label className="text-sm font-medium">Send Post mailer after checkin:</Label>
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            value={postMailerDays}
+                            onChange={(e) => setPostMailerDays(Number(e.target.value))}
+                            className="w-24"
+                            min="0"
+                          />
+                          <span className="text-sm text-muted-foreground">Days</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            value={postMailerHours}
+                            onChange={(e) => setPostMailerHours(Number(e.target.value))}
+                            className="w-24"
+                            min="0"
+                            max="23"
+                          />
+                          <span className="text-sm text-muted-foreground">Hours</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="flex justify-end gap-4 mt-6">
+                <Button type="button" variant="outline" onClick={() => navigate("/admin")}>
+                  Cancel
+                </Button>
+                <Button type="button" disabled={loading}>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save
                 </Button>
               </div>
             </TabsContent>
