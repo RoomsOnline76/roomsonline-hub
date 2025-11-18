@@ -549,6 +549,51 @@ export default function PropertyForm() {
     setPackageForm({ ...packageForm, images: packageForm.images.filter(img => img !== imageUrl) });
   };
 
+  // Announcements state
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [isManageAnnouncementOpen, setIsManageAnnouncementOpen] = useState(false);
+  const [announcementForm, setAnnouncementForm] = useState({
+    announcement: "",
+    order: 0,
+    startDate: undefined as Date | undefined,
+    endDate: undefined as Date | undefined,
+    enabled: true,
+  });
+
+  const addAnnouncement = () => {
+    const newAnnouncement = {
+      id: Date.now().toString(),
+      ...announcementForm,
+    };
+    setAnnouncements([...announcements, newAnnouncement]);
+    setIsManageAnnouncementOpen(false);
+    setAnnouncementForm({
+      announcement: "",
+      order: 0,
+      startDate: undefined,
+      endDate: undefined,
+      enabled: true,
+    });
+    toast({
+      title: "Announcement created",
+      description: "The announcement has been added successfully.",
+    });
+  };
+
+  const deleteAnnouncement = (id: string) => {
+    setAnnouncements(announcements.filter(a => a.id !== id));
+    toast({
+      title: "Announcement deleted",
+      description: "The announcement has been removed.",
+    });
+  };
+
+  const toggleAnnouncementEnabled = (id: string) => {
+    setAnnouncements(announcements.map(a => 
+      a.id === id ? { ...a, enabled: !a.enabled } : a
+    ));
+  };
+
   const handleInputChange = (field: keyof PropertyFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -784,6 +829,10 @@ export default function PropertyForm() {
               <TabsTrigger value="packages" className="gap-2">
                 <Package className="h-4 w-4" />
                 Packages
+              </TabsTrigger>
+              <TabsTrigger value="announcements" className="gap-2">
+                <Bell className="h-4 w-4" />
+                Announcements
               </TabsTrigger>
             </TabsList>
 
@@ -3424,9 +3473,171 @@ export default function PropertyForm() {
                 </TabsContent>
               </Tabs>
             </TabsContent>
+
+            {/* Announcements Tab */}
+            <TabsContent value="announcements" className="space-y-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>ANNOUNCEMENTS</CardTitle>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setIsManageAnnouncementOpen(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Announcement
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {announcements.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      No announcements yet. Click "Add Announcement" to create one.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left p-3 text-sm font-medium">ENABLED</th>
+                            <th className="text-left p-3 text-sm font-medium">MESSAGE</th>
+                            <th className="text-left p-3 text-sm font-medium">START DATE</th>
+                            <th className="text-left p-3 text-sm font-medium">END DATE</th>
+                            <th className="text-left p-3 text-sm font-medium">ORDER</th>
+                            <th className="text-left p-3 text-sm font-medium">ACTION</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {announcements.map((announcement) => (
+                            <tr key={announcement.id} className="border-b">
+                              <td className="p-3">
+                                <Switch
+                                  checked={announcement.enabled}
+                                  onCheckedChange={() => toggleAnnouncementEnabled(announcement.id)}
+                                />
+                              </td>
+                              <td className="p-3 text-sm">{announcement.announcement}</td>
+                              <td className="p-3 text-sm">
+                                {announcement.startDate ? format(announcement.startDate, "MM/dd/yyyy") : "-"}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {announcement.endDate ? format(announcement.endDate, "MM/dd/yyyy") : "-"}
+                              </td>
+                              <td className="p-3 text-sm">{announcement.order}</td>
+                              <td className="p-3">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => deleteAnnouncement(announcement.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
         </div>
       </div>
+
+      {/* Manage Announcements Dialog */}
+      <Dialog open={isManageAnnouncementOpen} onOpenChange={setIsManageAnnouncementOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Announcements</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="announcement-text">Announcement</Label>
+              <Input
+                id="announcement-text"
+                value={announcementForm.announcement}
+                onChange={(e) => setAnnouncementForm({ ...announcementForm, announcement: e.target.value })}
+                placeholder="Enter announcement text"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="announcement-order">Order</Label>
+              <Input
+                id="announcement-order"
+                type="number"
+                value={announcementForm.order}
+                onChange={(e) => setAnnouncementForm({ ...announcementForm, order: parseInt(e.target.value) || 0 })}
+                min={0}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Start Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !announcementForm.startDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {announcementForm.startDate ? format(announcementForm.startDate, "MM/dd/yyyy") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <CalendarComponent
+                      mode="single"
+                      selected={announcementForm.startDate}
+                      onSelect={(date) => setAnnouncementForm({ ...announcementForm, startDate: date })}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div>
+                <Label>End Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !announcementForm.endDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {announcementForm.endDate ? format(announcementForm.endDate, "MM/dd/yyyy") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <CalendarComponent
+                      mode="single"
+                      selected={announcementForm.endDate}
+                      onSelect={(date) => setAnnouncementForm({ ...announcementForm, endDate: date })}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Button onClick={addAnnouncement} className="bg-primary">
+                Create
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Package Dialog */}
       <Dialog open={isEditPackageOpen} onOpenChange={setIsEditPackageOpen}>
