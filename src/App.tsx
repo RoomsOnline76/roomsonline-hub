@@ -7,6 +7,7 @@ import Home from "./pages/Home";
 import Results from "./pages/Results";
 import Admin from "./pages/Admin";
 import AdminKeys from "./pages/AdminKeys";
+import PropertyForm from "./pages/PropertyForm";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -36,6 +37,14 @@ const App = () => (
             element={
               <ProtectedRoute requireAdmin={true}>
                 <AdminKeys />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/properties/new"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <PropertyForm />
               </ProtectedRoute>
             }
           />
