@@ -18,7 +18,6 @@ export default function Profile() {
     full_name: "",
     email: "",
     avatar_url: "",
-    role: "user",
   });
 
   useEffect(() => {
@@ -46,7 +45,6 @@ export default function Profile() {
           full_name: data.full_name || "",
           email: data.email || "",
           avatar_url: data.avatar_url || "",
-          role: data.role || "user",
         });
       }
     } catch (error) {
@@ -186,15 +184,6 @@ export default function Profile() {
                     value={profile.email}
                     disabled
                     className="bg-muted"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Input
-                    id="role"
-                    value={profile.role === "user" ? "Property Owner" : profile.role}
-                    disabled
-                    className="bg-muted capitalize"
                   />
                 </div>
               </CardContent>
