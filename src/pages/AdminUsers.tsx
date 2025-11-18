@@ -22,7 +22,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Shield, User, Search, Trash2, Building2 } from "lucide-react";
+import { Shield, User, Search, Trash2, Building2, Plus } from "lucide-react";
+import { AddUserModal } from "@/components/AddUserModal";
 
 interface UserProfile {
   id: string;
@@ -41,6 +42,8 @@ export default function AdminUsers() {
   const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [addAdminModalOpen, setAddAdminModalOpen] = useState(false);
+  const [addOwnerModalOpen, setAddOwnerModalOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAdmin) {
@@ -205,8 +208,16 @@ export default function AdminUsers() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Admins</CardTitle>
+              <Button
+                size="sm"
+                onClick={() => setAddAdminModalOpen(true)}
+                className="h-8 gap-1"
+              >
+                <Plus className="h-3 w-3" />
+                Add Admin
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
@@ -215,8 +226,16 @@ export default function AdminUsers() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Property Owners</CardTitle>
+              <Button
+                size="sm"
+                onClick={() => setAddOwnerModalOpen(true)}
+                className="h-8 gap-1"
+              >
+                <Plus className="h-3 w-3" />
+                Add Owner
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
@@ -359,6 +378,20 @@ export default function AdminUsers() {
             </Table>
           </CardContent>
         </Card>
+
+        <AddUserModal
+          open={addAdminModalOpen}
+          onOpenChange={setAddAdminModalOpen}
+          role="admin"
+          onUserAdded={loadUsers}
+        />
+
+        <AddUserModal
+          open={addOwnerModalOpen}
+          onOpenChange={setAddOwnerModalOpen}
+          role="user"
+          onUserAdded={loadUsers}
+        />
       </div>
     </div>
   );
