@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X, Plus, Minus, FileText, Check, Upload, Heart, Edit, Trash2, Copy, Link } from "lucide-react";
+import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X, Plus, Minus, FileText, Check, Upload, Heart, Edit, Trash2, Copy, Link, ChevronRight } from "lucide-react";
 import { StarRating } from "@/components/StarRating";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -560,6 +560,9 @@ export default function PropertyForm() {
     enabled: true,
   });
 
+  // Active tab state
+  const [activeTab, setActiveTab] = useState("general");
+
   const addAnnouncement = () => {
     const newAnnouncement = {
       id: Date.now().toString(),
@@ -778,6 +781,37 @@ export default function PropertyForm() {
       <Navbar />
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
+          {/* Breadcrumb Navigation */}
+          <div className="flex items-center gap-2 text-sm mb-6 text-muted-foreground">
+            <button
+              onClick={() => navigate("/")}
+              className="hover:text-foreground transition-colors flex items-center gap-1"
+            >
+              <Home className="h-4 w-4" />
+              Home
+            </button>
+            <ChevronRight className="h-4 w-4" />
+            <span className="text-foreground font-medium">
+              {formData.name || "Add New Property"}
+            </span>
+            <ChevronRight className="h-4 w-4" />
+            <span className="text-foreground">
+              {activeTab === "general" && "General"}
+              {activeTab === "info-facilities" && "Property info and Facilities"}
+              {activeTab === "house-rules" && "House Rules"}
+              {activeTab === "images" && "Property Images"}
+              {activeTab === "rooms" && "Room Information"}
+              {activeTab === "rates" && "Rate Breakdown"}
+              {activeTab === "templates" && "Templates and Notifications"}
+              {activeTab === "addons" && "Addons"}
+              {activeTab === "specials" && "Specials"}
+              {activeTab === "packages" && "Packages"}
+              {activeTab === "announcements" && "Announcements"}
+              {" "}
+              <span className="text-primary">(Active)</span>
+            </span>
+          </div>
+
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold mb-2">Add New Property</h1>
@@ -788,7 +822,7 @@ export default function PropertyForm() {
             </Button>
           </div>
 
-          <Tabs defaultValue="general" className="space-y-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <TabsList className="bg-secondary">
               <TabsTrigger value="general" className="gap-2">
                 <Home className="h-4 w-4" />
