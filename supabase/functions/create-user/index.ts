@@ -53,28 +53,51 @@ serve(async (req) => {
 
     // Check if user already exists in auth
     const { data: { users: existingAuthUsers } } = await supabaseAdmin.auth.admin.listUsers();
-    const userExists = existingAuthUsers.some(u => u.email === email);
+    const existingAuthUser = existingAuthUsers.find(u => u.email === email);
 
-    if (userExists) {
-      throw new Error('User with this email already exists');
+    let userId: string;
+    
+    if (existingAuthUser) {
+      // User exists in auth, check if they have profile and role
+      const { data: existingProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .eq('id', existingAuthUser.id)
+        .maybeSingle();
+
+      const { data: existingRole } = await supabaseAdmin
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', existingAuthUser.id)
+        .eq('role', role)
+        .maybeSingle();
+
+      if (existingProfile && existingRole) {
+        throw new Error('User with this email already exists and is fully set up');
+      }
+
+      // User exists in auth but missing profile/role, we'll add them
+      console.log('User exists in auth, creating missing profile/role');
+      userId = existingAuthUser.id;
+    } else {
+      // Create new user with admin client
+      const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        email_confirm: true,
+        user_metadata: {
+          full_name,
+        },
+      });
+
+      if (createError) throw createError;
+      userId = newUser.user.id;
     }
-
-    // Create user with admin client
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      email_confirm: true,
-      user_metadata: {
-        full_name,
-      },
-    });
-
-    if (createError) throw createError;
 
     // Create or update profile
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .upsert({
-        id: newUser.user.id,
+        id: userId,
         email,
         full_name,
       }, {
@@ -87,7 +110,7 @@ serve(async (req) => {
     const { error: roleError } = await supabaseAdmin
       .from('user_roles')
       .upsert({
-        user_id: newUser.user.id,
+        user_id: userId,
         role,
       }, {
         onConflict: 'user_id,role'
@@ -96,7 +119,7 @@ serve(async (req) => {
     if (roleError) throw roleError;
 
     return new Response(
-      JSON.stringify({ success: true, user: newUser.user }),
+      JSON.stringify({ success: true }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
