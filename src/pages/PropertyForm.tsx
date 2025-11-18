@@ -31,6 +31,14 @@ const propertySchema = z.object({
   channel_id: z.string().optional(),
   account_id: z.string().optional(),
   agent_id: z.string().optional(),
+  vat_number: z.string().min(1, "VAT number is required"),
+  property_registration: z.string().optional(),
+  bank_name: z.string().optional(),
+  branch_code: z.string().optional(),
+  account_holder: z.string().optional(),
+  account_number: z.string().optional(),
+  account_type: z.string().optional(),
+  swift_code: z.string().optional(),
 });
 
 type PropertyFormData = z.infer<typeof propertySchema>;
@@ -106,6 +114,14 @@ export default function PropertyForm() {
     channel_id: "",
     account_id: "",
     agent_id: "",
+    vat_number: "",
+    property_registration: "",
+    bank_name: "",
+    branch_code: "",
+    account_holder: "",
+    account_number: "",
+    account_type: "",
+    swift_code: "",
   });
 
   const handleInputChange = (field: keyof PropertyFormData, value: string) => {
@@ -155,6 +171,16 @@ export default function PropertyForm() {
             postal_code: formData.postal_code,
           },
           currency: formData.currency,
+          banking: {
+            vat_number: formData.vat_number,
+            property_registration: formData.property_registration,
+            bank_name: formData.bank_name,
+            branch_code: formData.branch_code,
+            account_holder: formData.account_holder,
+            account_number: formData.account_number,
+            account_type: formData.account_type,
+            swift_code: formData.swift_code,
+          },
           external_ids: {
             nightsbridge_bb_id: isNightsBridge ? formData.bb_id : null,
             semper_venue_id: isSemperProperty ? formData.venue_id : null,
@@ -517,6 +543,92 @@ export default function PropertyForm() {
                             Map integration coming soon
                           </p>
                         </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Property and Banking Details */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Property and Banking Details for Invoicing</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="vat_number">
+                          VAT # <span className="text-destructive">*</span>
+                        </Label>
+                        <Input
+                          id="vat_number"
+                          value={formData.vat_number}
+                          onChange={(e) => handleInputChange("vat_number", e.target.value)}
+                          placeholder="4930161700"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="property_registration">Property Registration #</Label>
+                        <Input
+                          id="property_registration"
+                          value={formData.property_registration}
+                          onChange={(e) => handleInputChange("property_registration", e.target.value)}
+                          placeholder="1998/012413/07"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="bank_name">Bank Name</Label>
+                        <Input
+                          id="bank_name"
+                          value={formData.bank_name}
+                          onChange={(e) => handleInputChange("bank_name", e.target.value)}
+                          placeholder="First National Bank"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="branch_code">Branch Code</Label>
+                        <Input
+                          id="branch_code"
+                          value={formData.branch_code}
+                          onChange={(e) => handleInputChange("branch_code", e.target.value)}
+                          placeholder="203809"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="account_holder">Account Holder</Label>
+                        <Input
+                          id="account_holder"
+                          value={formData.account_holder}
+                          onChange={(e) => handleInputChange("account_holder", e.target.value)}
+                          placeholder="Property name or business name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="account_number">Account Number</Label>
+                        <Input
+                          id="account_number"
+                          value={formData.account_number}
+                          onChange={(e) => handleInputChange("account_number", e.target.value)}
+                          placeholder="62453541700"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="account_type">Account Type</Label>
+                        <Input
+                          id="account_type"
+                          value={formData.account_type}
+                          onChange={(e) => handleInputChange("account_type", e.target.value)}
+                          placeholder="Gold Business Account"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="swift_code">SWIFT Code</Label>
+                        <Input
+                          id="swift_code"
+                          value={formData.swift_code}
+                          onChange={(e) => handleInputChange("swift_code", e.target.value)}
+                          placeholder="Enter Swift Code"
+                        />
                       </div>
                     </div>
                   </CardContent>
