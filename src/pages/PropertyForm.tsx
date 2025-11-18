@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X, Plus, Minus, FileText, Check, Upload, Heart } from "lucide-react";
+import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X, Plus, Minus, FileText, Check, Upload, Heart, Edit, Trash2 } from "lucide-react";
 import { StarRating } from "@/components/StarRating";
 
 const propertySchema = z.object({
@@ -181,6 +181,12 @@ export default function PropertyForm() {
   ]);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Room types state
+  const [roomTypes, setRoomTypes] = useState<any[]>([
+    { id: '1', name: 'Holiday House', selected: true }
+  ]);
+  const [selectedRoomType, setSelectedRoomType] = useState<string>('1');
 
   const handleInputChange = (field: keyof PropertyFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -394,7 +400,7 @@ export default function PropertyForm() {
                 <Image className="h-4 w-4" />
                 Property Images
               </TabsTrigger>
-              <TabsTrigger value="rooms" className="gap-2" disabled>
+              <TabsTrigger value="rooms" className="gap-2">
                 <Info className="h-4 w-4" />
                 Room Information
               </TabsTrigger>
@@ -1555,6 +1561,367 @@ export default function PropertyForm() {
                   <Save className="mr-2 h-4 w-4" />
                   {loading ? "Saving..." : "Save Property"}
                 </Button>
+              </div>
+            </TabsContent>
+
+            {/* Room Information Tab */}
+            <TabsContent value="rooms" className="space-y-0">
+              <div className="flex gap-4 h-[calc(100vh-250px)]">
+                {/* Left Sidebar - Room Types List */}
+                <div className="w-64 border-r bg-muted/30 p-4 space-y-2">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-sm">ROOM TYPES</h3>
+                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {roomTypes.map((room) => (
+                    <div
+                      key={room.id}
+                      onClick={() => setSelectedRoomType(room.id)}
+                      className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors ${
+                        selectedRoomType === room.id
+                          ? 'bg-primary text-primary-foreground'
+                          : 'hover:bg-muted'
+                      }`}
+                    >
+                      <span className="text-sm font-medium">{room.name}</span>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Main Content - Room Type Details */}
+                <div className="flex-1 overflow-auto">
+                  <Tabs defaultValue="room-type" className="w-full">
+                    <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
+                      <TabsTrigger 
+                        value="room-type"
+                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                      >
+                        Room Type
+                      </TabsTrigger>
+                      <TabsTrigger 
+                        value="facilities"
+                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                      >
+                        Facilities
+                      </TabsTrigger>
+                      <TabsTrigger 
+                        value="amenities"
+                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                      >
+                        Amenities
+                      </TabsTrigger>
+                      <TabsTrigger 
+                        value="room-images"
+                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                      >
+                        Images
+                      </TabsTrigger>
+                      <TabsTrigger 
+                        value="agreement"
+                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                      >
+                        Agreement
+                      </TabsTrigger>
+                    </TabsList>
+
+                    {/* Room Type Sub-tab */}
+                    <TabsContent value="room-type" className="p-6 space-y-6">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Room Type Name</Label>
+                          <Input defaultValue="Holiday House" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label># of rooms for this type*</Label>
+                          <Input type="number" defaultValue="9" />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>NightsBridge Room Type</Label>
+                          <Input />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>NightsBridge Room ID</Label>
+                          <Input defaultValue="4" />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Room Type Description</Label>
+                        <Textarea 
+                          rows={4}
+                          defaultValue="Each holiday house comprises 2 bedrooms upstairs, each with an en-suite bathroom. Each home has a spacious living area downstairs, a fully equipped kitchen with a washing machine, and a private patio."
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Extra Person Policy</Label>
+                        <Textarea rows={2} />
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label>Bed Configuration</Label>
+                          <Select defaultValue="king-twin">
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="king-twin">King/Twin</SelectItem>
+                              <SelectItem value="king">King</SelectItem>
+                              <SelectItem value="twin">Twin</SelectItem>
+                              <SelectItem value="queen">Queen</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Room Size (m²)*</Label>
+                          <Input type="number" defaultValue="130" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Bathrooms*</Label>
+                          <Input type="number" defaultValue="0" />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label>Max people per Room*</Label>
+                          <Input type="number" defaultValue="4" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Max adult*</Label>
+                          <Input type="number" defaultValue="4" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Max children*</Label>
+                          <Input type="number" defaultValue="0" />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Min Stay*</Label>
+                          <Input type="number" defaultValue="5" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Max Stay*</Label>
+                          <Input type="number" defaultValue="0" />
+                        </div>
+                      </div>
+
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                        <p className="text-sm text-blue-700">
+                          <strong>INFO:</strong> Please be advised that you need to align the number of "Max adult" with rate type if Person Rate is applied.
+                        </p>
+                      </div>
+
+                      <div className="space-y-4">
+                        <h3 className="font-semibold">Rate Info</h3>
+                        <div className="space-y-2">
+                          <Label>Rate Type</Label>
+                          <Select defaultValue="per-unit">
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="per-unit">Per Unit</SelectItem>
+                              <SelectItem value="per-person">Per Person</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Meal Type</Label>
+                          <div className="flex gap-2">
+                            <Badge variant="secondary" className="gap-2">
+                              Self Catering
+                              <X className="h-3 w-3 cursor-pointer" />
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </TabsContent>
+
+                    {/* Facilities Sub-tab */}
+                    <TabsContent value="facilities" className="p-6 space-y-4">
+                      <div className="flex items-center gap-4 mb-4">
+                        <Select defaultValue="balcony">
+                          <SelectTrigger className="w-64">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="balcony">Balcony</SelectItem>
+                            <SelectItem value="terrace">Terrace</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <div className="flex items-center gap-2">
+                          <Checkbox id="highlight-all" />
+                          <Label htmlFor="highlight-all" className="cursor-pointer">Highlight all</Label>
+                        </div>
+                        <Button variant="outline" size="sm">Copy</Button>
+                        <Button variant="outline" size="sm">Apply</Button>
+                      </div>
+
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-2 mb-4">
+                        <p className="text-sm text-blue-700">Checked items will be highlighted.</p>
+                      </div>
+
+                      <div className="grid grid-cols-6 gap-6">
+                        {/* Cooking */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">Cooking</h4>
+                          {['Braai/Barbeque Facilities', 'Cleaning Service', 'Coffee/tea facilities', 'DSTV/Satellite TV', 'Desk', 'Dining Table', 'Ironing board', 'Microwave', 'Non-smoking', 'Outdoor Furniture', 'Outdoor dining area', 'Oven', 'Patio', 'Refrigerator', 'Sitting area', 'Toaster', 'Two Plate Stove', 'Wake up call'].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox id={item} />
+                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* General */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">General</h4>
+                          {['Kitchenette', 'Hairdryer', 'Shower and bath', 'Telephone'].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox id={item} />
+                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Laundry */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">Laundry</h4>
+                          {['Airconditioned room', 'Iron', 'Washing machine'].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox id={item} />
+                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Media */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">Media</h4>
+                          {['Flat screen TV'].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox id={item} />
+                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Security */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">Security</h4>
+                          {['Safe'].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox id={item} />
+                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* View */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">View</h4>
+                          {['Garden view', 'Landmark view', 'Mountain view', 'Pool view', 'Terrace'].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox id={item} />
+                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </TabsContent>
+
+                    {/* Amenities Sub-tab */}
+                    <TabsContent value="amenities" className="p-6 space-y-4">
+                      <div className="flex items-center gap-4 mb-4">
+                        <Select defaultValue="bathrobe">
+                          <SelectTrigger className="w-64">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="bathrobe">Bathrobe</SelectItem>
+                            <SelectItem value="slippers">Slippers</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <div className="flex items-center gap-2">
+                          <Checkbox id="highlight-all-amenities" />
+                          <Label htmlFor="highlight-all-amenities" className="cursor-pointer">Highlight all</Label>
+                        </div>
+                        <Button variant="outline" size="sm">Copy</Button>
+                        <Button variant="outline" size="sm">Apply</Button>
+                      </div>
+
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-2 mb-4">
+                        <p className="text-sm text-blue-700">Checked items will be highlighted.</p>
+                      </div>
+
+                      <div className="space-y-3">
+                        {['Bathroom amenities', 'Hand wash', 'Towels'].map((item) => (
+                          <div key={item} className="flex items-center gap-2">
+                            <Checkbox id={item} />
+                            <Label htmlFor={item} className="text-sm cursor-pointer flex-1">{item}</Label>
+                            <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
+                          </div>
+                        ))}
+                      </div>
+                    </TabsContent>
+
+                    {/* Room Images Sub-tab */}
+                    <TabsContent value="room-images" className="p-6 space-y-4">
+                      <h3 className="font-semibold text-lg mb-4">ROOM TYPE IMAGES</h3>
+                      <div className="grid grid-cols-6 gap-4">
+                        {/* Upload slot */}
+                        <div className="aspect-video border-2 border-dashed border-primary/50 rounded-lg flex flex-col items-center justify-center bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors">
+                          <Upload className="h-8 w-8 text-primary mb-2" />
+                          <p className="text-xs text-center text-muted-foreground px-2">
+                            Click or Drag and drop image to upload
+                          </p>
+                        </div>
+
+                        {/* Placeholder empty slots */}
+                        {Array.from({ length: 11 }).map((_, i) => (
+                          <div key={i} className="aspect-video border-2 border-dashed border-border rounded-lg bg-muted/20"></div>
+                        ))}
+                      </div>
+                    </TabsContent>
+
+                    {/* Agreement Sub-tab */}
+                    <TabsContent value="agreement" className="p-6 space-y-4">
+                      <div className="space-y-2">
+                        <Label>Split %</Label>
+                        <Input type="number" defaultValue="0" className="max-w-xs" />
+                      </div>
+
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                        <p className="text-sm text-blue-700">
+                          Inputting a value here will override the split % specified in House Style for this room.
+                        </p>
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
