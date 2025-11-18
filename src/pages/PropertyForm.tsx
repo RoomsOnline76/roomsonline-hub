@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,8 +81,10 @@ type PropertyFormData = z.infer<typeof propertySchema>;
 
 export default function PropertyForm() {
   const navigate = useNavigate();
+  const { id } = useParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   // Offerings
   const [isAccommodation, setIsAccommodation] = useState(true);
@@ -594,6 +596,113 @@ export default function PropertyForm() {
     fontColor: "#FFFFFF",
   });
 
+  // Load property data if editing
+  useEffect(() => {
+    const loadProperty = async () => {
+      if (!id) {
+        setIsEditMode(false);
+        return;
+      }
+
+      setIsEditMode(true);
+      setLoading(true);
+
+      try {
+        const { data, error } = await supabase
+          .from("properties")
+          .select("*")
+          .eq("id", id)
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          // Populate form data
+          const amenities = data.amenities as any;
+          
+          setFormData({
+            name: data.name || "",
+            property_type: data.property_type || "",
+            contact_email: amenities?.contact?.email || "",
+            telephone: amenities?.contact?.telephone || "",
+            currency: amenities?.currency || "ZAR",
+            owner_name: data.owner_name || "",
+            owner_email: data.owner_email || "",
+            property_url: data.property_url || "",
+            country: data.country || "South Africa",
+            city: data.city || "",
+            address: data.address || "",
+            suburb: amenities?.address_details?.suburb || "",
+            postal_code: amenities?.address_details?.postal_code || "",
+            bb_id: amenities?.external_ids?.nightsbridge_bb_id || "",
+            venue_id: amenities?.external_ids?.semper_venue_id || "",
+            channel_id: amenities?.external_ids?.semper_channel_id || "",
+            account_id: amenities?.external_ids?.semper_account_id || "",
+            agent_id: amenities?.external_ids?.semper_agent_id || "",
+            vat_number: amenities?.banking?.vat_number || "",
+            property_registration: amenities?.banking?.property_registration || "",
+            bank_name: amenities?.banking?.bank_name || "",
+            branch_code: amenities?.banking?.branch_code || "",
+            account_holder: amenities?.banking?.account_holder || "",
+            account_number: amenities?.banking?.account_number || "",
+            account_type: amenities?.banking?.account_type || "",
+            swift_code: amenities?.banking?.swift_code || "",
+            description: data.description || "",
+            star_rating: 0,
+            facilities: [],
+            items_non_refundable: false,
+            smoking_allowed: false,
+            pets_allowed: false,
+            children_allowed: true,
+            parties_allowed: false,
+            check_in_24h: false,
+            deposit_allowed: false,
+            deposit_percentage: "50",
+            deposit_days: "2",
+            same_day_bookings: false,
+            same_day_cutoff: "16:00",
+            check_in_from: "15:00",
+            check_in_to: "20:00",
+            check_out_from: "06:00",
+            check_out_to: "11:00",
+            children_policy: "Children are welcome\nChildren up until the age of 12 - Stay free",
+            infant_age_from: "1",
+            infant_age_to: "2",
+            children_age_from: "3",
+            children_age_to: "12",
+          });
+
+          // Set offerings
+          setIsAccommodation(amenities?.offerings?.accommodation ?? true);
+          setIsVenues(amenities?.offerings?.venues ?? false);
+          setIsEvent(amenities?.offerings?.event_wedding ?? false);
+          setIsConference(amenities?.offerings?.conference ?? false);
+
+          // Set property source
+          const externalSystem = data.external_system || "";
+          setIsNightsBridge(externalSystem.includes("nightsbridge"));
+          setIsSemperProperty(externalSystem.includes("semper"));
+
+          // Load images if available
+          if (data.images && Array.isArray(data.images)) {
+            setUploadedImages(data.images as string[]);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading property:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load property data",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProperty();
+  }, [id]);
+
   const addAnnouncement = () => {
     const newAnnouncement = {
       id: Date.now().toString(),
@@ -860,13 +969,15 @@ export default function PropertyForm() {
         },
       };
 
-      const { error } = await supabase.from("properties").insert([propertyData]);
+      const { error } = isEditMode
+        ? await supabase.from("properties").update(propertyData).eq("id", id)
+        : await supabase.from("properties").insert([propertyData]);
 
       if (error) throw error;
 
       toast({
         title: "Success",
-        description: "Property created successfully",
+        description: isEditMode ? "Property updated successfully" : "Property created successfully",
       });
 
       navigate("/admin");
@@ -905,7 +1016,7 @@ export default function PropertyForm() {
             </button>
             <ChevronRight className="h-4 w-4" />
             <span className="text-foreground font-medium">
-              {formData.name || "Add New Property"}
+              {isEditMode ? (formData.name || "Edit Property") : "Add New Property"}
             </span>
             <ChevronRight className="h-4 w-4" />
             <span className="text-foreground">
@@ -928,7 +1039,7 @@ export default function PropertyForm() {
 
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold mb-2">Add New Property</h1>
+              <h1 className="text-3xl font-bold mb-2">{isEditMode ? "Edit Property" : "Add New Property"}</h1>
               <p className="text-muted-foreground">Configure property details and settings</p>
             </div>
             <Button variant="outline" onClick={() => navigate("/admin")}>
