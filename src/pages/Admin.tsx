@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Building2, Settings, Edit, Trash2, Home, ExternalLink, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -29,22 +30,34 @@ const Admin = () => {
       
       if (propertiesError) throw propertiesError;
 
-      // Get booking counts for each property
-      const propertiesWithBookings = await Promise.all(
+      // Get booking counts and owner profiles for each property
+      const propertiesWithExtras = await Promise.all(
         (propertiesData || []).map(async (property) => {
           const { count } = await supabase
             .from("bookings")
             .select("*", { count: "exact", head: true })
             .eq("property_id", property.id);
           
+          // Get owner profile if owner_email exists
+          let ownerProfile = null;
+          if (property.owner_email) {
+            const { data: profileData } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("email", property.owner_email)
+              .single();
+            ownerProfile = profileData;
+          }
+          
           return {
             ...property,
             total_bookings: count || 0,
+            owner_profile: ownerProfile,
           };
         })
       );
       
-      return propertiesWithBookings;
+      return propertiesWithExtras;
     },
   });
 
@@ -162,9 +175,21 @@ const Admin = () => {
                           <TableCell>{property.owner_email || "-"}</TableCell>
                           <TableCell>
                             <div className="flex items-center justify-center">
-                              <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center">
-                                <CheckCircle2 className="h-5 w-5 text-white" />
-                              </div>
+                              {property.owner_profile ? (
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={property.owner_profile.avatar_url} />
+                                  <AvatarFallback className="text-xs bg-teal-500 text-white">
+                                    {property.owner_profile.full_name 
+                                      ? property.owner_profile.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase()
+                                      : property.owner_profile.email.substring(0, 2).toUpperCase()
+                                    }
+                                  </AvatarFallback>
+                                </Avatar>
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center">
+                                  <CheckCircle2 className="h-5 w-5 text-white" />
+                                </div>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>{property.total_bookings || 0}</TableCell>

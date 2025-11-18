@@ -127,27 +127,33 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string | null
           email: string
           full_name: string | null
           id: string
           phone: string | null
+          role: string | null
           updated_at: string | null
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string | null
           email: string
           full_name?: string | null
           id: string
           phone?: string | null
+          role?: string | null
           updated_at?: string | null
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string | null
           email?: string
           full_name?: string | null
           id?: string
           phone?: string | null
+          role?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -253,6 +259,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_profile: {
+        Args: { user_id: string }
+        Returns: {
+          avatar_url: string
+          email: string
+          full_name: string
+          id: string
+          role: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
