@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Building2, Settings, Edit, Trash2, Home, ExternalLink, CheckCircle2 } from "lucide-react";
+import { Building2, Settings, Edit, Trash2, Home, ExternalLink, CheckCircle2, Calendar, Megaphone, BookOpen, PieChart } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -131,16 +131,64 @@ const Admin = () => {
           </p>
         </div>
 
-        {/* Quick Stats */}
-        <div className="mb-8">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+        {/* Quick Stats Banner */}
+        <div className="mb-8 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <Card className="border-2 border-primary/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
                 <Building2 className="h-5 w-5 text-primary" />
                 Properties Overview
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-sm">
                 {activeProperties.length} active, {deletedProperties.length} deleted
+              </CardDescription>
+            </CardHeader>
+          </Card>
+
+          <Card className="border-2 border-primary/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Calendar className="h-5 w-5 text-primary" />
+                Calendar
+              </CardTitle>
+              <CardDescription className="text-sm">
+                Manage bookings calendar
+              </CardDescription>
+            </CardHeader>
+          </Card>
+
+          <Card className="border-2 border-primary/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Megaphone className="h-5 w-5 text-primary" />
+                Promotion
+              </CardTitle>
+              <CardDescription className="text-sm">
+                Marketing campaigns
+              </CardDescription>
+            </CardHeader>
+          </Card>
+
+          <Card className="border-2 border-primary/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BookOpen className="h-5 w-5 text-primary" />
+                Bookings
+              </CardTitle>
+              <CardDescription className="text-sm">
+                View all reservations
+              </CardDescription>
+            </CardHeader>
+          </Card>
+
+          <Card className="border-2 border-primary/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <PieChart className="h-5 w-5 text-primary" />
+                Reports
+              </CardTitle>
+              <CardDescription className="text-sm">
+                Analytics & insights
               </CardDescription>
             </CardHeader>
           </Card>
