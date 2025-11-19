@@ -930,9 +930,143 @@ const Admin = () => {
                   <CardDescription>View venue analytics & insights</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-12">
-                    <PieChart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Venue reports coming soon</p>
+                  <div className="space-y-6">
+                    {/* Status Tabs */}
+                    <div className="flex gap-2">
+                      <Badge className="bg-primary hover:bg-primary/90 cursor-pointer px-4 py-2">Reserved</Badge>
+                      <Badge className="bg-primary hover:bg-primary/90 cursor-pointer px-4 py-2">Cancelled</Badge>
+                    </div>
+
+                    {/* Filters */}
+                    <div className="flex flex-wrap gap-4 items-end justify-between">
+                      <div className="flex flex-wrap gap-4 items-end flex-1">
+                        <div className="min-w-[200px]">
+                          <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
+                            <option>All Properties</option>
+                            {activeProperties.map((property) => (
+                              <option key={property.id} value={property.id}>
+                                {property.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex gap-2 items-center">
+                          <div>
+                            <Label className="text-xs mb-1 block">From</Label>
+                            <Input type="date" className="h-10" />
+                          </div>
+                          <div>
+                            <Label className="text-xs mb-1 block">To</Label>
+                            <Input type="date" className="h-10" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Input type="text" placeholder="Search" className="h-10 min-w-[200px]" />
+                          <Button size="icon" variant="outline">
+                            <Search className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Button className="bg-primary hover:bg-primary/90">Export</Button>
+                    </div>
+
+                    {/* Venue Reports Table */}
+                    <div className="border rounded-lg overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>PROPERTY</TableHead>
+                            <TableHead>USER NAME</TableHead>
+                            <TableHead>USER EMAIL</TableHead>
+                            <TableHead>TYPE OF RESERVED</TableHead>
+                            <TableHead>VENUE TYPE</TableHead>
+                            <TableHead>VENUE NAME</TableHead>
+                            <TableHead>RESERVE DATE</TableHead>
+                            <TableHead>PRICE</TableHead>
+                            <TableHead>ARRIVAL DATE</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <TableRow>
+                            <TableCell className="font-medium">Nightsbridge - Test Property (Group)</TableCell>
+                            <TableCell>M K001</TableCell>
+                            <TableCell>melaniskeyter+10000100@gmail.c</TableCell>
+                            <TableCell>Package</TableCell>
+                            <TableCell>ConferenceVenue</TableCell>
+                            <TableCell>1 Board Room - Board Room</TableCell>
+                            <TableCell>11/17/2025</TableCell>
+                            <TableCell>10000</TableCell>
+                            <TableCell>11/18/2025</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-medium">Nightsbridge - Test Property (Group)</TableCell>
+                            <TableCell>test test</TableCell>
+                            <TableCell>che-rene@hotmail.com</TableCell>
+                            <TableCell>Package</TableCell>
+                            <TableCell>ConferenceVenue</TableCell>
+                            <TableCell>1 Board Room - Board Room</TableCell>
+                            <TableCell>11/10/2025</TableCell>
+                            <TableCell>12000</TableCell>
+                            <TableCell>11/17/2025</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-medium">Nightsbridge - Test Property (Group)</TableCell>
+                            <TableCell>Melani Keyter</TableCell>
+                            <TableCell>melani+10000100@gmail.com</TableCell>
+                            <TableCell>Package</TableCell>
+                            <TableCell>ConferenceVenue</TableCell>
+                            <TableCell>1 Board Room - Board Room</TableCell>
+                            <TableCell>11/10/2025</TableCell>
+                            <TableCell>40000</TableCell>
+                            <TableCell>11/11/2025</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-medium">Milnerton golf club</TableCell>
+                            <TableCell>Mark Africa</TableCell>
+                            <TableCell>mafrica@motus.co.za</TableCell>
+                            <TableCell>Package</TableCell>
+                            <TableCell>EventVenue</TableCell>
+                            <TableCell>1 Lagoon Beach Hotel - Round Table</TableCell>
+                            <TableCell>11/8/2025</TableCell>
+                            <TableCell>1000</TableCell>
+                            <TableCell>11/8/2025</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-medium">Milnerton golf club</TableCell>
+                            <TableCell>Michelle Rebel</TableCell>
+                            <TableCell>michelletr@mweb.co.za</TableCell>
+                            <TableCell>Package</TableCell>
+                            <TableCell>EventVenue</TableCell>
+                            <TableCell>1 Lagoon Beach Hotel - Round Table</TableCell>
+                            <TableCell>11/7/2025</TableCell>
+                            <TableCell>1000</TableCell>
+                            <TableCell>11/8/2025</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-medium">Milnerton golf club</TableCell>
+                            <TableCell>Elisabeth Otto Walther</TableCell>
+                            <TableCell>elisabeth.i.walther@gmail.com</TableCell>
+                            <TableCell>Package</TableCell>
+                            <TableCell>EventVenue</TableCell>
+                            <TableCell>1 Lagoon Beach Hotel - Round Table</TableCell>
+                            <TableCell>11/6/2025</TableCell>
+                            <TableCell>500</TableCell>
+                            <TableCell>11/8/2025</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-medium">Nightsbridge - Test Property (Group)</TableCell>
+                            <TableCell>Matthew Rawlings</TableCell>
+                            <TableCell>matt.rawlings+10000100@vulcani</TableCell>
+                            <TableCell>Package</TableCell>
+                            <TableCell>ConferenceVenue</TableCell>
+                            <TableCell>1 Board Room - Board Room</TableCell>
+                            <TableCell>11/6/2025</TableCell>
+                            <TableCell>40000</TableCell>
+                            <TableCell>11/7/2025</TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
