@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { BulkRateRuleDialog } from "@/components/BulkRateRuleDialog";
+import { BulkAvailabilityRuleDialog } from "@/components/BulkAvailabilityRuleDialog";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -30,6 +31,7 @@ const Admin = () => {
   const [currency, setCurrency] = useState("USD");
   const [selectedSection, setSelectedSection] = useState<"properties" | "calendar" | "promotion" | "bookings" | "reports">("properties");
   const [bulkRateRuleOpen, setBulkRateRuleOpen] = useState(false);
+  const [bulkAvailabilityRuleOpen, setBulkAvailabilityRuleOpen] = useState(false);
 
   const { data: allProperties, isLoading, refetch } = useQuery({
     queryKey: ["properties", user?.id, isAdmin],
@@ -498,7 +500,7 @@ const Admin = () => {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-56 bg-background">
                             <DropdownMenuItem onClick={() => setBulkRateRuleOpen(true)}>Bulk Rate</DropdownMenuItem>
-                            <DropdownMenuItem>Bulk Availability</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkAvailabilityRuleOpen(true)}>Bulk Availability</DropdownMenuItem>
                             <DropdownMenuItem>Stop Sell</DropdownMenuItem>
                             <DropdownMenuItem>Minimum Stay</DropdownMenuItem>
                             <DropdownMenuItem>Maximum Stay</DropdownMenuItem>
@@ -600,7 +602,7 @@ const Admin = () => {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-56 bg-background">
                             <DropdownMenuItem onClick={() => setBulkRateRuleOpen(true)}>Bulk Rate</DropdownMenuItem>
-                            <DropdownMenuItem>Bulk Availability</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkAvailabilityRuleOpen(true)}>Bulk Availability</DropdownMenuItem>
                             <DropdownMenuItem>Stop Sell</DropdownMenuItem>
                             <DropdownMenuItem>Minimum Stay</DropdownMenuItem>
                             <DropdownMenuItem>Maximum Stay</DropdownMenuItem>
@@ -702,7 +704,7 @@ const Admin = () => {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-56 bg-background">
                             <DropdownMenuItem onClick={() => setBulkRateRuleOpen(true)}>Bulk Rate</DropdownMenuItem>
-                            <DropdownMenuItem>Bulk Availability</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkAvailabilityRuleOpen(true)}>Bulk Availability</DropdownMenuItem>
                             <DropdownMenuItem>Stop Sell</DropdownMenuItem>
                             <DropdownMenuItem>Minimum Stay</DropdownMenuItem>
                             <DropdownMenuItem>Maximum Stay</DropdownMenuItem>
@@ -1403,6 +1405,7 @@ const Admin = () => {
       </div>
 
       <BulkRateRuleDialog open={bulkRateRuleOpen} onOpenChange={setBulkRateRuleOpen} />
+      <BulkAvailabilityRuleDialog open={bulkAvailabilityRuleOpen} onOpenChange={setBulkAvailabilityRuleOpen} />
     </div>
   );
 };
