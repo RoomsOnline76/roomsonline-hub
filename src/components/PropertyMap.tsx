@@ -40,7 +40,7 @@ export function PropertyMap({
         const { data, error } = await supabase
           .from("api_keys")
           .select("key_value")
-          .eq("key_name", "GOOGLE_MAPS_API_KEY")
+          .eq("key_name", "google_maps_api_key")
           .maybeSingle();
 
         if (error) throw error;
