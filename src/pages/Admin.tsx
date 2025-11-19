@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Building2, Settings, Edit, Trash2, Home, ExternalLink, CheckCircle2, Calendar, Megaphone, BookOpen, PieChart } from "lucide-react";
+import { Building2, Settings, Edit, Trash2, Home, ExternalLink, CheckCircle2, Calendar, Megaphone, BookOpen, PieChart, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -516,9 +516,42 @@ const Admin = () => {
                   <CardDescription>Manage accommodation marketing campaigns</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-12">
-                    <Megaphone className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Accommodation promotions coming soon</p>
+                  <div className="space-y-6">
+                    <div className="flex flex-wrap gap-4 items-end">
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">Property</Label>
+                        <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
+                          <option>All Property</option>
+                          {activeProperties.map((property) => (
+                            <option key={property.id} value={property.id}>
+                              {property.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">From / To</Label>
+                        <div className="flex gap-2">
+                          <Input type="date" placeholder="From" className="flex-1" />
+                          <Input type="date" placeholder="To" className="flex-1" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">Search</Label>
+                        <div className="flex gap-2">
+                          <Input type="text" placeholder="Type in to search..." className="flex-1" />
+                          <Button size="icon" variant="default">
+                            <Search className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Button className="bg-primary hover:bg-primary/90">
+                        Add Promotions
+                      </Button>
+                    </div>
+                    <div className="text-center py-12 text-muted-foreground">
+                      <p>Promotion list will appear here</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -531,9 +564,42 @@ const Admin = () => {
                   <CardDescription>Manage event and wedding marketing campaigns</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-12">
-                    <Megaphone className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Event/Wedding promotions coming soon</p>
+                  <div className="space-y-6">
+                    <div className="flex flex-wrap gap-4 items-end">
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">Property</Label>
+                        <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
+                          <option>All Property</option>
+                          {activeProperties.map((property) => (
+                            <option key={property.id} value={property.id}>
+                              {property.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">From / To</Label>
+                        <div className="flex gap-2">
+                          <Input type="date" placeholder="From" className="flex-1" />
+                          <Input type="date" placeholder="To" className="flex-1" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">Search</Label>
+                        <div className="flex gap-2">
+                          <Input type="text" placeholder="Type in to search..." className="flex-1" />
+                          <Button size="icon" variant="default">
+                            <Search className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Button className="bg-primary hover:bg-primary/90">
+                        Add Promotions
+                      </Button>
+                    </div>
+                    <div className="text-center py-12 text-muted-foreground">
+                      <p>Promotion list will appear here</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -546,9 +612,42 @@ const Admin = () => {
                   <CardDescription>Manage conference marketing campaigns</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-12">
-                    <Megaphone className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Conference promotions coming soon</p>
+                  <div className="space-y-6">
+                    <div className="flex flex-wrap gap-4 items-end">
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">Property</Label>
+                        <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
+                          <option>All Property</option>
+                          {activeProperties.map((property) => (
+                            <option key={property.id} value={property.id}>
+                              {property.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">From / To</Label>
+                        <div className="flex gap-2">
+                          <Input type="date" placeholder="From" className="flex-1" />
+                          <Input type="date" placeholder="To" className="flex-1" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">Search</Label>
+                        <div className="flex gap-2">
+                          <Input type="text" placeholder="Type in to search..." className="flex-1" />
+                          <Button size="icon" variant="default">
+                            <Search className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Button className="bg-primary hover:bg-primary/90">
+                        Add Promotions
+                      </Button>
+                    </div>
+                    <div className="text-center py-12 text-muted-foreground">
+                      <p>Promotion list will appear here</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
