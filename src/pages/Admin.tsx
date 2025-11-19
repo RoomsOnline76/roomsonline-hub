@@ -22,6 +22,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { BulkRateRuleDialog } from "@/components/BulkRateRuleDialog";
 import { BulkAvailabilityRuleDialog } from "@/components/BulkAvailabilityRuleDialog";
+import { BulkStopSellDialog } from "@/components/BulkStopSellDialog";
+import { BulkMinimumStayDialog } from "@/components/BulkMinimumStayDialog";
+import { BulkMaximumStayDialog } from "@/components/BulkMaximumStayDialog";
+import { BulkLeadDaysAdvanceDialog } from "@/components/BulkLeadDaysAdvanceDialog";
+import { BulkLeadDaysPostDialog } from "@/components/BulkLeadDaysPostDialog";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -32,6 +37,11 @@ const Admin = () => {
   const [selectedSection, setSelectedSection] = useState<"properties" | "calendar" | "promotion" | "bookings" | "reports">("properties");
   const [bulkRateRuleOpen, setBulkRateRuleOpen] = useState(false);
   const [bulkAvailabilityRuleOpen, setBulkAvailabilityRuleOpen] = useState(false);
+  const [bulkStopSellOpen, setBulkStopSellOpen] = useState(false);
+  const [bulkMinimumStayOpen, setBulkMinimumStayOpen] = useState(false);
+  const [bulkMaximumStayOpen, setBulkMaximumStayOpen] = useState(false);
+  const [bulkLeadDaysAdvanceOpen, setBulkLeadDaysAdvanceOpen] = useState(false);
+  const [bulkLeadDaysPostOpen, setBulkLeadDaysPostOpen] = useState(false);
 
   const { data: allProperties, isLoading, refetch } = useQuery({
     queryKey: ["properties", user?.id, isAdmin],
@@ -501,11 +511,11 @@ const Admin = () => {
                           <DropdownMenuContent align="end" className="w-56 bg-background">
                             <DropdownMenuItem onClick={() => setBulkRateRuleOpen(true)}>Bulk Rate</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setBulkAvailabilityRuleOpen(true)}>Bulk Availability</DropdownMenuItem>
-                            <DropdownMenuItem>Stop Sell</DropdownMenuItem>
-                            <DropdownMenuItem>Minimum Stay</DropdownMenuItem>
-                            <DropdownMenuItem>Maximum Stay</DropdownMenuItem>
-                            <DropdownMenuItem>Lead Days Advance</DropdownMenuItem>
-                            <DropdownMenuItem>Lead Days Post</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkStopSellOpen(true)}>Stop Sell</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkMinimumStayOpen(true)}>Minimum Stay</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkMaximumStayOpen(true)}>Maximum Stay</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkLeadDaysAdvanceOpen(true)}>Lead Days Advance</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkLeadDaysPostOpen(true)}>Lead Days Post</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -603,11 +613,11 @@ const Admin = () => {
                           <DropdownMenuContent align="end" className="w-56 bg-background">
                             <DropdownMenuItem onClick={() => setBulkRateRuleOpen(true)}>Bulk Rate</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setBulkAvailabilityRuleOpen(true)}>Bulk Availability</DropdownMenuItem>
-                            <DropdownMenuItem>Stop Sell</DropdownMenuItem>
-                            <DropdownMenuItem>Minimum Stay</DropdownMenuItem>
-                            <DropdownMenuItem>Maximum Stay</DropdownMenuItem>
-                            <DropdownMenuItem>Lead Days Advance</DropdownMenuItem>
-                            <DropdownMenuItem>Lead Days Post</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkStopSellOpen(true)}>Stop Sell</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkMinimumStayOpen(true)}>Minimum Stay</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkMaximumStayOpen(true)}>Maximum Stay</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkLeadDaysAdvanceOpen(true)}>Lead Days Advance</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkLeadDaysPostOpen(true)}>Lead Days Post</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -705,11 +715,11 @@ const Admin = () => {
                           <DropdownMenuContent align="end" className="w-56 bg-background">
                             <DropdownMenuItem onClick={() => setBulkRateRuleOpen(true)}>Bulk Rate</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setBulkAvailabilityRuleOpen(true)}>Bulk Availability</DropdownMenuItem>
-                            <DropdownMenuItem>Stop Sell</DropdownMenuItem>
-                            <DropdownMenuItem>Minimum Stay</DropdownMenuItem>
-                            <DropdownMenuItem>Maximum Stay</DropdownMenuItem>
-                            <DropdownMenuItem>Lead Days Advance</DropdownMenuItem>
-                            <DropdownMenuItem>Lead Days Post</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkStopSellOpen(true)}>Stop Sell</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkMinimumStayOpen(true)}>Minimum Stay</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkMaximumStayOpen(true)}>Maximum Stay</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkLeadDaysAdvanceOpen(true)}>Lead Days Advance</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setBulkLeadDaysPostOpen(true)}>Lead Days Post</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -1406,6 +1416,11 @@ const Admin = () => {
 
       <BulkRateRuleDialog open={bulkRateRuleOpen} onOpenChange={setBulkRateRuleOpen} />
       <BulkAvailabilityRuleDialog open={bulkAvailabilityRuleOpen} onOpenChange={setBulkAvailabilityRuleOpen} />
+      <BulkStopSellDialog open={bulkStopSellOpen} onOpenChange={setBulkStopSellOpen} />
+      <BulkMinimumStayDialog open={bulkMinimumStayOpen} onOpenChange={setBulkMinimumStayOpen} />
+      <BulkMaximumStayDialog open={bulkMaximumStayOpen} onOpenChange={setBulkMaximumStayOpen} />
+      <BulkLeadDaysAdvanceDialog open={bulkLeadDaysAdvanceOpen} onOpenChange={setBulkLeadDaysAdvanceOpen} />
+      <BulkLeadDaysPostDialog open={bulkLeadDaysPostOpen} onOpenChange={setBulkLeadDaysPostOpen} />
     </div>
   );
 };
