@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -512,10 +513,19 @@ const Admin = () => {
                         </select>
                         <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[200px]">
                           <option>Room Types</option>
+                          <option>Holiday House</option>
+                          <option>One Bedroom Suite</option>
+                          <option>Petite Hotel Room</option>
+                          <option>Two Bedroom Suite</option>
                         </select>
                         <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[200px]">
                           <option>Meal Types</option>
+                          <option>Breakfast</option>
+                          <option>Self Catering</option>
+                          <option>Full Board</option>
+                          <option>Room Only</option>
                         </select>
+                        <Button variant="default" className="bg-primary hover:bg-primary/90">Refresh</Button>
                       </div>
                       <div className="flex gap-2">
                         <Button className="bg-primary hover:bg-primary/90">Save</Button>
@@ -540,7 +550,200 @@ const Admin = () => {
                     </div>
 
                     {/* Message */}
-                    <p className="text-primary text-sm">Select a property to begin.</p>
+                    {selectedCalendarProperty ? (
+                      <>
+                        {/* Calendar Grid */}
+                        <div className="border rounded-lg overflow-x-auto">
+                          <div className="min-w-[2000px]">
+                            {/* Calendar Header with Dates */}
+                            <div className="flex bg-muted border-b">
+                              <div className="w-[250px] flex-shrink-0 border-r"></div>
+                              {Array.from({ length: 30 }, (_, i) => {
+                                const date = new Date(2025, 10, 19 + i);
+                                const dayName = date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+                                const day = date.getDate();
+                                const month = date.getMonth() + 1;
+                                return (
+                                  <div key={i} className="w-[60px] flex-shrink-0 border-r text-center py-2">
+                                    <div className="text-xs font-semibold">{dayName}</div>
+                                    <div className="text-xs">{day}</div>
+                                    <div className="text-xs">{month}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Petite Hotel Room */}
+                            <div className="border-b bg-muted">
+                              <div className="flex">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 font-semibold">
+                                  Petite Hotel Room
+                                </div>
+                              </div>
+                              {/* Stop Sells Row */}
+                              <div className="flex border-t">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 flex items-center gap-2">
+                                  <Checkbox className="data-[state=checked]:bg-primary" />
+                                  <span className="text-sm">Stop Sells</span>
+                                </div>
+                                {Array.from({ length: 30 }, (_, i) => (
+                                  <div key={i} className="w-[60px] flex-shrink-0 border-r text-center py-2 text-sm">
+                                    14
+                                  </div>
+                                ))}
+                              </div>
+                              {/* Lead Days Advance Row */}
+                              <div className="flex border-t">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 flex items-center gap-2">
+                                  <Checkbox className="data-[state=checked]:bg-primary" />
+                                  <span className="text-sm">Lead Days Advance</span>
+                                </div>
+                                {Array.from({ length: 30 }, (_, i) => (
+                                  <div key={i} className="w-[60px] flex-shrink-0 border-r text-center py-2 text-sm">
+                                    3267
+                                  </div>
+                                ))}
+                              </div>
+                              {/* Lead Days Post Row */}
+                              <div className="flex border-t">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 flex items-center gap-2">
+                                  <Checkbox className="data-[state=checked]:bg-primary" />
+                                  <span className="text-sm">Lead Days Post</span>
+                                </div>
+                                {Array.from({ length: 30 }, (_, i) => (
+                                  <div key={i} className="w-[60px] flex-shrink-0 border-r text-center py-2 text-sm">
+                                    1875
+                                  </div>
+                                ))}
+                              </div>
+                              {/* Minimum Stay Row */}
+                              <div className="flex border-t">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 flex items-center gap-2">
+                                  <Checkbox className="data-[state=checked]:bg-primary" />
+                                  <span className="text-sm">Minimum Stay</span>
+                                </div>
+                                {Array.from({ length: 30 }, (_, i) => (
+                                  <div key={i} className="w-[60px] flex-shrink-0 border-r text-center py-2 text-sm">
+                                    6
+                                  </div>
+                                ))}
+                              </div>
+                              {/* Maximum Stay Row */}
+                              <div className="flex border-t">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 flex items-center gap-2">
+                                  <Checkbox className="data-[state=checked]:bg-primary" />
+                                  <span className="text-sm">Maximum Stay</span>
+                                </div>
+                                {Array.from({ length: 30 }, (_, i) => (
+                                  <div key={i} className="w-[60px] flex-shrink-0 border-r text-center py-2 text-sm">
+                                    6651
+                                  </div>
+                                ))}
+                              </div>
+                              {/* SingleRate - Breakfast */}
+                              <div className="flex border-t bg-background">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 pl-6 text-sm">
+                                  SingleRate - Breakfast
+                                </div>
+                                {Array.from({ length: 30 }, (_, i) => (
+                                  <div key={i} className="w-[60px] flex-shrink-0 border-r text-center py-2 text-sm">
+                                    14
+                                  </div>
+                                ))}
+                              </div>
+                              {/* PerPersonRate - Breakfast */}
+                              <div className="flex border-t bg-background">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 pl-6 text-sm">
+                                  PerPersonRate - Breakfast
+                                </div>
+                                {Array.from({ length: 30 }, (_, i) => (
+                                  <div key={i} className="w-[60px] flex-shrink-0 border-r text-center py-2 text-sm">
+                                    {i % 2 === 0 ? '4477' : '2420'}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Two Bedroom Suite */}
+                            <div className="border-b bg-muted">
+                              <div className="flex">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 font-semibold">
+                                  Two Bedroom Suite
+                                </div>
+                              </div>
+                              <div className="flex border-t bg-background">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 pl-6 text-sm">
+                                  UnitRate - Breakfast
+                                </div>
+                                {Array.from({ length: 30 }, (_, i) => (
+                                  <div key={i} className="w-[60px] flex-shrink-0 border-r text-center py-2 text-sm">
+                                    6651
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* One Bedroom Suite */}
+                            <div className="border-b bg-muted">
+                              <div className="flex">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 font-semibold">
+                                  One Bedroom Suite
+                                </div>
+                              </div>
+                              <div className="flex border-t bg-background">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 pl-6 text-sm">
+                                  SingleRate - Breakfast
+                                </div>
+                                {Array.from({ length: 30 }, (_, i) => (
+                                  <div key={i} className="w-[60px] flex-shrink-0 border-r text-center py-2 text-sm">
+                                    14
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex border-t bg-background">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 pl-6 text-sm">
+                                  PerPersonRate - Breakfast
+                                </div>
+                                {Array.from({ length: 30 }, (_, i) => (
+                                  <div key={i} className="w-[60px] flex-shrink-0 border-r text-center py-2 text-sm">
+                                    4477
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Holiday House */}
+                            <div className="border-b bg-muted">
+                              <div className="flex">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 font-semibold">
+                                  Holiday House
+                                </div>
+                              </div>
+                              <div className="flex border-t bg-background">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 pl-6 text-sm">
+                                  UnitRate - SelfCatering
+                                </div>
+                                {Array.from({ length: 30 }, (_, i) => (
+                                  <div key={i} className="w-[60px] flex-shrink-0 border-r text-center py-2 text-sm">
+                                    {i % 3 === 0 ? '9' : '9'}
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex border-t bg-background">
+                                <div className="w-[250px] flex-shrink-0 border-r p-2 pl-6 text-sm"></div>
+                                {Array.from({ length: 30 }, (_, i) => (
+                                  <div key={i} className="w-[60px] flex-shrink-0 border-r text-center py-2 text-sm">
+                                    6500
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-primary text-sm">Select a property to begin.</p>
+                    )}
 
                     {/* Calendar Navigation */}
                     <div className="flex items-center gap-2 bg-muted p-4 rounded-lg">
