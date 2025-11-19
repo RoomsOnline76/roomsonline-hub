@@ -450,6 +450,7 @@ const Admin = () => {
             <TabsList className="bg-secondary">
               <TabsTrigger value="accommodation">Accommodation</TabsTrigger>
               <TabsTrigger value="event">Event/Wedding</TabsTrigger>
+              <TabsTrigger value="conference">Conference</TabsTrigger>
             </TabsList>
 
             <TabsContent value="accommodation">
@@ -481,6 +482,21 @@ const Admin = () => {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            <TabsContent value="conference">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Conference Calendar</CardTitle>
+                  <CardDescription>Manage conference bookings</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12">
+                    <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Conference calendar coming soon</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
         )}
 
@@ -490,6 +506,7 @@ const Admin = () => {
             <TabsList className="bg-secondary">
               <TabsTrigger value="accommodation">Accommodation</TabsTrigger>
               <TabsTrigger value="event">Event/Wedding</TabsTrigger>
+              <TabsTrigger value="conference">Conference</TabsTrigger>
             </TabsList>
 
             <TabsContent value="accommodation">
@@ -521,6 +538,21 @@ const Admin = () => {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            <TabsContent value="conference">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Conference Promotions</CardTitle>
+                  <CardDescription>Manage conference marketing campaigns</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12">
+                    <Megaphone className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Conference promotions coming soon</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
         )}
 
@@ -530,6 +562,7 @@ const Admin = () => {
             <TabsList className="bg-secondary">
               <TabsTrigger value="accommodation">Accommodation</TabsTrigger>
               <TabsTrigger value="event">Event/Wedding</TabsTrigger>
+              <TabsTrigger value="conference">Conference</TabsTrigger>
             </TabsList>
 
             <TabsContent value="accommodation">
@@ -557,6 +590,21 @@ const Admin = () => {
                   <div className="text-center py-12">
                     <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                     <p className="text-muted-foreground">Event/Wedding bookings coming soon</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="conference">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Conference Bookings</CardTitle>
+                  <CardDescription>View all conference reservations</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12">
+                    <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Conference bookings coming soon</p>
                   </div>
                 </CardContent>
               </Card>
