@@ -24,6 +24,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
+import { PropertyMap } from "@/components/PropertyMap";
 
 const propertySchema = z.object({
   name: z.string().min(1, "Property name is required").max(200),
@@ -149,6 +150,10 @@ export default function PropertyForm() {
   // Property source
   const [isNightsBridge, setIsNightsBridge] = useState(true);
   const [isSemperProperty, setIsSemperProperty] = useState(false);
+  
+  // Location state
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
 
   // Form data
   const [formData, setFormData] = useState<PropertyFormData>({
@@ -698,6 +703,10 @@ export default function PropertyForm() {
           const externalSystem = data.external_system || "";
           setIsNightsBridge(externalSystem.includes("nightsbridge"));
           setIsSemperProperty(externalSystem.includes("semper"));
+          
+          // Set location coordinates
+          setLatitude(data.latitude ? Number(data.latitude) : null);
+          setLongitude(data.longitude ? Number(data.longitude) : null);
 
           // Load images if available
           if (data.images && Array.isArray(data.images)) {
@@ -934,6 +943,8 @@ export default function PropertyForm() {
         address: formData.address,
         city: formData.city,
         country: formData.country,
+        latitude: latitude,
+        longitude: longitude,
         owner_name: formData.owner_name || null,
         owner_email: formData.owner_email || null,
         external_system: isNightsBridge && isSemperProperty 
@@ -1414,12 +1425,18 @@ export default function PropertyForm() {
                       </div>
 
                       <div className="pt-4">
-                        <div className="bg-muted rounded-lg p-4 text-center">
-                          <MapPin className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                          <p className="text-sm text-muted-foreground">
-                            Map integration coming soon
-                          </p>
-                        </div>
+                        <Label className="block mb-2">Property Location</Label>
+                        <PropertyMap
+                          address={formData.address}
+                          city={formData.city}
+                          country={formData.country}
+                          latitude={latitude}
+                          longitude={longitude}
+                          onLocationUpdate={(lat, lng) => {
+                            setLatitude(lat);
+                            setLongitude(lng);
+                          }}
+                        />
                       </div>
                     </div>
                   </CardContent>
