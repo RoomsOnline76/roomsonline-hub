@@ -671,9 +671,39 @@ const Admin = () => {
                   <CardDescription>View all accommodation reservations</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-12">
-                    <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Accommodation bookings coming soon</p>
+                  <div className="space-y-6">
+                    <div className="flex flex-wrap gap-4 items-end">
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">Property</Label>
+                        <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
+                          <option>All Property</option>
+                          {activeProperties.map((property) => (
+                            <option key={property.id} value={property.id}>
+                              {property.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">From / To</Label>
+                        <div className="flex gap-2">
+                          <Input type="date" placeholder="From" className="flex-1" />
+                          <Input type="date" placeholder="To" className="flex-1" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">Search</Label>
+                        <div className="flex gap-2">
+                          <Input type="text" placeholder="Type in to search..." className="flex-1" />
+                          <Button size="icon" variant="default">
+                            <Search className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-center py-12 text-muted-foreground">
+                      <p>Booking list will appear here</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -686,9 +716,39 @@ const Admin = () => {
                   <CardDescription>View all event and wedding reservations</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-12">
-                    <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Event/Wedding bookings coming soon</p>
+                  <div className="space-y-6">
+                    <div className="flex flex-wrap gap-4 items-end">
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">Property</Label>
+                        <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
+                          <option>All Property</option>
+                          {activeProperties.map((property) => (
+                            <option key={property.id} value={property.id}>
+                              {property.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">From / To</Label>
+                        <div className="flex gap-2">
+                          <Input type="date" placeholder="From" className="flex-1" />
+                          <Input type="date" placeholder="To" className="flex-1" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">Search</Label>
+                        <div className="flex gap-2">
+                          <Input type="text" placeholder="Type in to search..." className="flex-1" />
+                          <Button size="icon" variant="default">
+                            <Search className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-center py-12 text-muted-foreground">
+                      <p>Booking list will appear here</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -701,9 +761,39 @@ const Admin = () => {
                   <CardDescription>View all conference reservations</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-12">
-                    <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Conference bookings coming soon</p>
+                  <div className="space-y-6">
+                    <div className="flex flex-wrap gap-4 items-end">
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">Property</Label>
+                        <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
+                          <option>All Property</option>
+                          {activeProperties.map((property) => (
+                            <option key={property.id} value={property.id}>
+                              {property.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">From / To</Label>
+                        <div className="flex gap-2">
+                          <Input type="date" placeholder="From" className="flex-1" />
+                          <Input type="date" placeholder="To" className="flex-1" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-[200px]">
+                        <Label className="mb-2">Search</Label>
+                        <div className="flex gap-2">
+                          <Input type="text" placeholder="Type in to search..." className="flex-1" />
+                          <Button size="icon" variant="default">
+                            <Search className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-center py-12 text-muted-foreground">
+                      <p>Booking list will appear here</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
