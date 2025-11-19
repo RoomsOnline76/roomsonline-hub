@@ -42,6 +42,7 @@ const Admin = () => {
   const [bulkMaximumStayOpen, setBulkMaximumStayOpen] = useState(false);
   const [bulkLeadDaysAdvanceOpen, setBulkLeadDaysAdvanceOpen] = useState(false);
   const [bulkLeadDaysPostOpen, setBulkLeadDaysPostOpen] = useState(false);
+  const [selectedCalendarProperty, setSelectedCalendarProperty] = useState<string>("");
 
   const { data: allProperties, isLoading, refetch } = useQuery({
     queryKey: ["properties", user?.id, isAdmin],
@@ -481,11 +482,27 @@ const Admin = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
+                    {/* Property Name Display */}
+                    {selectedCalendarProperty && activeProperties.find(p => p.id === selectedCalendarProperty) && (
+                      <div className="flex justify-end">
+                        <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
+                          <Building2 className="h-5 w-5 text-primary" />
+                          <span className="font-semibold text-lg">
+                            {activeProperties.find(p => p.id === selectedCalendarProperty)?.name}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Top Controls */}
                     <div className="flex flex-wrap gap-4 items-center justify-between">
                       <div className="flex flex-wrap gap-4 items-center flex-1">
-                        <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[200px]">
-                          <option>Select Property</option>
+                        <select 
+                          className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[200px]"
+                          value={selectedCalendarProperty}
+                          onChange={(e) => setSelectedCalendarProperty(e.target.value)}
+                        >
+                          <option value="">Select Property</option>
                           {activeProperties.map((property) => (
                             <option key={property.id} value={property.id}>
                               {property.name}
@@ -586,11 +603,27 @@ const Admin = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
+                    {/* Property Name Display */}
+                    {selectedCalendarProperty && activeProperties.find(p => p.id === selectedCalendarProperty) && (
+                      <div className="flex justify-end">
+                        <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
+                          <Building2 className="h-5 w-5 text-primary" />
+                          <span className="font-semibold text-lg">
+                            {activeProperties.find(p => p.id === selectedCalendarProperty)?.name}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Top Controls */}
                     <div className="flex flex-wrap gap-4 items-center justify-between">
                       <div className="flex flex-wrap gap-4 items-center flex-1">
-                        <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[200px]">
-                          <option>Select Property</option>
+                        <select 
+                          className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[200px]"
+                          value={selectedCalendarProperty}
+                          onChange={(e) => setSelectedCalendarProperty(e.target.value)}
+                        >
+                          <option value="">Select Property</option>
                           {activeProperties.map((property) => (
                             <option key={property.id} value={property.id}>
                               {property.name}
@@ -688,11 +721,27 @@ const Admin = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
+                    {/* Property Name Display */}
+                    {selectedCalendarProperty && activeProperties.find(p => p.id === selectedCalendarProperty) && (
+                      <div className="flex justify-end">
+                        <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
+                          <Building2 className="h-5 w-5 text-primary" />
+                          <span className="font-semibold text-lg">
+                            {activeProperties.find(p => p.id === selectedCalendarProperty)?.name}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Top Controls */}
                     <div className="flex flex-wrap gap-4 items-center justify-between">
                       <div className="flex flex-wrap gap-4 items-center flex-1">
-                        <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[200px]">
-                          <option>Select Property</option>
+                        <select 
+                          className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[200px]"
+                          value={selectedCalendarProperty}
+                          onChange={(e) => setSelectedCalendarProperty(e.target.value)}
+                        >
+                          <option value="">Select Property</option>
                           {activeProperties.map((property) => (
                             <option key={property.id} value={property.id}>
                               {property.name}

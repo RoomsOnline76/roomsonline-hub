@@ -1064,6 +1064,16 @@ export default function PropertyForm() {
             </span>
           </div>
 
+          {/* Property Name Display */}
+          {isEditMode && formData.name && (
+            <div className="mb-6 flex justify-end">
+              <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
+                <Building2 className="h-5 w-5 text-primary" />
+                <span className="font-semibold text-lg">{formData.name}</span>
+              </div>
+            </div>
+          )}
+
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold mb-2">{isEditMode ? "Edit Property" : "Add New Property"}</h1>
