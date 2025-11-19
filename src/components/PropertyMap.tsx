@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { MapPin } from "lucide-react";
 
 declare global {
   interface Window {
@@ -28,18 +30,48 @@ export function PropertyMap({
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [marker, setMarker] = useState<google.maps.Marker | null>(null);
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch Google Maps API key from database
+  useEffect(() => {
+    const fetchApiKey = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("api_keys")
+          .select("key_value")
+          .eq("key_name", "GOOGLE_MAPS_API_KEY")
+          .maybeSingle();
+
+        if (error) throw error;
+
+        if (data?.key_value && !data.key_value.startsWith("placeholder_key_")) {
+          setApiKey(data.key_value);
+        } else {
+          toast({
+            title: "Google Maps API Key Missing",
+            description: "Please configure your Google Maps API key in the API Keys page.",
+            variant: "destructive"
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching API key:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load Google Maps API key.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchApiKey();
+  }, []);
 
   // Load Google Maps script
   useEffect(() => {
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      toast({
-        title: "Map Error",
-        description: "Google Maps API key is missing.",
-        variant: "destructive"
-      });
-      return;
-    }
+    if (!apiKey || loading) return;
 
     if (window.google?.maps) {
       // Already loaded
@@ -55,7 +87,7 @@ export function PropertyMap({
     return () => {
       // Cleanup if needed
     };
-  }, []);
+  }, [apiKey, loading]);
 
   // Initialize map
   useEffect(() => {
@@ -112,6 +144,31 @@ export function PropertyMap({
       }
     });
   }, [address, city, country, map, marker, onLocationUpdate]);
+
+  if (loading) {
+    return (
+      <div className="space-y-2">
+        <div className="w-full h-[400px] rounded-lg border border-border bg-muted flex items-center justify-center">
+          <p className="text-muted-foreground">Loading map...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!apiKey) {
+    return (
+      <div className="space-y-2">
+        <div className="w-full h-[400px] rounded-lg border border-border bg-muted flex items-center justify-center">
+          <div className="text-center space-y-2">
+            <MapPin className="h-8 w-8 mx-auto text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Configure Google Maps API key in the API Keys page
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
