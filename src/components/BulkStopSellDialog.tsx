@@ -48,11 +48,14 @@ export function BulkStopSellDialog({ open, onOpenChange }: BulkStopSellDialogPro
     }
   };
 
-  const roomTypes = [
-    { id: "holidayHouse", name: "Holiday House", count: 9 },
-    { id: "oneBedroom", name: "One Bedroom Suite", count: 14 },
-    { id: "petiteHotel", name: "Petite Hotel Room", count: 14 },
-    { id: "twoBedroom", name: "Two Bedroom Suite", count: 6 },
+  const rooms = [
+    { id: "loftRoom5", name: "Loft Room 5" },
+    { id: "loftRoom6", name: "Loft Room 6" },
+    { id: "room1", name: "Room 1" },
+    { id: "room2", name: "Room 2" },
+    { id: "room3", name: "Room 3" },
+    { id: "room4", name: "Room 4" },
+    { id: "room7", name: "Room 7" },
   ];
 
   return (
@@ -83,27 +86,24 @@ export function BulkStopSellDialog({ open, onOpenChange }: BulkStopSellDialogPro
 
           <TabsContent value="roomTypes" className="mt-4">
             <div className="grid grid-cols-12 gap-4">
-              {/* Left Sidebar - Room Types */}
+              {/* Left Sidebar - Rooms */}
               <div className="col-span-3 border rounded-lg p-4 space-y-2 max-h-[600px] overflow-y-auto">
-                {roomTypes.map((roomType) => (
-                  <div key={roomType.id} className="flex items-center justify-between p-2 hover:bg-muted rounded">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id={roomType.id}
-                        checked={selectedRoomTypes.includes(roomType.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedRoomTypes([...selectedRoomTypes, roomType.id]);
-                          } else {
-                            setSelectedRoomTypes(selectedRoomTypes.filter(id => id !== roomType.id));
-                          }
-                        }}
-                      />
-                      <label htmlFor={roomType.id} className="text-sm cursor-pointer">
-                        {roomType.name}
-                      </label>
-                    </div>
-                    <span className="text-sm text-muted-foreground">{roomType.count}</span>
+                {rooms.map((room) => (
+                  <div key={room.id} className="flex items-center p-2 hover:bg-muted rounded">
+                    <Checkbox
+                      id={room.id}
+                      checked={selectedRoomTypes.includes(room.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedRoomTypes([...selectedRoomTypes, room.id]);
+                        } else {
+                          setSelectedRoomTypes(selectedRoomTypes.filter(id => id !== room.id));
+                        }
+                      }}
+                    />
+                    <label htmlFor={room.id} className="text-sm cursor-pointer ml-2">
+                      {room.name}
+                    </label>
                   </div>
                 ))}
               </div>
