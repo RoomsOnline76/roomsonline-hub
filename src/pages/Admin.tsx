@@ -21,6 +21,7 @@ const Admin = () => {
   const [businessName, setBusinessName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [currency, setCurrency] = useState("USD");
+  const [selectedSection, setSelectedSection] = useState<"properties" | "calendar" | "promotion" | "bookings" | "reports">("properties");
 
   const { data: allProperties, isLoading, refetch } = useQuery({
     queryKey: ["properties", user?.id, isAdmin],
@@ -133,7 +134,14 @@ const Admin = () => {
 
         {/* Quick Stats Banner */}
         <div className="mb-8 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          <Card className="border-2 border-primary/20">
+          <Card 
+            className={`border-2 cursor-pointer transition-all ${
+              selectedSection === "properties" 
+                ? "border-primary bg-primary/5" 
+                : "border-primary/20 hover:border-primary/40"
+            }`}
+            onClick={() => setSelectedSection("properties")}
+          >
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Building2 className="h-5 w-5 text-primary" />
@@ -145,7 +153,14 @@ const Admin = () => {
             </CardHeader>
           </Card>
 
-          <Card className="border-2 border-primary/20">
+          <Card 
+            className={`border-2 cursor-pointer transition-all ${
+              selectedSection === "calendar" 
+                ? "border-primary bg-primary/5" 
+                : "border-primary/20 hover:border-primary/40"
+            }`}
+            onClick={() => setSelectedSection("calendar")}
+          >
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Calendar className="h-5 w-5 text-primary" />
@@ -157,7 +172,14 @@ const Admin = () => {
             </CardHeader>
           </Card>
 
-          <Card className="border-2 border-primary/20">
+          <Card 
+            className={`border-2 cursor-pointer transition-all ${
+              selectedSection === "promotion" 
+                ? "border-primary bg-primary/5" 
+                : "border-primary/20 hover:border-primary/40"
+            }`}
+            onClick={() => setSelectedSection("promotion")}
+          >
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Megaphone className="h-5 w-5 text-primary" />
@@ -169,7 +191,14 @@ const Admin = () => {
             </CardHeader>
           </Card>
 
-          <Card className="border-2 border-primary/20">
+          <Card 
+            className={`border-2 cursor-pointer transition-all ${
+              selectedSection === "bookings" 
+                ? "border-primary bg-primary/5" 
+                : "border-primary/20 hover:border-primary/40"
+            }`}
+            onClick={() => setSelectedSection("bookings")}
+          >
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <BookOpen className="h-5 w-5 text-primary" />
@@ -181,7 +210,14 @@ const Admin = () => {
             </CardHeader>
           </Card>
 
-          <Card className="border-2 border-primary/20">
+          <Card 
+            className={`border-2 cursor-pointer transition-all ${
+              selectedSection === "reports" 
+                ? "border-primary bg-primary/5" 
+                : "border-primary/20 hover:border-primary/40"
+            }`}
+            onClick={() => setSelectedSection("reports")}
+          >
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <PieChart className="h-5 w-5 text-primary" />
@@ -194,19 +230,8 @@ const Admin = () => {
           </Card>
         </div>
 
-        <Tabs defaultValue="properties" className="space-y-6">
-          <TabsList className="bg-secondary">
-            <TabsTrigger value="properties" className="gap-2">
-              <Building2 className="h-4 w-4" />
-              Properties
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2">
-              <Settings className="h-4 w-4" />
-              Settings
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="properties" className="space-y-6">
+        {/* Dynamic Content Based on Selected Section */}
+        {selectedSection === "properties" && (
             <Tabs defaultValue="active" className="space-y-4">
               <TabsList className="bg-secondary">
                 <TabsTrigger value="active">
@@ -417,59 +442,222 @@ const Admin = () => {
                 </Card>
               </TabsContent>
             </Tabs>
-          </TabsContent>
+        )}
 
-          <TabsContent value="settings" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>General Settings</CardTitle>
-                <CardDescription>
-                  Configure your business information and preferences
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSaveSettings} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="businessName">Business Name</Label>
-                    <Input
-                      id="businessName"
-                      type="text"
-                      placeholder="Your Business Name"
-                      value={businessName}
-                      onChange={(e) => setBusinessName(e.target.value)}
-                    />
+        {/* Calendar Section */}
+        {selectedSection === "calendar" && (
+          <Tabs defaultValue="accommodation" className="space-y-4">
+            <TabsList className="bg-secondary">
+              <TabsTrigger value="accommodation">Accommodation</TabsTrigger>
+              <TabsTrigger value="event">Event/Wedding</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="accommodation">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Accommodation Calendar</CardTitle>
+                  <CardDescription>Manage accommodation bookings</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12">
+                    <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Accommodation calendar coming soon</p>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="contactEmail">Contact Email</Label>
-                    <Input
-                      id="contactEmail"
-                      type="email"
-                      placeholder="contact@yourbusiness.com"
-                      value={contactEmail}
-                      onChange={(e) => setContactEmail(e.target.value)}
-                    />
+            <TabsContent value="event">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Event/Wedding Calendar</CardTitle>
+                  <CardDescription>Manage event and wedding bookings</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12">
+                    <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Event/Wedding calendar coming soon</p>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="currency">Currency</Label>
-                    <Input
-                      id="currency"
-                      type="text"
-                      placeholder="USD"
-                      value={currency}
-                      onChange={(e) => setCurrency(e.target.value)}
-                    />
+        {/* Promotion Section */}
+        {selectedSection === "promotion" && (
+          <Tabs defaultValue="accommodation" className="space-y-4">
+            <TabsList className="bg-secondary">
+              <TabsTrigger value="accommodation">Accommodation</TabsTrigger>
+              <TabsTrigger value="event">Event/Wedding</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="accommodation">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Accommodation Promotions</CardTitle>
+                  <CardDescription>Manage accommodation marketing campaigns</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12">
+                    <Megaphone className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Accommodation promotions coming soon</p>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                  <Button type="submit">
-                    Save Settings
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="event">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Event/Wedding Promotions</CardTitle>
+                  <CardDescription>Manage event and wedding marketing campaigns</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12">
+                    <Megaphone className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Event/Wedding promotions coming soon</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
+
+        {/* Bookings Section */}
+        {selectedSection === "bookings" && (
+          <Tabs defaultValue="accommodation" className="space-y-4">
+            <TabsList className="bg-secondary">
+              <TabsTrigger value="accommodation">Accommodation</TabsTrigger>
+              <TabsTrigger value="event">Event/Wedding</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="accommodation">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Accommodation Bookings</CardTitle>
+                  <CardDescription>View all accommodation reservations</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12">
+                    <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Accommodation bookings coming soon</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="event">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Event/Wedding Bookings</CardTitle>
+                  <CardDescription>View all event and wedding reservations</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12">
+                    <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Event/Wedding bookings coming soon</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
+
+        {/* Reports Section */}
+        {selectedSection === "reports" && (
+          <Tabs defaultValue="accommodation" className="space-y-4">
+            <TabsList className="bg-secondary">
+              <TabsTrigger value="accommodation">Accommodation</TabsTrigger>
+              <TabsTrigger value="venue">Venue</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="accommodation">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Accommodation Reports</CardTitle>
+                  <CardDescription>View accommodation analytics & insights</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12">
+                    <PieChart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Accommodation reports coming soon</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="venue">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Venue Reports</CardTitle>
+                  <CardDescription>View venue analytics & insights</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12">
+                    <PieChart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Venue reports coming soon</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
+
+        {/* Settings Section - Always visible at bottom */}
+        <div className="mt-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5 text-primary" />
+                General Settings
+              </CardTitle>
+              <CardDescription>
+                Configure your business information and preferences
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSaveSettings} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="businessName">Business Name</Label>
+                  <Input
+                    id="businessName"
+                    type="text"
+                    placeholder="Your Business Name"
+                    value={businessName}
+                    onChange={(e) => setBusinessName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="contactEmail">Contact Email</Label>
+                  <Input
+                    id="contactEmail"
+                    type="email"
+                    placeholder="contact@yourbusiness.com"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="currency">Currency</Label>
+                  <Input
+                    id="currency"
+                    type="text"
+                    placeholder="USD"
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                  />
+                </div>
+
+                <Button type="submit">
+                  Save Settings
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
