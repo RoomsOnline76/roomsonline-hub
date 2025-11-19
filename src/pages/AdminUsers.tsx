@@ -239,7 +239,7 @@ export default function AdminUsers() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {users.filter(u => u.property_count && u.property_count > 0).length}
+                {users.filter(u => u.role === "user" && u.property_count && u.property_count > 0).length}
               </div>
             </CardContent>
           </Card>
