@@ -43,6 +43,8 @@ const Admin = () => {
   const [bulkLeadDaysAdvanceOpen, setBulkLeadDaysAdvanceOpen] = useState(false);
   const [bulkLeadDaysPostOpen, setBulkLeadDaysPostOpen] = useState(false);
   const [selectedCalendarProperty, setSelectedCalendarProperty] = useState<string>("");
+  const [selectedPromotionProperty, setSelectedPromotionProperty] = useState<string>("");
+  const [selectedBookingProperty, setSelectedBookingProperty] = useState<string>("");
 
   const { data: allProperties, isLoading, refetch } = useQuery({
     queryKey: ["properties", user?.id, isAdmin],
@@ -479,21 +481,20 @@ const Admin = () => {
                 <CardHeader>
                   <CardTitle>Accommodation Calendar</CardTitle>
                   <CardDescription>Manage accommodation bookings</CardDescription>
+                  {/* Property Name Display */}
+                  {selectedCalendarProperty && activeProperties.find(p => p.id === selectedCalendarProperty) && (
+                    <div className="flex justify-end mt-4">
+                      <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
+                        <Building2 className="h-5 w-5 text-primary" />
+                        <span className="font-semibold text-lg">
+                          {activeProperties.find(p => p.id === selectedCalendarProperty)?.name}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
-                    {/* Property Name Display */}
-                    {selectedCalendarProperty && activeProperties.find(p => p.id === selectedCalendarProperty) && (
-                      <div className="flex justify-end">
-                        <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
-                          <Building2 className="h-5 w-5 text-primary" />
-                          <span className="font-semibold text-lg">
-                            {activeProperties.find(p => p.id === selectedCalendarProperty)?.name}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                    
                     {/* Top Controls */}
                     <div className="flex flex-wrap gap-4 items-center justify-between">
                       <div className="flex flex-wrap gap-4 items-center flex-1">
@@ -600,21 +601,20 @@ const Admin = () => {
                 <CardHeader>
                   <CardTitle>Event/Wedding Calendar</CardTitle>
                   <CardDescription>Manage event and wedding bookings</CardDescription>
+                  {/* Property Name Display */}
+                  {selectedCalendarProperty && activeProperties.find(p => p.id === selectedCalendarProperty) && (
+                    <div className="flex justify-end mt-4">
+                      <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
+                        <Building2 className="h-5 w-5 text-primary" />
+                        <span className="font-semibold text-lg">
+                          {activeProperties.find(p => p.id === selectedCalendarProperty)?.name}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
-                    {/* Property Name Display */}
-                    {selectedCalendarProperty && activeProperties.find(p => p.id === selectedCalendarProperty) && (
-                      <div className="flex justify-end">
-                        <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
-                          <Building2 className="h-5 w-5 text-primary" />
-                          <span className="font-semibold text-lg">
-                            {activeProperties.find(p => p.id === selectedCalendarProperty)?.name}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                    
                     {/* Top Controls */}
                     <div className="flex flex-wrap gap-4 items-center justify-between">
                       <div className="flex flex-wrap gap-4 items-center flex-1">
@@ -718,21 +718,20 @@ const Admin = () => {
                 <CardHeader>
                   <CardTitle>Conference Calendar</CardTitle>
                   <CardDescription>Manage conference bookings</CardDescription>
+                  {/* Property Name Display */}
+                  {selectedCalendarProperty && activeProperties.find(p => p.id === selectedCalendarProperty) && (
+                    <div className="flex justify-end mt-4">
+                      <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
+                        <Building2 className="h-5 w-5 text-primary" />
+                        <span className="font-semibold text-lg">
+                          {activeProperties.find(p => p.id === selectedCalendarProperty)?.name}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
-                    {/* Property Name Display */}
-                    {selectedCalendarProperty && activeProperties.find(p => p.id === selectedCalendarProperty) && (
-                      <div className="flex justify-end">
-                        <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
-                          <Building2 className="h-5 w-5 text-primary" />
-                          <span className="font-semibold text-lg">
-                            {activeProperties.find(p => p.id === selectedCalendarProperty)?.name}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                    
                     {/* Top Controls */}
                     <div className="flex flex-wrap gap-4 items-center justify-between">
                       <div className="flex flex-wrap gap-4 items-center flex-1">
@@ -847,14 +846,29 @@ const Admin = () => {
                 <CardHeader>
                   <CardTitle>Accommodation Promotions</CardTitle>
                   <CardDescription>Manage accommodation marketing campaigns</CardDescription>
+                  {/* Property Name Display */}
+                  {selectedPromotionProperty && activeProperties.find(p => p.id === selectedPromotionProperty) && (
+                    <div className="flex justify-end mt-4">
+                      <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
+                        <Building2 className="h-5 w-5 text-primary" />
+                        <span className="font-semibold text-lg">
+                          {activeProperties.find(p => p.id === selectedPromotionProperty)?.name}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
                     <div className="flex flex-wrap gap-4 items-end">
                       <div className="flex-1 min-w-[200px]">
                         <Label className="mb-2">Property</Label>
-                        <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
-                          <option>All Property</option>
+                        <select 
+                          className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={selectedPromotionProperty}
+                          onChange={(e) => setSelectedPromotionProperty(e.target.value)}
+                        >
+                          <option value="">All Property</option>
                           {activeProperties.map((property) => (
                             <option key={property.id} value={property.id}>
                               {property.name}
@@ -895,14 +909,29 @@ const Admin = () => {
                 <CardHeader>
                   <CardTitle>Event/Wedding Promotions</CardTitle>
                   <CardDescription>Manage event and wedding marketing campaigns</CardDescription>
+                  {/* Property Name Display */}
+                  {selectedPromotionProperty && activeProperties.find(p => p.id === selectedPromotionProperty) && (
+                    <div className="flex justify-end mt-4">
+                      <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
+                        <Building2 className="h-5 w-5 text-primary" />
+                        <span className="font-semibold text-lg">
+                          {activeProperties.find(p => p.id === selectedPromotionProperty)?.name}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
                     <div className="flex flex-wrap gap-4 items-end">
                       <div className="flex-1 min-w-[200px]">
                         <Label className="mb-2">Property</Label>
-                        <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
-                          <option>All Property</option>
+                        <select 
+                          className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={selectedPromotionProperty}
+                          onChange={(e) => setSelectedPromotionProperty(e.target.value)}
+                        >
+                          <option value="">All Property</option>
                           {activeProperties.map((property) => (
                             <option key={property.id} value={property.id}>
                               {property.name}
@@ -943,14 +972,29 @@ const Admin = () => {
                 <CardHeader>
                   <CardTitle>Conference Promotions</CardTitle>
                   <CardDescription>Manage conference marketing campaigns</CardDescription>
+                  {/* Property Name Display */}
+                  {selectedPromotionProperty && activeProperties.find(p => p.id === selectedPromotionProperty) && (
+                    <div className="flex justify-end mt-4">
+                      <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
+                        <Building2 className="h-5 w-5 text-primary" />
+                        <span className="font-semibold text-lg">
+                          {activeProperties.find(p => p.id === selectedPromotionProperty)?.name}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
                     <div className="flex flex-wrap gap-4 items-end">
                       <div className="flex-1 min-w-[200px]">
                         <Label className="mb-2">Property</Label>
-                        <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
-                          <option>All Property</option>
+                        <select 
+                          className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={selectedPromotionProperty}
+                          onChange={(e) => setSelectedPromotionProperty(e.target.value)}
+                        >
+                          <option value="">All Property</option>
                           {activeProperties.map((property) => (
                             <option key={property.id} value={property.id}>
                               {property.name}
@@ -1002,14 +1046,29 @@ const Admin = () => {
                 <CardHeader>
                   <CardTitle>Accommodation Bookings</CardTitle>
                   <CardDescription>View all accommodation reservations</CardDescription>
+                  {/* Property Name Display */}
+                  {selectedBookingProperty && activeProperties.find(p => p.id === selectedBookingProperty) && (
+                    <div className="flex justify-end mt-4">
+                      <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
+                        <Building2 className="h-5 w-5 text-primary" />
+                        <span className="font-semibold text-lg">
+                          {activeProperties.find(p => p.id === selectedBookingProperty)?.name}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
                     <div className="flex flex-wrap gap-4 items-end">
                       <div className="flex-1 min-w-[200px]">
                         <Label className="mb-2">Property</Label>
-                        <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
-                          <option>All Property</option>
+                        <select 
+                          className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={selectedBookingProperty}
+                          onChange={(e) => setSelectedBookingProperty(e.target.value)}
+                        >
+                          <option value="">All Property</option>
                           {activeProperties.map((property) => (
                             <option key={property.id} value={property.id}>
                               {property.name}
@@ -1047,14 +1106,29 @@ const Admin = () => {
                 <CardHeader>
                   <CardTitle>Event/Wedding Bookings</CardTitle>
                   <CardDescription>View all event and wedding reservations</CardDescription>
+                  {/* Property Name Display */}
+                  {selectedBookingProperty && activeProperties.find(p => p.id === selectedBookingProperty) && (
+                    <div className="flex justify-end mt-4">
+                      <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
+                        <Building2 className="h-5 w-5 text-primary" />
+                        <span className="font-semibold text-lg">
+                          {activeProperties.find(p => p.id === selectedBookingProperty)?.name}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
                     <div className="flex flex-wrap gap-4 items-end">
                       <div className="flex-1 min-w-[200px]">
                         <Label className="mb-2">Property</Label>
-                        <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
-                          <option>All Property</option>
+                        <select 
+                          className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={selectedBookingProperty}
+                          onChange={(e) => setSelectedBookingProperty(e.target.value)}
+                        >
+                          <option value="">All Property</option>
                           {activeProperties.map((property) => (
                             <option key={property.id} value={property.id}>
                               {property.name}
@@ -1092,14 +1166,29 @@ const Admin = () => {
                 <CardHeader>
                   <CardTitle>Conference Bookings</CardTitle>
                   <CardDescription>View all conference reservations</CardDescription>
+                  {/* Property Name Display */}
+                  {selectedBookingProperty && activeProperties.find(p => p.id === selectedBookingProperty) && (
+                    <div className="flex justify-end mt-4">
+                      <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
+                        <Building2 className="h-5 w-5 text-primary" />
+                        <span className="font-semibold text-lg">
+                          {activeProperties.find(p => p.id === selectedBookingProperty)?.name}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
                     <div className="flex flex-wrap gap-4 items-end">
                       <div className="flex-1 min-w-[200px]">
                         <Label className="mb-2">Property</Label>
-                        <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
-                          <option>All Property</option>
+                        <select 
+                          className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={selectedBookingProperty}
+                          onChange={(e) => setSelectedBookingProperty(e.target.value)}
+                        >
+                          <option value="">All Property</option>
                           {activeProperties.map((property) => (
                             <option key={property.id} value={property.id}>
                               {property.name}
