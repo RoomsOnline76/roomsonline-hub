@@ -1699,22 +1699,23 @@ const Admin = () => {
           </Tabs>
         )}
 
-        {/* Settings Section - Always visible at bottom */}
-        <div className="mt-8">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5 text-primary" />
-                General Settings
-              </CardTitle>
-              <CardDescription>
-                Configure your business information and preferences
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSaveSettings} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="businessName">Business Name</Label>
+        {/* Settings Section - Admin only */}
+        {isAdmin && (
+          <div className="mt-8">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5 text-primary" />
+                  General Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure your business information and preferences
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSaveSettings} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="businessName">Business Name</Label>
                   <Input
                     id="businessName"
                     type="text"
@@ -1753,6 +1754,7 @@ const Admin = () => {
             </CardContent>
           </Card>
         </div>
+        )}
       </div>
 
       <BulkRateRuleDialog open={bulkRateRuleOpen} onOpenChange={setBulkRateRuleOpen} />

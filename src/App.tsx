@@ -28,7 +28,7 @@ const App = () => (
           <Route
             path="/admin"
             element={
-              <ProtectedRoute requireAdmin={true}>
+              <ProtectedRoute>
                 <Admin />
               </ProtectedRoute>
             }
@@ -52,7 +52,7 @@ const App = () => (
           <Route
             path="/admin/properties/new"
             element={
-              <ProtectedRoute requireAdmin={true}>
+              <ProtectedRoute>
                 <PropertyForm />
               </ProtectedRoute>
             }
@@ -60,7 +60,7 @@ const App = () => (
           <Route
             path="/admin/properties/:id"
             element={
-              <ProtectedRoute requireAdmin={true}>
+              <ProtectedRoute>
                 <PropertyForm />
               </ProtectedRoute>
             }

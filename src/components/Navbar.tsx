@@ -72,11 +72,13 @@ export const Navbar = () => {
             <Link to="/">
               <Button variant="ghost">Home</Button>
             </Link>
+            {user && (
+              <Link to="/admin">
+                <Button variant="ghost">Dashboard</Button>
+              </Link>
+            )}
             {isAdmin && (
               <>
-                <Link to="/admin">
-                  <Button variant="ghost">Admin</Button>
-                </Link>
                 <Link to="/admin-keys">
                   <Button variant="ghost" className="flex items-center gap-2">
                     <Key className="h-4 w-4" />
