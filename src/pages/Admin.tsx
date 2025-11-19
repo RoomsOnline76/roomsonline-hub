@@ -9,7 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Building2, Settings, Edit, Trash2, Home, ExternalLink, CheckCircle2, Calendar, Megaphone, BookOpen, PieChart, Search } from "lucide-react";
+import { Building2, Settings, Edit, Trash2, Home, ExternalLink, CheckCircle2, Calendar, Megaphone, BookOpen, PieChart, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -460,9 +466,99 @@ const Admin = () => {
                   <CardDescription>Manage accommodation bookings</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-12">
-                    <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Accommodation calendar coming soon</p>
+                  <div className="space-y-6">
+                    {/* Top Controls */}
+                    <div className="flex flex-wrap gap-4 items-center justify-between">
+                      <div className="flex flex-wrap gap-4 items-center flex-1">
+                        <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[200px]">
+                          <option>Select Property</option>
+                          {activeProperties.map((property) => (
+                            <option key={property.id} value={property.id}>
+                              {property.name}
+                            </option>
+                          ))}
+                        </select>
+                        <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[200px]">
+                          <option>Room Types</option>
+                        </select>
+                        <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[200px]">
+                          <option>Meal Types</option>
+                        </select>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button className="bg-primary hover:bg-primary/90">Save</Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button className="bg-primary hover:bg-primary/90">
+                              Rules/Bulk Updates
+                              <ChevronRight className="ml-2 h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56 bg-background">
+                            <DropdownMenuItem>Bulk Rate</DropdownMenuItem>
+                            <DropdownMenuItem>Bulk Availability</DropdownMenuItem>
+                            <DropdownMenuItem>Stop Sell</DropdownMenuItem>
+                            <DropdownMenuItem>Minimum Stay</DropdownMenuItem>
+                            <DropdownMenuItem>Maximum Stay</DropdownMenuItem>
+                            <DropdownMenuItem>Lead Days Advance</DropdownMenuItem>
+                            <DropdownMenuItem>Lead Days Post</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+
+                    {/* Message */}
+                    <p className="text-primary text-sm">Select a property to begin.</p>
+
+                    {/* Calendar Navigation */}
+                    <div className="flex items-center gap-2 bg-muted p-4 rounded-lg">
+                      <Button variant="ghost" size="icon">
+                        <ChevronsLeft className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon">
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="mx-4 font-medium">2025-11-19</span>
+                      <Button variant="ghost" size="icon">
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon">
+                        <ChevronsRight className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" className="ml-4">Today</Button>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex flex-wrap gap-4 items-center text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-red-500 rounded"></div>
+                        <span>Stop Sell</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span>Rates</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-yellow-400 rounded"></div>
+                        <span>Lead Days Advance</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-orange-400 rounded"></div>
+                        <span>Lead Days Post</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-red-400 rounded"></div>
+                        <span>Max Stay</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-gray-700 rounded"></div>
+                        <span>Min Stay</span>
+                      </div>
+                    </div>
+
+                    {/* Calendar Grid Placeholder */}
+                    <div className="text-center py-12 border rounded-lg bg-muted/20">
+                      <p className="text-muted-foreground">Select a property to view the calendar</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -475,9 +571,96 @@ const Admin = () => {
                   <CardDescription>Manage event and wedding bookings</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-12">
-                    <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Event/Wedding calendar coming soon</p>
+                  <div className="space-y-6">
+                    {/* Top Controls */}
+                    <div className="flex flex-wrap gap-4 items-center justify-between">
+                      <div className="flex flex-wrap gap-4 items-center flex-1">
+                        <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[200px]">
+                          <option>Select Property</option>
+                          {activeProperties.map((property) => (
+                            <option key={property.id} value={property.id}>
+                              {property.name}
+                            </option>
+                          ))}
+                        </select>
+                        <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[200px]">
+                          <option>Event/Wedding Venues</option>
+                        </select>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button className="bg-primary hover:bg-primary/90">Save</Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button className="bg-primary hover:bg-primary/90">
+                              Rules/Bulk Updates
+                              <ChevronRight className="ml-2 h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56 bg-background">
+                            <DropdownMenuItem>Bulk Rate</DropdownMenuItem>
+                            <DropdownMenuItem>Bulk Availability</DropdownMenuItem>
+                            <DropdownMenuItem>Stop Sell</DropdownMenuItem>
+                            <DropdownMenuItem>Minimum Stay</DropdownMenuItem>
+                            <DropdownMenuItem>Maximum Stay</DropdownMenuItem>
+                            <DropdownMenuItem>Lead Days Advance</DropdownMenuItem>
+                            <DropdownMenuItem>Lead Days Post</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+
+                    {/* Message */}
+                    <p className="text-primary text-sm">Select a property to begin.</p>
+
+                    {/* Calendar Navigation */}
+                    <div className="flex items-center gap-2 bg-muted p-4 rounded-lg">
+                      <Button variant="ghost" size="icon">
+                        <ChevronsLeft className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon">
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="mx-4 font-medium">2025-11-19</span>
+                      <Button variant="ghost" size="icon">
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon">
+                        <ChevronsRight className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" className="ml-4">Today</Button>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex flex-wrap gap-4 items-center text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-red-500 rounded"></div>
+                        <span>Stop Sell</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span>Rates</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-yellow-400 rounded"></div>
+                        <span>Lead Days Advance</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-orange-400 rounded"></div>
+                        <span>Lead Days Post</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-red-400 rounded"></div>
+                        <span>Max Stay</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-gray-700 rounded"></div>
+                        <span>Min Stay</span>
+                      </div>
+                    </div>
+
+                    {/* Calendar Grid Placeholder */}
+                    <div className="text-center py-12 border rounded-lg bg-muted/20">
+                      <p className="text-muted-foreground">Select a property to view the calendar</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -490,9 +673,96 @@ const Admin = () => {
                   <CardDescription>Manage conference bookings</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-12">
-                    <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Conference calendar coming soon</p>
+                  <div className="space-y-6">
+                    {/* Top Controls */}
+                    <div className="flex flex-wrap gap-4 items-center justify-between">
+                      <div className="flex flex-wrap gap-4 items-center flex-1">
+                        <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[200px]">
+                          <option>Select Property</option>
+                          {activeProperties.map((property) => (
+                            <option key={property.id} value={property.id}>
+                              {property.name}
+                            </option>
+                          ))}
+                        </select>
+                        <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm min-w-[200px]">
+                          <option>Conference Venues</option>
+                        </select>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button className="bg-primary hover:bg-primary/90">Save</Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button className="bg-primary hover:bg-primary/90">
+                              Rules/Bulk Updates
+                              <ChevronRight className="ml-2 h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56 bg-background">
+                            <DropdownMenuItem>Bulk Rate</DropdownMenuItem>
+                            <DropdownMenuItem>Bulk Availability</DropdownMenuItem>
+                            <DropdownMenuItem>Stop Sell</DropdownMenuItem>
+                            <DropdownMenuItem>Minimum Stay</DropdownMenuItem>
+                            <DropdownMenuItem>Maximum Stay</DropdownMenuItem>
+                            <DropdownMenuItem>Lead Days Advance</DropdownMenuItem>
+                            <DropdownMenuItem>Lead Days Post</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+
+                    {/* Message */}
+                    <p className="text-primary text-sm">Select a property to begin.</p>
+
+                    {/* Calendar Navigation */}
+                    <div className="flex items-center gap-2 bg-muted p-4 rounded-lg">
+                      <Button variant="ghost" size="icon">
+                        <ChevronsLeft className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon">
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="mx-4 font-medium">2025-11-19</span>
+                      <Button variant="ghost" size="icon">
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon">
+                        <ChevronsRight className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" className="ml-4">Today</Button>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex flex-wrap gap-4 items-center text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-red-500 rounded"></div>
+                        <span>Stop Sell</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span>Rates</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-yellow-400 rounded"></div>
+                        <span>Lead Days Advance</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-orange-400 rounded"></div>
+                        <span>Lead Days Post</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-red-400 rounded"></div>
+                        <span>Max Stay</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 bg-gray-700 rounded"></div>
+                        <span>Min Stay</span>
+                      </div>
+                    </div>
+
+                    {/* Calendar Grid Placeholder */}
+                    <div className="text-center py-12 border rounded-lg bg-muted/20">
+                      <p className="text-muted-foreground">Select a property to view the calendar</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
