@@ -1,1 +1,7 @@
 project_id = "qmprswbgkpzcvexmmcbf"
+
+[functions.sync-rates-availability]
+verify_jwt = false
+
+[functions.push-booking]
+verify_jwt = false
