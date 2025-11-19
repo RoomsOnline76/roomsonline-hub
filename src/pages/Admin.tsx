@@ -816,9 +816,108 @@ const Admin = () => {
                   <CardDescription>View accommodation analytics & insights</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-center py-12">
-                    <PieChart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Accommodation reports coming soon</p>
+                  <div className="space-y-6">
+                    {/* Status Tabs */}
+                    <div className="flex gap-2">
+                      <Badge className="bg-primary hover:bg-primary/90 cursor-pointer px-4 py-2">Arrival</Badge>
+                      <Badge className="bg-primary hover:bg-primary/90 cursor-pointer px-4 py-2">Departure</Badge>
+                      <Badge className="bg-primary hover:bg-primary/90 cursor-pointer px-4 py-2">Cancelled</Badge>
+                    </div>
+
+                    {/* Filters */}
+                    <div className="flex flex-wrap gap-4 items-end justify-between">
+                      <div className="flex flex-wrap gap-4 items-end flex-1">
+                        <div className="min-w-[200px]">
+                          <select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm">
+                            <option>All Properties</option>
+                            {activeProperties.map((property) => (
+                              <option key={property.id} value={property.id}>
+                                {property.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex gap-2 items-center">
+                          <div>
+                            <Label className="text-xs mb-1 block">From</Label>
+                            <Input type="date" className="h-10" />
+                          </div>
+                          <div>
+                            <Label className="text-xs mb-1 block">To</Label>
+                            <Input type="date" className="h-10" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Input type="text" placeholder="Search" className="h-10 min-w-[200px]" />
+                          <Button size="icon" variant="outline">
+                            <Search className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Button className="bg-primary hover:bg-primary/90">Export</Button>
+                    </div>
+
+                    {/* Reports Table */}
+                    <div className="border rounded-lg overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>PROPERTY</TableHead>
+                            <TableHead>USER NAME</TableHead>
+                            <TableHead>USER EMAIL</TableHead>
+                            <TableHead>TYPE OF BOOKING</TableHead>
+                            <TableHead>ROOM NAME</TableHead>
+                            <TableHead>BOOKING DATE</TableHead>
+                            <TableHead>BOOKING NUMBER</TableHead>
+                            <TableHead>PMS REF</TableHead>
+                            <TableHead>OCCUPANTS</TableHead>
+                            <TableHead>PRICE</TableHead>
+                            <TableHead>ARRIVAL DATE</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <TableRow>
+                            <TableCell className="font-medium">Devonvale Golf & Wine Estate</TableCell>
+                            <TableCell>Melani Keyter</TableCell>
+                            <TableCell>melani+10000100@iitchihospital</TableCell>
+                            <TableCell>Room</TableCell>
+                            <TableCell>1 Holiday House - selfCatering</TableCell>
+                            <TableCell>10/23/2025</TableCell>
+                            <TableCell>GWJE-PXJY-8T</TableCell>
+                            <TableCell>113372055</TableCell>
+                            <TableCell>1</TableCell>
+                            <TableCell>32500</TableCell>
+                            <TableCell>4/22/2026</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-medium">Devonvale Golf & Wine Estate</TableCell>
+                            <TableCell>Melani Keyter</TableCell>
+                            <TableCell>melani+10000100@iitchihospital</TableCell>
+                            <TableCell>Room</TableCell>
+                            <TableCell>1 Holiday House - selfCatering</TableCell>
+                            <TableCell>10/23/2025</TableCell>
+                            <TableCell>XA9X-43S5-QB</TableCell>
+                            <TableCell></TableCell>
+                            <TableCell>1</TableCell>
+                            <TableCell>39000</TableCell>
+                            <TableCell>4/15/2026</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-medium">Devonvale Golf & Wine Estate</TableCell>
+                            <TableCell>Melani Keyter</TableCell>
+                            <TableCell>melani+10000100@iitchihospital</TableCell>
+                            <TableCell>Room</TableCell>
+                            <TableCell>1 Holiday House - selfCatering</TableCell>
+                            <TableCell>10/23/2025</TableCell>
+                            <TableCell></TableCell>
+                            <TableCell></TableCell>
+                            <TableCell>1</TableCell>
+                            <TableCell>39000</TableCell>
+                            <TableCell>4/15/2026</TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
