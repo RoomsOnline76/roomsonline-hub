@@ -50,6 +50,53 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_sync_status: {
+        Row: {
+          booking_id: string
+          created_at: string | null
+          error_message: string | null
+          external_booking_id: string | null
+          external_system: string
+          id: string
+          last_sync_at: string | null
+          sync_attempts: number | null
+          sync_status: string
+          updated_at: string | null
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string | null
+          error_message?: string | null
+          external_booking_id?: string | null
+          external_system: string
+          id?: string
+          last_sync_at?: string | null
+          sync_attempts?: number | null
+          sync_status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string | null
+          error_message?: string | null
+          external_booking_id?: string | null
+          external_system?: string
+          id?: string
+          last_sync_at?: string | null
+          sync_attempts?: number | null
+          sync_status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_sync_status_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           adults: number
@@ -235,6 +282,169 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      property_availability: {
+        Row: {
+          available_units: number
+          created_at: string | null
+          date: string
+          external_system: string
+          id: string
+          is_stop_sell: boolean | null
+          lead_days_advance: number | null
+          lead_days_post: number | null
+          maximum_stay: number | null
+          minimum_stay: number | null
+          property_id: string
+          room_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          available_units?: number
+          created_at?: string | null
+          date: string
+          external_system: string
+          id?: string
+          is_stop_sell?: boolean | null
+          lead_days_advance?: number | null
+          lead_days_post?: number | null
+          maximum_stay?: number | null
+          minimum_stay?: number | null
+          property_id: string
+          room_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          available_units?: number
+          created_at?: string | null
+          date?: string
+          external_system?: string
+          id?: string
+          is_stop_sell?: boolean | null
+          lead_days_advance?: number | null
+          lead_days_post?: number | null
+          maximum_stay?: number | null
+          minimum_stay?: number | null
+          property_id?: string
+          room_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_availability_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_rates: {
+        Row: {
+          amount: number
+          created_at: string | null
+          currency: string | null
+          date: string
+          external_rate_id: string | null
+          external_system: string
+          id: string
+          meal_type: string | null
+          property_id: string
+          rate_type: string
+          room_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          currency?: string | null
+          date: string
+          external_rate_id?: string | null
+          external_system: string
+          id?: string
+          meal_type?: string | null
+          property_id: string
+          rate_type: string
+          room_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          currency?: string | null
+          date?: string
+          external_rate_id?: string | null
+          external_system?: string
+          id?: string
+          meal_type?: string | null
+          property_id?: string
+          rate_type?: string
+          room_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_rates_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sync_logs: {
+        Row: {
+          booking_id: string | null
+          created_at: string | null
+          external_system: string
+          id: string
+          message: string | null
+          property_id: string | null
+          request_data: Json | null
+          response_data: Json | null
+          status: string
+          sync_type: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string | null
+          external_system: string
+          id?: string
+          message?: string | null
+          property_id?: string | null
+          request_data?: Json | null
+          response_data?: Json | null
+          status: string
+          sync_type: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string | null
+          external_system?: string
+          id?: string
+          message?: string | null
+          property_id?: string | null
+          request_data?: Json | null
+          response_data?: Json | null
+          status?: string
+          sync_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_logs_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sync_logs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
