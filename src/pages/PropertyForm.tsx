@@ -88,6 +88,29 @@ export default function PropertyForm() {
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [owners, setOwners] = useState<any[]>([]);
+  const [isDirty, setIsDirty] = useState(false);
+
+  // Warn user before leaving with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
+  // Helper to navigate with unsaved changes check
+  const handleNavigate = (path: string) => {
+    if (isDirty) {
+      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to leave without saving?');
+      if (!confirmed) return;
+    }
+    navigate(path);
+  };
 
   // Load owners list
   useEffect(() => {
@@ -277,6 +300,12 @@ export default function PropertyForm() {
   // Meal types state
   const [selectedMealTypes, setSelectedMealTypes] = useState<string[]>(['Self Catering']);
   const [mealTypeSuggestions, setMealTypeSuggestions] = useState<string[]>([]);
+
+  // Wrapper to mark dirty when meal types change
+  const handleMealTypesChange = (newMealTypes: string[]) => {
+    setSelectedMealTypes(newMealTypes);
+    setIsDirty(true);
+  };
 
   // Load meal type suggestions
   useEffect(() => {
@@ -743,6 +772,21 @@ export default function PropertyForm() {
           if (data.images && Array.isArray(data.images)) {
             setUploadedImages(data.images as string[]);
           }
+
+          // Load meal types if available
+          if (amenities?.meal_types && Array.isArray(amenities.meal_types)) {
+            setSelectedMealTypes(amenities.meal_types);
+          }
+
+          // Load room types if available
+          if (amenities?.room_types && Array.isArray(amenities.room_types)) {
+            setRoomTypes(amenities.room_types);
+          }
+
+          // Load other saved data
+          if (amenities?.star_rating) setStarRating(amenities.star_rating);
+          if (amenities?.facilities) setSelectedFacilities(amenities.facilities);
+          if (amenities?.cancellation_policies) setCancellationPolicies(amenities.cancellation_policies);
         }
       } catch (error) {
         console.error("Error loading property:", error);
@@ -874,6 +918,7 @@ export default function PropertyForm() {
 
   const handleInputChange = (field: keyof PropertyFormData, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    setIsDirty(true);
   };
 
   const toggleFacility = (facility: string) => {
@@ -1024,6 +1069,12 @@ export default function PropertyForm() {
             semper_account_id: isSemperProperty ? formData.account_id : null,
             semper_agent_id: isSemperProperty ? formData.agent_id : null,
           },
+          room_types: roomTypes,
+          meal_types: selectedMealTypes,
+          star_rating: starRating,
+          facilities: selectedFacilities,
+          cancellation_policies: cancellationPolicies,
+          images: uploadedImages,
         },
       };
 
@@ -1038,6 +1089,7 @@ export default function PropertyForm() {
         description: isEditMode ? "Property updated successfully" : "Property created successfully",
       });
 
+      setIsDirty(false);
       navigate("/admin");
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1111,7 +1163,7 @@ export default function PropertyForm() {
               <p className="text-muted-foreground">Configure property details and settings</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => navigate("/admin")}>
+              <Button variant="outline" onClick={() => handleNavigate("/admin")}>
                 Cancel
               </Button>
               <Button onClick={handleSubmit} disabled={loading}>
@@ -1591,7 +1643,7 @@ export default function PropertyForm() {
                 </Card>
 
                 <div className="flex justify-end gap-4">
-                  <Button type="button" variant="outline" onClick={() => navigate("/admin")}>
+                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={loading}>
@@ -1886,7 +1938,7 @@ export default function PropertyForm() {
 
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-4">
-                  <Button type="button" variant="outline" onClick={() => navigate("/admin")}>
+                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
                     Cancel
                   </Button>
                   <Button type="submit" className="bg-primary">
@@ -2152,7 +2204,7 @@ export default function PropertyForm() {
                 </Card>
 
                 <div className="flex justify-end gap-4">
-                  <Button type="button" variant="outline" onClick={() => navigate("/admin")}>
+                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={loading}>
@@ -2552,7 +2604,7 @@ export default function PropertyForm() {
                 </div>
 
                 <div className="flex justify-end gap-4">
-                  <Button type="button" variant="outline" onClick={() => navigate("/admin")}>
+                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={loading}>
@@ -2646,7 +2698,7 @@ export default function PropertyForm() {
               </Card>
 
               <div className="flex justify-end gap-4 mt-6">
-                <Button type="button" variant="outline" onClick={() => navigate("/admin")}>
+                <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
                   Cancel
                 </Button>
                 <Button type="button" disabled={loading}>
@@ -2766,7 +2818,7 @@ export default function PropertyForm() {
               </Card>
 
               <div className="flex justify-end gap-4 mt-6">
-                <Button type="button" variant="outline" onClick={() => navigate("/admin")}>
+                <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
                   Cancel
                 </Button>
                 <Button type="button" disabled={loading}>
@@ -3788,7 +3840,7 @@ export default function PropertyForm() {
                           <Label>Meal Type</Label>
                           <TagInput
                             value={selectedMealTypes}
-                            onChange={setSelectedMealTypes}
+                            onChange={handleMealTypesChange}
                             suggestions={mealTypeSuggestions}
                             placeholder="Type meal type and press Enter..."
                             onNewTag={handleNewMealType}
