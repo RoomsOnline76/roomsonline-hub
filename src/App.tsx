@@ -8,6 +8,9 @@ import Results from "./pages/Results";
 import Admin from "./pages/Admin";
 import PropertyOverview from "./pages/PropertyOverview";
 import Calendar from "./pages/Calendar";
+import CalendarAccommodation from "./pages/CalendarAccommodation";
+import CalendarEventWedding from "./pages/CalendarEventWedding";
+import CalendarConference from "./pages/CalendarConference";
 import Promotion from "./pages/Promotion";
 import Bookings from "./pages/Bookings";
 import Dashboard from "./pages/Dashboard";
@@ -83,6 +86,30 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <Calendar />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/calendar/accommodation"
+            element={
+              <ProtectedRoute>
+                <CalendarAccommodation />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/calendar/event-wedding"
+            element={
+              <ProtectedRoute>
+                <CalendarEventWedding />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/calendar/conference"
+            element={
+              <ProtectedRoute>
+                <CalendarConference />
               </ProtectedRoute>
             }
           />

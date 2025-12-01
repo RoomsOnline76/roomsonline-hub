@@ -86,7 +86,7 @@ export const Navbar = () => {
                       <Building2 className="mr-2 h-4 w-4" />
                       Property overview
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/admin/calendar')}>
+                    <DropdownMenuItem onClick={() => navigate('/admin/calendar/accommodation')}>
                       <Calendar className="mr-2 h-4 w-4" />
                       Calendar
                     </DropdownMenuItem>
