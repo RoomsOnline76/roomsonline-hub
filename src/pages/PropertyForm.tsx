@@ -734,6 +734,7 @@ export default function PropertyForm() {
         if (data) {
           // Populate form data
           const amenities = data.amenities as any;
+          const houseRules = amenities?.house_rules || {};
           
           setFormData({
             name: data.name || "",
@@ -748,7 +749,7 @@ export default function PropertyForm() {
             address: data.address || "",
             suburb: amenities?.address_details?.suburb || "",
             postal_code: amenities?.address_details?.postal_code || "",
-            bb_id: amenities?.external_ids?.nightsbridge_bb_id || "",
+            bb_id: amenities?.external_ids?.nightsbridge_bb_id || amenities?.external_ids?.siteminder_id || amenities?.external_ids?.checkfront_id || amenities?.external_ids?.benson_id || "",
             venue_id: amenities?.external_ids?.semper_venue_id || "",
             channel_id: amenities?.external_ids?.semper_channel_id || "",
             account_id: amenities?.external_ids?.semper_account_id || "",
@@ -765,26 +766,26 @@ export default function PropertyForm() {
             description: data.description || "",
             star_rating: 0,
             facilities: [],
-            items_non_refundable: false,
-            smoking_allowed: false,
-            pets_allowed: false,
-            children_allowed: true,
-            parties_allowed: false,
-            check_in_24h: false,
-            deposit_allowed: false,
-            deposit_percentage: "50",
-            deposit_days: "2",
-            same_day_bookings: false,
-            same_day_cutoff: "16:00",
-            check_in_from: "15:00",
-            check_in_to: "20:00",
-            check_out_from: "06:00",
-            check_out_to: "11:00",
-            children_policy: "Children are welcome\nChildren up until the age of 12 - Stay free",
-            infant_age_from: "1",
-            infant_age_to: "2",
-            children_age_from: "3",
-            children_age_to: "12",
+            items_non_refundable: houseRules.items_non_refundable ?? false,
+            smoking_allowed: houseRules.smoking_allowed ?? false,
+            pets_allowed: houseRules.pets_allowed ?? false,
+            children_allowed: houseRules.children_allowed ?? true,
+            parties_allowed: houseRules.parties_allowed ?? false,
+            check_in_24h: houseRules.check_in_24h ?? false,
+            deposit_allowed: houseRules.deposit_allowed ?? false,
+            deposit_percentage: houseRules.deposit_percentage || "50",
+            deposit_days: houseRules.deposit_days || "2",
+            same_day_bookings: houseRules.same_day_bookings ?? false,
+            same_day_cutoff: houseRules.same_day_cutoff || "16:00",
+            check_in_from: houseRules.check_in_from || "15:00",
+            check_in_to: houseRules.check_in_to || "20:00",
+            check_out_from: houseRules.check_out_from || "06:00",
+            check_out_to: houseRules.check_out_to || "11:00",
+            children_policy: houseRules.children_policy || "Children are welcome\nChildren up until the age of 12 - Stay free",
+            infant_age_from: houseRules.infant_age_from || "1",
+            infant_age_to: houseRules.infant_age_to || "2",
+            children_age_from: houseRules.children_age_from || "3",
+            children_age_to: houseRules.children_age_to || "12",
           });
 
           // Set offerings
@@ -793,7 +794,7 @@ export default function PropertyForm() {
           setIsEvent(amenities?.offerings?.event_wedding ?? false);
           setIsConference(amenities?.offerings?.conference ?? false);
 
-          // Set property source
+          // Set property source (PMS)
           const externalSystem = data.external_system || "";
           setSelectedPMS(externalSystem);
           
@@ -820,6 +821,29 @@ export default function PropertyForm() {
           if (amenities?.star_rating) setStarRating(amenities.star_rating);
           if (amenities?.facilities) setSelectedFacilities(amenities.facilities);
           if (amenities?.cancellation_policies) setCancellationPolicies(amenities.cancellation_policies);
+          if (amenities?.seasons) setSeasons(amenities.seasons);
+          if (amenities?.addons) setAddons(amenities.addons);
+          if (amenities?.packages) setPackages(amenities.packages);
+          if (amenities?.announcements) setAnnouncements(amenities.announcements);
+          
+          // Load house style
+          const houseStyle = amenities?.house_style || {};
+          if (houseStyle.company_logo) setCompanyLogo(houseStyle.company_logo);
+          if (houseStyle.litchi_bookings_link) setLitchiBookingsLink(houseStyle.litchi_bookings_link);
+          if (houseStyle.title_behaviour) setTitleBehaviour(houseStyle.title_behaviour);
+          if (houseStyle.merchant_details) setMerchantDetails(houseStyle.merchant_details);
+          if (houseStyle.adpay_details) setAdpayDetails(houseStyle.adpay_details);
+          if (houseStyle.motar_api) setMotarApi(houseStyle.motar_api);
+          if (houseStyle.website_colors) setWebsiteColors(houseStyle.website_colors);
+          
+          // Load templates
+          const templates = amenities?.templates || {};
+          if (templates.selected_template) setSelectedTemplate(templates.selected_template);
+          if (templates.template_content) setTemplateContent(templates.template_content);
+          if (templates.pre_mailer_days !== undefined) setPreMailerDays(templates.pre_mailer_days);
+          if (templates.pre_mailer_hours !== undefined) setPreMailerHours(templates.pre_mailer_hours);
+          if (templates.post_mailer_days !== undefined) setPostMailerDays(templates.post_mailer_days);
+          if (templates.post_mailer_hours !== undefined) setPostMailerHours(templates.post_mailer_hours);
         }
       } catch (error) {
         console.error("Error loading property:", error);
@@ -1049,6 +1073,7 @@ export default function PropertyForm() {
       const propertyData = {
         name: formData.name,
         property_type: formData.property_type,
+        description: formData.description || null,
         address: formData.address,
         city: formData.city,
         country: formData.country,
@@ -1057,8 +1082,9 @@ export default function PropertyForm() {
         owner_name: formData.owner_name || null,
         owner_email: formData.owner_email || null,
         external_system: selectedPMS || null,
-        external_id: formData.bb_id || null,
+        external_id: formData.bb_id || formData.venue_id || null,
         is_active: true,
+        images: uploadedImages,
         max_guests: 2, // Default value, can be updated later
         price_per_night: 0, // Default value, can be updated later
         amenities: {
@@ -1095,13 +1121,58 @@ export default function PropertyForm() {
             semper_channel_id: selectedPMS === "semper" ? formData.channel_id : null,
             semper_account_id: selectedPMS === "semper" ? formData.account_id : null,
             semper_agent_id: selectedPMS === "semper" ? formData.agent_id : null,
+            siteminder_id: selectedPMS === "siteminder" ? formData.bb_id : null,
+            checkfront_id: selectedPMS === "checkfront" ? formData.bb_id : null,
+            benson_id: selectedPMS === "benson" ? formData.bb_id : null,
           },
           room_types: roomTypes,
           meal_types: selectedMealTypes,
           star_rating: starRating,
           facilities: selectedFacilities,
           cancellation_policies: cancellationPolicies,
-          images: uploadedImages,
+          house_rules: {
+            items_non_refundable: formData.items_non_refundable,
+            smoking_allowed: formData.smoking_allowed,
+            pets_allowed: formData.pets_allowed,
+            children_allowed: formData.children_allowed,
+            parties_allowed: formData.parties_allowed,
+            check_in_24h: formData.check_in_24h,
+            deposit_allowed: formData.deposit_allowed,
+            deposit_percentage: formData.deposit_percentage,
+            deposit_days: formData.deposit_days,
+            same_day_bookings: formData.same_day_bookings,
+            same_day_cutoff: formData.same_day_cutoff,
+            check_in_from: formData.check_in_from,
+            check_in_to: formData.check_in_to,
+            check_out_from: formData.check_out_from,
+            check_out_to: formData.check_out_to,
+            children_policy: formData.children_policy,
+            infant_age_from: formData.infant_age_from,
+            infant_age_to: formData.infant_age_to,
+            children_age_from: formData.children_age_from,
+            children_age_to: formData.children_age_to,
+          },
+          house_style: {
+            company_logo: companyLogo,
+            litchi_bookings_link: litchiBookingsLink,
+            title_behaviour: titleBehaviour,
+            merchant_details: merchantDetails,
+            adpay_details: adpayDetails,
+            motar_api: motarApi,
+            website_colors: websiteColors,
+          },
+          seasons: seasons,
+          addons: addons,
+          packages: packages,
+          announcements: announcements,
+          templates: {
+            selected_template: selectedTemplate,
+            template_content: templateContent,
+            pre_mailer_days: preMailerDays,
+            pre_mailer_hours: preMailerHours,
+            post_mailer_days: postMailerDays,
+            post_mailer_hours: postMailerHours,
+          },
         },
       };
 
