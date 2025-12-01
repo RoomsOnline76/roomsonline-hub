@@ -8,17 +8,8 @@ import Results from "./pages/Results";
 import Admin from "./pages/Admin";
 import PropertyOverview from "./pages/PropertyOverview";
 import Calendar from "./pages/Calendar";
-import CalendarAccommodation from "./pages/CalendarAccommodation";
-import CalendarEventWedding from "./pages/CalendarEventWedding";
-import CalendarConference from "./pages/CalendarConference";
 import Promotion from "./pages/Promotion";
-import PromotionAccommodation from "./pages/PromotionAccommodation";
-import PromotionEventWedding from "./pages/PromotionEventWedding";
-import PromotionConference from "./pages/PromotionConference";
 import Bookings from "./pages/Bookings";
-import BookingsAccommodation from "./pages/BookingsAccommodation";
-import BookingsEventWedding from "./pages/BookingsEventWedding";
-import BookingsConference from "./pages/BookingsConference";
 import Dashboard from "./pages/Dashboard";
 import AdminKeys from "./pages/AdminKeys";
 import AdminUsers from "./pages/AdminUsers";
@@ -108,78 +99,6 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <Bookings />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/calendar/accommodation"
-            element={
-              <ProtectedRoute>
-                <CalendarAccommodation />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/calendar/event-wedding"
-            element={
-              <ProtectedRoute>
-                <CalendarEventWedding />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/calendar/conference"
-            element={
-              <ProtectedRoute>
-                <CalendarConference />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/promotion/accommodation"
-            element={
-              <ProtectedRoute>
-                <PromotionAccommodation />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/promotion/event-wedding"
-            element={
-              <ProtectedRoute>
-                <PromotionEventWedding />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/promotion/conference"
-            element={
-              <ProtectedRoute>
-                <PromotionConference />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/bookings/accommodation"
-            element={
-              <ProtectedRoute>
-                <BookingsAccommodation />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/bookings/event-wedding"
-            element={
-              <ProtectedRoute>
-                <BookingsEventWedding />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/bookings/conference"
-            element={
-              <ProtectedRoute>
-                <BookingsConference />
               </ProtectedRoute>
             }
           />
