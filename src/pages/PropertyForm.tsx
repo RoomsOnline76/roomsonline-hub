@@ -25,6 +25,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { PropertyMap } from "@/components/PropertyMap";
+import { TagInput } from "@/components/TagInput";
 
 const propertySchema = z.object({
   name: z.string().min(1, "Property name is required").max(200),
@@ -272,6 +273,36 @@ export default function PropertyForm() {
     { id: '2', title: '01/10/2025-30/09/2026', from: '2025-10-01', to: '2026-09-30', minStay: 5, maxStay: 0 },
     { id: '3', title: '01/10/2026-30/09/2027', from: '2026-10-01', to: '2027-09-30', minStay: 5, maxStay: 0 }
   ]);
+
+  // Meal types state
+  const [selectedMealTypes, setSelectedMealTypes] = useState<string[]>(['Self Catering']);
+  const [mealTypeSuggestions, setMealTypeSuggestions] = useState<string[]>([]);
+
+  // Load meal type suggestions
+  useEffect(() => {
+    const loadMealTypeSuggestions = async () => {
+      const { data, error } = await supabase
+        .from('meal_type_suggestions')
+        .select('name')
+        .order('name');
+      
+      if (data && !error) {
+        setMealTypeSuggestions(data.map(d => d.name));
+      }
+    };
+    loadMealTypeSuggestions();
+  }, []);
+
+  // Add new meal type to suggestions database
+  const handleNewMealType = async (mealType: string) => {
+    const { error } = await supabase
+      .from('meal_type_suggestions')
+      .insert({ name: mealType });
+    
+    if (!error) {
+      setMealTypeSuggestions(prev => [...prev, mealType].sort());
+    }
+  };
   
   // Templates and Notifications state
   const [selectedTemplate, setSelectedTemplate] = useState<string>('confirmation-mailer');
@@ -3749,12 +3780,13 @@ export default function PropertyForm() {
                         </div>
                         <div className="space-y-2">
                           <Label>Meal Type</Label>
-                          <div className="flex gap-2">
-                            <Badge variant="secondary" className="gap-2">
-                              Self Catering
-                              <X className="h-3 w-3 cursor-pointer" />
-                            </Badge>
-                          </div>
+                          <TagInput
+                            value={selectedMealTypes}
+                            onChange={setSelectedMealTypes}
+                            suggestions={mealTypeSuggestions}
+                            placeholder="Type meal type and press Enter..."
+                            onNewTag={handleNewMealType}
+                          />
                         </div>
                       </div>
                     </TabsContent>
