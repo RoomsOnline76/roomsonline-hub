@@ -13,13 +13,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { ChevronLeft, ChevronRight, ChevronDown, RefreshCw, ChevronsLeft, ChevronsRight, Building2 } from "lucide-react";
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  RefreshCw,
+  ChevronsLeft,
+  ChevronsRight,
+  Building2,
+} from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { BulkRateRuleDialog } from "@/components/BulkRateRuleDialog";
 import { BulkAvailabilityRuleDialog } from "@/components/BulkAvailabilityRuleDialog";
@@ -55,7 +58,7 @@ const CalendarConference = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [userEmail, setUserEmail] = useState<string>("");
 
-  const selectedPropertyData = properties.find(p => p.id === selectedProperty);
+  const selectedPropertyData = properties.find((p) => p.id === selectedProperty);
   const hasAccommodation = selectedPropertyData?.amenities?.offerings?.accommodation === true;
   const hasEventWedding = selectedPropertyData?.amenities?.offerings?.event_wedding === true;
   const hasConference = selectedPropertyData?.amenities?.offerings?.conference === true;
@@ -72,7 +75,9 @@ const CalendarConference = () => {
 
   const checkUserRoleAndFetchProperties = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         setLoading(false);
         return;
@@ -88,11 +93,7 @@ const CalendarConference = () => {
       const adminStatus = !!roleData;
       setIsAdmin(adminStatus);
 
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("email")
-        .eq("id", user.id)
-        .single();
+      const { data: profileData } = await supabase.from("profiles").select("email").eq("id", user.id).single();
 
       const email = profileData?.email || "";
       setUserEmail(email);
@@ -111,10 +112,7 @@ const CalendarConference = () => {
 
   const fetchProperties = async (adminStatus: boolean, email: string) => {
     try {
-      let query = supabase
-        .from("properties")
-        .select("id, name, amenities, owner_email")
-        .eq("is_active", true);
+      let query = supabase.from("properties").select("id, name, amenities, owner_email").eq("is_active", true);
 
       if (!adminStatus && email) {
         query = query.eq("owner_email", email);
@@ -211,7 +209,7 @@ const CalendarConference = () => {
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
     const startingDayOfWeek = firstDay.getDay();
-    
+
     const days = [];
     for (let i = 0; i < startingDayOfWeek; i++) {
       days.push(null);
@@ -247,7 +245,12 @@ const CalendarConference = () => {
 
         {/* Tabs */}
         <Tabs value="conference" className="mb-6">
-          <TabsList className="grid w-full max-w-md" style={{ gridTemplateColumns: `repeat(${(hasAccommodation ? 1 : 0) + (hasEventWedding ? 1 : 0) + 1}, 1fr)` }}>
+          <TabsList
+            className="grid w-full max-w-md"
+            style={{
+              gridTemplateColumns: `repeat(${(hasAccommodation ? 1 : 0) + (hasEventWedding ? 1 : 0) + 1}, 1fr)`,
+            }}
+          >
             {hasAccommodation && (
               <TabsTrigger value="accommodation" onClick={() => navigateToTab("accommodation")}>
                 Accommodation
@@ -264,8 +267,8 @@ const CalendarConference = () => {
 
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold mb-1">Conference Calendar</h1>
-          <p className="text-muted-foreground">Manage conference bookings</p>
+          <h1 className="text-3xl font-bold mb-1">Calendar</h1>
+          <p className="text-muted-foreground"></p>
         </div>
 
         <Card>
@@ -300,27 +303,13 @@ const CalendarConference = () => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem onClick={() => setBulkRateOpen(true)}>
-                      Bulk Rate
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setBulkAvailabilityOpen(true)}>
-                      Bulk Availability
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setStopSellOpen(true)}>
-                      Stop Sell
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setMinStayOpen(true)}>
-                      Minimum Stay
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setMaxStayOpen(true)}>
-                      Maximum Stay
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setLeadDaysAdvanceOpen(true)}>
-                      Lead Days Advance
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setLeadDaysPostOpen(true)}>
-                      Lead Days Post
-                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setBulkRateOpen(true)}>Bulk Rate</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setBulkAvailabilityOpen(true)}>Bulk Availability</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setStopSellOpen(true)}>Stop Sell</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setMinStayOpen(true)}>Minimum Stay</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setMaxStayOpen(true)}>Maximum Stay</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setLeadDaysAdvanceOpen(true)}>Lead Days Advance</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setLeadDaysPostOpen(true)}>Lead Days Post</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -328,9 +317,7 @@ const CalendarConference = () => {
 
             {/* No Property Selected Message */}
             {!selectedProperty && (
-              <div className="text-center py-8 text-muted-foreground">
-                Select a property to begin.
-              </div>
+              <div className="text-center py-8 text-muted-foreground">Select a property to begin.</div>
             )}
 
             {/* Calendar Section */}
@@ -346,7 +333,7 @@ const CalendarConference = () => {
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <span className="text-lg font-semibold min-w-[150px] text-center">
-                      {currentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                      {currentDate.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
                     </span>
                     <Button variant="outline" size="icon" onClick={goToNext}>
                       <ChevronRight className="h-4 w-4" />
@@ -360,22 +347,13 @@ const CalendarConference = () => {
                   </div>
 
                   <div className="flex gap-2">
-                    <Button
-                      variant={viewMode === "week" ? "default" : "outline"}
-                      onClick={() => setViewMode("week")}
-                    >
+                    <Button variant={viewMode === "week" ? "default" : "outline"} onClick={() => setViewMode("week")}>
                       Week
                     </Button>
-                    <Button
-                      variant={viewMode === "month" ? "default" : "outline"}
-                      onClick={() => setViewMode("month")}
-                    >
+                    <Button variant={viewMode === "month" ? "default" : "outline"} onClick={() => setViewMode("month")}>
                       Month
                     </Button>
-                    <Button
-                      variant={viewMode === "year" ? "default" : "outline"}
-                      onClick={() => setViewMode("year")}
-                    >
+                    <Button variant={viewMode === "year" ? "default" : "outline"} onClick={() => setViewMode("year")}>
                       Year
                     </Button>
                   </div>
