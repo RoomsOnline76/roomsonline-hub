@@ -76,15 +76,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get API keys for the external system
-    const { data: apiKeys, error: keysError } = await supabaseClient
-      .from('api_keys')
-      .select('*')
-      .eq('system_type', external_system)
-      .limit(1);
+    // Get API key from environment variables
+    const apiKeyEnvVar = external_system === 'nightsbridge' 
+      ? 'NIGHTSBRIDGE_API_KEY' 
+      : 'CHECKFRONT_API_KEY';
+    
+    const apiKeyValue = Deno.env.get(apiKeyEnvVar);
 
-    if (keysError || !apiKeys || apiKeys.length === 0) {
-      console.error('API keys lookup failed:', keysError);
+    if (!apiKeyValue) {
+      console.error(`API key not configured: ${apiKeyEnvVar}`);
       return new Response(
         JSON.stringify({ error: 'System configuration error' }),
         { 
@@ -93,8 +93,6 @@ Deno.serve(async (req) => {
         }
       );
     }
-
-    const apiKey = apiKeys[0];
 
     let rates: any[] = [];
     let availability: any[] = [];
@@ -120,7 +118,7 @@ Deno.serve(async (req) => {
         `https://api.nightsbridge.com/v1/properties/${nightsBridgeId}/rates?start=${start_date}&end=${end_date}`,
         {
           headers: {
-            'Authorization': `Bearer ${apiKey.key_value}`,
+            'Authorization': `Bearer ${apiKeyValue}`,
             'Content-Type': 'application/json',
           },
         }
@@ -163,7 +161,7 @@ Deno.serve(async (req) => {
         `https://api.checkfront.com/v3/item/${checkfrontId}/rates?start=${start_date}&end=${end_date}`,
         {
           headers: {
-            'Authorization': `Basic ${btoa(`${apiKey.key_value}:`)}`,
+            'Authorization': `Basic ${btoa(`${apiKeyValue}:`)}`,
             'Content-Type': 'application/json',
           },
         }

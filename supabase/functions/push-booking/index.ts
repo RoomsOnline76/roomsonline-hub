@@ -66,18 +66,16 @@ Deno.serve(async (req) => {
       const systemName = system.trim();
       
       try {
-        // Get API keys for the external system
-        const { data: apiKeys, error: keysError } = await supabaseClient
-          .from('api_keys')
-          .select('*')
-          .eq('system_type', systemName)
-          .limit(1);
+        // Get API key from environment variables
+        const apiKeyEnvVar = systemName === 'nightsbridge' 
+          ? 'NIGHTSBRIDGE_API_KEY' 
+          : 'CHECKFRONT_API_KEY';
+        
+        const apiKeyValue = Deno.env.get(apiKeyEnvVar);
 
-        if (keysError || !apiKeys || apiKeys.length === 0) {
-          throw new Error(`API keys not configured for ${systemName}`);
+        if (!apiKeyValue) {
+          throw new Error(`API key not configured for ${systemName}`);
         }
-
-        const apiKey = apiKeys[0];
 
         let externalBookingId = null;
 
@@ -111,7 +109,7 @@ Deno.serve(async (req) => {
             {
               method: 'POST',
               headers: {
-                'Authorization': `Bearer ${apiKey.key_value}`,
+                'Authorization': `Bearer ${apiKeyValue}`,
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify(bookingData),
@@ -156,7 +154,7 @@ Deno.serve(async (req) => {
             {
               method: 'POST',
               headers: {
-                'Authorization': `Basic ${btoa(`${apiKey.key_value}:`)}`,
+                'Authorization': `Basic ${btoa(`${apiKeyValue}:`)}`,
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify(bookingData),
