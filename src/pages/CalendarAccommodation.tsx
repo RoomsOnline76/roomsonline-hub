@@ -47,13 +47,6 @@ const displayOptions = [
   { id: "min_stay", label: "Min Stay", color: "bg-blue-500" },
 ];
 
-const mealTypeOptions = [
-  { id: "breakfast", label: "Breakfast" },
-  { id: "self_catering", label: "Self Catering" },
-  { id: "full_board", label: "Full Board" },
-  { id: "room_only", label: "Room Only" },
-];
-
 interface RoomData {
   name: string;
   rates: {
@@ -98,6 +91,20 @@ const mockRoomData: RoomData[] = [
   },
 ];
 
+// Extract unique meal types from room data
+const getUniqueMealTypes = (roomData: RoomData[]) => {
+  const mealTypes = new Set<string>();
+  roomData.forEach(room => {
+    room.rates.forEach(rate => {
+      mealTypes.add(rate.mealType);
+    });
+  });
+  return Array.from(mealTypes).map(mt => ({
+    id: mt.toLowerCase().replace(/ /g, "_"),
+    label: mt
+  }));
+};
+
 const CalendarAccommodation = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -118,14 +125,15 @@ const CalendarAccommodation = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [userEmail, setUserEmail] = useState<string>("");
 
+  // Get meal types from room data (property-specific)
+  const mealTypeOptions = getUniqueMealTypes(mockRoomData);
+
   // Multi-select states - all true by default
   const [selectedDisplayOptions, setSelectedDisplayOptions] = useState<string[]>(
     displayOptions.map(o => o.id)
   );
   const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
-  const [selectedMealTypes, setSelectedMealTypes] = useState<string[]>(
-    mealTypeOptions.map(o => o.id)
-  );
+  const [selectedMealTypes, setSelectedMealTypes] = useState<string[]>([]);
 
   const selectedPropertyData = properties.find(p => p.id === selectedProperty);
   const hasAccommodation = selectedPropertyData?.amenities?.offerings?.accommodation === true;
@@ -149,6 +157,13 @@ const CalendarAccommodation = () => {
       setSelectedRoomTypes(roomTypes.map(r => r.name || r));
     }
   }, [roomTypes]);
+
+  // Set all meal types selected when mealTypeOptions changes
+  useEffect(() => {
+    if (mealTypeOptions.length > 0) {
+      setSelectedMealTypes(mealTypeOptions.map(m => m.id));
+    }
+  }, [mealTypeOptions.length]);
 
   const checkUserRoleAndFetchProperties = async () => {
     try {
