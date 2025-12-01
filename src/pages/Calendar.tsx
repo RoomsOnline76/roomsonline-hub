@@ -1,35 +1,15 @@
-import { Navbar } from "@/components/Navbar";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 const Calendar = () => {
-  return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
+  const navigate = useNavigate();
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Calendar
-          </h1>
-          <p className="text-muted-foreground">
-            Manage bookings calendar
-          </p>
-        </div>
+  useEffect(() => {
+    // Redirect to accommodation calendar by default
+    navigate("/admin/calendar/accommodation", { replace: true });
+  }, [navigate]);
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Calendar Management</CardTitle>
-            <CardDescription>
-              View and manage your booking calendar
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">Calendar view coming soon...</p>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
+  return null;
 };
 
 export default Calendar;
