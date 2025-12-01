@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -18,8 +19,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ChevronLeft, ChevronRight, ChevronDown, RefreshCw, ChevronsLeft, ChevronsRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { ChevronLeft, ChevronRight, ChevronDown, RefreshCw, ChevronsLeft, ChevronsRight, Building2 } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { BulkRateRuleDialog } from "@/components/BulkRateRuleDialog";
 import { BulkAvailabilityRuleDialog } from "@/components/BulkAvailabilityRuleDialog";
 import { BulkStopSellDialog } from "@/components/BulkStopSellDialog";
@@ -28,12 +29,20 @@ import { BulkMaximumStayDialog } from "@/components/BulkMaximumStayDialog";
 import { BulkLeadDaysAdvanceDialog } from "@/components/BulkLeadDaysAdvanceDialog";
 import { BulkLeadDaysPostDialog } from "@/components/BulkLeadDaysPostDialog";
 
+interface Property {
+  id: string;
+  name: string;
+  amenities: any;
+  owner_email: string | null;
+}
+
 const CalendarConference = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
-  const [selectedProperty, setSelectedProperty] = useState<string>("");
+  const [selectedProperty, setSelectedProperty] = useState<string>(searchParams.get("property") || "");
   const [viewMode, setViewMode] = useState<"week" | "month" | "year">("month");
-  const [currentDate, setCurrentDate] = useState(new Date(2025, 10, 19)); // Nov 19, 2025
+  const [currentDate, setCurrentDate] = useState(new Date(2025, 10, 19));
   const [bulkRateOpen, setBulkRateOpen] = useState(false);
   const [bulkAvailabilityOpen, setBulkAvailabilityOpen] = useState(false);
   const [stopSellOpen, setStopSellOpen] = useState(false);
@@ -41,25 +50,33 @@ const CalendarConference = () => {
   const [maxStayOpen, setMaxStayOpen] = useState(false);
   const [leadDaysAdvanceOpen, setLeadDaysAdvanceOpen] = useState(false);
   const [leadDaysPostOpen, setLeadDaysPostOpen] = useState(false);
-  const [properties, setProperties] = useState<any[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userEmail, setUserEmail] = useState<string>("");
+
+  const selectedPropertyData = properties.find(p => p.id === selectedProperty);
+  const hasAccommodation = selectedPropertyData?.amenities?.offerings?.accommodation === true;
+  const hasEventWedding = selectedPropertyData?.amenities?.offerings?.event_wedding === true;
 
   useEffect(() => {
     checkUserRoleAndFetchProperties();
   }, []);
 
+  useEffect(() => {
+    if (selectedProperty) {
+      setSearchParams({ property: selectedProperty });
+    }
+  }, [selectedProperty]);
+
   const checkUserRoleAndFetchProperties = async () => {
     try {
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setLoading(false);
         return;
       }
 
-      // Check if user is admin
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
@@ -70,7 +87,6 @@ const CalendarConference = () => {
       const adminStatus = !!roleData;
       setIsAdmin(adminStatus);
 
-      // Get user profile for owner email
       const { data: profileData } = await supabase
         .from("profiles")
         .select("email")
@@ -80,7 +96,6 @@ const CalendarConference = () => {
       const email = profileData?.email || "";
       setUserEmail(email);
 
-      // Fetch properties based on role
       await fetchProperties(adminStatus, email);
     } catch (error) {
       console.error("Error checking user role:", error);
@@ -100,7 +115,6 @@ const CalendarConference = () => {
         .select("id, name, amenities, owner_email")
         .eq("is_active", true);
 
-      // Filter by owner email if not admin
       if (!adminStatus && email) {
         query = query.eq("owner_email", email);
       }
@@ -109,12 +123,16 @@ const CalendarConference = () => {
 
       if (error) throw error;
 
-      // Filter properties with conference offering
       const conferenceProperties = (data || []).filter((property: any) => {
         return property.amenities?.offerings?.conference === true;
       });
 
       setProperties(conferenceProperties);
+
+      const urlProperty = searchParams.get("property");
+      if (urlProperty && conferenceProperties.find((p: Property) => p.id === urlProperty)) {
+        setSelectedProperty(urlProperty);
+      }
     } catch (error) {
       console.error("Error fetching properties:", error);
       toast({
@@ -127,6 +145,19 @@ const CalendarConference = () => {
     }
   };
 
+  const handlePropertyChange = (propertyId: string) => {
+    setSelectedProperty(propertyId);
+  };
+
+  const navigateToTab = (tab: string) => {
+    const params = selectedProperty ? `?property=${selectedProperty}` : "";
+    if (tab === "accommodation") {
+      navigate(`/admin/calendar/accommodation${params}`);
+    } else if (tab === "event") {
+      navigate(`/admin/calendar/event-wedding${params}`);
+    }
+  };
+
   const legend = [
     { label: "Stop Sell", color: "bg-red-500" },
     { label: "Rates", color: "bg-gray-500" },
@@ -135,10 +166,6 @@ const CalendarConference = () => {
     { label: "Max Stay", color: "bg-pink-500" },
     { label: "Min Stay", color: "bg-blue-500" },
   ];
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
-  };
 
   const goToPrevious = () => {
     const newDate = new Date(currentDate);
@@ -176,7 +203,6 @@ const CalendarConference = () => {
     setCurrentDate(newDate);
   };
 
-  // Generate calendar days for month view
   const generateMonthDays = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -186,11 +212,9 @@ const CalendarConference = () => {
     const startingDayOfWeek = firstDay.getDay();
     
     const days = [];
-    // Add empty cells for days before month starts
     for (let i = 0; i < startingDayOfWeek; i++) {
       days.push(null);
     }
-    // Add days of month
     for (let day = 1; day <= daysInMonth; day++) {
       days.push(day);
     }
@@ -204,15 +228,34 @@ const CalendarConference = () => {
       <Navbar />
 
       <div className="container mx-auto px-4 py-8">
+        {/* Property Indicator */}
+        {selectedPropertyData && (
+          <div className="mb-4 p-4 bg-primary/10 border border-primary/20 rounded-lg flex items-center gap-3">
+            <Building2 className="h-5 w-5 text-primary" />
+            <div>
+              <span className="text-sm text-muted-foreground">Currently managing:</span>
+              <h2 className="text-lg font-semibold text-primary">{selectedPropertyData.name}</h2>
+            </div>
+            <div className="ml-auto flex gap-2">
+              {hasAccommodation && <Badge variant="secondary">Accommodation</Badge>}
+              {hasEventWedding && <Badge variant="secondary">Event/Wedding</Badge>}
+            </div>
+          </div>
+        )}
+
         {/* Tabs */}
         <Tabs value="conference" className="mb-6">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
-            <TabsTrigger value="accommodation" onClick={() => navigate("/admin/calendar/accommodation")}>
-              Accommodation
-            </TabsTrigger>
-            <TabsTrigger value="event" onClick={() => navigate("/admin/calendar/event-wedding")}>
-              Event/Wedding
-            </TabsTrigger>
+          <TabsList className="grid w-full max-w-md" style={{ gridTemplateColumns: `repeat(${(hasAccommodation ? 1 : 0) + (hasEventWedding ? 1 : 0) + 1}, 1fr)` }}>
+            {hasAccommodation && (
+              <TabsTrigger value="accommodation" onClick={() => navigateToTab("accommodation")}>
+                Accommodation
+              </TabsTrigger>
+            )}
+            {hasEventWedding && (
+              <TabsTrigger value="event" onClick={() => navigateToTab("event")}>
+                Event/Wedding
+              </TabsTrigger>
+            )}
             <TabsTrigger value="conference">Conference</TabsTrigger>
           </TabsList>
         </Tabs>
@@ -227,7 +270,7 @@ const CalendarConference = () => {
           <CardContent className="p-6">
             {/* Filters and Actions */}
             <div className="flex flex-wrap gap-4 mb-6">
-              <Select value={selectedProperty} onValueChange={setSelectedProperty} disabled={loading}>
+              <Select value={selectedProperty} onValueChange={handlePropertyChange} disabled={loading}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Select Property" />
                 </SelectTrigger>
@@ -349,7 +392,6 @@ const CalendarConference = () => {
                 {/* Calendar Grid */}
                 {viewMode === "month" && (
                   <div className="border rounded-lg overflow-hidden">
-                    {/* Day headers */}
                     <div className="grid grid-cols-7 bg-muted">
                       {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
                         <div key={day} className="p-2 text-center font-semibold text-sm border">
@@ -357,7 +399,6 @@ const CalendarConference = () => {
                         </div>
                       ))}
                     </div>
-                    {/* Calendar days */}
                     <div className="grid grid-cols-7">
                       <TooltipProvider>
                         {monthDays.map((day, index) => (
@@ -371,7 +412,6 @@ const CalendarConference = () => {
                                 {day && (
                                   <>
                                     <div className="font-semibold text-sm mb-2">{day}</div>
-                                    {/* Sample color indicators */}
                                     {day === 15 && (
                                       <div className="absolute bottom-2 left-2 right-2 flex gap-1">
                                         <div className="h-2 flex-1 bg-red-500 rounded" />
@@ -411,14 +451,12 @@ const CalendarConference = () => {
                   </div>
                 )}
 
-                {/* Week View Placeholder */}
                 {viewMode === "week" && (
                   <div className="border rounded-lg p-8 text-center text-muted-foreground">
                     Week view calendar grid will be displayed here
                   </div>
                 )}
 
-                {/* Year View Placeholder */}
                 {viewMode === "year" && (
                   <div className="border rounded-lg p-8 text-center text-muted-foreground">
                     Year view calendar grid will be displayed here
@@ -430,7 +468,6 @@ const CalendarConference = () => {
         </Card>
       </div>
 
-      {/* Dialogs */}
       <BulkRateRuleDialog open={bulkRateOpen} onOpenChange={setBulkRateOpen} />
       <BulkAvailabilityRuleDialog open={bulkAvailabilityOpen} onOpenChange={setBulkAvailabilityOpen} />
       <BulkStopSellDialog open={stopSellOpen} onOpenChange={setStopSellOpen} />
