@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,19 +39,63 @@ interface Property {
 }
 
 const displayOptions = [
-  { id: "stop_sell", label: "Stop Sell" },
-  { id: "rates", label: "Rates" },
-  { id: "lead_days_advance", label: "Lead Days Advance" },
-  { id: "lead_days_post", label: "Lead Days Post" },
-  { id: "max_stay", label: "Max Stay" },
-  { id: "min_stay", label: "Min Stay" },
+  { id: "stop_sell", label: "Stop Sell", color: "bg-red-500" },
+  { id: "rates", label: "Rates", color: "bg-gray-500" },
+  { id: "lead_days_advance", label: "Lead Days Advance", color: "bg-yellow-500" },
+  { id: "lead_days_post", label: "Lead Days Post", color: "bg-orange-500" },
+  { id: "max_stay", label: "Max Stay", color: "bg-pink-500" },
+  { id: "min_stay", label: "Min Stay", color: "bg-blue-500" },
 ];
 
 const mealTypeOptions = [
+  { id: "breakfast", label: "Breakfast" },
+  { id: "self_catering", label: "Self Catering" },
   { id: "full_board", label: "Full Board" },
   { id: "room_only", label: "Room Only" },
-  { id: "self_catering", label: "Self Catering" },
-  { id: "breakfast", label: "Breakfast" },
+];
+
+interface RoomData {
+  name: string;
+  rates: {
+    rateType: string;
+    mealType: string;
+    values: { [date: string]: number };
+  }[];
+  availability: { [date: string]: number };
+}
+
+// Mock data for demonstration - would come from property/room information/rate info
+const mockRoomData: RoomData[] = [
+  {
+    name: "Petite Hotel Room",
+    rates: [
+      { rateType: "SingleRate", mealType: "Breakfast", values: {} },
+      { rateType: "PerPersonRate", mealType: "Breakfast", values: {} },
+    ],
+    availability: {},
+  },
+  {
+    name: "Two Bedroom Suite",
+    rates: [
+      { rateType: "UnitRate", mealType: "Breakfast", values: {} },
+    ],
+    availability: {},
+  },
+  {
+    name: "One Bedroom Suite",
+    rates: [
+      { rateType: "SingleRate", mealType: "Breakfast", values: {} },
+      { rateType: "PerPersonRate", mealType: "Breakfast", values: {} },
+    ],
+    availability: {},
+  },
+  {
+    name: "Holiday House",
+    rates: [
+      { rateType: "UnitRate", mealType: "Self Catering", values: {} },
+    ],
+    availability: {},
+  },
 ];
 
 const CalendarAccommodation = () => {
@@ -184,11 +228,8 @@ const CalendarAccommodation = () => {
 
   const fetchRoomTypes = async (propertyId: string) => {
     try {
-      setRoomTypes([
-        { name: "Deluxe Room" },
-        { name: "Standard Room" },
-        { name: "Suite" },
-      ]);
+      // Use room names from mockRoomData for the dropdown
+      setRoomTypes(mockRoomData.map(r => ({ name: r.name })));
     } catch (error) {
       console.error("Error fetching room types:", error);
       setRoomTypes([]);
@@ -291,7 +332,88 @@ const CalendarAccommodation = () => {
     return days;
   };
 
-  const monthDays = generateMonthDays();
+  const generateWeekDates = () => {
+    const dates: Date[] = [];
+    const startOfWeek = new Date(currentDate);
+    // Start from Saturday
+    const day = startOfWeek.getDay();
+    const diff = day === 6 ? 0 : -(day + 1);
+    startOfWeek.setDate(startOfWeek.getDate() + diff);
+    
+    for (let i = 0; i < 9; i++) { // 9 days for the grid view
+      const date = new Date(startOfWeek);
+      date.setDate(startOfWeek.getDate() + i);
+      dates.push(date);
+    }
+    return dates;
+  };
+
+  const generateMonthDates = () => {
+    const dates: Date[] = [];
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+      dates.push(new Date(year, month, day));
+    }
+    return dates;
+  };
+
+  const weekDates = generateWeekDates();
+  const monthDates = generateMonthDates();
+  const calendarDates = viewMode === "week" ? weekDates : monthDates;
+
+  // Generate mock rate data for dates
+  const getMockRateValue = (rateType: string) => {
+    const rateValues: { [key: string]: number } = {
+      "SingleRate": 3267,
+      "PerPersonRate": 1875,
+      "UnitRate": 6651,
+    };
+    return rateValues[rateType] || 2000;
+  };
+
+  const getMockAvailability = (roomName: string) => {
+    const availValues: { [key: string]: number } = {
+      "Petite Hotel Room": 14,
+      "Two Bedroom Suite": 6,
+      "One Bedroom Suite": 14,
+      "Holiday House": 9,
+    };
+    return availValues[roomName] || 10;
+  };
+
+  const isWeekend = (date: Date) => {
+    const day = date.getDay();
+    return day === 0 || day === 6;
+  };
+
+  const formatDayHeader = (date: Date) => {
+    const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    return {
+      day: days[date.getDay()],
+      date: date.getDate(),
+      month: months[date.getMonth()],
+    };
+  };
+
+  // Filter rooms based on selected room types
+  const filteredRooms = mockRoomData.filter(room => 
+    selectedRoomTypes.includes(room.name)
+  );
+
+  // Filter rates based on selected meal types
+  const getMealTypeId = (mealType: string) => {
+    const map: { [key: string]: string } = {
+      "Breakfast": "breakfast",
+      "Self Catering": "self_catering",
+      "Full Board": "full_board",
+      "Room Only": "room_only",
+    };
+    return map[mealType] || mealType.toLowerCase().replace(" ", "_");
+  };
 
   const getSelectedCount = (selected: string[], total: number) => {
     return selected.length === total ? "All" : `${selected.length}/${total}`;
@@ -539,70 +661,186 @@ const CalendarAccommodation = () => {
                 </div>
 
                 {/* Calendar Grid */}
-                {viewMode === "month" && (
-                  <div className="border rounded-lg overflow-hidden">
-                    <div className="grid grid-cols-7 bg-muted">
-                      {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                        <div key={day} className="p-2 text-center font-semibold text-sm border">
-                          {day}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-7">
-                      <TooltipProvider>
-                        {monthDays.map((day, index) => (
-                          <Tooltip key={index}>
-                            <TooltipTrigger asChild>
-                              <div
-                                className={`min-h-[100px] p-2 border relative ${
-                                  day ? "bg-background hover:bg-muted/50 cursor-pointer" : "bg-muted/30"
+                {viewMode === "week" && (
+                  <div className="border rounded-lg overflow-x-auto">
+                    <table className="w-full border-collapse min-w-[800px]">
+                      {/* Date Header Row */}
+                      <thead>
+                        <tr>
+                          <th className="border bg-muted/50 p-2 min-w-[200px] sticky left-0 bg-background z-10"></th>
+                          {calendarDates.map((date, index) => {
+                            const header = formatDayHeader(date);
+                            const weekend = isWeekend(date);
+                            return (
+                              <th
+                                key={index}
+                                className={`border p-2 text-center min-w-[80px] ${
+                                  weekend ? "bg-red-50 dark:bg-red-950/20" : "bg-muted/50"
                                 }`}
                               >
-                                {day && (
-                                  <>
-                                    <div className="font-semibold text-sm mb-2">{day}</div>
-                                    {day === 15 && (
-                                      <div className="absolute bottom-2 left-2 right-2 flex gap-1">
-                                        <div className="h-2 flex-1 bg-red-500 rounded" />
-                                        <div className="h-2 flex-1 bg-yellow-500 rounded" />
-                                      </div>
-                                    )}
-                                    {day === 20 && (
-                                      <div className="absolute bottom-2 left-2 right-2 flex gap-1">
-                                        <div className="h-2 flex-1 bg-blue-500 rounded" />
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            </TooltipTrigger>
-                            {day && day === 15 && (
-                              <TooltipContent>
-                                <div className="text-sm">
-                                  <p className="font-semibold">November {day}, 2025</p>
-                                  <p className="text-xs">Stop Sell: Active</p>
-                                  <p className="text-xs">Lead Days Advance: 7 days</p>
+                                <div className={`text-xs font-semibold ${weekend ? "text-red-600" : "text-muted-foreground"}`}>
+                                  {header.day}
                                 </div>
-                              </TooltipContent>
-                            )}
-                            {day && day === 20 && (
-                              <TooltipContent>
-                                <div className="text-sm">
-                                  <p className="font-semibold">November {day}, 2025</p>
-                                  <p className="text-xs">Minimum Stay: 2 nights</p>
+                                <div className={`text-lg font-bold ${weekend ? "text-red-600" : ""}`}>
+                                  {header.date}
                                 </div>
-                              </TooltipContent>
-                            )}
-                          </Tooltip>
-                        ))}
-                      </TooltipProvider>
-                    </div>
+                                <div className={`text-xs ${weekend ? "text-red-600" : "text-muted-foreground"}`}>
+                                  {header.month}
+                                </div>
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredRooms.map((room) => {
+                          const filteredRates = room.rates.filter(rate =>
+                            selectedMealTypes.includes(getMealTypeId(rate.mealType))
+                          );
+                          
+                          if (filteredRates.length === 0 && !selectedDisplayOptions.includes("rates")) {
+                            return null;
+                          }
+
+                          return (
+                            <React.Fragment key={room.name}>
+                              {/* Room Name Row with Availability */}
+                              <tr className="bg-slate-100 dark:bg-slate-800">
+                                <td className="border p-2 font-bold text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
+                                  {room.name}
+                                </td>
+                                {calendarDates.map((date, index) => {
+                                  const weekend = isWeekend(date);
+                                  return (
+                                    <td
+                                      key={index}
+                                      className={`border p-2 text-center font-semibold ${
+                                        weekend ? "bg-red-50 dark:bg-red-950/20" : ""
+                                      }`}
+                                    >
+                                      {getMockAvailability(room.name)}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                              {/* Rate Rows */}
+                              {selectedDisplayOptions.includes("rates") && filteredRates.map((rate, rateIndex) => (
+                                <tr key={`${room.name}-${rateIndex}`}>
+                                  <td className="border p-2 pl-4 text-sm text-muted-foreground sticky left-0 bg-background z-10">
+                                    <span className="text-foreground">{rate.rateType}</span>
+                                    <span className="mx-1">-</span>
+                                    <span>{rate.mealType}</span>
+                                  </td>
+                                  {calendarDates.map((date, index) => {
+                                    const weekend = isWeekend(date);
+                                    return (
+                                      <td
+                                        key={index}
+                                        className={`border p-2 text-center text-sm ${
+                                          weekend ? "bg-red-50 dark:bg-red-950/20" : ""
+                                        }`}
+                                      >
+                                        {getMockRateValue(rate.rateType)}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
 
-                {viewMode === "week" && (
-                  <div className="border rounded-lg p-8 text-center text-muted-foreground">
-                    Week view calendar grid will be displayed here
+                {viewMode === "month" && (
+                  <div className="border rounded-lg overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      {/* Date Header Row */}
+                      <thead>
+                        <tr>
+                          <th className="border bg-muted/50 p-2 min-w-[200px] sticky left-0 bg-background z-10"></th>
+                          {calendarDates.map((date, index) => {
+                            const header = formatDayHeader(date);
+                            const weekend = isWeekend(date);
+                            return (
+                              <th
+                                key={index}
+                                className={`border p-1 text-center min-w-[50px] ${
+                                  weekend ? "bg-red-50 dark:bg-red-950/20" : "bg-muted/50"
+                                }`}
+                              >
+                                <div className={`text-xs font-semibold ${weekend ? "text-red-600" : "text-muted-foreground"}`}>
+                                  {header.day}
+                                </div>
+                                <div className={`text-sm font-bold ${weekend ? "text-red-600" : ""}`}>
+                                  {header.date}
+                                </div>
+                              </th>
+                            );
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredRooms.map((room) => {
+                          const filteredRates = room.rates.filter(rate =>
+                            selectedMealTypes.includes(getMealTypeId(rate.mealType))
+                          );
+                          
+                          if (filteredRates.length === 0 && !selectedDisplayOptions.includes("rates")) {
+                            return null;
+                          }
+
+                          return (
+                            <React.Fragment key={room.name}>
+                              {/* Room Name Row with Availability */}
+                              <tr className="bg-slate-100 dark:bg-slate-800">
+                                <td className="border p-2 font-bold text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
+                                  {room.name}
+                                </td>
+                                {calendarDates.map((date, index) => {
+                                  const weekend = isWeekend(date);
+                                  return (
+                                    <td
+                                      key={index}
+                                      className={`border p-1 text-center text-sm font-semibold ${
+                                        weekend ? "bg-red-50 dark:bg-red-950/20" : ""
+                                      }`}
+                                    >
+                                      {getMockAvailability(room.name)}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                              {/* Rate Rows */}
+                              {selectedDisplayOptions.includes("rates") && filteredRates.map((rate, rateIndex) => (
+                                <tr key={`${room.name}-${rateIndex}`}>
+                                  <td className="border p-1 pl-4 text-xs text-muted-foreground sticky left-0 bg-background z-10">
+                                    <span className="text-foreground">{rate.rateType}</span>
+                                    <span className="mx-1">-</span>
+                                    <span>{rate.mealType}</span>
+                                  </td>
+                                  {calendarDates.map((date, index) => {
+                                    const weekend = isWeekend(date);
+                                    return (
+                                      <td
+                                        key={index}
+                                        className={`border p-1 text-center text-xs ${
+                                          weekend ? "bg-red-50 dark:bg-red-950/20" : ""
+                                        }`}
+                                      >
+                                        {getMockRateValue(rate.rateType)}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </>
