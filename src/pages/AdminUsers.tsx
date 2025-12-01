@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -189,6 +189,11 @@ export default function AdminUsers() {
     return user.email.substring(0, 2).toUpperCase();
   };
 
+  // Calculate counters based on current users state
+  const totalUsers = useMemo(() => users.length, [users]);
+  const adminCount = useMemo(() => users.filter(u => u.role === "admin").length, [users]);
+  const ownerCount = useMemo(() => users.filter(u => u.role === "user").length, [users]);
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -218,7 +223,7 @@ export default function AdminUsers() {
               <CardTitle className="text-sm font-medium">Total Users</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{users.length}</div>
+              <div className="text-2xl font-bold">{totalUsers}</div>
             </CardContent>
           </Card>
           <Card>
@@ -234,9 +239,7 @@ export default function AdminUsers() {
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {users.filter(u => u.role === "admin").length}
-              </div>
+              <div className="text-2xl font-bold">{adminCount}</div>
             </CardContent>
           </Card>
           <Card>
@@ -252,9 +255,7 @@ export default function AdminUsers() {
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {users.filter(u => u.role === "user" && u.property_count && u.property_count > 0).length}
-              </div>
+              <div className="text-2xl font-bold">{ownerCount}</div>
             </CardContent>
           </Card>
         </div>
