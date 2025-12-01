@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -36,13 +38,28 @@ interface Property {
   owner_email: string | null;
 }
 
+const displayOptions = [
+  { id: "stop_sell", label: "Stop Sell" },
+  { id: "rates", label: "Rates" },
+  { id: "lead_days_advance", label: "Lead Days Advance" },
+  { id: "lead_days_post", label: "Lead Days Post" },
+  { id: "max_stay", label: "Max Stay" },
+  { id: "min_stay", label: "Min Stay" },
+];
+
+const mealTypeOptions = [
+  { id: "full_board", label: "Full Board" },
+  { id: "room_only", label: "Room Only" },
+  { id: "self_catering", label: "Self Catering" },
+  { id: "breakfast", label: "Breakfast" },
+];
+
 const CalendarAccommodation = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const [selectedProperty, setSelectedProperty] = useState<string>(searchParams.get("property") || "");
-  const [selectedRoomType, setSelectedRoomType] = useState<string>("");
-  const [viewMode, setViewMode] = useState<"week" | "month" | "year">("month");
+  const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const [currentDate, setCurrentDate] = useState(new Date(2025, 10, 19));
   const [bulkRateOpen, setBulkRateOpen] = useState(false);
   const [bulkAvailabilityOpen, setBulkAvailabilityOpen] = useState(false);
@@ -57,6 +74,15 @@ const CalendarAccommodation = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [userEmail, setUserEmail] = useState<string>("");
 
+  // Multi-select states - all true by default
+  const [selectedDisplayOptions, setSelectedDisplayOptions] = useState<string[]>(
+    displayOptions.map(o => o.id)
+  );
+  const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
+  const [selectedMealTypes, setSelectedMealTypes] = useState<string[]>(
+    mealTypeOptions.map(o => o.id)
+  );
+
   const selectedPropertyData = properties.find(p => p.id === selectedProperty);
   const hasAccommodation = selectedPropertyData?.amenities?.offerings?.accommodation === true;
   const hasEventWedding = selectedPropertyData?.amenities?.offerings?.event_wedding === true;
@@ -69,11 +95,16 @@ const CalendarAccommodation = () => {
   useEffect(() => {
     if (selectedProperty) {
       fetchRoomTypes(selectedProperty);
-      setSelectedRoomType("");
-      // Update URL params when property changes
       setSearchParams({ property: selectedProperty });
     }
   }, [selectedProperty]);
+
+  // Set all room types selected when roomTypes changes
+  useEffect(() => {
+    if (roomTypes.length > 0) {
+      setSelectedRoomTypes(roomTypes.map(r => r.name || r));
+    }
+  }, [roomTypes]);
 
   const checkUserRoleAndFetchProperties = async () => {
     try {
@@ -97,7 +128,7 @@ const CalendarAccommodation = () => {
         .from("profiles")
         .select("email")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       const email = profileData?.email || "";
       setUserEmail(email);
@@ -135,7 +166,6 @@ const CalendarAccommodation = () => {
 
       setProperties(accommodationProperties);
 
-      // Auto-select property from URL if valid
       const urlProperty = searchParams.get("property");
       if (urlProperty && accommodationProperties.find((p: Property) => p.id === urlProperty)) {
         setSelectedProperty(urlProperty);
@@ -178,6 +208,30 @@ const CalendarAccommodation = () => {
     }
   };
 
+  const toggleDisplayOption = (optionId: string) => {
+    setSelectedDisplayOptions(prev =>
+      prev.includes(optionId)
+        ? prev.filter(id => id !== optionId)
+        : [...prev, optionId]
+    );
+  };
+
+  const toggleRoomType = (roomName: string) => {
+    setSelectedRoomTypes(prev =>
+      prev.includes(roomName)
+        ? prev.filter(name => name !== roomName)
+        : [...prev, roomName]
+    );
+  };
+
+  const toggleMealType = (mealId: string) => {
+    setSelectedMealTypes(prev =>
+      prev.includes(mealId)
+        ? prev.filter(id => id !== mealId)
+        : [...prev, mealId]
+    );
+  };
+
   const legend = [
     { label: "Stop Sell", color: "bg-red-500" },
     { label: "Rates", color: "bg-gray-500" },
@@ -190,16 +244,14 @@ const CalendarAccommodation = () => {
   const goToPrevious = () => {
     const newDate = new Date(currentDate);
     if (viewMode === "week") newDate.setDate(newDate.getDate() - 7);
-    else if (viewMode === "month") newDate.setMonth(newDate.getMonth() - 1);
-    else newDate.setFullYear(newDate.getFullYear() - 1);
+    else newDate.setMonth(newDate.getMonth() - 1);
     setCurrentDate(newDate);
   };
 
   const goToNext = () => {
     const newDate = new Date(currentDate);
     if (viewMode === "week") newDate.setDate(newDate.getDate() + 7);
-    else if (viewMode === "month") newDate.setMonth(newDate.getMonth() + 1);
-    else newDate.setFullYear(newDate.getFullYear() + 1);
+    else newDate.setMonth(newDate.getMonth() + 1);
     setCurrentDate(newDate);
   };
 
@@ -209,16 +261,14 @@ const CalendarAccommodation = () => {
 
   const goToStart = () => {
     const newDate = new Date(currentDate);
-    if (viewMode === "year") newDate.setFullYear(newDate.getFullYear() - 5);
-    else if (viewMode === "month") newDate.setMonth(newDate.getMonth() - 6);
+    if (viewMode === "month") newDate.setMonth(newDate.getMonth() - 6);
     else newDate.setDate(newDate.getDate() - 28);
     setCurrentDate(newDate);
   };
 
   const goToEnd = () => {
     const newDate = new Date(currentDate);
-    if (viewMode === "year") newDate.setFullYear(newDate.getFullYear() + 5);
-    else if (viewMode === "month") newDate.setMonth(newDate.getMonth() + 6);
+    if (viewMode === "month") newDate.setMonth(newDate.getMonth() + 6);
     else newDate.setDate(newDate.getDate() + 28);
     setCurrentDate(newDate);
   };
@@ -242,6 +292,10 @@ const CalendarAccommodation = () => {
   };
 
   const monthDays = generateMonthDays();
+
+  const getSelectedCount = (selected: string[], total: number) => {
+    return selected.length === total ? "All" : `${selected.length}/${total}`;
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -283,8 +337,7 @@ const CalendarAccommodation = () => {
 
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold mb-1">Accommodation Calendar</h1>
-          <p className="text-muted-foreground">Manage accommodation bookings</p>
+          <h1 className="text-3xl font-bold">Calendar</h1>
         </div>
 
         <Card>
@@ -304,32 +357,86 @@ const CalendarAccommodation = () => {
                 </SelectContent>
               </Select>
 
-              <Select value={selectedRoomType} onValueChange={setSelectedRoomType} disabled={!selectedProperty}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Room Types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Rooms</SelectItem>
-                  {roomTypes.map((room, index) => (
-                    <SelectItem key={index} value={room.name || room}>
-                      {room.name || room}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Display Options Dropdown */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[200px] justify-between">
+                    Display ({getSelectedCount(selectedDisplayOptions, displayOptions.length)})
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-2 bg-popover" align="start">
+                  <div className="space-y-2">
+                    {displayOptions.map((option) => (
+                      <div key={option.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={option.id}
+                          checked={selectedDisplayOptions.includes(option.id)}
+                          onCheckedChange={() => toggleDisplayOption(option.id)}
+                        />
+                        <label htmlFor={option.id} className="text-sm cursor-pointer flex-1">
+                          {option.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
 
-              <Select>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Meal Types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Meals</SelectItem>
-                  <SelectItem value="full-board">Full Board</SelectItem>
-                  <SelectItem value="room-only">Room Only</SelectItem>
-                  <SelectItem value="self-catering">Self Catering</SelectItem>
-                  <SelectItem value="breakfast">Breakfast</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Room Types Dropdown */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[200px] justify-between" disabled={!selectedProperty}>
+                    Room Types ({getSelectedCount(selectedRoomTypes, roomTypes.length)})
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-2 bg-popover" align="start">
+                  <div className="space-y-2">
+                    {roomTypes.map((room, index) => {
+                      const roomName = room.name || room;
+                      return (
+                        <div key={index} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`room-${index}`}
+                            checked={selectedRoomTypes.includes(roomName)}
+                            onCheckedChange={() => toggleRoomType(roomName)}
+                          />
+                          <label htmlFor={`room-${index}`} className="text-sm cursor-pointer flex-1">
+                            {roomName}
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              {/* Meal Types Dropdown */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[200px] justify-between">
+                    Meal Types ({getSelectedCount(selectedMealTypes, mealTypeOptions.length)})
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-2 bg-popover" align="start">
+                  <div className="space-y-2">
+                    {mealTypeOptions.map((meal) => (
+                      <div key={meal.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={meal.id}
+                          checked={selectedMealTypes.includes(meal.id)}
+                          onCheckedChange={() => toggleMealType(meal.id)}
+                        />
+                        <label htmlFor={meal.id} className="text-sm cursor-pointer flex-1">
+                          {meal.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
 
               <Button variant="default" className="gap-2">
                 <RefreshCw className="h-4 w-4" />
@@ -345,7 +452,7 @@ const CalendarAccommodation = () => {
                       <ChevronDown className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuContent align="end" className="w-48 bg-popover">
                     <DropdownMenuItem onClick={() => setBulkRateOpen(true)}>
                       Bulk Rate
                     </DropdownMenuItem>
@@ -417,12 +524,6 @@ const CalendarAccommodation = () => {
                       onClick={() => setViewMode("month")}
                     >
                       Month
-                    </Button>
-                    <Button
-                      variant={viewMode === "year" ? "default" : "outline"}
-                      onClick={() => setViewMode("year")}
-                    >
-                      Year
                     </Button>
                   </div>
                 </div>
@@ -502,12 +603,6 @@ const CalendarAccommodation = () => {
                 {viewMode === "week" && (
                   <div className="border rounded-lg p-8 text-center text-muted-foreground">
                     Week view calendar grid will be displayed here
-                  </div>
-                )}
-
-                {viewMode === "year" && (
-                  <div className="border rounded-lg p-8 text-center text-muted-foreground">
-                    Year view calendar grid will be displayed here
                   </div>
                 )}
               </>
