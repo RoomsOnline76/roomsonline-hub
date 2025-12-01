@@ -10,9 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Upload, Save } from "lucide-react";
+import { Upload, Save, KeyRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { ChangePasswordModal } from "@/components/ChangePasswordModal";
 
 interface ProfileModalProps {
   open: boolean;
@@ -24,6 +25,7 @@ export function ProfileModal({ open, onOpenChange, onProfileUpdate }: ProfileMod
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [profile, setProfile] = useState({
     full_name: "",
     email: "",
@@ -194,17 +196,33 @@ export function ProfileModal({ open, onOpenChange, onProfileUpdate }: ProfileMod
             </div>
           </div>
 
-          <div className="flex justify-end gap-4">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+          <div className="flex items-center justify-between pt-4 border-t border-border">
+            <Button 
+              variant="outline" 
+              onClick={() => setPasswordModalOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <KeyRound className="h-4 w-4" />
+              Change Password
             </Button>
-            <Button onClick={handleSave} disabled={loading}>
-              <Save className="mr-2 h-4 w-4" />
-              {loading ? "Saving..." : "Save Changes"}
-            </Button>
+            
+            <div className="flex gap-4">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={loading}>
+                <Save className="mr-2 h-4 w-4" />
+                {loading ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>
+
+      <ChangePasswordModal 
+        open={passwordModalOpen}
+        onOpenChange={setPasswordModalOpen}
+      />
     </Dialog>
   );
 }
