@@ -73,9 +73,45 @@ export const Navbar = () => {
               <Button variant="ghost">Book</Button>
             </Link>
             {user && (
-              <Link to="/admin">
-                <Button variant="ghost">Admin</Button>
-              </Link>
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="flex items-center gap-2">
+                      Admin
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 bg-background">
+                    <DropdownMenuItem onClick={() => navigate('/admin/property-overview')}>
+                      <Building2 className="mr-2 h-4 w-4" />
+                      Property overview
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/admin/calendar')}>
+                      Calendar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/admin/promotion')}>
+                      Promotion
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/admin/bookings')}>
+                      Bookings
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="flex items-center gap-2">
+                      Dashboard
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 bg-background">
+                    <DropdownMenuItem onClick={() => navigate('/dashboard/reports')}>
+                      Reports
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
             )}
             {isAdmin && (
               <>

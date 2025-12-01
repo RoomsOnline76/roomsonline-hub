@@ -6,6 +6,11 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import Results from "./pages/Results";
 import Admin from "./pages/Admin";
+import PropertyOverview from "./pages/PropertyOverview";
+import Calendar from "./pages/Calendar";
+import Promotion from "./pages/Promotion";
+import Bookings from "./pages/Bookings";
+import Dashboard from "./pages/Dashboard";
 import AdminKeys from "./pages/AdminKeys";
 import AdminUsers from "./pages/AdminUsers";
 import PropertyForm from "./pages/PropertyForm";
@@ -62,6 +67,46 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <PropertyForm />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/property-overview"
+            element={
+              <ProtectedRoute>
+                <PropertyOverview />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/calendar"
+            element={
+              <ProtectedRoute>
+                <Calendar />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/promotion"
+            element={
+              <ProtectedRoute>
+                <Promotion />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/bookings"
+            element={
+              <ProtectedRoute>
+                <Bookings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/reports"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
               </ProtectedRoute>
             }
           />
