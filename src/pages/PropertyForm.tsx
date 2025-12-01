@@ -14,7 +14,36 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X, Plus, Minus, FileText, Check, Upload, Heart, Edit, Trash2, Copy, Link, ChevronRight, BedDouble, RefreshCw, CheckCircle, Briefcase, Layers, LucideIcon } from "lucide-react";
+import {
+  Home,
+  Building2,
+  MapPin,
+  Save,
+  Info,
+  Image,
+  DollarSign,
+  Bell,
+  Package,
+  Calendar,
+  X,
+  Plus,
+  Minus,
+  FileText,
+  Check,
+  Upload,
+  Heart,
+  Edit,
+  Trash2,
+  Copy,
+  Link,
+  ChevronRight,
+  BedDouble,
+  RefreshCw,
+  CheckCircle,
+  Briefcase,
+  Layers,
+  LucideIcon,
+} from "lucide-react";
 import { StarRating } from "@/components/StarRating";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -113,18 +142,18 @@ export default function PropertyForm() {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isDirty) {
         e.preventDefault();
-        e.returnValue = '';
+        e.returnValue = "";
       }
     };
-    
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
   // Helper to navigate with unsaved changes check
   const handleNavigate = (path: string) => {
     if (isDirty) {
-      const confirmed = window.confirm('You have unsaved changes. Are you sure you want to leave without saving?');
+      const confirmed = window.confirm("You have unsaved changes. Are you sure you want to leave without saving?");
       if (!confirmed) return;
     }
     navigate(path);
@@ -133,11 +162,8 @@ export default function PropertyForm() {
   // Load owners list
   useEffect(() => {
     const loadOwners = async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .order("full_name");
-      
+      const { data } = await supabase.from("profiles").select("*").order("full_name");
+
       if (data) {
         setOwners(data);
       }
@@ -191,8 +217,10 @@ export default function PropertyForm() {
 
   // Property source (PMS system)
   const [selectedPMS, setSelectedPMS] = useState<string>("");
-  const [availablePMSSystems, setAvailablePMSSystems] = useState<{key_name: string; name: string; system_type: string}[]>([]);
-  
+  const [availablePMSSystems, setAvailablePMSSystems] = useState<
+    { key_name: string; name: string; system_type: string }[]
+  >([]);
+
   // Load available PMS systems from configured API keys
   useEffect(() => {
     const loadPMSSystems = async () => {
@@ -201,14 +229,14 @@ export default function PropertyForm() {
         .select("key_name, name, system_type")
         .not("system_type", "eq", "google")
         .order("name");
-      
+
       if (data) {
         setAvailablePMSSystems(data);
       }
     };
     loadPMSSystems();
   }, []);
-  
+
   // Location state
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
@@ -274,48 +302,48 @@ export default function PropertyForm() {
   ]);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  
+
   // Room types state
   const [roomTypes, setRoomTypes] = useState<any[]>([
-    { 
-      id: '1', 
-      name: 'Holiday House', 
-      url: 'https://next.roomsonlinehub.com/property/c0b07393-6603-4ecf-9ceb-c0124272e9df/main/accommodation?sourceprop=c0b07393-6603-4ecf-9ceb-c0124272e9df',
-      selected: true 
+    {
+      id: "1",
+      name: "Holiday House",
+      url: "https://next.roomsonlinehub.com/property/c0b07393-6603-4ecf-9ceb-c0124272e9df/main/accommodation?sourceprop=c0b07393-6603-4ecf-9ceb-c0124272e9df",
+      selected: true,
     },
-    { id: '2', name: 'One Bedroom Suite', url: '', selected: false },
-    { id: '3', name: 'Petite Hotel Room', url: '', selected: false },
-    { id: '4', name: 'Two Bedroom Suite', url: '', selected: false }
+    { id: "2", name: "One Bedroom Suite", url: "", selected: false },
+    { id: "3", name: "Petite Hotel Room", url: "", selected: false },
+    { id: "4", name: "Two Bedroom Suite", url: "", selected: false },
   ]);
-  const [selectedRoomType, setSelectedRoomType] = useState<string>('1');
-  
+  const [selectedRoomType, setSelectedRoomType] = useState<string>("1");
+
   const addRoomType = () => {
     const newRoom = {
       id: Date.now().toString(),
-      name: 'New Room Type',
-      url: '',
-      selected: false
+      name: "New Room Type",
+      url: "",
+      selected: false,
     };
     setRoomTypes([...roomTypes, newRoom]);
     setSelectedRoomType(newRoom.id);
   };
-  
+
   const deleteRoomType = (id: string) => {
-    const filtered = roomTypes.filter(r => r.id !== id);
+    const filtered = roomTypes.filter((r) => r.id !== id);
     setRoomTypes(filtered);
     if (selectedRoomType === id && filtered.length > 0) {
       setSelectedRoomType(filtered[0].id);
     }
   };
-  
+
   const updateRoomTypeName = (id: string, name: string) => {
-    setRoomTypes(roomTypes.map(r => r.id === id ? { ...r, name } : r));
+    setRoomTypes(roomTypes.map((r) => (r.id === id ? { ...r, name } : r)));
   };
-  
+
   const updateRoomTypeUrl = (id: string, url: string) => {
-    setRoomTypes(roomTypes.map(r => r.id === id ? { ...r, url } : r));
+    setRoomTypes(roomTypes.map((r) => (r.id === id ? { ...r, url } : r)));
   };
-  
+
   const copyRoomUrl = (url: string) => {
     navigator.clipboard.writeText(url);
     toast({
@@ -323,16 +351,16 @@ export default function PropertyForm() {
       description: "Room URL has been copied to clipboard",
     });
   };
-  
+
   // Seasons state
   const [seasons, setSeasons] = useState<any[]>([
-    { id: '1', title: '08/05/2025-30/09/2025', from: '2025-05-08', to: '2025-09-30', minStay: 5, maxStay: 0 },
-    { id: '2', title: '01/10/2025-30/09/2026', from: '2025-10-01', to: '2026-09-30', minStay: 5, maxStay: 0 },
-    { id: '3', title: '01/10/2026-30/09/2027', from: '2026-10-01', to: '2027-09-30', minStay: 5, maxStay: 0 }
+    { id: "1", title: "08/05/2025-30/09/2025", from: "2025-05-08", to: "2025-09-30", minStay: 5, maxStay: 0 },
+    { id: "2", title: "01/10/2025-30/09/2026", from: "2025-10-01", to: "2026-09-30", minStay: 5, maxStay: 0 },
+    { id: "3", title: "01/10/2026-30/09/2027", from: "2026-10-01", to: "2027-09-30", minStay: 5, maxStay: 0 },
   ]);
 
   // Meal types state
-  const [selectedMealTypes, setSelectedMealTypes] = useState<string[]>(['Self Catering']);
+  const [selectedMealTypes, setSelectedMealTypes] = useState<string[]>(["Self Catering"]);
   const [mealTypeSuggestions, setMealTypeSuggestions] = useState<string[]>([]);
 
   // Wrapper to mark dirty when meal types change
@@ -344,13 +372,10 @@ export default function PropertyForm() {
   // Load meal type suggestions
   useEffect(() => {
     const loadMealTypeSuggestions = async () => {
-      const { data, error } = await supabase
-        .from('meal_type_suggestions')
-        .select('name')
-        .order('name');
-      
+      const { data, error } = await supabase.from("meal_type_suggestions").select("name").order("name");
+
       if (data && !error) {
-        setMealTypeSuggestions(data.map(d => d.name));
+        setMealTypeSuggestions(data.map((d) => d.name));
       }
     };
     loadMealTypeSuggestions();
@@ -358,32 +383,30 @@ export default function PropertyForm() {
 
   // Add new meal type to suggestions database
   const handleNewMealType = async (mealType: string) => {
-    const { error } = await supabase
-      .from('meal_type_suggestions')
-      .insert({ name: mealType });
-    
+    const { error } = await supabase.from("meal_type_suggestions").insert({ name: mealType });
+
     if (!error) {
-      setMealTypeSuggestions(prev => [...prev, mealType].sort());
+      setMealTypeSuggestions((prev) => [...prev, mealType].sort());
     }
   };
-  
+
   // Templates and Notifications state
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('confirmation-mailer');
-  const [templateContent, setTemplateContent] = useState<string>('');
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("confirmation-mailer");
+  const [templateContent, setTemplateContent] = useState<string>("");
   const [preMailerDays, setPreMailerDays] = useState<number>(0);
   const [preMailerHours, setPreMailerHours] = useState<number>(0);
   const [postMailerDays, setPostMailerDays] = useState<number>(0);
   const [postMailerHours, setPostMailerHours] = useState<number>(0);
-  
+
   // Addons state
   const [addons, setAddons] = useState<any[]>([]);
   const [isAddAddonOpen, setIsAddAddonOpen] = useState(false);
   const [addonForm, setAddonForm] = useState({
-    name: '',
+    name: "",
     offeringsAccommodation: false,
     offeringsVenue: false,
-    description: '',
-    priceType: 'Price Per Item',
+    description: "",
+    priceType: "Price Per Item",
     price: 0,
     hasCapacity: false,
     capacity: 0,
@@ -394,25 +417,23 @@ export default function PropertyForm() {
     wednesday: false,
     thursday: false,
     friday: false,
-    saturday: false
+    saturday: false,
   });
-  const [addonDialogTab, setAddonDialogTab] = useState<string>('addon');
+  const [addonDialogTab, setAddonDialogTab] = useState<string>("addon");
   const [addonImages, setAddonImages] = useState<string[]>([]);
   const [isAddonImageDragging, setIsAddonImageDragging] = useState(false);
-  
+
   const handleAddonImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split(".").pop();
       const fileName = `${Math.random()}.${fileExt}`;
       const filePath = `${fileName}`;
 
       try {
-        const { error: uploadError } = await supabase.storage
-          .from('addon-images')
-          .upload(filePath, file);
+        const { error: uploadError } = await supabase.storage.from("addon-images").upload(filePath, file);
 
         if (uploadError) {
           toast({
@@ -423,13 +444,13 @@ export default function PropertyForm() {
           continue;
         }
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('addon-images')
-          .getPublicUrl(filePath);
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("addon-images").getPublicUrl(filePath);
 
         setAddonImages([...addonImages, publicUrl]);
       } catch (error) {
-        console.error('Error uploading image:', error);
+        console.error("Error uploading image:", error);
       }
     }
   };
@@ -443,26 +464,25 @@ export default function PropertyForm() {
   const removeAddonImage = (index: number) => {
     setAddonImages(addonImages.filter((_, i) => i !== index));
   };
-  
+
   const handleAddAddon = () => {
     const newAddon = {
       id: Date.now().toString(),
       ...addonForm,
       images: addonImages,
-      offerings: [
-        addonForm.offeringsAccommodation && 'Accommodation',
-        addonForm.offeringsVenue && 'Venue'
-      ].filter(Boolean).join(', ')
+      offerings: [addonForm.offeringsAccommodation && "Accommodation", addonForm.offeringsVenue && "Venue"]
+        .filter(Boolean)
+        .join(", "),
     };
     setAddons([...addons, newAddon]);
     setIsAddAddonOpen(false);
     // Reset form
     setAddonForm({
-      name: '',
+      name: "",
       offeringsAccommodation: false,
       offeringsVenue: false,
-      description: '',
-      priceType: 'Price Per Item',
+      description: "",
+      priceType: "Price Per Item",
       price: 0,
       hasCapacity: false,
       capacity: 0,
@@ -473,7 +493,7 @@ export default function PropertyForm() {
       wednesday: false,
       thursday: false,
       friday: false,
-      saturday: false
+      saturday: false,
     });
     setAddonImages([]);
     toast({
@@ -481,49 +501,47 @@ export default function PropertyForm() {
       description: "The addon has been added successfully",
     });
   };
-  
+
   const deleteAddon = (id: string) => {
-    setAddons(addons.filter(a => a.id !== id));
+    setAddons(addons.filter((a) => a.id !== id));
     toast({
       title: "Addon Deleted",
       description: "The addon has been removed",
     });
   };
-  
+
   // Specials state
-  const [specialsCategory, setSpecialsCategory] = useState<string>('accommodations');
-  const [conferenceSpecials, setConferenceSpecials] = useState<any[]>([
-    { id: '1', name: 'Untitled' }
-  ]);
-  const [selectedSpecial, setSelectedSpecial] = useState<string>('1');
+  const [specialsCategory, setSpecialsCategory] = useState<string>("accommodations");
+  const [conferenceSpecials, setConferenceSpecials] = useState<any[]>([{ id: "1", name: "Untitled" }]);
+  const [selectedSpecial, setSelectedSpecial] = useState<string>("1");
   const [isEditSpecialOpen, setIsEditSpecialOpen] = useState(false);
-  const [specialDialogTab, setSpecialDialogTab] = useState<string>('edit-special');
+  const [specialDialogTab, setSpecialDialogTab] = useState<string>("edit-special");
   const [specialForm, setSpecialForm] = useState({
-    name: '',
+    name: "",
     isPublic: false,
-    description: '',
-    season: '08/05/2025-30/09/2025',
+    description: "",
+    season: "08/05/2025-30/09/2025",
     periodFrom: undefined as Date | undefined,
     periodTo: undefined as Date | undefined,
-    pricingConfig: '' as 'discount' | 'fixed-amount' | 'fixed-price' | '',
+    pricingConfig: "" as "discount" | "fixed-amount" | "fixed-price" | "",
     discountPercent: 0,
     fixedAmount: 0,
     fixedPrice: 0,
-    conferenceRateType: '',
-    venueHire: ''
+    conferenceRateType: "",
+    venueHire: "",
   });
-  
+
   const addNewSpecial = () => {
     const newSpecial = {
       id: Date.now().toString(),
-      name: 'Untitled'
+      name: "Untitled",
     };
     setConferenceSpecials([...conferenceSpecials, newSpecial]);
     setSelectedSpecial(newSpecial.id);
   };
-  
+
   const deleteSpecial = (id: string) => {
-    const filtered = conferenceSpecials.filter(s => s.id !== id);
+    const filtered = conferenceSpecials.filter((s) => s.id !== id);
     setConferenceSpecials(filtered);
     if (selectedSpecial === id && filtered.length > 0) {
       setSelectedSpecial(filtered[0].id);
@@ -580,7 +598,7 @@ export default function PropertyForm() {
   };
 
   const deletePackage = (id: string) => {
-    setPackages(packages.filter(p => p.id !== id));
+    setPackages(packages.filter((p) => p.id !== id));
     if (selectedPackage?.id === id) {
       setSelectedPackage(null);
     }
@@ -595,20 +613,16 @@ export default function PropertyForm() {
     if (!files || files.length === 0) return;
 
     const file = files[0];
-    const fileExt = file.name.split('.').pop();
+    const fileExt = file.name.split(".").pop();
     const fileName = `${Math.random()}.${fileExt}`;
     const filePath = `packages/${fileName}`;
 
     try {
-      const { error: uploadError } = await supabase.storage
-        .from('package-images')
-        .upload(filePath, file);
+      const { error: uploadError } = await supabase.storage.from("package-images").upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage
-        .from('package-images')
-        .getPublicUrl(filePath);
+      const { data } = supabase.storage.from("package-images").getPublicUrl(filePath);
 
       setPackageImages([...packageImages, data.publicUrl]);
       setPackageForm({ ...packageForm, images: [...packageForm.images, data.publicUrl] });
@@ -634,20 +648,16 @@ export default function PropertyForm() {
     if (!files || files.length === 0) return;
 
     const file = files[0];
-    const fileExt = file.name.split('.').pop();
+    const fileExt = file.name.split(".").pop();
     const fileName = `${Math.random()}.${fileExt}`;
     const filePath = `packages/${fileName}`;
 
     try {
-      const { error: uploadError } = await supabase.storage
-        .from('package-images')
-        .upload(filePath, file);
+      const { error: uploadError } = await supabase.storage.from("package-images").upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage
-        .from('package-images')
-        .getPublicUrl(filePath);
+      const { data } = supabase.storage.from("package-images").getPublicUrl(filePath);
 
       setPackageImages([...packageImages, data.publicUrl]);
       setPackageForm({ ...packageForm, images: [...packageForm.images, data.publicUrl] });
@@ -666,8 +676,8 @@ export default function PropertyForm() {
   };
 
   const removePackageImage = (imageUrl: string) => {
-    setPackageImages(packageImages.filter(img => img !== imageUrl));
-    setPackageForm({ ...packageForm, images: packageForm.images.filter(img => img !== imageUrl) });
+    setPackageImages(packageImages.filter((img) => img !== imageUrl));
+    setPackageForm({ ...packageForm, images: packageForm.images.filter((img) => img !== imageUrl) });
   };
 
   // Announcements state
@@ -723,11 +733,7 @@ export default function PropertyForm() {
       setLoading(true);
 
       try {
-        const { data, error } = await supabase
-          .from("properties")
-          .select("*")
-          .eq("id", id)
-          .single();
+        const { data, error } = await supabase.from("properties").select("*").eq("id", id).single();
 
         if (error) throw error;
 
@@ -735,7 +741,7 @@ export default function PropertyForm() {
           // Populate form data
           const amenities = data.amenities as any;
           const houseRules = amenities?.house_rules || {};
-          
+
           setFormData({
             name: data.name || "",
             property_type: data.property_type || "",
@@ -749,7 +755,12 @@ export default function PropertyForm() {
             address: data.address || "",
             suburb: amenities?.address_details?.suburb || "",
             postal_code: amenities?.address_details?.postal_code || "",
-            bb_id: amenities?.external_ids?.nightsbridge_bb_id || amenities?.external_ids?.siteminder_id || amenities?.external_ids?.checkfront_id || amenities?.external_ids?.benson_id || "",
+            bb_id:
+              amenities?.external_ids?.nightsbridge_bb_id ||
+              amenities?.external_ids?.siteminder_id ||
+              amenities?.external_ids?.checkfront_id ||
+              amenities?.external_ids?.benson_id ||
+              "",
             venue_id: amenities?.external_ids?.semper_venue_id || "",
             channel_id: amenities?.external_ids?.semper_channel_id || "",
             account_id: amenities?.external_ids?.semper_account_id || "",
@@ -781,7 +792,8 @@ export default function PropertyForm() {
             check_in_to: houseRules.check_in_to || "20:00",
             check_out_from: houseRules.check_out_from || "06:00",
             check_out_to: houseRules.check_out_to || "11:00",
-            children_policy: houseRules.children_policy || "Children are welcome\nChildren up until the age of 12 - Stay free",
+            children_policy:
+              houseRules.children_policy || "Children are welcome\nChildren up until the age of 12 - Stay free",
             infant_age_from: houseRules.infant_age_from || "1",
             infant_age_to: houseRules.infant_age_to || "2",
             children_age_from: houseRules.children_age_from || "3",
@@ -797,7 +809,7 @@ export default function PropertyForm() {
           // Set property source (PMS)
           const externalSystem = data.external_system || "";
           setSelectedPMS(externalSystem);
-          
+
           // Set location coordinates
           setLatitude(data.latitude ? Number(data.latitude) : null);
           setLongitude(data.longitude ? Number(data.longitude) : null);
@@ -825,7 +837,7 @@ export default function PropertyForm() {
           if (amenities?.addons) setAddons(amenities.addons);
           if (amenities?.packages) setPackages(amenities.packages);
           if (amenities?.announcements) setAnnouncements(amenities.announcements);
-          
+
           // Load house style
           const houseStyle = amenities?.house_style || {};
           if (houseStyle.company_logo) setCompanyLogo(houseStyle.company_logo);
@@ -835,7 +847,7 @@ export default function PropertyForm() {
           if (houseStyle.adpay_details) setAdpayDetails(houseStyle.adpay_details);
           if (houseStyle.motar_api) setMotarApi(houseStyle.motar_api);
           if (houseStyle.website_colors) setWebsiteColors(houseStyle.website_colors);
-          
+
           // Load templates
           const templates = amenities?.templates || {};
           if (templates.selected_template) setSelectedTemplate(templates.selected_template);
@@ -881,7 +893,7 @@ export default function PropertyForm() {
   };
 
   const deleteAnnouncement = (id: string) => {
-    setAnnouncements(announcements.filter(a => a.id !== id));
+    setAnnouncements(announcements.filter((a) => a.id !== id));
     toast({
       title: "Announcement deleted",
       description: "The announcement has been removed.",
@@ -889,9 +901,7 @@ export default function PropertyForm() {
   };
 
   const toggleAnnouncementEnabled = (id: string) => {
-    setAnnouncements(announcements.map(a => 
-      a.id === id ? { ...a, enabled: !a.enabled } : a
-    ));
+    setAnnouncements(announcements.map((a) => (a.id === id ? { ...a, enabled: !a.enabled } : a)));
   };
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -902,19 +912,15 @@ export default function PropertyForm() {
     setIsLogoUploading(true);
 
     try {
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split(".").pop();
       const fileName = `logo-${Math.random()}.${fileExt}`;
       const filePath = `logos/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('property-images')
-        .upload(filePath, file);
+      const { error: uploadError } = await supabase.storage.from("property-images").upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage
-        .from('property-images')
-        .getPublicUrl(filePath);
+      const { data } = supabase.storage.from("property-images").getPublicUrl(filePath);
 
       setCompanyLogo(data.publicUrl);
 
@@ -942,19 +948,15 @@ export default function PropertyForm() {
     setIsLogoUploading(true);
 
     try {
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split(".").pop();
       const fileName = `logo-${Math.random()}.${fileExt}`;
       const filePath = `logos/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('property-images')
-        .upload(filePath, file);
+      const { error: uploadError } = await supabase.storage.from("property-images").upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage
-        .from('property-images')
-        .getPublicUrl(filePath);
+      const { data } = supabase.storage.from("property-images").getPublicUrl(filePath);
 
       setCompanyLogo(data.publicUrl);
 
@@ -980,9 +982,7 @@ export default function PropertyForm() {
 
   const toggleFacility = (facility: string) => {
     setSelectedFacilities((prev) =>
-      prev.includes(facility)
-        ? prev.filter((f) => f !== facility)
-        : [...prev, facility]
+      prev.includes(facility) ? prev.filter((f) => f !== facility) : [...prev, facility],
     );
   };
 
@@ -1002,7 +1002,7 @@ export default function PropertyForm() {
 
   const handleImageUpload = async (files: FileList | null) => {
     if (!files) return;
-    
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (!file.type.startsWith("image/")) continue;
@@ -1012,15 +1012,13 @@ export default function PropertyForm() {
         const fileName = `${Math.random()}.${fileExt}`;
         const filePath = `${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from("property-images")
-          .upload(filePath, file);
+        const { error: uploadError } = await supabase.storage.from("property-images").upload(filePath, file);
 
         if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage
-          .from("property-images")
-          .getPublicUrl(filePath);
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("property-images").getPublicUrl(filePath);
 
         setUploadedImages((prev) => [...prev, publicUrl]);
       } catch (error) {
@@ -1224,7 +1222,7 @@ export default function PropertyForm() {
             </button>
             <ChevronRight className="h-4 w-4" />
             <span className="text-foreground font-medium">
-              {isEditMode ? (formData.name || "Edit Property") : "Add New Property"}
+              {isEditMode ? formData.name || "Edit Property" : "Add New Property"}
             </span>
             <ChevronRight className="h-4 w-4" />
             <span className="text-foreground">
@@ -1239,9 +1237,7 @@ export default function PropertyForm() {
               {activeTab === "addons" && "Addons"}
               {activeTab === "specials" && "Specials"}
               {activeTab === "packages" && "Packages"}
-              {activeTab === "announcements" && "Announcements"}
-              {" "}
-              <span className="text-primary">(Active)</span>
+              {activeTab === "announcements" && "Announcements"} <span className="text-primary">(Active)</span>
             </span>
           </div>
 
@@ -1275,15 +1271,15 @@ export default function PropertyForm() {
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <TabsList className="bg-secondary">
-            <TabsTrigger value="general" className="gap-2">
-              <Home className="h-4 w-4" />
-              General
-            </TabsTrigger>
-            <TabsTrigger value="house-style" className="gap-2">
-              <Building2 className="h-4 w-4" />
-              House Style
-            </TabsTrigger>
-            <TabsTrigger value="info-facilities" className="gap-2">
+              <TabsTrigger value="general" className="gap-2">
+                <Home className="h-4 w-4" />
+                General
+              </TabsTrigger>
+              <TabsTrigger value="house-style" className="gap-2">
+                <Building2 className="h-4 w-4" />
+                House Style
+              </TabsTrigger>
+              <TabsTrigger value="info-facilities" className="gap-2">
                 <Building2 className="h-4 w-4" />
                 Property Info & Facilities
               </TabsTrigger>
@@ -1404,7 +1400,7 @@ export default function PropertyForm() {
                                 <SelectItem key={pms.system_type} value={pms.system_type}>
                                   <span className="flex items-center gap-2">
                                     <IconComponent className="h-4 w-4" />
-                                    {pms.name.replace(' API Key', '')}
+                                    {pms.name.replace(" API Key", "")}
                                   </span>
                                 </SelectItem>
                               );
@@ -1548,7 +1544,7 @@ export default function PropertyForm() {
                         <Select
                           value={formData.owner_email}
                           onValueChange={(value) => {
-                            const selectedOwner = owners.find(o => o.email === value);
+                            const selectedOwner = owners.find((o) => o.email === value);
                             handleInputChange("owner_email", value);
                             handleInputChange("owner_name", selectedOwner?.full_name || "");
                           }}
@@ -1779,11 +1775,11 @@ export default function PropertyForm() {
                     <div
                       className={cn(
                         "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
-                        isLogoUploading ? "border-primary bg-primary/5" : "border-blue-300 bg-blue-50"
+                        isLogoUploading ? "border-primary bg-primary/5" : "border-blue-300 bg-blue-50",
                       )}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={handleLogoDrop}
-                      onClick={() => document.getElementById('logo-upload')?.click()}
+                      onClick={() => document.getElementById("logo-upload")?.click()}
                     >
                       {companyLogo ? (
                         <div className="relative">
@@ -1803,9 +1799,7 @@ export default function PropertyForm() {
                       ) : (
                         <>
                           <Upload className="h-12 w-12 mx-auto mb-4 text-blue-500" />
-                          <p className="text-sm text-blue-700">
-                            Click or Drag and drop image to upload
-                          </p>
+                          <p className="text-sm text-blue-700">Click or Drag and drop image to upload</p>
                         </>
                       )}
                       <input
@@ -1908,7 +1902,7 @@ export default function PropertyForm() {
                     </div>
                     <div className="bg-blue-50 border border-blue-200 rounded p-3 space-y-1">
                       <p className="text-sm text-blue-700">
-                        • Split % will be of the total booking. The amount will be credited to Litchi Hospitality
+                        • Split % will be of the total booking. The amount will be credited to RoomsOnline
                       </p>
                       <p className="text-sm text-blue-700">
                         • Decimal split amount percentage will be round off to whole number
@@ -2000,7 +1994,7 @@ export default function PropertyForm() {
                           <div
                             className="w-12 h-12 rounded border-2 cursor-pointer"
                             style={{ backgroundColor: websiteColors.primary }}
-                            onClick={() => document.getElementById('primary-color')?.click()}
+                            onClick={() => document.getElementById("primary-color")?.click()}
                           />
                           <input
                             id="primary-color"
@@ -2017,7 +2011,7 @@ export default function PropertyForm() {
                           <div
                             className="w-12 h-12 rounded border-2 cursor-pointer"
                             style={{ backgroundColor: websiteColors.secondary }}
-                            onClick={() => document.getElementById('secondary-color')?.click()}
+                            onClick={() => document.getElementById("secondary-color")?.click()}
                           />
                           <input
                             id="secondary-color"
@@ -2034,7 +2028,7 @@ export default function PropertyForm() {
                           <div
                             className="w-12 h-12 rounded border-2 cursor-pointer"
                             style={{ backgroundColor: websiteColors.fontColor }}
-                            onClick={() => document.getElementById('font-color')?.click()}
+                            onClick={() => document.getElementById("font-color")?.click()}
                           />
                           <input
                             id="font-color"
@@ -2370,15 +2364,11 @@ export default function PropertyForm() {
                             <Input
                               className="w-20"
                               value={policy.forfeit}
-                              onChange={(e) =>
-                                updateCancellationPolicy(index, "forfeit", e.target.value)
-                              }
+                              onChange={(e) => updateCancellationPolicy(index, "forfeit", e.target.value)}
                             />
                             <Select
                               value={policy.type}
-                              onValueChange={(value) =>
-                                updateCancellationPolicy(index, "type", value)
-                              }
+                              onValueChange={(value) => updateCancellationPolicy(index, "type", value)}
                             >
                               <SelectTrigger className="w-32">
                                 <SelectValue />
@@ -2392,9 +2382,7 @@ export default function PropertyForm() {
                             <Input
                               className="w-20"
                               value={policy.days}
-                              onChange={(e) =>
-                                updateCancellationPolicy(index, "days", e.target.value)
-                              }
+                              onChange={(e) => updateCancellationPolicy(index, "days", e.target.value)}
                             />
                             <span className="text-sm whitespace-nowrap">Days before arrival</span>
                             <Button
@@ -2451,9 +2439,7 @@ export default function PropertyForm() {
                               className={`h-8 w-8 rounded-full flex items-center justify-center cursor-pointer ${
                                 formData.pets_allowed ? "bg-green-500" : "bg-destructive"
                               }`}
-                              onClick={() =>
-                                setFormData({ ...formData, pets_allowed: !formData.pets_allowed })
-                              }
+                              onClick={() => setFormData({ ...formData, pets_allowed: !formData.pets_allowed })}
                             >
                               {formData.pets_allowed ? (
                                 <Check className="h-4 w-4 text-white" />
@@ -2508,9 +2494,7 @@ export default function PropertyForm() {
                               className={`h-8 w-8 rounded-full flex items-center justify-center cursor-pointer ${
                                 formData.check_in_24h ? "bg-green-500" : "bg-destructive"
                               }`}
-                              onClick={() =>
-                                setFormData({ ...formData, check_in_24h: !formData.check_in_24h })
-                              }
+                              onClick={() => setFormData({ ...formData, check_in_24h: !formData.check_in_24h })}
                             >
                               {formData.check_in_24h ? (
                                 <Check className="h-4 w-4 text-white" />
@@ -2548,9 +2532,7 @@ export default function PropertyForm() {
                             <Input
                               placeholder="50"
                               value={formData.deposit_percentage}
-                              onChange={(e) =>
-                                handleInputChange("deposit_percentage", e.target.value)
-                              }
+                              onChange={(e) => handleInputChange("deposit_percentage", e.target.value)}
                             />
                             <span className="text-xs text-muted-foreground">Deposit amount %</span>
                           </div>
@@ -2560,9 +2542,7 @@ export default function PropertyForm() {
                               value={formData.deposit_days}
                               onChange={(e) => handleInputChange("deposit_days", e.target.value)}
                             />
-                            <span className="text-xs text-muted-foreground">
-                              Number of days allowed for deposit
-                            </span>
+                            <span className="text-xs text-muted-foreground">Number of days allowed for deposit</span>
                           </div>
                         </CardContent>
                       </Card>
@@ -2683,9 +2663,7 @@ export default function PropertyForm() {
                               <Label className="text-xs text-muted-foreground">From</Label>
                               <Input
                                 value={formData.children_age_from}
-                                onChange={(e) =>
-                                  handleInputChange("children_age_from", e.target.value)
-                                }
+                                onChange={(e) => handleInputChange("children_age_from", e.target.value)}
                               />
                             </div>
                             <div className="space-y-2">
@@ -2744,9 +2722,7 @@ export default function PropertyForm() {
                     {/* Upload Area */}
                     <div
                       className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer transition-colors ${
-                        isDragging
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary"
+                        isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary"
                       }`}
                       onDrop={handleDrop}
                       onDragOver={handleDragOver}
@@ -2776,11 +2752,7 @@ export default function PropertyForm() {
                             key={index}
                             className="relative aspect-square rounded-lg overflow-hidden border border-border group"
                           >
-                            <img
-                              src={imageUrl}
-                              alt={`Property ${index + 1}`}
-                              className="w-full h-full object-cover"
-                            />
+                            <img src={imageUrl} alt={`Property ${index + 1}`} className="w-full h-full object-cover" />
                             {index === 0 && (
                               <div className="absolute top-2 left-2 bg-destructive rounded-full p-1.5">
                                 <Heart className="h-4 w-4 text-white fill-white" />
@@ -2797,19 +2769,16 @@ export default function PropertyForm() {
                         ))}
 
                         {/* Empty slots */}
-                        {Array.from(
-                          { length: Math.max(0, 12 - uploadedImages.length) },
-                          (_, index) => (
-                            <div
-                              key={`empty-${index}`}
-                              className="relative aspect-square rounded-lg border-2 border-dashed border-border bg-muted/20 flex items-center justify-center"
-                            >
-                              <div className="absolute top-2 right-2 bg-muted rounded-full p-1.5">
-                                <X className="h-4 w-4 text-muted-foreground" />
-                              </div>
+                        {Array.from({ length: Math.max(0, 12 - uploadedImages.length) }, (_, index) => (
+                          <div
+                            key={`empty-${index}`}
+                            className="relative aspect-square rounded-lg border-2 border-dashed border-border bg-muted/20 flex items-center justify-center"
+                          >
+                            <div className="absolute top-2 right-2 bg-muted rounded-full p-1.5">
+                              <X className="h-4 w-4 text-muted-foreground" />
                             </div>
-                          )
-                        )}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -2837,29 +2806,29 @@ export default function PropertyForm() {
                   <div className="flex gap-2 flex-wrap">
                     <Button
                       type="button"
-                      variant={selectedTemplate === 'confirmation-mailer' ? 'default' : 'outline'}
-                      onClick={() => setSelectedTemplate('confirmation-mailer')}
+                      variant={selectedTemplate === "confirmation-mailer" ? "default" : "outline"}
+                      onClick={() => setSelectedTemplate("confirmation-mailer")}
                     >
                       Confirmation Mailer Template
                     </Button>
                     <Button
                       type="button"
-                      variant={selectedTemplate === 'confirmation-property' ? 'default' : 'outline'}
-                      onClick={() => setSelectedTemplate('confirmation-property')}
+                      variant={selectedTemplate === "confirmation-property" ? "default" : "outline"}
+                      onClick={() => setSelectedTemplate("confirmation-property")}
                     >
                       Confirmation Property Template
                     </Button>
                     <Button
                       type="button"
-                      variant={selectedTemplate === 'pre-mailer' ? 'default' : 'outline'}
-                      onClick={() => setSelectedTemplate('pre-mailer')}
+                      variant={selectedTemplate === "pre-mailer" ? "default" : "outline"}
+                      onClick={() => setSelectedTemplate("pre-mailer")}
                     >
                       Pre Mailer Template
                     </Button>
                     <Button
                       type="button"
-                      variant={selectedTemplate === 'post-mailer' ? 'default' : 'outline'}
-                      onClick={() => setSelectedTemplate('post-mailer')}
+                      variant={selectedTemplate === "post-mailer" ? "default" : "outline"}
+                      onClick={() => setSelectedTemplate("post-mailer")}
                     >
                       Post Mailer Template
                     </Button>
@@ -2967,16 +2936,16 @@ export default function PropertyForm() {
                       <DialogHeader>
                         <DialogTitle>Add Addon</DialogTitle>
                       </DialogHeader>
-                      
+
                       <Tabs value={addonDialogTab} onValueChange={setAddonDialogTab}>
                         <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
-                          <TabsTrigger 
+                          <TabsTrigger
                             value="addon"
                             className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                           >
                             Addon
                           </TabsTrigger>
-                          <TabsTrigger 
+                          <TabsTrigger
                             value="addon-images"
                             className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                           >
@@ -3000,7 +2969,7 @@ export default function PropertyForm() {
                                 <Checkbox
                                   id="addon-accommodation"
                                   checked={addonForm.offeringsAccommodation}
-                                  onCheckedChange={(checked) => 
+                                  onCheckedChange={(checked) =>
                                     setAddonForm({ ...addonForm, offeringsAccommodation: checked as boolean })
                                   }
                                 />
@@ -3012,7 +2981,7 @@ export default function PropertyForm() {
                                 <Checkbox
                                   id="addon-venue"
                                   checked={addonForm.offeringsVenue}
-                                  onCheckedChange={(checked) => 
+                                  onCheckedChange={(checked) =>
                                     setAddonForm({ ...addonForm, offeringsVenue: checked as boolean })
                                   }
                                 />
@@ -3066,11 +3035,13 @@ export default function PropertyForm() {
                               <Checkbox
                                 id="addon-capacity"
                                 checked={addonForm.hasCapacity}
-                                onCheckedChange={(checked) => 
+                                onCheckedChange={(checked) =>
                                   setAddonForm({ ...addonForm, hasCapacity: checked as boolean })
                                 }
                               />
-                              <Label htmlFor="addon-capacity" className="cursor-pointer">Capacity</Label>
+                              <Label htmlFor="addon-capacity" className="cursor-pointer">
+                                Capacity
+                              </Label>
                               <Input
                                 type="number"
                                 className="w-32"
@@ -3089,26 +3060,30 @@ export default function PropertyForm() {
                                 <Checkbox
                                   id="addon-all-days"
                                   checked={addonForm.allDays}
-                                  onCheckedChange={(checked) => 
+                                  onCheckedChange={(checked) =>
                                     setAddonForm({ ...addonForm, allDays: checked as boolean })
                                   }
                                 />
-                                <Label htmlFor="addon-all-days" className="cursor-pointer">All days</Label>
+                                <Label htmlFor="addon-all-days" className="cursor-pointer">
+                                  All days
+                                </Label>
                               </div>
-                              {['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].map((day) => (
-                                <div key={day} className="flex items-center gap-2">
-                                  <Checkbox
-                                    id={`addon-${day}`}
-                                    checked={addonForm[day as keyof typeof addonForm] as boolean}
-                                    onCheckedChange={(checked) => 
-                                      setAddonForm({ ...addonForm, [day]: checked as boolean })
-                                    }
-                                  />
-                                  <Label htmlFor={`addon-${day}`} className="cursor-pointer capitalize">
-                                    {day}
-                                  </Label>
-                                </div>
-                              ))}
+                              {["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].map(
+                                (day) => (
+                                  <div key={day} className="flex items-center gap-2">
+                                    <Checkbox
+                                      id={`addon-${day}`}
+                                      checked={addonForm[day as keyof typeof addonForm] as boolean}
+                                      onCheckedChange={(checked) =>
+                                        setAddonForm({ ...addonForm, [day]: checked as boolean })
+                                      }
+                                    />
+                                    <Label htmlFor={`addon-${day}`} className="cursor-pointer capitalize">
+                                      {day}
+                                    </Label>
+                                  </div>
+                                ),
+                              )}
                             </div>
                           </div>
 
@@ -3178,19 +3153,16 @@ export default function PropertyForm() {
                                 ))}
 
                                 {/* Empty slots */}
-                                {Array.from(
-                                  { length: Math.max(0, 12 - addonImages.length) },
-                                  (_, index) => (
-                                    <div
-                                      key={`empty-${index}`}
-                                      className="relative aspect-square rounded-lg border-2 border-dashed border-border bg-muted/20 flex items-center justify-center"
-                                    >
-                                      <div className="absolute top-2 right-2 bg-muted rounded-full p-1.5">
-                                        <X className="h-4 w-4 text-muted-foreground" />
-                                      </div>
+                                {Array.from({ length: Math.max(0, 12 - addonImages.length) }, (_, index) => (
+                                  <div
+                                    key={`empty-${index}`}
+                                    className="relative aspect-square rounded-lg border-2 border-dashed border-border bg-muted/20 flex items-center justify-center"
+                                  >
+                                    <div className="absolute top-2 right-2 bg-muted rounded-full p-1.5">
+                                      <X className="h-4 w-4 text-muted-foreground" />
                                     </div>
-                                  )
-                                )}
+                                  </div>
+                                ))}
                               </div>
                             </div>
                           </div>
@@ -3225,16 +3197,16 @@ export default function PropertyForm() {
                               <td className="p-3">{addon.name}</td>
                               <td className="p-3 text-sm text-muted-foreground">{addon.description}</td>
                               <td className="p-3">{addon.priceType}</td>
-                              <td className="p-3">{addon.hasCapacity ? addon.capacity : '-'}</td>
+                              <td className="p-3">{addon.hasCapacity ? addon.capacity : "-"}</td>
                               <td className="p-3">{addon.price}</td>
                               <td className="p-3">
                                 <div className="flex gap-2">
                                   <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
                                     <Edit className="h-4 w-4" />
                                   </Button>
-                                  <Button 
-                                    size="sm" 
-                                    variant="ghost" 
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
                                     className="h-8 w-8 p-0 text-destructive"
                                     onClick={() => deleteAddon(addon.id)}
                                   >
@@ -3258,19 +3230,19 @@ export default function PropertyForm() {
                 <CardHeader>
                   <Tabs value={specialsCategory} onValueChange={setSpecialsCategory}>
                     <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="accommodations"
                         className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Accommodations
                       </TabsTrigger>
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="event-wedding"
                         className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Event/Wedding Venue
                       </TabsTrigger>
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="conference"
                         className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
@@ -3280,7 +3252,7 @@ export default function PropertyForm() {
                   </Tabs>
                 </CardHeader>
                 <CardContent>
-                  {specialsCategory === 'conference' && (
+                  {specialsCategory === "conference" && (
                     <div className="flex gap-4">
                       {/* Left Sidebar - Specials List */}
                       <div className="w-64 space-y-2">
@@ -3295,28 +3267,28 @@ export default function PropertyForm() {
                             key={special.id}
                             className={`flex items-center justify-between p-3 rounded-md transition-colors ${
                               selectedSpecial === special.id
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted hover:bg-muted/80'
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted hover:bg-muted/80"
                             }`}
                           >
-                            <span 
+                            <span
                               className="text-sm font-medium flex-1 cursor-pointer"
                               onClick={() => setSelectedSpecial(special.id)}
                             >
                               {special.name}
                             </span>
                             <div className="flex gap-1">
-                              <Button 
-                                size="sm" 
-                                variant="ghost" 
+                              <Button
+                                size="sm"
+                                variant="ghost"
                                 className="h-6 w-6 p-0"
                                 onClick={() => setIsEditSpecialOpen(true)}
                               >
                                 <Edit className="h-3 w-3" />
                               </Button>
-                              <Button 
-                                size="sm" 
-                                variant="ghost" 
+                              <Button
+                                size="sm"
+                                variant="ghost"
                                 className="h-6 w-6 p-0"
                                 onClick={() => deleteSpecial(special.id)}
                               >
@@ -3347,24 +3319,22 @@ export default function PropertyForm() {
                               <div className="flex items-center gap-2">
                                 <Switch
                                   checked={specialForm.isPublic}
-                                  onCheckedChange={(checked) => 
-                                    setSpecialForm({ ...specialForm, isPublic: checked })
-                                  }
+                                  onCheckedChange={(checked) => setSpecialForm({ ...specialForm, isPublic: checked })}
                                 />
                                 <Label>Public</Label>
                               </div>
                             </div>
                           </DialogHeader>
-                          
+
                           <Tabs value={specialDialogTab} onValueChange={setSpecialDialogTab}>
                             <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
-                              <TabsTrigger 
+                              <TabsTrigger
                                 value="edit-special"
                                 className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                               >
                                 Edit Special
                               </TabsTrigger>
-                              <TabsTrigger 
+                              <TabsTrigger
                                 value="special-images"
                                 className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                               >
@@ -3424,11 +3394,13 @@ export default function PropertyForm() {
                                           variant="outline"
                                           className={cn(
                                             "w-full justify-start text-left font-normal",
-                                            !specialForm.periodFrom && "text-muted-foreground"
+                                            !specialForm.periodFrom && "text-muted-foreground",
                                           )}
                                         >
                                           <CalendarIcon className="mr-2 h-4 w-4" />
-                                          {specialForm.periodFrom ? format(specialForm.periodFrom, "yyyy-MM-dd") : "2025-11-18"}
+                                          {specialForm.periodFrom
+                                            ? format(specialForm.periodFrom, "yyyy-MM-dd")
+                                            : "2025-11-18"}
                                         </Button>
                                       </PopoverTrigger>
                                       <PopoverContent className="w-auto p-0" align="start">
@@ -3449,11 +3421,13 @@ export default function PropertyForm() {
                                           variant="outline"
                                           className={cn(
                                             "w-full justify-start text-left font-normal",
-                                            !specialForm.periodTo && "text-muted-foreground"
+                                            !specialForm.periodTo && "text-muted-foreground",
                                           )}
                                         >
                                           <CalendarIcon className="mr-2 h-4 w-4" />
-                                          {specialForm.periodTo ? format(specialForm.periodTo, "yyyy-MM-dd") : "2025-11-18"}
+                                          {specialForm.periodTo
+                                            ? format(specialForm.periodTo, "yyyy-MM-dd")
+                                            : "2025-11-18"}
                                         </Button>
                                       </PopoverTrigger>
                                       <PopoverContent className="w-auto p-0" align="start">
@@ -3478,9 +3452,11 @@ export default function PropertyForm() {
                                     </p>
                                   </div>
                                 )}
-                                <RadioGroup 
+                                <RadioGroup
                                   value={specialForm.pricingConfig}
-                                  onValueChange={(value: any) => setSpecialForm({ ...specialForm, pricingConfig: value })}
+                                  onValueChange={(value: any) =>
+                                    setSpecialForm({ ...specialForm, pricingConfig: value })
+                                  }
                                 >
                                   <div className="flex items-center space-x-2">
                                     <RadioGroupItem value="discount" id="discount" />
@@ -3502,7 +3478,9 @@ export default function PropertyForm() {
                                   <Label>Conferences Rate Type</Label>
                                   <Input
                                     value={specialForm.conferenceRateType}
-                                    onChange={(e) => setSpecialForm({ ...specialForm, conferenceRateType: e.target.value })}
+                                    onChange={(e) =>
+                                      setSpecialForm({ ...specialForm, conferenceRateType: e.target.value })
+                                    }
                                   />
                                 </div>
                                 <div className="space-y-2">
@@ -3518,9 +3496,7 @@ export default function PropertyForm() {
                                 <Button variant="outline" onClick={() => setIsEditSpecialOpen(false)}>
                                   Cancel
                                 </Button>
-                                <Button onClick={() => setIsEditSpecialOpen(false)}>
-                                  Save
-                                </Button>
+                                <Button onClick={() => setIsEditSpecialOpen(false)}>Save</Button>
                               </div>
                             </TabsContent>
 
@@ -3532,14 +3508,14 @@ export default function PropertyForm() {
                       </Dialog>
                     </div>
                   )}
-                  
-                  {specialsCategory === 'accommodations' && (
+
+                  {specialsCategory === "accommodations" && (
                     <div className="text-center py-12 text-muted-foreground">
                       Accommodation specials functionality coming soon...
                     </div>
                   )}
-                  
-                  {specialsCategory === 'event-wedding' && (
+
+                  {specialsCategory === "event-wedding" && (
                     <div className="text-center py-12 text-muted-foreground">
                       Event/Wedding venue specials functionality coming soon...
                     </div>
@@ -3565,8 +3541,8 @@ export default function PropertyForm() {
                       onClick={() => setSelectedRoomType(room.id)}
                       className={`p-3 rounded-md cursor-pointer transition-colors ${
                         selectedRoomType === room.id
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted hover:bg-muted/80'
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted hover:bg-muted/80"
                       }`}
                     >
                       <span className="text-sm font-medium">{room.name}</span>
@@ -3578,19 +3554,19 @@ export default function PropertyForm() {
                 <div className="flex-1 overflow-auto">
                   <Tabs defaultValue="season" className="w-full">
                     <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="season"
                         className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Season
                       </TabsTrigger>
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="rate-breakdown"
                         className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Rate Breakdown
                       </TabsTrigger>
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="overview"
                         className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
@@ -3644,31 +3620,23 @@ export default function PropertyForm() {
                     <TabsContent value="rate-breakdown" className="p-6 space-y-6">
                       {seasons.map((season) => (
                         <div key={season.id} className="space-y-4">
-                          <h3 className="text-lg font-semibold text-muted-foreground">
-                            Season: {season.title}
-                          </h3>
-                          
+                          <h3 className="text-lg font-semibold text-muted-foreground">Season: {season.title}</h3>
+
                           <div className="border rounded-lg p-6 space-y-4 bg-card">
-                            <div className="text-center text-sm text-muted-foreground mb-4">
-                              Self Catering
-                            </div>
-                            
+                            <div className="text-center text-sm text-muted-foreground mb-4">Self Catering</div>
+
                             <div className="grid grid-cols-2 gap-6 max-w-md">
                               <div className="space-y-2">
                                 <Label className="text-sm font-medium">UnitRate</Label>
-                                <Input 
-                                  type="number" 
-                                  defaultValue={season.id === '3' ? '7000' : '6500'}
+                                <Input
+                                  type="number"
+                                  defaultValue={season.id === "3" ? "7000" : "6500"}
                                   className="text-center"
                                 />
                               </div>
                               <div className="space-y-2">
                                 <Label className="text-sm font-medium">WeekendRate</Label>
-                                <Input 
-                                  type="number" 
-                                  defaultValue="0"
-                                  className="text-center"
-                                />
+                                <Input type="number" defaultValue="0" className="text-center" />
                               </div>
                             </div>
                           </div>
@@ -3698,11 +3666,9 @@ export default function PropertyForm() {
                               </div>
                             </div>
                           </div>
-                          
+
                           <div className="border rounded-lg p-6 bg-card">
-                            <div className="text-center text-sm text-muted-foreground">
-                              Self Catering
-                            </div>
+                            <div className="text-center text-sm text-muted-foreground">Self Catering</div>
                           </div>
                         </div>
                       ))}
@@ -3732,12 +3698,10 @@ export default function PropertyForm() {
                     <div
                       key={room.id}
                       className={`flex items-center justify-between p-3 rounded-md transition-colors ${
-                        selectedRoomType === room.id
-                          ? 'bg-primary text-primary-foreground'
-                          : 'hover:bg-muted'
+                        selectedRoomType === room.id ? "bg-primary text-primary-foreground" : "hover:bg-muted"
                       }`}
                     >
-                      <span 
+                      <span
                         className="text-sm font-medium flex-1 cursor-pointer"
                         onClick={() => setSelectedRoomType(room.id)}
                       >
@@ -3745,9 +3709,9 @@ export default function PropertyForm() {
                       </span>
                       <div className="flex gap-1">
                         {room.url && (
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             className="h-6 w-6 p-0"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -3758,9 +3722,9 @@ export default function PropertyForm() {
                             <Copy className="h-3 w-3" />
                           </Button>
                         )}
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           className="h-6 w-6 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -3769,9 +3733,9 @@ export default function PropertyForm() {
                         >
                           <Edit className="h-3 w-3" />
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           className="h-6 w-6 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -3789,31 +3753,31 @@ export default function PropertyForm() {
                 <div className="flex-1 overflow-auto">
                   <Tabs defaultValue="room-type" className="w-full">
                     <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="room-type"
                         className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Room Type
                       </TabsTrigger>
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="facilities"
                         className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Facilities
                       </TabsTrigger>
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="amenities"
                         className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Amenities
                       </TabsTrigger>
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="room-images"
                         className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Images
                       </TabsTrigger>
-                      <TabsTrigger 
+                      <TabsTrigger
                         value="agreement"
                         className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
@@ -3826,8 +3790,8 @@ export default function PropertyForm() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Room Type Name</Label>
-                          <Input 
-                            value={roomTypes.find(r => r.id === selectedRoomType)?.name || ''} 
+                          <Input
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.name || ""}
                             onChange={(e) => updateRoomTypeName(selectedRoomType, e.target.value)}
                           />
                         </div>
@@ -3843,17 +3807,17 @@ export default function PropertyForm() {
                           Room URL
                         </Label>
                         <div className="flex gap-2">
-                          <Input 
+                          <Input
                             placeholder="https://example.com/property/room-id"
-                            value={roomTypes.find(r => r.id === selectedRoomType)?.url || ''} 
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.url || ""}
                             onChange={(e) => updateRoomTypeUrl(selectedRoomType, e.target.value)}
                           />
-                          {roomTypes.find(r => r.id === selectedRoomType)?.url && (
-                            <Button 
+                          {roomTypes.find((r) => r.id === selectedRoomType)?.url && (
+                            <Button
                               type="button"
-                              variant="outline" 
+                              variant="outline"
                               size="icon"
-                              onClick={() => copyRoomUrl(roomTypes.find(r => r.id === selectedRoomType)?.url || '')}
+                              onClick={() => copyRoomUrl(roomTypes.find((r) => r.id === selectedRoomType)?.url || "")}
                             >
                               <Copy className="h-4 w-4" />
                             </Button>
@@ -3877,7 +3841,7 @@ export default function PropertyForm() {
 
                       <div className="space-y-2">
                         <Label>Room Type Description</Label>
-                        <Textarea 
+                        <Textarea
                           rows={4}
                           defaultValue="Each holiday house comprises 2 bedrooms upstairs, each with an en-suite bathroom. Each home has a spacious living area downstairs, a fully equipped kitchen with a washing machine, and a private patio."
                         />
@@ -3941,7 +3905,8 @@ export default function PropertyForm() {
 
                       <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
                         <p className="text-sm text-blue-700">
-                          <strong>INFO:</strong> Please be advised that you need to align the number of "Max adult" with rate type if Person Rate is applied.
+                          <strong>INFO:</strong> Please be advised that you need to align the number of "Max adult" with
+                          rate type if Person Rate is applied.
                         </p>
                       </div>
 
@@ -3986,10 +3951,16 @@ export default function PropertyForm() {
                         </Select>
                         <div className="flex items-center gap-2">
                           <Checkbox id="highlight-all" />
-                          <Label htmlFor="highlight-all" className="cursor-pointer">Highlight all</Label>
+                          <Label htmlFor="highlight-all" className="cursor-pointer">
+                            Highlight all
+                          </Label>
                         </div>
-                        <Button variant="outline" size="sm">Copy</Button>
-                        <Button variant="outline" size="sm">Apply</Button>
+                        <Button variant="outline" size="sm">
+                          Copy
+                        </Button>
+                        <Button variant="outline" size="sm">
+                          Apply
+                        </Button>
                       </div>
 
                       <div className="bg-blue-50 border border-blue-200 rounded-md p-2 mb-4">
@@ -4000,10 +3971,31 @@ export default function PropertyForm() {
                         {/* Cooking */}
                         <div className="space-y-3">
                           <h4 className="font-semibold text-sm">Cooking</h4>
-                          {['Braai/Barbeque Facilities', 'Cleaning Service', 'Coffee/tea facilities', 'DSTV/Satellite TV', 'Desk', 'Dining Table', 'Ironing board', 'Microwave', 'Non-smoking', 'Outdoor Furniture', 'Outdoor dining area', 'Oven', 'Patio', 'Refrigerator', 'Sitting area', 'Toaster', 'Two Plate Stove', 'Wake up call'].map((item) => (
+                          {[
+                            "Braai/Barbeque Facilities",
+                            "Cleaning Service",
+                            "Coffee/tea facilities",
+                            "DSTV/Satellite TV",
+                            "Desk",
+                            "Dining Table",
+                            "Ironing board",
+                            "Microwave",
+                            "Non-smoking",
+                            "Outdoor Furniture",
+                            "Outdoor dining area",
+                            "Oven",
+                            "Patio",
+                            "Refrigerator",
+                            "Sitting area",
+                            "Toaster",
+                            "Two Plate Stove",
+                            "Wake up call",
+                          ].map((item) => (
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox id={item} />
-                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
                               <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
                             </div>
                           ))}
@@ -4012,10 +4004,12 @@ export default function PropertyForm() {
                         {/* General */}
                         <div className="space-y-3">
                           <h4 className="font-semibold text-sm">General</h4>
-                          {['Kitchenette', 'Hairdryer', 'Shower and bath', 'Telephone'].map((item) => (
+                          {["Kitchenette", "Hairdryer", "Shower and bath", "Telephone"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox id={item} />
-                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
                               <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
                             </div>
                           ))}
@@ -4024,10 +4018,12 @@ export default function PropertyForm() {
                         {/* Laundry */}
                         <div className="space-y-3">
                           <h4 className="font-semibold text-sm">Laundry</h4>
-                          {['Airconditioned room', 'Iron', 'Washing machine'].map((item) => (
+                          {["Airconditioned room", "Iron", "Washing machine"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox id={item} />
-                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
                               <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
                             </div>
                           ))}
@@ -4036,10 +4032,12 @@ export default function PropertyForm() {
                         {/* Media */}
                         <div className="space-y-3">
                           <h4 className="font-semibold text-sm">Media</h4>
-                          {['Flat screen TV'].map((item) => (
+                          {["Flat screen TV"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox id={item} />
-                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
                               <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
                             </div>
                           ))}
@@ -4048,10 +4046,12 @@ export default function PropertyForm() {
                         {/* Security */}
                         <div className="space-y-3">
                           <h4 className="font-semibold text-sm">Security</h4>
-                          {['Safe'].map((item) => (
+                          {["Safe"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox id={item} />
-                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
                               <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
                             </div>
                           ))}
@@ -4060,10 +4060,12 @@ export default function PropertyForm() {
                         {/* View */}
                         <div className="space-y-3">
                           <h4 className="font-semibold text-sm">View</h4>
-                          {['Garden view', 'Landmark view', 'Mountain view', 'Pool view', 'Terrace'].map((item) => (
+                          {["Garden view", "Landmark view", "Mountain view", "Pool view", "Terrace"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox id={item} />
-                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
                               <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
                             </div>
                           ))}
@@ -4085,10 +4087,16 @@ export default function PropertyForm() {
                         </Select>
                         <div className="flex items-center gap-2">
                           <Checkbox id="highlight-all-amenities" />
-                          <Label htmlFor="highlight-all-amenities" className="cursor-pointer">Highlight all</Label>
+                          <Label htmlFor="highlight-all-amenities" className="cursor-pointer">
+                            Highlight all
+                          </Label>
                         </div>
-                        <Button variant="outline" size="sm">Copy</Button>
-                        <Button variant="outline" size="sm">Apply</Button>
+                        <Button variant="outline" size="sm">
+                          Copy
+                        </Button>
+                        <Button variant="outline" size="sm">
+                          Apply
+                        </Button>
                       </div>
 
                       <div className="bg-blue-50 border border-blue-200 rounded-md p-2 mb-4">
@@ -4096,10 +4104,12 @@ export default function PropertyForm() {
                       </div>
 
                       <div className="space-y-3">
-                        {['Bathroom amenities', 'Hand wash', 'Towels'].map((item) => (
+                        {["Bathroom amenities", "Hand wash", "Towels"].map((item) => (
                           <div key={item} className="flex items-center gap-2">
                             <Checkbox id={item} />
-                            <Label htmlFor={item} className="text-sm cursor-pointer flex-1">{item}</Label>
+                            <Label htmlFor={item} className="text-sm cursor-pointer flex-1">
+                              {item}
+                            </Label>
                             <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
                           </div>
                         ))}
@@ -4120,7 +4130,10 @@ export default function PropertyForm() {
 
                         {/* Placeholder empty slots */}
                         {Array.from({ length: 11 }).map((_, i) => (
-                          <div key={i} className="aspect-video border-2 border-dashed border-border rounded-lg bg-muted/20"></div>
+                          <div
+                            key={i}
+                            className="aspect-video border-2 border-dashed border-border rounded-lg bg-muted/20"
+                          ></div>
                         ))}
                       </div>
                     </TabsContent>
@@ -4157,40 +4170,38 @@ export default function PropertyForm() {
                     <Card>
                       <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">PACKAGES</CardTitle>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setIsEditPackageOpen(true)}
-                        >
+                        <Button size="sm" variant="ghost" onClick={() => setIsEditPackageOpen(true)}>
                           <Plus className="h-4 w-4" />
                         </Button>
                       </CardHeader>
                       <CardContent className="space-y-2">
-                        {packages.filter(p => p.category === "accommodations").length === 0 ? (
+                        {packages.filter((p) => p.category === "accommodations").length === 0 ? (
                           <p className="text-sm text-muted-foreground">No items yet...</p>
                         ) : (
-                          packages.filter(p => p.category === "accommodations").map((pkg) => (
-                            <div
-                              key={pkg.id}
-                              className={cn(
-                                "p-2 rounded cursor-pointer hover:bg-accent flex items-center justify-between",
-                                selectedPackage?.id === pkg.id && "bg-accent"
-                              )}
-                              onClick={() => setSelectedPackage(pkg)}
-                            >
-                              <span className="text-sm">{pkg.name}</span>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deletePackage(pkg.id);
-                                }}
+                          packages
+                            .filter((p) => p.category === "accommodations")
+                            .map((pkg) => (
+                              <div
+                                key={pkg.id}
+                                className={cn(
+                                  "p-2 rounded cursor-pointer hover:bg-accent flex items-center justify-between",
+                                  selectedPackage?.id === pkg.id && "bg-accent",
+                                )}
+                                onClick={() => setSelectedPackage(pkg)}
                               >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))
+                                <span className="text-sm">{pkg.name}</span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deletePackage(pkg.id);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))
                         )}
                       </CardContent>
                     </Card>
@@ -4211,40 +4222,38 @@ export default function PropertyForm() {
                     <Card>
                       <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">PACKAGES</CardTitle>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setIsEditPackageOpen(true)}
-                        >
+                        <Button size="sm" variant="ghost" onClick={() => setIsEditPackageOpen(true)}>
                           <Plus className="h-4 w-4" />
                         </Button>
                       </CardHeader>
                       <CardContent className="space-y-2">
-                        {packages.filter(p => p.category === "event").length === 0 ? (
+                        {packages.filter((p) => p.category === "event").length === 0 ? (
                           <p className="text-sm text-muted-foreground">No items yet...</p>
                         ) : (
-                          packages.filter(p => p.category === "event").map((pkg) => (
-                            <div
-                              key={pkg.id}
-                              className={cn(
-                                "p-2 rounded cursor-pointer hover:bg-accent flex items-center justify-between",
-                                selectedPackage?.id === pkg.id && "bg-accent"
-                              )}
-                              onClick={() => setSelectedPackage(pkg)}
-                            >
-                              <span className="text-sm">{pkg.name}</span>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deletePackage(pkg.id);
-                                }}
+                          packages
+                            .filter((p) => p.category === "event")
+                            .map((pkg) => (
+                              <div
+                                key={pkg.id}
+                                className={cn(
+                                  "p-2 rounded cursor-pointer hover:bg-accent flex items-center justify-between",
+                                  selectedPackage?.id === pkg.id && "bg-accent",
+                                )}
+                                onClick={() => setSelectedPackage(pkg)}
                               >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))
+                                <span className="text-sm">{pkg.name}</span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deletePackage(pkg.id);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))
                         )}
                       </CardContent>
                     </Card>
@@ -4265,40 +4274,38 @@ export default function PropertyForm() {
                     <Card>
                       <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">PACKAGES</CardTitle>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setIsEditPackageOpen(true)}
-                        >
+                        <Button size="sm" variant="ghost" onClick={() => setIsEditPackageOpen(true)}>
                           <Plus className="h-4 w-4" />
                         </Button>
                       </CardHeader>
                       <CardContent className="space-y-2">
-                        {packages.filter(p => p.category === "conference").length === 0 ? (
+                        {packages.filter((p) => p.category === "conference").length === 0 ? (
                           <p className="text-sm text-muted-foreground">No items yet...</p>
                         ) : (
-                          packages.filter(p => p.category === "conference").map((pkg) => (
-                            <div
-                              key={pkg.id}
-                              className={cn(
-                                "p-2 rounded cursor-pointer hover:bg-accent flex items-center justify-between",
-                                selectedPackage?.id === pkg.id && "bg-accent"
-                              )}
-                              onClick={() => setSelectedPackage(pkg)}
-                            >
-                              <span className="text-sm">{pkg.name}</span>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deletePackage(pkg.id);
-                                }}
+                          packages
+                            .filter((p) => p.category === "conference")
+                            .map((pkg) => (
+                              <div
+                                key={pkg.id}
+                                className={cn(
+                                  "p-2 rounded cursor-pointer hover:bg-accent flex items-center justify-between",
+                                  selectedPackage?.id === pkg.id && "bg-accent",
+                                )}
+                                onClick={() => setSelectedPackage(pkg)}
                               >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))
+                                <span className="text-sm">{pkg.name}</span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deletePackage(pkg.id);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))
                         )}
                       </CardContent>
                     </Card>
@@ -4321,11 +4328,7 @@ export default function PropertyForm() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>ANNOUNCEMENTS</CardTitle>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setIsManageAnnouncementOpen(true)}
-                  >
+                  <Button variant="destructive" size="sm" onClick={() => setIsManageAnnouncementOpen(true)}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add Announcement
                   </Button>
@@ -4366,11 +4369,7 @@ export default function PropertyForm() {
                               </td>
                               <td className="p-3 text-sm">{announcement.order}</td>
                               <td className="p-3">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => deleteAnnouncement(announcement.id)}
-                                >
+                                <Button size="sm" variant="ghost" onClick={() => deleteAnnouncement(announcement.id)}>
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </td>
@@ -4425,11 +4424,15 @@ export default function PropertyForm() {
                       variant="outline"
                       className={cn(
                         "w-full justify-start text-left font-normal",
-                        !announcementForm.startDate && "text-muted-foreground"
+                        !announcementForm.startDate && "text-muted-foreground",
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {announcementForm.startDate ? format(announcementForm.startDate, "MM/dd/yyyy") : <span>Pick a date</span>}
+                      {announcementForm.startDate ? (
+                        format(announcementForm.startDate, "MM/dd/yyyy")
+                      ) : (
+                        <span>Pick a date</span>
+                      )}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
@@ -4452,11 +4455,15 @@ export default function PropertyForm() {
                       variant="outline"
                       className={cn(
                         "w-full justify-start text-left font-normal",
-                        !announcementForm.endDate && "text-muted-foreground"
+                        !announcementForm.endDate && "text-muted-foreground",
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {announcementForm.endDate ? format(announcementForm.endDate, "MM/dd/yyyy") : <span>Pick a date</span>}
+                      {announcementForm.endDate ? (
+                        format(announcementForm.endDate, "MM/dd/yyyy")
+                      ) : (
+                        <span>Pick a date</span>
+                      )}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
@@ -4545,7 +4552,10 @@ export default function PropertyForm() {
 
             <div>
               <Label htmlFor="package-season">Seasons</Label>
-              <Select value={packageForm.season} onValueChange={(value) => setPackageForm({ ...packageForm, season: value })}>
+              <Select
+                value={packageForm.season}
+                onValueChange={(value) => setPackageForm({ ...packageForm, season: value })}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select season" />
                 </SelectTrigger>
@@ -4570,7 +4580,7 @@ export default function PropertyForm() {
                         variant="outline"
                         className={cn(
                           "w-full justify-start text-left font-normal",
-                          !packageForm.periodFrom && "text-muted-foreground"
+                          !packageForm.periodFrom && "text-muted-foreground",
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
@@ -4596,7 +4606,7 @@ export default function PropertyForm() {
                         variant="outline"
                         className={cn(
                           "w-full justify-start text-left font-normal",
-                          !packageForm.periodTo && "text-muted-foreground"
+                          !packageForm.periodTo && "text-muted-foreground",
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
@@ -4619,7 +4629,10 @@ export default function PropertyForm() {
 
             <div className="space-y-2">
               <h3 className="text-lg font-semibold">Pricing Config</h3>
-              <RadioGroup value={packageForm.pricingType} onValueChange={(value) => setPackageForm({ ...packageForm, pricingType: value })}>
+              <RadioGroup
+                value={packageForm.pricingType}
+                onValueChange={(value) => setPackageForm({ ...packageForm, pricingType: value })}
+              >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="discount" id="pkg-discount" />
                   <Label htmlFor="pkg-discount">Discount (%)</Label>
@@ -4766,9 +4779,7 @@ export default function PropertyForm() {
               <Button variant="outline" onClick={() => setIsEditPackageOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={addNewPackage}>
-                Create Package
-              </Button>
+              <Button onClick={addNewPackage}>Create Package</Button>
             </div>
           </div>
         </DialogContent>
@@ -4784,7 +4795,7 @@ export default function PropertyForm() {
             <div
               className={cn(
                 "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
-                isPackageImageDragging ? "border-primary bg-primary/5" : "border-border"
+                isPackageImageDragging ? "border-primary bg-primary/5" : "border-border",
               )}
               onDragOver={(e) => {
                 e.preventDefault();
@@ -4792,12 +4803,10 @@ export default function PropertyForm() {
               }}
               onDragLeave={() => setIsPackageImageDragging(false)}
               onDrop={handlePackageImageDrop}
-              onClick={() => document.getElementById('package-image-upload')?.click()}
+              onClick={() => document.getElementById("package-image-upload")?.click()}
             >
               <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                Drag and drop images here, or click to select
-              </p>
+              <p className="text-sm text-muted-foreground">Drag and drop images here, or click to select</p>
               <input
                 id="package-image-upload"
                 type="file"
@@ -4811,11 +4820,7 @@ export default function PropertyForm() {
               <div className="grid grid-cols-4 gap-4">
                 {packageImages.map((imageUrl, index) => (
                   <div key={index} className="relative group">
-                    <img
-                      src={imageUrl}
-                      alt={`Package ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg"
-                    />
+                    <img src={imageUrl} alt={`Package ${index + 1}`} className="w-full h-32 object-cover rounded-lg" />
                     <Button
                       size="sm"
                       variant="destructive"
