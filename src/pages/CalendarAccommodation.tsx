@@ -58,6 +58,7 @@ const CalendarAccommodation = () => {
   const [userEmail, setUserEmail] = useState<string>("");
 
   const selectedPropertyData = properties.find(p => p.id === selectedProperty);
+  const hasAccommodation = selectedPropertyData?.amenities?.offerings?.accommodation === true;
   const hasEventWedding = selectedPropertyData?.amenities?.offerings?.event_wedding === true;
   const hasConference = selectedPropertyData?.amenities?.offerings?.conference === true;
 
@@ -256,8 +257,9 @@ const CalendarAccommodation = () => {
               <h2 className="text-lg font-semibold text-primary">{selectedPropertyData.name}</h2>
             </div>
             <div className="ml-auto flex gap-2">
-              {hasEventWedding && <Badge variant="secondary">Event/Wedding</Badge>}
-              {hasConference && <Badge variant="secondary">Conference</Badge>}
+              <Badge variant="default">Accommodation</Badge>
+              {hasEventWedding && <Badge variant="outline">Event/Wedding</Badge>}
+              {hasConference && <Badge variant="outline">Conference</Badge>}
             </div>
           </div>
         )}
