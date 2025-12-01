@@ -282,14 +282,6 @@ const CalendarAccommodation = () => {
     );
   };
 
-  const legend = [
-    { label: "Stop Sell", color: "bg-red-500" },
-    { label: "Rates", color: "bg-gray-500" },
-    { label: "Lead Days Advance", color: "bg-yellow-500" },
-    { label: "Lead Days Post", color: "bg-orange-500" },
-    { label: "Max Stay", color: "bg-pink-500" },
-    { label: "Min Stay", color: "bg-blue-500" },
-  ];
 
   const goToPrevious = () => {
     const newDate = new Date(currentDate);
@@ -488,31 +480,6 @@ const CalendarAccommodation = () => {
                 </SelectContent>
               </Select>
 
-              {/* Display Options Dropdown */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-[200px] justify-between">
-                    Display ({getSelectedCount(selectedDisplayOptions, displayOptions.length)})
-                    <ChevronDown className="h-4 w-4 ml-2" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[200px] p-2 bg-popover" align="start">
-                  <div className="space-y-2">
-                    {displayOptions.map((option) => (
-                      <div key={option.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={option.id}
-                          checked={selectedDisplayOptions.includes(option.id)}
-                          onCheckedChange={() => toggleDisplayOption(option.id)}
-                        />
-                        <label htmlFor={option.id} className="text-sm cursor-pointer flex-1">
-                          {option.label}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
 
               {/* Room Types Dropdown */}
               <Popover>
@@ -659,12 +626,19 @@ const CalendarAccommodation = () => {
                   </div>
                 </div>
 
-                {/* Legend */}
+                {/* Display Options as colored checkboxes */}
                 <div className="flex flex-wrap gap-4 mb-6">
-                  {legend.map((item) => (
-                    <div key={item.label} className="flex items-center gap-2">
-                      <div className={`w-4 h-4 ${item.color} rounded`} />
-                      <span className="text-sm">{item.label}</span>
+                  {displayOptions.map((option) => (
+                    <div key={option.id} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`legend-${option.id}`}
+                        checked={selectedDisplayOptions.includes(option.id)}
+                        onCheckedChange={() => toggleDisplayOption(option.id)}
+                        className={`${option.color} border-0 data-[state=checked]:${option.color} data-[state=checked]:text-white`}
+                      />
+                      <label htmlFor={`legend-${option.id}`} className="text-sm cursor-pointer">
+                        {option.label}
+                      </label>
                     </div>
                   ))}
                 </div>
