@@ -104,13 +104,14 @@ export default function AdminKeys() {
     (k) => k.is_required && !isPlaceholder(k.key_value)
   ).length;
 
-  // Group API keys: PMS systems vs Additional (Google Maps)
+  // Group API keys: PMS systems vs Additional Services (Google Maps, SendGrid, etc.)
+  const additionalServiceTypes = ["google", "sendgrid"];
   const pmsKeys = apiKeys
-    .filter((k) => k.system_type && k.system_type !== "google")
+    .filter((k) => k.system_type && !additionalServiceTypes.includes(k.system_type))
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   
   const additionalKeys = apiKeys
-    .filter((k) => k.system_type === "google")
+    .filter((k) => k.system_type && additionalServiceTypes.includes(k.system_type))
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
   const renderKeyCard = (apiKey: ApiKey) => {
