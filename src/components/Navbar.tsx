@@ -74,7 +74,7 @@ export const Navbar = () => {
             </Link>
             {user && (
               <Link to="/admin">
-                <Button variant="ghost">Dashboard</Button>
+                <Button variant="ghost">Admin</Button>
               </Link>
             )}
             {isAdmin && (
