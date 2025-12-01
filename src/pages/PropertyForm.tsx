@@ -1110,9 +1110,15 @@ export default function PropertyForm() {
               <h1 className="text-3xl font-bold mb-2">{isEditMode ? "Edit Property" : "Add New Property"}</h1>
               <p className="text-muted-foreground">Configure property details and settings</p>
             </div>
-            <Button variant="outline" onClick={() => navigate("/admin")}>
-              Cancel
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => navigate("/admin")}>
+                Cancel
+              </Button>
+              <Button onClick={handleSubmit} disabled={loading}>
+                <Save className="mr-2 h-4 w-4" />
+                {loading ? "Saving..." : "Save Property"}
+              </Button>
+            </div>
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
