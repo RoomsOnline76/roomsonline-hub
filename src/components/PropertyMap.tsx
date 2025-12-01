@@ -34,6 +34,7 @@ export function PropertyMap({
   const [marker, setMarker] = useState<google.maps.Marker | null>(null);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mapsLoaded, setMapsLoaded] = useState(false);
 
   // Fetch Google Maps API key from database
   useEffect(() => {
@@ -76,7 +77,7 @@ export function PropertyMap({
     if (!apiKey || loading) return;
 
     if (window.google?.maps) {
-      // Already loaded
+      setMapsLoaded(true);
       return;
     }
 
@@ -84,6 +85,7 @@ export function PropertyMap({
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
     script.async = true;
     script.defer = true;
+    script.onload = () => setMapsLoaded(true);
     document.head.appendChild(script);
 
     return () => {
@@ -93,7 +95,7 @@ export function PropertyMap({
 
   // Initialize map
   useEffect(() => {
-    if (!mapRef.current || !window.google?.maps) return;
+    if (!mapRef.current || !mapsLoaded || !window.google?.maps) return;
 
     const initialPosition = latitude && longitude 
       ? { lat: Number(latitude), lng: Number(longitude) }
@@ -123,7 +125,7 @@ export function PropertyMap({
 
     setMap(newMap);
     setMarker(newMarker);
-  }, [window.google?.maps]);
+  }, [mapsLoaded, latitude, longitude, onLocationUpdate]);
 
   // Geocode address when it changes
   useEffect(() => {
@@ -147,7 +149,7 @@ export function PropertyMap({
     });
   }, [address, city, country, map, marker, onLocationUpdate]);
 
-  if (loading) {
+  if (loading || (apiKey && !mapsLoaded)) {
     return (
       <div className="space-y-2">
         <div className="w-full h-[400px] rounded-lg border border-border bg-muted flex items-center justify-center">
