@@ -70,7 +70,7 @@ export const Navbar = () => {
 
           <div className="flex items-center gap-4">
             <Link to="/">
-              <Button variant="ghost">Home</Button>
+              <Button variant="ghost">Book</Button>
             </Link>
             {user && (
               <Link to="/admin">
