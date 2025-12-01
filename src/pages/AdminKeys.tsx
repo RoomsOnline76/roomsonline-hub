@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Key, AlertCircle, CheckCircle2, BedDouble, RefreshCw, CheckCircle, Briefcase, Layers, MapPin, LucideIcon } from "lucide-react";
+import { Key, AlertCircle, CheckCircle2, BedDouble, RefreshCw, CheckCircle, Briefcase, Layers, MapPin, Mail, LucideIcon } from "lucide-react";
 
 // Map PMS system types to icons
 const getPMSIcon = (systemType: string | null): LucideIcon => {
@@ -24,6 +24,8 @@ const getPMSIcon = (systemType: string | null): LucideIcon => {
       return Layers;
     case "google":
       return MapPin;
+    case "sendgrid":
+      return Mail;
     default:
       return Key;
   }
