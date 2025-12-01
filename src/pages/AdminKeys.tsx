@@ -82,6 +82,109 @@ export default function AdminKeys() {
     (k) => k.is_required && !isPlaceholder(k.key_value)
   ).length;
 
+  // Group API keys: PMS systems vs Additional (Google Maps)
+  const pmsKeys = apiKeys
+    .filter((k) => k.system_type && k.system_type !== "google")
+    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  
+  const additionalKeys = apiKeys
+    .filter((k) => k.system_type === "google")
+    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+  const renderKeyCard = (apiKey: ApiKey) => {
+    const isPlaceholderValue = isPlaceholder(apiKey.key_value);
+    const isEditing = editingKey === apiKey.id;
+
+    return (
+      <Card key={apiKey.id}>
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                <Key className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  {apiKey.name}
+                  {apiKey.is_required && (
+                    <Badge variant="outline" className="ml-2">
+                      Required
+                    </Badge>
+                  )}
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  {apiKey.description}
+                </CardDescription>
+              </div>
+            </div>
+            <div>
+              {isPlaceholderValue ? (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Not Configured
+                </Badge>
+              ) : (
+                <Badge variant="default" className="flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Configured
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isEditing ? (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor={`key-${apiKey.id}`}>API Key Value</Label>
+                <Input
+                  id={`key-${apiKey.id}`}
+                  type="password"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  placeholder="Enter API key"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={() => handleUpdateKey(apiKey.id)}>
+                  Save
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setEditingKey(null);
+                    setEditValue("");
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="font-mono text-sm text-muted-foreground">
+                {isPlaceholderValue ? (
+                  <span className="italic">No key configured - using placeholder</span>
+                ) : (
+                  <span>••••••••••••••••</span>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditingKey(apiKey.id);
+                  setEditValue(apiKey.key_value || "");
+                }}
+              >
+                {isPlaceholderValue ? "Configure" : "Update"}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
   if (loading) {
     return (
       <>
@@ -110,106 +213,25 @@ export default function AdminKeys() {
             </div>
           </div>
 
-          <div className="space-y-4">
-            {apiKeys.map((apiKey) => {
-              const isPlaceholderValue = isPlaceholder(apiKey.key_value);
-              const isEditing = editingKey === apiKey.id;
+          {/* PMS Systems Section */}
+          {pmsKeys.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-xl font-semibold mb-4">Property Management Systems</h2>
+              <div className="space-y-4">
+                {pmsKeys.map(renderKeyCard)}
+              </div>
+            </div>
+          )}
 
-              return (
-                <Card key={apiKey.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3">
-                        <div className="mt-1">
-                          <Key className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <CardTitle className="flex items-center gap-2">
-                            {apiKey.name}
-                            {apiKey.is_required && (
-                              <Badge variant="outline" className="ml-2">
-                                Required
-                              </Badge>
-                            )}
-                          </CardTitle>
-                          <CardDescription className="mt-1">
-                            {apiKey.description}
-                          </CardDescription>
-                          {apiKey.system_type && (
-                            <Badge variant="secondary" className="mt-2">
-                              {apiKey.system_type}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        {isPlaceholderValue ? (
-                          <Badge variant="destructive" className="flex items-center gap-1">
-                            <AlertCircle className="h-3 w-3" />
-                            Not Configured
-                          </Badge>
-                        ) : (
-                          <Badge variant="default" className="flex items-center gap-1">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Configured
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {isEditing ? (
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <Label htmlFor={`key-${apiKey.id}`}>API Key Value</Label>
-                          <Input
-                            id={`key-${apiKey.id}`}
-                            type="password"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            placeholder="Enter API key"
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <Button onClick={() => handleUpdateKey(apiKey.id)}>
-                            Save
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setEditingKey(null);
-                              setEditValue("");
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between">
-                        <div className="font-mono text-sm text-muted-foreground">
-                          {isPlaceholderValue ? (
-                            <span className="italic">No key configured - using placeholder</span>
-                          ) : (
-                            <span>••••••••••••••••</span>
-                          )}
-                        </div>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setEditingKey(apiKey.id);
-                            setEditValue(apiKey.key_value || "");
-                          }}
-                        >
-                          {isPlaceholderValue ? "Configure" : "Update"}
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          {/* Additional Services Section */}
+          {additionalKeys.length > 0 && (
+            <div>
+              <h2 className="text-xl font-semibold mb-4">Additional Services</h2>
+              <div className="space-y-4">
+                {additionalKeys.map(renderKeyCard)}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>
