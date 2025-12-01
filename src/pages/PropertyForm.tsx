@@ -1166,10 +1166,12 @@ export default function PropertyForm() {
               <Button variant="outline" onClick={() => handleNavigate("/admin")}>
                 Cancel
               </Button>
-              <Button onClick={handleSubmit} disabled={loading}>
-                <Save className="mr-2 h-4 w-4" />
-                {loading ? "Saving..." : "Save Property"}
-              </Button>
+              {isDirty && (
+                <Button onClick={handleSubmit} disabled={loading}>
+                  <Save className="mr-2 h-4 w-4" />
+                  {loading ? "Saving..." : "Save Property"}
+                </Button>
+              )}
             </div>
           </div>
 
@@ -1646,10 +1648,12 @@ export default function PropertyForm() {
                   <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={loading}>
-                    <Save className="mr-2 h-4 w-4" />
-                    {loading ? "Saving..." : "Save Property"}
-                  </Button>
+                  {isDirty && (
+                    <Button type="submit" disabled={loading}>
+                      <Save className="mr-2 h-4 w-4" />
+                      {loading ? "Saving..." : "Save Property"}
+                    </Button>
+                  )}
                 </div>
               </form>
             </TabsContent>
@@ -1941,10 +1945,12 @@ export default function PropertyForm() {
                   <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
                     Cancel
                   </Button>
-                  <Button type="submit" className="bg-primary">
-                    <Save className="mr-2 h-4 w-4" />
-                    Save
-                  </Button>
+                  {isDirty && (
+                    <Button type="submit" className="bg-primary">
+                      <Save className="mr-2 h-4 w-4" />
+                      Save
+                    </Button>
+                  )}
                 </div>
               </form>
             </TabsContent>
@@ -2207,10 +2213,12 @@ export default function PropertyForm() {
                   <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={loading}>
-                    <Save className="mr-2 h-4 w-4" />
-                    {loading ? "Saving..." : "Save Property"}
-                  </Button>
+                  {isDirty && (
+                    <Button type="submit" disabled={loading}>
+                      <Save className="mr-2 h-4 w-4" />
+                      {loading ? "Saving..." : "Save Property"}
+                    </Button>
+                  )}
                 </div>
               </form>
             </TabsContent>
@@ -2607,10 +2615,12 @@ export default function PropertyForm() {
                   <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={loading}>
-                    <Save className="mr-2 h-4 w-4" />
-                    {loading ? "Saving..." : "Save Property"}
-                  </Button>
+                  {isDirty && (
+                    <Button type="submit" disabled={loading}>
+                      <Save className="mr-2 h-4 w-4" />
+                      {loading ? "Saving..." : "Save Property"}
+                    </Button>
+                  )}
                 </div>
               </form>
             </TabsContent>
@@ -2701,10 +2711,12 @@ export default function PropertyForm() {
                 <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
                   Cancel
                 </Button>
-                <Button type="button" disabled={loading}>
-                  <Save className="mr-2 h-4 w-4" />
-                  {loading ? "Saving..." : "Save Property"}
-                </Button>
+                {isDirty && (
+                  <Button type="button" onClick={handleSubmit} disabled={loading}>
+                    <Save className="mr-2 h-4 w-4" />
+                    {loading ? "Saving..." : "Save Property"}
+                  </Button>
+                )}
               </div>
             </TabsContent>
 
@@ -2821,10 +2833,12 @@ export default function PropertyForm() {
                 <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
                   Cancel
                 </Button>
-                <Button type="button" disabled={loading}>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save
-                </Button>
+                {isDirty && (
+                  <Button type="button" onClick={handleSubmit} disabled={loading}>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save
+                  </Button>
+                )}
               </div>
             </TabsContent>
 
