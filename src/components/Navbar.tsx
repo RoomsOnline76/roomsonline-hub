@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Building2, Key, LogOut, User, ChevronDown, Shield } from "lucide-react";
+import { Building2, Key, LogOut, User, ChevronDown, Shield, Calendar, Megaphone, BookOpen, PieChart } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -87,12 +87,15 @@ export const Navbar = () => {
                       Property overview
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate('/admin/calendar')}>
+                      <Calendar className="mr-2 h-4 w-4" />
                       Calendar
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate('/admin/promotion')}>
+                      <Megaphone className="mr-2 h-4 w-4" />
                       Promotion
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate('/admin/bookings')}>
+                      <BookOpen className="mr-2 h-4 w-4" />
                       Bookings
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -107,6 +110,7 @@ export const Navbar = () => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-56 bg-background">
                     <DropdownMenuItem onClick={() => navigate('/dashboard/reports')}>
+                      <PieChart className="mr-2 h-4 w-4" />
                       Reports
                     </DropdownMenuItem>
                   </DropdownMenuContent>
