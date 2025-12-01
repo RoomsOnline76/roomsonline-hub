@@ -45,7 +45,6 @@ const CalendarAccommodation = () => {
   const [properties, setProperties] = useState<any[]>([]);
   const [roomTypes, setRoomTypes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [propertyOfferings, setPropertyOfferings] = useState<any>(null);
 
   useEffect(() => {
     fetchProperties();
@@ -54,7 +53,6 @@ const CalendarAccommodation = () => {
   useEffect(() => {
     if (selectedProperty) {
       fetchRoomTypes(selectedProperty);
-      fetchPropertyOfferings(selectedProperty);
       setSelectedRoomType("");
     }
   }, [selectedProperty]);
@@ -93,22 +91,6 @@ const CalendarAccommodation = () => {
     } catch (error) {
       console.error("Error fetching room types:", error);
       setRoomTypes([]);
-    }
-  };
-
-  const fetchPropertyOfferings = async (propertyId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("properties")
-        .select("amenities")
-        .eq("id", propertyId)
-        .single();
-
-      if (error) throw error;
-      setPropertyOfferings(data?.amenities || {});
-    } catch (error) {
-      console.error("Error fetching property offerings:", error);
-      setPropertyOfferings({});
     }
   };
 
@@ -190,29 +172,17 @@ const CalendarAccommodation = () => {
 
       <div className="container mx-auto px-4 py-8">
         {/* Tabs */}
-        {selectedProperty && (
-          <Tabs value="accommodation" className="mb-6">
-            <TabsList className={`grid w-full max-w-md ${
-              propertyOfferings?.venue && propertyOfferings?.eventWedding && propertyOfferings?.conference
-                ? 'grid-cols-3'
-                : propertyOfferings?.venue && (propertyOfferings?.eventWedding || propertyOfferings?.conference)
-                ? 'grid-cols-2'
-                : 'grid-cols-1'
-            }`}>
-              <TabsTrigger value="accommodation">Accommodation</TabsTrigger>
-              {propertyOfferings?.venue && propertyOfferings?.eventWedding && (
-                <TabsTrigger value="event" onClick={() => navigate("/admin/calendar/event-wedding")}>
-                  Event/Wedding
-                </TabsTrigger>
-              )}
-              {propertyOfferings?.venue && propertyOfferings?.conference && (
-                <TabsTrigger value="conference" onClick={() => navigate("/admin/calendar/conference")}>
-                  Conference
-                </TabsTrigger>
-              )}
-            </TabsList>
-          </Tabs>
-        )}
+        <Tabs value="accommodation" className="mb-6">
+          <TabsList className="grid w-full max-w-md grid-cols-3">
+            <TabsTrigger value="accommodation">Accommodation</TabsTrigger>
+            <TabsTrigger value="event" onClick={() => navigate("/admin/calendar/event-wedding")}>
+              Event/Wedding
+            </TabsTrigger>
+            <TabsTrigger value="conference" onClick={() => navigate("/admin/calendar/conference")}>
+              Conference
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         {/* Header */}
         <div className="mb-6">

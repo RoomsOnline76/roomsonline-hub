@@ -1,11 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,90 +15,26 @@ import { useNavigate } from "react-router-dom";
 
 const CalendarEventWedding = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [selectedProperty, setSelectedProperty] = useState<string>("");
   const [viewMode, setViewMode] = useState<"week" | "month" | "year">("month");
   const [currentDate, setCurrentDate] = useState(new Date(2025, 10, 19));
-  const [properties, setProperties] = useState<any[]>([]);
-  const [propertyOfferings, setPropertyOfferings] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchProperties();
-  }, []);
-
-  useEffect(() => {
-    if (selectedProperty) {
-      fetchPropertyOfferings(selectedProperty);
-    }
-  }, [selectedProperty]);
-
-  const fetchProperties = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("properties")
-        .select("id, name")
-        .eq("is_active", true)
-        .order("name");
-
-      if (error) throw error;
-      setProperties(data || []);
-    } catch (error) {
-      console.error("Error fetching properties:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load properties",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchPropertyOfferings = async (propertyId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("properties")
-        .select("amenities")
-        .eq("id", propertyId)
-        .single();
-
-      if (error) throw error;
-      setPropertyOfferings(data?.amenities || {});
-    } catch (error) {
-      console.error("Error fetching property offerings:", error);
-      setPropertyOfferings({});
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
 
       <div className="container mx-auto px-4 py-8">
-        {selectedProperty && (
-          <Tabs value="event" className="mb-6">
-            <TabsList className={`grid w-full max-w-md ${
-              propertyOfferings?.venue && propertyOfferings?.eventWedding && propertyOfferings?.conference
-                ? 'grid-cols-3'
-                : propertyOfferings?.venue && (propertyOfferings?.eventWedding || propertyOfferings?.conference)
-                ? 'grid-cols-2'
-                : 'grid-cols-1'
-            }`}>
-              <TabsTrigger value="accommodation" onClick={() => navigate("/admin/calendar/accommodation")}>
-                Accommodation
-              </TabsTrigger>
-              {propertyOfferings?.venue && propertyOfferings?.eventWedding && (
-                <TabsTrigger value="event">Event/Wedding</TabsTrigger>
-              )}
-              {propertyOfferings?.venue && propertyOfferings?.conference && (
-                <TabsTrigger value="conference" onClick={() => navigate("/admin/calendar/conference")}>
-                  Conference
-                </TabsTrigger>
-              )}
-            </TabsList>
-          </Tabs>
-        )}
+        <Tabs value="event" className="mb-6">
+          <TabsList className="grid w-full max-w-md grid-cols-3">
+            <TabsTrigger value="accommodation" onClick={() => navigate("/admin/calendar")}>
+              Accommodation
+            </TabsTrigger>
+            <TabsTrigger value="event">Event/Wedding</TabsTrigger>
+            <TabsTrigger value="conference" onClick={() => navigate("/admin/calendar/conference")}>
+              Conference
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         <div className="mb-6">
           <h1 className="text-3xl font-bold mb-1">Event/Wedding Calendar</h1>
@@ -110,16 +44,13 @@ const CalendarEventWedding = () => {
         <Card>
           <CardContent className="p-6">
             <div className="flex flex-wrap gap-4 mb-6">
-              <Select value={selectedProperty} onValueChange={setSelectedProperty} disabled={loading}>
+              <Select value={selectedProperty} onValueChange={setSelectedProperty}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Select Property" />
                 </SelectTrigger>
                 <SelectContent>
-                  {properties.map((property) => (
-                    <SelectItem key={property.id} value={property.id}>
-                      {property.name}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="property1">Property 1</SelectItem>
+                  <SelectItem value="property2">Property 2</SelectItem>
                 </SelectContent>
               </Select>
 
