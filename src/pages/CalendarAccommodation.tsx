@@ -91,19 +91,6 @@ const mockRoomData: RoomData[] = [
   },
 ];
 
-// Extract unique meal types from room data
-const getUniqueMealTypes = (roomData: RoomData[]) => {
-  const mealTypes = new Set<string>();
-  roomData.forEach(room => {
-    room.rates.forEach(rate => {
-      mealTypes.add(rate.mealType);
-    });
-  });
-  return Array.from(mealTypes).map(mt => ({
-    id: mt.toLowerCase().replace(/ /g, "_"),
-    label: mt
-  }));
-};
 
 const CalendarAccommodation = () => {
   const navigate = useNavigate();
@@ -125,9 +112,6 @@ const CalendarAccommodation = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [userEmail, setUserEmail] = useState<string>("");
 
-  // Get meal types from room data (property-specific)
-  const mealTypeOptions = getUniqueMealTypes(mockRoomData);
-
   // Multi-select states - all true by default
   const [selectedDisplayOptions, setSelectedDisplayOptions] = useState<string[]>(
     displayOptions.map(o => o.id)
@@ -139,6 +123,16 @@ const CalendarAccommodation = () => {
   const hasAccommodation = selectedPropertyData?.amenities?.offerings?.accommodation === true;
   const hasEventWedding = selectedPropertyData?.amenities?.offerings?.event_wedding === true;
   const hasConference = selectedPropertyData?.amenities?.offerings?.conference === true;
+
+  // Get meal types from property amenities
+  const mealTypeOptions = React.useMemo(() => {
+    if (!selectedPropertyData?.amenities?.meal_types) return [];
+    const mealTypes = selectedPropertyData.amenities.meal_types as string[];
+    return mealTypes.map(mt => ({
+      id: mt.toLowerCase().replace(/ /g, "_"),
+      label: mt
+    }));
+  }, [selectedPropertyData]);
 
   useEffect(() => {
     checkUserRoleAndFetchProperties();
