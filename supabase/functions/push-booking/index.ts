@@ -1,9 +1,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const requestSchema = z.object({
+  booking_id: z.string().uuid({ message: 'Invalid booking ID format' }),
+});
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -16,7 +21,21 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { booking_id } = await req.json();
+    const body = await req.json();
+    const validationResult = requestSchema.safeParse(body);
+    
+    if (!validationResult.success) {
+      console.error('Validation failed:', validationResult.error);
+      return new Response(
+        JSON.stringify({ error: 'Invalid booking ID' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    const { booking_id } = validationResult.data;
 
     console.log(`Pushing booking ${booking_id} to external systems`);
 
@@ -28,7 +47,14 @@ Deno.serve(async (req) => {
       .single();
 
     if (bookingError || !booking) {
-      throw new Error(`Booking not found: ${bookingError?.message}`);
+      console.error('Booking lookup failed:', bookingError);
+      return new Response(
+        JSON.stringify({ error: 'Unable to find booking' }),
+        { 
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     const property = booking.property;
@@ -92,10 +118,11 @@ Deno.serve(async (req) => {
             }
           );
 
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`NightsBridge API error: ${errorText}`);
-          }
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('NightsBridge API error:', response.status, errorText);
+          throw new Error('Failed to sync with external system');
+        }
 
           const result = await response.json();
           externalBookingId = result.booking_id || result.id;
@@ -136,10 +163,11 @@ Deno.serve(async (req) => {
             }
           );
 
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Checkfront API error: ${errorText}`);
-          }
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Checkfront API error:', response.status, errorText);
+          throw new Error('Failed to sync with external system');
+        }
 
           const result = await response.json();
           externalBookingId = result.booking_id || result.id;
@@ -217,11 +245,10 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Push booking error:', errorMessage);
+    console.error('Push booking error:', error);
 
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'An error occurred while processing booking' }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 

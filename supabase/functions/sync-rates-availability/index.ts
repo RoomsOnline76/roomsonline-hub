@@ -1,9 +1,19 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const requestSchema = z.object({
+  property_id: z.string().uuid({ message: 'Invalid property ID format' }),
+  external_system: z.enum(['nightsbridge', 'checkfront'], { 
+    errorMap: () => ({ message: 'External system must be nightsbridge or checkfront' }) 
+  }),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Start date must be in YYYY-MM-DD format' }),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'End date must be in YYYY-MM-DD format' }),
+});
 
 interface NightsBridgeRate {
   room_type: string;
@@ -30,7 +40,21 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { property_id, external_system, start_date, end_date } = await req.json();
+    const body = await req.json();
+    const validationResult = requestSchema.safeParse(body);
+    
+    if (!validationResult.success) {
+      console.error('Validation failed:', validationResult.error);
+      return new Response(
+        JSON.stringify({ error: 'Invalid request parameters' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    const { property_id, external_system, start_date, end_date } = validationResult.data;
 
     console.log(`Syncing rates for property ${property_id} from ${external_system}`);
 
@@ -42,7 +66,14 @@ Deno.serve(async (req) => {
       .single();
 
     if (propertyError || !property) {
-      throw new Error(`Property not found: ${propertyError?.message}`);
+      console.error('Property lookup failed:', propertyError);
+      return new Response(
+        JSON.stringify({ error: 'Unable to find property' }),
+        { 
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     // Get API keys for the external system
@@ -53,7 +84,14 @@ Deno.serve(async (req) => {
       .limit(1);
 
     if (keysError || !apiKeys || apiKeys.length === 0) {
-      throw new Error(`API keys not configured for ${external_system}`);
+      console.error('API keys lookup failed:', keysError);
+      return new Response(
+        JSON.stringify({ error: 'System configuration error' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     const apiKey = apiKeys[0];
@@ -67,7 +105,14 @@ Deno.serve(async (req) => {
       const nightsBridgeId = externalIds.nightsbridge_bb_id;
 
       if (!nightsBridgeId) {
-        throw new Error('NightsBridge property ID not configured');
+        console.error('NightsBridge ID not configured for property:', property_id);
+        return new Response(
+          JSON.stringify({ error: 'Property configuration incomplete' }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
       }
 
       // Call NightsBridge API
@@ -82,7 +127,14 @@ Deno.serve(async (req) => {
       );
 
       if (!response.ok) {
-        throw new Error(`NightsBridge API error: ${response.statusText}`);
+        console.error('NightsBridge API error:', response.status, response.statusText);
+        return new Response(
+          JSON.stringify({ error: 'Failed to sync with external system' }),
+          { 
+            status: 502,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
       }
 
       const data = await response.json();
@@ -96,7 +148,14 @@ Deno.serve(async (req) => {
       const checkfrontId = externalIds.checkfront_id;
 
       if (!checkfrontId) {
-        throw new Error('Checkfront property ID not configured');
+        console.error('Checkfront ID not configured for property:', property_id);
+        return new Response(
+          JSON.stringify({ error: 'Property configuration incomplete' }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
       }
 
       // Call Checkfront API
@@ -111,7 +170,14 @@ Deno.serve(async (req) => {
       );
 
       if (!response.ok) {
-        throw new Error(`Checkfront API error: ${response.statusText}`);
+        console.error('Checkfront API error:', response.status, response.statusText);
+        return new Response(
+          JSON.stringify({ error: 'Failed to sync with external system' }),
+          { 
+            status: 502,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
       }
 
       const data = await response.json();
@@ -192,11 +258,10 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Sync error:', errorMessage);
+    console.error('Sync error:', error);
 
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'An error occurred during synchronization' }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
