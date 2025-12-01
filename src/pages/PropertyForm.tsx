@@ -171,9 +171,25 @@ export default function PropertyForm() {
     }
   };
 
-  // Property source
-  const [isNightsBridge, setIsNightsBridge] = useState(true);
-  const [isSemperProperty, setIsSemperProperty] = useState(false);
+  // Property source (PMS system)
+  const [selectedPMS, setSelectedPMS] = useState<string>("");
+  const [availablePMSSystems, setAvailablePMSSystems] = useState<{key_name: string; name: string; system_type: string}[]>([]);
+  
+  // Load available PMS systems from configured API keys
+  useEffect(() => {
+    const loadPMSSystems = async () => {
+      const { data } = await supabase
+        .from("api_keys")
+        .select("key_name, name, system_type")
+        .not("system_type", "eq", "google")
+        .order("name");
+      
+      if (data) {
+        setAvailablePMSSystems(data);
+      }
+    };
+    loadPMSSystems();
+  }, []);
   
   // Location state
   const [latitude, setLatitude] = useState<number | null>(null);
@@ -761,8 +777,7 @@ export default function PropertyForm() {
 
           // Set property source
           const externalSystem = data.external_system || "";
-          setIsNightsBridge(externalSystem.includes("nightsbridge"));
-          setIsSemperProperty(externalSystem.includes("semper"));
+          setSelectedPMS(externalSystem);
           
           // Set location coordinates
           setLatitude(data.latitude ? Number(data.latitude) : null);
@@ -1023,13 +1038,7 @@ export default function PropertyForm() {
         longitude: longitude,
         owner_name: formData.owner_name || null,
         owner_email: formData.owner_email || null,
-        external_system: isNightsBridge && isSemperProperty 
-          ? "nightsbridge,semper" 
-          : isNightsBridge 
-          ? "nightsbridge" 
-          : isSemperProperty 
-          ? "semper" 
-          : null,
+        external_system: selectedPMS || null,
         external_id: formData.bb_id || null,
         is_active: true,
         max_guests: 2, // Default value, can be updated later
@@ -1063,11 +1072,11 @@ export default function PropertyForm() {
             swift_code: formData.swift_code,
           },
           external_ids: {
-            nightsbridge_bb_id: isNightsBridge ? formData.bb_id : null,
-            semper_venue_id: isSemperProperty ? formData.venue_id : null,
-            semper_channel_id: isSemperProperty ? formData.channel_id : null,
-            semper_account_id: isSemperProperty ? formData.account_id : null,
-            semper_agent_id: isSemperProperty ? formData.agent_id : null,
+            nightsbridge_bb_id: selectedPMS === "nightsbridge" ? formData.bb_id : null,
+            semper_venue_id: selectedPMS === "semper" ? formData.venue_id : null,
+            semper_channel_id: selectedPMS === "semper" ? formData.channel_id : null,
+            semper_account_id: selectedPMS === "semper" ? formData.account_id : null,
+            semper_agent_id: selectedPMS === "semper" ? formData.agent_id : null,
           },
           room_types: roomTypes,
           meal_types: selectedMealTypes,
@@ -1281,30 +1290,30 @@ export default function PropertyForm() {
                     <Separator className="my-6" />
 
                     <div className="space-y-4">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="nightsbridge"
-                            checked={isNightsBridge}
-                            onCheckedChange={(checked) => setIsNightsBridge(checked as boolean)}
-                          />
-                          <Label htmlFor="nightsbridge" className="cursor-pointer">
-                            NightsBridge Property
-                          </Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="semper"
-                            checked={isSemperProperty}
-                            onCheckedChange={(checked) => setIsSemperProperty(checked as boolean)}
-                          />
-                          <Label htmlFor="semper" className="cursor-pointer">
-                            Semper Property
-                          </Label>
-                        </div>
+                      <div className="space-y-2 max-w-xs">
+                        <Label htmlFor="pms_system">Property Management System</Label>
+                        <Select
+                          value={selectedPMS}
+                          onValueChange={(value) => {
+                            setSelectedPMS(value);
+                            setIsDirty(true);
+                          }}
+                        >
+                          <SelectTrigger id="pms_system">
+                            <SelectValue placeholder="Select PMS system" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">None</SelectItem>
+                            {availablePMSSystems.map((pms) => (
+                              <SelectItem key={pms.system_type} value={pms.system_type}>
+                                {pms.name.replace(' API Key', '')}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
 
-                      {isNightsBridge && (
+                      {selectedPMS === "nightsbridge" && (
                         <div className="max-w-xs">
                           <Label htmlFor="bb_id">BBID</Label>
                           <Input
@@ -1316,7 +1325,7 @@ export default function PropertyForm() {
                         </div>
                       )}
 
-                      {isSemperProperty && (
+                      {selectedPMS === "semper" && (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="venue_id">VENUE ID</Label>
