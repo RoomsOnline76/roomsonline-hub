@@ -58,6 +58,7 @@ const CalendarConference = () => {
   const selectedPropertyData = properties.find(p => p.id === selectedProperty);
   const hasAccommodation = selectedPropertyData?.amenities?.offerings?.accommodation === true;
   const hasEventWedding = selectedPropertyData?.amenities?.offerings?.event_wedding === true;
+  const hasConference = selectedPropertyData?.amenities?.offerings?.conference === true;
 
   useEffect(() => {
     checkUserRoleAndFetchProperties();
@@ -237,8 +238,9 @@ const CalendarConference = () => {
               <h2 className="text-lg font-semibold text-primary">{selectedPropertyData.name}</h2>
             </div>
             <div className="ml-auto flex gap-2">
-              {hasAccommodation && <Badge variant="secondary">Accommodation</Badge>}
-              {hasEventWedding && <Badge variant="secondary">Event/Wedding</Badge>}
+              {hasAccommodation && <Badge variant="outline">Accommodation</Badge>}
+              {hasEventWedding && <Badge variant="outline">Event/Wedding</Badge>}
+              <Badge variant="default">Conference</Badge>
             </div>
           </div>
         )}
