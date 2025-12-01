@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +30,9 @@ import { BulkLeadDaysPostDialog } from "@/components/BulkLeadDaysPostDialog";
 
 const CalendarAccommodation = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [selectedProperty, setSelectedProperty] = useState<string>("");
+  const [selectedRoomType, setSelectedRoomType] = useState<string>("");
   const [viewMode, setViewMode] = useState<"week" | "month" | "year">("month");
   const [currentDate, setCurrentDate] = useState(new Date(2025, 10, 19)); // Nov 19, 2025
   const [bulkRateOpen, setBulkRateOpen] = useState(false);
@@ -38,6 +42,57 @@ const CalendarAccommodation = () => {
   const [maxStayOpen, setMaxStayOpen] = useState(false);
   const [leadDaysAdvanceOpen, setLeadDaysAdvanceOpen] = useState(false);
   const [leadDaysPostOpen, setLeadDaysPostOpen] = useState(false);
+  const [properties, setProperties] = useState<any[]>([]);
+  const [roomTypes, setRoomTypes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchProperties();
+  }, []);
+
+  useEffect(() => {
+    if (selectedProperty) {
+      fetchRoomTypes(selectedProperty);
+      setSelectedRoomType("");
+    }
+  }, [selectedProperty]);
+
+  const fetchProperties = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("properties")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+
+      if (error) throw error;
+      setProperties(data || []);
+    } catch (error) {
+      console.error("Error fetching properties:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load properties",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchRoomTypes = async (propertyId: string) => {
+    try {
+      // TODO: Implement room types fetching when room_types table/field is available
+      // For now, using placeholder data
+      setRoomTypes([
+        { name: "Deluxe Room" },
+        { name: "Standard Room" },
+        { name: "Suite" },
+      ]);
+    } catch (error) {
+      console.error("Error fetching room types:", error);
+      setRoomTypes([]);
+    }
+  };
 
   const legend = [
     { label: "Stop Sell", color: "bg-red-500" },
@@ -139,24 +194,30 @@ const CalendarAccommodation = () => {
           <CardContent className="p-6">
             {/* Filters and Actions */}
             <div className="flex flex-wrap gap-4 mb-6">
-              <Select value={selectedProperty} onValueChange={setSelectedProperty}>
+              <Select value={selectedProperty} onValueChange={setSelectedProperty} disabled={loading}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Select Property" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="property1">Property 1</SelectItem>
-                  <SelectItem value="property2">Property 2</SelectItem>
+                  {properties.map((property) => (
+                    <SelectItem key={property.id} value={property.id}>
+                      {property.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
-              <Select>
+              <Select value={selectedRoomType} onValueChange={setSelectedRoomType} disabled={!selectedProperty}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Room Types" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Rooms</SelectItem>
-                  <SelectItem value="deluxe">Deluxe Room</SelectItem>
-                  <SelectItem value="standard">Standard Room</SelectItem>
+                  {roomTypes.map((room, index) => (
+                    <SelectItem key={index} value={room.name || room}>
+                      {room.name || room}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
@@ -166,8 +227,10 @@ const CalendarAccommodation = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Meals</SelectItem>
+                  <SelectItem value="full-board">Full Board</SelectItem>
+                  <SelectItem value="room-only">Room Only</SelectItem>
+                  <SelectItem value="self-catering">Self Catering</SelectItem>
                   <SelectItem value="breakfast">Breakfast</SelectItem>
-                  <SelectItem value="halfboard">Half Board</SelectItem>
                 </SelectContent>
               </Select>
 
