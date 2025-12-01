@@ -47,6 +47,46 @@ const displayOptions = [
   { id: "min_stay", label: "Min Stay", color: "bg-blue-500" },
 ];
 
+// South African Public Holidays (including observed days when holiday falls on Sunday)
+const getSouthAfricanHolidays = (year: number): { [key: string]: string } => {
+  const holidays: { [key: string]: string } = {
+    [`${year}-01-01`]: "New Year's Day",
+    [`${year}-03-21`]: "Human Rights Day",
+    [`${year}-04-27`]: "Freedom Day",
+    [`${year}-05-01`]: "Workers' Day",
+    [`${year}-06-16`]: "Youth Day",
+    [`${year}-08-09`]: "National Women's Day",
+    [`${year}-09-24`]: "Heritage Day",
+    [`${year}-12-16`]: "Day of Reconciliation",
+    [`${year}-12-25`]: "Christmas Day",
+    [`${year}-12-26`]: "Day of Goodwill",
+  };
+  
+  // Easter dates (approximate - Good Friday and Family Day)
+  // 2024: March 29 (Good Friday), April 1 (Family Day)
+  // 2025: April 18 (Good Friday), April 21 (Family Day)
+  // 2026: April 3 (Good Friday), April 6 (Family Day)
+  const easterDates: { [key: number]: { goodFriday: string; familyDay: string } } = {
+    2024: { goodFriday: "2024-03-29", familyDay: "2024-04-01" },
+    2025: { goodFriday: "2025-04-18", familyDay: "2025-04-21" },
+    2026: { goodFriday: "2026-04-03", familyDay: "2026-04-06" },
+    2027: { goodFriday: "2027-03-26", familyDay: "2027-03-29" },
+  };
+  
+  if (easterDates[year]) {
+    holidays[easterDates[year].goodFriday] = "Good Friday";
+    holidays[easterDates[year].familyDay] = "Family Day";
+  }
+  
+  return holidays;
+};
+
+const getHolidayName = (date: Date): string | null => {
+  const dateStr = date.toISOString().split('T')[0];
+  const holidays = getSouthAfricanHolidays(date.getFullYear());
+  return holidays[dateStr] || null;
+};
+
 interface RoomData {
   name: string;
   rates: {
@@ -644,6 +684,7 @@ const CalendarAccommodation = () => {
                 </div>
 
                 {/* Calendar Grid */}
+                <TooltipProvider>
                 {viewMode === "week" && (
                   <div className="border rounded-lg overflow-x-auto">
                     <table className="w-full border-collapse min-w-[800px]">
@@ -654,24 +695,61 @@ const CalendarAccommodation = () => {
                           {calendarDates.map((date, index) => {
                             const header = formatDayHeader(date);
                             const weekend = isWeekend(date);
-                            return (
+                            const holidayName = getHolidayName(date);
+                            const isHoliday = !!holidayName;
+                            
+                            const headerContent = (
                               <th
                                 key={index}
                                 className={`border p-2 text-center min-w-[80px] ${
-                                  weekend ? "bg-red-50 dark:bg-red-950/20" : "bg-muted/50"
+                                  isHoliday 
+                                    ? "bg-green-100 dark:bg-green-950/30" 
+                                    : weekend 
+                                      ? "bg-red-50 dark:bg-red-950/20" 
+                                      : "bg-muted/50"
                                 }`}
                               >
-                                <div className={`text-xs font-semibold ${weekend ? "text-red-600" : "text-muted-foreground"}`}>
+                                <div className={`text-xs font-semibold ${
+                                  isHoliday 
+                                    ? "text-green-700 dark:text-green-400" 
+                                    : weekend 
+                                      ? "text-red-600" 
+                                      : "text-muted-foreground"
+                                }`}>
                                   {header.day}
                                 </div>
-                                <div className={`text-lg font-bold ${weekend ? "text-red-600" : ""}`}>
+                                <div className={`text-lg font-bold ${
+                                  isHoliday 
+                                    ? "text-green-700 dark:text-green-400" 
+                                    : weekend 
+                                      ? "text-red-600" 
+                                      : ""
+                                }`}>
                                   {header.date}
                                 </div>
-                                <div className={`text-xs ${weekend ? "text-red-600" : "text-muted-foreground"}`}>
+                                <div className={`text-xs ${
+                                  isHoliday 
+                                    ? "text-green-700 dark:text-green-400" 
+                                    : weekend 
+                                      ? "text-red-600" 
+                                      : "text-muted-foreground"
+                                }`}>
                                   {header.month}
                                 </div>
                               </th>
                             );
+                            
+                            return isHoliday ? (
+                              <Tooltip key={index}>
+                                <TooltipTrigger asChild>
+                                  {headerContent}
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="font-semibold">{holidayName}</p>
+                                  <p className="text-xs text-muted-foreground">SA Public Holiday</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : headerContent;
                           })}
                         </tr>
                       </thead>
@@ -694,11 +772,16 @@ const CalendarAccommodation = () => {
                                 </td>
                                 {calendarDates.map((date, index) => {
                                   const weekend = isWeekend(date);
+                                  const isHoliday = !!getHolidayName(date);
                                   return (
                                     <td
                                       key={index}
                                       className={`border p-2 text-center font-semibold ${
-                                        weekend ? "bg-red-50 dark:bg-red-950/20" : ""
+                                        isHoliday 
+                                          ? "bg-green-100 dark:bg-green-950/30" 
+                                          : weekend 
+                                            ? "bg-red-50 dark:bg-red-950/20" 
+                                            : ""
                                       }`}
                                     >
                                       {getMockAvailability(room.name)}
@@ -716,11 +799,16 @@ const CalendarAccommodation = () => {
                                   </td>
                                   {calendarDates.map((date, index) => {
                                     const weekend = isWeekend(date);
+                                    const isHoliday = !!getHolidayName(date);
                                     return (
                                       <td
                                         key={index}
                                         className={`border p-2 text-center text-sm ${
-                                          weekend ? "bg-red-50 dark:bg-red-950/20" : ""
+                                          isHoliday 
+                                            ? "bg-green-100 dark:bg-green-950/30" 
+                                            : weekend 
+                                              ? "bg-red-50 dark:bg-red-950/20" 
+                                              : ""
                                         }`}
                                       >
                                         {getMockRateValue(rate.rateType)}
@@ -747,21 +835,52 @@ const CalendarAccommodation = () => {
                           {calendarDates.map((date, index) => {
                             const header = formatDayHeader(date);
                             const weekend = isWeekend(date);
-                            return (
+                            const holidayName = getHolidayName(date);
+                            const isHoliday = !!holidayName;
+                            
+                            const headerContent = (
                               <th
                                 key={index}
                                 className={`border p-1 text-center min-w-[50px] ${
-                                  weekend ? "bg-red-50 dark:bg-red-950/20" : "bg-muted/50"
+                                  isHoliday 
+                                    ? "bg-green-100 dark:bg-green-950/30" 
+                                    : weekend 
+                                      ? "bg-red-50 dark:bg-red-950/20" 
+                                      : "bg-muted/50"
                                 }`}
                               >
-                                <div className={`text-xs font-semibold ${weekend ? "text-red-600" : "text-muted-foreground"}`}>
+                                <div className={`text-xs font-semibold ${
+                                  isHoliday 
+                                    ? "text-green-700 dark:text-green-400" 
+                                    : weekend 
+                                      ? "text-red-600" 
+                                      : "text-muted-foreground"
+                                }`}>
                                   {header.day}
                                 </div>
-                                <div className={`text-sm font-bold ${weekend ? "text-red-600" : ""}`}>
+                                <div className={`text-sm font-bold ${
+                                  isHoliday 
+                                    ? "text-green-700 dark:text-green-400" 
+                                    : weekend 
+                                      ? "text-red-600" 
+                                      : ""
+                                }`}>
                                   {header.date}
                                 </div>
                               </th>
                             );
+                            
+                            return isHoliday ? (
+                              <Tooltip key={index}>
+                                <TooltipTrigger asChild>
+                                  {headerContent}
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="font-semibold">{holidayName}</p>
+                                  <p className="text-xs text-muted-foreground">SA Public Holiday</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : headerContent;
                           })}
                         </tr>
                       </thead>
@@ -784,11 +903,16 @@ const CalendarAccommodation = () => {
                                 </td>
                                 {calendarDates.map((date, index) => {
                                   const weekend = isWeekend(date);
+                                  const isHoliday = !!getHolidayName(date);
                                   return (
                                     <td
                                       key={index}
                                       className={`border p-1 text-center text-sm font-semibold ${
-                                        weekend ? "bg-red-50 dark:bg-red-950/20" : ""
+                                        isHoliday 
+                                          ? "bg-green-100 dark:bg-green-950/30" 
+                                          : weekend 
+                                            ? "bg-red-50 dark:bg-red-950/20" 
+                                            : ""
                                       }`}
                                     >
                                       {getMockAvailability(room.name)}
@@ -806,11 +930,16 @@ const CalendarAccommodation = () => {
                                   </td>
                                   {calendarDates.map((date, index) => {
                                     const weekend = isWeekend(date);
+                                    const isHoliday = !!getHolidayName(date);
                                     return (
                                       <td
                                         key={index}
                                         className={`border p-1 text-center text-xs ${
-                                          weekend ? "bg-red-50 dark:bg-red-950/20" : ""
+                                          isHoliday 
+                                            ? "bg-green-100 dark:bg-green-950/30" 
+                                            : weekend 
+                                              ? "bg-red-50 dark:bg-red-950/20" 
+                                              : ""
                                         }`}
                                       >
                                         {getMockRateValue(rate.rateType)}
@@ -826,6 +955,7 @@ const CalendarAccommodation = () => {
                     </table>
                   </div>
                 )}
+                </TooltipProvider>
               </>
             )}
           </CardContent>
