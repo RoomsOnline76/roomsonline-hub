@@ -697,7 +697,7 @@ export default function PropertyForm() {
   // House Style state
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
   const [isLogoUploading, setIsLogoUploading] = useState(false);
-  const [litchiBookingsLink, setLitchiBookingsLink] = useState("");
+  const [roomsOnlineBookingsLink, setRoomsOnlineBookingsLink] = useState("");
   const [titleBehaviour, setTitleBehaviour] = useState<"property-name" | "property-logo" | "no-title">("property-name");
   const [merchantDetails, setMerchantDetails] = useState({
     organizationName: "",
@@ -841,7 +841,7 @@ export default function PropertyForm() {
           // Load house style
           const houseStyle = amenities?.house_style || {};
           if (houseStyle.company_logo) setCompanyLogo(houseStyle.company_logo);
-          if (houseStyle.litchi_bookings_link) setLitchiBookingsLink(houseStyle.litchi_bookings_link);
+          if (houseStyle.litchi_bookings_link || houseStyle.roomsonline_bookings_link) setRoomsOnlineBookingsLink(houseStyle.roomsonline_bookings_link || houseStyle.litchi_bookings_link);
           if (houseStyle.title_behaviour) setTitleBehaviour(houseStyle.title_behaviour);
           if (houseStyle.merchant_details) setMerchantDetails(houseStyle.merchant_details);
           if (houseStyle.adpay_details) setAdpayDetails(houseStyle.adpay_details);
@@ -1152,7 +1152,7 @@ export default function PropertyForm() {
           },
           house_style: {
             company_logo: companyLogo,
-            litchi_bookings_link: litchiBookingsLink,
+            roomsonline_bookings_link: roomsOnlineBookingsLink,
             title_behaviour: titleBehaviour,
             merchant_details: merchantDetails,
             adpay_details: adpayDetails,
@@ -1820,10 +1820,10 @@ export default function PropertyForm() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex items-center gap-4">
-                      <Label className="whitespace-nowrap">Litchi Bookings Link</Label>
+                      <Label className="whitespace-nowrap">RoomsOnline Bookings Link</Label>
                       <Input
-                        value={litchiBookingsLink}
-                        onChange={(e) => setLitchiBookingsLink(e.target.value)}
+                        value={roomsOnlineBookingsLink}
+                        onChange={(e) => setRoomsOnlineBookingsLink(e.target.value)}
                         className="flex-1"
                       />
                       <Button size="sm" variant="ghost" className="text-destructive">
