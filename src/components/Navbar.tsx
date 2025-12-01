@@ -8,6 +8,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Building2, Key, LogOut, User, ChevronDown, Shield, Calendar, Megaphone, BookOpen, PieChart } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -86,18 +89,57 @@ export const Navbar = () => {
                       <Building2 className="mr-2 h-4 w-4" />
                       Property overview
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/admin/calendar')}>
-                      <Calendar className="mr-2 h-4 w-4" />
-                      Calendar
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/admin/promotion')}>
-                      <Megaphone className="mr-2 h-4 w-4" />
-                      Promotion
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/admin/bookings')}>
-                      <BookOpen className="mr-2 h-4 w-4" />
-                      Bookings
-                    </DropdownMenuItem>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <Calendar className="mr-2 h-4 w-4" />
+                        Calendar
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <DropdownMenuItem onClick={() => navigate('/admin/calendar/accommodation')}>
+                          Accommodation
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate('/admin/calendar/event-wedding')}>
+                          Event/Wedding
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate('/admin/calendar/conference')}>
+                          Conference
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <Megaphone className="mr-2 h-4 w-4" />
+                        Promotion
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <DropdownMenuItem onClick={() => navigate('/admin/promotion/accommodation')}>
+                          Accommodation
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate('/admin/promotion/event-wedding')}>
+                          Event/Wedding
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate('/admin/promotion/conference')}>
+                          Conference
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <BookOpen className="mr-2 h-4 w-4" />
+                        Bookings
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <DropdownMenuItem onClick={() => navigate('/admin/bookings/accommodation')}>
+                          Accommodation
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate('/admin/bookings/event-wedding')}>
+                          Event/Wedding
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate('/admin/bookings/conference')}>
+                          Conference
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
