@@ -7,7 +7,27 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Key, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Key, AlertCircle, CheckCircle2, BedDouble, RefreshCw, CheckCircle, Briefcase, Layers, MapPin, LucideIcon } from "lucide-react";
+
+// Map PMS system types to icons
+const getPMSIcon = (systemType: string | null): LucideIcon => {
+  switch (systemType) {
+    case "nightsbridge":
+      return BedDouble;
+    case "semper":
+      return RefreshCw;
+    case "checkfront":
+      return CheckCircle;
+    case "benson":
+      return Briefcase;
+    case "siteminder":
+      return Layers;
+    case "google":
+      return MapPin;
+    default:
+      return Key;
+  }
+};
 
 interface ApiKey {
   id: string;
@@ -94,6 +114,7 @@ export default function AdminKeys() {
   const renderKeyCard = (apiKey: ApiKey) => {
     const isPlaceholderValue = isPlaceholder(apiKey.key_value);
     const isEditing = editingKey === apiKey.id;
+    const IconComponent = getPMSIcon(apiKey.system_type);
 
     return (
       <Card key={apiKey.id}>
@@ -101,7 +122,7 @@ export default function AdminKeys() {
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-3">
               <div className="mt-1">
-                <Key className="h-5 w-5 text-primary" />
+                <IconComponent className="h-5 w-5 text-primary" />
               </div>
               <div>
                 <CardTitle className="flex items-center gap-2">

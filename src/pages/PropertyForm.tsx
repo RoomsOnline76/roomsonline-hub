@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
-import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X, Plus, Minus, FileText, Check, Upload, Heart, Edit, Trash2, Copy, Link, ChevronRight } from "lucide-react";
+import { Home, Building2, MapPin, Save, Info, Image, DollarSign, Bell, Package, Calendar, X, Plus, Minus, FileText, Check, Upload, Heart, Edit, Trash2, Copy, Link, ChevronRight, BedDouble, RefreshCw, CheckCircle, Briefcase, Layers, LucideIcon } from "lucide-react";
 import { StarRating } from "@/components/StarRating";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -26,6 +26,24 @@ import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { PropertyMap } from "@/components/PropertyMap";
 import { TagInput } from "@/components/TagInput";
+
+// Map PMS system types to icons
+const getPMSIcon = (systemType: string): LucideIcon => {
+  switch (systemType) {
+    case "nightsbridge":
+      return BedDouble;
+    case "semper":
+      return RefreshCw;
+    case "checkfront":
+      return CheckCircle;
+    case "benson":
+      return Briefcase;
+    case "siteminder":
+      return Layers;
+    default:
+      return Building2;
+  }
+};
 
 const propertySchema = z.object({
   name: z.string().min(1, "Property name is required").max(200),
@@ -1303,12 +1321,23 @@ export default function PropertyForm() {
                             <SelectValue placeholder="Select PMS system" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="none">None</SelectItem>
-                            {availablePMSSystems.map((pms) => (
-                              <SelectItem key={pms.system_type} value={pms.system_type}>
-                                {pms.name.replace(' API Key', '')}
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="none">
+                              <span className="flex items-center gap-2">
+                                <X className="h-4 w-4" />
+                                None
+                              </span>
+                            </SelectItem>
+                            {availablePMSSystems.map((pms) => {
+                              const IconComponent = getPMSIcon(pms.system_type);
+                              return (
+                                <SelectItem key={pms.system_type} value={pms.system_type}>
+                                  <span className="flex items-center gap-2">
+                                    <IconComponent className="h-4 w-4" />
+                                    {pms.name.replace(' API Key', '')}
+                                  </span>
+                                </SelectItem>
+                              );
+                            })}
                           </SelectContent>
                         </Select>
                       </div>
