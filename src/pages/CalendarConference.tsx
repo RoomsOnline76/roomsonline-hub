@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,12 +12,100 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ChevronLeft, ChevronRight, ChevronDown, RefreshCw, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const CalendarConference = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [selectedProperty, setSelectedProperty] = useState<string>("");
   const [viewMode, setViewMode] = useState<"week" | "month" | "year">("month");
   const [currentDate, setCurrentDate] = useState(new Date(2025, 10, 19));
+  const [properties, setProperties] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userEmail, setUserEmail] = useState<string>("");
+
+  useEffect(() => {
+    checkUserRoleAndFetchProperties();
+  }, []);
+
+  const checkUserRoleAndFetchProperties = async () => {
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      // Check if user is admin
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      const adminStatus = !!roleData;
+      setIsAdmin(adminStatus);
+
+      // Get user profile for owner email
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("id", user.id)
+        .single();
+
+      const email = profileData?.email || "";
+      setUserEmail(email);
+
+      // Fetch properties based on role
+      await fetchProperties(adminStatus, email);
+    } catch (error) {
+      console.error("Error checking user role:", error);
+      toast({
+        title: "Error",
+        description: "Failed to verify user permissions",
+        variant: "destructive",
+      });
+      setLoading(false);
+    }
+  };
+
+  const fetchProperties = async (adminStatus: boolean, email: string) => {
+    try {
+      let query = supabase
+        .from("properties")
+        .select("id, name, amenities, owner_email")
+        .eq("is_active", true);
+
+      // Filter by owner email if not admin
+      if (!adminStatus && email) {
+        query = query.eq("owner_email", email);
+      }
+
+      const { data, error } = await query.order("name");
+
+      if (error) throw error;
+
+      // Filter properties with conference offering
+      const conferenceProperties = (data || []).filter((property: any) => {
+        return property.amenities?.offerings?.conference === true;
+      });
+
+      setProperties(conferenceProperties);
+    } catch (error) {
+      console.error("Error fetching properties:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load properties",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -44,13 +132,16 @@ const CalendarConference = () => {
         <Card>
           <CardContent className="p-6">
             <div className="flex flex-wrap gap-4 mb-6">
-              <Select value={selectedProperty} onValueChange={setSelectedProperty}>
+              <Select value={selectedProperty} onValueChange={setSelectedProperty} disabled={loading}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Select Property" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="property1">Property 1</SelectItem>
-                  <SelectItem value="property2">Property 2</SelectItem>
+                  {properties.map((property) => (
+                    <SelectItem key={property.id} value={property.id}>
+                      {property.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 

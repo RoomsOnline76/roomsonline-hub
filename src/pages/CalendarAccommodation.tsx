@@ -45,9 +45,11 @@ const CalendarAccommodation = () => {
   const [properties, setProperties] = useState<any[]>([]);
   const [roomTypes, setRoomTypes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userEmail, setUserEmail] = useState<string>("");
 
   useEffect(() => {
-    fetchProperties();
+    checkUserRoleAndFetchProperties();
   }, []);
 
   useEffect(() => {
@@ -57,16 +59,71 @@ const CalendarAccommodation = () => {
     }
   }, [selectedProperty]);
 
-  const fetchProperties = async () => {
+  const checkUserRoleAndFetchProperties = async () => {
     try {
-      const { data, error } = await supabase
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      // Check if user is admin
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      const adminStatus = !!roleData;
+      setIsAdmin(adminStatus);
+
+      // Get user profile for owner email
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("id", user.id)
+        .single();
+
+      const email = profileData?.email || "";
+      setUserEmail(email);
+
+      // Fetch properties based on role
+      await fetchProperties(adminStatus, email);
+    } catch (error) {
+      console.error("Error checking user role:", error);
+      toast({
+        title: "Error",
+        description: "Failed to verify user permissions",
+        variant: "destructive",
+      });
+      setLoading(false);
+    }
+  };
+
+  const fetchProperties = async (adminStatus: boolean, email: string) => {
+    try {
+      let query = supabase
         .from("properties")
-        .select("id, name")
-        .eq("is_active", true)
-        .order("name");
+        .select("id, name, amenities, owner_email")
+        .eq("is_active", true);
+
+      // Filter by owner email if not admin
+      if (!adminStatus && email) {
+        query = query.eq("owner_email", email);
+      }
+
+      const { data, error } = await query.order("name");
 
       if (error) throw error;
-      setProperties(data || []);
+
+      // Filter properties with accommodation offering
+      const accommodationProperties = (data || []).filter((property: any) => {
+        return property.amenities?.offerings?.accommodation === true;
+      });
+
+      setProperties(accommodationProperties);
     } catch (error) {
       console.error("Error fetching properties:", error);
       toast({
