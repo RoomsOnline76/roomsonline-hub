@@ -1293,9 +1293,9 @@ export default function PropertyForm() {
                       <div className="space-y-2 max-w-xs">
                         <Label htmlFor="pms_system">Property Management System</Label>
                         <Select
-                          value={selectedPMS}
+                          value={selectedPMS || "none"}
                           onValueChange={(value) => {
-                            setSelectedPMS(value);
+                            setSelectedPMS(value === "none" ? "" : value);
                             setIsDirty(true);
                           }}
                         >
@@ -1303,7 +1303,7 @@ export default function PropertyForm() {
                             <SelectValue placeholder="Select PMS system" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">None</SelectItem>
+                            <SelectItem value="none">None</SelectItem>
                             {availablePMSSystems.map((pms) => (
                               <SelectItem key={pms.system_type} value={pms.system_type}>
                                 {pms.name.replace(' API Key', '')}
