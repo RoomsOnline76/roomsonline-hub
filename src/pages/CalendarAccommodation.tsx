@@ -140,8 +140,8 @@ const CalendarAccommodation = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const [selectedProperty, setSelectedProperty] = useState<string>(searchParams.get("property") || "");
-  const [viewMode, setViewMode] = useState<"week" | "month">("month");
-  const [currentDate, setCurrentDate] = useState(new Date(2025, 10, 19));
+const [viewMode, setViewMode] = useState<"week" | "month">("month");
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [bulkRateOpen, setBulkRateOpen] = useState(false);
   const [bulkAvailabilityOpen, setBulkAvailabilityOpen] = useState(false);
   const [stopSellOpen, setStopSellOpen] = useState(false);
