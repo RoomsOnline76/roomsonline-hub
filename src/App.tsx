@@ -17,6 +17,7 @@ import Dashboard from "./pages/Dashboard";
 import AdminKeys from "./pages/AdminKeys";
 import AdminUsers from "./pages/AdminUsers";
 import PropertyForm from "./pages/PropertyForm";
+import BensonConfig from "./pages/BensonConfig";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -53,7 +54,23 @@ const App = () => (
             path="/admin-users"
             element={
               <ProtectedRoute requireAdmin={true}>
-                <AdminUsers />
+            <AdminUsers />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/api-keys"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <AdminKeys />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/benson-config"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <BensonConfig />
               </ProtectedRoute>
             }
           />

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Key, AlertCircle, CheckCircle2, BedDouble, RefreshCw, CheckCircle, Briefcase, Layers, MapPin, Mail, LucideIcon } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Key, AlertCircle, CheckCircle2, BedDouble, RefreshCw, CheckCircle, Briefcase, Layers, MapPin, Mail, LucideIcon, Settings } from "lucide-react";
 
 // Map PMS system types to icons
 const getPMSIcon = (systemType: string | null): LucideIcon => {
@@ -41,15 +43,34 @@ interface ApiKey {
   system_type: string | null;
 }
 
+interface PMSCredentials {
+  id: string;
+  system_type: string;
+  environment: string;
+  username: string | null;
+  password: string | null;
+  is_active: boolean;
+}
+
 export default function AdminKeys() {
+  const navigate = useNavigate();
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const { toast } = useToast();
 
+  // Benson-specific state
+  const [bensonCredentials, setBensonCredentials] = useState<PMSCredentials | null>(null);
+  const [bensonUsername, setBensonUsername] = useState("");
+  const [bensonPassword, setBensonPassword] = useState("");
+  const [bensonEnvironment, setBensonEnvironment] = useState<"staging" | "production">("staging");
+  const [editingBenson, setEditingBenson] = useState(false);
+  const [savingBenson, setSavingBenson] = useState(false);
+
   useEffect(() => {
     fetchApiKeys();
+    fetchBensonCredentials();
   }, []);
 
   const fetchApiKeys = async () => {
@@ -70,6 +91,19 @@ export default function AdminKeys() {
       setApiKeys(data || []);
     }
     setLoading(false);
+  };
+
+  const fetchBensonCredentials = async () => {
+    const { data, error } = await supabase
+      .from("pms_credentials")
+      .select("*")
+      .eq("system_type", "benson")
+      .maybeSingle();
+
+    if (!error && data) {
+      setBensonCredentials(data);
+      setBensonEnvironment(data.environment as "staging" | "production");
+    }
   };
 
   const handleUpdateKey = async (keyId: string) => {
@@ -95,6 +129,50 @@ export default function AdminKeys() {
     }
   };
 
+  const handleSaveBensonCredentials = async () => {
+    setSavingBenson(true);
+    
+    const credData = {
+      system_type: "benson",
+      environment: bensonEnvironment,
+      username: bensonUsername || bensonCredentials?.username || null,
+      password: bensonPassword || bensonCredentials?.password || null,
+      is_active: true,
+    };
+
+    let error;
+    if (bensonCredentials) {
+      const result = await supabase
+        .from("pms_credentials")
+        .update(credData)
+        .eq("id", bensonCredentials.id);
+      error = result.error;
+    } else {
+      const result = await supabase
+        .from("pms_credentials")
+        .insert(credData);
+      error = result.error;
+    }
+
+    if (error) {
+      toast({
+        title: "Error saving credentials",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Credentials saved",
+        description: "Benson credentials have been updated successfully",
+      });
+      setEditingBenson(false);
+      setBensonUsername("");
+      setBensonPassword("");
+      fetchBensonCredentials();
+    }
+    setSavingBenson(false);
+  };
+
   const isPlaceholder = (value: string | null) => {
     return !value || value.startsWith("placeholder_key_");
   };
@@ -107,7 +185,7 @@ export default function AdminKeys() {
   // Group API keys: PMS systems vs Additional Services (Google Maps, SendGrid, etc.)
   const additionalServiceTypes = ["google", "sendgrid"];
   const pmsKeys = apiKeys
-    .filter((k) => k.system_type && !additionalServiceTypes.includes(k.system_type))
+    .filter((k) => k.system_type && !additionalServiceTypes.includes(k.system_type) && k.system_type !== "benson")
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   
   const additionalKeys = apiKeys
@@ -209,6 +287,146 @@ export default function AdminKeys() {
     );
   };
 
+  // Benson-specific card with username/password
+  const renderBensonCard = () => {
+    const isConfigured = bensonCredentials?.username && bensonCredentials?.password;
+
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                <Briefcase className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  Benson PMS
+                  <Badge variant="outline" className="ml-2">
+                    HTTP Basic Auth
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Property Management System integration using username/password authentication
+                </CardDescription>
+              </div>
+            </div>
+            <div>
+              {isConfigured ? (
+                <Badge variant="default" className="flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Configured
+                </Badge>
+              ) : (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Not Configured
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {editingBenson ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="benson-username">Username</Label>
+                  <Input
+                    id="benson-username"
+                    value={bensonUsername}
+                    onChange={(e) => setBensonUsername(e.target.value)}
+                    placeholder={bensonCredentials?.username ? "••••••••" : "Enter username"}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="benson-password">Password</Label>
+                  <Input
+                    id="benson-password"
+                    type="password"
+                    value={bensonPassword}
+                    onChange={(e) => setBensonPassword(e.target.value)}
+                    placeholder={bensonCredentials?.password ? "••••••••" : "Enter password"}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <Label className="text-sm">Environment:</Label>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm ${bensonEnvironment === "staging" ? "font-medium" : "text-muted-foreground"}`}>
+                    Staging
+                  </span>
+                  <Switch
+                    checked={bensonEnvironment === "production"}
+                    onCheckedChange={(checked) => setBensonEnvironment(checked ? "production" : "staging")}
+                  />
+                  <span className={`text-sm ${bensonEnvironment === "production" ? "font-medium" : "text-muted-foreground"}`}>
+                    Production
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={handleSaveBensonCredentials} disabled={savingBenson}>
+                  {savingBenson ? "Saving..." : "Save"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setEditingBenson(false);
+                    setBensonUsername("");
+                    setBensonPassword("");
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <Label className="text-muted-foreground">Username</Label>
+                  <p className="font-medium">{isConfigured ? "Configured" : "Not set"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Password</Label>
+                  <p className="font-medium">{isConfigured ? "Configured" : "Not set"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Environment</Label>
+                  <p className="font-medium capitalize">{bensonCredentials?.environment || "Staging"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Status</Label>
+                  <p className="font-medium">{bensonCredentials?.is_active ? "Active" : "Inactive"}</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setEditingBenson(true)}
+                >
+                  {isConfigured ? "Update Credentials" : "Configure"}
+                </Button>
+                <Button
+                  variant="default"
+                  onClick={() => navigate("/admin/benson-config")}
+                  disabled={!isConfigured}
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Field Mappings
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
   if (loading) {
     return (
       <>
@@ -238,14 +456,16 @@ export default function AdminKeys() {
           </div>
 
           {/* PMS Systems Section */}
-          {pmsKeys.length > 0 && (
-            <div className="mb-8">
-              <h2 className="text-xl font-semibold mb-4">Property Management Systems</h2>
-              <div className="space-y-4">
-                {pmsKeys.map(renderKeyCard)}
-              </div>
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">Property Management Systems</h2>
+            <div className="space-y-4">
+              {/* Benson Card - Special handling */}
+              {renderBensonCard()}
+              
+              {/* Other PMS Keys */}
+              {pmsKeys.map(renderKeyCard)}
             </div>
-          )}
+          </div>
 
           {/* Additional Services Section */}
           {additionalKeys.length > 0 && (

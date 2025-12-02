@@ -190,6 +190,228 @@ export type Database = {
         }
         Relationships: []
       }
+      pms_availability_cache: {
+        Row: {
+          available_units: number | null
+          created_at: string | null
+          date: string
+          external_room_type_id: string
+          fetched_at: string | null
+          id: string
+          property_id: string | null
+          rates: Json | null
+          raw_data: Json | null
+          restrictions: Json | null
+          system_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          available_units?: number | null
+          created_at?: string | null
+          date: string
+          external_room_type_id: string
+          fetched_at?: string | null
+          id?: string
+          property_id?: string | null
+          rates?: Json | null
+          raw_data?: Json | null
+          restrictions?: Json | null
+          system_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          available_units?: number | null
+          created_at?: string | null
+          date?: string
+          external_room_type_id?: string
+          fetched_at?: string | null
+          id?: string
+          property_id?: string | null
+          rates?: Json | null
+          raw_data?: Json | null
+          restrictions?: Json | null
+          system_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_availability_cache_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_credentials: {
+        Row: {
+          api_key: string | null
+          created_at: string | null
+          environment: string
+          id: string
+          is_active: boolean | null
+          password: string | null
+          system_type: string
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          api_key?: string | null
+          created_at?: string | null
+          environment?: string
+          id?: string
+          is_active?: boolean | null
+          password?: string | null
+          system_type: string
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          api_key?: string | null
+          created_at?: string | null
+          environment?: string
+          id?: string
+          is_active?: boolean | null
+          password?: string | null
+          system_type?: string
+          updated_at?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
+      pms_mappings: {
+        Row: {
+          created_at: string | null
+          external_id: string
+          external_name: string | null
+          id: string
+          internal_id: string | null
+          internal_name: string | null
+          is_active: boolean | null
+          mapping_type: string
+          metadata: Json | null
+          property_id: string | null
+          system_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          external_id: string
+          external_name?: string | null
+          id?: string
+          internal_id?: string | null
+          internal_name?: string | null
+          is_active?: boolean | null
+          mapping_type: string
+          metadata?: Json | null
+          property_id?: string | null
+          system_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          external_id?: string
+          external_name?: string | null
+          id?: string
+          internal_id?: string | null
+          internal_name?: string | null
+          is_active?: boolean | null
+          mapping_type?: string
+          metadata?: Json | null
+          property_id?: string | null
+          system_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_mappings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_reservations: {
+        Row: {
+          arrival_date: string
+          charges: Json | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string | null
+          currency: string | null
+          departure_date: string
+          external_reservation_id: string
+          guests: Json | null
+          id: string
+          payments: Json | null
+          property_id: string | null
+          rate_type_name: string | null
+          raw_data: Json | null
+          rooms: Json | null
+          status: string | null
+          synced_at: string | null
+          system_type: string
+          total_amount: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          arrival_date: string
+          charges?: Json | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          currency?: string | null
+          departure_date: string
+          external_reservation_id: string
+          guests?: Json | null
+          id?: string
+          payments?: Json | null
+          property_id?: string | null
+          rate_type_name?: string | null
+          raw_data?: Json | null
+          rooms?: Json | null
+          status?: string | null
+          synced_at?: string | null
+          system_type: string
+          total_amount?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          arrival_date?: string
+          charges?: Json | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          currency?: string | null
+          departure_date?: string
+          external_reservation_id?: string
+          guests?: Json | null
+          id?: string
+          payments?: Json | null
+          property_id?: string | null
+          rate_type_name?: string | null
+          raw_data?: Json | null
+          rooms?: Json | null
+          status?: string | null
+          synced_at?: string | null
+          system_type?: string
+          total_amount?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_reservations_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -229,6 +451,8 @@ export type Database = {
           amenities: Json | null
           bathrooms: number | null
           bedrooms: number | null
+          benson_property_code: string | null
+          checkfront_property_code: string | null
           city: string
           country: string
           created_at: string | null
@@ -247,6 +471,7 @@ export type Database = {
           price_per_night: number
           property_type: string
           property_url: string | null
+          siteminder_property_code: string | null
           updated_at: string | null
         }
         Insert: {
@@ -254,6 +479,8 @@ export type Database = {
           amenities?: Json | null
           bathrooms?: number | null
           bedrooms?: number | null
+          benson_property_code?: string | null
+          checkfront_property_code?: string | null
           city: string
           country: string
           created_at?: string | null
@@ -272,6 +499,7 @@ export type Database = {
           price_per_night: number
           property_type: string
           property_url?: string | null
+          siteminder_property_code?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -279,6 +507,8 @@ export type Database = {
           amenities?: Json | null
           bathrooms?: number | null
           bedrooms?: number | null
+          benson_property_code?: string | null
+          checkfront_property_code?: string | null
           city?: string
           country?: string
           created_at?: string | null
@@ -297,6 +527,7 @@ export type Database = {
           price_per_night?: number
           property_type?: string
           property_url?: string | null
+          siteminder_property_code?: string | null
           updated_at?: string | null
         }
         Relationships: []
