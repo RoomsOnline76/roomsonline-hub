@@ -557,7 +557,9 @@ serve(async (req) => {
   } catch (error: any) {
     console.error("Benson API error:", error);
 
-    // Log the error
+    // Log the error server-side only
+    console.error("Benson API error:", error);
+    
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -573,8 +575,9 @@ serve(async (req) => {
       console.error("Failed to log error:", logError);
     }
 
+    // Return generic error message to client - never expose internal details
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "An error occurred processing your request" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
