@@ -12,9 +12,14 @@ interface Property {
   city: string;
   country: string;
   price_per_night: number;
+  property_type: string;
 }
 
-export function PropertiesMap() {
+interface PropertiesMapProps {
+  enabledTypes?: Record<string, boolean>;
+}
+
+export function PropertiesMap({ enabledTypes }: PropertiesMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [apiKey, setApiKey] = useState<string | null>(null);
@@ -28,7 +33,7 @@ export function PropertiesMap() {
     const fetchProperties = async () => {
       const { data, error } = await supabase
         .from("properties")
-        .select("id, name, slug, latitude, longitude, city, country, price_per_night")
+        .select("id, name, slug, latitude, longitude, city, country, price_per_night, property_type")
         .eq("is_active", true)
         .not("latitude", "is", null)
         .not("longitude", "is", null);
@@ -83,9 +88,14 @@ export function PropertiesMap() {
     document.head.appendChild(script);
   }, [apiKey, loading]);
 
-  // Initialize map with all properties
+  // Filter properties based on enabled types
+  const filteredProperties = enabledTypes
+    ? properties.filter((p) => enabledTypes[p.property_type] !== false)
+    : properties;
+
+  // Initialize map with filtered properties
   useEffect(() => {
-    if (!mapRef.current || !mapsLoaded || !window.google?.maps || properties.length === 0) return;
+    if (!mapRef.current || !mapsLoaded || !window.google?.maps || filteredProperties.length === 0) return;
 
     // Create map centered initially
     const newMap = new window.google.maps.Map(mapRef.current, {
@@ -107,7 +117,7 @@ export function PropertiesMap() {
     const bounds = new window.google.maps.LatLngBounds();
     
     // Add markers for each property
-    properties.forEach((property) => {
+    filteredProperties.forEach((property) => {
       if (!property.latitude || !property.longitude) return;
 
       const position = { lat: Number(property.latitude), lng: Number(property.longitude) };
@@ -147,15 +157,15 @@ export function PropertiesMap() {
     });
 
     // Fit map to show all markers with padding
-    if (properties.length > 1) {
+    if (filteredProperties.length > 1) {
       newMap.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
-    } else if (properties.length === 1) {
+    } else if (filteredProperties.length === 1) {
       newMap.setCenter(bounds.getCenter());
       newMap.setZoom(12);
     }
 
     setMap(newMap);
-  }, [mapsLoaded, properties, navigate]);
+  }, [mapsLoaded, filteredProperties, navigate]);
 
   if (loading) {
     return (
