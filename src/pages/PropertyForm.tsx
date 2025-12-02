@@ -390,8 +390,8 @@ export default function PropertyForm() {
       url: "",
       selected: true,
       numRooms: 1,
-      nightsbridgeRoomType: "",
-      nightsbridgeRoomId: "",
+      pmsRoomType: "",
+      pmsRoomId: "",
       description: "",
       extraPersonPolicy: "",
       bedConfiguration: "king-twin",
@@ -419,8 +419,8 @@ export default function PropertyForm() {
       url: "",
       selected: false,
       numRooms: 1,
-      nightsbridgeRoomType: "",
-      nightsbridgeRoomId: "",
+      pmsRoomType: "",
+      pmsRoomId: "",
       description: "",
       extraPersonPolicy: "",
       bedConfiguration: "king-twin",
@@ -4064,22 +4064,34 @@ export default function PropertyForm() {
                         </p>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>NightsBridge Room Type</Label>
-                          <Input 
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.nightsbridgeRoomType || ""}
-                            onChange={(e) => updateRoomTypeField(selectedRoomType, "nightsbridgeRoomType", e.target.value)}
-                          />
+                      {selectedPMS && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>{selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} Room Type</Label>
+                            <Input 
+                              value={roomTypes.find((r) => r.id === selectedRoomType)?.pmsRoomType || ""}
+                              onChange={(e) => updateRoomTypeField(selectedRoomType, "pmsRoomType", e.target.value)}
+                              placeholder={`Enter ${selectedPMS} room type name`}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>{selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} Room ID</Label>
+                            <Input 
+                              value={roomTypes.find((r) => r.id === selectedRoomType)?.pmsRoomId || ""}
+                              onChange={(e) => updateRoomTypeField(selectedRoomType, "pmsRoomId", e.target.value)}
+                              placeholder={`Enter ${selectedPMS} room ID`}
+                            />
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <Label>NightsBridge Room ID</Label>
-                          <Input 
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.nightsbridgeRoomId || ""}
-                            onChange={(e) => updateRoomTypeField(selectedRoomType, "nightsbridgeRoomId", e.target.value)}
-                          />
+                      )}
+
+                      {!selectedPMS && (
+                        <div className="bg-muted/50 border border-border rounded-md p-3">
+                          <p className="text-sm text-muted-foreground">
+                            No PMS connected. Select a PMS system in the General tab to enable room mapping fields.
+                          </p>
                         </div>
-                      </div>
+                      )}
 
                       <div className="space-y-2">
                         <Label>Room Type Description</Label>
