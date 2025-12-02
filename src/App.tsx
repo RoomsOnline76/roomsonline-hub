@@ -18,6 +18,7 @@ import AdminKeys from "./pages/AdminKeys";
 import AdminUsers from "./pages/AdminUsers";
 import PropertyForm from "./pages/PropertyForm";
 import BensonConfig from "./pages/BensonConfig";
+import PropertyShowcase from "./pages/PropertyShowcase";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -154,6 +155,7 @@ const App = () => (
               </ProtectedRoute>
             }
           />
+          <Route path="/property/:id" element={<PropertyShowcase />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
