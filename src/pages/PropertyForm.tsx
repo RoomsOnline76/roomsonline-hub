@@ -187,6 +187,7 @@ export default function PropertyForm() {
       setIsEvent(false);
       setIsConference(false);
     }
+    setIsDirty(true);
   };
 
   // Handle event checkbox - if checked, venues must be checked
@@ -200,6 +201,7 @@ export default function PropertyForm() {
         setIsVenues(false);
       }
     }
+    setIsDirty(true);
   };
 
   // Handle conference checkbox - if checked, venues must be checked
@@ -213,6 +215,7 @@ export default function PropertyForm() {
         setIsVenues(false);
       }
     }
+    setIsDirty(true);
   };
 
   // Property source (PMS system)
@@ -379,19 +382,35 @@ export default function PropertyForm() {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
-  // Room types state
+  // Room types state with full data structure
   const [roomTypes, setRoomTypes] = useState<any[]>([
     {
       id: "1",
       name: "Holiday House",
-      url: "https://next.roomsonlinehub.com/property/c0b07393-6603-4ecf-9ceb-c0124272e9df/main/accommodation?sourceprop=c0b07393-6603-4ecf-9ceb-c0124272e9df",
+      url: "",
       selected: true,
+      numRooms: 1,
+      nightsbridgeRoomType: "",
+      nightsbridgeRoomId: "",
+      description: "",
+      extraPersonPolicy: "",
+      bedConfiguration: "king-twin",
+      roomSize: 0,
+      bathrooms: 1,
+      maxPeople: 2,
+      maxAdults: 2,
+      maxChildren: 0,
+      minStay: 1,
+      maxStay: 0,
+      rateType: "per-unit",
+      splitPercent: 0,
+      images: [] as string[],
+      facilities: [] as string[],
+      amenities: [] as string[],
     },
-    { id: "2", name: "One Bedroom Suite", url: "", selected: false },
-    { id: "3", name: "Petite Hotel Room", url: "", selected: false },
-    { id: "4", name: "Two Bedroom Suite", url: "", selected: false },
   ]);
   const [selectedRoomType, setSelectedRoomType] = useState<string>("1");
+  const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
 
   const addRoomType = () => {
     const newRoom = {
@@ -399,9 +418,28 @@ export default function PropertyForm() {
       name: "New Room Type",
       url: "",
       selected: false,
+      numRooms: 1,
+      nightsbridgeRoomType: "",
+      nightsbridgeRoomId: "",
+      description: "",
+      extraPersonPolicy: "",
+      bedConfiguration: "king-twin",
+      roomSize: 0,
+      bathrooms: 1,
+      maxPeople: 2,
+      maxAdults: 2,
+      maxChildren: 0,
+      minStay: 1,
+      maxStay: 0,
+      rateType: "per-unit",
+      splitPercent: 0,
+      images: [] as string[],
+      facilities: [] as string[],
+      amenities: [] as string[],
     };
     setRoomTypes([...roomTypes, newRoom]);
     setSelectedRoomType(newRoom.id);
+    setIsDirty(true);
   };
 
   const deleteRoomType = (id: string) => {
@@ -410,14 +448,70 @@ export default function PropertyForm() {
     if (selectedRoomType === id && filtered.length > 0) {
       setSelectedRoomType(filtered[0].id);
     }
+    setIsDirty(true);
   };
 
   const updateRoomTypeName = (id: string, name: string) => {
     setRoomTypes(roomTypes.map((r) => (r.id === id ? { ...r, name } : r)));
+    setIsDirty(true);
   };
 
   const updateRoomTypeUrl = (id: string, url: string) => {
     setRoomTypes(roomTypes.map((r) => (r.id === id ? { ...r, url } : r)));
+    setIsDirty(true);
+  };
+
+  const updateRoomTypeField = (id: string, field: string, value: any) => {
+    setRoomTypes(roomTypes.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+    setIsDirty(true);
+  };
+
+  const handleRoomImageUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    
+    setIsRoomImageUploading(true);
+    const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
+    const existingImages = currentRoom?.images || [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith("image/")) continue;
+
+      try {
+        const fileExt = file.name.split(".").pop();
+        const fileName = `room-${selectedRoomType}-${Date.now()}-${i}.${fileExt}`;
+        const filePath = `rooms/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage.from("property-images").upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage.from("property-images").getPublicUrl(filePath);
+
+        existingImages.push(publicUrl);
+      } catch (error) {
+        toast({
+          title: "Upload failed",
+          description: "Failed to upload room image",
+          variant: "destructive",
+        });
+      }
+    }
+
+    setRoomTypes(roomTypes.map((r) => 
+      r.id === selectedRoomType ? { ...r, images: existingImages } : r
+    ));
+    setIsDirty(true);
+    setIsRoomImageUploading(false);
+  };
+
+  const removeRoomImage = (imageUrl: string) => {
+    const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
+    const updatedImages = (currentRoom?.images || []).filter((img: string) => img !== imageUrl);
+    setRoomTypes(roomTypes.map((r) => 
+      r.id === selectedRoomType ? { ...r, images: updatedImages } : r
+    ));
+    setIsDirty(true);
   };
 
   const copyRoomUrl = (url: string) => {
@@ -572,6 +666,7 @@ export default function PropertyForm() {
       saturday: false,
     });
     setAddonImages([]);
+    setIsDirty(true);
     toast({
       title: "Addon Added",
       description: "The addon has been added successfully",
@@ -580,6 +675,7 @@ export default function PropertyForm() {
 
   const deleteAddon = (id: string) => {
     setAddons(addons.filter((a) => a.id !== id));
+    setIsDirty(true);
     toast({
       title: "Addon Deleted",
       description: "The addon has been removed",
@@ -667,6 +763,7 @@ export default function PropertyForm() {
       isPublic: false,
       images: [],
     });
+    setIsDirty(true);
     toast({
       title: "Package created",
       description: "The package has been created successfully.",
@@ -678,6 +775,7 @@ export default function PropertyForm() {
     if (selectedPackage?.id === id) {
       setSelectedPackage(null);
     }
+    setIsDirty(true);
     toast({
       title: "Package deleted",
       description: "The package has been removed successfully.",
@@ -1065,20 +1163,24 @@ export default function PropertyForm() {
     setSelectedFacilities((prev) =>
       prev.includes(facility) ? prev.filter((f) => f !== facility) : [...prev, facility],
     );
+    setIsDirty(true);
   };
 
   const addCancellationPolicy = () => {
     setCancellationPolicies([...cancellationPolicies, { forfeit: "", type: "% of Total", days: "" }]);
+    setIsDirty(true);
   };
 
   const removeCancellationPolicy = (index: number) => {
     setCancellationPolicies(cancellationPolicies.filter((_, i) => i !== index));
+    setIsDirty(true);
   };
 
   const updateCancellationPolicy = (index: number, field: string, value: string) => {
     const updated = [...cancellationPolicies];
     updated[index] = { ...updated[index], [field]: value };
     setCancellationPolicies(updated);
+    setIsDirty(true);
   };
 
   const handleImageUpload = async (files: FileList | null) => {
@@ -1416,7 +1518,10 @@ export default function PropertyForm() {
                         <Checkbox
                           id="accommodation"
                           checked={isAccommodation}
-                          onCheckedChange={(checked) => setIsAccommodation(checked as boolean)}
+                          onCheckedChange={(checked) => {
+                            setIsAccommodation(checked as boolean);
+                            setIsDirty(true);
+                          }}
                         />
                         <Label htmlFor="accommodation" className="cursor-pointer">
                           Accommodation
@@ -3924,7 +4029,11 @@ export default function PropertyForm() {
                         </div>
                         <div className="space-y-2">
                           <Label># of rooms for this type*</Label>
-                          <Input type="number" defaultValue="9" />
+                          <Input 
+                            type="number" 
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.numRooms || 1}
+                            onChange={(e) => updateRoomTypeField(selectedRoomType, "numRooms", parseInt(e.target.value) || 1)}
+                          />
                         </div>
                       </div>
 
@@ -3958,11 +4067,17 @@ export default function PropertyForm() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>NightsBridge Room Type</Label>
-                          <Input />
+                          <Input 
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.nightsbridgeRoomType || ""}
+                            onChange={(e) => updateRoomTypeField(selectedRoomType, "nightsbridgeRoomType", e.target.value)}
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>NightsBridge Room ID</Label>
-                          <Input defaultValue="4" />
+                          <Input 
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.nightsbridgeRoomId || ""}
+                            onChange={(e) => updateRoomTypeField(selectedRoomType, "nightsbridgeRoomId", e.target.value)}
+                          />
                         </div>
                       </div>
 
@@ -3970,19 +4085,27 @@ export default function PropertyForm() {
                         <Label>Room Type Description</Label>
                         <Textarea
                           rows={4}
-                          defaultValue="Each holiday house comprises 2 bedrooms upstairs, each with an en-suite bathroom. Each home has a spacious living area downstairs, a fully equipped kitchen with a washing machine, and a private patio."
+                          value={roomTypes.find((r) => r.id === selectedRoomType)?.description || ""}
+                          onChange={(e) => updateRoomTypeField(selectedRoomType, "description", e.target.value)}
                         />
                       </div>
 
                       <div className="space-y-2">
                         <Label>Extra Person Policy</Label>
-                        <Textarea rows={2} />
+                        <Textarea 
+                          rows={2} 
+                          value={roomTypes.find((r) => r.id === selectedRoomType)?.extraPersonPolicy || ""}
+                          onChange={(e) => updateRoomTypeField(selectedRoomType, "extraPersonPolicy", e.target.value)}
+                        />
                       </div>
 
                       <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>Bed Configuration</Label>
-                          <Select defaultValue="king-twin">
+                          <Select 
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.bedConfiguration || "king-twin"}
+                            onValueChange={(value) => updateRoomTypeField(selectedRoomType, "bedConfiguration", value)}
+                          >
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
@@ -3991,42 +4114,72 @@ export default function PropertyForm() {
                               <SelectItem value="king">King</SelectItem>
                               <SelectItem value="twin">Twin</SelectItem>
                               <SelectItem value="queen">Queen</SelectItem>
+                              <SelectItem value="double">Double</SelectItem>
+                              <SelectItem value="single">Single</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-2">
                           <Label>Room Size (m²)*</Label>
-                          <Input type="number" defaultValue="130" />
+                          <Input 
+                            type="number" 
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.roomSize || 0}
+                            onChange={(e) => updateRoomTypeField(selectedRoomType, "roomSize", parseInt(e.target.value) || 0)}
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>Bathrooms*</Label>
-                          <Input type="number" defaultValue="0" />
+                          <Input 
+                            type="number" 
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.bathrooms || 1}
+                            onChange={(e) => updateRoomTypeField(selectedRoomType, "bathrooms", parseInt(e.target.value) || 0)}
+                          />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>Max people per Room*</Label>
-                          <Input type="number" defaultValue="4" />
+                          <Input 
+                            type="number" 
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.maxPeople || 2}
+                            onChange={(e) => updateRoomTypeField(selectedRoomType, "maxPeople", parseInt(e.target.value) || 1)}
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>Max adult*</Label>
-                          <Input type="number" defaultValue="4" />
+                          <Input 
+                            type="number" 
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.maxAdults || 2}
+                            onChange={(e) => updateRoomTypeField(selectedRoomType, "maxAdults", parseInt(e.target.value) || 1)}
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>Max children*</Label>
-                          <Input type="number" defaultValue="0" />
+                          <Input 
+                            type="number" 
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.maxChildren || 0}
+                            onChange={(e) => updateRoomTypeField(selectedRoomType, "maxChildren", parseInt(e.target.value) || 0)}
+                          />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Min Stay*</Label>
-                          <Input type="number" defaultValue="5" />
+                          <Input 
+                            type="number" 
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.minStay || 1}
+                            onChange={(e) => updateRoomTypeField(selectedRoomType, "minStay", parseInt(e.target.value) || 1)}
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>Max Stay*</Label>
-                          <Input type="number" defaultValue="0" />
+                          <Input 
+                            type="number" 
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.maxStay || 0}
+                            onChange={(e) => updateRoomTypeField(selectedRoomType, "maxStay", parseInt(e.target.value) || 0)}
+                          />
                         </div>
                       </div>
 
@@ -4041,7 +4194,10 @@ export default function PropertyForm() {
                         <h3 className="font-semibold">Rate Info</h3>
                         <div className="space-y-2">
                           <Label>Rate Type</Label>
-                          <Select defaultValue="per-unit">
+                          <Select 
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.rateType || "per-unit"}
+                            onValueChange={(value) => updateRoomTypeField(selectedRoomType, "rateType", value)}
+                          >
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
@@ -4248,17 +4404,49 @@ export default function PropertyForm() {
                       <h3 className="font-semibold text-lg mb-4">ROOM TYPE IMAGES</h3>
                       <div className="grid grid-cols-6 gap-4">
                         {/* Upload slot */}
-                        <div className="aspect-video border-2 border-dashed border-primary/50 rounded-lg flex flex-col items-center justify-center bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors">
-                          <Upload className="h-8 w-8 text-primary mb-2" />
+                        <div 
+                          className="aspect-video border-2 border-dashed border-primary/50 rounded-lg flex flex-col items-center justify-center bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors"
+                          onClick={() => document.getElementById("room-image-upload")?.click()}
+                        >
+                          {isRoomImageUploading ? (
+                            <RefreshCw className="h-8 w-8 text-primary mb-2 animate-spin" />
+                          ) : (
+                            <Upload className="h-8 w-8 text-primary mb-2" />
+                          )}
                           <p className="text-xs text-center text-muted-foreground px-2">
-                            Click or Drag and drop image to upload
+                            {isRoomImageUploading ? "Uploading..." : "Click or Drag and drop image to upload"}
                           </p>
+                          <input
+                            id="room-image-upload"
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            onChange={(e) => handleRoomImageUpload(e.target.files)}
+                          />
                         </div>
 
-                        {/* Placeholder empty slots */}
-                        {Array.from({ length: 11 }).map((_, i) => (
+                        {/* Uploaded room images */}
+                        {(roomTypes.find((r) => r.id === selectedRoomType)?.images || []).map((imageUrl: string, index: number) => (
                           <div
-                            key={i}
+                            key={index}
+                            className="relative aspect-video rounded-lg overflow-hidden border border-border group"
+                          >
+                            <img src={imageUrl} alt={`Room ${index + 1}`} className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => removeRoomImage(imageUrl)}
+                              className="absolute top-2 right-2 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="h-4 w-4 text-white" />
+                            </button>
+                          </div>
+                        ))}
+
+                        {/* Placeholder empty slots */}
+                        {Array.from({ length: Math.max(0, 11 - (roomTypes.find((r) => r.id === selectedRoomType)?.images?.length || 0)) }).map((_, i) => (
+                          <div
+                            key={`empty-${i}`}
                             className="aspect-video border-2 border-dashed border-border rounded-lg bg-muted/20"
                           ></div>
                         ))}
@@ -4269,7 +4457,12 @@ export default function PropertyForm() {
                     <TabsContent value="agreement" className="p-6 space-y-4">
                       <div className="space-y-2">
                         <Label>Split %</Label>
-                        <Input type="number" defaultValue="0" className="max-w-xs" />
+                        <Input 
+                          type="number" 
+                          value={roomTypes.find((r) => r.id === selectedRoomType)?.splitPercent || 0}
+                          onChange={(e) => updateRoomTypeField(selectedRoomType, "splitPercent", parseFloat(e.target.value) || 0)}
+                          className="max-w-xs" 
+                        />
                       </div>
 
                       <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
