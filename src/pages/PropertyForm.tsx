@@ -168,6 +168,8 @@ export default function PropertyForm() {
   };
 
   // Load owners list - only users with 'user' role (property owners)
+  const [ownersLoaded, setOwnersLoaded] = useState(false);
+  
   useEffect(() => {
     const loadOwners = async () => {
       // Get user IDs that have the 'user' role (property owners)
@@ -190,6 +192,7 @@ export default function PropertyForm() {
       } else {
         setOwners([]);
       }
+      setOwnersLoaded(true);
     };
     loadOwners();
   }, []);
@@ -1028,11 +1031,11 @@ export default function PropertyForm() {
     fontColor: "#FFFFFF",
   });
 
-  // Load property data if editing
+  // Load property data if editing (wait for owners to load first)
   useEffect(() => {
     const loadProperty = async () => {
-      if (!id) {
-        setIsEditMode(false);
+      if (!id || !ownersLoaded) {
+        if (!id) setIsEditMode(false);
         return;
       }
 
@@ -1209,7 +1212,7 @@ export default function PropertyForm() {
     };
 
     loadProperty();
-  }, [id]);
+  }, [id, ownersLoaded]);
 
   const addAnnouncement = () => {
     const newAnnouncement = {
