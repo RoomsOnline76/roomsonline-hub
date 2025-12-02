@@ -389,6 +389,63 @@ export default function PropertyForm() {
   // Location state
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
+  const [googleMapsLink, setGoogleMapsLink] = useState<string>("");
+
+  // Parse coordinates from Google Maps link
+  const parseGoogleMapsLink = (url: string): { lat: number; lng: number } | null => {
+    try {
+      // Pattern 1: https://www.google.com/maps?q=lat,lng or https://maps.google.com/?q=lat,lng
+      const qMatch = url.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+      if (qMatch) {
+        return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
+      }
+
+      // Pattern 2: https://www.google.com/maps/@lat,lng,zoom
+      const atMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+      if (atMatch) {
+        return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+      }
+
+      // Pattern 3: https://www.google.com/maps/place/.../@lat,lng
+      const placeMatch = url.match(/place\/[^/]+\/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+      if (placeMatch) {
+        return { lat: parseFloat(placeMatch[1]), lng: parseFloat(placeMatch[2]) };
+      }
+
+      // Pattern 4: https://goo.gl/maps/... or short links - these contain ll=lat,lng
+      const llMatch = url.match(/ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+      if (llMatch) {
+        return { lat: parseFloat(llMatch[1]), lng: parseFloat(llMatch[2]) };
+      }
+
+      // Pattern 5: Data parameter !3d(lat)!4d(lng)
+      const dataMatch = url.match(/!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/);
+      if (dataMatch) {
+        return { lat: parseFloat(dataMatch[1]), lng: parseFloat(dataMatch[2]) };
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleGoogleMapsLinkChange = (url: string) => {
+    setGoogleMapsLink(url);
+    setIsDirty(true);
+
+    if (url.trim()) {
+      const coords = parseGoogleMapsLink(url);
+      if (coords) {
+        setLatitude(coords.lat);
+        setLongitude(coords.lng);
+        toast({
+          title: "Location extracted",
+          description: `Coordinates: ${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`,
+        });
+      }
+    }
+  };
 
   // Form data
   const [formData, setFormData] = useState<PropertyFormData>({
@@ -1080,6 +1137,11 @@ export default function PropertyForm() {
           setLatitude(data.latitude ? Number(data.latitude) : null);
           setLongitude(data.longitude ? Number(data.longitude) : null);
 
+          // Load google maps link if available
+          if (amenities?.address_details?.google_maps_link) {
+            setGoogleMapsLink(amenities.address_details.google_maps_link);
+          }
+
           // Load images if available
           if (data.images && Array.isArray(data.images)) {
             setUploadedImages(data.images as string[]);
@@ -1372,6 +1434,7 @@ export default function PropertyForm() {
           address_details: {
             suburb: formData.suburb,
             postal_code: formData.postal_code,
+            google_maps_link: googleMapsLink || null,
           },
           currency: formData.currency,
           banking: {
@@ -1993,6 +2056,27 @@ export default function PropertyForm() {
                             className={cn(getPMSFieldClass("postal_code", selectedPMS), isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed")}
                           />
                         </div>
+                      </div>
+
+                      {/* Google Maps Pin Link - alternative when address is unavailable */}
+                      <div className="space-y-2 pt-4 border-t">
+                        <Label htmlFor="google_maps_link" className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4" />
+                          Google Maps Pin Link
+                          <span className="text-xs text-muted-foreground font-normal">(alternative if no address)</span>
+                        </Label>
+                        <Input
+                          id="google_maps_link"
+                          value={googleMapsLink}
+                          onChange={(e) => handleGoogleMapsLinkChange(e.target.value)}
+                          placeholder="Paste Google Maps link here (e.g., https://maps.google.com/?q=-33.9,18.4)"
+                          className="font-mono text-sm"
+                        />
+                        {googleMapsLink && latitude && longitude && (
+                          <p className="text-xs text-muted-foreground">
+                            Extracted coordinates: {latitude.toFixed(6)}, {longitude.toFixed(6)}
+                          </p>
+                        )}
                       </div>
 
                       <div className="pt-4">
