@@ -1370,7 +1370,7 @@ export default function PropertyForm() {
       });
 
       setIsDirty(false);
-      navigate("/admin");
+      // Stay on current page after save - don't navigate away
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast({
@@ -1441,7 +1441,7 @@ export default function PropertyForm() {
               <p className="text-muted-foreground">Configure property details and settings</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => handleNavigate("/admin")}>
+              <Button variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
                 Cancel
               </Button>
               {isDirty && (
@@ -1982,7 +1982,7 @@ export default function PropertyForm() {
                 </Card>
 
                 <div className="flex justify-end gap-4">
-                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
+                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
                     Cancel
                   </Button>
                   {isDirty && (
@@ -2277,7 +2277,7 @@ export default function PropertyForm() {
 
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-4">
-                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
+                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
                     Cancel
                   </Button>
                   {isDirty && (
@@ -2545,7 +2545,7 @@ export default function PropertyForm() {
                 </Card>
 
                 <div className="flex justify-end gap-4">
-                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
+                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
                     Cancel
                   </Button>
                   {isDirty && (
@@ -2931,7 +2931,7 @@ export default function PropertyForm() {
                 </div>
 
                 <div className="flex justify-end gap-4">
-                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
+                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
                     Cancel
                   </Button>
                   {isDirty && (
@@ -3018,7 +3018,7 @@ export default function PropertyForm() {
               </Card>
 
               <div className="flex justify-end gap-4 mt-6">
-                <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
+                <Button type="button" variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
                   Cancel
                 </Button>
                 {isDirty && (
@@ -3140,7 +3140,7 @@ export default function PropertyForm() {
               </Card>
 
               <div className="flex justify-end gap-4 mt-6">
-                <Button type="button" variant="outline" onClick={() => handleNavigate("/admin")}>
+                <Button type="button" variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
                   Cancel
                 </Button>
                 {isDirty && (
