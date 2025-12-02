@@ -298,7 +298,15 @@ export default function PropertyShowcase() {
                 </h1>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <MapPin className="h-4 w-4" />
-                  <span>{property.address}, {property.city}, {property.country}</span>
+                  <span>
+                    {property.address && property.city ? (
+                      `${property.address}, ${property.city}, ${property.country}`
+                    ) : property.latitude && property.longitude ? (
+                      `GPS: ${property.latitude.toFixed(6)}, ${property.longitude.toFixed(6)}`
+                    ) : (
+                      property.country || 'Location not available'
+                    )}
+                  </span>
                 </div>
               </div>
               <Button 
