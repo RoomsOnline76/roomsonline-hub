@@ -272,6 +272,8 @@ export default function PropertyForm() {
         throw new Error(data.error);
       }
 
+      let hasChanges = false;
+
       // Update room types from PMS
       if (data?.roomTypes && Array.isArray(data.roomTypes)) {
         const pmsRoomTypes = data.roomTypes.map((rt: any) => ({
@@ -283,18 +285,43 @@ export default function PropertyForm() {
           pms_synced: true,
         }));
         
-        // Merge with existing room types (don't overwrite local changes)
-        const existingNames = new Set(roomTypes.map(r => r.name.toLowerCase()));
-        const newRoomTypes = pmsRoomTypes.filter((rt: any) => !existingNames.has(rt.name.toLowerCase()));
-        
-        if (newRoomTypes.length > 0) {
-          setRoomTypes([...roomTypes, ...newRoomTypes]);
-          setIsDirty(true);
+        // Merge with existing room types - update existing or add new
+        const updatedRoomTypes = [...roomTypes];
+        let newCount = 0;
+        let updatedCount = 0;
+
+        pmsRoomTypes.forEach((pmsRoom: any) => {
+          const existingIndex = updatedRoomTypes.findIndex(
+            r => r.pms_id === pmsRoom.pms_id || r.name.toLowerCase() === pmsRoom.name.toLowerCase()
+          );
+          
+          if (existingIndex >= 0) {
+            // Update existing room - preserve local edits but mark as synced
+            const existing = updatedRoomTypes[existingIndex];
+            if (existing.name !== pmsRoom.name) {
+              updatedRoomTypes[existingIndex] = {
+                ...existing,
+                name: pmsRoom.name,
+                pms_id: pmsRoom.pms_id,
+                pms_synced: true,
+              };
+              updatedCount++;
+            }
+          } else {
+            // Add new room type
+            updatedRoomTypes.push(pmsRoom);
+            newCount++;
+          }
+        });
+
+        if (newCount > 0 || updatedCount > 0) {
+          setRoomTypes(updatedRoomTypes);
+          hasChanges = true;
         }
 
         toast({
           title: "Room Types Synced",
-          description: `Found ${data.roomTypes.length} room types from Benson. ${newRoomTypes.length} new types added.`,
+          description: `Found ${data.roomTypes.length} room types. ${newCount} new, ${updatedCount} updated.`,
         });
       }
 
@@ -303,6 +330,16 @@ export default function PropertyForm() {
         toast({
           title: "Rate Types Found",
           description: `Found ${data.rateTypes.length} rate types from Benson.`,
+        });
+      }
+
+      // Trigger dirty state if any changes were made
+      if (hasChanges) {
+        setIsDirty(true);
+        toast({
+          title: "Changes Detected",
+          description: "PMS data has been updated. Save to persist changes.",
+          variant: "default",
         });
       }
 
