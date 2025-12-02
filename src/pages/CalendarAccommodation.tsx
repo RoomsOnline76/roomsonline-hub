@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,7 +21,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ChevronLeft, ChevronRight, ChevronDown, RefreshCw, ChevronsLeft, ChevronsRight, Building2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, RefreshCw, ChevronsLeft, ChevronsRight, Building2, AlertCircle, Loader2, Cloud, CloudOff } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { BulkRateRuleDialog } from "@/components/BulkRateRuleDialog";
 import { BulkAvailabilityRuleDialog } from "@/components/BulkAvailabilityRuleDialog";
@@ -30,13 +30,39 @@ import { BulkMinimumStayDialog } from "@/components/BulkMinimumStayDialog";
 import { BulkMaximumStayDialog } from "@/components/BulkMaximumStayDialog";
 import { BulkLeadDaysAdvanceDialog } from "@/components/BulkLeadDaysAdvanceDialog";
 import { BulkLeadDaysPostDialog } from "@/components/BulkLeadDaysPostDialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { format } from "date-fns";
 
 interface Property {
   id: string;
   name: string;
   amenities: any;
   owner_email: string | null;
+  external_system: string | null;
+  benson_property_code: string | null;
 }
+
+interface PMSAvailabilityData {
+  date: string;
+  roomTypeId: string;
+  roomTypeName: string;
+  availableUnits: number;
+  rates: {
+    rateTypeId: string;
+    rateTypeName: string;
+    amount: number;
+    mealType?: string;
+  }[];
+  restrictions: {
+    minStay?: number;
+    maxStay?: number;
+    closedToArrival?: boolean;
+    closedToDeparture?: boolean;
+    stopSell?: boolean;
+  };
+}
+
+type PMSSyncStatus = "idle" | "loading" | "success" | "error" | "not_configured" | "no_property_code";
 
 const displayOptions = [
   { id: "stop_sell", label: "Stop Sell", color: "bg-red-500" },
@@ -162,10 +188,18 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
   const [selectedMealTypes, setSelectedMealTypes] = useState<string[]>([]);
 
+  // PMS sync state
+  const [pmsAvailability, setPmsAvailability] = useState<PMSAvailabilityData[]>([]);
+  const [pmsSyncStatus, setPmsSyncStatus] = useState<PMSSyncStatus>("idle");
+  const [pmsSyncError, setPmsSyncError] = useState<string>("");
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+
   const selectedPropertyData = properties.find(p => p.id === selectedProperty);
   const hasAccommodation = selectedPropertyData?.amenities?.offerings?.accommodation === true;
   const hasEventWedding = selectedPropertyData?.amenities?.offerings?.event_wedding === true;
   const hasConference = selectedPropertyData?.amenities?.offerings?.conference === true;
+  const isBensonProperty = selectedPropertyData?.external_system === "benson";
+  const hasBensonPropertyCode = !!selectedPropertyData?.benson_property_code;
 
   // Get meal types from property amenities
   const mealTypeOptions = React.useMemo(() => {
@@ -201,6 +235,98 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       setSelectedMealTypes(mealTypeOptions.map(m => m.id));
     }
   }, [mealTypeOptions.length]);
+
+  // Fetch Benson availability when property or date changes
+  const fetchBensonAvailability = useCallback(async () => {
+    if (!selectedPropertyData || !isBensonProperty) {
+      setPmsSyncStatus("idle");
+      return;
+    }
+
+    if (!hasBensonPropertyCode) {
+      setPmsSyncStatus("no_property_code");
+      setPmsSyncError("No Benson property code configured for this property");
+      return;
+    }
+
+    setPmsSyncStatus("loading");
+    setPmsSyncError("");
+
+    try {
+      // Calculate date range based on current view
+      const startDate = new Date(currentDate);
+      if (viewMode === "month") {
+        startDate.setDate(1);
+      } else {
+        const day = startDate.getDay();
+        const diff = day === 6 ? 0 : -(day + 1);
+        startDate.setDate(startDate.getDate() + diff);
+      }
+
+      const endDate = new Date(startDate);
+      if (viewMode === "month") {
+        endDate.setMonth(endDate.getMonth() + 1);
+        endDate.setDate(0);
+      } else {
+        endDate.setDate(endDate.getDate() + 8);
+      }
+
+      const { data, error } = await supabase.functions.invoke("benson-api", {
+        body: {
+          action: "fetch_availability",
+          propertyCode: selectedPropertyData.benson_property_code,
+          startDate: format(startDate, "yyyy-MM-dd"),
+          endDate: format(endDate, "yyyy-MM-dd"),
+          propertyId: selectedPropertyData.id,
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message || "Failed to fetch availability");
+      }
+
+      if (data?.error) {
+        if (data.error.includes("credentials") || data.error.includes("not configured")) {
+          setPmsSyncStatus("not_configured");
+          setPmsSyncError("Benson API credentials not configured. Please configure them in Admin > API Keys.");
+        } else {
+          setPmsSyncStatus("error");
+          setPmsSyncError(data.error);
+        }
+        return;
+      }
+
+      // Transform data for calendar display
+      const availabilityData: PMSAvailabilityData[] = data?.availability || [];
+      setPmsAvailability(availabilityData);
+      setPmsSyncStatus("success");
+      setLastSyncTime(new Date());
+
+      toast({
+        title: "Availability Synced",
+        description: `Successfully fetched availability from Benson`,
+      });
+    } catch (err: any) {
+      console.error("Error fetching Benson availability:", err);
+      setPmsSyncStatus("error");
+      setPmsSyncError(err.message || "Failed to fetch availability from Benson");
+      toast({
+        title: "Sync Failed",
+        description: err.message || "Failed to fetch availability",
+        variant: "destructive",
+      });
+    }
+  }, [selectedPropertyData, isBensonProperty, hasBensonPropertyCode, currentDate, viewMode, toast]);
+
+  // Trigger PMS sync when property or date changes
+  useEffect(() => {
+    if (selectedProperty && isBensonProperty) {
+      fetchBensonAvailability();
+    } else {
+      setPmsSyncStatus("idle");
+      setPmsAvailability([]);
+    }
+  }, [selectedProperty, currentDate, viewMode, isBensonProperty]);
 
   const checkUserRoleAndFetchProperties = async () => {
     try {
@@ -245,7 +371,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     try {
       let query = supabase
         .from("properties")
-        .select("id, name, amenities, owner_email")
+        .select("id, name, amenities, owner_email, external_system, benson_property_code")
         .eq("is_active", true);
 
       if (!adminStatus && email) {
@@ -476,11 +602,73 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
               <span className="text-sm text-muted-foreground">Currently managing:</span>
               <h2 className="text-lg font-semibold text-primary">{selectedPropertyData.name}</h2>
             </div>
-            <div className="ml-auto flex gap-2">
+            <div className="ml-auto flex gap-2 items-center">
+              {isBensonProperty && (
+                <div className="flex items-center gap-2">
+                  {pmsSyncStatus === "loading" && (
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Syncing...
+                    </Badge>
+                  )}
+                  {pmsSyncStatus === "success" && (
+                    <Badge variant="default" className="flex items-center gap-1 bg-green-600">
+                      <Cloud className="h-3 w-3" />
+                      Benson Connected
+                    </Badge>
+                  )}
+                  {pmsSyncStatus === "not_configured" && (
+                    <Badge variant="destructive" className="flex items-center gap-1">
+                      <CloudOff className="h-3 w-3" />
+                      Benson Not Configured
+                    </Badge>
+                  )}
+                  {pmsSyncStatus === "no_property_code" && (
+                    <Badge variant="outline" className="flex items-center gap-1 border-yellow-500 text-yellow-600">
+                      <AlertCircle className="h-3 w-3" />
+                      No Property Code
+                    </Badge>
+                  )}
+                  {pmsSyncStatus === "error" && (
+                    <Badge variant="destructive" className="flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Sync Error
+                    </Badge>
+                  )}
+                </div>
+              )}
               <Badge variant="default">Accommodation</Badge>
               {hasEventWedding && <Badge variant="outline">Event/Wedding</Badge>}
               {hasConference && <Badge variant="outline">Conference</Badge>}
             </div>
+          </div>
+        )}
+
+        {/* PMS Status Alert */}
+        {selectedPropertyData && isBensonProperty && pmsSyncStatus === "not_configured" && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Benson API Not Configured</AlertTitle>
+            <AlertDescription>
+              {pmsSyncError || "Please configure Benson API credentials in Admin → API Keys to enable real-time availability sync."}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {selectedPropertyData && isBensonProperty && pmsSyncStatus === "no_property_code" && (
+          <Alert className="mb-4 border-yellow-500">
+            <AlertCircle className="h-4 w-4 text-yellow-600" />
+            <AlertTitle className="text-yellow-600">Missing Property Code</AlertTitle>
+            <AlertDescription>
+              This property is connected to Benson but doesn't have a Property Code configured. Please add it in the property settings.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {selectedPropertyData && isBensonProperty && pmsSyncStatus === "success" && lastSyncTime && (
+          <div className="mb-4 text-sm text-muted-foreground flex items-center gap-2">
+            <Cloud className="h-4 w-4 text-green-600" />
+            Last synced: {lastSyncTime.toLocaleTimeString()}
           </div>
         )}
 
@@ -579,9 +767,22 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 </PopoverContent>
               </Popover>
 
-              <Button variant="default" className="gap-2">
-                <RefreshCw className="h-4 w-4" />
-                Refresh
+              <Button 
+                variant="default" 
+                className="gap-2"
+                onClick={() => {
+                  if (isBensonProperty) {
+                    fetchBensonAvailability();
+                  }
+                }}
+                disabled={pmsSyncStatus === "loading"}
+              >
+                {pmsSyncStatus === "loading" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {isBensonProperty ? "Sync Benson" : "Refresh"}
               </Button>
 
               <div className="ml-auto flex gap-2">
