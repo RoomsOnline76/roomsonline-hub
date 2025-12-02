@@ -139,6 +139,7 @@ export default function PropertyForm() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [owners, setOwners] = useState<any[]>([]);
   const [isDirty, setIsDirty] = useState(false);
+  const [propertySlug, setPropertySlug] = useState<string>("");
 
   // Warn user before leaving with unsaved changes
   useEffect(() => {
@@ -1005,6 +1006,11 @@ export default function PropertyForm() {
           // Set Benson property code
           if (data.benson_property_code) {
             setBensonPropertyCode(data.benson_property_code);
+          }
+
+          // Set property slug for room URLs
+          if (data.slug) {
+            setPropertySlug(data.slug);
           }
 
           // Set location coordinates
@@ -4030,15 +4036,13 @@ export default function PropertyForm() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className={`h-6 w-6 p-0 ${!room.url ? "opacity-40 cursor-not-allowed" : ""}`}
+                          className="h-6 w-6 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (room.url) {
-                              window.open(room.url, "_blank");
-                            }
+                            const roomUrl = `/property/${propertySlug || id}/room/${room.id}`;
+                            window.open(roomUrl, "_blank");
                           }}
-                          disabled={!room.url}
-                          title={room.url ? "View room page" : "No room URL configured"}
+                          title="View room page"
                         >
                           <Home className="h-3 w-3" />
                         </Button>
@@ -4048,7 +4052,12 @@ export default function PropertyForm() {
                           className="h-6 w-6 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
-                            copyRoomUrl(room.url);
+                            const roomUrl = `${window.location.origin}/property/${propertySlug || id}/room/${room.id}`;
+                            navigator.clipboard.writeText(roomUrl);
+                            toast({
+                              title: "Copied",
+                              description: "Room URL copied to clipboard",
+                            });
                           }}
                           title="Copy room URL"
                         >
