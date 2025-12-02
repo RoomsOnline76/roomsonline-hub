@@ -79,10 +79,10 @@ const Home = () => {
           <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/70 to-background" />
         </div>
 
-        <div className="relative z-10 container mx-auto px-4 py-20 md:py-32">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-6xl font-bold text-foreground mb-4">Book Your Perfect Stay</h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+        <div className="relative z-10 container mx-auto px-3 sm:px-4 py-12 sm:py-20 md:py-32">
+          <div className="text-center mb-6 sm:mb-12">
+            <h1 className="text-2xl sm:text-4xl md:text-6xl font-bold text-foreground mb-2 sm:mb-4">Book Your Perfect Stay</h1>
+            <p className="text-sm sm:text-xl text-muted-foreground max-w-2xl mx-auto px-2">
               Search and book from our curated destinations portfolio
             </p>
           </div>
@@ -92,66 +92,70 @@ const Home = () => {
       </section>
 
       {/* Properties Map Section */}
-      <section className="py-12 bg-background">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-8">
-            <h3 className="text-2xl font-bold text-foreground mb-2">Explore Our Properties</h3>
-            <p className="text-muted-foreground">Click on a pin to view property details</p>
+      <section className="py-8 sm:py-12 bg-background">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="text-center mb-4 sm:mb-8">
+            <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-1 sm:mb-2">Explore Our Properties</h2>
+            <p className="text-sm sm:text-base text-muted-foreground">Tap a pin to view details</p>
           </div>
           
-          {/* Property Type Toggles */}
-          <div className="flex flex-wrap justify-center gap-4 mb-6">
-            {PROPERTY_TYPES.map((type) => (
-              <button
-                key={type.key}
-                onClick={() => toggleType(type.key)}
-                className="flex items-center gap-2 cursor-pointer select-none group"
-              >
-                <span
-                  className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
-                    enabledTypes[type.key]
-                      ? `${type.color} border-transparent`
-                      : "bg-transparent border-muted-foreground/50"
-                  }`}
+          {/* Property Type Toggles - Horizontal scroll on mobile */}
+          <div className="overflow-x-auto pb-2 -mx-3 px-3 sm:mx-0 sm:px-0 sm:overflow-visible">
+            <div className="flex sm:flex-wrap sm:justify-center gap-3 sm:gap-4 mb-4 sm:mb-6 min-w-max sm:min-w-0">
+              {PROPERTY_TYPES.map((type) => (
+                <button
+                  key={type.key}
+                  onClick={() => toggleType(type.key)}
+                  className="flex items-center gap-1.5 sm:gap-2 cursor-pointer select-none group touch-manipulation"
                 >
-                  {enabledTypes[type.key] && (
-                    <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                </span>
-                <span className={`text-sm font-medium transition-colors ${
-                  enabledTypes[type.key] ? "text-foreground" : "text-muted-foreground"
-                }`}>
-                  {type.label}
-                </span>
-              </button>
-            ))}
+                  <span
+                    className={`w-5 h-5 sm:w-4 sm:h-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                      enabledTypes[type.key]
+                        ? `${type.color} border-transparent`
+                        : "bg-transparent border-muted-foreground/50"
+                    }`}
+                  >
+                    {enabledTypes[type.key] && (
+                      <svg className="w-3 h-3 sm:w-2.5 sm:h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className={`text-xs sm:text-sm font-medium whitespace-nowrap transition-colors ${
+                    enabledTypes[type.key] ? "text-foreground" : "text-muted-foreground"
+                  }`}>
+                    {type.label}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
-          <PropertiesMap enabledTypes={enabledTypes} typeColors={TYPE_COLORS} />
+          <div className="h-[280px] sm:h-[400px]">
+            <PropertiesMap enabledTypes={enabledTypes} typeColors={TYPE_COLORS} />
+          </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section className="py-20 bg-secondary/30">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h3 className="text-3xl font-bold text-foreground mb-4">Why Choose RoomsOnline</h3>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
+      <section className="py-12 sm:py-20 bg-secondary/30">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="text-xl sm:text-3xl font-bold text-foreground mb-2 sm:mb-4">Why Choose RoomsOnline</h2>
+            <p className="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto px-2">
               Our unified booking engine connects you with properties from multiple management systems
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
             {features.map((feature, index) => (
               <Card key={index} className="border-border hover:shadow-[var(--shadow-medium)] transition-shadow">
-                <CardContent className="pt-6">
-                  <div className="h-12 w-12 rounded-lg bg-[var(--hero-gradient)] flex items-center justify-center mb-4">
-                    <feature.icon className="h-6 w-6 text-primary-foreground" />
+                <CardContent className="p-4 sm:pt-6">
+                  <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg bg-[var(--hero-gradient)] flex items-center justify-center mb-3 sm:mb-4">
+                    <feature.icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
                   </div>
-                  <h4 className="font-semibold text-lg mb-2 text-foreground">{feature.title}</h4>
-                  <p className="text-muted-foreground">{feature.description}</p>
+                  <h3 className="font-semibold text-sm sm:text-lg mb-1 sm:mb-2 text-foreground">{feature.title}</h3>
+                  <p className="text-xs sm:text-base text-muted-foreground">{feature.description}</p>
                 </CardContent>
               </Card>
             ))}
@@ -160,9 +164,9 @@ const Home = () => {
       </section>
 
       {/* Stats Section */}
-      <section className="py-20">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+      <section className="py-12 sm:py-20">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8">
             {[
               { number: "36+", label: "Properties" },
               { number: "50K+", label: "Happy Guests" },
@@ -170,8 +174,8 @@ const Home = () => {
               { number: "24/7", label: "Support" },
             ].map((stat, index) => (
               <div key={index} className="text-center">
-                <div className="text-4xl font-bold text-primary mb-2">{stat.number}</div>
-                <div className="text-muted-foreground">{stat.label}</div>
+                <div className="text-2xl sm:text-4xl font-bold text-primary mb-1 sm:mb-2">{stat.number}</div>
+                <div className="text-xs sm:text-base text-muted-foreground">{stat.label}</div>
               </div>
             ))}
           </div>
@@ -179,17 +183,17 @@ const Home = () => {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 border-t border-border">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-muted-foreground">
+      <footer className="py-6 sm:py-8 border-t border-border">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-3 sm:gap-4">
+            <p className="text-xs sm:text-sm text-muted-foreground text-center">
               © {new Date().getFullYear()} RoomsOnline. All rights reserved.
             </p>
-            <div className="flex gap-6">
-              <a href="/privacy-policy" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+            <div className="flex gap-4 sm:gap-6">
+              <a href="/privacy-policy" className="text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors">
                 Privacy Policy
               </a>
-              <a href="/terms-of-service" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+              <a href="/terms-of-service" className="text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors">
                 Terms of Service
               </a>
             </div>

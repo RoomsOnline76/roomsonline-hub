@@ -200,18 +200,18 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
 
   if (loading) {
     return (
-      <div className="w-full h-[400px] rounded-xl border border-border bg-muted flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="w-full h-full rounded-xl border border-border bg-muted flex items-center justify-center">
+        <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (!apiKey) {
     return (
-      <div className="w-full h-[400px] rounded-xl border border-border bg-muted flex items-center justify-center">
+      <div className="w-full h-full rounded-xl border border-border bg-muted flex items-center justify-center">
         <div className="text-center space-y-2">
-          <MapPin className="h-8 w-8 mx-auto text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Map unavailable</p>
+          <MapPin className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-muted-foreground" />
+          <p className="text-xs sm:text-sm text-muted-foreground">Map unavailable</p>
         </div>
       </div>
     );
@@ -219,10 +219,10 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
 
   if (properties.length === 0 && mapsLoaded) {
     return (
-      <div className="w-full h-[400px] rounded-xl border border-border bg-muted flex items-center justify-center">
+      <div className="w-full h-full rounded-xl border border-border bg-muted flex items-center justify-center">
         <div className="text-center space-y-2">
-          <MapPin className="h-8 w-8 mx-auto text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">No properties with locations available</p>
+          <MapPin className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-muted-foreground" />
+          <p className="text-xs sm:text-sm text-muted-foreground px-4">No properties with locations available</p>
         </div>
       </div>
     );
@@ -231,7 +231,7 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
   return (
     <div 
       ref={mapRef} 
-      className="w-full h-[400px] rounded-xl border border-border shadow-lg"
+      className="w-full h-full rounded-xl border border-border shadow-lg"
     />
   );
 }
