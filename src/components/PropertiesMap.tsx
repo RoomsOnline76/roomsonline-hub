@@ -1,7 +1,16 @@
-import { useEffect, useRef, useState, useMemo, Suspense } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { MapPin, Loader2 } from "lucide-react";
+
+// Global callback for Google Maps - iOS requires a real callback function
+declare global {
+  interface Window {
+    initGoogleMaps?: () => void;
+    google?: {
+      maps: typeof google.maps;
+    };
+  }
+}
 
 const isIOS = () => typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
 
@@ -31,28 +40,8 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [mapsLoaded, setMapsLoaded] = useState(false);
+  const [mapError, setMapError] = useState(false);
   const [properties, setProperties] = useState<Property[]>([]);
-  const [showIOSSpinner, setShowIOSSpinner] = useState(false);
-  const navigate = useNavigate();
-
-  // iOS-specific: show spinner if loading takes >1s, and trigger resize
-  useEffect(() => {
-    if (isIOS()) {
-      const spinnerTimer = setTimeout(() => {
-        if (!mapsLoaded) setShowIOSSpinner(true);
-      }, 1000);
-      
-      // Force resize event for iOS
-      const resizeTimer = setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-      }, 500);
-      
-      return () => {
-        clearTimeout(spinnerTimer);
-        clearTimeout(resizeTimer);
-      };
-    }
-  }, [mapsLoaded]);
 
   // Fetch properties with coordinates
   useEffect(() => {
@@ -97,41 +86,78 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
     fetchApiKey();
   }, []);
 
-  // Load Google Maps script
+  // Setup global callback BEFORE loading script - critical for iOS
+  useEffect(() => {
+    window.initGoogleMaps = () => {
+      console.log("Google Maps loaded via callback");
+      setMapsLoaded(true);
+    };
+
+    return () => {
+      delete window.initGoogleMaps;
+    };
+  }, []);
+
+  // Load Google Maps script with real callback (iOS-safe)
   useEffect(() => {
     if (!apiKey || loading) return;
 
-    let intervalId: NodeJS.Timeout | null = null;
-
+    // Already loaded
     if (window.google?.maps) {
       setMapsLoaded(true);
       return;
     }
 
-    // Check if script is already loading
+    // Check if script already exists
     const existingScript = document.querySelector(`script[src*="maps.googleapis.com"]`);
     if (existingScript) {
-      intervalId = setInterval(() => {
+      // Poll for google.maps to be available
+      const intervalId = setInterval(() => {
         if (window.google?.maps) {
           setMapsLoaded(true);
-          if (intervalId) clearInterval(intervalId);
+          clearInterval(intervalId);
         }
       }, 100);
-    } else {
-      const script = document.createElement("script");
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=Function.prototype`;
-      script.async = true;
-      script.onload = () => setMapsLoaded(true);
-      script.onerror = () => console.error("Failed to load Google Maps");
-      document.head.appendChild(script);
+
+      // Timeout after 10s
+      const timeoutId = setTimeout(() => {
+        clearInterval(intervalId);
+        if (!window.google?.maps) {
+          console.error("Google Maps failed to load (timeout)");
+          setMapError(true);
+        }
+      }, 10000);
+
+      return () => {
+        clearInterval(intervalId);
+        clearTimeout(timeoutId);
+      };
     }
 
+    // Create and load script with real callback
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGoogleMaps`;
+    script.async = true;
+    script.onerror = () => {
+      console.error("Failed to load Google Maps script");
+      setMapError(true);
+    };
+    document.head.appendChild(script);
+
+    // Timeout fallback
+    const timeoutId = setTimeout(() => {
+      if (!window.google?.maps) {
+        console.error("Google Maps failed to load (timeout)");
+        setMapError(true);
+      }
+    }, 10000);
+
     return () => {
-      if (intervalId) clearInterval(intervalId);
+      clearTimeout(timeoutId);
     };
   }, [apiKey, loading]);
 
-  // Filter properties based on enabled types - memoized to prevent infinite loops
+  // Filter properties based on enabled types
   const filteredProperties = useMemo(() => {
     if (!enabledTypes) return properties;
     return properties.filter((p) => enabledTypes[p.property_type] !== false);
@@ -141,30 +167,48 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
   useEffect(() => {
     if (!mapRef.current || !mapsLoaded || !window.google?.maps || mapInstanceRef.current) return;
 
-    mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-      center: { lat: -28.4793, lng: 24.6727 },
-      zoom: 5,
-      mapTypeControl: false,
-      streetViewControl: false,
-      fullscreenControl: true,
-      styles: [
-        {
-          featureType: "poi",
-          elementType: "labels",
-          stylers: [{ visibility: "off" }]
-        }
-      ]
-    });
+    try {
+      mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+        center: { lat: -28.4793, lng: 24.6727 },
+        zoom: 5,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: true,
+        styles: [
+          {
+            featureType: "poi",
+            elementType: "labels",
+            stylers: [{ visibility: "off" }]
+          }
+        ]
+      });
 
-    // Trigger resize after mount for Google Maps
-    setTimeout(() => {
-      if (mapInstanceRef.current && window.google?.maps) {
-        window.google.maps.event.trigger(mapInstanceRef.current, 'resize');
+      // Aggressive resize triggers for iOS
+      const triggerResize = () => {
+        if (mapInstanceRef.current && window.google?.maps) {
+          window.google.maps.event.trigger(mapInstanceRef.current, 'resize');
+        }
+      };
+
+      // Multiple resize triggers at different intervals for iOS
+      setTimeout(triggerResize, 100);
+      setTimeout(triggerResize, 300);
+      setTimeout(triggerResize, 500);
+      
+      if (isIOS()) {
+        setTimeout(triggerResize, 1000);
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+          triggerResize();
+        }, 1500);
       }
-    }, 300);
+    } catch (error) {
+      console.error("Error initializing Google Map:", error);
+      setMapError(true);
+    }
   }, [mapsLoaded]);
 
-  // Trigger resize when enabledTypes change (for filtering updates)
+  // Trigger resize when enabledTypes change
   useEffect(() => {
     if (mapInstanceRef.current && window.google?.maps) {
       const timer = setTimeout(() => {
@@ -237,14 +281,32 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
     }
   }, [filteredProperties, typeColors]);
 
-  // Loading state with iOS spinner
-  if (loading || (apiKey && !mapsLoaded)) {
+  // Loading state
+  if (loading || (apiKey && !mapsLoaded && !mapError)) {
     return (
-      <div className="w-full h-full rounded-xl border border-border bg-muted flex items-center justify-center relative">
-        <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-muted-foreground" />
-        {showIOSSpinner && isIOS() && (
-          <p className="absolute bottom-4 text-xs text-muted-foreground">Loading map...</p>
-        )}
+      <div className="w-full h-full rounded-xl border border-border bg-muted flex items-center justify-center">
+        <div className="text-center space-y-2">
+          <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-muted-foreground mx-auto" />
+          <p className="text-xs text-muted-foreground">Loading map...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (mapError) {
+    return (
+      <div className="w-full h-full rounded-xl border border-border bg-muted flex items-center justify-center">
+        <div className="text-center space-y-2">
+          <MapPin className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-muted-foreground" />
+          <p className="text-xs sm:text-sm text-muted-foreground">Map failed to load</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="text-xs text-primary underline"
+          >
+            Refresh page
+          </button>
+        </div>
       </div>
     );
   }
@@ -272,12 +334,10 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
   }
 
   return (
-    <div className="w-full h-full relative">
-      <div 
-        ref={mapRef} 
-        className="map-container w-full h-full rounded-xl border border-border shadow-lg"
-        style={{ height: '100%', minHeight: '280px' }}
-      />
-    </div>
+    <div 
+      ref={mapRef} 
+      className="map-container w-full rounded-xl border border-border shadow-lg"
+      style={{ height: '100%', minHeight: '280px' }}
+    />
   );
 }
