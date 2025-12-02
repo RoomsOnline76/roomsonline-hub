@@ -472,6 +472,7 @@ export type Database = {
           property_type: string
           property_url: string | null
           siteminder_property_code: string | null
+          slug: string | null
           updated_at: string | null
         }
         Insert: {
@@ -500,6 +501,7 @@ export type Database = {
           property_type: string
           property_url?: string | null
           siteminder_property_code?: string | null
+          slug?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -528,6 +530,7 @@ export type Database = {
           property_type?: string
           property_url?: string | null
           siteminder_property_code?: string | null
+          slug?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -718,6 +721,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_property_slug: {
+        Args: { property_id: string; property_name: string }
+        Returns: string
+      }
       get_user_profile: {
         Args: { user_id: string }
         Returns: {

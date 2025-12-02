@@ -18,6 +18,7 @@ import AdminUsers from "./pages/AdminUsers";
 import PropertyForm from "./pages/PropertyForm";
 import BensonConfig from "./pages/BensonConfig";
 import PropertyShowcase from "./pages/PropertyShowcase";
+import Booking from "./pages/Booking";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -32,7 +33,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/results" element={<Results />} />
+          <Route path="/search" element={<Results />} />
+          <Route path="/results" element={<Navigate to="/search" replace />} />
           <Route path="/auth" element={<Auth />} />
           <Route
             path="/admin"
@@ -151,6 +153,7 @@ const App = () => (
             }
           />
           <Route path="/property/:id" element={<PropertyShowcase />} />
+          <Route path="/booking/:id" element={<Booking />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

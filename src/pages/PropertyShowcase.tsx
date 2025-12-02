@@ -91,12 +91,21 @@ export default function PropertyShowcase() {
   const fetchPropertyData = async () => {
     setLoading(true);
     try {
-      // Fetch property
-      const { data: propertyData, error: propertyError } = await supabase
+      // Check if id is a UUID or slug
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || "");
+      
+      // Fetch property by UUID or slug
+      let query = supabase
         .from("properties")
-        .select("*")
-        .eq("id", id)
-        .single();
+        .select("*");
+      
+      if (isUuid) {
+        query = query.eq("id", id);
+      } else {
+        query = query.eq("slug", id);
+      }
+      
+      const { data: propertyData, error: propertyError } = await query.single();
 
       if (propertyError) throw propertyError;
       
@@ -107,11 +116,11 @@ export default function PropertyShowcase() {
       
       setProperty({ ...propertyData, images });
 
-      // Fetch rates for this property
+      // Fetch rates for this property (use the actual property ID, not the slug)
       const { data: ratesData, error: ratesError } = await supabase
         .from("property_rates")
         .select("room_type, rate_type, meal_type, amount, currency")
-        .eq("property_id", id)
+        .eq("property_id", propertyData.id)
         .order("room_type")
         .order("rate_type");
 

@@ -29,7 +29,7 @@ export const SearchForm = () => {
       children: guests.children.toString(),
     });
     
-    navigate(`/results?${searchParams.toString()}`);
+    navigate(`/search?${searchParams.toString()}`);
   };
 
   return (
