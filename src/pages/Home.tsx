@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
@@ -5,7 +6,25 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Shield, Zap, Globe, HeadphonesIcon } from "lucide-react";
 import heroImage from "@/assets/hero-hotel.jpg";
 
+const PROPERTY_TYPES = [
+  { key: "Hotel", color: "bg-red-500" },
+  { key: "Guest House", color: "bg-blue-500" },
+  { key: "B&B", color: "bg-yellow-500" },
+  { key: "Lodge", color: "bg-green-500" },
+  { key: "Resort", color: "bg-purple-500" },
+  { key: "Villa", color: "bg-orange-500" },
+  { key: "Apartment", color: "bg-teal-500" },
+];
+
 const Home = () => {
+  const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(
+    () => PROPERTY_TYPES.reduce((acc, t) => ({ ...acc, [t.key]: true }), {})
+  );
+
+  const toggleType = (key: string) => {
+    setEnabledTypes((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
   const features = [
     {
       icon: Shield,
@@ -65,7 +84,38 @@ const Home = () => {
             <h3 className="text-2xl font-bold text-foreground mb-2">Explore Our Properties</h3>
             <p className="text-muted-foreground">Click on a pin to view property details</p>
           </div>
-          <PropertiesMap />
+          
+          {/* Property Type Toggles */}
+          <div className="flex flex-wrap justify-center gap-4 mb-6">
+            {PROPERTY_TYPES.map((type) => (
+              <button
+                key={type.key}
+                onClick={() => toggleType(type.key)}
+                className="flex items-center gap-2 cursor-pointer select-none group"
+              >
+                <span
+                  className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                    enabledTypes[type.key]
+                      ? `${type.color} border-transparent`
+                      : "bg-transparent border-muted-foreground/50"
+                  }`}
+                >
+                  {enabledTypes[type.key] && (
+                    <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </span>
+                <span className={`text-sm font-medium transition-colors ${
+                  enabledTypes[type.key] ? "text-foreground" : "text-muted-foreground"
+                }`}>
+                  {type.key}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <PropertiesMap enabledTypes={enabledTypes} />
         </div>
       </section>
 
