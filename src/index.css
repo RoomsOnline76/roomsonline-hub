@@ -112,3 +112,14 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* iOS map fixes */
+.map-container {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Fix iOS image scaling bug in maps */
+.map-container img {
+  max-width: none !important;
+}
