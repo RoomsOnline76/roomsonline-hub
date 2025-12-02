@@ -4034,11 +4034,11 @@ export default function PropertyForm() {
                             className="h-6 w-6 p-0"
                             onClick={(e) => {
                               e.stopPropagation();
-                              copyRoomUrl(room.url);
+                              window.open(room.url, "_blank");
                             }}
-                            title="Copy room URL"
+                            title="View room page"
                           >
-                            <Copy className="h-3 w-3" />
+                            <Home className="h-3 w-3" />
                           </Button>
                         )}
                         <Button
@@ -4047,10 +4047,11 @@ export default function PropertyForm() {
                           className="h-6 w-6 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedRoomType(room.id);
+                            copyRoomUrl(room.url);
                           }}
+                          title="Copy room URL"
                         >
-                          <Edit className="h-3 w-3" />
+                          <Copy className="h-3 w-3" />
                         </Button>
                         <Button
                           size="sm"
