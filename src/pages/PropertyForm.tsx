@@ -4027,20 +4027,21 @@ export default function PropertyForm() {
                         )}
                       </span>
                       <div className="flex gap-1">
-                        {room.url && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 w-6 p-0"
-                            onClick={(e) => {
-                              e.stopPropagation();
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className={`h-6 w-6 p-0 ${!room.url ? "opacity-40 cursor-not-allowed" : ""}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (room.url) {
                               window.open(room.url, "_blank");
-                            }}
-                            title="View room page"
-                          >
-                            <Home className="h-3 w-3" />
-                          </Button>
-                        )}
+                            }
+                          }}
+                          disabled={!room.url}
+                          title={room.url ? "View room page" : "No room URL configured"}
+                        >
+                          <Home className="h-3 w-3" />
+                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"
