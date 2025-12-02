@@ -288,15 +288,24 @@ export default function RoomShowcase() {
                   {room.name}
                 </h1>
               </div>
-              {lowestRate !== null && (
-                <div className="text-right">
-                  <div className="text-sm text-muted-foreground">From</div>
-                  <div className="text-3xl font-bold text-primary">
-                    {property.amenities?.currency || 'ZAR'} {lowestRate.toLocaleString()}
-                  </div>
-                  <div className="text-xs text-muted-foreground">per night</div>
-                </div>
-              )}
+              <div className="text-right">
+                {room.rateType && (
+                  <Badge variant="secondary" className="mb-2">
+                    {room.rateType}
+                  </Badge>
+                )}
+                {lowestRate !== null ? (
+                  <>
+                    <div className="text-sm text-muted-foreground">From</div>
+                    <div className="text-3xl font-bold text-primary">
+                      {property.amenities?.currency || 'ZAR'} {lowestRate.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-muted-foreground">per night</div>
+                  </>
+                ) : (
+                  <div className="text-muted-foreground italic">Rates on request</div>
+                )}
+              </div>
             </div>
           </div>
         </div>
