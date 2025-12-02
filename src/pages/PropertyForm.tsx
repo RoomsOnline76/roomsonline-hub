@@ -43,6 +43,7 @@ import {
   Briefcase,
   Layers,
   LucideIcon,
+  Cloud,
 } from "lucide-react";
 import { StarRating } from "@/components/StarRating";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -55,6 +56,8 @@ import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { PropertyMap } from "@/components/PropertyMap";
 import { TagInput } from "@/components/TagInput";
+import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS } from "@/lib/pmsFieldConfig";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Map PMS system types to icons
 const getPMSIcon = (systemType: string): LucideIcon => {
@@ -1700,7 +1703,27 @@ export default function PropertyForm() {
                 {/* Property Section */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Property</CardTitle>
+                    <CardTitle className="flex items-center justify-between">
+                      <span>Property</span>
+                      {selectedPMS && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-2 text-sm font-normal">
+                                <div className="w-4 h-4 rounded bg-primary/10 border border-primary/30" />
+                                <span className="text-muted-foreground">
+                                  <Cloud className="inline h-3 w-3 mr-1" />
+                                  {getPMSDisplayName(selectedPMS)} synced field
+                                </span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Fields with this background are populated by {getPMSDisplayName(selectedPMS)}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1712,6 +1735,7 @@ export default function PropertyForm() {
                           onChange={(e) => handleInputChange("name", e.target.value)}
                           placeholder="Property name"
                           required
+                          className={cn(getPMSFieldClass("name", selectedPMS))}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1811,7 +1835,7 @@ export default function PropertyForm() {
                             value={formData.country}
                             onValueChange={(value) => handleInputChange("country", value)}
                           >
-                            <SelectTrigger id="country">
+                            <SelectTrigger id="country" className={cn(getPMSFieldClass("country", selectedPMS))}>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1830,6 +1854,7 @@ export default function PropertyForm() {
                             onChange={(e) => handleInputChange("city", e.target.value)}
                             placeholder="City name"
                             required
+                            className={cn(getPMSFieldClass("city", selectedPMS))}
                           />
                         </div>
                         <div className="space-y-2">
@@ -1840,6 +1865,7 @@ export default function PropertyForm() {
                             onChange={(e) => handleInputChange("address", e.target.value)}
                             placeholder="Street address"
                             required
+                            className={cn(getPMSFieldClass("address", selectedPMS))}
                           />
                         </div>
                         <div className="space-y-2">
@@ -1858,6 +1884,7 @@ export default function PropertyForm() {
                             value={formData.postal_code}
                             onChange={(e) => handleInputChange("postal_code", e.target.value)}
                             placeholder="Postal code"
+                            className={cn(getPMSFieldClass("postal_code", selectedPMS))}
                           />
                         </div>
                       </div>
@@ -2295,7 +2322,27 @@ export default function PropertyForm() {
                 {/* Property Info */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Property Info</CardTitle>
+                    <CardTitle className="flex items-center justify-between">
+                      <span>Property Info</span>
+                      {selectedPMS && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-2 text-sm font-normal">
+                                <div className="w-4 h-4 rounded bg-primary/10 border border-primary/30" />
+                                <span className="text-muted-foreground">
+                                  <Cloud className="inline h-3 w-3 mr-1" />
+                                  {getPMSDisplayName(selectedPMS)} synced
+                                </span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Fields with this background are populated by {getPMSDisplayName(selectedPMS)}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -2306,13 +2353,15 @@ export default function PropertyForm() {
                         onChange={(e) => handleInputChange("description", e.target.value)}
                         placeholder="Describe your property, its unique features, amenities, and what makes it special..."
                         rows={5}
-                        className="resize-none"
+                        className={cn("resize-none", getPMSFieldClass("description", selectedPMS))}
                       />
                     </div>
 
                     <div className="space-y-2">
                       <Label>Stars</Label>
-                      <StarRating rating={starRating} onRatingChange={setStarRating} />
+                      <div className={cn("inline-block p-2 rounded", getPMSFieldClass("star_rating", selectedPMS))}>
+                        <StarRating rating={starRating} onRatingChange={setStarRating} />
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -2820,6 +2869,7 @@ export default function PropertyForm() {
                               type="time"
                               value={formData.check_in_from}
                               onChange={(e) => handleInputChange("check_in_from", e.target.value)}
+                              className={cn(getPMSFieldClass("check_in_from", selectedPMS))}
                             />
                           </div>
                           <div className="space-y-2">
@@ -2828,6 +2878,7 @@ export default function PropertyForm() {
                               type="time"
                               value={formData.check_in_to}
                               onChange={(e) => handleInputChange("check_in_to", e.target.value)}
+                              className={cn(getPMSFieldClass("check_in_to", selectedPMS))}
                             />
                           </div>
                         </CardContent>
@@ -2845,6 +2896,7 @@ export default function PropertyForm() {
                               type="time"
                               value={formData.check_out_from}
                               onChange={(e) => handleInputChange("check_out_from", e.target.value)}
+                              className={cn(getPMSFieldClass("check_out_from", selectedPMS))}
                             />
                           </div>
                           <div className="space-y-2">
@@ -2853,6 +2905,7 @@ export default function PropertyForm() {
                               type="time"
                               value={formData.check_out_to}
                               onChange={(e) => handleInputChange("check_out_to", e.target.value)}
+                              className={cn(getPMSFieldClass("check_out_to", selectedPMS))}
                             />
                           </div>
                         </CardContent>
@@ -3921,7 +3974,21 @@ export default function PropertyForm() {
                 {/* Left Sidebar - Room Types List */}
                 <div className="w-64 border-r bg-muted/30 p-4 space-y-2">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-sm">ROOM TYPES</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-sm">ROOM TYPES</h3>
+                      {selectedPMS && isFieldPopulatedByPMS("room_types", selectedPMS) && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Cloud className="h-3 w-3 text-primary" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Synced from {getPMSDisplayName(selectedPMS)}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
                     <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={addRoomType}>
                       <Plus className="h-4 w-4" />
                     </Button>
@@ -3929,15 +3996,20 @@ export default function PropertyForm() {
                   {roomTypes.map((room) => (
                     <div
                       key={room.id}
-                      className={`flex items-center justify-between p-3 rounded-md transition-colors ${
-                        selectedRoomType === room.id ? "bg-primary text-primary-foreground" : "hover:bg-muted"
-                      }`}
+                      className={cn(
+                        "flex items-center justify-between p-3 rounded-md transition-colors",
+                        selectedRoomType === room.id ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                        room.pms_synced && selectedRoomType !== room.id ? "bg-primary/5 border border-primary/20" : ""
+                      )}
                     >
                       <span
                         className="text-sm font-medium flex-1 cursor-pointer"
                         onClick={() => setSelectedRoomType(room.id)}
                       >
                         {room.name}
+                        {room.pms_synced && (
+                          <Cloud className="inline h-3 w-3 ml-1 opacity-50" />
+                        )}
                       </span>
                       <div className="flex gap-1">
                         {room.url && (
@@ -4025,6 +4097,11 @@ export default function PropertyForm() {
                           <Input
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.name || ""}
                             onChange={(e) => updateRoomTypeName(selectedRoomType, e.target.value)}
+                            className={cn(
+                              roomTypes.find((r) => r.id === selectedRoomType)?.pms_synced 
+                                ? "bg-primary/5 border-primary/20" 
+                                : ""
+                            )}
                           />
                         </div>
                         <div className="space-y-2">
