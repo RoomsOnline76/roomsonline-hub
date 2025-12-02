@@ -218,9 +218,9 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
     }
   }, [enabledTypes]);
 
-  // Update markers when filtered properties change
+  // Update markers when filtered properties change - depends on mapsLoaded to ensure map exists
   useEffect(() => {
-    if (!mapInstanceRef.current || !window.google?.maps) return;
+    if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps) return;
 
     // Clear existing markers
     markersRef.current.forEach((marker) => marker.setMap(null));
@@ -279,7 +279,7 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
       mapInstanceRef.current.setCenter(bounds.getCenter());
       mapInstanceRef.current.setZoom(12);
     }
-  }, [filteredProperties, typeColors]);
+  }, [mapsLoaded, filteredProperties, typeColors]);
 
   // Loading state
   if (loading || (apiKey && !mapsLoaded && !mapError)) {
