@@ -4326,32 +4326,8 @@ export default function PropertyForm() {
 
                     {/* Facilities Sub-tab */}
                     <TabsContent value="facilities" className="p-6 space-y-4">
-                      <div className="flex items-center gap-4 mb-4">
-                        <Select defaultValue="balcony">
-                          <SelectTrigger className="w-64">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="balcony">Balcony</SelectItem>
-                            <SelectItem value="terrace">Terrace</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <div className="flex items-center gap-2">
-                          <Checkbox id="highlight-all" />
-                          <Label htmlFor="highlight-all" className="cursor-pointer">
-                            Highlight all
-                          </Label>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          Copy
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          Apply
-                        </Button>
-                      </div>
-
                       <div className="bg-blue-50 border border-blue-200 rounded-md p-2 mb-4">
-                        <p className="text-sm text-blue-700">Checked items will be highlighted.</p>
+                        <p className="text-sm text-blue-700">Select the facilities available in this room type.</p>
                       </div>
 
                       <div className="grid grid-cols-6 gap-6">
@@ -4379,11 +4355,20 @@ export default function PropertyForm() {
                             "Wake up call",
                           ].map((item) => (
                             <div key={item} className="flex items-center gap-2">
-                              <Checkbox id={item} />
-                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">
+                              <Checkbox 
+                                id={`facility-${item}`}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentFacilities = roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                  const newFacilities = checked 
+                                    ? [...currentFacilities, item]
+                                    : currentFacilities.filter((f: string) => f !== item);
+                                  updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
+                                }}
+                              />
+                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
                                 {item}
                               </Label>
-                              <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
                             </div>
                           ))}
                         </div>
@@ -4393,11 +4378,20 @@ export default function PropertyForm() {
                           <h4 className="font-semibold text-sm">General</h4>
                           {["Kitchenette", "Hairdryer", "Shower and bath", "Telephone"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
-                              <Checkbox id={item} />
-                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">
+                              <Checkbox 
+                                id={`facility-${item}`}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentFacilities = roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                  const newFacilities = checked 
+                                    ? [...currentFacilities, item]
+                                    : currentFacilities.filter((f: string) => f !== item);
+                                  updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
+                                }}
+                              />
+                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
                                 {item}
                               </Label>
-                              <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
                             </div>
                           ))}
                         </div>
@@ -4407,11 +4401,20 @@ export default function PropertyForm() {
                           <h4 className="font-semibold text-sm">Laundry</h4>
                           {["Airconditioned room", "Iron", "Washing machine"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
-                              <Checkbox id={item} />
-                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">
+                              <Checkbox 
+                                id={`facility-${item}`}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentFacilities = roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                  const newFacilities = checked 
+                                    ? [...currentFacilities, item]
+                                    : currentFacilities.filter((f: string) => f !== item);
+                                  updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
+                                }}
+                              />
+                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
                                 {item}
                               </Label>
-                              <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
                             </div>
                           ))}
                         </div>
@@ -4421,11 +4424,20 @@ export default function PropertyForm() {
                           <h4 className="font-semibold text-sm">Media</h4>
                           {["Flat screen TV"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
-                              <Checkbox id={item} />
-                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">
+                              <Checkbox 
+                                id={`facility-${item}`}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentFacilities = roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                  const newFacilities = checked 
+                                    ? [...currentFacilities, item]
+                                    : currentFacilities.filter((f: string) => f !== item);
+                                  updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
+                                }}
+                              />
+                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
                                 {item}
                               </Label>
-                              <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
                             </div>
                           ))}
                         </div>
@@ -4435,11 +4447,20 @@ export default function PropertyForm() {
                           <h4 className="font-semibold text-sm">Security</h4>
                           {["Safe"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
-                              <Checkbox id={item} />
-                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">
+                              <Checkbox 
+                                id={`facility-${item}`}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentFacilities = roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                  const newFacilities = checked 
+                                    ? [...currentFacilities, item]
+                                    : currentFacilities.filter((f: string) => f !== item);
+                                  updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
+                                }}
+                              />
+                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
                                 {item}
                               </Label>
-                              <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
                             </div>
                           ))}
                         </div>
@@ -4449,11 +4470,20 @@ export default function PropertyForm() {
                           <h4 className="font-semibold text-sm">View</h4>
                           {["Garden view", "Landmark view", "Mountain view", "Pool view", "Terrace"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
-                              <Checkbox id={item} />
-                              <Label htmlFor={item} className="text-sm cursor-pointer flex-1">
+                              <Checkbox 
+                                id={`facility-${item}`}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentFacilities = roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                  const newFacilities = checked 
+                                    ? [...currentFacilities, item]
+                                    : currentFacilities.filter((f: string) => f !== item);
+                                  updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
+                                }}
+                              />
+                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
                                 {item}
                               </Label>
-                              <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
                             </div>
                           ))}
                         </div>
@@ -4462,44 +4492,74 @@ export default function PropertyForm() {
 
                     {/* Amenities Sub-tab */}
                     <TabsContent value="amenities" className="p-6 space-y-4">
-                      <div className="flex items-center gap-4 mb-4">
-                        <Select defaultValue="bathrobe">
-                          <SelectTrigger className="w-64">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="bathrobe">Bathrobe</SelectItem>
-                            <SelectItem value="slippers">Slippers</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <div className="flex items-center gap-2">
-                          <Checkbox id="highlight-all-amenities" />
-                          <Label htmlFor="highlight-all-amenities" className="cursor-pointer">
-                            Highlight all
-                          </Label>
-                        </div>
-                        <Button variant="outline" size="sm">
-                          Copy
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          Apply
-                        </Button>
-                      </div>
-
                       <div className="bg-blue-50 border border-blue-200 rounded-md p-2 mb-4">
-                        <p className="text-sm text-blue-700">Checked items will be highlighted.</p>
+                        <p className="text-sm text-blue-700">Select the amenities available in this room type.</p>
                       </div>
 
-                      <div className="space-y-3">
-                        {["Bathroom amenities", "Hand wash", "Towels"].map((item) => (
-                          <div key={item} className="flex items-center gap-2">
-                            <Checkbox id={item} />
-                            <Label htmlFor={item} className="text-sm cursor-pointer flex-1">
-                              {item}
-                            </Label>
-                            <X className="h-3 w-3 text-muted-foreground cursor-pointer" />
-                          </div>
-                        ))}
+                      <div className="grid grid-cols-3 gap-6">
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">Bathroom</h4>
+                          {["Bathroom amenities", "Hand wash", "Towels", "Bathrobe", "Slippers", "Toiletries"].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox 
+                                id={`amenity-${item}`}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.amenities || []).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentAmenities = roomTypes.find((r) => r.id === selectedRoomType)?.amenities || [];
+                                  const newAmenities = checked 
+                                    ? [...currentAmenities, item]
+                                    : currentAmenities.filter((a: string) => a !== item);
+                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
+                                }}
+                              />
+                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">Bedroom</h4>
+                          {["Extra pillows", "Extra blankets", "Linen", "Blackout curtains", "Reading lamp"].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox 
+                                id={`amenity-${item}`}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.amenities || []).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentAmenities = roomTypes.find((r) => r.id === selectedRoomType)?.amenities || [];
+                                  const newAmenities = checked 
+                                    ? [...currentAmenities, item]
+                                    : currentAmenities.filter((a: string) => a !== item);
+                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
+                                }}
+                              />
+                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">Extras</h4>
+                          {["Welcome pack", "Mini bar", "Bottled water", "Fruit basket", "Snacks"].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox 
+                                id={`amenity-${item}`}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.amenities || []).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentAmenities = roomTypes.find((r) => r.id === selectedRoomType)?.amenities || [];
+                                  const newAmenities = checked 
+                                    ? [...currentAmenities, item]
+                                    : currentAmenities.filter((a: string) => a !== item);
+                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
+                                }}
+                              />
+                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </TabsContent>
 
