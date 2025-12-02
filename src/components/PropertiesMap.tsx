@@ -17,9 +17,12 @@ interface Property {
 
 interface PropertiesMapProps {
   enabledTypes?: Record<string, boolean>;
+  typeColors?: Record<string, string>;
 }
 
-export function PropertiesMap({ enabledTypes }: PropertiesMapProps) {
+const DEFAULT_COLOR = "#e11d48";
+
+export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -133,6 +136,8 @@ export function PropertiesMap({ enabledTypes }: PropertiesMapProps) {
       const position = { lat: Number(property.latitude), lng: Number(property.longitude) };
       bounds.extend(position);
 
+      const markerColor = typeColors?.[property.property_type] || DEFAULT_COLOR;
+
       const marker = new window.google.maps.Marker({
         position,
         map: mapInstanceRef.current,
@@ -140,7 +145,7 @@ export function PropertiesMap({ enabledTypes }: PropertiesMapProps) {
         icon: {
           path: window.google.maps.SymbolPath.CIRCLE,
           scale: 10,
-          fillColor: "#e11d48",
+          fillColor: markerColor,
           fillOpacity: 1,
           strokeColor: "#fff",
           strokeWeight: 2,
@@ -174,7 +179,7 @@ export function PropertiesMap({ enabledTypes }: PropertiesMapProps) {
       mapInstanceRef.current.setCenter(bounds.getCenter());
       mapInstanceRef.current.setZoom(12);
     }
-  }, [filteredProperties]);
+  }, [filteredProperties, typeColors]);
 
   if (loading) {
     return (
