@@ -40,26 +40,40 @@ interface Property {
   owner_email: string | null;
   external_system: string | null;
   benson_property_code: string | null;
+  checkfront_property_code: string | null;
+  siteminder_property_code: string | null;
 }
 
-interface PMSAvailabilityData {
-  date: string;
+interface PMSRoomTypeData {
   roomTypeId: string;
   roomTypeName: string;
-  availableUnits: number;
-  rates: {
-    rateTypeId: string;
-    rateTypeName: string;
-    amount: number;
-    mealType?: string;
-  }[];
-  restrictions: {
-    minStay?: number;
-    maxStay?: number;
-    closedToArrival?: boolean;
-    closedToDeparture?: boolean;
-    stopSell?: boolean;
+  availabilityByDate: { [date: string]: number };
+  ratesByDate: { 
+    [date: string]: { 
+      rateTypeId: string;
+      rateTypeName: string;
+      priceType: string;
+      roomAmount: number;
+      adultAmounts?: { [key: string]: number };
+    }[] 
   };
+  restrictionsByDate: {
+    [date: string]: {
+      minStay?: number;
+      maxStay?: number;
+      closedToArrival?: boolean;
+      closedToDeparture?: boolean;
+      stopSell?: boolean;
+      leadDaysAdvance?: number;
+      leadDaysPost?: number;
+    };
+  };
+}
+
+interface PMSData {
+  roomTypes: PMSRoomTypeData[];
+  lastSynced: Date | null;
+  systemType: string;
 }
 
 type PMSSyncStatus = "idle" | "loading" | "success" | "error" | "not_configured" | "no_property_code";
@@ -189,7 +203,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const [selectedMealTypes, setSelectedMealTypes] = useState<string[]>([]);
 
   // PMS sync state
-  const [pmsAvailability, setPmsAvailability] = useState<PMSAvailabilityData[]>([]);
+  const [pmsData, setPmsData] = useState<PMSData>({ roomTypes: [], lastSynced: null, systemType: "" });
   const [pmsSyncStatus, setPmsSyncStatus] = useState<PMSSyncStatus>("idle");
   const [pmsSyncError, setPmsSyncError] = useState<string>("");
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
@@ -198,8 +212,6 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const hasAccommodation = selectedPropertyData?.amenities?.offerings?.accommodation === true;
   const hasEventWedding = selectedPropertyData?.amenities?.offerings?.event_wedding === true;
   const hasConference = selectedPropertyData?.amenities?.offerings?.conference === true;
-  const isBensonProperty = selectedPropertyData?.external_system === "benson";
-  const hasBensonPropertyCode = !!selectedPropertyData?.benson_property_code;
 
   // Get meal types from property amenities
   const mealTypeOptions = React.useMemo(() => {
@@ -236,16 +248,31 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     }
   }, [mealTypeOptions.length]);
 
-  // Fetch Benson availability when property or date changes
-  const fetchBensonAvailability = useCallback(async () => {
-    if (!selectedPropertyData || !isBensonProperty) {
+  // PMS-agnostic: get property code based on connected system
+  const getPmsPropertyCode = useCallback((property: Property | undefined): string | null => {
+    if (!property?.external_system) return null;
+    switch (property.external_system) {
+      case "benson": return property.benson_property_code;
+      case "checkfront": return property.checkfront_property_code;
+      case "siteminder": return property.siteminder_property_code;
+      default: return null;
+    }
+  }, []);
+
+  const isPmsProperty = !!selectedPropertyData?.external_system;
+  const pmsPropertyCode = getPmsPropertyCode(selectedPropertyData);
+  const hasPmsPropertyCode = !!pmsPropertyCode;
+
+  // Fetch PMS availability (system-agnostic)
+  const fetchPmsAvailability = useCallback(async () => {
+    if (!selectedPropertyData?.external_system) {
       setPmsSyncStatus("idle");
       return;
     }
 
-    if (!hasBensonPropertyCode) {
+    if (!hasPmsPropertyCode) {
       setPmsSyncStatus("no_property_code");
-      setPmsSyncError("No Benson property code configured for this property");
+      setPmsSyncError(`No ${selectedPropertyData.external_system} property code configured`);
       return;
     }
 
@@ -271,13 +298,15 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         endDate.setDate(endDate.getDate() + 8);
       }
 
-      const { data, error } = await supabase.functions.invoke("benson-api", {
+      // Route to appropriate edge function based on PMS
+      const edgeFunction = `${selectedPropertyData.external_system}-api`;
+      
+      const { data, error } = await supabase.functions.invoke(edgeFunction, {
         body: {
           action: "fetch_availability",
-          propertyCode: selectedPropertyData.benson_property_code,
-          startDate: format(startDate, "yyyy-MM-dd"),
-          endDate: format(endDate, "yyyy-MM-dd"),
-          propertyId: selectedPropertyData.id,
+          property_id: selectedPropertyData.id,
+          start_date: format(startDate, "yyyy-MM-dd"),
+          end_date: format(endDate, "yyyy-MM-dd"),
         },
       });
 
@@ -288,7 +317,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       if (data?.error) {
         if (data.error.includes("credentials") || data.error.includes("not configured")) {
           setPmsSyncStatus("not_configured");
-          setPmsSyncError("Benson API credentials not configured. Please configure them in Admin > API Keys.");
+          setPmsSyncError(`${selectedPropertyData.external_system} API credentials not configured. Please configure them in Admin > API Keys.`);
         } else {
           setPmsSyncStatus("error");
           setPmsSyncError(data.error);
@@ -296,37 +325,101 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         return;
       }
 
-      // Transform data for calendar display
-      const availabilityData: PMSAvailabilityData[] = data?.availability || [];
-      setPmsAvailability(availabilityData);
+      // Transform Benson/PMS data into unified format
+      const transformedData: PMSRoomTypeData[] = [];
+      
+      if (data?.roomTypes && Array.isArray(data.roomTypes)) {
+        for (const roomType of data.roomTypes) {
+          const roomData: PMSRoomTypeData = {
+            roomTypeId: roomType.roomTypeId?.toString() || "",
+            roomTypeName: roomType.roomTypeName || roomType.name || `Room ${roomType.roomTypeId}`,
+            availabilityByDate: {},
+            ratesByDate: {},
+            restrictionsByDate: {},
+          };
+
+          // Map availability per night
+          if (roomType.roomsAvailablePerNight && Array.isArray(roomType.roomsAvailablePerNight)) {
+            for (const avail of roomType.roomsAvailablePerNight) {
+              const dateStr = avail.date;
+              roomData.availabilityByDate[dateStr] = avail.numberOfRoomsAvailable ?? 0;
+              
+              // Map restrictions if present
+              if (avail.blockedRooms || avail.restrictions) {
+                roomData.restrictionsByDate[dateStr] = {
+                  stopSell: avail.stopSell || false,
+                  minStay: avail.minimumStay,
+                  maxStay: avail.maximumStay,
+                  closedToArrival: avail.closedToArrival || false,
+                  closedToDeparture: avail.closedToDeparture || false,
+                };
+              }
+            }
+          }
+
+          // Map rates
+          if (roomType.rateTypes && Array.isArray(roomType.rateTypes)) {
+            for (const rateType of roomType.rateTypes) {
+              if (rateType.rates && Array.isArray(rateType.rates)) {
+                for (const rate of rateType.rates) {
+                  const dateStr = rate.date;
+                  if (!roomData.ratesByDate[dateStr]) {
+                    roomData.ratesByDate[dateStr] = [];
+                  }
+                  roomData.ratesByDate[dateStr].push({
+                    rateTypeId: rateType.rateTypeId?.toString() || "",
+                    rateTypeName: rateType.name || `Rate ${rateType.rateTypeId}`,
+                    priceType: rateType.priceType || "UnitRate",
+                    roomAmount: rate.roomAmount || 0,
+                    adultAmounts: rate.adultAmount1 ? {
+                      adultAmount1: rate.adultAmount1,
+                      adultAmount2: rate.adultAmount2,
+                      adultAmount3: rate.adultAmount3,
+                      adultAmount4: rate.adultAmount4,
+                    } : undefined,
+                  });
+                }
+              }
+            }
+          }
+
+          transformedData.push(roomData);
+        }
+      }
+
+      setPmsData({
+        roomTypes: transformedData,
+        lastSynced: new Date(),
+        systemType: selectedPropertyData.external_system,
+      });
       setPmsSyncStatus("success");
       setLastSyncTime(new Date());
 
       toast({
         title: "Availability Synced",
-        description: `Successfully fetched availability from Benson`,
+        description: `Successfully fetched data from ${selectedPropertyData.external_system}`,
       });
     } catch (err: any) {
-      console.error("Error fetching Benson availability:", err);
+      console.error(`Error fetching ${selectedPropertyData?.external_system} availability:`, err);
       setPmsSyncStatus("error");
-      setPmsSyncError(err.message || "Failed to fetch availability from Benson");
+      setPmsSyncError(err.message || "Failed to fetch availability");
       toast({
         title: "Sync Failed",
         description: err.message || "Failed to fetch availability",
         variant: "destructive",
       });
     }
-  }, [selectedPropertyData, isBensonProperty, hasBensonPropertyCode, currentDate, viewMode, toast]);
+  }, [selectedPropertyData, hasPmsPropertyCode, currentDate, viewMode, toast]);
 
   // Trigger PMS sync when property or date changes
   useEffect(() => {
-    if (selectedProperty && isBensonProperty) {
-      fetchBensonAvailability();
+    if (selectedProperty && isPmsProperty) {
+      fetchPmsAvailability();
     } else {
       setPmsSyncStatus("idle");
-      setPmsAvailability([]);
+      setPmsData({ roomTypes: [], lastSynced: null, systemType: "" });
     }
-  }, [selectedProperty, currentDate, viewMode, isBensonProperty]);
+  }, [selectedProperty, currentDate, viewMode, isPmsProperty]);
 
   const checkUserRoleAndFetchProperties = async () => {
     try {
@@ -371,7 +464,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     try {
       let query = supabase
         .from("properties")
-        .select("id, name, amenities, owner_email, external_system, benson_property_code")
+        .select("id, name, amenities, owner_email, external_system, benson_property_code, checkfront_property_code, siteminder_property_code")
         .eq("is_active", true);
 
       if (!adminStatus && email) {
@@ -534,24 +627,96 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const monthDates = generateMonthDates();
   const calendarDates = viewMode === "week" ? weekDates : monthDates;
 
-  // Generate mock rate data for dates
-  const getMockRateValue = (rateType: string) => {
-    const rateValues: { [key: string]: number } = {
-      "SingleRate": 3267,
-      "PerPersonRate": 1875,
-      "UnitRate": 6651,
-    };
-    return rateValues[rateType] || 2000;
+  // PMS-aware helper to get availability for a room/date
+  const getAvailability = (roomName: string, date: Date): { value: number | null; fromPms: boolean } => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    
+    // Check PMS data first
+    if (pmsData.roomTypes.length > 0) {
+      // Try to find matching room by name
+      const pmsRoom = pmsData.roomTypes.find(rt => 
+        rt.roomTypeName.toLowerCase().includes(roomName.toLowerCase()) ||
+        roomName.toLowerCase().includes(rt.roomTypeName.toLowerCase())
+      );
+      
+      if (pmsRoom && pmsRoom.availabilityByDate[dateStr] !== undefined) {
+        return { value: pmsRoom.availabilityByDate[dateStr], fromPms: true };
+      }
+    }
+    
+    // No PMS data - return null to indicate missing
+    return { value: null, fromPms: false };
   };
 
-  const getMockAvailability = (roomName: string) => {
-    const availValues: { [key: string]: number } = {
-      "Petite Hotel Room": 14,
-      "Two Bedroom Suite": 6,
-      "One Bedroom Suite": 14,
-      "Holiday House": 9,
-    };
-    return availValues[roomName] || 10;
+  // PMS-aware helper to get rate for a room/rateType/date
+  const getRate = (roomName: string, rateType: string, date: Date): { value: number | null; fromPms: boolean } => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    
+    // Check PMS data first
+    if (pmsData.roomTypes.length > 0) {
+      const pmsRoom = pmsData.roomTypes.find(rt => 
+        rt.roomTypeName.toLowerCase().includes(roomName.toLowerCase()) ||
+        roomName.toLowerCase().includes(rt.roomTypeName.toLowerCase())
+      );
+      
+      if (pmsRoom && pmsRoom.ratesByDate[dateStr]) {
+        const matchingRate = pmsRoom.ratesByDate[dateStr].find(r =>
+          r.rateTypeName.toLowerCase().includes(rateType.toLowerCase()) ||
+          r.priceType.toLowerCase().includes(rateType.toLowerCase()) ||
+          rateType.toLowerCase().includes(r.priceType.toLowerCase())
+        );
+        
+        if (matchingRate) {
+          return { value: matchingRate.roomAmount || 0, fromPms: true };
+        }
+      }
+    }
+    
+    // No PMS data
+    return { value: null, fromPms: false };
+  };
+
+  // PMS-aware helper to get restrictions for a room/date
+  const getRestrictions = (roomName: string, date: Date): { 
+    stopSell: boolean | null; 
+    minStay: number | null; 
+    maxStay: number | null;
+    fromPms: boolean 
+  } => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    
+    if (pmsData.roomTypes.length > 0) {
+      const pmsRoom = pmsData.roomTypes.find(rt => 
+        rt.roomTypeName.toLowerCase().includes(roomName.toLowerCase()) ||
+        roomName.toLowerCase().includes(rt.roomTypeName.toLowerCase())
+      );
+      
+      if (pmsRoom && pmsRoom.restrictionsByDate[dateStr]) {
+        const r = pmsRoom.restrictionsByDate[dateStr];
+        return {
+          stopSell: r.stopSell ?? null,
+          minStay: r.minStay ?? null,
+          maxStay: r.maxStay ?? null,
+          fromPms: true,
+        };
+      }
+    }
+    
+    return { stopSell: null, minStay: null, maxStay: null, fromPms: false };
+  };
+
+  // Render cell value with indicator for missing data
+  const renderCellValue = (value: number | null, fromPms: boolean, suffix?: string) => {
+    if (value === null) {
+      return (
+        <span className="text-muted-foreground/50 italic">—</span>
+      );
+    }
+    return (
+      <span className={fromPms ? "text-foreground" : "text-muted-foreground"}>
+        {value.toLocaleString()}{suffix || ""}
+      </span>
+    );
   };
 
   const isWeekend = (date: Date) => {
@@ -610,7 +775,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
               <h2 className="text-lg font-semibold text-primary">{selectedPropertyData.name}</h2>
             </div>
             <div className="ml-auto flex gap-2 items-center">
-              {isBensonProperty && (
+              {isPmsProperty && (
                 <div className="flex items-center gap-2">
                   {pmsSyncStatus === "loading" && (
                     <Badge variant="secondary" className="flex items-center gap-1">
@@ -621,13 +786,13 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                   {pmsSyncStatus === "success" && (
                     <Badge variant="default" className="flex items-center gap-1 bg-green-600">
                       <Cloud className="h-3 w-3" />
-                      Benson Connected
+                      {selectedPropertyData.external_system?.toUpperCase()} Connected
                     </Badge>
                   )}
                   {pmsSyncStatus === "not_configured" && (
                     <Badge variant="destructive" className="flex items-center gap-1">
                       <CloudOff className="h-3 w-3" />
-                      Benson Not Configured
+                      {selectedPropertyData.external_system?.toUpperCase()} Not Configured
                     </Badge>
                   )}
                   {pmsSyncStatus === "no_property_code" && (
@@ -642,7 +807,19 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                       Sync Error
                     </Badge>
                   )}
+                  {pmsSyncStatus === "idle" && (
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      <CloudOff className="h-3 w-3" />
+                      No PMS
+                    </Badge>
+                  )}
                 </div>
+              )}
+              {!isPmsProperty && (
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <CloudOff className="h-3 w-3" />
+                  No PMS Connected
+                </Badge>
               )}
               <Badge variant="default">Accommodation</Badge>
               {hasEventWedding && <Badge variant="outline">Event/Wedding</Badge>}
@@ -652,30 +829,30 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         )}
 
         {/* PMS Status Alert */}
-        {selectedPropertyData && isBensonProperty && pmsSyncStatus === "not_configured" && (
+        {selectedPropertyData && isPmsProperty && pmsSyncStatus === "not_configured" && (
           <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Benson API Not Configured</AlertTitle>
+            <AlertTitle>{selectedPropertyData.external_system?.toUpperCase()} API Not Configured</AlertTitle>
             <AlertDescription>
-              {pmsSyncError || "Please configure Benson API credentials in Admin → API Keys to enable real-time availability sync."}
+              {pmsSyncError || `Please configure ${selectedPropertyData.external_system} API credentials in Admin → API Keys to enable real-time availability sync.`}
             </AlertDescription>
           </Alert>
         )}
 
-        {selectedPropertyData && isBensonProperty && pmsSyncStatus === "no_property_code" && (
+        {selectedPropertyData && isPmsProperty && pmsSyncStatus === "no_property_code" && (
           <Alert className="mb-4 border-yellow-500">
             <AlertCircle className="h-4 w-4 text-yellow-600" />
             <AlertTitle className="text-yellow-600">Missing Property Code</AlertTitle>
             <AlertDescription>
-              This property is connected to Benson but doesn't have a Property Code configured. Please add it in the property settings.
+              This property is connected to {selectedPropertyData.external_system} but doesn't have a Property Code configured. Please add it in the property settings.
             </AlertDescription>
           </Alert>
         )}
 
-        {selectedPropertyData && isBensonProperty && pmsSyncStatus === "success" && lastSyncTime && (
+        {selectedPropertyData && isPmsProperty && pmsSyncStatus === "success" && lastSyncTime && (
           <div className="mb-4 text-sm text-muted-foreground flex items-center gap-2">
             <Cloud className="h-4 w-4 text-green-600" />
-            Last synced: {lastSyncTime.toLocaleTimeString()}
+            Last synced from {selectedPropertyData.external_system}: {lastSyncTime.toLocaleTimeString()}
           </div>
         )}
 
@@ -778,8 +955,8 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 variant="default" 
                 className="gap-2"
                 onClick={() => {
-                  if (isBensonProperty) {
-                    fetchBensonAvailability();
+                  if (isPmsProperty) {
+                    fetchPmsAvailability();
                   }
                 }}
                 disabled={pmsSyncStatus === "loading"}
@@ -789,7 +966,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 ) : (
                   <RefreshCw className="h-4 w-4" />
                 )}
-                {isBensonProperty ? "Sync Benson" : "Refresh"}
+                {isPmsProperty ? `Sync ${selectedPropertyData?.external_system || "PMS"}` : "Refresh"}
               </Button>
 
               <div className="ml-auto flex gap-2">
@@ -996,6 +1173,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                 {calendarDates.map((date, index) => {
                                   const weekend = isWeekend(date);
                                   const isHoliday = !!getHolidayName(date);
+                                  const avail = getAvailability(room.name, date);
                                   return (
                                     <td
                                       key={index}
@@ -1007,7 +1185,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             : ""
                                       }`}
                                     >
-                                      {getMockAvailability(room.name)}
+                                      {renderCellValue(avail.value, avail.fromPms)}
                                     </td>
                                   );
                                 })}
@@ -1023,6 +1201,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   {calendarDates.map((date, index) => {
                                     const weekend = isWeekend(date);
                                     const isHoliday = !!getHolidayName(date);
+                                    const rateData = getRate(room.name, rate.rateType, date);
                                     return (
                                       <td
                                         key={index}
@@ -1034,7 +1213,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                               : ""
                                         }`}
                                       >
-                                        {getMockRateValue(rate.rateType)}
+                                        {renderCellValue(rateData.value, rateData.fromPms)}
                                       </td>
                                     );
                                   })}
@@ -1143,6 +1322,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                 {calendarDates.map((date, index) => {
                                   const weekend = isWeekend(date);
                                   const isHoliday = !!getHolidayName(date);
+                                  const avail = getAvailability(room.name, date);
                                   return (
                                     <td
                                       key={index}
@@ -1154,7 +1334,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             : ""
                                       }`}
                                     >
-                                      {getMockAvailability(room.name)}
+                                      {renderCellValue(avail.value, avail.fromPms)}
                                     </td>
                                   );
                                 })}
@@ -1170,6 +1350,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   {calendarDates.map((date, index) => {
                                     const weekend = isWeekend(date);
                                     const isHoliday = !!getHolidayName(date);
+                                    const rateData = getRate(room.name, rate.rateType, date);
                                     return (
                                       <td
                                         key={index}
@@ -1181,7 +1362,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                               : ""
                                         }`}
                                       >
-                                        {getMockRateValue(rate.rateType)}
+                                        {renderCellValue(rateData.value, rateData.fromPms)}
                                       </td>
                                     );
                                   })}
