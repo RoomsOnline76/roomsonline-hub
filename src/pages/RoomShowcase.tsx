@@ -351,114 +351,163 @@ export default function RoomShowcase() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Left Column - Details */}
           <div className="lg:col-span-2 space-y-8">
-            {/* Description */}
-            {room.description && (
-              <section>
-                <h2 className="text-xl font-semibold mb-4">About this room</h2>
-                <p className="text-muted-foreground leading-relaxed">
-                  {room.description}
-                </p>
-              </section>
-            )}
+            {/* Room Summary Card - Similar to reference */}
+            <Card className="overflow-hidden border-l-4 border-l-primary">
+              <CardContent className="p-6">
+                <h2 className="text-2xl font-bold mb-4">{room.name}</h2>
+                
+                {room.description && (
+                  <p className="text-muted-foreground leading-relaxed mb-6 italic">
+                    {room.description}
+                  </p>
+                )}
 
-            {/* Room Details Grid */}
+                {/* Key Info - Styled like reference */}
+                <div className="space-y-3">
+                  {/* Occupancy */}
+                  <div className="flex items-center gap-3">
+                    <Users className="h-5 w-5 text-primary" />
+                    <span className="font-medium">
+                      Max {room.maxPeople || 2} persons 
+                      {room.maxAdults && ` (${room.maxAdults} Adult${room.maxAdults > 1 ? 's' : ''}`}
+                      {room.maxChildren !== undefined && room.maxChildren > 0 && `, ${room.maxChildren} Child${room.maxChildren > 1 ? 'ren' : ''}`}
+                      {room.maxAdults && ')'}
+                    </span>
+                  </div>
+
+                  {/* Stay Requirements */}
+                  <div className="flex items-center gap-3">
+                    <Moon className="h-5 w-5 text-primary" />
+                    <span className="font-medium">
+                      Min Stay <strong>{room.minStay || 1}</strong> night(s) | Max Stay <strong>{room.maxStay || 0}</strong> night(s)
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Occupancy & Bed Details */}
             <section>
-              <h2 className="text-xl font-semibold mb-4">Room Details</h2>
-              <Card>
-                <CardContent className="p-6">
-                  <div className="grid sm:grid-cols-2 gap-6">
-                    {room.numRooms && (
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <Bed className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <div className="font-medium">Available Units</div>
-                          <div className="text-sm text-muted-foreground">
-                            {room.numRooms} room{room.numRooms > 1 ? 's' : ''} of this type
-                          </div>
-                        </div>
+              <h2 className="text-xl font-semibold mb-4">Occupancy & Bed Configuration</h2>
+              <div className="grid sm:grid-cols-2 gap-4">
+                {/* Bed Configuration Card */}
+                <Card>
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        <Bed className="h-5 w-5 text-primary" />
                       </div>
-                    )}
-                    
-                    {room.bedConfiguration && (
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <Bed className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <div className="font-medium">Bed Configuration</div>
-                          <div className="text-sm text-muted-foreground">
-                            {bedConfigLabels[room.bedConfiguration] || room.bedConfiguration}
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                      <h3 className="font-semibold">Bed Configuration</h3>
+                    </div>
+                    <p className="text-muted-foreground">
+                      {room.bedConfiguration 
+                        ? bedConfigLabels[room.bedConfiguration] || room.bedConfiguration
+                        : 'Not specified'}
+                    </p>
+                  </CardContent>
+                </Card>
 
-                    {room.roomSize && (
-                      <div className="flex items-start gap-3">
+                {/* Occupancy Card */}
+                <Card>
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        <Users className="h-5 w-5 text-primary" />
+                      </div>
+                      <h3 className="font-semibold">Occupancy</h3>
+                    </div>
+                    <div className="space-y-1 text-muted-foreground">
+                      <p>Maximum guests: <strong className="text-foreground">{room.maxPeople || 2}</strong></p>
+                      <p>Adults: <strong className="text-foreground">{room.maxAdults || room.maxPeople || 2}</strong></p>
+                      {room.maxChildren !== undefined && (
+                        <p>Children allowed: <strong className="text-foreground">{room.maxChildren}</strong></p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Room Size Card */}
+                {room.roomSize && (
+                  <Card>
+                    <CardContent className="p-5">
+                      <div className="flex items-center gap-3 mb-3">
                         <div className="p-2 bg-primary/10 rounded-lg">
                           <Maximize className="h-5 w-5 text-primary" />
                         </div>
-                        <div>
-                          <div className="font-medium">Room Size</div>
-                          <div className="text-sm text-muted-foreground">
-                            {room.roomSize} square metres
-                          </div>
-                        </div>
+                        <h3 className="font-semibold">Room Size</h3>
                       </div>
-                    )}
+                      <p className="text-muted-foreground">
+                        <strong className="text-foreground text-2xl">{room.roomSize}</strong> m²
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
 
-                    {room.bathrooms && (
-                      <div className="flex items-start gap-3">
+                {/* Bathrooms Card */}
+                {room.bathrooms && (
+                  <Card>
+                    <CardContent className="p-5">
+                      <div className="flex items-center gap-3 mb-3">
                         <div className="p-2 bg-primary/10 rounded-lg">
                           <Bath className="h-5 w-5 text-primary" />
                         </div>
-                        <div>
-                          <div className="font-medium">Bathrooms</div>
-                          <div className="text-sm text-muted-foreground">
-                            {room.bathrooms} private bathroom{room.bathrooms > 1 ? 's' : ''}
-                          </div>
-                        </div>
+                        <h3 className="font-semibold">Bathrooms</h3>
                       </div>
-                    )}
+                      <p className="text-muted-foreground">
+                        <strong className="text-foreground">{room.bathrooms}</strong> private en-suite bathroom{room.bathrooms > 1 ? 's' : ''}
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </section>
 
-                    {room.maxPeople && (
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <Users className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <div className="font-medium">Maximum Occupancy</div>
-                          <div className="text-sm text-muted-foreground">
-                            {room.maxPeople} guest{room.maxPeople > 1 ? 's' : ''}
-                            {room.maxAdults && ` (${room.maxAdults} adult${room.maxAdults > 1 ? 's' : ''}`}
-                            {room.maxChildren !== undefined && room.maxChildren > 0 && `, ${room.maxChildren} child${room.maxChildren > 1 ? 'ren' : ''}`}
-                            {room.maxAdults && ')'}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {(room.minStay || room.maxStay) && (
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <Moon className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <div className="font-medium">Stay Duration</div>
-                          <div className="text-sm text-muted-foreground">
-                            {room.minStay && `Min ${room.minStay} night${room.minStay > 1 ? 's' : ''}`}
-                            {room.minStay && room.maxStay && ' · '}
-                            {room.maxStay && `Max ${room.maxStay} night${room.maxStay > 1 ? 's' : ''}`}
-                          </div>
-                        </div>
-                      </div>
-                    )}
+            {/* Stay Requirements */}
+            <section>
+              <h2 className="text-xl font-semibold mb-4">Stay Requirements</h2>
+              <Card>
+                <CardContent className="p-6">
+                  <div className="grid sm:grid-cols-3 gap-6">
+                    <div className="text-center p-4 bg-muted/50 rounded-lg">
+                      <div className="text-3xl font-bold text-primary mb-1">{room.minStay || 1}</div>
+                      <div className="text-sm text-muted-foreground">Minimum nights</div>
+                    </div>
+                    <div className="text-center p-4 bg-muted/50 rounded-lg">
+                      <div className="text-3xl font-bold text-primary mb-1">{room.maxStay || '∞'}</div>
+                      <div className="text-sm text-muted-foreground">Maximum nights</div>
+                    </div>
+                    <div className="text-center p-4 bg-muted/50 rounded-lg">
+                      <div className="text-3xl font-bold text-primary mb-1">{room.numRooms || 1}</div>
+                      <div className="text-sm text-muted-foreground">Available units</div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             </section>
+
+            {/* Rate Type Info */}
+            {room.rateType && (
+              <section>
+                <h2 className="text-xl font-semibold mb-4">Rate Information</h2>
+                <Card>
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Badge variant="secondary" className="text-sm">
+                        {room.rateType}
+                      </Badge>
+                      {room.splitPercent !== undefined && room.splitPercent > 0 && (
+                        <span className="text-sm text-muted-foreground">
+                          Split: {room.splitPercent}%
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      This room uses the <strong>{room.rateType}</strong> rate structure for pricing.
+                    </p>
+                  </CardContent>
+                </Card>
+              </section>
+            )}
 
             {/* Facilities */}
             {facilities.length > 0 && (
