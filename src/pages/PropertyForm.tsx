@@ -220,6 +220,7 @@ export default function PropertyForm() {
   const [availablePMSSystems, setAvailablePMSSystems] = useState<
     { key_name: string; name: string; system_type: string }[]
   >([]);
+  const [bensonPropertyCode, setBensonPropertyCode] = useState<string>("");
 
   // Load available PMS systems from configured API keys
   useEffect(() => {
@@ -809,6 +810,11 @@ export default function PropertyForm() {
           // Set property source (PMS)
           const externalSystem = data.external_system || "";
           setSelectedPMS(externalSystem);
+          
+          // Set Benson property code
+          if (data.benson_property_code) {
+            setBensonPropertyCode(data.benson_property_code);
+          }
 
           // Set location coordinates
           setLatitude(data.latitude ? Number(data.latitude) : null);
@@ -1081,6 +1087,7 @@ export default function PropertyForm() {
         owner_email: formData.owner_email || null,
         external_system: selectedPMS || null,
         external_id: formData.bb_id || formData.venue_id || null,
+        benson_property_code: selectedPMS === "benson" ? bensonPropertyCode : null,
         is_active: true,
         images: uploadedImages,
         max_guests: 2, // Default value, can be updated later
@@ -1459,6 +1466,25 @@ export default function PropertyForm() {
                               placeholder="Enter agent ID"
                             />
                           </div>
+                        </div>
+                      )}
+
+                      {selectedPMS === "benson" && (
+                        <div className="max-w-xs">
+                          <Label htmlFor="benson_property_code">Benson Property Code *</Label>
+                          <Input
+                            id="benson_property_code"
+                            value={bensonPropertyCode}
+                            onChange={(e) => {
+                              setBensonPropertyCode(e.target.value);
+                              setIsDirty(true);
+                            }}
+                            placeholder="Enter Benson property code"
+                            required
+                          />
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Unique identifier assigned by Benson for this property
+                          </p>
                         </div>
                       )}
                     </div>
