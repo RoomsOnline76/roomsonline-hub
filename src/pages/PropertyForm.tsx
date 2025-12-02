@@ -221,6 +221,81 @@ export default function PropertyForm() {
     { key_name: string; name: string; system_type: string }[]
   >([]);
   const [bensonPropertyCode, setBensonPropertyCode] = useState<string>("");
+  const [isSyncingPms, setIsSyncingPms] = useState(false);
+  const [lastPmsSync, setLastPmsSync] = useState<Date | null>(null);
+
+  // Sync room/rate types from PMS (Benson)
+  const syncFromBenson = async () => {
+    if (!bensonPropertyCode || !id) {
+      toast({
+        title: "Cannot Sync",
+        description: "Please save the property with a Benson property code first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSyncingPms(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("benson-api", {
+        body: {
+          action: "fetch_types",
+          property_id: id,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      // Update room types from PMS
+      if (data?.roomTypes && Array.isArray(data.roomTypes)) {
+        const pmsRoomTypes = data.roomTypes.map((rt: any) => ({
+          id: rt.id?.toString() || Date.now().toString(),
+          name: rt.name || `Room Type ${rt.id}`,
+          url: "",
+          selected: false,
+          pms_id: rt.id,
+          pms_synced: true,
+        }));
+        
+        // Merge with existing room types (don't overwrite local changes)
+        const existingNames = new Set(roomTypes.map(r => r.name.toLowerCase()));
+        const newRoomTypes = pmsRoomTypes.filter((rt: any) => !existingNames.has(rt.name.toLowerCase()));
+        
+        if (newRoomTypes.length > 0) {
+          setRoomTypes([...roomTypes, ...newRoomTypes]);
+          setIsDirty(true);
+        }
+
+        toast({
+          title: "Room Types Synced",
+          description: `Found ${data.roomTypes.length} room types from Benson. ${newRoomTypes.length} new types added.`,
+        });
+      }
+
+      // Store rate types info for rate breakdown
+      if (data?.rateTypes && Array.isArray(data.rateTypes)) {
+        toast({
+          title: "Rate Types Found",
+          description: `Found ${data.rateTypes.length} rate types from Benson.`,
+        });
+      }
+
+      setLastPmsSync(new Date());
+    } catch (err: any) {
+      console.error("Error syncing from Benson:", err);
+      toast({
+        title: "Sync Failed",
+        description: err.message || "Failed to sync from Benson. Check API credentials.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncingPms(false);
+    }
+  };
 
   // Load available PMS systems from configured API keys
   useEffect(() => {
@@ -1470,21 +1545,47 @@ export default function PropertyForm() {
                       )}
 
                       {selectedPMS === "benson" && (
-                        <div className="max-w-xs">
-                          <Label htmlFor="benson_property_code">Benson Property Code *</Label>
-                          <Input
-                            id="benson_property_code"
-                            value={bensonPropertyCode}
-                            onChange={(e) => {
-                              setBensonPropertyCode(e.target.value);
-                              setIsDirty(true);
-                            }}
-                            placeholder="Enter Benson property code"
-                            required
-                          />
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Unique identifier assigned by Benson for this property
-                          </p>
+                        <div className="space-y-4">
+                          <div className="max-w-xs">
+                            <Label htmlFor="benson_property_code">Benson Property Code *</Label>
+                            <Input
+                              id="benson_property_code"
+                              value={bensonPropertyCode}
+                              onChange={(e) => {
+                                setBensonPropertyCode(e.target.value);
+                                setIsDirty(true);
+                              }}
+                              placeholder="Enter Benson property code"
+                              required
+                            />
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Unique identifier assigned by Benson for this property
+                            </p>
+                          </div>
+                          {bensonPropertyCode && (
+                            <div className="flex items-center gap-4">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="gap-2"
+                                onClick={syncFromBenson}
+                                disabled={isSyncingPms}
+                              >
+                                {isSyncingPms ? (
+                                  <RefreshCw className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="h-4 w-4" />
+                                )}
+                                {isSyncingPms ? "Syncing..." : "Sync Room & Rate Types from Benson"}
+                              </Button>
+                              {lastPmsSync && (
+                                <span className="text-sm text-muted-foreground">
+                                  Last synced: {lastPmsSync.toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
