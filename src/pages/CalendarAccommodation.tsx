@@ -559,6 +559,13 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     return day === 0 || day === 6;
   };
 
+  const isToday = (date: Date) => {
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+           date.getMonth() === today.getMonth() &&
+           date.getFullYear() === today.getFullYear();
+  };
+
   const formatDayHeader = (date: Date) => {
     const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
     const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -901,45 +908,57 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                             const weekend = isWeekend(date);
                             const holidayName = getHolidayName(date);
                             const isHoliday = !!holidayName;
+                            const isTodayDate = isToday(date);
                             
                             const headerContent = (
                               <th
                                 key={index}
                                 className={`border p-2 text-center min-w-[80px] ${
-                                  isHoliday 
-                                    ? "bg-green-100 dark:bg-green-950/30" 
-                                    : weekend 
-                                      ? "bg-red-50 dark:bg-red-950/20" 
-                                      : "bg-muted/50"
+                                  isTodayDate
+                                    ? "bg-primary/20 dark:bg-primary/30 ring-2 ring-primary ring-inset"
+                                    : isHoliday 
+                                      ? "bg-green-100 dark:bg-green-950/30" 
+                                      : weekend 
+                                        ? "bg-red-50 dark:bg-red-950/20" 
+                                        : "bg-muted/50"
                                 }`}
                               >
                                 <div className={`text-xs font-semibold ${
-                                  isHoliday 
-                                    ? "text-green-700 dark:text-green-400" 
-                                    : weekend 
-                                      ? "text-red-600" 
-                                      : "text-muted-foreground"
+                                  isTodayDate
+                                    ? "text-primary"
+                                    : isHoliday 
+                                      ? "text-green-700 dark:text-green-400" 
+                                      : weekend 
+                                        ? "text-red-600" 
+                                        : "text-muted-foreground"
                                 }`}>
                                   {header.day}
                                 </div>
                                 <div className={`text-lg font-bold ${
-                                  isHoliday 
-                                    ? "text-green-700 dark:text-green-400" 
-                                    : weekend 
-                                      ? "text-red-600" 
-                                      : ""
+                                  isTodayDate
+                                    ? "text-primary"
+                                    : isHoliday 
+                                      ? "text-green-700 dark:text-green-400" 
+                                      : weekend 
+                                        ? "text-red-600" 
+                                        : ""
                                 }`}>
                                   {header.date}
                                 </div>
                                 <div className={`text-xs ${
-                                  isHoliday 
-                                    ? "text-green-700 dark:text-green-400" 
-                                    : weekend 
-                                      ? "text-red-600" 
-                                      : "text-muted-foreground"
+                                  isTodayDate
+                                    ? "text-primary"
+                                    : isHoliday 
+                                      ? "text-green-700 dark:text-green-400" 
+                                      : weekend 
+                                        ? "text-red-600" 
+                                        : "text-muted-foreground"
                                 }`}>
                                   {header.month}
                                 </div>
+                                {isTodayDate && (
+                                  <div className="text-[10px] font-semibold text-primary mt-1">TODAY</div>
+                                )}
                               </th>
                             );
                             
@@ -1041,33 +1060,40 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                             const weekend = isWeekend(date);
                             const holidayName = getHolidayName(date);
                             const isHoliday = !!holidayName;
+                            const isTodayDate = isToday(date);
                             
                             const headerContent = (
                               <th
                                 key={index}
                                 className={`border p-1 text-center min-w-[50px] ${
-                                  isHoliday 
-                                    ? "bg-green-100 dark:bg-green-950/30" 
-                                    : weekend 
-                                      ? "bg-red-50 dark:bg-red-950/20" 
-                                      : "bg-muted/50"
+                                  isTodayDate
+                                    ? "bg-primary/20 dark:bg-primary/30 ring-2 ring-primary ring-inset"
+                                    : isHoliday 
+                                      ? "bg-green-100 dark:bg-green-950/30" 
+                                      : weekend 
+                                        ? "bg-red-50 dark:bg-red-950/20" 
+                                        : "bg-muted/50"
                                 }`}
                               >
                                 <div className={`text-xs font-semibold ${
-                                  isHoliday 
-                                    ? "text-green-700 dark:text-green-400" 
-                                    : weekend 
-                                      ? "text-red-600" 
-                                      : "text-muted-foreground"
+                                  isTodayDate
+                                    ? "text-primary"
+                                    : isHoliday 
+                                      ? "text-green-700 dark:text-green-400" 
+                                      : weekend 
+                                        ? "text-red-600" 
+                                        : "text-muted-foreground"
                                 }`}>
                                   {header.day}
                                 </div>
                                 <div className={`text-sm font-bold ${
-                                  isHoliday 
-                                    ? "text-green-700 dark:text-green-400" 
-                                    : weekend 
-                                      ? "text-red-600" 
-                                      : ""
+                                  isTodayDate
+                                    ? "text-primary"
+                                    : isHoliday 
+                                      ? "text-green-700 dark:text-green-400" 
+                                      : weekend 
+                                        ? "text-red-600" 
+                                        : ""
                                 }`}>
                                   {header.date}
                                 </div>
@@ -1082,6 +1108,15 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                 <TooltipContent>
                                   <p className="font-semibold">{holidayName}</p>
                                   <p className="text-xs text-muted-foreground">SA Public Holiday</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : isTodayDate ? (
+                              <Tooltip key={index}>
+                                <TooltipTrigger asChild>
+                                  {headerContent}
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="font-semibold">Today</p>
                                 </TooltipContent>
                               </Tooltip>
                             ) : headerContent;
