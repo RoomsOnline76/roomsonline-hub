@@ -124,13 +124,19 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error('Error creating user:', error);
-    let errorMessage = 'An unknown error occurred';
     
-    if (error instanceof Error) {
+    // Only expose safe, user-friendly error messages - never internal details
+    const safeErrors = [
+      'Missing required fields',
+      'Invalid role',
+      'Unauthorized',
+      'Only admins can create users',
+      'User with this email already exists and is fully set up'
+    ];
+    
+    let errorMessage = 'An error occurred creating the user';
+    if (error instanceof Error && safeErrors.includes(error.message)) {
       errorMessage = error.message;
-    } else if (typeof error === 'object' && error !== null) {
-      // Handle Postgres errors and other structured errors
-      errorMessage = (error as any).message || JSON.stringify(error);
     }
     
     return new Response(
