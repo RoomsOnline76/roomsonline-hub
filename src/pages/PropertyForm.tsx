@@ -383,6 +383,7 @@ export default function PropertyForm() {
         .from("api_keys")
         .select("key_name, name, system_type")
         .not("system_type", "eq", "google")
+        .not("system_type", "eq", "sendgrid")
         .order("name");
 
       if (data) {
