@@ -1,5 +1,6 @@
 import { Navbar } from "@/components/Navbar";
 import { SearchForm } from "@/components/SearchForm";
+import { PropertiesMap } from "@/components/PropertiesMap";
 import { Card, CardContent } from "@/components/ui/card";
 import { Shield, Zap, Globe, HeadphonesIcon } from "lucide-react";
 import heroImage from "@/assets/hero-hotel.jpg";
@@ -56,6 +57,21 @@ const Home = () => {
           </div>
           
           <SearchForm />
+        </div>
+      </section>
+
+      {/* Properties Map Section */}
+      <section className="py-12 bg-background">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-8">
+            <h3 className="text-2xl font-bold text-foreground mb-2">
+              Explore Our Properties
+            </h3>
+            <p className="text-muted-foreground">
+              Click on a pin to view property details
+            </p>
+          </div>
+          <PropertiesMap />
         </div>
       </section>
 
