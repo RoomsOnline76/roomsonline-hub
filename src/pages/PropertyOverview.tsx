@@ -220,7 +220,7 @@ const PropertyOverview = () => {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => window.open(`/property/${property.id}`, "_blank")}
+                                onClick={() => window.open(`/property/${property.slug || property.id}`, "_blank")}
                                 title="View Property Showcase"
                               >
                                 <Home className="h-4 w-4" />
@@ -228,7 +228,7 @@ const PropertyOverview = () => {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => navigate(`/admin/properties/${property.id}`)}
+                                onClick={() => navigate(`/admin/properties/${property.slug || property.id}`)}
                                 title="Edit Property"
                               >
                                 <Edit className="h-4 w-4" />

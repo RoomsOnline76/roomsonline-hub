@@ -133,13 +133,14 @@ type PropertyFormData = z.infer<typeof propertySchema>;
 
 export default function PropertyForm() {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id } = useParams(); // Can be UUID or slug
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [owners, setOwners] = useState<any[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [propertySlug, setPropertySlug] = useState<string>("");
+  const [propertyId, setPropertyId] = useState<string | null>(null); // Actual UUID for DB operations
 
   // Warn user before leaving with unsaved changes
   useEffect(() => {
@@ -261,7 +262,7 @@ export default function PropertyForm() {
 
   // Sync room/rate types from PMS (Benson)
   const syncFromBenson = async () => {
-    if (!bensonPropertyCode || !id) {
+    if (!bensonPropertyCode || !propertyId) {
       toast({
         title: "Cannot Sync",
         description: "Please save the property with a Benson property code first",
@@ -275,7 +276,7 @@ export default function PropertyForm() {
       const { data, error } = await supabase.functions.invoke("benson-api", {
         body: {
           action: "fetch_types",
-          property_id: id,
+          property_id: propertyId,
         },
       });
 
@@ -976,11 +977,19 @@ export default function PropertyForm() {
       setLoading(true);
 
       try {
-        const { data, error } = await supabase.from("properties").select("*").eq("id", id).single();
+        // Check if id is a UUID or slug
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        
+        const { data, error } = isUUID
+          ? await supabase.from("properties").select("*").eq("id", id).single()
+          : await supabase.from("properties").select("*").eq("slug", id).single();
 
         if (error) throw error;
 
         if (data) {
+          // Store the actual property UUID for database operations
+          setPropertyId(data.id);
+          
           // Populate form data
           const amenities = data.amenities as any;
           const houseRules = amenities?.house_rules || {};
@@ -1439,10 +1448,26 @@ export default function PropertyForm() {
       };
 
       const { error } = isEditMode
-        ? await supabase.from("properties").update(propertyData).eq("id", id)
+        ? await supabase.from("properties").update(propertyData).eq("id", propertyId)
         : await supabase.from("properties").insert([propertyData]);
 
       if (error) throw error;
+
+      // For new properties, navigate to the slug-based URL
+      if (!isEditMode) {
+        // Fetch the newly created property to get its slug
+        const { data: newProperty } = await supabase
+          .from("properties")
+          .select("slug")
+          .eq("name", formData.name)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (newProperty?.slug) {
+          navigate(`/admin/properties/${newProperty.slug}`, { replace: true });
+        }
+      }
 
       toast({
         title: "Success",
@@ -1450,7 +1475,7 @@ export default function PropertyForm() {
       });
 
       setIsDirty(false);
-      // Stay on current page after save - don't navigate away
+      // Stay on current page after save - don't navigate away for edits
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast({
