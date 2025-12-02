@@ -77,7 +77,8 @@ const getPMSIcon = (systemType: string): LucideIcon => {
   }
 };
 
-const propertySchema = z.object({
+// Schema factory to handle conditional address validation
+const createPropertySchema = (noStreetAddress: boolean) => z.object({
   name: z.string().min(1, "Property name is required").max(200),
   property_type: z.string().min(1, "Property type is required"),
   contact_email: z.string().email("Invalid email address"),
@@ -86,8 +87,8 @@ const propertySchema = z.object({
   owner_name: z.string().optional(),
   owner_email: z.string().email("Invalid email address").optional().or(z.literal("")),
   country: z.string().min(1, "Country is required"),
-  city: z.string().min(1, "City is required"),
-  address: z.string().min(1, "Street name is required"),
+  city: noStreetAddress ? z.string().optional() : z.string().min(1, "City is required"),
+  address: noStreetAddress ? z.string().optional() : z.string().min(1, "Street name is required"),
   suburb: z.string().optional(),
   postal_code: z.string().optional(),
   bb_id: z.string().optional(),
@@ -129,6 +130,8 @@ const propertySchema = z.object({
   children_age_to: z.string().optional(),
 });
 
+// Create a base schema for type inference
+const propertySchema = createPropertySchema(false);
 type PropertyFormData = z.infer<typeof propertySchema>;
 
 export default function PropertyForm() {
@@ -446,6 +449,9 @@ export default function PropertyForm() {
       }
     }
   };
+
+  // Toggle for using Google Maps pin instead of street address
+  const [noStreetAddress, setNoStreetAddress] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState<PropertyFormData>({
@@ -1141,6 +1147,11 @@ export default function PropertyForm() {
           if (amenities?.address_details?.google_maps_link) {
             setGoogleMapsLink(amenities.address_details.google_maps_link);
           }
+          
+          // Load no street address toggle
+          if (amenities?.address_details?.no_street_address) {
+            setNoStreetAddress(amenities.address_details.no_street_address);
+          }
 
           // Load images if available
           if (data.images && Array.isArray(data.images)) {
@@ -1396,8 +1407,21 @@ export default function PropertyForm() {
     setLoading(true);
 
     try {
-      // Validate form data
-      propertySchema.parse(formData);
+      // Validate form data with conditional schema
+      const schema = createPropertySchema(noStreetAddress);
+      
+      // If using Google Maps pin, require coordinates
+      if (noStreetAddress && (!latitude || !longitude)) {
+        toast({
+          title: "Location required",
+          description: "Please paste a valid Google Maps link to extract coordinates",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      
+      schema.parse(formData);
 
       // Prepare data for database
       const propertyData = {
@@ -1435,6 +1459,7 @@ export default function PropertyForm() {
             suburb: formData.suburb,
             postal_code: formData.postal_code,
             google_maps_link: googleMapsLink || null,
+            no_street_address: noStreetAddress,
           },
           currency: formData.currency,
           banking: {
@@ -1994,90 +2019,117 @@ export default function PropertyForm() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="country">Country *</Label>
-                          <Select
-                            value={formData.country}
-                            onValueChange={(value) => handleInputChange("country", value)}
-                          >
-                            <SelectTrigger id="country" className={cn(getPMSFieldClass("country", selectedPMS))} disabled={isFieldPopulatedByPMS("country", selectedPMS)}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="South Africa">South Africa</SelectItem>
-                              <SelectItem value="United States">United States</SelectItem>
-                              <SelectItem value="United Kingdom">United Kingdom</SelectItem>
-                              <SelectItem value="Australia">Australia</SelectItem>
-                            </SelectContent>
-                          </Select>
+                      {/* Toggle for no street address */}
+                      <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="no_street_address">No Street Address Available</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Use Google Maps pin link instead of street address
+                          </p>
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="city">City *</Label>
-                          <Input
-                            id="city"
-                            value={formData.city}
-                            onChange={(e) => handleInputChange("city", e.target.value)}
-                            placeholder="City name"
-                            required
-                            disabled={isFieldPopulatedByPMS("city", selectedPMS)}
-                            className={cn(getPMSFieldClass("city", selectedPMS), isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed")}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="address">Street Name *</Label>
-                          <Input
-                            id="address"
-                            value={formData.address}
-                            onChange={(e) => handleInputChange("address", e.target.value)}
-                            placeholder="Street address"
-                            required
-                            disabled={isFieldPopulatedByPMS("address", selectedPMS)}
-                            className={cn(getPMSFieldClass("address", selectedPMS), isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed")}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="suburb">Suburb</Label>
-                          <Input
-                            id="suburb"
-                            value={formData.suburb}
-                            onChange={(e) => handleInputChange("suburb", e.target.value)}
-                            placeholder="Suburb"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="postal_code">Postal Code</Label>
-                          <Input
-                            id="postal_code"
-                            value={formData.postal_code}
-                            onChange={(e) => handleInputChange("postal_code", e.target.value)}
-                            placeholder="Postal code"
-                            disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)}
-                            className={cn(getPMSFieldClass("postal_code", selectedPMS), isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed")}
-                          />
-                        </div>
+                        <Switch
+                          id="no_street_address"
+                          checked={noStreetAddress}
+                          onCheckedChange={(checked) => {
+                            setNoStreetAddress(checked);
+                            setIsDirty(true);
+                          }}
+                        />
                       </div>
 
-                      {/* Google Maps Pin Link - alternative when address is unavailable */}
-                      <div className="space-y-2 pt-4 border-t">
-                        <Label htmlFor="google_maps_link" className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4" />
-                          Google Maps Pin Link
-                          <span className="text-xs text-muted-foreground font-normal">(alternative if no address)</span>
-                        </Label>
-                        <Input
-                          id="google_maps_link"
-                          value={googleMapsLink}
-                          onChange={(e) => handleGoogleMapsLinkChange(e.target.value)}
-                          placeholder="Paste Google Maps link here (e.g., https://maps.google.com/?q=-33.9,18.4)"
-                          className="font-mono text-sm"
-                        />
-                        {googleMapsLink && latitude && longitude && (
-                          <p className="text-xs text-muted-foreground">
-                            Extracted coordinates: {latitude.toFixed(6)}, {longitude.toFixed(6)}
-                          </p>
-                        )}
-                      </div>
+                      {!noStreetAddress && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="country">Country *</Label>
+                            <Select
+                              value={formData.country}
+                              onValueChange={(value) => handleInputChange("country", value)}
+                            >
+                              <SelectTrigger id="country" className={cn(getPMSFieldClass("country", selectedPMS))} disabled={isFieldPopulatedByPMS("country", selectedPMS)}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="South Africa">South Africa</SelectItem>
+                                <SelectItem value="United States">United States</SelectItem>
+                                <SelectItem value="United Kingdom">United Kingdom</SelectItem>
+                                <SelectItem value="Australia">Australia</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="city">City *</Label>
+                            <Input
+                              id="city"
+                              value={formData.city}
+                              onChange={(e) => handleInputChange("city", e.target.value)}
+                              placeholder="City name"
+                              required={!noStreetAddress}
+                              disabled={isFieldPopulatedByPMS("city", selectedPMS)}
+                              className={cn(getPMSFieldClass("city", selectedPMS), isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed")}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="address">Street Name *</Label>
+                            <Input
+                              id="address"
+                              value={formData.address}
+                              onChange={(e) => handleInputChange("address", e.target.value)}
+                              placeholder="Street address"
+                              required={!noStreetAddress}
+                              disabled={isFieldPopulatedByPMS("address", selectedPMS)}
+                              className={cn(getPMSFieldClass("address", selectedPMS), isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed")}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="suburb">Suburb</Label>
+                            <Input
+                              id="suburb"
+                              value={formData.suburb}
+                              onChange={(e) => handleInputChange("suburb", e.target.value)}
+                              placeholder="Suburb"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="postal_code">Postal Code</Label>
+                            <Input
+                              id="postal_code"
+                              value={formData.postal_code}
+                              onChange={(e) => handleInputChange("postal_code", e.target.value)}
+                              placeholder="Postal code"
+                              disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)}
+                              className={cn(getPMSFieldClass("postal_code", selectedPMS), isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed")}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Google Maps Pin Link - shown when no street address toggle is on */}
+                      {noStreetAddress && (
+                        <div className="space-y-2 p-4 border rounded-lg border-primary/20 bg-primary/5">
+                          <Label htmlFor="google_maps_link" className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-primary" />
+                            Google Maps Pin Link *
+                          </Label>
+                          <Input
+                            id="google_maps_link"
+                            value={googleMapsLink}
+                            onChange={(e) => handleGoogleMapsLinkChange(e.target.value)}
+                            placeholder="Paste Google Maps link here (e.g., https://maps.google.com/?q=-33.9,18.4)"
+                            className="font-mono text-sm"
+                            required
+                          />
+                          {googleMapsLink && latitude && longitude ? (
+                            <p className="text-sm text-green-600 flex items-center gap-1">
+                              <Check className="h-4 w-4" />
+                              Coordinates extracted: {latitude.toFixed(6)}, {longitude.toFixed(6)}
+                            </p>
+                          ) : googleMapsLink ? (
+                            <p className="text-sm text-destructive">
+                              Could not extract coordinates from this link. Try a different Google Maps URL.
+                            </p>
+                          ) : null}
+                        </div>
+                      )}
 
                       <div className="pt-4">
                         <Label className="block mb-2">Property Location</Label>
