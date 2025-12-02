@@ -4147,23 +4147,28 @@ export default function PropertyForm() {
                         </Label>
                         <div className="flex gap-2">
                           <Input
-                            placeholder="https://example.com/property/room-id"
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.url || ""}
-                            onChange={(e) => updateRoomTypeUrl(selectedRoomType, e.target.value)}
+                            readOnly
+                            className="bg-muted/50"
+                            value={`${window.location.origin}/property/${propertySlug || id}/room/${selectedRoomType}`}
                           />
-                          {roomTypes.find((r) => r.id === selectedRoomType)?.url && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              onClick={() => copyRoomUrl(roomTypes.find((r) => r.id === selectedRoomType)?.url || "")}
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => {
+                              const url = `${window.location.origin}/property/${propertySlug || id}/room/${selectedRoomType}`;
+                              navigator.clipboard.writeText(url);
+                              toast({
+                                title: "URL Copied",
+                                description: "Room URL has been copied to clipboard",
+                              });
+                            }}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Link to the specific room page on your property website
+                          Auto-generated link to the room showcase page
                         </p>
                       </div>
 
