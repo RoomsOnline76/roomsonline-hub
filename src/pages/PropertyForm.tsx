@@ -245,6 +245,19 @@ export default function PropertyForm() {
   const [bensonPropertyCode, setBensonPropertyCode] = useState<string>("");
   const [isSyncingPms, setIsSyncingPms] = useState(false);
   const [lastPmsSync, setLastPmsSync] = useState<Date | null>(null);
+  
+  // Store existing external IDs to preserve when PMS changes
+  const [existingExternalIds, setExistingExternalIds] = useState<{
+    nightsbridge_bb_id?: string | null;
+    semper_venue_id?: string | null;
+    semper_channel_id?: string | null;
+    semper_account_id?: string | null;
+    semper_agent_id?: string | null;
+    siteminder_id?: string | null;
+    checkfront_id?: string | null;
+    benson_id?: string | null;
+  }>({});
+  const [existingBensonPropertyCode, setExistingBensonPropertyCode] = useState<string | null>(null);
 
   // Sync room/rate types from PMS (Benson)
   const syncFromBenson = async () => {
@@ -1044,6 +1057,10 @@ export default function PropertyForm() {
           if (data.benson_property_code) {
             setBensonPropertyCode(data.benson_property_code);
           }
+          
+          // Store existing external IDs to preserve when PMS changes
+          setExistingExternalIds(amenities?.external_ids || {});
+          setExistingBensonPropertyCode(data.benson_property_code || null);
 
           // Set property slug for room URLs
           if (data.slug) {
@@ -1325,7 +1342,8 @@ export default function PropertyForm() {
         owner_email: formData.owner_email || null,
         external_system: selectedPMS || null,
         external_id: formData.bb_id || formData.venue_id || null,
-        benson_property_code: selectedPMS === "benson" ? bensonPropertyCode : null,
+        // Preserve existing benson_property_code if PMS changed, only update if benson is selected
+        benson_property_code: selectedPMS === "benson" ? bensonPropertyCode : existingBensonPropertyCode,
         is_active: true,
         images: uploadedImages,
         max_guests: 2, // Default value, can be updated later
@@ -1358,15 +1376,16 @@ export default function PropertyForm() {
             account_type: formData.account_type,
             swift_code: formData.swift_code,
           },
+          // Preserve existing external IDs, only update for currently selected PMS
           external_ids: {
-            nightsbridge_bb_id: selectedPMS === "nightsbridge" ? formData.bb_id : null,
-            semper_venue_id: selectedPMS === "semper" ? formData.venue_id : null,
-            semper_channel_id: selectedPMS === "semper" ? formData.channel_id : null,
-            semper_account_id: selectedPMS === "semper" ? formData.account_id : null,
-            semper_agent_id: selectedPMS === "semper" ? formData.agent_id : null,
-            siteminder_id: selectedPMS === "siteminder" ? formData.bb_id : null,
-            checkfront_id: selectedPMS === "checkfront" ? formData.bb_id : null,
-            benson_id: selectedPMS === "benson" ? formData.bb_id : null,
+            nightsbridge_bb_id: selectedPMS === "nightsbridge" ? formData.bb_id : existingExternalIds.nightsbridge_bb_id,
+            semper_venue_id: selectedPMS === "semper" ? formData.venue_id : existingExternalIds.semper_venue_id,
+            semper_channel_id: selectedPMS === "semper" ? formData.channel_id : existingExternalIds.semper_channel_id,
+            semper_account_id: selectedPMS === "semper" ? formData.account_id : existingExternalIds.semper_account_id,
+            semper_agent_id: selectedPMS === "semper" ? formData.agent_id : existingExternalIds.semper_agent_id,
+            siteminder_id: selectedPMS === "siteminder" ? formData.bb_id : existingExternalIds.siteminder_id,
+            checkfront_id: selectedPMS === "checkfront" ? formData.bb_id : existingExternalIds.checkfront_id,
+            benson_id: selectedPMS === "benson" ? formData.bb_id : existingExternalIds.benson_id,
           },
           room_types: roomTypes,
           meal_types: selectedMealTypes,
