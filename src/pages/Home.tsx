@@ -22,10 +22,18 @@ const TYPE_COLORS: Record<string, string> = PROPERTY_TYPES.reduce(
   (acc, t) => ({ ...acc, [t.key]: t.hex }), {}
 );
 
+const INITIAL_ENABLED_TYPES: Record<string, boolean> = {
+  hotel: true,
+  guest_house: true,
+  bnb: true,
+  lodge: true,
+  resort: true,
+  villa: true,
+  apartment: true,
+};
+
 const Home = () => {
-  const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(
-    () => PROPERTY_TYPES.reduce((acc, t) => ({ ...acc, [t.key]: true }), {})
-  );
+  const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
 
   const toggleType = (key: string) => {
     setEnabledTypes((prev) => ({ ...prev, [key]: !prev[key] }));
