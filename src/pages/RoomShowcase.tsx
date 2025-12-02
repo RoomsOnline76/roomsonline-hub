@@ -509,6 +509,30 @@ export default function RoomShowcase() {
               </section>
             )}
 
+            {/* Meal Options */}
+            {property?.amenities?.meal_types && (property.amenities.meal_types as string[]).length > 0 && (
+              <section>
+                <h2 className="text-xl font-semibold mb-4">Meal Options</h2>
+                <Card>
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        <UtensilsCrossed className="h-5 w-5 text-primary" />
+                      </div>
+                      <h3 className="font-semibold">Available Meal Plans</h3>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(property.amenities.meal_types as string[]).map((meal, idx) => (
+                        <Badge key={idx} variant="outline" className="px-3 py-1.5">
+                          {meal}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+            )}
+
             {/* Facilities */}
             {facilities.length > 0 && (
               <section>
