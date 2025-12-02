@@ -220,8 +220,8 @@ const PropertyOverview = () => {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => window.open(`https://next.bookroomsonline.com/property/${property.id}/main/accommodation?sourceprop=${property.id}`, "_blank")}
-                                title="View Property Website"
+                                onClick={() => window.open(`/property/${property.id}`, "_blank")}
+                                title="View Property Showcase"
                               >
                                 <Home className="h-4 w-4" />
                               </Button>
