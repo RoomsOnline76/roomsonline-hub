@@ -162,13 +162,28 @@ export default function PropertyForm() {
     navigate(path);
   };
 
-  // Load owners list
+  // Load owners list - only users with 'user' role (property owners)
   useEffect(() => {
     const loadOwners = async () => {
-      const { data } = await supabase.from("profiles").select("*").order("full_name");
+      // Get user IDs that have the 'user' role (property owners)
+      const { data: ownerRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "user");
 
-      if (data) {
-        setOwners(data);
+      if (ownerRoles && ownerRoles.length > 0) {
+        const ownerIds = ownerRoles.map((r) => r.user_id);
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("*")
+          .in("id", ownerIds)
+          .order("full_name");
+
+        if (profiles) {
+          setOwners(profiles);
+        }
+      } else {
+        setOwners([]);
       }
     };
     loadOwners();
