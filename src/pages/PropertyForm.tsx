@@ -1793,7 +1793,8 @@ export default function PropertyForm() {
                           onChange={(e) => handleInputChange("name", e.target.value)}
                           placeholder="Property name"
                           required
-                          className={cn(getPMSFieldClass("name", selectedPMS))}
+                          disabled={isFieldPopulatedByPMS("name", selectedPMS)}
+                          className={cn(getPMSFieldClass("name", selectedPMS), isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1893,7 +1894,7 @@ export default function PropertyForm() {
                             value={formData.country}
                             onValueChange={(value) => handleInputChange("country", value)}
                           >
-                            <SelectTrigger id="country" className={cn(getPMSFieldClass("country", selectedPMS))}>
+                            <SelectTrigger id="country" className={cn(getPMSFieldClass("country", selectedPMS))} disabled={isFieldPopulatedByPMS("country", selectedPMS)}>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1912,7 +1913,8 @@ export default function PropertyForm() {
                             onChange={(e) => handleInputChange("city", e.target.value)}
                             placeholder="City name"
                             required
-                            className={cn(getPMSFieldClass("city", selectedPMS))}
+                            disabled={isFieldPopulatedByPMS("city", selectedPMS)}
+                            className={cn(getPMSFieldClass("city", selectedPMS), isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed")}
                           />
                         </div>
                         <div className="space-y-2">
@@ -1923,7 +1925,8 @@ export default function PropertyForm() {
                             onChange={(e) => handleInputChange("address", e.target.value)}
                             placeholder="Street address"
                             required
-                            className={cn(getPMSFieldClass("address", selectedPMS))}
+                            disabled={isFieldPopulatedByPMS("address", selectedPMS)}
+                            className={cn(getPMSFieldClass("address", selectedPMS), isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed")}
                           />
                         </div>
                         <div className="space-y-2">
@@ -1942,7 +1945,8 @@ export default function PropertyForm() {
                             value={formData.postal_code}
                             onChange={(e) => handleInputChange("postal_code", e.target.value)}
                             placeholder="Postal code"
-                            className={cn(getPMSFieldClass("postal_code", selectedPMS))}
+                            disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)}
+                            className={cn(getPMSFieldClass("postal_code", selectedPMS), isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed")}
                           />
                         </div>
                       </div>
@@ -2411,14 +2415,15 @@ export default function PropertyForm() {
                         onChange={(e) => handleInputChange("description", e.target.value)}
                         placeholder="Describe your property, its unique features, amenities, and what makes it special..."
                         rows={5}
-                        className={cn("resize-none", getPMSFieldClass("description", selectedPMS))}
+                        disabled={isFieldPopulatedByPMS("description", selectedPMS)}
+                        className={cn("resize-none", getPMSFieldClass("description", selectedPMS), isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed")}
                       />
                     </div>
 
                     <div className="space-y-2">
                       <Label>Stars</Label>
-                      <div className={cn("inline-block p-2 rounded", getPMSFieldClass("star_rating", selectedPMS))}>
-                        <StarRating rating={starRating} onRatingChange={setStarRating} />
+                      <div className={cn("inline-block p-2 rounded", getPMSFieldClass("star_rating", selectedPMS), isFieldPopulatedByPMS("star_rating", selectedPMS) && "opacity-60 pointer-events-none")}>
+                        <StarRating rating={starRating} onRatingChange={isFieldPopulatedByPMS("star_rating", selectedPMS) ? () => {} : setStarRating} />
                       </div>
                     </div>
                   </CardContent>
@@ -2927,7 +2932,8 @@ export default function PropertyForm() {
                               type="time"
                               value={formData.check_in_from}
                               onChange={(e) => handleInputChange("check_in_from", e.target.value)}
-                              className={cn(getPMSFieldClass("check_in_from", selectedPMS))}
+                              disabled={isFieldPopulatedByPMS("check_in_from", selectedPMS)}
+                              className={cn(getPMSFieldClass("check_in_from", selectedPMS), isFieldPopulatedByPMS("check_in_from", selectedPMS) && "cursor-not-allowed")}
                             />
                           </div>
                           <div className="space-y-2">
@@ -2936,7 +2942,8 @@ export default function PropertyForm() {
                               type="time"
                               value={formData.check_in_to}
                               onChange={(e) => handleInputChange("check_in_to", e.target.value)}
-                              className={cn(getPMSFieldClass("check_in_to", selectedPMS))}
+                              disabled={isFieldPopulatedByPMS("check_in_to", selectedPMS)}
+                              className={cn(getPMSFieldClass("check_in_to", selectedPMS), isFieldPopulatedByPMS("check_in_to", selectedPMS) && "cursor-not-allowed")}
                             />
                           </div>
                         </CardContent>
@@ -2954,7 +2961,8 @@ export default function PropertyForm() {
                               type="time"
                               value={formData.check_out_from}
                               onChange={(e) => handleInputChange("check_out_from", e.target.value)}
-                              className={cn(getPMSFieldClass("check_out_from", selectedPMS))}
+                              disabled={isFieldPopulatedByPMS("check_out_from", selectedPMS)}
+                              className={cn(getPMSFieldClass("check_out_from", selectedPMS), isFieldPopulatedByPMS("check_out_from", selectedPMS) && "cursor-not-allowed")}
                             />
                           </div>
                           <div className="space-y-2">
@@ -2963,7 +2971,8 @@ export default function PropertyForm() {
                               type="time"
                               value={formData.check_out_to}
                               onChange={(e) => handleInputChange("check_out_to", e.target.value)}
-                              className={cn(getPMSFieldClass("check_out_to", selectedPMS))}
+                              disabled={isFieldPopulatedByPMS("check_out_to", selectedPMS)}
+                              className={cn(getPMSFieldClass("check_out_to", selectedPMS), isFieldPopulatedByPMS("check_out_to", selectedPMS) && "cursor-not-allowed")}
                             />
                           </div>
                         </CardContent>
