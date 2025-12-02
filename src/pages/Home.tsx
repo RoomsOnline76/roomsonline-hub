@@ -6,15 +6,21 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Shield, Zap, Globe, HeadphonesIcon } from "lucide-react";
 import heroImage from "@/assets/hero-hotel.jpg";
 
+// Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
-  { key: "Hotel", color: "bg-red-500" },
-  { key: "Guest House", color: "bg-blue-500" },
-  { key: "B&B", color: "bg-yellow-500" },
-  { key: "Lodge", color: "bg-green-500" },
-  { key: "Resort", color: "bg-purple-500" },
-  { key: "Villa", color: "bg-orange-500" },
-  { key: "Apartment", color: "bg-teal-500" },
+  { key: "hotel", label: "Hotel", color: "bg-red-500", hex: "#ef4444" },
+  { key: "guest_house", label: "Guest House", color: "bg-blue-500", hex: "#3b82f6" },
+  { key: "bnb", label: "B&B", color: "bg-yellow-500", hex: "#eab308" },
+  { key: "lodge", label: "Lodge", color: "bg-green-500", hex: "#22c55e" },
+  { key: "resort", label: "Resort", color: "bg-purple-500", hex: "#a855f7" },
+  { key: "villa", label: "Villa", color: "bg-orange-500", hex: "#f97316" },
+  { key: "apartment", label: "Apartment", color: "bg-teal-500", hex: "#14b8a6" },
 ];
+
+// Create color map for the map component
+const TYPE_COLORS: Record<string, string> = PROPERTY_TYPES.reduce(
+  (acc, t) => ({ ...acc, [t.key]: t.hex }), {}
+);
 
 const Home = () => {
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(
@@ -109,13 +115,13 @@ const Home = () => {
                 <span className={`text-sm font-medium transition-colors ${
                   enabledTypes[type.key] ? "text-foreground" : "text-muted-foreground"
                 }`}>
-                  {type.key}
+                  {type.label}
                 </span>
               </button>
             ))}
           </div>
 
-          <PropertiesMap enabledTypes={enabledTypes} />
+          <PropertiesMap enabledTypes={enabledTypes} typeColors={TYPE_COLORS} />
         </div>
       </section>
 
