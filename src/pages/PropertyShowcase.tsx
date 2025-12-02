@@ -217,6 +217,16 @@ export default function PropertyShowcase() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Back Button */}
+      <div className="absolute top-4 left-4 z-20">
+        <Link to="/">
+          <Button variant="secondary" size="sm" className="bg-background/80 backdrop-blur-sm hover:bg-background shadow-lg">
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Back to Home
+          </Button>
+        </Link>
+      </div>
+
       {/* Hero Section with Image Gallery */}
       <section className="relative h-[60vh] min-h-[400px] max-h-[600px] bg-muted overflow-hidden">
         {property.images.length > 0 ? (
