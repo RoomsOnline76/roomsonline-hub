@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { MapPin, Loader2 } from "lucide-react";
@@ -21,7 +21,8 @@ interface PropertiesMapProps {
 
 export function PropertiesMap({ enabledTypes }: PropertiesMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const mapInstanceRef = useRef<google.maps.Map | null>(null);
+  const markersRef = useRef<google.maps.Marker[]>([]);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [mapsLoaded, setMapsLoaded] = useState(false);
@@ -88,18 +89,18 @@ export function PropertiesMap({ enabledTypes }: PropertiesMapProps) {
     document.head.appendChild(script);
   }, [apiKey, loading]);
 
-  // Filter properties based on enabled types
-  const filteredProperties = enabledTypes
-    ? properties.filter((p) => enabledTypes[p.property_type] !== false)
-    : properties;
+  // Filter properties based on enabled types - memoized to prevent infinite loops
+  const filteredProperties = useMemo(() => {
+    if (!enabledTypes) return properties;
+    return properties.filter((p) => enabledTypes[p.property_type] !== false);
+  }, [properties, enabledTypes]);
 
-  // Initialize map with filtered properties
+  // Initialize map once
   useEffect(() => {
-    if (!mapRef.current || !mapsLoaded || !window.google?.maps || filteredProperties.length === 0) return;
+    if (!mapRef.current || !mapsLoaded || !window.google?.maps || mapInstanceRef.current) return;
 
-    // Create map centered initially
-    const newMap = new window.google.maps.Map(mapRef.current, {
-      center: { lat: -28.4793, lng: 24.6727 }, // South Africa center
+    mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+      center: { lat: -28.4793, lng: 24.6727 },
       zoom: 5,
       mapTypeControl: false,
       streetViewControl: false,
@@ -112,11 +113,20 @@ export function PropertiesMap({ enabledTypes }: PropertiesMapProps) {
         }
       ]
     });
+  }, [mapsLoaded]);
 
-    // Create bounds to fit all markers
+  // Update markers when filtered properties change
+  useEffect(() => {
+    if (!mapInstanceRef.current || !window.google?.maps) return;
+
+    // Clear existing markers
+    markersRef.current.forEach((marker) => marker.setMap(null));
+    markersRef.current = [];
+
+    if (filteredProperties.length === 0) return;
+
     const bounds = new window.google.maps.LatLngBounds();
     
-    // Add markers for each property
     filteredProperties.forEach((property) => {
       if (!property.latitude || !property.longitude) return;
 
@@ -125,7 +135,7 @@ export function PropertiesMap({ enabledTypes }: PropertiesMapProps) {
 
       const marker = new window.google.maps.Marker({
         position,
-        map: newMap,
+        map: mapInstanceRef.current,
         title: property.name,
         icon: {
           path: window.google.maps.SymbolPath.CIRCLE,
@@ -137,7 +147,6 @@ export function PropertiesMap({ enabledTypes }: PropertiesMapProps) {
         }
       });
 
-      // Create info window
       const infoWindow = new window.google.maps.InfoWindow({
         content: `
           <div style="padding: 8px; max-width: 200px;">
@@ -152,20 +161,20 @@ export function PropertiesMap({ enabledTypes }: PropertiesMapProps) {
       });
 
       marker.addListener("click", () => {
-        infoWindow.open(newMap, marker);
+        infoWindow.open(mapInstanceRef.current, marker);
       });
+
+      markersRef.current.push(marker);
     });
 
-    // Fit map to show all markers with padding
+    // Fit map to show all markers
     if (filteredProperties.length > 1) {
-      newMap.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
+      mapInstanceRef.current.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
     } else if (filteredProperties.length === 1) {
-      newMap.setCenter(bounds.getCenter());
-      newMap.setZoom(12);
+      mapInstanceRef.current.setCenter(bounds.getCenter());
+      mapInstanceRef.current.setZoom(12);
     }
-
-    setMap(newMap);
-  }, [mapsLoaded, filteredProperties, navigate]);
+  }, [filteredProperties]);
 
   if (loading) {
     return (
