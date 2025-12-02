@@ -107,35 +107,88 @@ const PrivacyPolicy = () => {
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-foreground mb-4">8. Cookies</h2>
+              <h2 className="text-2xl font-semibold text-foreground mb-4">8. Data Deletion Policy</h2>
+              <p className="text-muted-foreground mb-4">
+                You have the right to request deletion of your personal data. We are committed to processing deletion requests in accordance with applicable data protection laws.
+              </p>
+
+              <h3 className="text-lg font-medium text-foreground mt-4 mb-2">8.1 How to Request Data Deletion</h3>
+              <p className="text-muted-foreground mb-2">To request deletion of your personal data, you may:</p>
+              <ul className="list-disc pl-6 text-muted-foreground space-y-1">
+                <li>Email us at privacy@roomsonline.co.za with the subject line "Data Deletion Request"</li>
+                <li>Include your full name, email address associated with your account, and any relevant booking references</li>
+                <li>Specify whether you want complete account deletion or deletion of specific data</li>
+              </ul>
+
+              <h3 className="text-lg font-medium text-foreground mt-4 mb-2">8.2 Processing Timeline</h3>
+              <p className="text-muted-foreground">
+                We will acknowledge your deletion request within 5 business days and complete the deletion within 30 days of verification. If we require additional time due to complexity, we will notify you of the delay and reason.
+              </p>
+
+              <h3 className="text-lg font-medium text-foreground mt-4 mb-2">8.3 Data We Will Delete</h3>
+              <p className="text-muted-foreground mb-2">Upon a verified deletion request, we will delete:</p>
+              <ul className="list-disc pl-6 text-muted-foreground space-y-1">
+                <li>Your account profile information (name, email, phone, avatar)</li>
+                <li>Saved preferences and settings</li>
+                <li>Marketing and communication preferences</li>
+                <li>Session and authentication data</li>
+              </ul>
+
+              <h3 className="text-lg font-medium text-foreground mt-4 mb-2">8.4 Data We May Retain</h3>
+              <p className="text-muted-foreground mb-2">Certain data may be retained for legal, regulatory, or legitimate business purposes:</p>
+              <ul className="list-disc pl-6 text-muted-foreground space-y-1">
+                <li><strong>Booking records:</strong> Retained for 7 years for tax, accounting, and legal compliance</li>
+                <li><strong>Payment transaction records:</strong> Retained as required by financial regulations</li>
+                <li><strong>Communications related to disputes:</strong> Retained until resolution and applicable limitation periods expire</li>
+                <li><strong>Data required for fraud prevention:</strong> May be retained to protect against fraudulent activity</li>
+                <li><strong>Anonymized/aggregated data:</strong> May be retained for analytics as it cannot identify you</li>
+              </ul>
+
+              <h3 className="text-lg font-medium text-foreground mt-4 mb-2">8.5 Third-Party Data Deletion</h3>
+              <p className="text-muted-foreground">
+                When you request deletion, we will also instruct relevant third-party service providers to delete your data where technically feasible. However, property management systems and accommodation providers may retain booking records independently as required by their own legal obligations.
+              </p>
+
+              <h3 className="text-lg font-medium text-foreground mt-4 mb-2">8.6 Consequences of Deletion</h3>
+              <p className="text-muted-foreground mb-2">Please note that data deletion will result in:</p>
+              <ul className="list-disc pl-6 text-muted-foreground space-y-1">
+                <li>Permanent closure of your account</li>
+                <li>Loss of access to booking history and saved information</li>
+                <li>Inability to recover deleted data</li>
+                <li>Need to create a new account for future bookings</li>
+              </ul>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-2xl font-semibold text-foreground mb-4">9. Cookies</h2>
               <p className="text-muted-foreground">
                 We use cookies and similar tracking technologies to enhance your experience, analyze site traffic, and for marketing purposes. You can control cookie settings through your browser preferences.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-foreground mb-4">9. Third-Party Services</h2>
+              <h2 className="text-2xl font-semibold text-foreground mb-4">10. Third-Party Services</h2>
               <p className="text-muted-foreground">
                 Our platform may integrate with third-party services including property management systems (such as NightsBridge, Checkfront, Benson, and SiteMinder), payment gateways, and mapping services. These services have their own privacy policies, and we encourage you to review them.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-foreground mb-4">10. Children's Privacy</h2>
+              <h2 className="text-2xl font-semibold text-foreground mb-4">11. Children's Privacy</h2>
               <p className="text-muted-foreground">
                 Our services are not intended for individuals under 18 years of age. We do not knowingly collect personal information from children.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-foreground mb-4">11. Changes to This Policy</h2>
+              <h2 className="text-2xl font-semibold text-foreground mb-4">12. Changes to This Policy</h2>
               <p className="text-muted-foreground">
                 We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new policy on this page and updating the "Last updated" date.
               </p>
             </section>
 
             <section className="mb-8">
-              <h2 className="text-2xl font-semibold text-foreground mb-4">12. Contact Us</h2>
+              <h2 className="text-2xl font-semibold text-foreground mb-4">13. Contact Us</h2>
               <p className="text-muted-foreground">
                 If you have any questions about this Privacy Policy or our data practices, please contact us at:
               </p>
