@@ -9,7 +9,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
-import { Key, AlertCircle, CheckCircle2, BedDouble, RefreshCw, CheckCircle, Briefcase, Layers, MapPin, Mail, LucideIcon, Settings } from "lucide-react";
+import {
+  Key,
+  AlertCircle,
+  CheckCircle2,
+  BedDouble,
+  RefreshCw,
+  CheckCircle,
+  Briefcase,
+  Layers,
+  MapPin,
+  Mail,
+  LucideIcon,
+  Settings,
+} from "lucide-react";
 
 // Map PMS system types to icons
 const getPMSIcon = (systemType: string | null): LucideIcon => {
@@ -107,10 +120,7 @@ export default function AdminKeys() {
   };
 
   const handleUpdateKey = async (keyId: string) => {
-    const { error } = await supabase
-      .from("api_keys")
-      .update({ key_value: editValue })
-      .eq("id", keyId);
+    const { error } = await supabase.from("api_keys").update({ key_value: editValue }).eq("id", keyId);
 
     if (error) {
       toast({
@@ -131,7 +141,7 @@ export default function AdminKeys() {
 
   const handleSaveBensonCredentials = async () => {
     setSavingBenson(true);
-    
+
     const credData = {
       system_type: "benson",
       environment: bensonEnvironment,
@@ -142,15 +152,10 @@ export default function AdminKeys() {
 
     let error;
     if (bensonCredentials) {
-      const result = await supabase
-        .from("pms_credentials")
-        .update(credData)
-        .eq("id", bensonCredentials.id);
+      const result = await supabase.from("pms_credentials").update(credData).eq("id", bensonCredentials.id);
       error = result.error;
     } else {
-      const result = await supabase
-        .from("pms_credentials")
-        .insert(credData);
+      const result = await supabase.from("pms_credentials").insert(credData);
       error = result.error;
     }
 
@@ -178,16 +183,14 @@ export default function AdminKeys() {
   };
 
   const requiredCount = apiKeys.filter((k) => k.is_required).length;
-  const completedCount = apiKeys.filter(
-    (k) => k.is_required && !isPlaceholder(k.key_value)
-  ).length;
+  const completedCount = apiKeys.filter((k) => k.is_required && !isPlaceholder(k.key_value)).length;
 
   // Group API keys: PMS systems vs Additional Services (Google Maps, SendGrid, etc.)
   const additionalServiceTypes = ["google", "sendgrid"];
   const pmsKeys = apiKeys
     .filter((k) => k.system_type && !additionalServiceTypes.includes(k.system_type) && k.system_type !== "benson")
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  
+
   const additionalKeys = apiKeys
     .filter((k) => k.system_type && additionalServiceTypes.includes(k.system_type))
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
@@ -214,9 +217,7 @@ export default function AdminKeys() {
                     </Badge>
                   )}
                 </CardTitle>
-                <CardDescription className="mt-1">
-                  {apiKey.description}
-                </CardDescription>
+                <CardDescription className="mt-1">{apiKey.description}</CardDescription>
               </div>
             </div>
             <div>
@@ -248,9 +249,7 @@ export default function AdminKeys() {
                 />
               </div>
               <div className="flex gap-2">
-                <Button onClick={() => handleUpdateKey(apiKey.id)}>
-                  Save
-                </Button>
+                <Button onClick={() => handleUpdateKey(apiKey.id)}>Save</Button>
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -354,14 +353,18 @@ export default function AdminKeys() {
               <div className="flex items-center gap-4">
                 <Label className="text-sm">Environment:</Label>
                 <div className="flex items-center gap-2">
-                  <span className={`text-sm ${bensonEnvironment === "staging" ? "font-medium" : "text-muted-foreground"}`}>
+                  <span
+                    className={`text-sm ${bensonEnvironment === "staging" ? "font-medium" : "text-muted-foreground"}`}
+                  >
                     Staging
                   </span>
                   <Switch
                     checked={bensonEnvironment === "production"}
                     onCheckedChange={(checked) => setBensonEnvironment(checked ? "production" : "staging")}
                   />
-                  <span className={`text-sm ${bensonEnvironment === "production" ? "font-medium" : "text-muted-foreground"}`}>
+                  <span
+                    className={`text-sm ${bensonEnvironment === "production" ? "font-medium" : "text-muted-foreground"}`}
+                  >
                     Production
                   </span>
                 </div>
@@ -405,17 +408,10 @@ export default function AdminKeys() {
               </div>
 
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setEditingBenson(true)}
-                >
+                <Button variant="outline" onClick={() => setEditingBenson(true)}>
                   {isConfigured ? "Update Credentials" : "Configure"}
                 </Button>
-                <Button
-                  variant="default"
-                  onClick={() => navigate("/admin/benson-config")}
-                  disabled={!isConfigured}
-                >
+                <Button variant="default" onClick={() => navigate("/admin/benson-config")} disabled={!isConfigured}>
                   <Settings className="h-4 w-4 mr-2" />
                   Field Mappings
                 </Button>
@@ -445,12 +441,10 @@ export default function AdminKeys() {
         <div className="max-w-4xl mx-auto">
           <div className="mb-8">
             <h1 className="text-4xl font-bold mb-2">API Keys Management</h1>
-            <p className="text-muted-foreground">
-              Manage integration keys for external services
-            </p>
+            <p className="text-muted-foreground">Manage integration keys for external services</p>
             <div className="mt-4 flex items-center gap-2">
               <Badge variant={completedCount === requiredCount ? "default" : "secondary"}>
-                {completedCount} / {requiredCount} Required Keys Configured
+                {completedCount} / {requiredCount} Keys Configured
               </Badge>
             </div>
           </div>
@@ -461,7 +455,7 @@ export default function AdminKeys() {
             <div className="space-y-4">
               {/* Benson Card - Special handling */}
               {renderBensonCard()}
-              
+
               {/* Other PMS Keys */}
               {pmsKeys.map(renderKeyCard)}
             </div>
@@ -471,9 +465,7 @@ export default function AdminKeys() {
           {additionalKeys.length > 0 && (
             <div>
               <h2 className="text-xl font-semibold mb-4">Additional Services</h2>
-              <div className="space-y-4">
-                {additionalKeys.map(renderKeyCard)}
-              </div>
+              <div className="space-y-4">{additionalKeys.map(renderKeyCard)}</div>
             </div>
           )}
         </div>
