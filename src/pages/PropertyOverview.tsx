@@ -163,6 +163,7 @@ const PropertyOverview = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>PROPERTY NAME</TableHead>
+                        <TableHead>PMS</TableHead>
                         <TableHead>OWNER NAME</TableHead>
                         <TableHead>OWNER EMAIL</TableHead>
                         <TableHead>OWNERLIST</TableHead>
@@ -175,6 +176,15 @@ const PropertyOverview = () => {
                       {activeProperties.map((property) => (
                         <TableRow key={property.id}>
                           <TableCell className="font-medium">{property.name}</TableCell>
+                          <TableCell>
+                            {property.external_system ? (
+                              <Badge variant="outline" className="capitalize">
+                                {property.external_system}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">—</span>
+                            )}
+                          </TableCell>
                           <TableCell>{property.owner_name || "-"}</TableCell>
                           <TableCell>{property.owner_email || "-"}</TableCell>
                           <TableCell>
@@ -268,6 +278,7 @@ const PropertyOverview = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>PROPERTY NAME</TableHead>
+                        <TableHead>PMS</TableHead>
                         <TableHead>OWNER NAME</TableHead>
                         <TableHead>OWNER EMAIL</TableHead>
                         <TableHead>TOTAL BOOKINGS</TableHead>
@@ -279,6 +290,15 @@ const PropertyOverview = () => {
                       {deletedProperties.map((property) => (
                         <TableRow key={property.id}>
                           <TableCell className="font-medium">{property.name}</TableCell>
+                          <TableCell>
+                            {property.external_system ? (
+                              <Badge variant="outline" className="capitalize">
+                                {property.external_system}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">—</span>
+                            )}
+                          </TableCell>
                           <TableCell>{property.owner_name || "-"}</TableCell>
                           <TableCell>{property.owner_email || "-"}</TableCell>
                           <TableCell>{property.total_bookings || 0}</TableCell>
