@@ -79,6 +79,8 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
   useEffect(() => {
     if (!apiKey || loading) return;
 
+    let intervalId: NodeJS.Timeout | null = null;
+
     if (window.google?.maps) {
       setMapsLoaded(true);
       return;
@@ -87,21 +89,24 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
     // Check if script is already loading
     const existingScript = document.querySelector(`script[src*="maps.googleapis.com"]`);
     if (existingScript) {
-      const checkLoaded = setInterval(() => {
+      intervalId = setInterval(() => {
         if (window.google?.maps) {
           setMapsLoaded(true);
-          clearInterval(checkLoaded);
+          if (intervalId) clearInterval(intervalId);
         }
       }, 100);
-      return () => clearInterval(checkLoaded);
+    } else {
+      const script = document.createElement("script");
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=Function.prototype`;
+      script.async = true;
+      script.onload = () => setMapsLoaded(true);
+      script.onerror = () => console.error("Failed to load Google Maps");
+      document.head.appendChild(script);
     }
 
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`;
-    script.async = true;
-    script.onload = () => setMapsLoaded(true);
-    script.onerror = () => console.error("Failed to load Google Maps");
-    document.head.appendChild(script);
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [apiKey, loading]);
 
   // Filter properties based on enabled types - memoized to prevent infinite loops
