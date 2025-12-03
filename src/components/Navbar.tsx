@@ -92,7 +92,7 @@ export const Navbar = () => {
             {!isBookPage && (
               <Button 
                 variant="ghost" 
-                onClick={() => window.open(`${window.location.origin}/book`, '_blank')}
+                onClick={() => window.open('https://book.sleepinafrica.roomsonline.co.za', '_blank')}
               >
                 Book
               </Button>
