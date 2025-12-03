@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -77,10 +77,13 @@ const amenityIcons: Record<string, any> = {
 
 export default function PropertyShowcase() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [property, setProperty] = useState<Property | null>(null);
   const [rates, setRates] = useState<RateData[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  
+  const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
 
   useEffect(() => {
     if (id) {
@@ -219,12 +222,24 @@ export default function PropertyShowcase() {
     <div className="min-h-screen bg-background">
       {/* Back Button */}
       <div className="absolute top-4 left-4 z-20">
-        <Link to="/">
-          <Button variant="secondary" size="sm" className="bg-background/80 backdrop-blur-sm hover:bg-background shadow-lg">
+        {isBookDomain ? (
+          <Button 
+            variant="secondary" 
+            size="sm" 
+            className="bg-background/80 backdrop-blur-sm hover:bg-background shadow-lg"
+            onClick={() => navigate(-1)}
+          >
             <ChevronLeft className="h-4 w-4 mr-1" />
-            Back to Home
+            Back to Search
           </Button>
-        </Link>
+        ) : (
+          <Link to="/">
+            <Button variant="secondary" size="sm" className="bg-background/80 backdrop-blur-sm hover:bg-background shadow-lg">
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Back to Home
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* Hero Section with Image Gallery */}
