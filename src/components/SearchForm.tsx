@@ -15,6 +15,8 @@ export const SearchForm = () => {
   const [checkOut, setCheckOut] = useState<Date>();
   const [guests, setGuests] = useState({ adults: 2, children: 0 });
   const [showGuestPicker, setShowGuestPicker] = useState(false);
+  const [showCheckIn, setShowCheckIn] = useState(false);
+  const [showCheckOut, setShowCheckOut] = useState(false);
 
   const handleSearch = () => {
     if (!destination || !checkIn || !checkOut) {
@@ -58,7 +60,7 @@ export const SearchForm = () => {
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
               Check-in
             </label>
-            <Popover>
+            <Popover open={showCheckIn} onOpenChange={setShowCheckIn}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -73,11 +75,14 @@ export const SearchForm = () => {
                   </span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
+              <PopoverContent className="w-auto p-0 z-50" align="start">
                 <Calendar
                   mode="single"
                   selected={checkIn}
-                  onSelect={setCheckIn}
+                  onSelect={(date) => {
+                    setCheckIn(date);
+                    setShowCheckIn(false);
+                  }}
                   disabled={(date) => date < new Date()}
                   initialFocus
                   className="pointer-events-auto"
@@ -91,7 +96,7 @@ export const SearchForm = () => {
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
               Check-out
             </label>
-            <Popover>
+            <Popover open={showCheckOut} onOpenChange={setShowCheckOut}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -106,11 +111,14 @@ export const SearchForm = () => {
                   </span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
+              <PopoverContent className="w-auto p-0 z-50" align="start">
                 <Calendar
                   mode="single"
                   selected={checkOut}
-                  onSelect={setCheckOut}
+                  onSelect={(date) => {
+                    setCheckOut(date);
+                    setShowCheckOut(false);
+                  }}
                   disabled={(date) => date <= (checkIn || new Date())}
                   initialFocus
                   className="pointer-events-auto"
@@ -136,7 +144,7 @@ export const SearchForm = () => {
                   </span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-72 sm:w-80 p-4" align="start">
+              <PopoverContent className="w-72 sm:w-80 p-4 z-50" align="start">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
