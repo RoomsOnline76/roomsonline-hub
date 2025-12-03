@@ -82,10 +82,73 @@ export default function AdminKeys() {
   const [editingBenson, setEditingBenson] = useState(false);
   const [savingBenson, setSavingBenson] = useState(false);
 
+  // Resend-specific state
+  const [resendFromEmail, setResendFromEmail] = useState("");
+  const [resendToEmail, setResendToEmail] = useState("");
+  const [editingResend, setEditingResend] = useState(false);
+  const [savingResend, setSavingResend] = useState(false);
+
   useEffect(() => {
     fetchApiKeys();
     fetchBensonCredentials();
+    fetchResendConfig();
   }, []);
+
+  const fetchResendConfig = async () => {
+    const { data } = await supabase
+      .from("api_keys")
+      .select("*")
+      .in("key_name", ["RESEND_FROM_EMAIL", "RESEND_TO_EMAIL"]);
+
+    if (data) {
+      const fromEmail = data.find((k) => k.key_name === "RESEND_FROM_EMAIL");
+      const toEmail = data.find((k) => k.key_name === "RESEND_TO_EMAIL");
+      if (fromEmail?.key_value) setResendFromEmail(fromEmail.key_value);
+      if (toEmail?.key_value) setResendToEmail(toEmail.key_value);
+    }
+  };
+
+  const handleSaveResendConfig = async () => {
+    setSavingResend(true);
+
+    // Upsert from email
+    const { error: fromError } = await supabase
+      .from("api_keys")
+      .upsert({
+        key_name: "RESEND_FROM_EMAIL",
+        name: "Resend From Email",
+        key_value: resendFromEmail,
+        system_type: "resend",
+        description: "Sender email address for Resend notifications",
+      }, { onConflict: "key_name" });
+
+    // Upsert to email
+    const { error: toError } = await supabase
+      .from("api_keys")
+      .upsert({
+        key_name: "RESEND_TO_EMAIL",
+        name: "Resend To Email",
+        key_value: resendToEmail,
+        system_type: "resend",
+        description: "Recipient email address for admin notifications",
+      }, { onConflict: "key_name" });
+
+    if (fromError || toError) {
+      toast({
+        title: "Error saving email config",
+        description: fromError?.message || toError?.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Email configuration saved",
+        description: "Resend email settings have been updated",
+      });
+      setEditingResend(false);
+      fetchApiKeys();
+    }
+    setSavingResend(false);
+  };
 
   const fetchApiKeys = async () => {
     setLoading(true);
@@ -192,9 +255,135 @@ export default function AdminKeys() {
     .filter((k) => k.system_type && !additionalServiceTypes.includes(k.system_type) && k.system_type !== "benson")
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
+  // Filter out Resend email config keys from additionalKeys since we handle them in custom card
+  const resendEmailKeys = ["RESEND_FROM_EMAIL", "RESEND_TO_EMAIL"];
   const additionalKeys = apiKeys
-    .filter((k) => k.system_type && additionalServiceTypes.includes(k.system_type))
+    .filter((k) => k.system_type && additionalServiceTypes.includes(k.system_type) && !resendEmailKeys.includes(k.key_name))
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+  // Check if Resend API key is configured
+  const resendApiKey = apiKeys.find((k) => k.key_name === "RESEND_API_KEY");
+  const isResendConfigured = resendApiKey && !isPlaceholder(resendApiKey.key_value);
+
+  const renderResendCard = () => {
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                <Mail className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  Resend Email Service
+                  <Badge variant="outline" className="ml-2">
+                    Email Delivery
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Configure email sender and recipient addresses for notifications
+                </CardDescription>
+              </div>
+            </div>
+            <div>
+              {isResendConfigured ? (
+                <Badge variant="default" className="flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Configured
+                </Badge>
+              ) : (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Not Configured
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {editingResend ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="resend-from">From Email</Label>
+                  <Input
+                    id="resend-from"
+                    type="email"
+                    value={resendFromEmail}
+                    onChange={(e) => setResendFromEmail(e.target.value)}
+                    placeholder="noreply@yourdomain.com"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Use onboarding@resend.dev for testing or verify your domain
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="resend-to">Admin Notification Email</Label>
+                  <Input
+                    id="resend-to"
+                    type="email"
+                    value={resendToEmail}
+                    onChange={(e) => setResendToEmail(e.target.value)}
+                    placeholder="admin@yourdomain.com"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Where access request notifications will be sent
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={handleSaveResendConfig} disabled={savingResend}>
+                  {savingResend ? "Saving..." : "Save"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setEditingResend(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <Label className="text-muted-foreground">From Email</Label>
+                  <p className="font-medium truncate">{resendFromEmail || "Not set"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Admin Email</Label>
+                  <p className="font-medium truncate">{resendToEmail || "Not set"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">API Key</Label>
+                  <p className="font-medium">{isResendConfigured ? "Configured" : "Not set"}</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setEditingResend(true)}>
+                  {resendFromEmail || resendToEmail ? "Update Email Settings" : "Configure Emails"}
+                </Button>
+                {resendApiKey && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingKey(resendApiKey.id);
+                      setEditValue(resendApiKey.key_value || "");
+                    }}
+                  >
+                    {isResendConfigured ? "Update API Key" : "Configure API Key"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
   const renderKeyCard = (apiKey: ApiKey) => {
     const isPlaceholderValue = isPlaceholder(apiKey.key_value);
@@ -463,12 +652,13 @@ export default function AdminKeys() {
           </div>
 
           {/* Additional Services Section */}
-          {additionalKeys.length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Additional Services</h2>
-              <div className="space-y-4">{additionalKeys.map(renderKeyCard)}</div>
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Additional Services</h2>
+            <div className="space-y-4">
+              {renderResendCard()}
+              {additionalKeys.filter(k => k.key_name !== "RESEND_API_KEY").map(renderKeyCard)}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </>
