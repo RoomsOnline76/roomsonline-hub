@@ -13,7 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, differenceInDays } from "date-fns";
 import { CalendarIcon, DollarSign, CalendarDays, XCircle, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, LineChart, Line } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, LineChart, Line, ComposedChart } from "recharts";
 import { DateRange } from "react-day-picker";
 
 const Dashboard = () => {
@@ -435,7 +435,7 @@ const Dashboard = () => {
                 <div className="h-[300px] flex items-center justify-center text-muted-foreground">Loading...</div>
               ) : chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={chartData}>
+                  <ComposedChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
                     <YAxis tick={{ fontSize: 12 }} tickLine={false} allowDecimals={false} />
@@ -448,10 +448,10 @@ const Dashboard = () => {
                     />
                     <Legend />
                     <Bar dataKey="bookings" name={comparePrevYear ? "Bookings (Current)" : "Bookings"} fill="#22c55e" radius={[4, 4, 0, 0]} />
-                    {comparePrevYear && <Bar dataKey="prevBookings" name="Bookings (Prev Year)" fill="#eab308" radius={[4, 4, 0, 0]} />}
                     <Bar dataKey="cancellations" name={comparePrevYear ? "Cancellations (Current)" : "Cancellations"} fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
-                    {comparePrevYear && <Bar dataKey="prevCancellations" name="Cancellations (Prev Year)" fill="hsl(var(--destructive) / 0.5)" radius={[4, 4, 0, 0]} />}
-                  </BarChart>
+                    {comparePrevYear && <Line type="monotone" dataKey="prevBookings" name="Bookings (Prev Year)" stroke="#eab308" strokeWidth={3} dot={false} />}
+                    {comparePrevYear && <Line type="monotone" dataKey="prevCancellations" name="Cancellations (Prev Year)" stroke="hsl(var(--destructive))" strokeWidth={2} strokeDasharray="5 5" dot={false} opacity={0.7} />}
+                  </ComposedChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="h-[300px] flex items-center justify-center text-muted-foreground">
@@ -475,7 +475,7 @@ const Dashboard = () => {
                   <div className="h-[300px] flex items-center justify-center text-muted-foreground">Loading...</div>
                 ) : chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={chartData}>
+                    <ComposedChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                       <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
                       <YAxis tick={{ fontSize: 12 }} tickLine={false} tickFormatter={(v) => `R${v}`} />
@@ -492,8 +492,8 @@ const Dashboard = () => {
                       />
                       <Legend />
                       <Bar dataKey="revenue" name={comparePrevYear ? "Revenue (Current)" : "Revenue"} fill="#22c55e" radius={[4, 4, 0, 0]} />
-                      {comparePrevYear && <Bar dataKey="prevRevenue" name="Revenue (Prev Year)" fill="#eab308" radius={[4, 4, 0, 0]} />}
-                    </BarChart>
+                      {comparePrevYear && <Line type="monotone" dataKey="prevRevenue" name="Revenue (Prev Year)" stroke="#eab308" strokeWidth={3} dot={false} />}
+                    </ComposedChart>
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-[300px] flex items-center justify-center text-muted-foreground">
