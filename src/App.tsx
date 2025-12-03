@@ -15,6 +15,7 @@ import Bookings from "./pages/Bookings";
 import Dashboard from "./pages/Dashboard";
 import AdminKeys from "./pages/AdminKeys";
 import AdminUsers from "./pages/AdminUsers";
+import AdminAccessRequests from "./pages/AdminAccessRequests";
 import PropertyForm from "./pages/PropertyForm";
 import BensonConfig from "./pages/BensonConfig";
 import PropertyShowcase from "./pages/PropertyShowcase";
@@ -57,6 +58,14 @@ const App = () => (
             element={
               <ProtectedRoute requireAdmin={true}>
             <AdminUsers />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/access-requests"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <AdminAccessRequests />
               </ProtectedRoute>
             }
           />

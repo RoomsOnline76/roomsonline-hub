@@ -17,3 +17,6 @@ verify_jwt = true
 
 [functions.dashboard-insights]
 verify_jwt = false
+
+[functions.send-access-request]
+verify_jwt = false

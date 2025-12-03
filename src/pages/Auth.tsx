@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Send } from "lucide-react";
+import { Building2, Send, ShieldCheck } from "lucide-react";
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -19,6 +19,17 @@ export default function Auth() {
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactMessage, setContactMessage] = useState("");
+  
+  // Honeypot field (should remain empty)
+  const [honeypot, setHoneypot] = useState("");
+  
+  // Math captcha
+  const [captchaAnswer, setCaptchaAnswer] = useState("");
+  const captchaChallenge = useMemo(() => {
+    const a = Math.floor(Math.random() * 10) + 1;
+    const b = Math.floor(Math.random() * 10) + 1;
+    return { a, b, answer: a + b };
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -56,17 +67,57 @@ export default function Auth() {
 
   const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Honeypot check - if filled, it's likely a bot
+    if (honeypot) {
+      toast({
+        title: "Request submitted",
+        description: "We'll review your request and get back to you soon.",
+      });
+      return;
+    }
+    
+    // Captcha verification
+    if (parseInt(captchaAnswer) !== captchaChallenge.answer) {
+      toast({
+        title: "Verification failed",
+        description: "Please solve the math problem correctly",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setLoading(true);
 
-    // For now, just show a success message - this could be extended to send an email or store in DB
-    toast({
-      title: "Request submitted",
-      description: "We'll review your request and get back to you soon.",
-    });
+    try {
+      const { data, error } = await supabase.functions.invoke("send-access-request", {
+        body: {
+          name: contactName.trim(),
+          email: contactEmail.trim(),
+          message: contactMessage.trim(),
+        },
+      });
 
-    setContactName("");
-    setContactEmail("");
-    setContactMessage("");
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({
+        title: "Request submitted",
+        description: "We've received your request and will get back to you soon.",
+      });
+
+      setContactName("");
+      setContactEmail("");
+      setContactMessage("");
+      setCaptchaAnswer("");
+    } catch (error: any) {
+      toast({
+        title: "Submission failed",
+        description: error.message || "Please try again later",
+        variant: "destructive",
+      });
+    }
+
     setLoading(false);
   };
 
@@ -86,7 +137,7 @@ export default function Auth() {
         <Card>
           <CardHeader>
             <CardTitle>Welcome</CardTitle>
-            <CardDescription>Sign in to your account or create a new one</CardDescription>
+            <CardDescription>Sign in to your account or request access</CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="login" className="w-full">
@@ -135,6 +186,7 @@ export default function Auth() {
                       value={contactName}
                       onChange={(e) => setContactName(e.target.value)}
                       required
+                      maxLength={100}
                     />
                   </div>
                   <div className="space-y-2">
@@ -146,6 +198,7 @@ export default function Auth() {
                       value={contactEmail}
                       onChange={(e) => setContactEmail(e.target.value)}
                       required
+                      maxLength={255}
                     />
                   </div>
                   <div className="space-y-2">
@@ -157,8 +210,43 @@ export default function Auth() {
                       onChange={(e) => setContactMessage(e.target.value)}
                       required
                       rows={4}
+                      maxLength={1000}
                     />
                   </div>
+                  
+                  {/* Honeypot field - hidden from users */}
+                  <div className="hidden" aria-hidden="true">
+                    <Label htmlFor="website">Website</Label>
+                    <Input
+                      id="website"
+                      type="text"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      value={honeypot}
+                      onChange={(e) => setHoneypot(e.target.value)}
+                    />
+                  </div>
+                  
+                  {/* Math captcha */}
+                  <div className="space-y-2 p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <ShieldCheck className="h-4 w-4" />
+                      <span>Security verification</span>
+                    </div>
+                    <Label htmlFor="captcha">
+                      What is {captchaChallenge.a} + {captchaChallenge.b}?
+                    </Label>
+                    <Input
+                      id="captcha"
+                      type="number"
+                      placeholder="Enter your answer"
+                      value={captchaAnswer}
+                      onChange={(e) => setCaptchaAnswer(e.target.value)}
+                      required
+                      className="w-32"
+                    />
+                  </div>
+                  
                   <Button type="submit" className="w-full" disabled={loading}>
                     <Send className="h-4 w-4 mr-2" />
                     {loading ? "Submitting..." : "Request Access"}

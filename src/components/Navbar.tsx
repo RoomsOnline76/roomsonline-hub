@@ -1,6 +1,7 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Building2, Key, LogOut, User, ChevronDown, Shield, Calendar, Megaphone, BookOpen, PieChart } from "lucide-react";
+import { Building2, Key, LogOut, User, ChevronDown, Shield, Calendar, Megaphone, BookOpen, PieChart, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +22,7 @@ export const Navbar = () => {
   const location = useLocation();
   const [profile, setProfile] = useState<any>(null);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   
   const isBookPage = location.pathname === "/book" || location.pathname.startsWith("/book/");
 
@@ -29,6 +31,12 @@ export const Navbar = () => {
       loadProfile();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      loadPendingRequestsCount();
+    }
+  }, [isAdmin]);
 
   const loadProfile = async () => {
     if (!user) return;
@@ -41,6 +49,15 @@ export const Navbar = () => {
     if (data) {
       setProfile(data);
     }
+  };
+
+  const loadPendingRequestsCount = async () => {
+    const { count } = await supabase
+      .from("access_requests")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending");
+    
+    setPendingRequestsCount(count || 0);
   };
 
   const getInitials = () => {
@@ -137,6 +154,17 @@ export const Navbar = () => {
                   <Button variant="ghost" className="flex items-center gap-2">
                     <Shield className="h-4 w-4" />
                     Users
+                  </Button>
+                </Link>
+                <Link to="/admin/access-requests">
+                  <Button variant="ghost" className="flex items-center gap-2 relative">
+                    <UserPlus className="h-4 w-4" />
+                    Access Requests
+                    {pendingRequestsCount > 0 && (
+                      <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1 text-xs">
+                        {pendingRequestsCount}
+                      </Badge>
+                    )}
                   </Button>
                 </Link>
               </>
