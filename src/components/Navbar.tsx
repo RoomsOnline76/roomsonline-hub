@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -18,8 +18,11 @@ import { ProfileModal } from "@/components/ProfileModal";
 export const Navbar = () => {
   const { user, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [profile, setProfile] = useState<any>(null);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  
+  const isBookPage = location.pathname === "/book" || location.pathname.startsWith("/book/");
 
   useEffect(() => {
     if (user) {
@@ -69,13 +72,15 @@ export const Navbar = () => {
           </Link>
 
           <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              onClick={() => window.open(`${window.location.origin}/book`, '_blank')}
-            >
-              Book
-            </Button>
-            {user && (
+            {!isBookPage && (
+              <Button 
+                variant="ghost" 
+                onClick={() => window.open(`${window.location.origin}/book`, '_blank')}
+              >
+                Book
+              </Button>
+            )}
+            {user && !isBookPage && (
               <>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -120,7 +125,7 @@ export const Navbar = () => {
                 </DropdownMenu>
               </>
             )}
-            {isAdmin && (
+            {isAdmin && !isBookPage && (
               <>
                 <Link to="/admin-keys">
                   <Button variant="ghost" className="flex items-center gap-2">
@@ -136,7 +141,7 @@ export const Navbar = () => {
                 </Link>
               </>
             )}
-            {user ? (
+            {user && !isBookPage ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center gap-2 h-auto py-2">
@@ -167,11 +172,11 @@ export const Navbar = () => {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            ) : (
+            ) : !isBookPage ? (
               <Link to="/auth">
                 <Button variant="default">Sign In</Button>
               </Link>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
