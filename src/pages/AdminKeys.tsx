@@ -40,6 +40,7 @@ const getPMSIcon = (systemType: string | null): LucideIcon => {
     case "google":
       return MapPin;
     case "sendgrid":
+    case "resend":
       return Mail;
     default:
       return Key;
@@ -185,8 +186,8 @@ export default function AdminKeys() {
   const requiredCount = apiKeys.filter((k) => k.is_required).length;
   const completedCount = apiKeys.filter((k) => k.is_required && !isPlaceholder(k.key_value)).length;
 
-  // Group API keys: PMS systems vs Additional Services (Google Maps, SendGrid, etc.)
-  const additionalServiceTypes = ["google", "sendgrid"];
+  // Group API keys: PMS systems vs Additional Services (Google Maps, SendGrid, Resend, etc.)
+  const additionalServiceTypes = ["google", "sendgrid", "resend"];
   const pmsKeys = apiKeys
     .filter((k) => k.system_type && !additionalServiceTypes.includes(k.system_type) && k.system_type !== "benson")
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
