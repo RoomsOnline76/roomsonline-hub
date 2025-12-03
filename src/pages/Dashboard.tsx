@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, differenceInDays } from "date-fns";
-import { CalendarIcon, DollarSign, CalendarDays, XCircle, Building2 } from "lucide-react";
+import { CalendarIcon, DollarSign, CalendarDays, XCircle, Building2, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, LineChart, Line, ComposedChart } from "recharts";
 import { DateRange } from "react-day-picker";
@@ -158,6 +158,60 @@ const Dashboard = () => {
       totalProperties: properties.length,
     };
   }, [bookings, properties]);
+
+  // Export chart data to CSV
+  const exportToCSV = () => {
+    if (chartData.length === 0) return;
+    
+    const headers = [
+      "Date",
+      "Label", 
+      "Bookings",
+      "Cancellations",
+      "Revenue",
+      "SMA Bookings (Trend)",
+      "SMA Revenue (Trend)",
+      "Forecast Bookings",
+      "Forecast Bookings Upper",
+      "Forecast Bookings Lower",
+      "Forecast Revenue",
+      "Forecast Revenue Upper",
+      "Forecast Revenue Lower",
+      ...(comparePrevYear ? ["Prev Year Bookings", "Prev Year Cancellations", "Prev Year Revenue"] : [])
+    ];
+    
+    const rows = chartData.map(d => [
+      d.date,
+      d.label,
+      d.bookings,
+      d.cancellations,
+      d.revenue,
+      d.smaBookings ?? "",
+      d.smaRevenue ?? "",
+      d.forecastBookings ?? "",
+      d.forecastBookingsUpper ?? "",
+      d.forecastBookingsLower ?? "",
+      d.forecastRevenue ?? "",
+      d.forecastRevenueUpper ?? "",
+      d.forecastRevenueLower ?? "",
+      ...(comparePrevYear ? [d.prevBookings ?? "", d.prevCancellations ?? "", d.prevRevenue ?? ""] : [])
+    ]);
+    
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.join(","))
+    ].join("\n");
+    
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `dashboard-data-${format(dateRange?.from || new Date(), "yyyy-MM-dd")}-to-${format(dateRange?.to || new Date(), "yyyy-MM-dd")}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   // Generate chart data
   // Simple Moving Average (12-period for trend)
@@ -539,6 +593,11 @@ const Dashboard = () => {
                 </PopoverContent>
               </Popover>
             )}
+            
+            <Button variant="outline" size="sm" onClick={exportToCSV} disabled={chartData.length === 0}>
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
           </div>
         </div>
 
