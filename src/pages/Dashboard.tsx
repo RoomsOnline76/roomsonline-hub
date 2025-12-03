@@ -214,15 +214,23 @@ const Dashboard = () => {
   };
 
   // Generate chart data
-  // Simple Moving Average (12-period for trend)
+  // Simple Moving Average (12-period rolling mean for trend)
+  // Handles early months by using available data (expanding window until period is reached)
   const calculateSMA = (values: number[], period: number): (number | null)[] => {
     const result: (number | null)[] = [];
     for (let i = 0; i < values.length; i++) {
-      if (i < period - 1) {
-        result.push(null);
+      // For early months, use expanding window (all available data up to current point)
+      // Once we have enough data, use fixed rolling window
+      const windowStart = Math.max(0, i - period + 1);
+      const windowSize = i - windowStart + 1;
+      const slice = values.slice(windowStart, i + 1);
+      
+      // Only show SMA if we have at least 2 data points
+      if (windowSize >= 2) {
+        const sum = slice.reduce((a, b) => a + b, 0);
+        result.push(sum / windowSize);
       } else {
-        const slice = values.slice(i - period + 1, i + 1);
-        result.push(slice.reduce((a, b) => a + b, 0) / period);
+        result.push(null);
       }
     }
     return result;
