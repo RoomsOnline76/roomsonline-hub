@@ -501,8 +501,8 @@ const Dashboard = () => {
                     />
                     <Bar yAxisId="left" dataKey="bookings" name="Bookings" fill="#22c55e" radius={[4, 4, 0, 0]} />
                     <Bar yAxisId="right" dataKey="cancellations" name="Cancelled" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
-                    {comparePrevYear && <Line yAxisId="left" type="monotone" dataKey="prevBookings" name="Prev Bookings" stroke="#eab308" strokeWidth={3} dot={false} />}
-                    {comparePrevYear && <Line yAxisId="right" type="monotone" dataKey="prevCancellations" name="Prev Cancelled" stroke="#f97316" strokeWidth={2} strokeDasharray="5 5" dot={false} />}
+                    {comparePrevYear && <Line yAxisId="left" type="monotone" dataKey="prevBookings" name="Prev Bookings" stroke="#eab308" strokeWidth={2} strokeDasharray="3 3" dot={false} />}
+                    {comparePrevYear && <Line yAxisId="right" type="monotone" dataKey="prevCancellations" name="Prev Cancelled" stroke="#f97316" strokeWidth={2} strokeDasharray="3 3" dot={false} />}
                     <Line yAxisId="left" type="monotone" dataKey="forecastBookings" name="Forecast" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} connectNulls={false} />
                   </ComposedChart>
                 </ResponsiveContainer>
@@ -549,7 +549,7 @@ const Dashboard = () => {
                         formatter={(value) => <span className="text-xs">{value}</span>}
                       />
                       <Bar dataKey="revenue" name="Revenue" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                      {comparePrevYear && <Line type="monotone" dataKey="prevRevenue" name="Prev Revenue" stroke="#eab308" strokeWidth={3} dot={false} />}
+                      {comparePrevYear && <Line type="monotone" dataKey="prevRevenue" name="Prev Revenue" stroke="#eab308" strokeWidth={2} strokeDasharray="3 3" dot={false} />}
                       <Line type="monotone" dataKey="forecastRevenue" name="Forecast" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} connectNulls={false} />
                     </ComposedChart>
                   </ResponsiveContainer>
