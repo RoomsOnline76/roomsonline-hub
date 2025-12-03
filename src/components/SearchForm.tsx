@@ -18,7 +18,8 @@ export const SearchForm = () => {
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [showCheckOut, setShowCheckOut] = useState(false);
 
-  const handleSearch = () => {
+  const handleSearch = (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!destination || !checkIn || !checkOut) {
       return;
     }
@@ -36,7 +37,7 @@ export const SearchForm = () => {
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-      <div className="bg-card/95 backdrop-blur-md rounded-2xl shadow-[var(--shadow-strong)] border border-border/50 p-4 sm:p-6">
+      <form onSubmit={handleSearch} className="bg-card/95 backdrop-blur-md rounded-2xl shadow-[var(--shadow-strong)] border border-border/50 p-4 sm:p-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Destination */}
           <div className="sm:col-span-2 lg:col-span-1">
@@ -207,9 +208,9 @@ export const SearchForm = () => {
         </div>
 
         {/* Search Button */}
-        <div className="mt-5">
+        <div className="mt-5 relative z-10">
           <Button
-            onClick={handleSearch}
+            type="submit"
             className="w-full h-12 text-base font-semibold bg-[var(--hero-gradient)] hover:opacity-90 transition-opacity touch-manipulation rounded-xl"
             disabled={!destination || !checkIn || !checkOut}
           >
@@ -217,7 +218,7 @@ export const SearchForm = () => {
             Search Properties
           </Button>
         </div>
-      </div>
+      </form>
     </div>
   );
 };
