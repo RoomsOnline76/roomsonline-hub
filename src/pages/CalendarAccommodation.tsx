@@ -130,6 +130,15 @@ const getHolidayName = (date: Date): string | null => {
   return holidays[dateStr] || null;
 };
 
+interface AvailabilityData {
+  available: number;
+  stopSell?: boolean;
+  minStay?: number;
+  maxStay?: number;
+  leadDaysAdvance?: number;
+  leadDaysPost?: number;
+}
+
 interface RoomData {
   name: string;
   rates: {
@@ -137,40 +146,157 @@ interface RoomData {
     mealType: string;
     values: { [date: string]: number };
   }[];
-  availability: { [date: string]: number };
+  availability: { [date: string]: number | AvailabilityData };
 }
 
 // Mock data for demonstration - would come from property/room information/rate info
+// Generate mock data for the next 60 days
+const generateMockDateData = () => {
+  const data: Record<string, any> = {};
+  const today = new Date();
+  
+  for (let i = -7; i < 60; i++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + i);
+    const dateKey = format(date, 'yyyy-MM-dd');
+    
+    // Create varied data patterns for testing
+    const dayOfWeek = date.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isHoliday = i >= 20 && i <= 25; // Simulate a holiday period
+    
+    data[dateKey] = {
+      availability: Math.floor(Math.random() * 5) + (isWeekend ? 0 : 1),
+      stopSell: i >= 15 && i <= 18, // Stop sell for a few days
+      minStay: isWeekend ? 2 : 1,
+      maxStay: isHoliday ? 14 : 30,
+      leadDaysAdvance: isHoliday ? 7 : 1,
+      leadDaysPost: 0,
+      baseRate: isWeekend ? 1500 : 1200,
+      isHighSeason: isHoliday,
+    };
+  }
+  return data;
+};
+
+const mockDateData = generateMockDateData();
+
 const mockRoomData: RoomData[] = [
   {
     name: "Petite Hotel Room",
     rates: [
-      { rateType: "SingleRate", mealType: "Breakfast", values: {} },
-      { rateType: "PerPersonRate", mealType: "Breakfast", values: {} },
+      { 
+        rateType: "SingleRate", 
+        mealType: "Breakfast", 
+        values: Object.fromEntries(
+          Object.entries(mockDateData).map(([date, d]) => [date, d.baseRate])
+        )
+      },
+      { 
+        rateType: "PerPersonRate", 
+        mealType: "Breakfast", 
+        values: Object.fromEntries(
+          Object.entries(mockDateData).map(([date, d]) => [date, Math.round(d.baseRate * 0.6)])
+        )
+      },
+      { 
+        rateType: "SingleRate", 
+        mealType: "Dinner B&B", 
+        values: Object.fromEntries(
+          Object.entries(mockDateData).map(([date, d]) => [date, d.baseRate + 350])
+        )
+      },
     ],
-    availability: {},
+    availability: Object.fromEntries(
+      Object.entries(mockDateData).map(([date, d]) => [date, {
+        available: d.availability,
+        stopSell: d.stopSell,
+        minStay: d.minStay,
+        maxStay: d.maxStay,
+        leadDaysAdvance: d.leadDaysAdvance,
+        leadDaysPost: d.leadDaysPost,
+      }])
+    ),
   },
   {
     name: "Two Bedroom Suite",
     rates: [
-      { rateType: "UnitRate", mealType: "Breakfast", values: {} },
+      { 
+        rateType: "UnitRate", 
+        mealType: "Breakfast", 
+        values: Object.fromEntries(
+          Object.entries(mockDateData).map(([date, d]) => [date, d.baseRate * 2.5])
+        )
+      },
+      { 
+        rateType: "UnitRate", 
+        mealType: "Self Catering", 
+        values: Object.fromEntries(
+          Object.entries(mockDateData).map(([date, d]) => [date, d.baseRate * 2])
+        )
+      },
     ],
-    availability: {},
+    availability: Object.fromEntries(
+      Object.entries(mockDateData).map(([date, d]) => [date, {
+        available: Math.max(0, d.availability - 2),
+        stopSell: d.stopSell || d.isHighSeason,
+        minStay: d.isHighSeason ? 3 : d.minStay,
+        maxStay: d.maxStay,
+        leadDaysAdvance: d.leadDaysAdvance,
+        leadDaysPost: d.leadDaysPost,
+      }])
+    ),
   },
   {
     name: "One Bedroom Suite",
     rates: [
-      { rateType: "SingleRate", mealType: "Breakfast", values: {} },
-      { rateType: "PerPersonRate", mealType: "Breakfast", values: {} },
+      { 
+        rateType: "SingleRate", 
+        mealType: "Breakfast", 
+        values: Object.fromEntries(
+          Object.entries(mockDateData).map(([date, d]) => [date, d.baseRate * 1.5])
+        )
+      },
+      { 
+        rateType: "PerPersonRate", 
+        mealType: "Breakfast", 
+        values: Object.fromEntries(
+          Object.entries(mockDateData).map(([date, d]) => [date, Math.round(d.baseRate * 0.8)])
+        )
+      },
     ],
-    availability: {},
+    availability: Object.fromEntries(
+      Object.entries(mockDateData).map(([date, d]) => [date, {
+        available: Math.min(3, d.availability),
+        stopSell: false,
+        minStay: 1,
+        maxStay: d.maxStay,
+        leadDaysAdvance: d.leadDaysAdvance,
+        leadDaysPost: 1,
+      }])
+    ),
   },
   {
     name: "Holiday House",
     rates: [
-      { rateType: "UnitRate", mealType: "Self Catering", values: {} },
+      { 
+        rateType: "UnitRate", 
+        mealType: "Self Catering", 
+        values: Object.fromEntries(
+          Object.entries(mockDateData).map(([date, d]) => [date, d.baseRate * 3])
+        )
+      },
     ],
-    availability: {},
+    availability: Object.fromEntries(
+      Object.entries(mockDateData).map(([date, d]) => [date, {
+        available: d.availability > 2 ? 1 : 0,
+        stopSell: d.availability === 0,
+        minStay: 2,
+        maxStay: 21,
+        leadDaysAdvance: 3,
+        leadDaysPost: 2,
+      }])
+    ),
   },
 ];
 
@@ -644,7 +770,15 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       }
     }
     
-    // No PMS data - return null to indicate missing
+    // Fallback to mock data
+    const mockRoom = mockRoomData.find(r => r.name === roomName);
+    if (mockRoom && mockRoom.availability[dateStr] !== undefined) {
+      const avail = mockRoom.availability[dateStr];
+      const value = typeof avail === 'number' ? avail : avail.available;
+      return { value, fromPms: false };
+    }
+    
+    // No data available
     return { value: null, fromPms: false };
   };
 
@@ -672,7 +806,16 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       }
     }
     
-    // No PMS data
+    // Fallback to mock data
+    const mockRoom = mockRoomData.find(r => r.name === roomName);
+    if (mockRoom) {
+      const rate = mockRoom.rates.find(r => r.rateType === rateType);
+      if (rate && rate.values[dateStr] !== undefined) {
+        return { value: rate.values[dateStr], fromPms: false };
+      }
+    }
+    
+    // No data
     return { value: null, fromPms: false };
   };
 
@@ -681,6 +824,8 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     stopSell: boolean | null; 
     minStay: number | null; 
     maxStay: number | null;
+    leadDaysAdvance: number | null;
+    leadDaysPost: number | null;
     fromPms: boolean 
   } => {
     const dateStr = format(date, "yyyy-MM-dd");
@@ -697,12 +842,30 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           stopSell: r.stopSell ?? null,
           minStay: r.minStay ?? null,
           maxStay: r.maxStay ?? null,
+          leadDaysAdvance: r.leadDaysAdvance ?? null,
+          leadDaysPost: r.leadDaysPost ?? null,
           fromPms: true,
         };
       }
     }
     
-    return { stopSell: null, minStay: null, maxStay: null, fromPms: false };
+    // Fallback to mock data
+    const mockRoom = mockRoomData.find(r => r.name === roomName);
+    if (mockRoom && mockRoom.availability[dateStr] !== undefined) {
+      const avail = mockRoom.availability[dateStr];
+      if (typeof avail === 'object') {
+        return {
+          stopSell: avail.stopSell ?? null,
+          minStay: avail.minStay ?? null,
+          maxStay: avail.maxStay ?? null,
+          leadDaysAdvance: avail.leadDaysAdvance ?? null,
+          leadDaysPost: avail.leadDaysPost ?? null,
+          fromPms: false,
+        };
+      }
+    }
+    
+    return { stopSell: null, minStay: null, maxStay: null, leadDaysAdvance: null, leadDaysPost: null, fromPms: false };
   };
 
   // Render cell value with indicator for missing data
@@ -1219,6 +1382,147 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   })}
                                 </tr>
                               ))}
+                              {/* Stop Sell Row */}
+                              {selectedDisplayOptions.includes("stop_sell") && (
+                                <tr>
+                                  <td className="border p-2 pl-4 text-sm text-muted-foreground sticky left-0 bg-background z-10">
+                                    <span className="text-red-600 font-medium">Stop Sell</span>
+                                  </td>
+                                  {calendarDates.map((date, index) => {
+                                    const weekend = isWeekend(date);
+                                    const isHoliday = !!getHolidayName(date);
+                                    const restrictions = getRestrictions(room.name, date);
+                                    return (
+                                      <td
+                                        key={index}
+                                        className={`border p-2 text-center text-sm ${
+                                          isHoliday 
+                                            ? "bg-green-100 dark:bg-green-950/30" 
+                                            : weekend 
+                                              ? "bg-red-50 dark:bg-red-950/20" 
+                                              : ""
+                                        }`}
+                                      >
+                                        {restrictions.stopSell === null ? (
+                                          <span className="text-muted-foreground/50 italic">—</span>
+                                        ) : restrictions.stopSell ? (
+                                          <span className="text-red-600 font-bold">✕</span>
+                                        ) : (
+                                          <span className="text-green-600">✓</span>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              )}
+                              {/* Min Stay Row */}
+                              {selectedDisplayOptions.includes("min_stay") && (
+                                <tr>
+                                  <td className="border p-2 pl-4 text-sm text-muted-foreground sticky left-0 bg-background z-10">
+                                    <span className="text-blue-600 font-medium">Min Stay</span>
+                                  </td>
+                                  {calendarDates.map((date, index) => {
+                                    const weekend = isWeekend(date);
+                                    const isHoliday = !!getHolidayName(date);
+                                    const restrictions = getRestrictions(room.name, date);
+                                    return (
+                                      <td
+                                        key={index}
+                                        className={`border p-2 text-center text-sm ${
+                                          isHoliday 
+                                            ? "bg-green-100 dark:bg-green-950/30" 
+                                            : weekend 
+                                              ? "bg-red-50 dark:bg-red-950/20" 
+                                              : ""
+                                        }`}
+                                      >
+                                        {renderCellValue(restrictions.minStay, restrictions.fromPms)}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              )}
+                              {/* Max Stay Row */}
+                              {selectedDisplayOptions.includes("max_stay") && (
+                                <tr>
+                                  <td className="border p-2 pl-4 text-sm text-muted-foreground sticky left-0 bg-background z-10">
+                                    <span className="text-pink-600 font-medium">Max Stay</span>
+                                  </td>
+                                  {calendarDates.map((date, index) => {
+                                    const weekend = isWeekend(date);
+                                    const isHoliday = !!getHolidayName(date);
+                                    const restrictions = getRestrictions(room.name, date);
+                                    return (
+                                      <td
+                                        key={index}
+                                        className={`border p-2 text-center text-sm ${
+                                          isHoliday 
+                                            ? "bg-green-100 dark:bg-green-950/30" 
+                                            : weekend 
+                                              ? "bg-red-50 dark:bg-red-950/20" 
+                                              : ""
+                                        }`}
+                                      >
+                                        {renderCellValue(restrictions.maxStay, restrictions.fromPms)}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              )}
+                              {/* Lead Days Advance Row */}
+                              {selectedDisplayOptions.includes("lead_days_advance") && (
+                                <tr>
+                                  <td className="border p-2 pl-4 text-sm text-muted-foreground sticky left-0 bg-background z-10">
+                                    <span className="text-yellow-600 font-medium">Lead Days Adv</span>
+                                  </td>
+                                  {calendarDates.map((date, index) => {
+                                    const weekend = isWeekend(date);
+                                    const isHoliday = !!getHolidayName(date);
+                                    const restrictions = getRestrictions(room.name, date);
+                                    return (
+                                      <td
+                                        key={index}
+                                        className={`border p-2 text-center text-sm ${
+                                          isHoliday 
+                                            ? "bg-green-100 dark:bg-green-950/30" 
+                                            : weekend 
+                                              ? "bg-red-50 dark:bg-red-950/20" 
+                                              : ""
+                                        }`}
+                                      >
+                                        {renderCellValue(restrictions.leadDaysAdvance, restrictions.fromPms)}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              )}
+                              {/* Lead Days Post Row */}
+                              {selectedDisplayOptions.includes("lead_days_post") && (
+                                <tr>
+                                  <td className="border p-2 pl-4 text-sm text-muted-foreground sticky left-0 bg-background z-10">
+                                    <span className="text-orange-600 font-medium">Lead Days Post</span>
+                                  </td>
+                                  {calendarDates.map((date, index) => {
+                                    const weekend = isWeekend(date);
+                                    const isHoliday = !!getHolidayName(date);
+                                    const restrictions = getRestrictions(room.name, date);
+                                    return (
+                                      <td
+                                        key={index}
+                                        className={`border p-2 text-center text-sm ${
+                                          isHoliday 
+                                            ? "bg-green-100 dark:bg-green-950/30" 
+                                            : weekend 
+                                              ? "bg-red-50 dark:bg-red-950/20" 
+                                              : ""
+                                        }`}
+                                      >
+                                        {renderCellValue(restrictions.leadDaysPost, restrictions.fromPms)}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              )}
                             </React.Fragment>
                           );
                         })}
@@ -1368,6 +1672,147 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   })}
                                 </tr>
                               ))}
+                              {/* Stop Sell Row */}
+                              {selectedDisplayOptions.includes("stop_sell") && (
+                                <tr>
+                                  <td className="border p-1 pl-4 text-xs text-muted-foreground sticky left-0 bg-background z-10">
+                                    <span className="text-red-600 font-medium">Stop Sell</span>
+                                  </td>
+                                  {calendarDates.map((date, index) => {
+                                    const weekend = isWeekend(date);
+                                    const isHoliday = !!getHolidayName(date);
+                                    const restrictions = getRestrictions(room.name, date);
+                                    return (
+                                      <td
+                                        key={index}
+                                        className={`border p-1 text-center text-xs ${
+                                          isHoliday 
+                                            ? "bg-green-100 dark:bg-green-950/30" 
+                                            : weekend 
+                                              ? "bg-red-50 dark:bg-red-950/20" 
+                                              : ""
+                                        }`}
+                                      >
+                                        {restrictions.stopSell === null ? (
+                                          <span className="text-muted-foreground/50 italic">—</span>
+                                        ) : restrictions.stopSell ? (
+                                          <span className="text-red-600 font-bold">✕</span>
+                                        ) : (
+                                          <span className="text-green-600">✓</span>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              )}
+                              {/* Min Stay Row */}
+                              {selectedDisplayOptions.includes("min_stay") && (
+                                <tr>
+                                  <td className="border p-1 pl-4 text-xs text-muted-foreground sticky left-0 bg-background z-10">
+                                    <span className="text-blue-600 font-medium">Min Stay</span>
+                                  </td>
+                                  {calendarDates.map((date, index) => {
+                                    const weekend = isWeekend(date);
+                                    const isHoliday = !!getHolidayName(date);
+                                    const restrictions = getRestrictions(room.name, date);
+                                    return (
+                                      <td
+                                        key={index}
+                                        className={`border p-1 text-center text-xs ${
+                                          isHoliday 
+                                            ? "bg-green-100 dark:bg-green-950/30" 
+                                            : weekend 
+                                              ? "bg-red-50 dark:bg-red-950/20" 
+                                              : ""
+                                        }`}
+                                      >
+                                        {renderCellValue(restrictions.minStay, restrictions.fromPms)}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              )}
+                              {/* Max Stay Row */}
+                              {selectedDisplayOptions.includes("max_stay") && (
+                                <tr>
+                                  <td className="border p-1 pl-4 text-xs text-muted-foreground sticky left-0 bg-background z-10">
+                                    <span className="text-pink-600 font-medium">Max Stay</span>
+                                  </td>
+                                  {calendarDates.map((date, index) => {
+                                    const weekend = isWeekend(date);
+                                    const isHoliday = !!getHolidayName(date);
+                                    const restrictions = getRestrictions(room.name, date);
+                                    return (
+                                      <td
+                                        key={index}
+                                        className={`border p-1 text-center text-xs ${
+                                          isHoliday 
+                                            ? "bg-green-100 dark:bg-green-950/30" 
+                                            : weekend 
+                                              ? "bg-red-50 dark:bg-red-950/20" 
+                                              : ""
+                                        }`}
+                                      >
+                                        {renderCellValue(restrictions.maxStay, restrictions.fromPms)}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              )}
+                              {/* Lead Days Advance Row */}
+                              {selectedDisplayOptions.includes("lead_days_advance") && (
+                                <tr>
+                                  <td className="border p-1 pl-4 text-xs text-muted-foreground sticky left-0 bg-background z-10">
+                                    <span className="text-yellow-600 font-medium">Lead Days Adv</span>
+                                  </td>
+                                  {calendarDates.map((date, index) => {
+                                    const weekend = isWeekend(date);
+                                    const isHoliday = !!getHolidayName(date);
+                                    const restrictions = getRestrictions(room.name, date);
+                                    return (
+                                      <td
+                                        key={index}
+                                        className={`border p-1 text-center text-xs ${
+                                          isHoliday 
+                                            ? "bg-green-100 dark:bg-green-950/30" 
+                                            : weekend 
+                                              ? "bg-red-50 dark:bg-red-950/20" 
+                                              : ""
+                                        }`}
+                                      >
+                                        {renderCellValue(restrictions.leadDaysAdvance, restrictions.fromPms)}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              )}
+                              {/* Lead Days Post Row */}
+                              {selectedDisplayOptions.includes("lead_days_post") && (
+                                <tr>
+                                  <td className="border p-1 pl-4 text-xs text-muted-foreground sticky left-0 bg-background z-10">
+                                    <span className="text-orange-600 font-medium">Lead Days Post</span>
+                                  </td>
+                                  {calendarDates.map((date, index) => {
+                                    const weekend = isWeekend(date);
+                                    const isHoliday = !!getHolidayName(date);
+                                    const restrictions = getRestrictions(room.name, date);
+                                    return (
+                                      <td
+                                        key={index}
+                                        className={`border p-1 text-center text-xs ${
+                                          isHoliday 
+                                            ? "bg-green-100 dark:bg-green-950/30" 
+                                            : weekend 
+                                              ? "bg-red-50 dark:bg-red-950/20" 
+                                              : ""
+                                        }`}
+                                      >
+                                        {renderCellValue(restrictions.leadDaysPost, restrictions.fromPms)}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              )}
                             </React.Fragment>
                           );
                         })}
