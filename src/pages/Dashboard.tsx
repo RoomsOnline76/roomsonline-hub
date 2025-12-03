@@ -160,20 +160,106 @@ const Dashboard = () => {
   }, [bookings, properties]);
 
   // Generate chart data
-  // Linear regression helper for forecasting
-  const linearRegression = (points: { x: number; y: number }[]) => {
-    const n = points.length;
-    if (n < 2) return { slope: 0, intercept: 0 };
+  // Simple Moving Average (12-period for trend)
+  const calculateSMA = (values: number[], period: number): (number | null)[] => {
+    const result: (number | null)[] = [];
+    for (let i = 0; i < values.length; i++) {
+      if (i < period - 1) {
+        result.push(null);
+      } else {
+        const slice = values.slice(i - period + 1, i + 1);
+        result.push(slice.reduce((a, b) => a + b, 0) / period);
+      }
+    }
+    return result;
+  };
+
+  // Holt-Winters Triple Exponential Smoothing (Additive Seasonality)
+  const holtWinters = (
+    values: number[],
+    seasonLength: number = 12,
+    alpha: number = 0.3,  // level smoothing
+    beta: number = 0.1,   // trend smoothing
+    gamma: number = 0.3,  // seasonal smoothing
+    forecastPeriods: number = 12
+  ): { forecast: number[]; upper: number[]; lower: number[] } => {
+    const n = values.length;
+    if (n < seasonLength * 2) {
+      // Not enough data for seasonal model, use simple exponential smoothing
+      const forecast: number[] = [];
+      const avg = values.reduce((a, b) => a + b, 0) / n;
+      const stdDev = Math.sqrt(values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / n);
+      
+      for (let i = 0; i < forecastPeriods; i++) {
+        forecast.push(avg);
+      }
+      return {
+        forecast,
+        upper: forecast.map(f => f + 1.28 * stdDev),
+        lower: forecast.map(f => Math.max(0, f - 1.28 * stdDev))
+      };
+    }
+
+    // Initialize level (average of first season)
+    let level = values.slice(0, seasonLength).reduce((a, b) => a + b, 0) / seasonLength;
     
-    const sumX = points.reduce((sum, p) => sum + p.x, 0);
-    const sumY = points.reduce((sum, p) => sum + p.y, 0);
-    const sumXY = points.reduce((sum, p) => sum + p.x * p.y, 0);
-    const sumXX = points.reduce((sum, p) => sum + p.x * p.x, 0);
+    // Initialize trend (average difference between seasons)
+    let trend = 0;
+    for (let i = 0; i < seasonLength; i++) {
+      trend += (values[seasonLength + i] - values[i]) / seasonLength;
+    }
+    trend /= seasonLength;
+
+    // Initialize seasonal factors
+    const seasonal: number[] = [];
+    for (let i = 0; i < seasonLength; i++) {
+      const seasonAvg = values.slice(i, n).filter((_, idx) => idx % seasonLength === 0);
+      seasonal.push(seasonAvg.reduce((a, b) => a + b, 0) / seasonAvg.length - level);
+    }
+
+    // Calculate fitted values and residuals for confidence intervals
+    const residuals: number[] = [];
     
-    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-    const intercept = (sumY - slope * sumX) / n;
+    // Apply Holt-Winters
+    for (let i = seasonLength; i < n; i++) {
+      const seasonIdx = i % seasonLength;
+      const prevLevel = level;
+      
+      // Update level
+      level = alpha * (values[i] - seasonal[seasonIdx]) + (1 - alpha) * (level + trend);
+      
+      // Update trend
+      trend = beta * (level - prevLevel) + (1 - beta) * trend;
+      
+      // Update seasonal
+      seasonal[seasonIdx] = gamma * (values[i] - level) + (1 - gamma) * seasonal[seasonIdx];
+      
+      // Calculate residual
+      const fitted = prevLevel + trend + seasonal[seasonIdx];
+      residuals.push(values[i] - fitted);
+    }
+
+    // Calculate standard error for confidence intervals
+    const stdError = residuals.length > 0
+      ? Math.sqrt(residuals.reduce((sum, r) => sum + r * r, 0) / residuals.length)
+      : values.reduce((a, b) => a + b, 0) / n * 0.2;
+
+    // Generate forecasts
+    const forecast: number[] = [];
+    const upper: number[] = [];
+    const lower: number[] = [];
     
-    return { slope: isNaN(slope) ? 0 : slope, intercept: isNaN(intercept) ? 0 : intercept };
+    for (let i = 0; i < forecastPeriods; i++) {
+      const seasonIdx = (n + i) % seasonLength;
+      const forecastValue = level + (i + 1) * trend + seasonal[seasonIdx];
+      const errorMargin = 1.28 * stdError * Math.sqrt(1 + i * 0.1); // Growing uncertainty
+      
+      forecast.push(Math.max(0, forecastValue));
+      upper.push(Math.max(0, forecastValue + errorMargin));
+      lower.push(Math.max(0, forecastValue - errorMargin));
+    }
+
+    return { forecast, upper, lower };
   };
 
   const chartData = useMemo(() => {
@@ -188,8 +274,14 @@ const Dashboard = () => {
       prevBookings?: number;
       prevRevenue?: number;
       prevCancellations?: number;
-      forecastBookings?: number;
-      forecastRevenue?: number;
+      smaBookings?: number | null;
+      smaRevenue?: number | null;
+      forecastBookings?: number | null;
+      forecastRevenue?: number | null;
+      forecastBookingsUpper?: number | null;
+      forecastBookingsLower?: number | null;
+      forecastRevenueUpper?: number | null;
+      forecastRevenueLower?: number | null;
     }
     
     const data: ChartDataPoint[] = [];
@@ -303,30 +395,53 @@ const Dashboard = () => {
       }
     }
     
-    // Calculate forecast using linear regression on actual data
-    const actualData = data.filter(d => new Date(d.date) <= today && (d.bookings > 0 || d.revenue > 0));
+    // Apply forecasting - get historical data
+    const historicalData = data.filter(d => new Date(d.date) <= today);
+    const futureData = data.filter(d => new Date(d.date) > today);
     
-    if (actualData.length >= 3) {
-      // Prepare points for regression
-      const bookingPoints = actualData.map((d, i) => ({ x: i, y: d.bookings }));
-      const revenuePoints = actualData.map((d, i) => ({ x: i, y: d.revenue }));
+    if (historicalData.length >= 3) {
+      const bookingValues = historicalData.map(d => d.bookings);
+      const revenueValues = historicalData.map(d => d.revenue);
       
-      const bookingReg = linearRegression(bookingPoints);
-      const revenueReg = linearRegression(revenuePoints);
+      // Calculate SMA (use 7-day for daily, 12-month for monthly)
+      const smaPeriod = shouldAggregateByMonth ? Math.min(12, historicalData.length) : Math.min(7, historicalData.length);
+      const smaBookings = calculateSMA(bookingValues, smaPeriod);
+      const smaRevenue = calculateSMA(revenueValues, smaPeriod);
       
-      // Apply forecast to future dates
-      data.forEach((d, i) => {
-        const dateObj = new Date(d.date);
-        if (dateObj > today) {
-          // Project using regression
-          d.forecastBookings = Math.max(0, Math.round(bookingReg.intercept + bookingReg.slope * i));
-          d.forecastRevenue = Math.max(0, Math.round(revenueReg.intercept + revenueReg.slope * i));
-        } else if (i === actualData.length - 1 || (actualData.length > 0 && d.date === actualData[actualData.length - 1].date)) {
-          // Connect forecast line to last actual data point
-          d.forecastBookings = d.bookings;
-          d.forecastRevenue = d.revenue;
-        }
+      // Apply SMA to historical data
+      historicalData.forEach((d, i) => {
+        d.smaBookings = smaBookings[i];
+        d.smaRevenue = smaRevenue[i];
       });
+      
+      // Calculate Holt-Winters forecast for future periods
+      if (futureData.length > 0) {
+        const seasonLength = shouldAggregateByMonth ? 12 : 7;
+        
+        const bookingForecast = holtWinters(bookingValues, seasonLength, 0.3, 0.1, 0.3, futureData.length);
+        const revenueForecast = holtWinters(revenueValues, seasonLength, 0.3, 0.1, 0.3, futureData.length);
+        
+        // Connect forecast to last historical point
+        const lastHistorical = historicalData[historicalData.length - 1];
+        if (lastHistorical) {
+          lastHistorical.forecastBookings = lastHistorical.bookings;
+          lastHistorical.forecastRevenue = lastHistorical.revenue;
+          lastHistorical.forecastBookingsUpper = lastHistorical.bookings;
+          lastHistorical.forecastBookingsLower = lastHistorical.bookings;
+          lastHistorical.forecastRevenueUpper = lastHistorical.revenue;
+          lastHistorical.forecastRevenueLower = lastHistorical.revenue;
+        }
+        
+        // Apply forecasts to future data
+        futureData.forEach((d, i) => {
+          d.forecastBookings = Math.round(bookingForecast.forecast[i] || 0);
+          d.forecastBookingsUpper = Math.round(bookingForecast.upper[i] || 0);
+          d.forecastBookingsLower = Math.round(bookingForecast.lower[i] || 0);
+          d.forecastRevenue = Math.round(revenueForecast.forecast[i] || 0);
+          d.forecastRevenueUpper = Math.round(revenueForecast.upper[i] || 0);
+          d.forecastRevenueLower = Math.round(revenueForecast.lower[i] || 0);
+        });
+      }
     }
     
     return data;
@@ -496,14 +611,22 @@ const Dashboard = () => {
                       }}
                     />
                     <Legend 
-                      wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+                      wrapperStyle={{ fontSize: "10px", paddingTop: "8px" }}
                       formatter={(value) => <span className="text-xs">{value}</span>}
                     />
+                    {/* Confidence interval shaded area */}
+                    <Area yAxisId="left" type="monotone" dataKey="forecastBookingsUpper" stroke="none" fill="#0ea5e9" fillOpacity={0.15} name="Confidence" connectNulls={false} />
+                    <Area yAxisId="left" type="monotone" dataKey="forecastBookingsLower" stroke="none" fill="#ffffff" fillOpacity={1} connectNulls={false} legendType="none" />
+                    {/* Main data bars */}
                     <Bar yAxisId="left" dataKey="bookings" name="Bookings" fill="#22c55e" radius={[4, 4, 0, 0]} />
                     <Bar yAxisId="right" dataKey="cancellations" name="Cancelled" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
-                    {comparePrevYear && <Line yAxisId="left" type="monotone" dataKey="prevBookings" name="Prev Bookings" stroke="#eab308" strokeWidth={2} strokeDasharray="3 3" dot={false} />}
-                    {comparePrevYear && <Line yAxisId="right" type="monotone" dataKey="prevCancellations" name="Prev Cancelled" stroke="#f97316" strokeWidth={2} strokeDasharray="3 3" dot={false} />}
-                    <Line yAxisId="left" type="monotone" dataKey="forecastBookings" name="Forecast" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} connectNulls={false} />
+                    {/* 12-period trend (SMA) - solid orange */}
+                    <Line yAxisId="left" type="monotone" dataKey="smaBookings" name="Trend (SMA)" stroke="#f97316" strokeWidth={2} dot={false} connectNulls />
+                    {/* Previous year comparison - dotted amber */}
+                    {comparePrevYear && <Line yAxisId="left" type="monotone" dataKey="prevBookings" name="Prev Year" stroke="#eab308" strokeWidth={2} strokeDasharray="3 3" dot={false} />}
+                    {comparePrevYear && <Line yAxisId="right" type="monotone" dataKey="prevCancellations" name="Prev Cancelled" stroke="#f97316" strokeWidth={1} strokeDasharray="3 3" dot={false} opacity={0.6} />}
+                    {/* Seasonal forecast - dashed blue */}
+                    <Line yAxisId="left" type="monotone" dataKey="forecastBookings" name="Forecast" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="6 3" dot={false} connectNulls={false} />
                   </ComposedChart>
                 </ResponsiveContainer>
               ) : (
@@ -545,12 +668,20 @@ const Dashboard = () => {
                         }}
                       />
                       <Legend 
-                        wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+                        wrapperStyle={{ fontSize: "10px", paddingTop: "8px" }}
                         formatter={(value) => <span className="text-xs">{value}</span>}
                       />
+                      {/* Confidence interval shaded area */}
+                      <Area type="monotone" dataKey="forecastRevenueUpper" stroke="none" fill="#0ea5e9" fillOpacity={0.15} name="Confidence" connectNulls={false} />
+                      <Area type="monotone" dataKey="forecastRevenueLower" stroke="none" fill="#ffffff" fillOpacity={1} connectNulls={false} legendType="none" />
+                      {/* Main data bars */}
                       <Bar dataKey="revenue" name="Revenue" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                      {comparePrevYear && <Line type="monotone" dataKey="prevRevenue" name="Prev Revenue" stroke="#eab308" strokeWidth={2} strokeDasharray="3 3" dot={false} />}
-                      <Line type="monotone" dataKey="forecastRevenue" name="Forecast" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} connectNulls={false} />
+                      {/* 12-period trend (SMA) - solid orange */}
+                      <Line type="monotone" dataKey="smaRevenue" name="Trend (SMA)" stroke="#f97316" strokeWidth={2} dot={false} connectNulls />
+                      {/* Previous year comparison - dotted amber */}
+                      {comparePrevYear && <Line type="monotone" dataKey="prevRevenue" name="Prev Year" stroke="#eab308" strokeWidth={2} strokeDasharray="3 3" dot={false} />}
+                      {/* Seasonal forecast - dashed blue */}
+                      <Line type="monotone" dataKey="forecastRevenue" name="Forecast" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="6 3" dot={false} connectNulls={false} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 ) : (
