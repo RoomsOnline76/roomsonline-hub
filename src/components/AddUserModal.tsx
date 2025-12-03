@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,13 +17,24 @@ interface AddUserModalProps {
   onOpenChange: (open: boolean) => void;
   role: "admin" | "user";
   onUserAdded: () => void;
+  defaultEmail?: string;
+  defaultName?: string;
 }
 
-export function AddUserModal({ open, onOpenChange, role, onUserAdded }: AddUserModalProps) {
+export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEmail, defaultName }: AddUserModalProps) {
   const [formData, setFormData] = useState({
-    full_name: "",
-    email: "",
+    full_name: defaultName || "",
+    email: defaultEmail || "",
   });
+
+  useEffect(() => {
+    if (open) {
+      setFormData({
+        full_name: defaultName || "",
+        email: defaultEmail || "",
+      });
+    }
+  }, [open, defaultEmail, defaultName]);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
