@@ -172,11 +172,15 @@ const Dashboard = () => {
       "SMA Bookings (Trend)",
       "SMA Revenue (Trend)",
       "Forecast Bookings",
-      "Forecast Bookings Upper",
-      "Forecast Bookings Lower",
+      "Forecast Bookings Upper 80%",
+      "Forecast Bookings Lower 80%",
+      "Forecast Bookings Upper 95%",
+      "Forecast Bookings Lower 95%",
       "Forecast Revenue",
-      "Forecast Revenue Upper",
-      "Forecast Revenue Lower",
+      "Forecast Revenue Upper 80%",
+      "Forecast Revenue Lower 80%",
+      "Forecast Revenue Upper 95%",
+      "Forecast Revenue Lower 95%",
       ...(comparePrevYear ? ["Prev Year Bookings", "Prev Year Cancellations", "Prev Year Revenue"] : [])
     ];
     
@@ -189,11 +193,15 @@ const Dashboard = () => {
       d.smaBookings ?? "",
       d.smaRevenue ?? "",
       d.forecastBookings ?? "",
-      d.forecastBookingsUpper ?? "",
-      d.forecastBookingsLower ?? "",
+      d.forecastBookingsUpper80 ?? "",
+      d.forecastBookingsLower80 ?? "",
+      d.forecastBookingsUpper95 ?? "",
+      d.forecastBookingsLower95 ?? "",
       d.forecastRevenue ?? "",
-      d.forecastRevenueUpper ?? "",
-      d.forecastRevenueLower ?? "",
+      d.forecastRevenueUpper80 ?? "",
+      d.forecastRevenueLower80 ?? "",
+      d.forecastRevenueUpper95 ?? "",
+      d.forecastRevenueLower95 ?? "",
       ...(comparePrevYear ? [d.prevBookings ?? "", d.prevCancellations ?? "", d.prevRevenue ?? ""] : [])
     ]);
     
@@ -237,6 +245,7 @@ const Dashboard = () => {
   };
 
   // Holt-Winters Triple Exponential Smoothing (Additive Seasonality)
+  // Returns forecast with both 80% and 95% confidence intervals that widen over time
   const holtWinters = (
     values: number[],
     seasonLength: number = 12,
@@ -244,84 +253,156 @@ const Dashboard = () => {
     beta: number = 0.1,   // trend smoothing
     gamma: number = 0.3,  // seasonal smoothing
     forecastPeriods: number = 12
-  ): { forecast: number[]; upper: number[]; lower: number[] } => {
+  ): { 
+    forecast: number[]; 
+    upper80: number[]; 
+    lower80: number[];
+    upper95: number[];
+    lower95: number[];
+  } => {
     const n = values.length;
+    
+    // Z-scores for confidence intervals
+    const z80 = 1.28;  // 80% CI
+    const z95 = 1.96;  // 95% CI
+    
     if (n < seasonLength * 2) {
-      // Not enough data for seasonal model, use simple exponential smoothing
+      // Not enough data for seasonal model, use simple exponential smoothing with trend
       const forecast: number[] = [];
       const avg = values.reduce((a, b) => a + b, 0) / n;
-      const stdDev = Math.sqrt(values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / n);
+      
+      // Calculate variance for confidence intervals
+      const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / n;
+      const stdDev = Math.sqrt(variance);
+      
+      // Simple trend estimate
+      const trendSlope = n > 1 ? (values[n - 1] - values[0]) / (n - 1) : 0;
+      const lastValue = values[n - 1] || avg;
+      
+      const upper80: number[] = [];
+      const lower80: number[] = [];
+      const upper95: number[] = [];
+      const lower95: number[] = [];
       
       for (let i = 0; i < forecastPeriods; i++) {
-        forecast.push(avg);
+        const forecastValue = lastValue + trendSlope * (i + 1);
+        // Confidence intervals widen with sqrt of forecast horizon
+        const errorGrowth = Math.sqrt(1 + (i + 1) * 0.15);
+        const margin80 = z80 * stdDev * errorGrowth;
+        const margin95 = z95 * stdDev * errorGrowth;
+        
+        forecast.push(Math.max(0, forecastValue));
+        upper80.push(Math.max(0, forecastValue + margin80));
+        lower80.push(Math.max(0, forecastValue - margin80));
+        upper95.push(Math.max(0, forecastValue + margin95));
+        lower95.push(Math.max(0, forecastValue - margin95));
       }
-      return {
-        forecast,
-        upper: forecast.map(f => f + 1.28 * stdDev),
-        lower: forecast.map(f => Math.max(0, f - 1.28 * stdDev))
-      };
+      
+      return { forecast, upper80, lower80, upper95, lower95 };
     }
 
+    // === Seasonal Decomposition ===
     // Initialize level (average of first season)
     let level = values.slice(0, seasonLength).reduce((a, b) => a + b, 0) / seasonLength;
     
-    // Initialize trend (average difference between seasons)
+    // Initialize trend using least squares fit over first two seasons
     let trend = 0;
-    for (let i = 0; i < seasonLength; i++) {
-      trend += (values[seasonLength + i] - values[i]) / seasonLength;
-    }
-    trend /= seasonLength;
-
-    // Initialize seasonal factors
-    const seasonal: number[] = [];
-    for (let i = 0; i < seasonLength; i++) {
-      const seasonAvg = values.slice(i, n).filter((_, idx) => idx % seasonLength === 0);
-      seasonal.push(seasonAvg.reduce((a, b) => a + b, 0) / seasonAvg.length - level);
+    if (n >= seasonLength * 2) {
+      const firstSeasonAvg = values.slice(0, seasonLength).reduce((a, b) => a + b, 0) / seasonLength;
+      const secondSeasonAvg = values.slice(seasonLength, seasonLength * 2).reduce((a, b) => a + b, 0) / seasonLength;
+      trend = (secondSeasonAvg - firstSeasonAvg) / seasonLength;
     }
 
-    // Calculate fitted values and residuals for confidence intervals
-    const residuals: number[] = [];
+    // Initialize seasonal factors using classical decomposition
+    const seasonal: number[] = new Array(seasonLength).fill(0);
+    const seasonalCounts: number[] = new Array(seasonLength).fill(0);
     
-    // Apply Holt-Winters
-    for (let i = seasonLength; i < n; i++) {
+    // Compute detrended values and average by season index
+    for (let i = 0; i < n; i++) {
       const seasonIdx = i % seasonLength;
-      const prevLevel = level;
-      
-      // Update level
-      level = alpha * (values[i] - seasonal[seasonIdx]) + (1 - alpha) * (level + trend);
-      
-      // Update trend
-      trend = beta * (level - prevLevel) + (1 - beta) * trend;
-      
-      // Update seasonal
-      seasonal[seasonIdx] = gamma * (values[i] - level) + (1 - gamma) * seasonal[seasonIdx];
-      
-      // Calculate residual
-      const fitted = prevLevel + trend + seasonal[seasonIdx];
-      residuals.push(values[i] - fitted);
+      const detrended = values[i] - (level + trend * i);
+      seasonal[seasonIdx] += detrended;
+      seasonalCounts[seasonIdx]++;
+    }
+    
+    // Normalize seasonal factors (should sum to 0 for additive model)
+    for (let i = 0; i < seasonLength; i++) {
+      seasonal[i] = seasonalCounts[i] > 0 ? seasonal[i] / seasonalCounts[i] : 0;
+    }
+    const seasonalSum = seasonal.reduce((a, b) => a + b, 0);
+    const seasonalAdj = seasonalSum / seasonLength;
+    for (let i = 0; i < seasonLength; i++) {
+      seasonal[i] -= seasonalAdj;
     }
 
-    // Calculate standard error for confidence intervals
-    const stdError = residuals.length > 0
-      ? Math.sqrt(residuals.reduce((sum, r) => sum + r * r, 0) / residuals.length)
-      : values.reduce((a, b) => a + b, 0) / n * 0.2;
+    // === Holt-Winters Recursion ===
+    const residuals: number[] = [];
+    const fittedValues: number[] = [];
+    
+    // Re-initialize for forward pass
+    level = values.slice(0, seasonLength).reduce((a, b) => a + b, 0) / seasonLength;
+    
+    for (let i = 0; i < n; i++) {
+      const seasonIdx = i % seasonLength;
+      
+      if (i >= seasonLength) {
+        const prevLevel = level;
+        
+        // Update level: deseasonalize current observation
+        level = alpha * (values[i] - seasonal[seasonIdx]) + (1 - alpha) * (level + trend);
+        
+        // Update trend
+        trend = beta * (level - prevLevel) + (1 - beta) * trend;
+        
+        // Update seasonal factor
+        seasonal[seasonIdx] = gamma * (values[i] - level) + (1 - gamma) * seasonal[seasonIdx];
+        
+        // Calculate fitted value and residual
+        const fitted = prevLevel + trend + seasonal[seasonIdx];
+        fittedValues.push(fitted);
+        residuals.push(values[i] - fitted);
+      }
+    }
 
-    // Generate forecasts
+    // === Calculate Standard Error with degrees of freedom correction ===
+    const df = Math.max(1, residuals.length - 3); // level, trend, seasonal params
+    const mse = residuals.length > 0
+      ? residuals.reduce((sum, r) => sum + r * r, 0) / df
+      : Math.pow(values.reduce((a, b) => a + b, 0) / n * 0.2, 2);
+    const stdError = Math.sqrt(mse);
+
+    // === Generate Forecasts with Widening Confidence Intervals ===
     const forecast: number[] = [];
-    const upper: number[] = [];
-    const lower: number[] = [];
+    const upper80: number[] = [];
+    const lower80: number[] = [];
+    const upper95: number[] = [];
+    const lower95: number[] = [];
     
     for (let i = 0; i < forecastPeriods; i++) {
+      const h = i + 1; // forecast horizon
       const seasonIdx = (n + i) % seasonLength;
-      const forecastValue = level + (i + 1) * trend + seasonal[seasonIdx];
-      const errorMargin = 1.28 * stdError * Math.sqrt(1 + i * 0.1); // Growing uncertainty
+      
+      // Point forecast
+      const forecastValue = level + h * trend + seasonal[seasonIdx];
+      
+      // Variance grows with forecast horizon (Holt-Winters variance formula)
+      // σ²(h) = σ² * (1 + (h-1) * (α² + α*β*h + β²*h*(2h-1)/6 + γ²*(1 - (1-γ)^(2*⌊h/m⌋))/(1-(1-γ)²)))
+      // Simplified approximation that captures widening uncertainty:
+      const varianceMultiplier = 1 + 
+        alpha * alpha * h + 
+        beta * beta * h * (h + 1) / 2 + 
+        (h > seasonLength ? gamma * gamma * Math.floor(h / seasonLength) : 0);
+      
+      const errorStd = stdError * Math.sqrt(Math.max(1, varianceMultiplier));
       
       forecast.push(Math.max(0, forecastValue));
-      upper.push(Math.max(0, forecastValue + errorMargin));
-      lower.push(Math.max(0, forecastValue - errorMargin));
+      upper80.push(Math.max(0, forecastValue + z80 * errorStd));
+      lower80.push(Math.max(0, forecastValue - z80 * errorStd));
+      upper95.push(Math.max(0, forecastValue + z95 * errorStd));
+      lower95.push(Math.max(0, forecastValue - z95 * errorStd));
     }
 
-    return { forecast, upper, lower };
+    return { forecast, upper80, lower80, upper95, lower95 };
   };
 
   const chartData = useMemo(() => {
@@ -340,10 +421,16 @@ const Dashboard = () => {
       smaRevenue?: number | null;
       forecastBookings?: number | null;
       forecastRevenue?: number | null;
-      forecastBookingsUpper?: number | null;
-      forecastBookingsLower?: number | null;
-      forecastRevenueUpper?: number | null;
-      forecastRevenueLower?: number | null;
+      // 80% Confidence Interval
+      forecastBookingsUpper80?: number | null;
+      forecastBookingsLower80?: number | null;
+      forecastRevenueUpper80?: number | null;
+      forecastRevenueLower80?: number | null;
+      // 95% Confidence Interval (wider)
+      forecastBookingsUpper95?: number | null;
+      forecastBookingsLower95?: number | null;
+      forecastRevenueUpper95?: number | null;
+      forecastRevenueLower95?: number | null;
     }
     
     const data: ChartDataPoint[] = [];
@@ -495,20 +582,28 @@ const Dashboard = () => {
         if (lastActual) {
           lastActual.forecastBookings = lastActual.bookings;
           lastActual.forecastRevenue = lastActual.revenue;
-          lastActual.forecastBookingsUpper = lastActual.bookings;
-          lastActual.forecastBookingsLower = lastActual.bookings;
-          lastActual.forecastRevenueUpper = lastActual.revenue;
-          lastActual.forecastRevenueLower = lastActual.revenue;
+          lastActual.forecastBookingsUpper80 = lastActual.bookings;
+          lastActual.forecastBookingsLower80 = lastActual.bookings;
+          lastActual.forecastBookingsUpper95 = lastActual.bookings;
+          lastActual.forecastBookingsLower95 = lastActual.bookings;
+          lastActual.forecastRevenueUpper80 = lastActual.revenue;
+          lastActual.forecastRevenueLower80 = lastActual.revenue;
+          lastActual.forecastRevenueUpper95 = lastActual.revenue;
+          lastActual.forecastRevenueLower95 = lastActual.revenue;
         }
         
-        // Apply forecasts to future data
+        // Apply forecasts to future data with widening confidence intervals
         futureData.forEach((d, i) => {
           d.forecastBookings = Math.round(bookingForecast.forecast[i] || 0);
-          d.forecastBookingsUpper = Math.round(bookingForecast.upper[i] || 0);
-          d.forecastBookingsLower = Math.round(bookingForecast.lower[i] || 0);
+          d.forecastBookingsUpper80 = Math.round(bookingForecast.upper80[i] || 0);
+          d.forecastBookingsLower80 = Math.round(bookingForecast.lower80[i] || 0);
+          d.forecastBookingsUpper95 = Math.round(bookingForecast.upper95[i] || 0);
+          d.forecastBookingsLower95 = Math.round(bookingForecast.lower95[i] || 0);
           d.forecastRevenue = Math.round(revenueForecast.forecast[i] || 0);
-          d.forecastRevenueUpper = Math.round(revenueForecast.upper[i] || 0);
-          d.forecastRevenueLower = Math.round(revenueForecast.lower[i] || 0);
+          d.forecastRevenueUpper80 = Math.round(revenueForecast.upper80[i] || 0);
+          d.forecastRevenueLower80 = Math.round(revenueForecast.lower80[i] || 0);
+          d.forecastRevenueUpper95 = Math.round(revenueForecast.upper95[i] || 0);
+          d.forecastRevenueLower95 = Math.round(revenueForecast.lower95[i] || 0);
         });
       } else if (dataForAnalysis.length > 0) {
         // For fully historical ranges, show extended trend/forecast line
@@ -522,11 +617,15 @@ const Dashboard = () => {
           const forecastIdx = i - forecastStartIdx;
           if (forecastIdx < bookingForecast.forecast.length) {
             dataForAnalysis[i].forecastBookings = Math.round(bookingForecast.forecast[forecastIdx] || 0);
-            dataForAnalysis[i].forecastBookingsUpper = Math.round(bookingForecast.upper[forecastIdx] || 0);
-            dataForAnalysis[i].forecastBookingsLower = Math.round(bookingForecast.lower[forecastIdx] || 0);
+            dataForAnalysis[i].forecastBookingsUpper80 = Math.round(bookingForecast.upper80[forecastIdx] || 0);
+            dataForAnalysis[i].forecastBookingsLower80 = Math.round(bookingForecast.lower80[forecastIdx] || 0);
+            dataForAnalysis[i].forecastBookingsUpper95 = Math.round(bookingForecast.upper95[forecastIdx] || 0);
+            dataForAnalysis[i].forecastBookingsLower95 = Math.round(bookingForecast.lower95[forecastIdx] || 0);
             dataForAnalysis[i].forecastRevenue = Math.round(revenueForecast.forecast[forecastIdx] || 0);
-            dataForAnalysis[i].forecastRevenueUpper = Math.round(revenueForecast.upper[forecastIdx] || 0);
-            dataForAnalysis[i].forecastRevenueLower = Math.round(revenueForecast.lower[forecastIdx] || 0);
+            dataForAnalysis[i].forecastRevenueUpper80 = Math.round(revenueForecast.upper80[forecastIdx] || 0);
+            dataForAnalysis[i].forecastRevenueLower80 = Math.round(revenueForecast.lower80[forecastIdx] || 0);
+            dataForAnalysis[i].forecastRevenueUpper95 = Math.round(revenueForecast.upper95[forecastIdx] || 0);
+            dataForAnalysis[i].forecastRevenueLower95 = Math.round(revenueForecast.lower95[forecastIdx] || 0);
           }
         }
       }
@@ -707,9 +806,12 @@ const Dashboard = () => {
                       wrapperStyle={{ fontSize: "10px", paddingTop: "8px" }}
                       formatter={(value) => <span className="text-xs">{value}</span>}
                     />
-                    {/* Confidence interval shaded area */}
-                    <Area yAxisId="left" type="monotone" dataKey="forecastBookingsUpper" stroke="none" fill="#0ea5e9" fillOpacity={0.15} name="Confidence" connectNulls={false} />
-                    <Area yAxisId="left" type="monotone" dataKey="forecastBookingsLower" stroke="none" fill="#ffffff" fillOpacity={1} connectNulls={false} legendType="none" />
+                    {/* 95% Confidence interval - outer (lighter) */}
+                    <Area yAxisId="left" type="monotone" dataKey="forecastBookingsUpper95" stroke="none" fill="#0ea5e9" fillOpacity={0.08} name="CI 95%" connectNulls={false} />
+                    <Area yAxisId="left" type="monotone" dataKey="forecastBookingsLower95" stroke="none" fill="hsl(var(--background))" fillOpacity={1} connectNulls={false} legendType="none" />
+                    {/* 80% Confidence interval - inner (darker) */}
+                    <Area yAxisId="left" type="monotone" dataKey="forecastBookingsUpper80" stroke="none" fill="#0ea5e9" fillOpacity={0.18} name="CI 80%" connectNulls={false} />
+                    <Area yAxisId="left" type="monotone" dataKey="forecastBookingsLower80" stroke="none" fill="hsl(var(--background))" fillOpacity={1} connectNulls={false} legendType="none" />
                     {/* Main data bars */}
                     <Bar yAxisId="left" dataKey="bookings" name="Bookings" fill="#22c55e" radius={[4, 4, 0, 0]} />
                     <Bar yAxisId="right" dataKey="cancellations" name="Cancelled" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
@@ -764,9 +866,12 @@ const Dashboard = () => {
                         wrapperStyle={{ fontSize: "10px", paddingTop: "8px" }}
                         formatter={(value) => <span className="text-xs">{value}</span>}
                       />
-                      {/* Confidence interval shaded area */}
-                      <Area type="monotone" dataKey="forecastRevenueUpper" stroke="none" fill="#0ea5e9" fillOpacity={0.15} name="Confidence" connectNulls={false} />
-                      <Area type="monotone" dataKey="forecastRevenueLower" stroke="none" fill="#ffffff" fillOpacity={1} connectNulls={false} legendType="none" />
+                      {/* 95% Confidence interval - outer (lighter) */}
+                      <Area type="monotone" dataKey="forecastRevenueUpper95" stroke="none" fill="#0ea5e9" fillOpacity={0.08} name="CI 95%" connectNulls={false} />
+                      <Area type="monotone" dataKey="forecastRevenueLower95" stroke="none" fill="hsl(var(--background))" fillOpacity={1} connectNulls={false} legendType="none" />
+                      {/* 80% Confidence interval - inner (darker) */}
+                      <Area type="monotone" dataKey="forecastRevenueUpper80" stroke="none" fill="#0ea5e9" fillOpacity={0.18} name="CI 80%" connectNulls={false} />
+                      <Area type="monotone" dataKey="forecastRevenueLower80" stroke="none" fill="hsl(var(--background))" fillOpacity={1} connectNulls={false} legendType="none" />
                       {/* Main data bars */}
                       <Bar dataKey="revenue" name="Revenue" fill="#22c55e" radius={[4, 4, 0, 0]} />
                       {/* 12-period trend (SMA) - solid orange */}
