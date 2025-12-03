@@ -7,16 +7,27 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Building2, Edit, Trash2, Home, CheckCircle2 } from "lucide-react";
+import { Building2, Edit, Trash2, Home, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { getPropertyUrl } from "@/lib/config";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const PropertyOverview = () => {
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
+  const [propertyToDelete, setPropertyToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const { data: allProperties, isLoading, refetch } = useQuery({
     queryKey: ["properties", user?.id, isAdmin],
@@ -30,6 +41,7 @@ const PropertyOverview = () => {
       let query = supabase
         .from("properties")
         .select("*")
+        .is("permanently_deleted_at", null)
         .order("created_at", { ascending: false });
 
       if (!isAdmin && profile?.email) {
@@ -99,6 +111,24 @@ const PropertyOverview = () => {
       refetch();
     } catch (error) {
       toast.error("Failed to reactivate property");
+    }
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!propertyToDelete) return;
+    
+    try {
+      const { error } = await supabase
+        .from("properties")
+        .update({ permanently_deleted_at: new Date().toISOString() })
+        .eq("id", propertyToDelete.id);
+      
+      if (error) throw error;
+      toast.success("Property permanently deleted. Historical data retained.");
+      setPropertyToDelete(null);
+      refetch();
+    } catch (error) {
+      toast.error("Failed to permanently delete property");
     }
   };
 
@@ -312,13 +342,23 @@ const PropertyOverview = () => {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleReactivateProperty(property.id)}
-                            >
-                              Reactivate
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleReactivateProperty(property.id)}
+                              >
+                                Reactivate
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => setPropertyToDelete({ id: property.id, name: property.name })}
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Permanently Delete
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -329,6 +369,42 @@ const PropertyOverview = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Permanent Delete Confirmation Dialog */}
+        <AlertDialog open={!!propertyToDelete} onOpenChange={(open) => !open && setPropertyToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+                Permanently Delete Property
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-3">
+                <p>
+                  Are you sure you want to permanently delete <strong>"{propertyToDelete?.name}"</strong>?
+                </p>
+                <p className="text-sm">
+                  This action will:
+                </p>
+                <ul className="list-disc pl-5 text-sm space-y-1">
+                  <li>Remove the property from all listings</li>
+                  <li>The property cannot be reactivated after this action</li>
+                </ul>
+                <p className="text-sm text-muted-foreground">
+                  <strong>Note:</strong> Historical data including bookings and revenue will be retained for reporting purposes.
+                </p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handlePermanentDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Permanently Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

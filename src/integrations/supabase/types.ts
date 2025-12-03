@@ -504,6 +504,7 @@ export type Database = {
           name: string
           owner_email: string | null
           owner_name: string | null
+          permanently_deleted_at: string | null
           price_per_night: number
           property_type: string
           property_url: string | null
@@ -533,6 +534,7 @@ export type Database = {
           name: string
           owner_email?: string | null
           owner_name?: string | null
+          permanently_deleted_at?: string | null
           price_per_night: number
           property_type: string
           property_url?: string | null
@@ -562,6 +564,7 @@ export type Database = {
           name?: string
           owner_email?: string | null
           owner_name?: string | null
+          permanently_deleted_at?: string | null
           price_per_night?: number
           property_type?: string
           property_url?: string | null
