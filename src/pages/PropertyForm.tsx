@@ -4090,25 +4090,10 @@ export default function PropertyForm() {
                 {/* Main Content - Rate Breakdown Details */}
                 <div className="flex-1 overflow-auto">
                   <Tabs defaultValue="season" className="w-full">
-                    <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
-                      <TabsTrigger
-                        value="season"
-                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
-                      >
-                        Season
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="rate-breakdown"
-                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
-                      >
-                        Rate Breakdown
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="overview"
-                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
-                      >
-                        Overview
-                      </TabsTrigger>
+                    <TabsList>
+                      <TabsTrigger value="season">Season</TabsTrigger>
+                      <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
+                      <TabsTrigger value="overview">Overview</TabsTrigger>
                     </TabsList>
 
                     {/* Season Sub-tab */}
@@ -4311,37 +4296,12 @@ export default function PropertyForm() {
                 {/* Main Content - Room Type Details */}
                 <div className="flex-1 overflow-auto">
                   <Tabs defaultValue="room-type" className="w-full">
-                    <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
-                      <TabsTrigger
-                        value="room-type"
-                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
-                      >
-                        Room Type
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="facilities"
-                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
-                      >
-                        Facilities
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="amenities"
-                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
-                      >
-                        Amenities
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="room-images"
-                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
-                      >
-                        Images
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="agreement"
-                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
-                      >
-                        Agreement
-                      </TabsTrigger>
+                    <TabsList>
+                      <TabsTrigger value="room-type">Room Type</TabsTrigger>
+                      <TabsTrigger value="facilities">Facilities</TabsTrigger>
+                      <TabsTrigger value="amenities">Amenities</TabsTrigger>
+                      <TabsTrigger value="room-images">Images</TabsTrigger>
+                      <TabsTrigger value="agreement">Agreement</TabsTrigger>
                     </TabsList>
 
                     {/* Room Type Sub-tab */}
