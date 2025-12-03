@@ -1,7 +1,7 @@
 // Application configuration constants
 
 // The public-facing domain for property and room showcase URLs
-export const PUBLIC_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
+export const PUBLIC_DOMAIN = "https://book.sleepinafrica.roomsonline.co.za";
 
 // Helper to generate full property URL
 export const getPropertyUrl = (slugOrId: string) => `${PUBLIC_DOMAIN}/property/${slugOrId}`;
