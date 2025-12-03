@@ -3,8 +3,9 @@ import { Navbar } from "@/components/Navbar";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { Card, CardContent } from "@/components/ui/card";
-import { Shield, Zap, Globe, HeadphonesIcon } from "lucide-react";
+import { Shield, Zap, Globe, HeadphonesIcon, MapPin, Star, Bed } from "lucide-react";
 import heroImage from "@/assets/hero-hotel.jpg";
+import { Link } from "react-router-dom";
 
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
@@ -43,47 +44,49 @@ const Home = () => {
     {
       icon: Shield,
       title: "Secure Booking",
-      description: "Industry-standard security for all your reservations",
+      description: "Industry-standard security for all reservations",
     },
     {
       icon: Zap,
       title: "Instant Confirmation",
-      description: "Get immediate booking confirmations from multiple systems",
+      description: "Immediate booking confirmations",
     },
     {
       icon: Globe,
       title: "Multi-Platform",
-      description: "Connect to NightsBridge, Checkfront, and more",
+      description: "Connect to multiple booking systems",
     },
     {
       icon: HeadphonesIcon,
       title: "24/7 Support",
-      description: "Round-the-clock assistance for your bookings",
+      description: "Round-the-clock assistance",
     },
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      {/* Hero Section */}
-      <section className="relative">
+      {/* Hero Section - Mobile optimized */}
+      <section className="relative flex-shrink-0">
         <div
           className="absolute inset-0 z-0"
           style={{
             backgroundImage: `url(${heroImage})`,
             backgroundSize: "cover",
-            backgroundPosition: "center",
+            backgroundPosition: "center 30%",
           }}
         >
-          <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/70 to-background" />
+          <div className="absolute inset-0 bg-gradient-to-b from-background/90 via-background/75 to-background" />
         </div>
 
-        <div className="relative z-10 container mx-auto px-3 sm:px-4 py-12 sm:py-20 md:py-32">
-          <div className="text-center mb-6 sm:mb-12">
-            <h1 className="text-2xl sm:text-4xl md:text-6xl font-bold text-foreground mb-2 sm:mb-4">Book Your Perfect Stay</h1>
-            <p className="text-sm sm:text-xl text-muted-foreground max-w-2xl mx-auto px-2">
-              Search and book from our curated destinations portfolio
+        <div className="relative z-10 container mx-auto px-4 pt-8 pb-10 sm:py-16 md:py-24">
+          <div className="text-center mb-6 sm:mb-10">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-3 sm:mb-4 tracking-tight">
+              Book Your Perfect Stay
+            </h1>
+            <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-xl mx-auto">
+              Discover and book from our curated portfolio of destinations across Africa
             </p>
           </div>
 
@@ -93,34 +96,34 @@ const Home = () => {
 
       {/* Properties Map Section */}
       <section className="py-8 sm:py-12 bg-background">
-        <div className="container mx-auto px-3 sm:px-4">
-          <div className="text-center mb-4 sm:mb-8">
-            <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-1 sm:mb-2">Explore Our Properties</h2>
-            <p className="text-sm sm:text-base text-muted-foreground">Tap a pin to view details</p>
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-5 sm:mb-8">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mb-2">
+              Explore Our Properties
+            </h2>
+            <p className="text-sm sm:text-base text-muted-foreground">
+              Tap a pin to view property details
+            </p>
           </div>
           
           {/* Property Type Toggles - Horizontal scroll on mobile */}
-          <div className="overflow-x-auto pb-2 -mx-3 px-3 sm:mx-0 sm:px-0 sm:overflow-visible">
-            <div className="flex sm:flex-wrap sm:justify-center gap-3 sm:gap-4 mb-4 sm:mb-6 min-w-max sm:min-w-0">
+          <div className="overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0 sm:overflow-visible scrollbar-hide">
+            <div className="flex sm:flex-wrap sm:justify-center gap-2.5 sm:gap-3 mb-4 sm:mb-6 min-w-max sm:min-w-0">
               {PROPERTY_TYPES.map((type) => (
                 <button
                   key={type.key}
                   onClick={() => toggleType(type.key)}
-                  className="flex items-center gap-1.5 sm:gap-2 cursor-pointer select-none group touch-manipulation"
+                  className={`flex items-center gap-2 px-3 py-2 rounded-full border transition-all touch-manipulation ${
+                    enabledTypes[type.key]
+                      ? "border-primary/30 bg-primary/5"
+                      : "border-border bg-background hover:bg-secondary/50"
+                  }`}
                 >
                   <span
-                    className={`w-5 h-5 sm:w-4 sm:h-4 rounded-full border-2 flex items-center justify-center transition-all ${
-                      enabledTypes[type.key]
-                        ? `${type.color} border-transparent`
-                        : "bg-transparent border-muted-foreground/50"
+                    className={`w-3 h-3 rounded-full transition-all ${
+                      enabledTypes[type.key] ? type.color : "bg-muted-foreground/30"
                     }`}
-                  >
-                    {enabledTypes[type.key] && (
-                      <svg className="w-3 h-3 sm:w-2.5 sm:h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </span>
+                  />
                   <span className={`text-xs sm:text-sm font-medium whitespace-nowrap transition-colors ${
                     enabledTypes[type.key] ? "text-foreground" : "text-muted-foreground"
                   }`}>
@@ -131,31 +134,37 @@ const Home = () => {
             </div>
           </div>
 
-          <div className="h-[280px] sm:h-[400px]">
+          <div className="h-[300px] sm:h-[400px] md:h-[450px] rounded-xl overflow-hidden border border-border shadow-sm">
             <PropertiesMap enabledTypes={enabledTypes} typeColors={TYPE_COLORS} />
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section className="py-12 sm:py-20 bg-secondary/30">
-        <div className="container mx-auto px-3 sm:px-4">
+      <section className="py-10 sm:py-16 bg-secondary/30">
+        <div className="container mx-auto px-4">
           <div className="text-center mb-8 sm:mb-12">
-            <h2 className="text-xl sm:text-3xl font-bold text-foreground mb-2 sm:mb-4">Why Choose RoomsOnline</h2>
-            <p className="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto px-2">
-              Our unified booking engine connects you with properties from multiple management systems
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mb-2 sm:mb-3">
+              Why Choose RoomsOnline
+            </h2>
+            <p className="text-sm sm:text-base text-muted-foreground max-w-lg mx-auto">
+              Our unified booking engine connects you with properties across multiple management systems
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
             {features.map((feature, index) => (
-              <Card key={index} className="border-border hover:shadow-[var(--shadow-medium)] transition-shadow">
-                <CardContent className="p-4 sm:pt-6">
-                  <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg bg-[var(--hero-gradient)] flex items-center justify-center mb-3 sm:mb-4">
-                    <feature.icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary-foreground" />
+              <Card key={index} className="border-border/50 hover:shadow-md transition-shadow bg-card/80 backdrop-blur-sm">
+                <CardContent className="p-4 sm:p-5 md:p-6">
+                  <div className="h-10 w-10 sm:h-11 sm:w-11 md:h-12 md:w-12 rounded-xl bg-[var(--hero-gradient)] flex items-center justify-center mb-3 sm:mb-4">
+                    <feature.icon className="h-5 w-5 sm:h-5.5 sm:w-5.5 md:h-6 md:w-6 text-primary-foreground" />
                   </div>
-                  <h3 className="font-semibold text-sm sm:text-lg mb-1 sm:mb-2 text-foreground">{feature.title}</h3>
-                  <p className="text-xs sm:text-base text-muted-foreground">{feature.description}</p>
+                  <h3 className="font-semibold text-sm sm:text-base md:text-lg mb-1 sm:mb-2 text-foreground leading-tight">
+                    {feature.title}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                    {feature.description}
+                  </p>
                 </CardContent>
               </Card>
             ))}
@@ -164,39 +173,63 @@ const Home = () => {
       </section>
 
       {/* Stats Section */}
-      <section className="py-12 sm:py-20">
-        <div className="container mx-auto px-3 sm:px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8">
+      <section className="py-10 sm:py-16 bg-background">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
             {[
-              { number: "36+", label: "Properties" },
-              { number: "50K+", label: "Happy Guests" },
-              { number: "100+", label: "Destinations" },
-              { number: "24/7", label: "Support" },
+              { number: "36+", label: "Properties", icon: Bed },
+              { number: "50K+", label: "Happy Guests", icon: Star },
+              { number: "100+", label: "Destinations", icon: MapPin },
+              { number: "24/7", label: "Support", icon: HeadphonesIcon },
             ].map((stat, index) => (
               <div key={index} className="text-center">
-                <div className="text-2xl sm:text-4xl font-bold text-primary mb-1 sm:mb-2">{stat.number}</div>
-                <div className="text-xs sm:text-base text-muted-foreground">{stat.label}</div>
+                <div className="inline-flex items-center justify-center h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-primary/10 mb-3 sm:mb-4">
+                  <stat.icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                </div>
+                <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-1">
+                  {stat.number}
+                </div>
+                <div className="text-xs sm:text-sm md:text-base text-muted-foreground">
+                  {stat.label}
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-6 sm:py-8 border-t border-border">
-        <div className="container mx-auto px-3 sm:px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-3 sm:gap-4">
+      {/* Footer - Pushed to bottom */}
+      <footer className="py-6 sm:py-8 border-t border-border mt-auto bg-background">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col items-center gap-4 sm:gap-6">
+            {/* Brand */}
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-lg bg-[var(--hero-gradient)] flex items-center justify-center">
+                <Bed className="h-4 w-4 text-primary-foreground" />
+              </div>
+              <span className="font-semibold text-foreground">RoomsOnline</span>
+            </div>
+            
+            {/* Links */}
+            <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
+              <Link 
+                to="/privacy-policy" 
+                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+              >
+                Privacy Policy
+              </Link>
+              <Link 
+                to="/terms-of-service" 
+                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+              >
+                Terms of Service
+              </Link>
+            </div>
+            
+            {/* Copyright */}
             <p className="text-xs sm:text-sm text-muted-foreground text-center">
               © {new Date().getFullYear()} RoomsOnline. All rights reserved.
             </p>
-            <div className="flex gap-4 sm:gap-6">
-              <a href="/privacy-policy" className="text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors">
-                Privacy Policy
-              </a>
-              <a href="/terms-of-service" className="text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors">
-                Terms of Service
-              </a>
-            </div>
           </div>
         </div>
       </footer>
