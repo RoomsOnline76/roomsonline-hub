@@ -362,22 +362,49 @@ export default function AdminKeys() {
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setEditingResend(true)}>
-                  {resendFromEmail || resendToEmail ? "Update Email Settings" : "Configure Emails"}
-                </Button>
-                {resendApiKey && (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setEditingKey(resendApiKey.id);
-                      setEditValue(resendApiKey.key_value || "");
-                    }}
-                  >
-                    {isResendConfigured ? "Update API Key" : "Configure API Key"}
+              {editingKey === resendApiKey?.id ? (
+                <div className="space-y-3 mt-4 pt-4 border-t">
+                  <div className="space-y-2">
+                    <Label htmlFor="resend-api-key">API Key Value</Label>
+                    <Input
+                      id="resend-api-key"
+                      type="password"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      placeholder="Enter Resend API key"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={() => handleUpdateKey(resendApiKey.id)}>Save</Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setEditingKey(null);
+                        setEditValue("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setEditingResend(true)}>
+                    {resendFromEmail || resendToEmail ? "Update Email Settings" : "Configure Emails"}
                   </Button>
-                )}
-              </div>
+                  {resendApiKey && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setEditingKey(resendApiKey.id);
+                        setEditValue(resendApiKey.key_value || "");
+                      }}
+                    >
+                      {isResendConfigured ? "Update API Key" : "Configure API Key"}
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </CardContent>
