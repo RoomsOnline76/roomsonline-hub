@@ -13,7 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, differenceInDays } from "date-fns";
 import { CalendarIcon, DollarSign, CalendarDays, XCircle, Building2, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, LineChart, Line, ComposedChart } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, LineChart, Line, ComposedChart, Cell, ReferenceLine } from "recharts";
 import { DateRange } from "react-day-picker";
 
 const Dashboard = () => {
@@ -431,6 +431,9 @@ const Dashboard = () => {
       forecastBookingsLower95?: number | null;
       forecastRevenueUpper95?: number | null;
       forecastRevenueLower95?: number | null;
+      // Gap detection
+      isDataGap?: boolean;
+      isInterpolated?: boolean;
     }
     
     const data: ChartDataPoint[] = [];
@@ -543,6 +546,57 @@ const Dashboard = () => {
         current.setDate(current.getDate() + 1);
       }
     }
+    
+    // === Gap Detection and Interpolation ===
+    // Detect consecutive zero periods (data gaps) in actual data
+    const detectAndInterpolateGaps = (dataArray: ChartDataPoint[], maxGapToInterpolate: number = 2) => {
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      
+      // Find zero periods in actual data only
+      for (let i = 0; i < dataArray.length; i++) {
+        const d = dataArray[i];
+        const isActual = new Date(d.date) <= today;
+        
+        if (isActual && d.bookings === 0 && d.revenue === 0) {
+          d.isDataGap = true;
+        }
+      }
+      
+      // Find consecutive gaps and interpolate if gap size <= maxGapToInterpolate
+      let gapStart = -1;
+      for (let i = 0; i <= dataArray.length; i++) {
+        const isGap = i < dataArray.length && dataArray[i].isDataGap;
+        const isActual = i < dataArray.length && new Date(dataArray[i].date) <= today;
+        
+        if (isGap && isActual) {
+          if (gapStart === -1) gapStart = i;
+        } else {
+          // End of gap or end of array
+          if (gapStart !== -1) {
+            const gapLength = i - gapStart;
+            
+            // Interpolate if gap is small enough and we have data on both sides
+            if (gapLength <= maxGapToInterpolate && gapStart > 0 && i < dataArray.length) {
+              const prevData = dataArray[gapStart - 1];
+              const nextData = dataArray[i];
+              
+              // Linear interpolation for each gap point
+              for (let j = gapStart; j < i; j++) {
+                const ratio = (j - gapStart + 1) / (gapLength + 1);
+                dataArray[j].bookings = Math.round(prevData.bookings + (nextData.bookings - prevData.bookings) * ratio);
+                dataArray[j].revenue = Math.round(prevData.revenue + (nextData.revenue - prevData.revenue) * ratio);
+                dataArray[j].isInterpolated = true;
+                dataArray[j].isDataGap = false; // No longer a gap since we interpolated
+              }
+            }
+          }
+          gapStart = -1;
+        }
+      }
+    };
+    
+    detectAndInterpolateGaps(data, 2); // Interpolate gaps of 1-2 periods
     
     // Apply forecasting - separate actual data from future projections
     const actualData = data.filter(d => new Date(d.date) <= today);
@@ -774,6 +828,35 @@ const Dashboard = () => {
           )}
         </div>
 
+        {/* Data Quality Warning */}
+        {chartData.some(d => d.isDataGap || d.isInterpolated) && (
+          <div className="mb-6 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+            <div className="flex items-start gap-2 text-sm">
+              <XCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <span className="font-medium text-amber-800 dark:text-amber-200">Data gaps detected: </span>
+                <span className="text-amber-700 dark:text-amber-300">
+                  {chartData.filter(d => d.isDataGap).length} zero periods
+                  {chartData.some(d => d.isInterpolated) && (
+                    <span>, {chartData.filter(d => d.isInterpolated).length} interpolated</span>
+                  )}
+                </span>
+                <div className="mt-1 text-xs text-amber-600 dark:text-amber-400 flex gap-4">
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded bg-red-500"></span> Data gap (no data)
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded bg-amber-500"></span> Interpolated (estimated)
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded bg-green-500"></span> Actual data
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Charts */}
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Bookings Chart */}
@@ -795,11 +878,21 @@ const Dashboard = () => {
                     <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickLine={false} allowDecimals={false} />
                     <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: 'hsl(var(--destructive))' }} tickLine={false} allowDecimals={false} />
                     <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: "hsl(var(--background))", 
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                        fontSize: "12px"
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null;
+                        const data = payload[0]?.payload;
+                        return (
+                          <div className="bg-background border border-border rounded-lg p-2 text-xs shadow-lg">
+                            <p className="font-medium mb-1">{label}</p>
+                            {data?.isDataGap && <p className="text-red-500 font-medium">⚠ Data Gap</p>}
+                            {data?.isInterpolated && <p className="text-amber-500 font-medium">~ Interpolated</p>}
+                            {payload.map((entry: any, i: number) => (
+                              <p key={i} style={{ color: entry.color }}>
+                                {entry.name}: {entry.value}
+                              </p>
+                            ))}
+                          </div>
+                        );
                       }}
                     />
                     <Legend 
@@ -812,8 +905,15 @@ const Dashboard = () => {
                     {/* 80% Confidence interval - inner (darker) */}
                     <Area yAxisId="left" type="monotone" dataKey="forecastBookingsUpper80" stroke="none" fill="#0ea5e9" fillOpacity={0.18} name="CI 80%" connectNulls={false} />
                     <Area yAxisId="left" type="monotone" dataKey="forecastBookingsLower80" stroke="none" fill="hsl(var(--background))" fillOpacity={1} connectNulls={false} legendType="none" />
-                    {/* Main data bars */}
-                    <Bar yAxisId="left" dataKey="bookings" name="Bookings" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                    {/* Main data bars - highlight gaps/interpolated */}
+                    <Bar yAxisId="left" dataKey="bookings" name="Bookings" radius={[4, 4, 0, 0]}>
+                      {chartData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-bookings-${index}`} 
+                          fill={entry.isDataGap ? "#ef4444" : entry.isInterpolated ? "#fbbf24" : "#22c55e"} 
+                        />
+                      ))}
+                    </Bar>
                     <Bar yAxisId="right" dataKey="cancellations" name="Cancelled" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
                     {/* 12-period trend (SMA) - solid orange */}
                     <Line yAxisId="left" type="monotone" dataKey="smaBookings" name="Trend (SMA)" stroke="#f97316" strokeWidth={2} dot={false} connectNulls />
@@ -851,15 +951,21 @@ const Dashboard = () => {
                       <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} />
                       <YAxis tick={{ fontSize: 11 }} tickLine={false} tickFormatter={(v) => `R${v}`} />
                       <Tooltip 
-                        formatter={(value: number, name: string) => [
-                          `R ${value.toLocaleString()}`, 
-                          name
-                        ]}
-                        contentStyle={{ 
-                          backgroundColor: "hsl(var(--background))", 
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "8px",
-                          fontSize: "12px"
+                        content={({ active, payload, label }) => {
+                          if (!active || !payload?.length) return null;
+                          const data = payload[0]?.payload;
+                          return (
+                            <div className="bg-background border border-border rounded-lg p-2 text-xs shadow-lg">
+                              <p className="font-medium mb-1">{label}</p>
+                              {data?.isDataGap && <p className="text-red-500 font-medium">⚠ Data Gap</p>}
+                              {data?.isInterpolated && <p className="text-amber-500 font-medium">~ Interpolated</p>}
+                              {payload.map((entry: any, i: number) => (
+                                <p key={i} style={{ color: entry.color }}>
+                                  {entry.name}: R {Number(entry.value).toLocaleString()}
+                                </p>
+                              ))}
+                            </div>
+                          );
                         }}
                       />
                       <Legend 
@@ -872,8 +978,15 @@ const Dashboard = () => {
                       {/* 80% Confidence interval - inner (darker) */}
                       <Area type="monotone" dataKey="forecastRevenueUpper80" stroke="none" fill="#0ea5e9" fillOpacity={0.18} name="CI 80%" connectNulls={false} />
                       <Area type="monotone" dataKey="forecastRevenueLower80" stroke="none" fill="hsl(var(--background))" fillOpacity={1} connectNulls={false} legendType="none" />
-                      {/* Main data bars */}
-                      <Bar dataKey="revenue" name="Revenue" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                      {/* Main data bars - highlight gaps/interpolated */}
+                      <Bar dataKey="revenue" name="Revenue" radius={[4, 4, 0, 0]}>
+                        {chartData.map((entry, index) => (
+                          <Cell 
+                            key={`cell-revenue-${index}`} 
+                            fill={entry.isDataGap ? "#ef4444" : entry.isInterpolated ? "#fbbf24" : "#22c55e"} 
+                          />
+                        ))}
+                      </Bar>
                       {/* 12-period trend (SMA) - solid orange */}
                       <Line type="monotone" dataKey="smaRevenue" name="Trend (SMA)" stroke="#f97316" strokeWidth={2} dot={false} connectNulls />
                       {/* Previous year comparison - dotted amber */}
