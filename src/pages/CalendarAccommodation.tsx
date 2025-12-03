@@ -476,22 +476,51 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     }
   };
 
-  // Build dynamic room data from property's room types and meal types
+  // Build dynamic room data from property's room types and their rate_info
   const calendarRoomData = React.useMemo(() => {
     if (!selectedPropertyData?.amenities?.room_types) return [];
     
     const propRoomTypes = selectedPropertyData.amenities.room_types as any[] || [];
-    const propMealTypes = selectedPropertyData.amenities.meal_types as string[] || [];
     
-    return propRoomTypes.map(room => ({
-      name: room.name || "Unnamed Room",
-      rates: propMealTypes.map(mealType => ({
-        rateType: room.rateType || "Standard",
-        mealType: mealType,
-        values: {} as { [date: string]: number }
-      })),
-      availability: {} as { [date: string]: number | AvailabilityData }
-    }));
+    return propRoomTypes.map(room => {
+      // Build rates from room's rate_info array
+      // Each rate_info has: name (rate type), mealTypes array, baseRate, etc.
+      const rates: { rateType: string; mealType: string; values: { [date: string]: number } }[] = [];
+      
+      if (room.rate_info && Array.isArray(room.rate_info)) {
+        room.rate_info.forEach((rateInfo: any) => {
+          const rateName = rateInfo.name || room.rateType || "Standard";
+          const mealTypes = rateInfo.mealTypes || [];
+          
+          // Create a rate row for each meal type in this rate_info
+          mealTypes.forEach((mealType: string) => {
+            rates.push({
+              rateType: rateName,
+              mealType: mealType,
+              values: {} as { [date: string]: number }
+            });
+          });
+        });
+      }
+      
+      // Fallback: if no rate_info, use room.rateType with property meal_types
+      if (rates.length === 0 && room.rateType) {
+        const propMealTypes = selectedPropertyData.amenities.meal_types as string[] || [];
+        propMealTypes.forEach((mealType: string) => {
+          rates.push({
+            rateType: room.rateType,
+            mealType: mealType,
+            values: {} as { [date: string]: number }
+          });
+        });
+      }
+      
+      return {
+        name: room.name || "Unnamed Room",
+        rates,
+        availability: {} as { [date: string]: number | AvailabilityData }
+      };
+    });
   }, [selectedPropertyData]);
 
   const fetchRoomTypes = async (propertyId: string) => {
