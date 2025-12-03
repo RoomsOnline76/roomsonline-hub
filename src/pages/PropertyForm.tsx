@@ -1587,11 +1587,11 @@ export default function PropertyForm() {
           {/* Breadcrumb Navigation */}
           <div className="flex items-center gap-2 text-sm mb-6 text-muted-foreground">
             <button
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/admin/property-overview")}
               className="hover:text-foreground transition-colors flex items-center gap-1"
             >
               <Home className="h-4 w-4" />
-              Home
+              Properties
             </button>
             <ChevronRight className="h-4 w-4" />
             <span className="text-foreground font-medium">
