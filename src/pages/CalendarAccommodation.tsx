@@ -392,16 +392,13 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
 
   // Trigger PMS sync when property or date changes
   useEffect(() => {
-    if (selectedProperty && isPmsProperty && hasPmsPropertyCode) {
+    if (selectedProperty && isPmsProperty) {
       fetchPmsAvailability();
-    } else if (selectedProperty && isPmsProperty && !hasPmsPropertyCode) {
-      setPmsSyncStatus("no_property_code");
-      setPmsSyncError(`No ${selectedPropertyData?.external_system} property code configured`);
     } else {
       setPmsSyncStatus("idle");
       setPmsData({ roomTypes: [], lastSynced: null, systemType: "" });
     }
-  }, [selectedProperty, currentDate, viewMode, isPmsProperty, hasPmsPropertyCode, selectedPropertyData]);
+  }, [selectedProperty, currentDate, viewMode, isPmsProperty]);
 
   const checkUserRoleAndFetchProperties = async () => {
     try {
