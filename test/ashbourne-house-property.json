@@ -1,0 +1,619 @@
+{
+  "id": "c3285aa2-a60d-4aab-a3e6-e870a9a71585",
+  "name": "Ashbourne House Guest House",
+  "slug": "ashbourne-house-guest-house",
+  "description": "Ashbourne House is a charming colonial guest house built in 1897 and beautifully restored, set in tranquil gardens with mountain views in the heart of Franschhoek village. The guest house offers eight luxuriously appointed air-conditioned rooms and suites, each with its own entrance and private patio or balcony, a heated pool in a lush garden, and a 24-hour self-service barista bar. Guests enjoy imaginative breakfasts, warm hospitality, and an easy stroll to the wine tram, restaurants, and shops.",
+  "property_type": "Guest House",
+  "property_url": "https://www.ashbourne.co.za/",
+  "address": "47 Huguenot Street",
+  "city": "Franschhoek",
+  "country": "South Africa",
+  "latitude": -33.905611,
+  "longitude": 19.116559,
+  "bedrooms": 8,
+  "bathrooms": 8,
+  "max_guests": 19,
+  "price_per_night": 2600.0,
+  "owner_name": "",
+  "owner_email": "bookings@ashbourne.co.za",
+  "external_system": "nightsbridge",
+  "external_id": "11192",
+  "is_active": true,
+  "created_at": "2025-12-03T19:34:24.272841",
+  "updated_at": "2025-12-03T19:34:24.272841",
+  "images": [
+    {
+      "url": "https://ashbourne.co.za/wp-content/uploads/2024/08/PIC-1-e1701695275694-1163x800-1-768x528.jpg",
+      "caption": "Front exterior of Ashbourne House Guest House in Franschhoek",
+      "order": 0
+    },
+    {
+      "url": "https://ashbourne.co.za/wp-content/uploads/2024/08/H-Ashbourne-House-Room-5-001-Web-1200x800-1.jpg",
+      "caption": "Garden and external stairway with lush greenery at Ashbourne House",
+      "order": 1
+    }
+  ],
+  "amenities": {
+    "star_rating": 4,
+    "check_in_from": "14:00",
+    "check_in_to": "20:00",
+    "check_out_from": "06:00",
+    "check_out_to": "11:00",
+    "postal_code": "7690",
+    "vat_number": "",
+    "has_vat": true,
+    "registration_number": "",
+    "banking_details": "",
+    "meal_types": [
+      "Breakfast"
+    ],
+    "facilities": {
+      "wifi": true,
+      "parking": true,
+      "pool": true,
+      "gym": false,
+      "spa": true,
+      "restaurant": false,
+      "bar": false,
+      "room_service": false,
+      "laundry": true,
+      "airport_shuttle": false,
+      "business_center": false,
+      "conference_facilities": false,
+      "pet_friendly": false,
+      "wheelchair_accessible": false,
+      "garden": true,
+      "bbq": false,
+      "fireplace": true,
+      "hot_tub": false,
+      "sauna": false,
+      "tennis_court": false,
+      "golf_course": false,
+      "beach_access": false,
+      "water_sports": false,
+      "kids_club": false,
+      "playground": false
+    },
+    "house_rules": {
+      "smoking_allowed": false,
+      "pets_allowed": false,
+      "parties_allowed": false,
+      "quiet_hours_start": "22:00",
+      "quiet_hours_end": "07:00",
+      "additional_rules": [
+        "Children are welcome; some rooms and suites can accommodate an extra child on a sleeper couch or additional bed.",
+        "Pool area is for registered guests only."
+      ]
+    },
+    "offerings": {
+      "accommodation": true,
+      "events_weddings": false,
+      "conference": false
+    },
+    "room_types": [
+      {
+        "id": "room-pool-queen",
+        "name": "Pool (Queen Size)",
+        "url": "",
+        "numRooms": 1,
+        "pmsRoomType": "Pool Queen",
+        "pmsRoomId": "POOL-Q",
+        "description": "Queen room with French doors opening onto a vine\u2011shaded patio and heated swimming pool, with mountain views and open\u2011plan marble shower room.",
+        "bedConfiguration": "Queen bed",
+        "roomSize": "22-26 m\u00b2",
+        "bathrooms": 1,
+        "maxPeople": 2,
+        "maxAdults": 2,
+        "maxChildren": 0,
+        "minStay": 1,
+        "maxStay": 30,
+        "rateType": "Bed & Breakfast",
+        "splitPercent": 100,
+        "images": [],
+        "facilities": {
+          "air_conditioning": true,
+          "heating": true,
+          "tv": true,
+          "safe": true,
+          "minibar": true,
+          "coffee_maker": true,
+          "hair_dryer": true,
+          "iron": false,
+          "desk": false,
+          "balcony": false,
+          "sea_view": false,
+          "mountain_view": true,
+          "garden_view": true,
+          "pool_view": true,
+          "private_bathroom": true,
+          "bathtub": false,
+          "shower": true,
+          "kitchenette": false,
+          "washing_machine": false,
+          "fireplace": false
+        },
+        "amenities": {
+          "toiletries": true,
+          "towels": true,
+          "linens": true,
+          "slippers": false,
+          "bathrobes": false,
+          "welcome_drinks": false,
+          "fruit_basket": false,
+          "bottled_water": false
+        },
+        "rate_info": [
+          {
+            "id": "rate-pool-queen",
+            "name": "Bed & Breakfast",
+            "pmsRateId": "BB-POOL-Q",
+            "baseRate": 2600.0,
+            "mealTypes": [
+              "Breakfast"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "room-balcony-queen",
+        "name": "Balcony (Queen Room)",
+        "url": "",
+        "numRooms": 1,
+        "pmsRoomType": "Balcony Queen",
+        "pmsRoomId": "BAL-Q",
+        "description": "Queen room in the eaves with en\u2011suite shower and separate sitting room, opening onto a small wooden balcony under an ancient coral tree, with courtyard and mountain views.",
+        "bedConfiguration": "Queen bed",
+        "roomSize": "20-24 m\u00b2",
+        "bathrooms": 1,
+        "maxPeople": 2,
+        "maxAdults": 2,
+        "maxChildren": 0,
+        "minStay": 1,
+        "maxStay": 30,
+        "rateType": "Bed & Breakfast",
+        "splitPercent": 100,
+        "images": [],
+        "facilities": {
+          "air_conditioning": true,
+          "heating": true,
+          "tv": true,
+          "safe": true,
+          "minibar": true,
+          "coffee_maker": true,
+          "hair_dryer": true,
+          "iron": false,
+          "desk": false,
+          "balcony": true,
+          "sea_view": false,
+          "mountain_view": true,
+          "garden_view": true,
+          "pool_view": false,
+          "private_bathroom": true,
+          "bathtub": false,
+          "shower": true,
+          "kitchenette": false,
+          "washing_machine": false,
+          "fireplace": false
+        },
+        "amenities": {
+          "toiletries": true,
+          "towels": true,
+          "linens": true,
+          "slippers": false,
+          "bathrobes": false,
+          "welcome_drinks": false,
+          "fruit_basket": false,
+          "bottled_water": false
+        },
+        "rate_info": [
+          {
+            "id": "rate-balcony-queen",
+            "name": "Bed & Breakfast",
+            "pmsRateId": "BB-BAL-Q",
+            "baseRate": 2600.0,
+            "mealTypes": [
+              "Breakfast"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "room-classique-king",
+        "name": "Classique (King Size)",
+        "url": "",
+        "numRooms": 1,
+        "pmsRoomType": "Classique King",
+        "pmsRoomId": "CLASS-K",
+        "description": "Large ground\u2011floor room in the main house with king bed (convertible to twins), luxury marble shower, generous sitting area and shaded patio with courtyard garden views.",
+        "bedConfiguration": "King bed or Twin beds",
+        "roomSize": "24-28 m\u00b2",
+        "bathrooms": 1,
+        "maxPeople": 2,
+        "maxAdults": 2,
+        "maxChildren": 0,
+        "minStay": 1,
+        "maxStay": 30,
+        "rateType": "Bed & Breakfast",
+        "splitPercent": 100,
+        "images": [],
+        "facilities": {
+          "air_conditioning": true,
+          "heating": true,
+          "tv": true,
+          "safe": true,
+          "minibar": true,
+          "coffee_maker": true,
+          "hair_dryer": true,
+          "iron": false,
+          "desk": false,
+          "balcony": false,
+          "sea_view": false,
+          "mountain_view": true,
+          "garden_view": true,
+          "pool_view": false,
+          "private_bathroom": true,
+          "bathtub": false,
+          "shower": true,
+          "kitchenette": false,
+          "washing_machine": false,
+          "fireplace": false
+        },
+        "amenities": {
+          "toiletries": true,
+          "towels": true,
+          "linens": true,
+          "slippers": false,
+          "bathrobes": false,
+          "welcome_drinks": false,
+          "fruit_basket": false,
+          "bottled_water": false
+        },
+        "rate_info": [
+          {
+            "id": "rate-classique-king",
+            "name": "Bed & Breakfast",
+            "pmsRateId": "BB-CLASS-K",
+            "baseRate": 2600.0,
+            "mealTypes": [
+              "Breakfast"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "room-courtyard-king",
+        "name": "Courtyard (King Room)",
+        "url": "",
+        "numRooms": 1,
+        "pmsRoomType": "Courtyard King",
+        "pmsRoomId": "COURT-K",
+        "description": "Spacious king room (convertible to twins) with luxury marble shower and French doors opening to a shady private patio with pergola, garden and mountain views.",
+        "bedConfiguration": "King bed or Twin beds",
+        "roomSize": "24-28 m\u00b2",
+        "bathrooms": 1,
+        "maxPeople": 2,
+        "maxAdults": 2,
+        "maxChildren": 0,
+        "minStay": 1,
+        "maxStay": 30,
+        "rateType": "Bed & Breakfast",
+        "splitPercent": 100,
+        "images": [],
+        "facilities": {
+          "air_conditioning": true,
+          "heating": true,
+          "tv": true,
+          "safe": true,
+          "minibar": true,
+          "coffee_maker": true,
+          "hair_dryer": true,
+          "iron": false,
+          "desk": false,
+          "balcony": false,
+          "sea_view": false,
+          "mountain_view": true,
+          "garden_view": true,
+          "pool_view": false,
+          "private_bathroom": true,
+          "bathtub": false,
+          "shower": true,
+          "kitchenette": false,
+          "washing_machine": false,
+          "fireplace": false
+        },
+        "amenities": {
+          "toiletries": true,
+          "towels": true,
+          "linens": true,
+          "slippers": false,
+          "bathrobes": false,
+          "welcome_drinks": false,
+          "fruit_basket": false,
+          "bottled_water": false
+        },
+        "rate_info": [
+          {
+            "id": "rate-courtyard-king",
+            "name": "Bed & Breakfast",
+            "pmsRateId": "BB-COURT-K",
+            "baseRate": 2600.0,
+            "mealTypes": [
+              "Breakfast"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "room-upper-deck-king",
+        "name": "Upper Deck (King Size)",
+        "url": "",
+        "numRooms": 1,
+        "pmsRoomType": "Upper Deck King",
+        "pmsRoomId": "UPPER-K",
+        "description": "Spacious room in the eaves with king bed (convertible to twins), sofabed and luxury marble shower, opening onto a private wooden deck with garden, pool and mountain views.",
+        "bedConfiguration": "King bed or Twin beds + sofabed",
+        "roomSize": "26-30 m\u00b2",
+        "bathrooms": 1,
+        "maxPeople": 3,
+        "maxAdults": 2,
+        "maxChildren": 1,
+        "minStay": 1,
+        "maxStay": 30,
+        "rateType": "Bed & Breakfast",
+        "splitPercent": 100,
+        "images": [],
+        "facilities": {
+          "air_conditioning": true,
+          "heating": true,
+          "tv": true,
+          "safe": true,
+          "minibar": true,
+          "coffee_maker": true,
+          "hair_dryer": true,
+          "iron": false,
+          "desk": false,
+          "balcony": true,
+          "sea_view": false,
+          "mountain_view": true,
+          "garden_view": true,
+          "pool_view": true,
+          "private_bathroom": true,
+          "bathtub": false,
+          "shower": true,
+          "kitchenette": false,
+          "washing_machine": false,
+          "fireplace": false
+        },
+        "amenities": {
+          "toiletries": true,
+          "towels": true,
+          "linens": true,
+          "slippers": false,
+          "bathrobes": false,
+          "welcome_drinks": false,
+          "fruit_basket": false,
+          "bottled_water": false
+        },
+        "rate_info": [
+          {
+            "id": "rate-upper-deck-king",
+            "name": "Bed & Breakfast",
+            "pmsRateId": "BB-UPPER-K",
+            "baseRate": 2900.0,
+            "mealTypes": [
+              "Breakfast"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "room-tree-tops-king",
+        "name": "Tree Tops (King Size)",
+        "url": "",
+        "numRooms": 1,
+        "pmsRoomType": "Tree Tops King",
+        "pmsRoomId": "TREES-K",
+        "description": "Large airy room in the eaves with king bed and additional single bed, luxury shower and private wooden patio with dramatic mountain views.",
+        "bedConfiguration": "King bed + single bed",
+        "roomSize": "26-30 m\u00b2",
+        "bathrooms": 1,
+        "maxPeople": 3,
+        "maxAdults": 2,
+        "maxChildren": 1,
+        "minStay": 1,
+        "maxStay": 30,
+        "rateType": "Bed & Breakfast",
+        "splitPercent": 100,
+        "images": [],
+        "facilities": {
+          "air_conditioning": true,
+          "heating": true,
+          "tv": true,
+          "safe": true,
+          "minibar": true,
+          "coffee_maker": true,
+          "hair_dryer": true,
+          "iron": false,
+          "desk": false,
+          "balcony": true,
+          "sea_view": false,
+          "mountain_view": true,
+          "garden_view": true,
+          "pool_view": false,
+          "private_bathroom": true,
+          "bathtub": false,
+          "shower": true,
+          "kitchenette": false,
+          "washing_machine": false,
+          "fireplace": false
+        },
+        "amenities": {
+          "toiletries": true,
+          "towels": true,
+          "linens": true,
+          "slippers": false,
+          "bathrobes": false,
+          "welcome_drinks": false,
+          "fruit_basket": false,
+          "bottled_water": false
+        },
+        "rate_info": [
+          {
+            "id": "rate-tree-tops-king",
+            "name": "Bed & Breakfast",
+            "pmsRateId": "BB-TREES-K",
+            "baseRate": 2900.0,
+            "mealTypes": [
+              "Breakfast"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "room-pool-deluxe-king",
+        "name": "Pool Deluxe (King Size)",
+        "url": "",
+        "numRooms": 1,
+        "pmsRoomType": "Pool Deluxe King",
+        "pmsRoomId": "POOL-D-K",
+        "description": "Quiet corner room opening onto a vine\u2011shaded patio at the tranquil swimming pool area, with king bed (convertible to twins) and open\u2011plan luxury shower.",
+        "bedConfiguration": "King bed or Twin beds",
+        "roomSize": "24-28 m\u00b2",
+        "bathrooms": 1,
+        "maxPeople": 2,
+        "maxAdults": 2,
+        "maxChildren": 0,
+        "minStay": 1,
+        "maxStay": 30,
+        "rateType": "Bed & Breakfast",
+        "splitPercent": 100,
+        "images": [],
+        "facilities": {
+          "air_conditioning": true,
+          "heating": true,
+          "tv": true,
+          "safe": true,
+          "minibar": true,
+          "coffee_maker": true,
+          "hair_dryer": true,
+          "iron": false,
+          "desk": false,
+          "balcony": false,
+          "sea_view": false,
+          "mountain_view": true,
+          "garden_view": true,
+          "pool_view": true,
+          "private_bathroom": true,
+          "bathtub": false,
+          "shower": true,
+          "kitchenette": false,
+          "washing_machine": false,
+          "fireplace": false
+        },
+        "amenities": {
+          "toiletries": true,
+          "towels": true,
+          "linens": true,
+          "slippers": false,
+          "bathrobes": false,
+          "welcome_drinks": false,
+          "fruit_basket": false,
+          "bottled_water": false
+        },
+        "rate_info": [
+          {
+            "id": "rate-pool-deluxe-king",
+            "name": "Bed & Breakfast",
+            "pmsRateId": "BB-POOL-D-K",
+            "baseRate": 2700.0,
+            "mealTypes": [
+              "Breakfast"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "room-veranda-suite",
+        "name": "Veranda Suite",
+        "url": "",
+        "numRooms": 1,
+        "pmsRoomType": "Veranda Suite",
+        "pmsRoomId": "VER-S",
+        "description": "Suite off the front veranda overlooking the rose garden and quiet street, with king bed, shower\u2011only bathroom, separate dressing room and cozy lounge with sleeper couch.",
+        "bedConfiguration": "King bed + sleeper couch",
+        "roomSize": "30-34 m\u00b2",
+        "bathrooms": 1,
+        "maxPeople": 3,
+        "maxAdults": 2,
+        "maxChildren": 1,
+        "minStay": 1,
+        "maxStay": 30,
+        "rateType": "Bed & Breakfast",
+        "splitPercent": 100,
+        "images": [],
+        "facilities": {
+          "air_conditioning": true,
+          "heating": true,
+          "tv": true,
+          "safe": true,
+          "minibar": true,
+          "coffee_maker": true,
+          "hair_dryer": true,
+          "iron": false,
+          "desk": false,
+          "balcony": false,
+          "sea_view": false,
+          "mountain_view": true,
+          "garden_view": true,
+          "pool_view": false,
+          "private_bathroom": true,
+          "bathtub": false,
+          "shower": true,
+          "kitchenette": false,
+          "washing_machine": false,
+          "fireplace": false
+        },
+        "amenities": {
+          "toiletries": true,
+          "towels": true,
+          "linens": true,
+          "slippers": false,
+          "bathrobes": false,
+          "welcome_drinks": false,
+          "fruit_basket": false,
+          "bottled_water": false
+        },
+        "rate_info": [
+          {
+            "id": "rate-veranda-suite",
+            "name": "Bed & Breakfast",
+            "pmsRateId": "BB-VER-S",
+            "baseRate": 2900.0,
+            "mealTypes": [
+              "Breakfast"
+            ]
+          }
+        ]
+      }
+    ],
+    "charge_types": [
+      {
+        "id": "charge-tourism-levy",
+        "name": "Tourism Levy",
+        "pmsChargeId": "TOURISM"
+      }
+    ],
+    "payment_types": [
+      {
+        "id": "payment-cc",
+        "name": "Credit Card",
+        "pmsPaymentId": "CC"
+      },
+      {
+        "id": "payment-eft",
+        "name": "Electronic Transfer",
+        "pmsPaymentId": "EFT"
+      }
+    ]
+  }
+}
