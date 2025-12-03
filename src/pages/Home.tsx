@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Navbar } from "@/components/Navbar";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { Card, CardContent } from "@/components/ui/card";
@@ -65,8 +64,6 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Navbar />
-
       {/* Hero Section - Mobile optimized */}
       <section className="relative flex-shrink-0">
         <div
