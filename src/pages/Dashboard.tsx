@@ -395,41 +395,48 @@ const Dashboard = () => {
       }
     }
     
-    // Apply forecasting - get historical data
-    const historicalData = data.filter(d => new Date(d.date) <= today);
+    // Apply forecasting - separate actual data from future projections
+    const actualData = data.filter(d => new Date(d.date) <= today);
     const futureData = data.filter(d => new Date(d.date) > today);
     
-    if (historicalData.length >= 3) {
-      const bookingValues = historicalData.map(d => d.bookings);
-      const revenueValues = historicalData.map(d => d.revenue);
+    // For custom ranges that are entirely historical, we still want to show the trend
+    const dataForAnalysis = actualData.length > 0 ? actualData : data;
+    
+    if (dataForAnalysis.length >= 3) {
+      const bookingValues = dataForAnalysis.map(d => d.bookings);
+      const revenueValues = dataForAnalysis.map(d => d.revenue);
       
-      // Calculate SMA (use 7-day for daily, 12-month for monthly)
-      const smaPeriod = shouldAggregateByMonth ? Math.min(12, historicalData.length) : Math.min(7, historicalData.length);
+      // Calculate SMA period based on data length and aggregation
+      const smaPeriod = shouldAggregateByMonth 
+        ? Math.min(12, Math.max(3, Math.floor(dataForAnalysis.length / 2))) 
+        : Math.min(7, Math.max(3, Math.floor(dataForAnalysis.length / 2)));
+      
       const smaBookings = calculateSMA(bookingValues, smaPeriod);
       const smaRevenue = calculateSMA(revenueValues, smaPeriod);
       
-      // Apply SMA to historical data
-      historicalData.forEach((d, i) => {
+      // Apply SMA to all data points that have actuals
+      dataForAnalysis.forEach((d, i) => {
         d.smaBookings = smaBookings[i];
         d.smaRevenue = smaRevenue[i];
       });
       
-      // Calculate Holt-Winters forecast for future periods
+      // Calculate forecast - either for future periods or as projection from historical data
+      const seasonLength = shouldAggregateByMonth ? Math.min(12, dataForAnalysis.length) : Math.min(7, dataForAnalysis.length);
+      const forecastPeriods = futureData.length > 0 ? futureData.length : Math.max(3, Math.floor(dataForAnalysis.length / 3));
+      
+      const bookingForecast = holtWinters(bookingValues, seasonLength, 0.3, 0.1, 0.3, forecastPeriods);
+      const revenueForecast = holtWinters(revenueValues, seasonLength, 0.3, 0.1, 0.3, forecastPeriods);
+      
       if (futureData.length > 0) {
-        const seasonLength = shouldAggregateByMonth ? 12 : 7;
-        
-        const bookingForecast = holtWinters(bookingValues, seasonLength, 0.3, 0.1, 0.3, futureData.length);
-        const revenueForecast = holtWinters(revenueValues, seasonLength, 0.3, 0.1, 0.3, futureData.length);
-        
-        // Connect forecast to last historical point
-        const lastHistorical = historicalData[historicalData.length - 1];
-        if (lastHistorical) {
-          lastHistorical.forecastBookings = lastHistorical.bookings;
-          lastHistorical.forecastRevenue = lastHistorical.revenue;
-          lastHistorical.forecastBookingsUpper = lastHistorical.bookings;
-          lastHistorical.forecastBookingsLower = lastHistorical.bookings;
-          lastHistorical.forecastRevenueUpper = lastHistorical.revenue;
-          lastHistorical.forecastRevenueLower = lastHistorical.revenue;
+        // Connect forecast to last actual point
+        const lastActual = actualData[actualData.length - 1];
+        if (lastActual) {
+          lastActual.forecastBookings = lastActual.bookings;
+          lastActual.forecastRevenue = lastActual.revenue;
+          lastActual.forecastBookingsUpper = lastActual.bookings;
+          lastActual.forecastBookingsLower = lastActual.bookings;
+          lastActual.forecastRevenueUpper = lastActual.revenue;
+          lastActual.forecastRevenueLower = lastActual.revenue;
         }
         
         // Apply forecasts to future data
@@ -441,6 +448,25 @@ const Dashboard = () => {
           d.forecastRevenueUpper = Math.round(revenueForecast.upper[i] || 0);
           d.forecastRevenueLower = Math.round(revenueForecast.lower[i] || 0);
         });
+      } else if (dataForAnalysis.length > 0) {
+        // For fully historical ranges, show extended trend/forecast line
+        // Add forecast extension from the last data point
+        const lastIdx = dataForAnalysis.length - 1;
+        const extendedForecastCount = Math.min(forecastPeriods, Math.floor(dataForAnalysis.length / 2));
+        
+        // Apply forecast as an extension of the trend starting from ~60% into the data
+        const forecastStartIdx = Math.floor(dataForAnalysis.length * 0.6);
+        for (let i = forecastStartIdx; i < dataForAnalysis.length; i++) {
+          const forecastIdx = i - forecastStartIdx;
+          if (forecastIdx < bookingForecast.forecast.length) {
+            dataForAnalysis[i].forecastBookings = Math.round(bookingForecast.forecast[forecastIdx] || 0);
+            dataForAnalysis[i].forecastBookingsUpper = Math.round(bookingForecast.upper[forecastIdx] || 0);
+            dataForAnalysis[i].forecastBookingsLower = Math.round(bookingForecast.lower[forecastIdx] || 0);
+            dataForAnalysis[i].forecastRevenue = Math.round(revenueForecast.forecast[forecastIdx] || 0);
+            dataForAnalysis[i].forecastRevenueUpper = Math.round(revenueForecast.upper[forecastIdx] || 0);
+            dataForAnalysis[i].forecastRevenueLower = Math.round(revenueForecast.lower[forecastIdx] || 0);
+          }
+        }
       }
     }
     
