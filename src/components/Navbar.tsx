@@ -24,7 +24,13 @@ export const Navbar = () => {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   
-  const isBookPage = location.pathname === "/book" || location.pathname.startsWith("/book/");
+  const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
+  const isBookPage = isBookDomain || location.pathname === "/book" || location.pathname.startsWith("/book/");
+  
+  // Hide navbar completely on the public booking domain
+  if (isBookDomain) {
+    return null;
+  }
 
   useEffect(() => {
     if (user) {
