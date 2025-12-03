@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Send, ShieldCheck } from "lucide-react";
+import { Building2, Send, ShieldCheck, CheckCircle2 } from "lucide-react";
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -19,6 +20,8 @@ export default function Auth() {
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactMessage, setContactMessage] = useState("");
+  const [activeTab, setActiveTab] = useState("login");
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   
   // Honeypot field (should remain empty)
   const [honeypot, setHoneypot] = useState("");
@@ -70,10 +73,7 @@ export default function Auth() {
     
     // Honeypot check - if filled, it's likely a bot
     if (honeypot) {
-      toast({
-        title: "Request submitted",
-        description: "We'll review your request and get back to you soon.",
-      });
+      setShowSuccessModal(true);
       return;
     }
     
@@ -101,15 +101,12 @@ export default function Auth() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      toast({
-        title: "Request submitted",
-        description: "We've received your request and will get back to you soon.",
-      });
-
+      // Clear form and show success modal
       setContactName("");
       setContactEmail("");
       setContactMessage("");
       setCaptchaAnswer("");
+      setShowSuccessModal(true);
     } catch (error: any) {
       toast({
         title: "Submission failed",
@@ -119,6 +116,11 @@ export default function Auth() {
     }
 
     setLoading(false);
+  };
+
+  const handleCloseSuccessModal = () => {
+    setShowSuccessModal(false);
+    setActiveTab("login");
   };
 
   return (
@@ -140,7 +142,7 @@ export default function Auth() {
             <CardDescription>Sign in to your account or request access</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="login" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="login">Login</TabsTrigger>
                 <TabsTrigger value="request">Request Access</TabsTrigger>
@@ -256,6 +258,26 @@ export default function Auth() {
             </Tabs>
           </CardContent>
         </Card>
+
+        {/* Success Modal */}
+        <Dialog open={showSuccessModal} onOpenChange={handleCloseSuccessModal}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader className="text-center">
+              <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
+              </div>
+              <DialogTitle className="text-center">Request Submitted</DialogTitle>
+              <DialogDescription className="text-center">
+                Your access request has been sent and is pending review. We'll notify you by email once your request has been processed.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="sm:justify-center">
+              <Button onClick={handleCloseSuccessModal}>
+                Back to Login
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
