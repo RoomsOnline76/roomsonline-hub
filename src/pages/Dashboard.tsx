@@ -24,6 +24,7 @@ const Dashboard = () => {
   const [period, setPeriod] = useState("this_month");
   const [comparePrevYear, setComparePrevYear] = useState(true);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("all");
+  const [drillDownDate, setDrillDownDate] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
     const now = new Date();
     return {
@@ -1140,7 +1141,14 @@ const Dashboard = () => {
                     <Area yAxisId="left" type="monotone" dataKey="forecastBookingsUpper80" stroke="none" fill="#0ea5e9" fillOpacity={0.18} name="CI 80%" connectNulls={false} />
                     <Area yAxisId="left" type="monotone" dataKey="forecastBookingsLower80" stroke="none" fill="hsl(var(--background))" fillOpacity={1} connectNulls={false} legendType="none" />
                     {/* Main data bars - highlight gaps/interpolated */}
-                    <Bar yAxisId="left" dataKey="bookings" name="Bookings" radius={[4, 4, 0, 0]}>
+                    <Bar 
+                      yAxisId="left" 
+                      dataKey="bookings" 
+                      name="Bookings" 
+                      radius={[4, 4, 0, 0]}
+                      cursor="pointer"
+                      onClick={(data) => data?.label && setDrillDownDate(data.label)}
+                    >
                       {chartData.map((entry, index) => (
                         <Cell 
                           key={`cell-bookings-${index}`} 
@@ -1213,7 +1221,13 @@ const Dashboard = () => {
                       <Area type="monotone" dataKey="forecastRevenueUpper80" stroke="none" fill="#0ea5e9" fillOpacity={0.18} name="CI 80%" connectNulls={false} />
                       <Area type="monotone" dataKey="forecastRevenueLower80" stroke="none" fill="hsl(var(--background))" fillOpacity={1} connectNulls={false} legendType="none" />
                       {/* Main data bars - highlight gaps/interpolated */}
-                      <Bar dataKey="revenue" name="Revenue" radius={[4, 4, 0, 0]}>
+                      <Bar 
+                        dataKey="revenue" 
+                        name="Revenue" 
+                        radius={[4, 4, 0, 0]}
+                        cursor="pointer"
+                        onClick={(data) => data?.label && setDrillDownDate(data.label)}
+                      >
                         {chartData.map((entry, index) => (
                           <Cell 
                             key={`cell-revenue-${index}`} 
@@ -1240,38 +1254,77 @@ const Dashboard = () => {
 
           {/* Recent Bookings */}
           <Card className={isAdmin ? "" : "lg:col-span-2"}>
-            <CardHeader>
-              <CardTitle className="text-lg">Recent Bookings</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg">
+                Recent Bookings
+                {drillDownDate && (
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    — {drillDownDate}
+                  </span>
+                )}
+              </CardTitle>
+              {drillDownDate && (
+                <Button variant="ghost" size="sm" onClick={() => setDrillDownDate(null)}>
+                  <XCircle className="h-4 w-4 mr-1" />
+                  Clear filter
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
-              {filteredBookings.length > 0 ? (
-                <div className="space-y-3">
-                  {filteredBookings.slice(0, 5).map((booking) => {
-                    const property = properties.find(p => p.id === booking.property_id);
-                    return (
-                      <div key={booking.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-sm">{booking.guest_name}</span>
-                          <span className="text-xs text-muted-foreground">{property?.name || "Unknown property"}</span>
+              {(() => {
+                // Filter bookings by drill-down date if active
+                let displayBookings = filteredBookings;
+                if (drillDownDate) {
+                  displayBookings = filteredBookings.filter(b => {
+                    const bookingDate = new Date(b.created_at || '');
+                    const matchDate = shouldAggregateByMonth
+                      ? format(bookingDate, "MMM yyyy") === drillDownDate
+                      : format(bookingDate, "MMM d") === drillDownDate;
+                    return matchDate;
+                  });
+                }
+                
+                return displayBookings.length > 0 ? (
+                  <div className="space-y-3">
+                    {displayBookings.slice(0, drillDownDate ? 20 : 5).map((booking) => {
+                      const property = properties.find(p => p.id === booking.property_id);
+                      return (
+                        <div key={booking.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm">{booking.guest_name}</span>
+                            <span className="text-xs text-muted-foreground">{property?.name || "Unknown property"}</span>
+                            {drillDownDate && (
+                              <span className="text-xs text-muted-foreground">
+                                {format(new Date(booking.created_at || ''), "MMM d, yyyy")}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="font-medium text-sm">R {Number(booking.total_price).toLocaleString()}</span>
+                            <span className={cn(
+                              "text-xs px-2 py-0.5 rounded-full",
+                              booking.status === "confirmed" && "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400",
+                              booking.status === "pending" && "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400",
+                              booking.status === "cancelled" && "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                            )}>
+                              {booking.status}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex flex-col items-end">
-                          <span className="font-medium text-sm">R {Number(booking.total_price).toLocaleString()}</span>
-                          <span className={cn(
-                            "text-xs px-2 py-0.5 rounded-full",
-                            booking.status === "confirmed" && "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400",
-                            booking.status === "pending" && "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400",
-                            booking.status === "cancelled" && "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
-                          )}>
-                            {booking.status}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center text-muted-foreground py-8">No bookings found for this period</div>
-              )}
+                      );
+                    })}
+                    {drillDownDate && displayBookings.length > 20 && (
+                      <p className="text-xs text-muted-foreground text-center">
+                        Showing 20 of {displayBookings.length} bookings
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center text-muted-foreground py-8">
+                    {drillDownDate ? `No bookings for ${drillDownDate}` : "No bookings found for this period"}
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         </div>
