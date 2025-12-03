@@ -11,15 +11,19 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, differenceInDays } from "date-fns";
-import { CalendarIcon, CalendarDays, XCircle, Building2, Download } from "lucide-react";
+import { CalendarIcon, CalendarDays, XCircle, Building2, Download, TrendingUp, TrendingDown, Percent, BedDouble, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, LineChart, Line, ComposedChart, Cell, ReferenceLine } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, LineChart, Line, ComposedChart, Cell, ReferenceLine, PieChart, Pie } from "recharts";
 import { DateRange } from "react-day-picker";
+
+// Colors for pie charts
+const PIE_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
 
 const Dashboard = () => {
   const { user, isAdmin } = useAuth();
   const [period, setPeriod] = useState("this_month");
   const [comparePrevYear, setComparePrevYear] = useState(true);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
     const now = new Date();
     return {
@@ -92,7 +96,7 @@ const Dashboard = () => {
   const { data: properties = [] } = useQuery({
     queryKey: ["dashboard-properties", isAdmin, profile?.email],
     queryFn: async () => {
-      let query = supabase.from("properties").select("id, name, owner_email");
+      let query = supabase.from("properties").select("id, name, owner_email, bedrooms, max_guests");
       if (!isAdmin && profile?.email) {
         query = query.eq("owner_email", profile.email);
       }
@@ -139,15 +143,81 @@ const Dashboard = () => {
     enabled: propertyIds.length > 0 && comparePrevYear && !!prevYearDateRange,
   });
 
-  // Calculate stats
+  // Filter bookings by selected property
+  const filteredBookings = useMemo(() => {
+    if (selectedPropertyId === "all") return bookings;
+    return bookings.filter(b => b.property_id === selectedPropertyId);
+  }, [bookings, selectedPropertyId]);
+
+  const filteredPrevYearBookings = useMemo(() => {
+    if (selectedPropertyId === "all") return prevYearBookings;
+    return prevYearBookings.filter(b => b.property_id === selectedPropertyId);
+  }, [prevYearBookings, selectedPropertyId]);
+
+  // Calculate stats with KPIs
   const stats = useMemo(() => {
-    const totalBookings = bookings.length;
-    const confirmedBookings = bookings.filter(b => b.status === "confirmed").length;
-    const pendingBookings = bookings.filter(b => b.status === "pending").length;
-    const cancelledBookings = bookings.filter(b => b.status === "cancelled").length;
-    const totalRevenue = bookings
-      .filter(b => b.status !== "cancelled")
-      .reduce((sum, b) => sum + Number(b.total_price || 0), 0);
+    const totalBookings = filteredBookings.length;
+    const confirmedBookings = filteredBookings.filter(b => b.status === "confirmed").length;
+    const pendingBookings = filteredBookings.filter(b => b.status === "pending").length;
+    const cancelledBookings = filteredBookings.filter(b => b.status === "cancelled").length;
+    const activeBookings = filteredBookings.filter(b => b.status !== "cancelled");
+    const totalRevenue = activeBookings.reduce((sum, b) => sum + Number(b.total_price || 0), 0);
+    
+    // Calculate days in period
+    const daysInPeriod = dateRange?.from && dateRange?.to 
+      ? Math.max(1, differenceInDays(dateRange.to, dateRange.from) + 1) 
+      : 1;
+    
+    // Calculate total rooms (use bedrooms as proxy, default to 1 per property)
+    const relevantProperties = selectedPropertyId === "all" 
+      ? properties 
+      : properties.filter(p => p.id === selectedPropertyId);
+    const totalRooms = relevantProperties.reduce((sum, p) => sum + Math.max(1, p.bedrooms || 1), 0);
+    
+    // ADR (Average Daily Rate) = Revenue / Bookings
+    const adr = activeBookings.length > 0 ? totalRevenue / activeBookings.length : 0;
+    
+    // Calculate total booked nights from check_in and check_out dates
+    const bookedNights = activeBookings.reduce((sum, b) => {
+      if (b.check_in_date && b.check_out_date) {
+        const checkIn = new Date(b.check_in_date);
+        const checkOut = new Date(b.check_out_date);
+        return sum + Math.max(1, differenceInDays(checkOut, checkIn));
+      }
+      return sum + 1; // Default to 1 night if dates missing
+    }, 0);
+    
+    // Available nights = Total Rooms * Days in Period
+    const availableNights = totalRooms * daysInPeriod;
+    
+    // RevPAR (Revenue Per Available Room) = Revenue / Available Nights
+    const revpar = availableNights > 0 ? totalRevenue / availableNights : 0;
+    
+    // Occupancy % = (Booked Nights / Available Nights) * 100
+    const occupancy = availableNights > 0 ? (bookedNights / availableNights) * 100 : 0;
+    
+    // Previous year stats for Y-o-Y comparison
+    const prevActiveBookings = filteredPrevYearBookings.filter(b => b.status !== "cancelled");
+    const prevTotalBookings = filteredPrevYearBookings.length;
+    const prevCancelledBookings = filteredPrevYearBookings.filter(b => b.status === "cancelled").length;
+    const prevTotalRevenue = prevActiveBookings.reduce((sum, b) => sum + Number(b.total_price || 0), 0);
+    const prevAdr = prevActiveBookings.length > 0 ? prevTotalRevenue / prevActiveBookings.length : 0;
+    const prevBookedNights = prevActiveBookings.reduce((sum, b) => {
+      if (b.check_in_date && b.check_out_date) {
+        const checkIn = new Date(b.check_in_date);
+        const checkOut = new Date(b.check_out_date);
+        return sum + Math.max(1, differenceInDays(checkOut, checkIn));
+      }
+      return sum + 1;
+    }, 0);
+    const prevOccupancy = availableNights > 0 ? (prevBookedNights / availableNights) * 100 : 0;
+    const prevRevpar = availableNights > 0 ? prevTotalRevenue / availableNights : 0;
+    
+    // Y-o-Y % changes
+    const calcYoY = (current: number, prev: number) => {
+      if (prev === 0) return current > 0 ? 100 : 0;
+      return ((current - prev) / prev) * 100;
+    };
     
     return {
       totalBookings,
@@ -155,9 +225,38 @@ const Dashboard = () => {
       pendingBookings,
       cancelledBookings,
       totalRevenue,
-      totalProperties: properties.length,
+      totalProperties: relevantProperties.length,
+      totalRooms,
+      daysInPeriod,
+      adr,
+      revpar,
+      occupancy,
+      bookedNights,
+      availableNights,
+      // Y-o-Y changes
+      yoyBookings: calcYoY(totalBookings, prevTotalBookings),
+      yoyCancellations: calcYoY(cancelledBookings, prevCancelledBookings),
+      yoyRevenue: calcYoY(totalRevenue, prevTotalRevenue),
+      yoyAdr: calcYoY(adr, prevAdr),
+      yoyRevpar: calcYoY(revpar, prevRevpar),
+      yoyOccupancy: occupancy - prevOccupancy, // Absolute difference for occupancy
     };
-  }, [bookings, properties]);
+  }, [filteredBookings, filteredPrevYearBookings, properties, dateRange, selectedPropertyId]);
+
+  // Property breakdown for pie charts
+  const propertyBreakdown = useMemo(() => {
+    const breakdown = properties.map(p => {
+      const propBookings = bookings.filter(b => b.property_id === p.id && b.status !== "cancelled");
+      const revenue = propBookings.reduce((sum, b) => sum + Number(b.total_price || 0), 0);
+      return {
+        name: p.name || "Unknown",
+        bookings: propBookings.length,
+        revenue,
+      };
+    }).filter(p => p.bookings > 0 || p.revenue > 0);
+    
+    return breakdown.sort((a, b) => b.revenue - a.revenue);
+  }, [properties, bookings]);
 
   // Export chart data to CSV
   const exportToCSV = () => {
@@ -762,9 +861,27 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Stats Cards */}
+        {/* Property Filter */}
+        <div className="flex items-center gap-4 mb-4">
+          <div className="flex items-center gap-2">
+            <Label className="text-sm font-medium">Property:</Label>
+            <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="All properties" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All properties</SelectItem>
+                {properties.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Stats Cards - Row 1: Core Stats with Y-o-Y */}
         <div className={cn(
-          "grid gap-4 mb-8",
+          "grid gap-4 mb-4",
           isAdmin ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" : "grid-cols-1 sm:grid-cols-2"
         )}>
           <Card>
@@ -773,7 +890,18 @@ const Dashboard = () => {
               <CalendarDays className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalBookings}</div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold">{stats.totalBookings}</span>
+                {comparePrevYear && stats.yoyBookings !== 0 && (
+                  <span className={cn(
+                    "text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5",
+                    stats.yoyBookings > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                  )}>
+                    {stats.yoyBookings > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                    {stats.yoyBookings > 0 ? "+" : ""}{stats.yoyBookings.toFixed(1)}%
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
                 <span className="text-green-600">{stats.confirmedBookings} confirmed</span>
                 <span>•</span>
@@ -788,7 +916,18 @@ const Dashboard = () => {
               <XCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.cancelledBookings}</div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold">{stats.cancelledBookings}</span>
+                {comparePrevYear && stats.yoyCancellations !== 0 && (
+                  <span className={cn(
+                    "text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5",
+                    stats.yoyCancellations < 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                  )}>
+                    {stats.yoyCancellations < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                    {stats.yoyCancellations > 0 ? "+" : ""}{stats.yoyCancellations.toFixed(1)}%
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {stats.totalBookings > 0 
                   ? `${((stats.cancelledBookings / stats.totalBookings) * 100).toFixed(1)}% cancellation rate`
@@ -805,8 +944,17 @@ const Dashboard = () => {
                   <span className="h-4 w-4 flex items-center justify-center text-muted-foreground font-bold text-sm">R</span>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
-                    R {stats.totalRevenue.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold">R {stats.totalRevenue.toLocaleString("en-ZA", { minimumFractionDigits: 0 })}</span>
+                    {comparePrevYear && stats.yoyRevenue !== 0 && (
+                      <span className={cn(
+                        "text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5",
+                        stats.yoyRevenue > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                      )}>
+                        {stats.yoyRevenue > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                        {stats.yoyRevenue > 0 ? "+" : ""}{stats.yoyRevenue.toFixed(1)}%
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     From {stats.confirmedBookings + stats.pendingBookings} active bookings
@@ -816,17 +964,103 @@ const Dashboard = () => {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Properties</CardTitle>
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium">Occupancy</CardTitle>
+                  <Percent className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stats.totalProperties}</div>
-                  <p className="text-xs text-muted-foreground mt-1">Active properties in system</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold">{stats.occupancy.toFixed(1)}%</span>
+                    {comparePrevYear && stats.yoyOccupancy !== 0 && (
+                      <span className={cn(
+                        "text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5",
+                        stats.yoyOccupancy > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                      )}>
+                        {stats.yoyOccupancy > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                        {stats.yoyOccupancy > 0 ? "+" : ""}{stats.yoyOccupancy.toFixed(1)}pp
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {stats.bookedNights} booked / {stats.availableNights} available nights
+                  </p>
                 </CardContent>
               </Card>
             </>
           )}
         </div>
+
+        {/* Stats Cards - Row 2: KPIs */}
+        {isAdmin && (
+          <div className="grid gap-4 mb-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">ADR</CardTitle>
+                <span className="text-xs text-muted-foreground">Avg Daily Rate</span>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold">R {stats.adr.toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                  {comparePrevYear && stats.yoyAdr !== 0 && (
+                    <span className={cn(
+                      "text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5",
+                      stats.yoyAdr > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                    )}>
+                      {stats.yoyAdr > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                      {stats.yoyAdr > 0 ? "+" : ""}{stats.yoyAdr.toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Revenue per booking</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">RevPAR</CardTitle>
+                <span className="text-xs text-muted-foreground">Rev/Available Room</span>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold">R {stats.revpar.toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                  {comparePrevYear && stats.yoyRevpar !== 0 && (
+                    <span className={cn(
+                      "text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5",
+                      stats.yoyRevpar > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                    )}>
+                      {stats.yoyRevpar > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                      {stats.yoyRevpar > 0 ? "+" : ""}{stats.yoyRevpar.toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">{stats.totalRooms} rooms × {stats.daysInPeriod} days</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Properties</CardTitle>
+                <Building2 className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalProperties}</div>
+                <p className="text-xs text-muted-foreground mt-1">{stats.totalRooms} total rooms</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Booked Nights</CardTitle>
+                <BedDouble className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.bookedNights}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Avg {stats.totalBookings > 0 ? (stats.bookedNights / stats.totalBookings).toFixed(1) : 0} nights/booking
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Data Quality Warning */}
         {chartData.some(d => d.isDataGap || d.isInterpolated) && (
@@ -1010,9 +1244,9 @@ const Dashboard = () => {
               <CardTitle className="text-lg">Recent Bookings</CardTitle>
             </CardHeader>
             <CardContent>
-              {bookings.length > 0 ? (
+              {filteredBookings.length > 0 ? (
                 <div className="space-y-3">
-                  {bookings.slice(0, 5).map((booking) => {
+                  {filteredBookings.slice(0, 5).map((booking) => {
                     const property = properties.find(p => p.id === booking.property_id);
                     return (
                       <div key={booking.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
@@ -1041,6 +1275,81 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Property Breakdown Pie Charts */}
+        {isAdmin && propertyBreakdown.length > 1 && selectedPropertyId === "all" && (
+          <div className="grid gap-6 lg:grid-cols-2 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Revenue by Property</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={propertyBreakdown}
+                      dataKey="revenue"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      label={({ name, percent }) => `${name.substring(0, 12)}${name.length > 12 ? '...' : ''} (${(percent * 100).toFixed(0)}%)`}
+                      labelLine={{ strokeWidth: 1 }}
+                    >
+                      {propertyBreakdown.map((_, index) => (
+                        <Cell key={`cell-rev-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => [`R ${value.toLocaleString()}`, 'Revenue']}
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--background))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                        fontSize: "12px"
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Bookings by Property</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={propertyBreakdown}
+                      dataKey="bookings"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      label={({ name, percent }) => `${name.substring(0, 12)}${name.length > 12 ? '...' : ''} (${(percent * 100).toFixed(0)}%)`}
+                      labelLine={{ strokeWidth: 1 }}
+                    >
+                      {propertyBreakdown.map((_, index) => (
+                        <Cell key={`cell-book-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => [value, 'Bookings']}
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--background))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                        fontSize: "12px"
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );
