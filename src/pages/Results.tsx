@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Star, Users, Calendar } from "lucide-react";
+import { MapPin, Star, Users, Calendar, ChevronLeft, Search } from "lucide-react";
 import { format } from "date-fns";
 
 // Mock data - will be replaced with real API calls
@@ -68,12 +68,26 @@ const Results = () => {
   const checkOut = searchParams.get("checkOut");
   const adults = searchParams.get("adults");
   const children = searchParams.get("children");
+  
+  const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
 
       <div className="container mx-auto px-4 py-8">
+        {/* Back to Search - only on book domain */}
+        {isBookDomain && (
+          <div className="mb-6">
+            <Link to="/">
+              <Button variant="outline" size="sm" className="gap-2">
+                <ChevronLeft className="h-4 w-4" />
+                Back to Search
+              </Button>
+            </Link>
+          </div>
+        )}
+
         {/* Search Summary */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">
