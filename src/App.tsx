@@ -36,7 +36,11 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard/reports" replace />} />
+          <Route path="/" element={
+            window.location.hostname === 'book.sleepinafrica.roomsonline.co.za' 
+              ? <Home /> 
+              : <Navigate to="/dashboard/reports" replace />
+          } />
           <Route path="/book" element={<Home />} />
           <Route path="/search" element={<Results />} />
           <Route path="/results" element={<Navigate to="/search" replace />} />
