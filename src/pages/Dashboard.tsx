@@ -437,20 +437,25 @@ const Dashboard = () => {
                 <ResponsiveContainer width="100%" height={300}>
                   <ComposedChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
-                    <YAxis tick={{ fontSize: 12 }} tickLine={false} allowDecimals={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickLine={false} allowDecimals={false} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: 'hsl(var(--destructive))' }} tickLine={false} allowDecimals={false} />
                     <Tooltip 
                       contentStyle={{ 
                         backgroundColor: "hsl(var(--background))", 
                         border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px"
+                        borderRadius: "8px",
+                        fontSize: "12px"
                       }}
                     />
-                    <Legend />
-                    <Bar dataKey="bookings" name={comparePrevYear ? "Bookings (Current)" : "Bookings"} fill="#22c55e" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="cancellations" name={comparePrevYear ? "Cancellations (Current)" : "Cancellations"} fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
-                    {comparePrevYear && <Line type="monotone" dataKey="prevBookings" name="Bookings (Prev Year)" stroke="#eab308" strokeWidth={3} dot={false} />}
-                    {comparePrevYear && <Line type="monotone" dataKey="prevCancellations" name="Cancellations (Prev Year)" stroke="hsl(var(--destructive))" strokeWidth={2} strokeDasharray="5 5" dot={false} opacity={0.7} />}
+                    <Legend 
+                      wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+                      formatter={(value) => <span className="text-xs">{value}</span>}
+                    />
+                    <Bar yAxisId="left" dataKey="bookings" name="Bookings" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                    <Bar yAxisId="right" dataKey="cancellations" name="Cancelled" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
+                    {comparePrevYear && <Line yAxisId="left" type="monotone" dataKey="prevBookings" name="Prev Bookings" stroke="#eab308" strokeWidth={3} dot={false} />}
+                    {comparePrevYear && <Line yAxisId="right" type="monotone" dataKey="prevCancellations" name="Prev Cancelled" stroke="#f97316" strokeWidth={2} strokeDasharray="5 5" dot={false} />}
                   </ComposedChart>
                 </ResponsiveContainer>
               ) : (
