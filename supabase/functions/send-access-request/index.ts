@@ -39,6 +39,21 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Fetch configurable email addresses from api_keys table
+    const { data: emailConfig } = await supabase
+      .from("api_keys")
+      .select("key_name, key_value")
+      .in("key_name", ["RESEND_FROM_EMAIL", "RESEND_TO_EMAIL"]);
+
+    const fromEmailConfig = emailConfig?.find((k: any) => k.key_name === "RESEND_FROM_EMAIL")?.key_value;
+    const toEmailConfig = emailConfig?.find((k: any) => k.key_name === "RESEND_TO_EMAIL")?.key_value;
+
+    // Use configured emails or fallback to defaults
+    const fromEmail = fromEmailConfig || "RoomsOnline <onboarding@resend.dev>";
+    const adminEmail = toEmailConfig || "carike@roomsonline.co.za";
+
+    console.log("Using email config:", { fromEmail, adminEmail });
+
     // Store the request in database
     const { data: accessRequest, error: dbError } = await supabase
       .from("access_requests")
@@ -62,10 +77,8 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Access request saved:", accessRequest.id);
 
     // Send notification email to admin
-    const adminEmail = "carike@roomsonline.co.za";
-    
     const emailResponse = await resend.emails.send({
-      from: "RoomsOnline <onboarding@resend.dev>",
+      from: fromEmail,
       to: [adminEmail],
       subject: `New Access Request from ${name}`,
       html: `
@@ -96,7 +109,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Send confirmation email to requester
     await resend.emails.send({
-      from: "RoomsOnline <onboarding@resend.dev>",
+      from: fromEmail,
       to: [email],
       subject: "Access Request Received - RoomsOnline",
       html: `
