@@ -60,7 +60,7 @@ export const SearchForm = () => {
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
               Check-in
             </label>
-            <Popover open={showCheckIn} onOpenChange={setShowCheckIn}>
+            <Popover open={showCheckIn} onOpenChange={setShowCheckIn} modal={false}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -75,7 +75,7 @@ export const SearchForm = () => {
                   </span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 z-50" align="start">
+              <PopoverContent className="w-auto p-0 z-50" align="start" sideOffset={8}>
                 <Calendar
                   mode="single"
                   selected={checkIn}
@@ -96,7 +96,7 @@ export const SearchForm = () => {
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
               Check-out
             </label>
-            <Popover open={showCheckOut} onOpenChange={setShowCheckOut}>
+            <Popover open={showCheckOut} onOpenChange={setShowCheckOut} modal={false}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -111,7 +111,7 @@ export const SearchForm = () => {
                   </span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 z-50" align="start">
+              <PopoverContent className="w-auto p-0 z-50" align="start" sideOffset={8}>
                 <Calendar
                   mode="single"
                   selected={checkOut}
@@ -132,7 +132,7 @@ export const SearchForm = () => {
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
               Guests
             </label>
-            <Popover open={showGuestPicker} onOpenChange={setShowGuestPicker}>
+            <Popover open={showGuestPicker} onOpenChange={setShowGuestPicker} modal={false}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -144,7 +144,7 @@ export const SearchForm = () => {
                   </span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-72 sm:w-80 p-4 z-50" align="start">
+              <PopoverContent className="w-72 sm:w-80 p-4 z-50" align="start" sideOffset={8}>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
