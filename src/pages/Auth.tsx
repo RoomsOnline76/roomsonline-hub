@@ -261,17 +261,17 @@ export default function Auth() {
 
         {/* Success Modal */}
         <Dialog open={showSuccessModal} onOpenChange={handleCloseSuccessModal}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader className="text-center">
-              <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+          <DialogContent className="sm:max-w-md text-center">
+            <DialogHeader className="flex flex-col items-center space-y-4">
+              <div className="h-16 w-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
                 <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
               </div>
-              <DialogTitle className="text-center">Request Submitted</DialogTitle>
+              <DialogTitle>Request Submitted</DialogTitle>
               <DialogDescription className="text-center">
                 Your access request has been sent and is pending review. We'll notify you by email once your request has been processed.
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter className="sm:justify-center">
+            <DialogFooter className="mt-4 flex justify-center sm:justify-center">
               <Button onClick={handleCloseSuccessModal}>
                 Back to Login
               </Button>
