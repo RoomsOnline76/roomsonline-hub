@@ -458,13 +458,11 @@ export default function PropertyShowcase() {
                           <Button className="bg-primary hover:bg-primary/90">
                             Book Now
                           </Button>
-                          {room.url && (
-                            <Button variant="outline" asChild>
-                              <a href={room.url} target="_blank" rel="noopener noreferrer">
-                                View Details
-                              </a>
-                            </Button>
-                          )}
+                          <Button variant="outline" asChild>
+                            <Link to={`/property/${id}/room/${room.id}`}>
+                              View Room
+                            </Link>
+                          </Button>
                         </div>
                       </div>
                     </div>

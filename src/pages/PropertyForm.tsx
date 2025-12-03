@@ -1174,7 +1174,7 @@ export default function PropertyForm() {
 
           // Load other saved data
           if (amenities?.star_rating) setStarRating(amenities.star_rating);
-          if (amenities?.facilities) setSelectedFacilities(amenities.facilities);
+          if (amenities?.facilities && Array.isArray(amenities.facilities)) setSelectedFacilities(amenities.facilities);
           if (amenities?.cancellation_policies) setCancellationPolicies(amenities.cancellation_policies);
           if (amenities?.seasons) setSeasons(amenities.seasons);
           if (amenities?.addons) setAddons(amenities.addons);
