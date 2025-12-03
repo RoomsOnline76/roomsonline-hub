@@ -69,9 +69,12 @@ export const Navbar = () => {
           </Link>
 
           <div className="flex items-center gap-4">
-            <a href="https://book.sleepinafrica.roomsonline.co.za" target="_blank" rel="noopener noreferrer">
-              <Button variant="ghost">Book</Button>
-            </a>
+            <Button 
+              variant="ghost" 
+              onClick={() => window.open(`${window.location.origin}/book`, '_blank')}
+            >
+              Book
+            </Button>
             {user && (
               <>
                 <DropdownMenu>
