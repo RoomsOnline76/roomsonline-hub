@@ -19,7 +19,7 @@ import { DateRange } from "react-day-picker";
 const Dashboard = () => {
   const { user, isAdmin } = useAuth();
   const [period, setPeriod] = useState("this_month");
-  const [comparePrevYear, setComparePrevYear] = useState(false);
+  const [comparePrevYear, setComparePrevYear] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
     const now = new Date();
     return {
