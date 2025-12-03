@@ -482,8 +482,8 @@ const Dashboard = () => {
                   <ResponsiveContainer width="100%" height={300}>
                     <ComposedChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
-                      <YAxis tick={{ fontSize: 12 }} tickLine={false} tickFormatter={(v) => `R${v}`} />
+                      <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11 }} tickLine={false} tickFormatter={(v) => `R${v}`} />
                       <Tooltip 
                         formatter={(value: number, name: string) => [
                           `R ${value.toLocaleString()}`, 
@@ -492,12 +492,16 @@ const Dashboard = () => {
                         contentStyle={{ 
                           backgroundColor: "hsl(var(--background))", 
                           border: "1px solid hsl(var(--border))",
-                          borderRadius: "8px"
+                          borderRadius: "8px",
+                          fontSize: "12px"
                         }}
                       />
-                      <Legend />
-                      <Bar dataKey="revenue" name={comparePrevYear ? "Revenue (Current)" : "Revenue"} fill="#22c55e" radius={[4, 4, 0, 0]} />
-                      {comparePrevYear && <Line type="monotone" dataKey="prevRevenue" name="Revenue (Prev Year)" stroke="#eab308" strokeWidth={3} dot={false} />}
+                      <Legend 
+                        wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+                        formatter={(value) => <span className="text-xs">{value}</span>}
+                      />
+                      <Bar dataKey="revenue" name="Revenue" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                      {comparePrevYear && <Line type="monotone" dataKey="prevRevenue" name="Prev Revenue" stroke="#eab308" strokeWidth={3} dot={false} />}
                     </ComposedChart>
                   </ResponsiveContainer>
                 ) : (
