@@ -435,41 +435,23 @@ const Dashboard = () => {
                 <div className="h-[300px] flex items-center justify-center text-muted-foreground">Loading...</div>
               ) : chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
-                  {comparePrevYear ? (
-                    <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
-                      <YAxis tick={{ fontSize: 12 }} tickLine={false} allowDecimals={false} />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: "hsl(var(--background))", 
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "8px"
-                        }}
-                      />
-                      <Legend />
-                      <Line type="monotone" dataKey="bookings" name="Bookings (Current)" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-                      <Line type="monotone" dataKey="prevBookings" name="Bookings (Prev Year)" stroke="hsl(var(--primary))" strokeWidth={2} strokeDasharray="5 5" dot={false} opacity={0.6} />
-                      <Line type="monotone" dataKey="cancellations" name="Cancellations (Current)" stroke="hsl(var(--destructive))" strokeWidth={2} dot={false} />
-                      <Line type="monotone" dataKey="prevCancellations" name="Cancellations (Prev Year)" stroke="hsl(var(--destructive))" strokeWidth={2} strokeDasharray="5 5" dot={false} opacity={0.6} />
-                    </LineChart>
-                  ) : (
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
-                      <YAxis tick={{ fontSize: 12 }} tickLine={false} allowDecimals={false} />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: "hsl(var(--background))", 
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "8px"
-                        }}
-                      />
-                      <Legend />
-                      <Bar dataKey="bookings" name="Bookings" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="cancellations" name="Cancellations" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  )}
+                  <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12 }} tickLine={false} allowDecimals={false} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: "hsl(var(--background))", 
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px"
+                      }}
+                    />
+                    <Legend />
+                    <Bar dataKey="bookings" name={comparePrevYear ? "Bookings (Current)" : "Bookings"} fill="#22c55e" radius={[4, 4, 0, 0]} />
+                    {comparePrevYear && <Bar dataKey="prevBookings" name="Bookings (Prev Year)" fill="#eab308" radius={[4, 4, 0, 0]} />}
+                    <Bar dataKey="cancellations" name={comparePrevYear ? "Cancellations (Current)" : "Cancellations"} fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
+                    {comparePrevYear && <Bar dataKey="prevCancellations" name="Cancellations (Prev Year)" fill="hsl(var(--destructive) / 0.5)" radius={[4, 4, 0, 0]} />}
+                  </BarChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="h-[300px] flex items-center justify-center text-muted-foreground">
@@ -493,42 +475,25 @@ const Dashboard = () => {
                   <div className="h-[300px] flex items-center justify-center text-muted-foreground">Loading...</div>
                 ) : chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={300}>
-                    {comparePrevYear ? (
-                      <LineChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                        <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
-                        <YAxis tick={{ fontSize: 12 }} tickLine={false} tickFormatter={(v) => `R${v}`} />
-                        <Tooltip 
-                          formatter={(value: number, name: string) => [
-                            `R ${value.toLocaleString()}`, 
-                            name.includes("Prev") ? "Revenue (Prev Year)" : "Revenue (Current)"
-                          ]}
-                          contentStyle={{ 
-                            backgroundColor: "hsl(var(--background))", 
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "8px"
-                          }}
-                        />
-                        <Legend />
-                        <Line type="monotone" dataKey="revenue" name="Revenue (Current)" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-                        <Line type="monotone" dataKey="prevRevenue" name="Revenue (Prev Year)" stroke="hsl(var(--primary))" strokeWidth={2} strokeDasharray="5 5" dot={false} opacity={0.6} />
-                      </LineChart>
-                    ) : (
-                      <AreaChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                        <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
-                        <YAxis tick={{ fontSize: 12 }} tickLine={false} tickFormatter={(v) => `R${v}`} />
-                        <Tooltip 
-                          formatter={(value: number) => [`R ${value.toLocaleString()}`, "Revenue"]}
-                          contentStyle={{ 
-                            backgroundColor: "hsl(var(--background))", 
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "8px"
-                          }}
-                        />
-                        <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.2)" strokeWidth={2} />
-                      </AreaChart>
-                    )}
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
+                      <YAxis tick={{ fontSize: 12 }} tickLine={false} tickFormatter={(v) => `R${v}`} />
+                      <Tooltip 
+                        formatter={(value: number, name: string) => [
+                          `R ${value.toLocaleString()}`, 
+                          name
+                        ]}
+                        contentStyle={{ 
+                          backgroundColor: "hsl(var(--background))", 
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px"
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="revenue" name={comparePrevYear ? "Revenue (Current)" : "Revenue"} fill="#22c55e" radius={[4, 4, 0, 0]} />
+                      {comparePrevYear && <Bar dataKey="prevRevenue" name="Revenue (Prev Year)" fill="#eab308" radius={[4, 4, 0, 0]} />}
+                    </BarChart>
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-[300px] flex items-center justify-center text-muted-foreground">
