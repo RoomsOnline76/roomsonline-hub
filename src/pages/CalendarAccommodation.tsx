@@ -39,6 +39,7 @@ interface Property {
   amenities: any;
   owner_email: string | null;
   external_system: string | null;
+  external_id: string | null;
   benson_property_code: string | null;
   checkfront_property_code: string | null;
   siteminder_property_code: string | null;
@@ -381,7 +382,11 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       case "benson": return property.benson_property_code;
       case "checkfront": return property.checkfront_property_code;
       case "siteminder": return property.siteminder_property_code;
-      default: return null;
+      case "nightsbridge": return property.external_id;
+      case "semper": return property.external_id;
+      case "mews": return property.external_id;
+      case "opera": return property.external_id;
+      default: return property.external_id; // Fallback to external_id for other systems
     }
   }, []);
 
@@ -590,7 +595,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     try {
       let query = supabase
         .from("properties")
-        .select("id, name, amenities, owner_email, external_system, benson_property_code, checkfront_property_code, siteminder_property_code")
+        .select("id, name, amenities, owner_email, external_system, external_id, benson_property_code, checkfront_property_code, siteminder_property_code")
         .eq("is_active", true);
 
       if (!adminStatus && email) {
