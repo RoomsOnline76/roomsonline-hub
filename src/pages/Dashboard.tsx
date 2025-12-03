@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, differenceInDays } from "date-fns";
-import { CalendarIcon, DollarSign, CalendarDays, XCircle, Building2, Download } from "lucide-react";
+import { CalendarIcon, CalendarDays, XCircle, Building2, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, LineChart, Line, ComposedChart, Cell, ReferenceLine } from "recharts";
 import { DateRange } from "react-day-picker";
@@ -802,7 +802,7 @@ const Dashboard = () => {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  <span className="h-4 w-4 flex items-center justify-center text-muted-foreground font-bold text-sm">R</span>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
