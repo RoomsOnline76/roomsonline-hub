@@ -4093,19 +4093,19 @@ export default function PropertyForm() {
                     <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
                       <TabsTrigger
                         value="season"
-                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Season
                       </TabsTrigger>
                       <TabsTrigger
                         value="rate-breakdown"
-                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Rate Breakdown
                       </TabsTrigger>
                       <TabsTrigger
                         value="overview"
-                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Overview
                       </TabsTrigger>
@@ -4314,31 +4314,31 @@ export default function PropertyForm() {
                     <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
                       <TabsTrigger
                         value="room-type"
-                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Room Type
                       </TabsTrigger>
                       <TabsTrigger
                         value="facilities"
-                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Facilities
                       </TabsTrigger>
                       <TabsTrigger
                         value="amenities"
-                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Amenities
                       </TabsTrigger>
                       <TabsTrigger
                         value="room-images"
-                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Images
                       </TabsTrigger>
                       <TabsTrigger
                         value="agreement"
-                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
+                        className="text-primary-foreground/70 data-[state=active]:bg-primary-foreground/20 data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
                       >
                         Agreement
                       </TabsTrigger>
