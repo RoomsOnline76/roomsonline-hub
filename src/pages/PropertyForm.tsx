@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
+import { getRoomUrl } from "@/lib/config";
 import {
   Home,
   Building2,
@@ -4269,8 +4270,7 @@ export default function PropertyForm() {
                           className="h-6 w-6 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const roomUrl = `/property/${propertySlug || id}/room/${room.id}`;
-                            window.open(roomUrl, "_blank");
+                            window.open(getRoomUrl(propertySlug || id || "", room.id), "_blank");
                           }}
                           title="View room page"
                         >
@@ -4282,8 +4282,7 @@ export default function PropertyForm() {
                           className="h-6 w-6 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const roomUrl = `${window.location.origin}/property/${propertySlug || id}/room/${room.id}`;
-                            navigator.clipboard.writeText(roomUrl);
+                            navigator.clipboard.writeText(getRoomUrl(propertySlug || id || "", room.id));
                             toast({
                               title: "Copied",
                               description: "Room URL copied to clipboard",
@@ -4379,15 +4378,14 @@ export default function PropertyForm() {
                           <Input
                             readOnly
                             className="bg-muted/50"
-                            value={`${window.location.origin}/property/${propertySlug || id}/room/${selectedRoomType}`}
+                            value={getRoomUrl(propertySlug || id || "", selectedRoomType || "")}
                           />
                           <Button
                             type="button"
                             variant="outline"
                             size="icon"
                             onClick={() => {
-                              const url = `${window.location.origin}/property/${propertySlug || id}/room/${selectedRoomType}`;
-                              navigator.clipboard.writeText(url);
+                              navigator.clipboard.writeText(getRoomUrl(propertySlug || id || "", selectedRoomType || ""));
                               toast({
                                 title: "URL Copied",
                                 description: "Room URL has been copied to clipboard",

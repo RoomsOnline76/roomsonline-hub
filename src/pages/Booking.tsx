@@ -1,4 +1,4 @@
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/Navbar";
@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, Users, ArrowLeft } from "lucide-react";
-import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
+import { getPropertyUrl } from "@/lib/config";
 
 const Booking = () => {
   const { id } = useParams<{ id: string }>();
@@ -78,13 +78,13 @@ const Booking = () => {
       
       <div className="container mx-auto px-4 py-8">
         {/* Back Link */}
-        <Link 
-          to={`/property/${property.slug || property.id}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
+        <a 
+          href={`${getPropertyUrl(property.slug || property.id)}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
           className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to property
-        </Link>
+        </a>
 
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Booking Form - Placeholder */}

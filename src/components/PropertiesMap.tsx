@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { MapPin, Loader2 } from "lucide-react";
+import { getPropertyUrl } from "@/lib/config";
 
 // Global callback for Google Maps - iOS requires a real callback function
 declare global {
@@ -257,7 +258,7 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
           <div style="padding: 8px; max-width: 200px;">
             <h3 style="font-weight: 600; margin-bottom: 4px; color: #111;">${property.name}</h3>
             <p style="font-size: 12px; color: #666; margin-bottom: 8px;">${property.city}, ${property.country}</p>
-            <a href="/property/${property.slug || property.id}" 
+            <a href="${getPropertyUrl(property.slug || property.id)}" 
                style="display: inline-block; padding: 6px 12px; background: #e11d48; color: white; border-radius: 6px; text-decoration: none; font-size: 12px;">
               View Property
             </a>
