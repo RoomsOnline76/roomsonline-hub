@@ -383,8 +383,7 @@ export default function PropertyForm() {
       const { data } = await supabase
         .from("api_keys")
         .select("key_name, name, system_type")
-        .not("system_type", "eq", "google")
-        .not("system_type", "eq", "sendgrid")
+        .eq("system_type", "pms")
         .order("name");
 
       if (data) {
