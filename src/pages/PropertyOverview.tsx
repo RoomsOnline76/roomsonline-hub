@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { getPropertyUrl } from "@/lib/config";
 
 const PropertyOverview = () => {
   const navigate = useNavigate();
@@ -220,7 +221,7 @@ const PropertyOverview = () => {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => window.open(`/property/${property.slug || property.id}`, "_blank")}
+                                onClick={() => window.open(getPropertyUrl(property.slug || property.id), "_blank")}
                                 title="View Property Showcase"
                               >
                                 <Home className="h-4 w-4" />
