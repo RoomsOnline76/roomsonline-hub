@@ -79,57 +79,58 @@ const getPMSIcon = (systemType: string): LucideIcon => {
 };
 
 // Schema factory to handle conditional address validation
-const createPropertySchema = (noStreetAddress: boolean) => z.object({
-  name: z.string().min(1, "Property name is required").max(200),
-  property_type: z.string().min(1, "Property type is required"),
-  contact_email: z.string().email("Invalid email address"),
-  telephone: z.string().optional(),
-  currency: z.string().min(1, "Currency is required"),
-  owner_name: z.string().optional(),
-  owner_email: z.string().email("Invalid email address").optional().or(z.literal("")),
-  country: z.string().min(1, "Country is required"),
-  city: noStreetAddress ? z.string().optional() : z.string().min(1, "City is required"),
-  address: noStreetAddress ? z.string().optional() : z.string().min(1, "Street name is required"),
-  suburb: z.string().optional(),
-  postal_code: z.string().optional(),
-  bb_id: z.string().optional(),
-  venue_id: z.string().optional(),
-  channel_id: z.string().optional(),
-  account_id: z.string().optional(),
-  agent_id: z.string().optional(),
-  has_vat: z.boolean().optional(),
-  vat_number: z.string().optional(),
-  property_registration: z.string().optional(),
-  bank_name: z.string().optional(),
-  branch_code: z.string().optional(),
-  account_holder: z.string().optional(),
-  account_number: z.string().optional(),
-  account_type: z.string().optional(),
-  swift_code: z.string().optional(),
-  description: z.string().optional(),
-  star_rating: z.number().min(0).max(5),
-  facilities: z.array(z.string()).optional(),
-  items_non_refundable: z.boolean().optional(),
-  smoking_allowed: z.boolean().optional(),
-  pets_allowed: z.boolean().optional(),
-  children_allowed: z.boolean().optional(),
-  parties_allowed: z.boolean().optional(),
-  check_in_24h: z.boolean().optional(),
-  deposit_allowed: z.boolean().optional(),
-  deposit_percentage: z.string().optional(),
-  deposit_days: z.string().optional(),
-  same_day_bookings: z.boolean().optional(),
-  same_day_cutoff: z.string().optional(),
-  check_in_from: z.string().optional(),
-  check_in_to: z.string().optional(),
-  check_out_from: z.string().optional(),
-  check_out_to: z.string().optional(),
-  children_policy: z.string().optional(),
-  infant_age_from: z.string().optional(),
-  infant_age_to: z.string().optional(),
-  children_age_from: z.string().optional(),
-  children_age_to: z.string().optional(),
-});
+const createPropertySchema = (noStreetAddress: boolean) =>
+  z.object({
+    name: z.string().min(1, "Property name is required").max(200),
+    property_type: z.string().min(1, "Property type is required"),
+    contact_email: z.string().email("Invalid email address"),
+    telephone: z.string().optional(),
+    currency: z.string().min(1, "Currency is required"),
+    owner_name: z.string().optional(),
+    owner_email: z.string().email("Invalid email address").optional().or(z.literal("")),
+    country: z.string().min(1, "Country is required"),
+    city: noStreetAddress ? z.string().optional() : z.string().min(1, "City is required"),
+    address: noStreetAddress ? z.string().optional() : z.string().min(1, "Street name is required"),
+    suburb: z.string().optional(),
+    postal_code: z.string().optional(),
+    bb_id: z.string().optional(),
+    venue_id: z.string().optional(),
+    channel_id: z.string().optional(),
+    account_id: z.string().optional(),
+    agent_id: z.string().optional(),
+    has_vat: z.boolean().optional(),
+    vat_number: z.string().optional(),
+    property_registration: z.string().optional(),
+    bank_name: z.string().optional(),
+    branch_code: z.string().optional(),
+    account_holder: z.string().optional(),
+    account_number: z.string().optional(),
+    account_type: z.string().optional(),
+    swift_code: z.string().optional(),
+    description: z.string().optional(),
+    star_rating: z.number().min(0).max(5),
+    facilities: z.array(z.string()).optional(),
+    items_non_refundable: z.boolean().optional(),
+    smoking_allowed: z.boolean().optional(),
+    pets_allowed: z.boolean().optional(),
+    children_allowed: z.boolean().optional(),
+    parties_allowed: z.boolean().optional(),
+    check_in_24h: z.boolean().optional(),
+    deposit_allowed: z.boolean().optional(),
+    deposit_percentage: z.string().optional(),
+    deposit_days: z.string().optional(),
+    same_day_bookings: z.boolean().optional(),
+    same_day_cutoff: z.string().optional(),
+    check_in_from: z.string().optional(),
+    check_in_to: z.string().optional(),
+    check_out_from: z.string().optional(),
+    check_out_to: z.string().optional(),
+    children_policy: z.string().optional(),
+    infant_age_from: z.string().optional(),
+    infant_age_to: z.string().optional(),
+    children_age_from: z.string().optional(),
+    children_age_to: z.string().optional(),
+  });
 
 // Create a base schema for type inference
 const propertySchema = createPropertySchema(false);
@@ -170,22 +171,15 @@ export default function PropertyForm() {
 
   // Load owners list - only users with 'user' role (property owners)
   const [ownersLoaded, setOwnersLoaded] = useState(false);
-  
+
   useEffect(() => {
     const loadOwners = async () => {
       // Get user IDs that have the 'user' role (property owners)
-      const { data: ownerRoles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "user");
+      const { data: ownerRoles } = await supabase.from("user_roles").select("user_id").eq("role", "user");
 
       if (ownerRoles && ownerRoles.length > 0) {
         const ownerIds = ownerRoles.map((r) => r.user_id);
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("*")
-          .in("id", ownerIds)
-          .order("full_name");
+        const { data: profiles } = await supabase.from("profiles").select("*").in("id", ownerIds).order("full_name");
 
         if (profiles) {
           setOwners(profiles);
@@ -253,7 +247,7 @@ export default function PropertyForm() {
   const [bensonPropertyCode, setBensonPropertyCode] = useState<string>("");
   const [isSyncingPms, setIsSyncingPms] = useState(false);
   const [lastPmsSync, setLastPmsSync] = useState<Date | null>(null);
-  
+
   // Store existing external IDs to preserve when PMS changes
   const [existingExternalIds, setExistingExternalIds] = useState<{
     nightsbridge_bb_id?: string | null;
@@ -305,7 +299,7 @@ export default function PropertyForm() {
           pms_id: rt.id,
           pms_synced: true,
         }));
-        
+
         // Merge with existing room types - update existing or add new
         const updatedRoomTypes = [...roomTypes];
         let newCount = 0;
@@ -313,9 +307,9 @@ export default function PropertyForm() {
 
         pmsRoomTypes.forEach((pmsRoom: any) => {
           const existingIndex = updatedRoomTypes.findIndex(
-            r => r.pms_id === pmsRoom.pms_id || r.name.toLowerCase() === pmsRoom.name.toLowerCase()
+            (r) => r.pms_id === pmsRoom.pms_id || r.name.toLowerCase() === pmsRoom.name.toLowerCase(),
           );
-          
+
           if (existingIndex >= 0) {
             // Update existing room - preserve local edits but mark as synced
             const existing = updatedRoomTypes[existingIndex];
@@ -380,13 +374,13 @@ export default function PropertyForm() {
   // Load available PMS systems - use static list of supported systems
   useEffect(() => {
     const supportedPMSSystems = [
-      { key_name: 'benson', name: 'Benson', system_type: 'benson' },
-      { key_name: 'checkfront', name: 'Checkfront', system_type: 'checkfront' },
-      { key_name: 'mews', name: 'Mews', system_type: 'mews' },
-      { key_name: 'nightsbridge', name: 'NightsBridge', system_type: 'nightsbridge' },
-      { key_name: 'opera', name: 'Opera', system_type: 'opera' },
-      { key_name: 'semper', name: 'Semper', system_type: 'semper' },
-      { key_name: 'siteminder', name: 'SiteMinder', system_type: 'siteminder' },
+      { key_name: "benson", name: "Benson", system_type: "benson" },
+      { key_name: "checkfront", name: "Checkfront", system_type: "checkfront" },
+      { key_name: "mews", name: "Mews", system_type: "mews" },
+      { key_name: "nightsbridge", name: "NightsBridge", system_type: "nightsbridge" },
+      { key_name: "opera", name: "Opera", system_type: "opera" },
+      { key_name: "semper", name: "Semper", system_type: "semper" },
+      { key_name: "siteminder", name: "SiteMinder", system_type: "siteminder" },
     ];
     setAvailablePMSSystems(supportedPMSSystems);
   }, []);
@@ -603,7 +597,7 @@ export default function PropertyForm() {
 
   const handleRoomImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    
+
     setIsRoomImageUploading(true);
     const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
     const existingImages = currentRoom?.images || [];
@@ -621,7 +615,9 @@ export default function PropertyForm() {
 
         if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage.from("property-images").getPublicUrl(filePath);
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("property-images").getPublicUrl(filePath);
 
         existingImages.push(publicUrl);
       } catch (error) {
@@ -633,9 +629,7 @@ export default function PropertyForm() {
       }
     }
 
-    setRoomTypes(roomTypes.map((r) => 
-      r.id === selectedRoomType ? { ...r, images: existingImages } : r
-    ));
+    setRoomTypes(roomTypes.map((r) => (r.id === selectedRoomType ? { ...r, images: existingImages } : r)));
     setIsDirty(true);
     setIsRoomImageUploading(false);
   };
@@ -643,9 +637,7 @@ export default function PropertyForm() {
   const removeRoomImage = (imageUrl: string) => {
     const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
     const updatedImages = (currentRoom?.images || []).filter((img: string) => img !== imageUrl);
-    setRoomTypes(roomTypes.map((r) => 
-      r.id === selectedRoomType ? { ...r, images: updatedImages } : r
-    ));
+    setRoomTypes(roomTypes.map((r) => (r.id === selectedRoomType ? { ...r, images: updatedImages } : r)));
     setIsDirty(true);
   };
 
@@ -1044,7 +1036,7 @@ export default function PropertyForm() {
       try {
         // Check if id is a UUID or slug
         const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-        
+
         const { data, error } = isUUID
           ? await supabase.from("properties").select("*").eq("id", id).single()
           : await supabase.from("properties").select("*").eq("slug", id).single();
@@ -1054,7 +1046,7 @@ export default function PropertyForm() {
         if (data) {
           // Store the actual property UUID for database operations
           setPropertyId(data.id);
-          
+
           // Populate form data
           const amenities = data.amenities as any;
           const houseRules = amenities?.house_rules || {};
@@ -1126,12 +1118,12 @@ export default function PropertyForm() {
           // Set property source (PMS)
           const externalSystem = data.external_system || "";
           setSelectedPMS(externalSystem);
-          
+
           // Set Benson property code
           if (data.benson_property_code) {
             setBensonPropertyCode(data.benson_property_code);
           }
-          
+
           // Store existing external IDs to preserve when PMS changes
           setExistingExternalIds(amenities?.external_ids || {});
           setExistingBensonPropertyCode(data.benson_property_code || null);
@@ -1149,7 +1141,7 @@ export default function PropertyForm() {
           if (amenities?.address_details?.google_maps_link) {
             setGoogleMapsLink(amenities.address_details.google_maps_link);
           }
-          
+
           // Load no street address toggle
           if (amenities?.address_details?.no_street_address) {
             setNoStreetAddress(amenities.address_details.no_street_address);
@@ -1182,7 +1174,8 @@ export default function PropertyForm() {
           // Load house style
           const houseStyle = amenities?.house_style || {};
           if (houseStyle.company_logo) setCompanyLogo(houseStyle.company_logo);
-          if (houseStyle.litchi_bookings_link || houseStyle.roomsonline_bookings_link) setRoomsOnlineBookingsLink(houseStyle.roomsonline_bookings_link || houseStyle.litchi_bookings_link);
+          if (houseStyle.litchi_bookings_link || houseStyle.roomsonline_bookings_link)
+            setRoomsOnlineBookingsLink(houseStyle.roomsonline_bookings_link || houseStyle.litchi_bookings_link);
           if (houseStyle.title_behaviour) setTitleBehaviour(houseStyle.title_behaviour);
           if (houseStyle.merchant_details) setMerchantDetails(houseStyle.merchant_details);
           if (houseStyle.adpay_details) setAdpayDetails(houseStyle.adpay_details);
@@ -1411,7 +1404,7 @@ export default function PropertyForm() {
     try {
       // Validate form data with conditional schema
       const schema = createPropertySchema(noStreetAddress);
-      
+
       // If using Google Maps pin, require coordinates
       if (noStreetAddress && (!latitude || !longitude)) {
         toast({
@@ -1422,7 +1415,7 @@ export default function PropertyForm() {
         setLoading(false);
         return;
       }
-      
+
       schema.parse(formData);
 
       // Prepare data for database
@@ -1477,7 +1470,8 @@ export default function PropertyForm() {
           },
           // Preserve existing external IDs, only update for currently selected PMS
           external_ids: {
-            nightsbridge_bb_id: selectedPMS === "nightsbridge" ? formData.bb_id : existingExternalIds.nightsbridge_bb_id,
+            nightsbridge_bb_id:
+              selectedPMS === "nightsbridge" ? formData.bb_id : existingExternalIds.nightsbridge_bb_id,
             semper_venue_id: selectedPMS === "semper" ? formData.venue_id : existingExternalIds.semper_venue_id,
             semper_channel_id: selectedPMS === "semper" ? formData.channel_id : existingExternalIds.semper_channel_id,
             semper_account_id: selectedPMS === "semper" ? formData.account_id : existingExternalIds.semper_account_id,
@@ -1553,7 +1547,7 @@ export default function PropertyForm() {
           .order("created_at", { ascending: false })
           .limit(1)
           .single();
-        
+
         if (newProperty?.slug) {
           navigate(`/admin/properties/${newProperty.slug}`, { replace: true });
         }
@@ -1928,7 +1922,10 @@ export default function PropertyForm() {
                           placeholder="Property name"
                           required
                           disabled={isFieldPopulatedByPMS("name", selectedPMS)}
-                          className={cn(getPMSFieldClass("name", selectedPMS), isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")}
+                          className={cn(
+                            getPMSFieldClass("name", selectedPMS),
+                            isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed",
+                          )}
                         />
                       </div>
                       <div className="space-y-2">
@@ -2024,7 +2021,7 @@ export default function PropertyForm() {
                       {/* Toggle for no street address */}
                       <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
                         <div className="space-y-0.5">
-                          <Label htmlFor="no_street_address">No Street Address Available</Label>
+                          <Label htmlFor="no_street_address">No Street Address Available?</Label>
                           <p className="text-sm text-muted-foreground">
                             Use Google Maps pin link instead of street address
                           </p>
@@ -2047,7 +2044,11 @@ export default function PropertyForm() {
                               value={formData.country}
                               onValueChange={(value) => handleInputChange("country", value)}
                             >
-                              <SelectTrigger id="country" className={cn(getPMSFieldClass("country", selectedPMS))} disabled={isFieldPopulatedByPMS("country", selectedPMS)}>
+                              <SelectTrigger
+                                id="country"
+                                className={cn(getPMSFieldClass("country", selectedPMS))}
+                                disabled={isFieldPopulatedByPMS("country", selectedPMS)}
+                              >
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -2067,7 +2068,10 @@ export default function PropertyForm() {
                               placeholder="City name"
                               required={!noStreetAddress}
                               disabled={isFieldPopulatedByPMS("city", selectedPMS)}
-                              className={cn(getPMSFieldClass("city", selectedPMS), isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed")}
+                              className={cn(
+                                getPMSFieldClass("city", selectedPMS),
+                                isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed",
+                              )}
                             />
                           </div>
                           <div className="space-y-2">
@@ -2079,7 +2083,10 @@ export default function PropertyForm() {
                               placeholder="Street address"
                               required={!noStreetAddress}
                               disabled={isFieldPopulatedByPMS("address", selectedPMS)}
-                              className={cn(getPMSFieldClass("address", selectedPMS), isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed")}
+                              className={cn(
+                                getPMSFieldClass("address", selectedPMS),
+                                isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed",
+                              )}
                             />
                           </div>
                           <div className="space-y-2">
@@ -2099,7 +2106,10 @@ export default function PropertyForm() {
                               onChange={(e) => handleInputChange("postal_code", e.target.value)}
                               placeholder="Postal code"
                               disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)}
-                              className={cn(getPMSFieldClass("postal_code", selectedPMS), isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed")}
+                              className={cn(
+                                getPMSFieldClass("postal_code", selectedPMS),
+                                isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed",
+                              )}
                             />
                           </div>
                         </div>
@@ -2598,14 +2608,27 @@ export default function PropertyForm() {
                         placeholder="Describe your property, its unique features, amenities, and what makes it special..."
                         rows={5}
                         disabled={isFieldPopulatedByPMS("description", selectedPMS)}
-                        className={cn("resize-none", getPMSFieldClass("description", selectedPMS), isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed")}
+                        className={cn(
+                          "resize-none",
+                          getPMSFieldClass("description", selectedPMS),
+                          isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed",
+                        )}
                       />
                     </div>
 
                     <div className="space-y-2">
                       <Label>Stars</Label>
-                      <div className={cn("inline-block p-2 rounded", getPMSFieldClass("star_rating", selectedPMS), isFieldPopulatedByPMS("star_rating", selectedPMS) && "opacity-60 pointer-events-none")}>
-                        <StarRating rating={starRating} onRatingChange={isFieldPopulatedByPMS("star_rating", selectedPMS) ? () => {} : setStarRating} />
+                      <div
+                        className={cn(
+                          "inline-block p-2 rounded",
+                          getPMSFieldClass("star_rating", selectedPMS),
+                          isFieldPopulatedByPMS("star_rating", selectedPMS) && "opacity-60 pointer-events-none",
+                        )}
+                      >
+                        <StarRating
+                          rating={starRating}
+                          onRatingChange={isFieldPopulatedByPMS("star_rating", selectedPMS) ? () => {} : setStarRating}
+                        />
                       </div>
                     </div>
                   </CardContent>
@@ -3115,7 +3138,10 @@ export default function PropertyForm() {
                               value={formData.check_in_from}
                               onChange={(e) => handleInputChange("check_in_from", e.target.value)}
                               disabled={isFieldPopulatedByPMS("check_in_from", selectedPMS)}
-                              className={cn(getPMSFieldClass("check_in_from", selectedPMS), isFieldPopulatedByPMS("check_in_from", selectedPMS) && "cursor-not-allowed")}
+                              className={cn(
+                                getPMSFieldClass("check_in_from", selectedPMS),
+                                isFieldPopulatedByPMS("check_in_from", selectedPMS) && "cursor-not-allowed",
+                              )}
                             />
                           </div>
                           <div className="space-y-2">
@@ -3125,7 +3151,10 @@ export default function PropertyForm() {
                               value={formData.check_in_to}
                               onChange={(e) => handleInputChange("check_in_to", e.target.value)}
                               disabled={isFieldPopulatedByPMS("check_in_to", selectedPMS)}
-                              className={cn(getPMSFieldClass("check_in_to", selectedPMS), isFieldPopulatedByPMS("check_in_to", selectedPMS) && "cursor-not-allowed")}
+                              className={cn(
+                                getPMSFieldClass("check_in_to", selectedPMS),
+                                isFieldPopulatedByPMS("check_in_to", selectedPMS) && "cursor-not-allowed",
+                              )}
                             />
                           </div>
                         </CardContent>
@@ -3144,7 +3173,10 @@ export default function PropertyForm() {
                               value={formData.check_out_from}
                               onChange={(e) => handleInputChange("check_out_from", e.target.value)}
                               disabled={isFieldPopulatedByPMS("check_out_from", selectedPMS)}
-                              className={cn(getPMSFieldClass("check_out_from", selectedPMS), isFieldPopulatedByPMS("check_out_from", selectedPMS) && "cursor-not-allowed")}
+                              className={cn(
+                                getPMSFieldClass("check_out_from", selectedPMS),
+                                isFieldPopulatedByPMS("check_out_from", selectedPMS) && "cursor-not-allowed",
+                              )}
                             />
                           </div>
                           <div className="space-y-2">
@@ -3154,7 +3186,10 @@ export default function PropertyForm() {
                               value={formData.check_out_to}
                               onChange={(e) => handleInputChange("check_out_to", e.target.value)}
                               disabled={isFieldPopulatedByPMS("check_out_to", selectedPMS)}
-                              className={cn(getPMSFieldClass("check_out_to", selectedPMS), isFieldPopulatedByPMS("check_out_to", selectedPMS) && "cursor-not-allowed")}
+                              className={cn(
+                                getPMSFieldClass("check_out_to", selectedPMS),
+                                isFieldPopulatedByPMS("check_out_to", selectedPMS) && "cursor-not-allowed",
+                              )}
                             />
                           </div>
                         </CardContent>
@@ -4233,7 +4268,7 @@ export default function PropertyForm() {
                       className={cn(
                         "flex items-center justify-between p-3 rounded-md transition-colors",
                         selectedRoomType === room.id ? "bg-primary text-primary-foreground" : "hover:bg-muted",
-                        room.pms_synced && selectedRoomType !== room.id ? "bg-primary/5 border border-primary/20" : ""
+                        room.pms_synced && selectedRoomType !== room.id ? "bg-primary/5 border border-primary/20" : "",
                       )}
                     >
                       <span
@@ -4241,9 +4276,7 @@ export default function PropertyForm() {
                         onClick={() => setSelectedRoomType(room.id)}
                       >
                         {room.name}
-                        {room.pms_synced && (
-                          <Cloud className="inline h-3 w-3 ml-1 opacity-50" />
-                        )}
+                        {room.pms_synced && <Cloud className="inline h-3 w-3 ml-1 opacity-50" />}
                       </span>
                       <div className="flex gap-1">
                         <Button
@@ -4310,18 +4343,20 @@ export default function PropertyForm() {
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.name || ""}
                             onChange={(e) => updateRoomTypeName(selectedRoomType, e.target.value)}
                             className={cn(
-                              roomTypes.find((r) => r.id === selectedRoomType)?.pms_synced 
-                                ? "bg-primary/5 border-primary/20" 
-                                : ""
+                              roomTypes.find((r) => r.id === selectedRoomType)?.pms_synced
+                                ? "bg-primary/5 border-primary/20"
+                                : "",
                             )}
                           />
                         </div>
                         <div className="space-y-2">
                           <Label># of rooms for this type*</Label>
-                          <Input 
-                            type="number" 
+                          <Input
+                            type="number"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.numRooms || 1}
-                            onChange={(e) => updateRoomTypeField(selectedRoomType, "numRooms", parseInt(e.target.value) || 1)}
+                            onChange={(e) =>
+                              updateRoomTypeField(selectedRoomType, "numRooms", parseInt(e.target.value) || 1)
+                            }
                           />
                         </div>
                       </div>
@@ -4342,7 +4377,9 @@ export default function PropertyForm() {
                             variant="outline"
                             size="icon"
                             onClick={() => {
-                              navigator.clipboard.writeText(getRoomUrl(propertySlug || id || "", selectedRoomType || ""));
+                              navigator.clipboard.writeText(
+                                getRoomUrl(propertySlug || id || "", selectedRoomType || ""),
+                              );
                               toast({
                                 title: "URL Copied",
                                 description: "Room URL has been copied to clipboard",
@@ -4352,16 +4389,14 @@ export default function PropertyForm() {
                             <Copy className="h-4 w-4" />
                           </Button>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          Auto-generated link to the room showcase page
-                        </p>
+                        <p className="text-xs text-muted-foreground">Auto-generated link to the room showcase page</p>
                       </div>
 
                       {selectedPMS && (
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label>{selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} Room Type</Label>
-                            <Input 
+                            <Input
                               value={roomTypes.find((r) => r.id === selectedRoomType)?.pmsRoomType || ""}
                               onChange={(e) => updateRoomTypeField(selectedRoomType, "pmsRoomType", e.target.value)}
                               placeholder={`Enter ${selectedPMS} room type name`}
@@ -4369,7 +4404,7 @@ export default function PropertyForm() {
                           </div>
                           <div className="space-y-2">
                             <Label>{selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} Room ID</Label>
-                            <Input 
+                            <Input
                               value={roomTypes.find((r) => r.id === selectedRoomType)?.pmsRoomId || ""}
                               onChange={(e) => updateRoomTypeField(selectedRoomType, "pmsRoomId", e.target.value)}
                               placeholder={`Enter ${selectedPMS} room ID`}
@@ -4397,8 +4432,8 @@ export default function PropertyForm() {
 
                       <div className="space-y-2">
                         <Label>Extra Person Policy</Label>
-                        <Textarea 
-                          rows={2} 
+                        <Textarea
+                          rows={2}
                           value={roomTypes.find((r) => r.id === selectedRoomType)?.extraPersonPolicy || ""}
                           onChange={(e) => updateRoomTypeField(selectedRoomType, "extraPersonPolicy", e.target.value)}
                         />
@@ -4407,7 +4442,7 @@ export default function PropertyForm() {
                       <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>Bed Configuration</Label>
-                          <Select 
+                          <Select
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.bedConfiguration || "king-twin"}
                             onValueChange={(value) => updateRoomTypeField(selectedRoomType, "bedConfiguration", value)}
                           >
@@ -4426,18 +4461,22 @@ export default function PropertyForm() {
                         </div>
                         <div className="space-y-2">
                           <Label>Room Size (m²)*</Label>
-                          <Input 
-                            type="number" 
+                          <Input
+                            type="number"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.roomSize || 0}
-                            onChange={(e) => updateRoomTypeField(selectedRoomType, "roomSize", parseInt(e.target.value) || 0)}
+                            onChange={(e) =>
+                              updateRoomTypeField(selectedRoomType, "roomSize", parseInt(e.target.value) || 0)
+                            }
                           />
                         </div>
                         <div className="space-y-2">
                           <Label>Bathrooms*</Label>
-                          <Input 
-                            type="number" 
+                          <Input
+                            type="number"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.bathrooms || 1}
-                            onChange={(e) => updateRoomTypeField(selectedRoomType, "bathrooms", parseInt(e.target.value) || 0)}
+                            onChange={(e) =>
+                              updateRoomTypeField(selectedRoomType, "bathrooms", parseInt(e.target.value) || 0)
+                            }
                           />
                         </div>
                       </div>
@@ -4445,26 +4484,32 @@ export default function PropertyForm() {
                       <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>Max people per Room*</Label>
-                          <Input 
-                            type="number" 
+                          <Input
+                            type="number"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.maxPeople || 2}
-                            onChange={(e) => updateRoomTypeField(selectedRoomType, "maxPeople", parseInt(e.target.value) || 1)}
+                            onChange={(e) =>
+                              updateRoomTypeField(selectedRoomType, "maxPeople", parseInt(e.target.value) || 1)
+                            }
                           />
                         </div>
                         <div className="space-y-2">
                           <Label>Max adult*</Label>
-                          <Input 
-                            type="number" 
+                          <Input
+                            type="number"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.maxAdults || 2}
-                            onChange={(e) => updateRoomTypeField(selectedRoomType, "maxAdults", parseInt(e.target.value) || 1)}
+                            onChange={(e) =>
+                              updateRoomTypeField(selectedRoomType, "maxAdults", parseInt(e.target.value) || 1)
+                            }
                           />
                         </div>
                         <div className="space-y-2">
                           <Label>Max children*</Label>
-                          <Input 
-                            type="number" 
+                          <Input
+                            type="number"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.maxChildren || 0}
-                            onChange={(e) => updateRoomTypeField(selectedRoomType, "maxChildren", parseInt(e.target.value) || 0)}
+                            onChange={(e) =>
+                              updateRoomTypeField(selectedRoomType, "maxChildren", parseInt(e.target.value) || 0)
+                            }
                           />
                         </div>
                       </div>
@@ -4472,18 +4517,22 @@ export default function PropertyForm() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Min Stay*</Label>
-                          <Input 
-                            type="number" 
+                          <Input
+                            type="number"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.minStay || 1}
-                            onChange={(e) => updateRoomTypeField(selectedRoomType, "minStay", parseInt(e.target.value) || 1)}
+                            onChange={(e) =>
+                              updateRoomTypeField(selectedRoomType, "minStay", parseInt(e.target.value) || 1)
+                            }
                           />
                         </div>
                         <div className="space-y-2">
                           <Label>Max Stay*</Label>
-                          <Input 
-                            type="number" 
+                          <Input
+                            type="number"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.maxStay || 0}
-                            onChange={(e) => updateRoomTypeField(selectedRoomType, "maxStay", parseInt(e.target.value) || 0)}
+                            onChange={(e) =>
+                              updateRoomTypeField(selectedRoomType, "maxStay", parseInt(e.target.value) || 0)
+                            }
                           />
                         </div>
                       </div>
@@ -4499,7 +4548,7 @@ export default function PropertyForm() {
                         <h3 className="font-semibold">Rate Info</h3>
                         <div className="space-y-2">
                           <Label>Rate Type</Label>
-                          <Select 
+                          <Select
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.rateType || "per-unit"}
                             onValueChange={(value) => updateRoomTypeField(selectedRoomType, "rateType", value)}
                           >
@@ -4556,12 +4605,15 @@ export default function PropertyForm() {
                             "Wake up call",
                           ].map((item) => (
                             <div key={item} className="flex items-center gap-2">
-                              <Checkbox 
+                              <Checkbox
                                 id={`facility-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(item)}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(
+                                  item,
+                                )}
                                 onCheckedChange={(checked) => {
-                                  const currentFacilities = roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
-                                  const newFacilities = checked 
+                                  const currentFacilities =
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                  const newFacilities = checked
                                     ? [...currentFacilities, item]
                                     : currentFacilities.filter((f: string) => f !== item);
                                   updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
@@ -4579,12 +4631,15 @@ export default function PropertyForm() {
                           <h4 className="font-semibold text-sm">General</h4>
                           {["Kitchenette", "Hairdryer", "Shower and bath", "Telephone"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
-                              <Checkbox 
+                              <Checkbox
                                 id={`facility-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(item)}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(
+                                  item,
+                                )}
                                 onCheckedChange={(checked) => {
-                                  const currentFacilities = roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
-                                  const newFacilities = checked 
+                                  const currentFacilities =
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                  const newFacilities = checked
                                     ? [...currentFacilities, item]
                                     : currentFacilities.filter((f: string) => f !== item);
                                   updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
@@ -4602,12 +4657,15 @@ export default function PropertyForm() {
                           <h4 className="font-semibold text-sm">Laundry</h4>
                           {["Airconditioned room", "Iron", "Washing machine"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
-                              <Checkbox 
+                              <Checkbox
                                 id={`facility-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(item)}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(
+                                  item,
+                                )}
                                 onCheckedChange={(checked) => {
-                                  const currentFacilities = roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
-                                  const newFacilities = checked 
+                                  const currentFacilities =
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                  const newFacilities = checked
                                     ? [...currentFacilities, item]
                                     : currentFacilities.filter((f: string) => f !== item);
                                   updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
@@ -4625,12 +4683,15 @@ export default function PropertyForm() {
                           <h4 className="font-semibold text-sm">Media</h4>
                           {["Flat screen TV"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
-                              <Checkbox 
+                              <Checkbox
                                 id={`facility-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(item)}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(
+                                  item,
+                                )}
                                 onCheckedChange={(checked) => {
-                                  const currentFacilities = roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
-                                  const newFacilities = checked 
+                                  const currentFacilities =
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                  const newFacilities = checked
                                     ? [...currentFacilities, item]
                                     : currentFacilities.filter((f: string) => f !== item);
                                   updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
@@ -4648,12 +4709,15 @@ export default function PropertyForm() {
                           <h4 className="font-semibold text-sm">Security</h4>
                           {["Safe"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
-                              <Checkbox 
+                              <Checkbox
                                 id={`facility-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(item)}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(
+                                  item,
+                                )}
                                 onCheckedChange={(checked) => {
-                                  const currentFacilities = roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
-                                  const newFacilities = checked 
+                                  const currentFacilities =
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                  const newFacilities = checked
                                     ? [...currentFacilities, item]
                                     : currentFacilities.filter((f: string) => f !== item);
                                   updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
@@ -4671,12 +4735,15 @@ export default function PropertyForm() {
                           <h4 className="font-semibold text-sm">View</h4>
                           {["Garden view", "Landmark view", "Mountain view", "Pool view", "Terrace"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
-                              <Checkbox 
+                              <Checkbox
                                 id={`facility-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(item)}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(
+                                  item,
+                                )}
                                 onCheckedChange={(checked) => {
-                                  const currentFacilities = roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
-                                  const newFacilities = checked 
+                                  const currentFacilities =
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                  const newFacilities = checked
                                     ? [...currentFacilities, item]
                                     : currentFacilities.filter((f: string) => f !== item);
                                   updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
@@ -4700,56 +4767,69 @@ export default function PropertyForm() {
                       <div className="grid grid-cols-3 gap-6">
                         <div className="space-y-3">
                           <h4 className="font-semibold text-sm">Bathroom</h4>
-                          {["Bathroom amenities", "Hand wash", "Towels", "Bathrobe", "Slippers", "Toiletries"].map((item) => (
-                            <div key={item} className="flex items-center gap-2">
-                              <Checkbox 
-                                id={`amenity-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.amenities || []).includes(item)}
-                                onCheckedChange={(checked) => {
-                                  const currentAmenities = roomTypes.find((r) => r.id === selectedRoomType)?.amenities || [];
-                                  const newAmenities = checked 
-                                    ? [...currentAmenities, item]
-                                    : currentAmenities.filter((a: string) => a !== item);
-                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
-                                }}
-                              />
-                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">
-                                {item}
-                              </Label>
-                            </div>
-                          ))}
+                          {["Bathroom amenities", "Hand wash", "Towels", "Bathrobe", "Slippers", "Toiletries"].map(
+                            (item) => (
+                              <div key={item} className="flex items-center gap-2">
+                                <Checkbox
+                                  id={`amenity-${item}`}
+                                  checked={(roomTypes.find((r) => r.id === selectedRoomType)?.amenities || []).includes(
+                                    item,
+                                  )}
+                                  onCheckedChange={(checked) => {
+                                    const currentAmenities =
+                                      roomTypes.find((r) => r.id === selectedRoomType)?.amenities || [];
+                                    const newAmenities = checked
+                                      ? [...currentAmenities, item]
+                                      : currentAmenities.filter((a: string) => a !== item);
+                                    updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
+                                  }}
+                                />
+                                <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">
+                                  {item}
+                                </Label>
+                              </div>
+                            ),
+                          )}
                         </div>
                         <div className="space-y-3">
                           <h4 className="font-semibold text-sm">Bedroom</h4>
-                          {["Extra pillows", "Extra blankets", "Linen", "Blackout curtains", "Reading lamp"].map((item) => (
-                            <div key={item} className="flex items-center gap-2">
-                              <Checkbox 
-                                id={`amenity-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.amenities || []).includes(item)}
-                                onCheckedChange={(checked) => {
-                                  const currentAmenities = roomTypes.find((r) => r.id === selectedRoomType)?.amenities || [];
-                                  const newAmenities = checked 
-                                    ? [...currentAmenities, item]
-                                    : currentAmenities.filter((a: string) => a !== item);
-                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
-                                }}
-                              />
-                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">
-                                {item}
-                              </Label>
-                            </div>
-                          ))}
+                          {["Extra pillows", "Extra blankets", "Linen", "Blackout curtains", "Reading lamp"].map(
+                            (item) => (
+                              <div key={item} className="flex items-center gap-2">
+                                <Checkbox
+                                  id={`amenity-${item}`}
+                                  checked={(roomTypes.find((r) => r.id === selectedRoomType)?.amenities || []).includes(
+                                    item,
+                                  )}
+                                  onCheckedChange={(checked) => {
+                                    const currentAmenities =
+                                      roomTypes.find((r) => r.id === selectedRoomType)?.amenities || [];
+                                    const newAmenities = checked
+                                      ? [...currentAmenities, item]
+                                      : currentAmenities.filter((a: string) => a !== item);
+                                    updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
+                                  }}
+                                />
+                                <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">
+                                  {item}
+                                </Label>
+                              </div>
+                            ),
+                          )}
                         </div>
                         <div className="space-y-3">
                           <h4 className="font-semibold text-sm">Extras</h4>
                           {["Welcome pack", "Mini bar", "Bottled water", "Fruit basket", "Snacks"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
-                              <Checkbox 
+                              <Checkbox
                                 id={`amenity-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.amenities || []).includes(item)}
+                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.amenities || []).includes(
+                                  item,
+                                )}
                                 onCheckedChange={(checked) => {
-                                  const currentAmenities = roomTypes.find((r) => r.id === selectedRoomType)?.amenities || [];
-                                  const newAmenities = checked 
+                                  const currentAmenities =
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.amenities || [];
+                                  const newAmenities = checked
                                     ? [...currentAmenities, item]
                                     : currentAmenities.filter((a: string) => a !== item);
                                   updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
@@ -4769,7 +4849,7 @@ export default function PropertyForm() {
                       <h3 className="font-semibold text-lg mb-4">ROOM TYPE IMAGES</h3>
                       <div className="grid grid-cols-6 gap-4">
                         {/* Upload slot */}
-                        <div 
+                        <div
                           className="aspect-video border-2 border-dashed border-primary/50 rounded-lg flex flex-col items-center justify-center bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors"
                           onClick={() => document.getElementById("room-image-upload")?.click()}
                         >
@@ -4792,24 +4872,31 @@ export default function PropertyForm() {
                         </div>
 
                         {/* Uploaded room images */}
-                        {(roomTypes.find((r) => r.id === selectedRoomType)?.images || []).map((imageUrl: string, index: number) => (
-                          <div
-                            key={index}
-                            className="relative aspect-video rounded-lg overflow-hidden border border-border group"
-                          >
-                            <img src={imageUrl} alt={`Room ${index + 1}`} className="w-full h-full object-cover" />
-                            <button
-                              type="button"
-                              onClick={() => removeRoomImage(imageUrl)}
-                              className="absolute top-2 right-2 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        {(roomTypes.find((r) => r.id === selectedRoomType)?.images || []).map(
+                          (imageUrl: string, index: number) => (
+                            <div
+                              key={index}
+                              className="relative aspect-video rounded-lg overflow-hidden border border-border group"
                             >
-                              <X className="h-4 w-4 text-white" />
-                            </button>
-                          </div>
-                        ))}
+                              <img src={imageUrl} alt={`Room ${index + 1}`} className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => removeRoomImage(imageUrl)}
+                                className="absolute top-2 right-2 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X className="h-4 w-4 text-white" />
+                              </button>
+                            </div>
+                          ),
+                        )}
 
                         {/* Placeholder empty slots */}
-                        {Array.from({ length: Math.max(0, 11 - (roomTypes.find((r) => r.id === selectedRoomType)?.images?.length || 0)) }).map((_, i) => (
+                        {Array.from({
+                          length: Math.max(
+                            0,
+                            11 - (roomTypes.find((r) => r.id === selectedRoomType)?.images?.length || 0),
+                          ),
+                        }).map((_, i) => (
                           <div
                             key={`empty-${i}`}
                             className="aspect-video border-2 border-dashed border-border rounded-lg bg-muted/20"
@@ -4822,11 +4909,13 @@ export default function PropertyForm() {
                     <TabsContent value="agreement" className="p-6 space-y-4">
                       <div className="space-y-2">
                         <Label>Split %</Label>
-                        <Input 
-                          type="number" 
+                        <Input
+                          type="number"
                           value={roomTypes.find((r) => r.id === selectedRoomType)?.splitPercent || 0}
-                          onChange={(e) => updateRoomTypeField(selectedRoomType, "splitPercent", parseFloat(e.target.value) || 0)}
-                          className="max-w-xs" 
+                          onChange={(e) =>
+                            updateRoomTypeField(selectedRoomType, "splitPercent", parseFloat(e.target.value) || 0)
+                          }
+                          className="max-w-xs"
                         />
                       </div>
 
