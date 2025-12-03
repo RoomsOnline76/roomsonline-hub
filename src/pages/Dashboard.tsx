@@ -5,18 +5,21 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from "date-fns";
-import { CalendarIcon, TrendingUp, TrendingDown, DollarSign, CalendarDays, XCircle, Building2, Users } from "lucide-react";
+import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, differenceInDays } from "date-fns";
+import { CalendarIcon, DollarSign, CalendarDays, XCircle, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, LineChart, Line } from "recharts";
 import { DateRange } from "react-day-picker";
 
 const Dashboard = () => {
   const { user, isAdmin } = useAuth();
   const [period, setPeriod] = useState("this_month");
+  const [comparePrevYear, setComparePrevYear] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
     const now = new Date();
     return {
@@ -24,6 +27,21 @@ const Dashboard = () => {
       to: endOfMonth(now),
     };
   });
+
+  // Calculate if we should aggregate by month (for periods > 31 days)
+  const shouldAggregateByMonth = useMemo(() => {
+    if (!dateRange?.from || !dateRange?.to) return false;
+    return differenceInDays(dateRange.to, dateRange.from) > 31;
+  }, [dateRange]);
+
+  // Calculate previous year date range
+  const prevYearDateRange = useMemo(() => {
+    if (!dateRange?.from || !dateRange?.to) return null;
+    return {
+      from: subYears(dateRange.from, 1),
+      to: subYears(dateRange.to, 1),
+    };
+  }, [dateRange]);
 
   // Update date range when period changes
   const handlePeriodChange = (value: string) => {
@@ -51,12 +69,11 @@ const Dashboard = () => {
         setDateRange({ from: startOfYear(now), to: endOfYear(now) });
         break;
       case "custom":
-        // Keep current range for custom
         break;
     }
   };
 
-  // Fetch user profile to get email for owner filtering
+  // Fetch user profile
   const { data: profile } = useQuery({
     queryKey: ["dashboard-profile", user?.id],
     queryFn: async () => {
@@ -71,16 +88,14 @@ const Dashboard = () => {
     enabled: !!user,
   });
 
-  // Fetch properties (filtered by owner if not admin)
+  // Fetch properties
   const { data: properties = [] } = useQuery({
     queryKey: ["dashboard-properties", isAdmin, profile?.email],
     queryFn: async () => {
       let query = supabase.from("properties").select("id, name, owner_email");
-      
       if (!isAdmin && profile?.email) {
         query = query.eq("owner_email", profile.email);
       }
-      
       const { data } = await query;
       return data || [];
     },
@@ -89,31 +104,39 @@ const Dashboard = () => {
 
   const propertyIds = useMemo(() => properties.map(p => p.id), [properties]);
 
-  // Fetch bookings for the selected period and properties
+  // Fetch current period bookings
   const { data: bookings = [], isLoading: bookingsLoading } = useQuery({
     queryKey: ["dashboard-bookings", propertyIds, dateRange],
     queryFn: async () => {
       if (propertyIds.length === 0) return [];
-      
       const fromDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : null;
       const toDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : null;
       
-      let query = supabase
-        .from("bookings")
-        .select("*")
-        .in("property_id", propertyIds);
-      
-      if (fromDate) {
-        query = query.gte("created_at", fromDate);
-      }
-      if (toDate) {
-        query = query.lte("created_at", toDate + "T23:59:59");
-      }
+      let query = supabase.from("bookings").select("*").in("property_id", propertyIds);
+      if (fromDate) query = query.gte("created_at", fromDate);
+      if (toDate) query = query.lte("created_at", toDate + "T23:59:59");
       
       const { data } = await query;
       return data || [];
     },
     enabled: propertyIds.length > 0 && !!dateRange?.from,
+  });
+
+  // Fetch previous year bookings
+  const { data: prevYearBookings = [] } = useQuery({
+    queryKey: ["dashboard-bookings-prev", propertyIds, prevYearDateRange, comparePrevYear],
+    queryFn: async () => {
+      if (propertyIds.length === 0 || !prevYearDateRange) return [];
+      const fromDate = format(prevYearDateRange.from, "yyyy-MM-dd");
+      const toDate = format(prevYearDateRange.to, "yyyy-MM-dd");
+      
+      let query = supabase.from("bookings").select("*").in("property_id", propertyIds);
+      query = query.gte("created_at", fromDate).lte("created_at", toDate + "T23:59:59");
+      
+      const { data } = await query;
+      return data || [];
+    },
+    enabled: propertyIds.length > 0 && comparePrevYear && !!prevYearDateRange,
   });
 
   // Calculate stats
@@ -125,7 +148,6 @@ const Dashboard = () => {
     const totalRevenue = bookings
       .filter(b => b.status !== "cancelled")
       .reduce((sum, b) => sum + Number(b.total_price || 0), 0);
-    const totalGuests = bookings.reduce((sum, b) => sum + (b.adults || 0) + (b.children || 0), 0);
     
     return {
       totalBookings,
@@ -133,39 +155,135 @@ const Dashboard = () => {
       pendingBookings,
       cancelledBookings,
       totalRevenue,
-      totalGuests,
       totalProperties: properties.length,
     };
   }, [bookings, properties]);
 
-  // Generate chart data grouped by day
+  // Generate chart data
   const chartData = useMemo(() => {
     if (!dateRange?.from || !dateRange?.to) return [];
     
-    const data: { date: string; bookings: number; revenue: number; cancellations: number }[] = [];
-    const current = new Date(dateRange.from);
-    const end = new Date(dateRange.to);
+    interface ChartDataPoint {
+      date: string;
+      label: string;
+      bookings: number;
+      revenue: number;
+      cancellations: number;
+      prevBookings?: number;
+      prevRevenue?: number;
+      prevCancellations?: number;
+    }
     
-    while (current <= end) {
-      const dateStr = format(current, "yyyy-MM-dd");
-      const dayBookings = bookings.filter(b => 
-        format(new Date(b.created_at), "yyyy-MM-dd") === dateStr
-      );
+    const data: ChartDataPoint[] = [];
+    
+    if (shouldAggregateByMonth) {
+      // Aggregate by month
+      const monthsMap = new Map<string, ChartDataPoint>();
+      const current = new Date(dateRange.from);
+      const end = new Date(dateRange.to);
       
-      data.push({
-        date: format(current, "MMM dd"),
-        bookings: dayBookings.filter(b => b.status !== "cancelled").length,
-        revenue: dayBookings
-          .filter(b => b.status !== "cancelled")
-          .reduce((sum, b) => sum + Number(b.total_price || 0), 0),
-        cancellations: dayBookings.filter(b => b.status === "cancelled").length,
+      // Initialize months
+      while (current <= end) {
+        const monthKey = format(current, "yyyy-MM");
+        const label = format(current, "MMM yyyy");
+        if (!monthsMap.has(monthKey)) {
+          monthsMap.set(monthKey, {
+            date: monthKey,
+            label,
+            bookings: 0,
+            revenue: 0,
+            cancellations: 0,
+            prevBookings: 0,
+            prevRevenue: 0,
+            prevCancellations: 0,
+          });
+        }
+        current.setMonth(current.getMonth() + 1);
+      }
+      
+      // Aggregate current bookings
+      bookings.forEach(b => {
+        const monthKey = format(new Date(b.created_at), "yyyy-MM");
+        const entry = monthsMap.get(monthKey);
+        if (entry) {
+          if (b.status !== "cancelled") {
+            entry.bookings++;
+            entry.revenue += Number(b.total_price || 0);
+          } else {
+            entry.cancellations++;
+          }
+        }
       });
       
-      current.setDate(current.getDate() + 1);
+      // Aggregate previous year bookings
+      if (comparePrevYear) {
+        prevYearBookings.forEach(b => {
+          const bookingDate = new Date(b.created_at);
+          // Map to current year month
+          const currentYearDate = new Date(bookingDate);
+          currentYearDate.setFullYear(currentYearDate.getFullYear() + 1);
+          const monthKey = format(currentYearDate, "yyyy-MM");
+          const entry = monthsMap.get(monthKey);
+          if (entry) {
+            if (b.status !== "cancelled") {
+              entry.prevBookings = (entry.prevBookings || 0) + 1;
+              entry.prevRevenue = (entry.prevRevenue || 0) + Number(b.total_price || 0);
+            } else {
+              entry.prevCancellations = (entry.prevCancellations || 0) + 1;
+            }
+          }
+        });
+      }
+      
+      // Convert to array
+      monthsMap.forEach(value => data.push(value));
+      data.sort((a, b) => a.date.localeCompare(b.date));
+      
+    } else {
+      // Aggregate by day
+      const current = new Date(dateRange.from);
+      const end = new Date(dateRange.to);
+      
+      while (current <= end) {
+        const dateStr = format(current, "yyyy-MM-dd");
+        const label = format(current, "MMM dd");
+        
+        const dayBookings = bookings.filter(b => 
+          format(new Date(b.created_at), "yyyy-MM-dd") === dateStr
+        );
+        
+        const entry: ChartDataPoint = {
+          date: dateStr,
+          label,
+          bookings: dayBookings.filter(b => b.status !== "cancelled").length,
+          revenue: dayBookings
+            .filter(b => b.status !== "cancelled")
+            .reduce((sum, b) => sum + Number(b.total_price || 0), 0),
+          cancellations: dayBookings.filter(b => b.status === "cancelled").length,
+        };
+        
+        // Add previous year data
+        if (comparePrevYear) {
+          const prevYearDate = subYears(current, 1);
+          const prevDateStr = format(prevYearDate, "yyyy-MM-dd");
+          const prevDayBookings = prevYearBookings.filter(b => 
+            format(new Date(b.created_at), "yyyy-MM-dd") === prevDateStr
+          );
+          
+          entry.prevBookings = prevDayBookings.filter(b => b.status !== "cancelled").length;
+          entry.prevRevenue = prevDayBookings
+            .filter(b => b.status !== "cancelled")
+            .reduce((sum, b) => sum + Number(b.total_price || 0), 0);
+          entry.prevCancellations = prevDayBookings.filter(b => b.status === "cancelled").length;
+        }
+        
+        data.push(entry);
+        current.setDate(current.getDate() + 1);
+      }
     }
     
     return data;
-  }, [bookings, dateRange]);
+  }, [bookings, prevYearBookings, dateRange, comparePrevYear, shouldAggregateByMonth]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -175,15 +293,25 @@ const Dashboard = () => {
         {/* Header with period selector */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-1">
-              Dashboard
-            </h1>
+            <h1 className="text-3xl font-bold text-foreground mb-1">Dashboard</h1>
             <p className="text-muted-foreground">
               {isAdmin ? "All properties overview" : "Your properties overview"}
             </p>
           </div>
           
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Compare toggle */}
+            <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-3 py-2">
+              <Switch
+                id="compare-prev"
+                checked={comparePrevYear}
+                onCheckedChange={setComparePrevYear}
+              />
+              <Label htmlFor="compare-prev" className="text-sm cursor-pointer whitespace-nowrap">
+                Compare prev. year
+              </Label>
+            </div>
+            
             <Select value={period} onValueChange={handlePeriodChange}>
               <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="Select period" />
@@ -206,15 +334,9 @@ const Dashboard = () => {
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {dateRange?.from ? (
                       dateRange.to ? (
-                        <>
-                          {format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}
-                        </>
-                      ) : (
-                        format(dateRange.from, "LLL dd, y")
-                      )
-                    ) : (
-                      <span>Pick a date range</span>
-                    )}
+                        <>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>
+                      ) : format(dateRange.from, "LLL dd, y")
+                    ) : <span>Pick a date range</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -237,7 +359,6 @@ const Dashboard = () => {
           "grid gap-4 mb-8",
           isAdmin ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" : "grid-cols-1 sm:grid-cols-2"
         )}>
-          {/* Bookings Card - Show for all */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
@@ -253,7 +374,6 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Cancellations Card - Show for all */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Cancellations</CardTitle>
@@ -269,7 +389,6 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Admin-only cards */}
           {isAdmin && (
             <>
               <Card>
@@ -294,9 +413,7 @@ const Dashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.totalProperties}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Active properties in system
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Active properties in system</p>
                 </CardContent>
               </Card>
             </>
@@ -308,40 +425,51 @@ const Dashboard = () => {
           {/* Bookings Chart */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Bookings Overview</CardTitle>
+              <CardTitle className="text-lg">
+                Bookings Overview
+                {shouldAggregateByMonth && <span className="text-sm font-normal text-muted-foreground ml-2">(Monthly)</span>}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {bookingsLoading ? (
-                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                  Loading...
-                </div>
+                <div className="h-[300px] flex items-center justify-center text-muted-foreground">Loading...</div>
               ) : chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis 
-                      dataKey="date" 
-                      tick={{ fontSize: 12 }} 
-                      className="text-muted-foreground"
-                      tickLine={false}
-                    />
-                    <YAxis 
-                      tick={{ fontSize: 12 }} 
-                      className="text-muted-foreground"
-                      tickLine={false}
-                      allowDecimals={false}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: "hsl(var(--background))", 
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px"
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="bookings" name="Bookings" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="cancellations" name="Cancellations" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
+                  {comparePrevYear ? (
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
+                      <YAxis tick={{ fontSize: 12 }} tickLine={false} allowDecimals={false} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: "hsl(var(--background))", 
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px"
+                        }}
+                      />
+                      <Legend />
+                      <Line type="monotone" dataKey="bookings" name="Bookings (Current)" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="prevBookings" name="Bookings (Prev Year)" stroke="hsl(var(--primary))" strokeWidth={2} strokeDasharray="5 5" dot={false} opacity={0.6} />
+                      <Line type="monotone" dataKey="cancellations" name="Cancellations (Current)" stroke="hsl(var(--destructive))" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="prevCancellations" name="Cancellations (Prev Year)" stroke="hsl(var(--destructive))" strokeWidth={2} strokeDasharray="5 5" dot={false} opacity={0.6} />
+                    </LineChart>
+                  ) : (
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
+                      <YAxis tick={{ fontSize: 12 }} tickLine={false} allowDecimals={false} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: "hsl(var(--background))", 
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px"
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="bookings" name="Bookings" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="cancellations" name="Cancellations" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  )}
                 </ResponsiveContainer>
               ) : (
                 <div className="h-[300px] flex items-center justify-center text-muted-foreground">
@@ -355,45 +483,52 @@ const Dashboard = () => {
           {isAdmin && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Revenue Trend</CardTitle>
+                <CardTitle className="text-lg">
+                  Revenue Trend
+                  {shouldAggregateByMonth && <span className="text-sm font-normal text-muted-foreground ml-2">(Monthly)</span>}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 {bookingsLoading ? (
-                  <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                    Loading...
-                  </div>
+                  <div className="h-[300px] flex items-center justify-center text-muted-foreground">Loading...</div>
                 ) : chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis 
-                        dataKey="date" 
-                        tick={{ fontSize: 12 }} 
-                        className="text-muted-foreground"
-                        tickLine={false}
-                      />
-                      <YAxis 
-                        tick={{ fontSize: 12 }} 
-                        className="text-muted-foreground"
-                        tickLine={false}
-                        tickFormatter={(value) => `R${value}`}
-                      />
-                      <Tooltip 
-                        formatter={(value: number) => [`R ${value.toLocaleString()}`, "Revenue"]}
-                        contentStyle={{ 
-                          backgroundColor: "hsl(var(--background))", 
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "8px"
-                        }}
-                      />
-                      <Area 
-                        type="monotone" 
-                        dataKey="revenue" 
-                        stroke="hsl(var(--primary))" 
-                        fill="hsl(var(--primary) / 0.2)" 
-                        strokeWidth={2}
-                      />
-                    </AreaChart>
+                    {comparePrevYear ? (
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
+                        <YAxis tick={{ fontSize: 12 }} tickLine={false} tickFormatter={(v) => `R${v}`} />
+                        <Tooltip 
+                          formatter={(value: number, name: string) => [
+                            `R ${value.toLocaleString()}`, 
+                            name.includes("Prev") ? "Revenue (Prev Year)" : "Revenue (Current)"
+                          ]}
+                          contentStyle={{ 
+                            backgroundColor: "hsl(var(--background))", 
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px"
+                          }}
+                        />
+                        <Legend />
+                        <Line type="monotone" dataKey="revenue" name="Revenue (Current)" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="prevRevenue" name="Revenue (Prev Year)" stroke="hsl(var(--primary))" strokeWidth={2} strokeDasharray="5 5" dot={false} opacity={0.6} />
+                      </LineChart>
+                    ) : (
+                      <AreaChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} />
+                        <YAxis tick={{ fontSize: 12 }} tickLine={false} tickFormatter={(v) => `R${v}`} />
+                        <Tooltip 
+                          formatter={(value: number) => [`R ${value.toLocaleString()}`, "Revenue"]}
+                          contentStyle={{ 
+                            backgroundColor: "hsl(var(--background))", 
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px"
+                          }}
+                        />
+                        <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" fill="hsl(var(--primary) / 0.2)" strokeWidth={2} />
+                      </AreaChart>
+                    )}
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-[300px] flex items-center justify-center text-muted-foreground">
@@ -404,7 +539,7 @@ const Dashboard = () => {
             </Card>
           )}
 
-          {/* Recent Bookings Table */}
+          {/* Recent Bookings */}
           <Card className={isAdmin ? "" : "lg:col-span-2"}>
             <CardHeader>
               <CardTitle className="text-lg">Recent Bookings</CardTitle>
@@ -415,20 +550,13 @@ const Dashboard = () => {
                   {bookings.slice(0, 5).map((booking) => {
                     const property = properties.find(p => p.id === booking.property_id);
                     return (
-                      <div 
-                        key={booking.id} 
-                        className="flex items-center justify-between p-3 rounded-lg border border-border"
-                      >
+                      <div key={booking.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
                         <div className="flex flex-col">
                           <span className="font-medium text-sm">{booking.guest_name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {property?.name || "Unknown property"}
-                          </span>
+                          <span className="text-xs text-muted-foreground">{property?.name || "Unknown property"}</span>
                         </div>
                         <div className="flex flex-col items-end">
-                          <span className="font-medium text-sm">
-                            R {Number(booking.total_price).toLocaleString()}
-                          </span>
+                          <span className="font-medium text-sm">R {Number(booking.total_price).toLocaleString()}</span>
                           <span className={cn(
                             "text-xs px-2 py-0.5 rounded-full",
                             booking.status === "confirmed" && "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400",
@@ -443,9 +571,7 @@ const Dashboard = () => {
                   })}
                 </div>
               ) : (
-                <div className="text-center text-muted-foreground py-8">
-                  No bookings found for this period
-                </div>
+                <div className="text-center text-muted-foreground py-8">No bookings found for this period</div>
               )}
             </CardContent>
           </Card>
