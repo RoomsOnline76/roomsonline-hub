@@ -160,6 +160,22 @@ const Dashboard = () => {
   }, [bookings, properties]);
 
   // Generate chart data
+  // Linear regression helper for forecasting
+  const linearRegression = (points: { x: number; y: number }[]) => {
+    const n = points.length;
+    if (n < 2) return { slope: 0, intercept: 0 };
+    
+    const sumX = points.reduce((sum, p) => sum + p.x, 0);
+    const sumY = points.reduce((sum, p) => sum + p.y, 0);
+    const sumXY = points.reduce((sum, p) => sum + p.x * p.y, 0);
+    const sumXX = points.reduce((sum, p) => sum + p.x * p.x, 0);
+    
+    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+    
+    return { slope: isNaN(slope) ? 0 : slope, intercept: isNaN(intercept) ? 0 : intercept };
+  };
+
   const chartData = useMemo(() => {
     if (!dateRange?.from || !dateRange?.to) return [];
     
@@ -172,9 +188,13 @@ const Dashboard = () => {
       prevBookings?: number;
       prevRevenue?: number;
       prevCancellations?: number;
+      forecastBookings?: number;
+      forecastRevenue?: number;
     }
     
     const data: ChartDataPoint[] = [];
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
     
     if (shouldAggregateByMonth) {
       // Aggregate by month
@@ -247,6 +267,7 @@ const Dashboard = () => {
       while (current <= end) {
         const dateStr = format(current, "yyyy-MM-dd");
         const label = format(current, "MMM dd");
+        const isFuture = current > today;
         
         const dayBookings = bookings.filter(b => 
           format(new Date(b.created_at), "yyyy-MM-dd") === dateStr
@@ -255,11 +276,11 @@ const Dashboard = () => {
         const entry: ChartDataPoint = {
           date: dateStr,
           label,
-          bookings: dayBookings.filter(b => b.status !== "cancelled").length,
-          revenue: dayBookings
+          bookings: isFuture ? 0 : dayBookings.filter(b => b.status !== "cancelled").length,
+          revenue: isFuture ? 0 : dayBookings
             .filter(b => b.status !== "cancelled")
             .reduce((sum, b) => sum + Number(b.total_price || 0), 0),
-          cancellations: dayBookings.filter(b => b.status === "cancelled").length,
+          cancellations: isFuture ? 0 : dayBookings.filter(b => b.status === "cancelled").length,
         };
         
         // Add previous year data
@@ -280,6 +301,32 @@ const Dashboard = () => {
         data.push(entry);
         current.setDate(current.getDate() + 1);
       }
+    }
+    
+    // Calculate forecast using linear regression on actual data
+    const actualData = data.filter(d => new Date(d.date) <= today && (d.bookings > 0 || d.revenue > 0));
+    
+    if (actualData.length >= 3) {
+      // Prepare points for regression
+      const bookingPoints = actualData.map((d, i) => ({ x: i, y: d.bookings }));
+      const revenuePoints = actualData.map((d, i) => ({ x: i, y: d.revenue }));
+      
+      const bookingReg = linearRegression(bookingPoints);
+      const revenueReg = linearRegression(revenuePoints);
+      
+      // Apply forecast to future dates
+      data.forEach((d, i) => {
+        const dateObj = new Date(d.date);
+        if (dateObj > today) {
+          // Project using regression
+          d.forecastBookings = Math.max(0, Math.round(bookingReg.intercept + bookingReg.slope * i));
+          d.forecastRevenue = Math.max(0, Math.round(revenueReg.intercept + revenueReg.slope * i));
+        } else if (i === actualData.length - 1 || (actualData.length > 0 && d.date === actualData[actualData.length - 1].date)) {
+          // Connect forecast line to last actual data point
+          d.forecastBookings = d.bookings;
+          d.forecastRevenue = d.revenue;
+        }
+      });
     }
     
     return data;
@@ -456,6 +503,7 @@ const Dashboard = () => {
                     <Bar yAxisId="right" dataKey="cancellations" name="Cancelled" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
                     {comparePrevYear && <Line yAxisId="left" type="monotone" dataKey="prevBookings" name="Prev Bookings" stroke="#eab308" strokeWidth={3} dot={false} />}
                     {comparePrevYear && <Line yAxisId="right" type="monotone" dataKey="prevCancellations" name="Prev Cancelled" stroke="#f97316" strokeWidth={2} strokeDasharray="5 5" dot={false} />}
+                    <Line yAxisId="left" type="monotone" dataKey="forecastBookings" name="Forecast" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} connectNulls={false} />
                   </ComposedChart>
                 </ResponsiveContainer>
               ) : (
@@ -502,6 +550,7 @@ const Dashboard = () => {
                       />
                       <Bar dataKey="revenue" name="Revenue" fill="#22c55e" radius={[4, 4, 0, 0]} />
                       {comparePrevYear && <Line type="monotone" dataKey="prevRevenue" name="Prev Revenue" stroke="#eab308" strokeWidth={3} dot={false} />}
+                      <Line type="monotone" dataKey="forecastRevenue" name="Forecast" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="4 4" dot={false} connectNulls={false} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 ) : (
