@@ -377,20 +377,18 @@ export default function PropertyForm() {
     }
   };
 
-  // Load available PMS systems from configured API keys
+  // Load available PMS systems - use static list of supported systems
   useEffect(() => {
-    const loadPMSSystems = async () => {
-      const { data } = await supabase
-        .from("api_keys")
-        .select("key_name, name, system_type")
-        .eq("system_type", "pms")
-        .order("name");
-
-      if (data) {
-        setAvailablePMSSystems(data);
-      }
-    };
-    loadPMSSystems();
+    const supportedPMSSystems = [
+      { key_name: 'benson', name: 'Benson', system_type: 'benson' },
+      { key_name: 'checkfront', name: 'Checkfront', system_type: 'checkfront' },
+      { key_name: 'mews', name: 'Mews', system_type: 'mews' },
+      { key_name: 'nightsbridge', name: 'NightsBridge', system_type: 'nightsbridge' },
+      { key_name: 'opera', name: 'Opera', system_type: 'opera' },
+      { key_name: 'semper', name: 'Semper', system_type: 'semper' },
+      { key_name: 'siteminder', name: 'SiteMinder', system_type: 'siteminder' },
+    ];
+    setAvailablePMSSystems(supportedPMSSystems);
   }, []);
 
   // Location state
