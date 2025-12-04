@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Building2, Key, LogOut, User, ChevronDown, Shield, Calendar, Megaphone, BookOpen, PieChart, UserPlus } from "lucide-react";
+import { Building2, Key, LogOut, User, ChevronDown, Shield, Calendar, Megaphone, BookOpen, PieChart, UserPlus, Activity } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +23,7 @@ export const Navbar = () => {
   const [profile, setProfile] = useState<any>(null);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  const [apiHealthStatus, setApiHealthStatus] = useState<{ healthy: number; unhealthy: number }>({ healthy: 0, unhealthy: 0 });
   
   const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
   const isBookPage = isBookDomain || location.pathname === "/book" || location.pathname.startsWith("/book/");
@@ -41,8 +42,27 @@ export const Navbar = () => {
   useEffect(() => {
     if (isAdmin) {
       loadPendingRequestsCount();
+      checkApiHealth();
     }
   }, [isAdmin]);
+
+  // Placeholder: Check health of commissioned APIs
+  // Currently returns 0 as no APIs are fully commissioned
+  // Once APIs are implemented, this will check each PMS connection status
+  const checkApiHealth = async () => {
+    // TODO: Once APIs are commissioned, implement actual health checks
+    // Example structure for future implementation:
+    // const { data: credentials } = await supabase
+    //   .from("pms_credentials")
+    //   .select("system_type, is_active")
+    //   .eq("is_active", true);
+    // 
+    // For each active credential, ping the respective API endpoint
+    // and track healthy vs unhealthy connections
+    
+    // For now, no APIs are commissioned so both counts are 0
+    setApiHealthStatus({ healthy: 0, unhealthy: 0 });
+  };
 
   const loadProfile = async () => {
     if (!user) return;
@@ -151,9 +171,20 @@ export const Navbar = () => {
             {isAdmin && !isBookPage && (
               <>
                 <Link to="/admin-keys">
-                  <Button variant="ghost" className="flex items-center gap-2">
+                  <Button variant="ghost" className="flex items-center gap-2 relative">
                     <Key className="h-4 w-4" />
                     API Keys
+                    {apiHealthStatus.unhealthy > 0 ? (
+                      <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1 text-xs flex items-center gap-0.5">
+                        <Activity className="h-3 w-3" />
+                        {apiHealthStatus.unhealthy}
+                      </Badge>
+                    ) : apiHealthStatus.healthy > 0 ? (
+                      <Badge className="ml-1 h-5 min-w-5 px-1 text-xs bg-green-500 hover:bg-green-600 flex items-center gap-0.5">
+                        <Activity className="h-3 w-3" />
+                        {apiHealthStatus.healthy}
+                      </Badge>
+                    ) : null}
                   </Button>
                 </Link>
                 <Link to="/admin-users">
