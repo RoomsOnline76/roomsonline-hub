@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Navbar } from "@/components/Navbar";
@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Building2, Edit, Trash2, Home, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Building2, Edit, Trash2, Home, CheckCircle2, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,10 +25,23 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+type SortDirection = "asc" | "desc" | null;
+type SortColumn = "name" | "external_system" | "owner_name" | "owner_email" | "total_bookings" | null;
+
 const PropertyOverview = () => {
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
   const [propertyToDelete, setPropertyToDelete] = useState<{ id: string; name: string } | null>(null);
+
+  // Search filters state
+  const [searchName, setSearchName] = useState("");
+  const [searchPms, setSearchPms] = useState("");
+  const [searchOwnerName, setSearchOwnerName] = useState("");
+  const [searchOwnerEmail, setSearchOwnerEmail] = useState("");
+
+  // Sort state
+  const [sortColumn, setSortColumn] = useState<SortColumn>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
   const { data: allProperties, isLoading, refetch } = useQuery({
     queryKey: ["properties", user?.id, isAdmin],
@@ -81,7 +95,80 @@ const PropertyOverview = () => {
     },
   });
 
-  const activeProperties = allProperties?.filter(p => p.is_active) || [];
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+      } else if (sortDirection === "desc") {
+        setSortColumn(null);
+        setSortDirection(null);
+      } else {
+        setSortDirection("asc");
+      }
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
+
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
+    if (sortDirection === "asc") return <ArrowUp className="h-4 w-4 ml-1" />;
+    if (sortDirection === "desc") return <ArrowDown className="h-4 w-4 ml-1" />;
+    return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
+  };
+
+  // Filter and sort active properties
+  const activeProperties = useMemo(() => {
+    let filtered = (allProperties || []).filter(p => p.is_active);
+
+    // Apply search filters
+    if (searchName) {
+      filtered = filtered.filter(p => 
+        p.name?.toLowerCase().includes(searchName.toLowerCase())
+      );
+    }
+    if (searchPms) {
+      filtered = filtered.filter(p => 
+        p.external_system?.toLowerCase().includes(searchPms.toLowerCase())
+      );
+    }
+    if (searchOwnerName) {
+      filtered = filtered.filter(p => 
+        p.owner_name?.toLowerCase().includes(searchOwnerName.toLowerCase())
+      );
+    }
+    if (searchOwnerEmail) {
+      filtered = filtered.filter(p => 
+        p.owner_email?.toLowerCase().includes(searchOwnerEmail.toLowerCase())
+      );
+    }
+
+    // Apply sorting
+    if (sortColumn && sortDirection) {
+      filtered = [...filtered].sort((a, b) => {
+        let aVal: any = a[sortColumn];
+        let bVal: any = b[sortColumn];
+
+        // Handle null/undefined
+        if (aVal == null) aVal = "";
+        if (bVal == null) bVal = "";
+
+        // String comparison
+        if (typeof aVal === "string") {
+          aVal = aVal.toLowerCase();
+          bVal = bVal.toLowerCase();
+        }
+
+        if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [allProperties, searchName, searchPms, searchOwnerName, searchOwnerEmail, sortColumn, sortDirection]);
+
   const deletedProperties = allProperties?.filter(p => !p.is_active) || [];
 
   const handleDeleteProperty = async (id: string) => {
@@ -193,14 +280,93 @@ const PropertyOverview = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>PROPERTY NAME</TableHead>
-                        <TableHead>PMS</TableHead>
-                        <TableHead>OWNER NAME</TableHead>
-                        <TableHead>OWNER EMAIL</TableHead>
+                        <TableHead 
+                          className="cursor-pointer hover:bg-muted/50 select-none"
+                          onClick={() => handleSort("name")}
+                        >
+                          <div className="flex items-center">
+                            PROPERTY NAME
+                            {getSortIcon("name")}
+                          </div>
+                        </TableHead>
+                        <TableHead 
+                          className="cursor-pointer hover:bg-muted/50 select-none"
+                          onClick={() => handleSort("external_system")}
+                        >
+                          <div className="flex items-center">
+                            PMS
+                            {getSortIcon("external_system")}
+                          </div>
+                        </TableHead>
+                        <TableHead 
+                          className="cursor-pointer hover:bg-muted/50 select-none"
+                          onClick={() => handleSort("owner_name")}
+                        >
+                          <div className="flex items-center">
+                            OWNER NAME
+                            {getSortIcon("owner_name")}
+                          </div>
+                        </TableHead>
+                        <TableHead 
+                          className="cursor-pointer hover:bg-muted/50 select-none"
+                          onClick={() => handleSort("owner_email")}
+                        >
+                          <div className="flex items-center">
+                            OWNER EMAIL
+                            {getSortIcon("owner_email")}
+                          </div>
+                        </TableHead>
                         <TableHead>OWNERLIST</TableHead>
-                        <TableHead>TOTAL BOOKINGS</TableHead>
+                        <TableHead 
+                          className="cursor-pointer hover:bg-muted/50 select-none"
+                          onClick={() => handleSort("total_bookings")}
+                        >
+                          <div className="flex items-center">
+                            TOTAL BOOKINGS
+                            {getSortIcon("total_bookings")}
+                          </div>
+                        </TableHead>
                         <TableHead>STATUS</TableHead>
                         <TableHead className="text-right">ACTION</TableHead>
+                      </TableRow>
+                      {/* Search row */}
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell className="py-2">
+                          <Input
+                            placeholder="Search"
+                            value={searchName}
+                            onChange={(e) => setSearchName(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <Input
+                            placeholder="Search"
+                            value={searchPms}
+                            onChange={(e) => setSearchPms(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <Input
+                            placeholder="Search"
+                            value={searchOwnerName}
+                            onChange={(e) => setSearchOwnerName(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <Input
+                            placeholder="Search"
+                            value={searchOwnerEmail}
+                            onChange={(e) => setSearchOwnerEmail(e.target.value)}
+                            className="h-8 text-sm"
+                          />
+                        </TableCell>
+                        <TableCell className="py-2"></TableCell>
+                        <TableCell className="py-2"></TableCell>
+                        <TableCell className="py-2"></TableCell>
+                        <TableCell className="py-2"></TableCell>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
