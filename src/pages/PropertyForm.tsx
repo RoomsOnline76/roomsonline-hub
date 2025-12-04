@@ -1644,54 +1644,45 @@ export default function PropertyForm() {
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <TabsList className="bg-secondary">
-              <TabsTrigger value="general" className="gap-2">
-                <Home className="h-4 w-4" />
-                General
-              </TabsTrigger>
-              <TabsTrigger value="house-style" className="gap-2">
-                <Building2 className="h-4 w-4" />
-                House Style
-              </TabsTrigger>
-              <TabsTrigger value="info-facilities" className="gap-2">
-                <Building2 className="h-4 w-4" />
-                Property Info & Facilities
-              </TabsTrigger>
-              <TabsTrigger value="house-rules" className="gap-2">
-                <FileText className="h-4 w-4" />
-                House Rules
-              </TabsTrigger>
-              <TabsTrigger value="images" className="gap-2">
-                <Image className="h-4 w-4" />
-                Property Images
-              </TabsTrigger>
-              <TabsTrigger value="rooms" className="gap-2">
-                <Info className="h-4 w-4" />
-                Room Information
-              </TabsTrigger>
-              <TabsTrigger value="rates" className="gap-2">
-                <DollarSign className="h-4 w-4" />
-                Rate Breakdown
-              </TabsTrigger>
-              <TabsTrigger value="templates" className="gap-2">
-                <Bell className="h-4 w-4" />
-                Templates and Notifications
-              </TabsTrigger>
-              <TabsTrigger value="addons" className="gap-2">
-                <Package className="h-4 w-4" />
-                Addons
-              </TabsTrigger>
-              <TabsTrigger value="specials" className="gap-2">
-                <Calendar className="h-4 w-4" />
-                Specials
-              </TabsTrigger>
-              <TabsTrigger value="packages" className="gap-2">
-                <Package className="h-4 w-4" />
-                Packages
-              </TabsTrigger>
-              <TabsTrigger value="announcements" className="gap-2">
-                <Bell className="h-4 w-4" />
-                Announcements
-              </TabsTrigger>
+              {[
+                { value: "general", icon: Home, label: "General" },
+                { value: "house-style", icon: Building2, label: "House Style" },
+                { value: "info-facilities", icon: Building2, label: "Property Info & Facilities" },
+                { value: "house-rules", icon: FileText, label: "House Rules" },
+                { value: "images", icon: Image, label: "Property Images" },
+                { value: "rooms", icon: Info, label: "Room Information" },
+                { value: "rates", icon: DollarSign, label: "Rate Breakdown" },
+                { value: "templates", icon: Bell, label: "Templates and Notifications" },
+                { value: "addons", icon: Package, label: "Addons" },
+                { value: "specials", icon: Calendar, label: "Specials" },
+                { value: "packages", icon: Package, label: "Packages" },
+                { value: "announcements", icon: Bell, label: "Announcements" },
+              ].map((tab) => {
+                const isActive = activeTab === tab.value;
+                const Icon = tab.icon;
+                
+                if (isActive) {
+                  return (
+                    <TabsTrigger key={tab.value} value={tab.value} className="gap-2">
+                      <Icon className="h-4 w-4" />
+                      {tab.label}
+                    </TabsTrigger>
+                  );
+                }
+                
+                return (
+                  <Tooltip key={tab.value}>
+                    <TooltipTrigger asChild>
+                      <TabsTrigger value={tab.value} className="px-3">
+                        <Icon className="h-4 w-4" />
+                      </TabsTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{tab.label}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
             </TabsList>
 
             <TabsContent value="general">
