@@ -235,11 +235,17 @@ const PropertyOverview = () => {
 
         <Tabs defaultValue="active" className="space-y-4">
           <TabsList className="bg-secondary">
-            <TabsTrigger value="active">
-              Active Properties ({activeProperties.length})
+            <TabsTrigger value="active" className="gap-2">
+              Active Properties
+              <Badge variant="secondary" className="h-5 min-w-5 px-1.5 text-xs font-medium">
+                {activeProperties.length}
+              </Badge>
             </TabsTrigger>
-            <TabsTrigger value="deleted">
-              Deleted Properties ({deletedProperties.length})
+            <TabsTrigger value="deleted" className="gap-2">
+              Deleted Properties
+              <Badge variant="outline" className="h-5 min-w-5 px-1.5 text-xs font-medium">
+                {deletedProperties.length}
+              </Badge>
             </TabsTrigger>
           </TabsList>
 
