@@ -170,9 +170,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const [isAdmin, setIsAdmin] = useState(false);
   const [userEmail, setUserEmail] = useState<string>("");
 
-  // Multi-select states - all true by default
+  // Multi-select states - only Rates enabled by default
   const [selectedDisplayOptions, setSelectedDisplayOptions] = useState<string[]>(
-    displayOptions.map(o => o.id)
+    ["rates"]
   );
   const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
   const [selectedMealTypes, setSelectedMealTypes] = useState<string[]>([]);
