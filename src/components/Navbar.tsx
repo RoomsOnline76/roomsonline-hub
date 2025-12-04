@@ -14,6 +14,7 @@ import { Building2, Key, LogOut, User, ChevronDown, Shield, Calendar, Megaphone,
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { pmsIntegrationStatus, getCompletedMilestoneCount, getTotalMilestoneCount } from "@/components/ApiMilestones";
 import { ProfileModal } from "@/components/ProfileModal";
 
 export const Navbar = () => {
@@ -46,22 +47,26 @@ export const Navbar = () => {
     }
   }, [isAdmin]);
 
-  // Placeholder: Check health of commissioned APIs
-  // Currently returns 0 as no APIs are fully commissioned
-  // Once APIs are implemented, this will check each PMS connection status
-  const checkApiHealth = async () => {
-    // TODO: Once APIs are commissioned, implement actual health checks
-    // Example structure for future implementation:
-    // const { data: credentials } = await supabase
-    //   .from("pms_credentials")
-    //   .select("system_type, is_active")
-    //   .eq("is_active", true);
-    // 
-    // For each active credential, ping the respective API endpoint
-    // and track healthy vs unhealthy connections
-    
-    // For now, no APIs are commissioned so both counts are 0
-    setApiHealthStatus({ healthy: 0, unhealthy: 0 });
+  // Check health of commissioned APIs based on milestone completion
+  // An API is considered "healthy" if it has completed all 7 milestones
+  // An API is considered "unhealthy" if it has some milestones but not all (partial implementation)
+  const checkApiHealth = () => {
+    let healthy = 0;
+    let unhealthy = 0;
+    const totalMilestones = getTotalMilestoneCount();
+
+    Object.keys(pmsIntegrationStatus).forEach((systemType) => {
+      const completed = getCompletedMilestoneCount(systemType);
+      if (completed === totalMilestones) {
+        healthy++;
+      } else if (completed > 0) {
+        // Partial implementation - consider as needs attention
+        unhealthy++;
+      }
+      // If completed === 0, the API is not yet commissioned, don't count it
+    });
+
+    setApiHealthStatus({ healthy, unhealthy });
   };
 
   const loadProfile = async () => {
