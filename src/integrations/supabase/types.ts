@@ -281,6 +281,7 @@ export type Database = {
       }
       pms_credentials: {
         Row: {
+          agent_code: string | null
           api_key: string | null
           created_at: string | null
           environment: string
@@ -292,6 +293,7 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          agent_code?: string | null
           api_key?: string | null
           created_at?: string | null
           environment?: string
@@ -303,6 +305,7 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          agent_code?: string | null
           api_key?: string | null
           created_at?: string | null
           environment?: string
