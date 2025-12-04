@@ -208,6 +208,62 @@ export type Database = {
           },
         ]
       }
+      checkfront_connections: {
+        Row: {
+          access_token: string | null
+          auth_mode: string
+          created_at: string
+          expires_at: string | null
+          host: string
+          id: string
+          last_synced_at: string | null
+          oauth_client_id: string | null
+          oauth_scope: string | null
+          property_id: string
+          refresh_token: string | null
+          token_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          auth_mode?: string
+          created_at?: string
+          expires_at?: string | null
+          host: string
+          id?: string
+          last_synced_at?: string | null
+          oauth_client_id?: string | null
+          oauth_scope?: string | null
+          property_id: string
+          refresh_token?: string | null
+          token_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          auth_mode?: string
+          created_at?: string
+          expires_at?: string | null
+          host?: string
+          id?: string
+          last_synced_at?: string | null
+          oauth_client_id?: string | null
+          oauth_scope?: string | null
+          property_id?: string
+          refresh_token?: string | null
+          token_type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkfront_connections_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meal_type_suggestions: {
         Row: {
           created_at: string
