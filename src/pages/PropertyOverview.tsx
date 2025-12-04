@@ -237,13 +237,13 @@ const PropertyOverview = () => {
           <TabsList className="bg-secondary">
             <TabsTrigger value="active" className="gap-2">
               Active Properties
-              <Badge variant="secondary" className="h-5 min-w-5 px-1.5 text-xs font-medium">
+              <Badge className="h-5 min-w-5 px-1.5 text-xs font-medium bg-primary/20 text-primary hover:bg-primary/20">
                 {activeProperties.length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="deleted" className="gap-2">
               Deleted Properties
-              <Badge variant="outline" className="h-5 min-w-5 px-1.5 text-xs font-medium">
+              <Badge className="h-5 min-w-5 px-1.5 text-xs font-medium bg-primary/20 text-primary hover:bg-primary/20">
                 {deletedProperties.length}
               </Badge>
             </TabsTrigger>
