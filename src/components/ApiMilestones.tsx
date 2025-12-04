@@ -68,30 +68,51 @@ const milestones: Milestone[] = [
 // Update these as implementation progresses
 export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
   benson: {
-    auth: false,
-    healthCheck: false,
-    pullAvailability: false,
-    syncIn: false,
-    pullBookings: false,
-    pushBooking: false,
+    // ✅ HTTP Basic Auth implemented in benson-api edge function with base64 encoding
+    auth: true,
+    // ✅ Can call chargetypes, paymenttypes, currentrooms endpoints to verify connectivity
+    healthCheck: true,
+    // ✅ fetchAvailability function fully implemented with room types, rates, restrictions
+    pullAvailability: true,
+    // ✅ Data caching to pms_availability_cache table implemented
+    syncIn: true,
+    // ✅ getReservations function syncs reservations to pms_reservations table
+    pullBookings: true,
+    // ✅ createReservation and postBill functions implemented
+    pushBooking: true,
+    // ❌ Not yet live with real properties, no scheduled health monitoring
     liveMonitor: false,
   },
   nightsbridge: {
+    // ❌ Bearer token auth structure defined but needs dedicated edge function
     auth: false,
+    // ❌ No dedicated health check implementation
     healthCheck: false,
+    // ❌ Structure in sync-rates-availability but not fully implemented
     pullAvailability: false,
+    // ❌ Sync function exists but uses different credential approach
     syncIn: false,
+    // ❌ No implementation
     pullBookings: false,
+    // ❌ Structure in push-booking but incomplete
     pushBooking: false,
+    // ❌ Not implemented
     liveMonitor: false,
   },
   checkfront: {
+    // ❌ Token/OAuth2 auth structure defined but no dedicated edge function
     auth: false,
+    // ❌ No implementation
     healthCheck: false,
+    // ❌ Structure in sync-rates-availability but incomplete
     pullAvailability: false,
+    // ❌ Sync function exists but incomplete
     syncIn: false,
+    // ❌ No implementation
     pullBookings: false,
+    // ❌ Structure in push-booking but incomplete
     pushBooking: false,
+    // ❌ Not implemented
     liveMonitor: false,
   },
   semper: {
