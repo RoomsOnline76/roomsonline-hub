@@ -93,6 +93,17 @@ export default function AdminKeys() {
   const [editingNightsbridge, setEditingNightsbridge] = useState(false);
   const [savingNightsbridge, setSavingNightsbridge] = useState(false);
 
+  // Checkfront-specific state (supports Token and OAuth2 auth)
+  const [checkfrontCredentials, setCheckfrontCredentials] = useState<PMSCredentials | null>(null);
+  const [checkfrontApiKey, setCheckfrontApiKey] = useState("");
+  const [checkfrontApiSecret, setCheckfrontApiSecret] = useState("");
+  const [checkfrontUsername, setCheckfrontUsername] = useState("");
+  const [checkfrontPassword, setCheckfrontPassword] = useState("");
+  const [checkfrontAuthMethod, setCheckfrontAuthMethod] = useState<"token" | "oauth2">("token");
+  const [checkfrontEnvironment, setCheckfrontEnvironment] = useState<"staging" | "production">("staging");
+  const [editingCheckfront, setEditingCheckfront] = useState(false);
+  const [savingCheckfront, setSavingCheckfront] = useState(false);
+
   // Resend-specific state
   const [resendFromEmail, setResendFromEmail] = useState("");
   const [resendToEmail, setResendToEmail] = useState("");
@@ -103,6 +114,7 @@ export default function AdminKeys() {
     fetchApiKeys();
     fetchBensonCredentials();
     fetchNightsbridgeCredentials();
+    fetchCheckfrontCredentials();
     fetchResendConfig();
   }, []);
 
@@ -208,6 +220,25 @@ export default function AdminKeys() {
     }
   };
 
+  const fetchCheckfrontCredentials = async () => {
+    const { data, error } = await supabase
+      .from("pms_credentials")
+      .select("*")
+      .eq("system_type", "checkfront")
+      .maybeSingle();
+
+    if (!error && data) {
+      setCheckfrontCredentials(data);
+      setCheckfrontEnvironment(data.environment as "staging" | "production");
+      // Determine auth method based on what's configured
+      if (data.api_key || data.agent_code) {
+        setCheckfrontAuthMethod("token");
+      } else if (data.username || data.password) {
+        setCheckfrontAuthMethod("oauth2");
+      }
+    }
+  };
+
   const handleUpdateKey = async (keyId: string) => {
     const { error } = await supabase.from("api_keys").update({ key_value: editValue }).eq("id", keyId);
 
@@ -306,6 +337,59 @@ export default function AdminKeys() {
     setSavingNightsbridge(false);
   };
 
+  const handleSaveCheckfrontCredentials = async () => {
+    setSavingCheckfront(true);
+
+    const credData = {
+      system_type: "checkfront",
+      environment: checkfrontEnvironment,
+      // Token auth uses api_key and agent_code (repurposed as secret)
+      api_key: checkfrontAuthMethod === "token" 
+        ? (checkfrontApiKey || checkfrontCredentials?.api_key || null) 
+        : null,
+      agent_code: checkfrontAuthMethod === "token" 
+        ? (checkfrontApiSecret || checkfrontCredentials?.agent_code || null) 
+        : null,
+      // OAuth2 uses username/password
+      username: checkfrontAuthMethod === "oauth2" 
+        ? (checkfrontUsername || checkfrontCredentials?.username || null) 
+        : null,
+      password: checkfrontAuthMethod === "oauth2" 
+        ? (checkfrontPassword || checkfrontCredentials?.password || null) 
+        : null,
+      is_active: true,
+    };
+
+    let error;
+    if (checkfrontCredentials) {
+      const result = await supabase.from("pms_credentials").update(credData).eq("id", checkfrontCredentials.id);
+      error = result.error;
+    } else {
+      const result = await supabase.from("pms_credentials").insert(credData);
+      error = result.error;
+    }
+
+    if (error) {
+      toast({
+        title: "Error saving credentials",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Credentials saved",
+        description: "Checkfront credentials have been updated successfully",
+      });
+      setEditingCheckfront(false);
+      setCheckfrontApiKey("");
+      setCheckfrontApiSecret("");
+      setCheckfrontUsername("");
+      setCheckfrontPassword("");
+      fetchCheckfrontCredentials();
+    }
+    setSavingCheckfront(false);
+  };
+
   const isPlaceholder = (value: string | null) => {
     return !value || value.startsWith("placeholder_key_");
   };
@@ -316,7 +400,7 @@ export default function AdminKeys() {
   // Group API keys: PMS systems vs Additional Services (Google Maps, SendGrid, Resend, etc.)
   const additionalServiceTypes = ["google", "sendgrid", "resend"];
   const pmsKeys = apiKeys
-    .filter((k) => k.system_type && !additionalServiceTypes.includes(k.system_type) && k.system_type !== "benson" && k.system_type !== "nightsbridge")
+    .filter((k) => k.system_type && !additionalServiceTypes.includes(k.system_type) && k.system_type !== "benson" && k.system_type !== "nightsbridge" && k.system_type !== "checkfront")
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
   // Filter out Resend email config keys from additionalKeys since we handle them in custom card
@@ -841,6 +925,197 @@ export default function AdminKeys() {
     );
   };
 
+  // Checkfront-specific card with Token or OAuth2 auth
+  const renderCheckfrontCard = () => {
+    const isTokenConfigured = checkfrontCredentials?.api_key && checkfrontCredentials?.agent_code;
+    const isOAuthConfigured = checkfrontCredentials?.username && checkfrontCredentials?.password;
+    const isConfigured = isTokenConfigured || isOAuthConfigured;
+
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                <CheckCircle className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  Checkfront
+                  <Badge variant="outline" className="ml-2">
+                    Token / OAuth2
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Online booking software with dual authentication support
+                </CardDescription>
+              </div>
+            </div>
+            <div>
+              {isConfigured ? (
+                <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {isTokenConfigured ? "Token Auth" : "OAuth2"}
+                </Badge>
+              ) : (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Not Configured
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {editingCheckfront ? (
+            <div className="space-y-4">
+              {/* Auth Method Toggle */}
+              <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg">
+                <Label className="text-sm font-medium">Authentication Method:</Label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={checkfrontAuthMethod === "token" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCheckfrontAuthMethod("token")}
+                  >
+                    Token (API Key/Secret)
+                  </Button>
+                  <Button
+                    variant={checkfrontAuthMethod === "oauth2" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCheckfrontAuthMethod("oauth2")}
+                  >
+                    OAuth2 (Username/Password)
+                  </Button>
+                </div>
+              </div>
+
+              {checkfrontAuthMethod === "token" ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="checkfront-apikey">API Key</Label>
+                    <Input
+                      id="checkfront-apikey"
+                      type="password"
+                      value={checkfrontApiKey}
+                      onChange={(e) => setCheckfrontApiKey(e.target.value)}
+                      placeholder={checkfrontCredentials?.api_key ? "••••••••" : "Enter API key"}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="checkfront-secret">API Secret</Label>
+                    <Input
+                      id="checkfront-secret"
+                      type="password"
+                      value={checkfrontApiSecret}
+                      onChange={(e) => setCheckfrontApiSecret(e.target.value)}
+                      placeholder={checkfrontCredentials?.agent_code ? "••••••••" : "Enter API secret"}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="checkfront-username">Username</Label>
+                    <Input
+                      id="checkfront-username"
+                      value={checkfrontUsername}
+                      onChange={(e) => setCheckfrontUsername(e.target.value)}
+                      placeholder={checkfrontCredentials?.username ? "••••••••" : "Enter username"}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="checkfront-password">Password</Label>
+                    <Input
+                      id="checkfront-password"
+                      type="password"
+                      value={checkfrontPassword}
+                      onChange={(e) => setCheckfrontPassword(e.target.value)}
+                      placeholder={checkfrontCredentials?.password ? "••••••••" : "Enter password"}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-4">
+                <Label className="text-sm">Environment:</Label>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-sm ${checkfrontEnvironment === "staging" ? "font-medium" : "text-muted-foreground"}`}
+                  >
+                    Staging
+                  </span>
+                  <Switch
+                    checked={checkfrontEnvironment === "production"}
+                    onCheckedChange={(checked) => setCheckfrontEnvironment(checked ? "production" : "staging")}
+                  />
+                  <span
+                    className={`text-sm ${checkfrontEnvironment === "production" ? "font-medium" : "text-muted-foreground"}`}
+                  >
+                    Production
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={handleSaveCheckfrontCredentials} disabled={savingCheckfront}>
+                  {savingCheckfront ? "Saving..." : "Save"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setEditingCheckfront(false);
+                    setCheckfrontApiKey("");
+                    setCheckfrontApiSecret("");
+                    setCheckfrontUsername("");
+                    setCheckfrontPassword("");
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <Label className="text-muted-foreground">Auth Method</Label>
+                  <p className="font-medium">
+                    {isTokenConfigured ? "Token" : isOAuthConfigured ? "OAuth2" : "Not set"}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">
+                    {isTokenConfigured ? "API Key" : "Username"}
+                  </Label>
+                  <p className={`font-medium ${isConfigured ? "text-green-600" : ""}`}>
+                    {isConfigured ? "Configured" : "Not set"}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Environment</Label>
+                  <p className="font-medium capitalize">{checkfrontCredentials?.environment || "Staging"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Status</Label>
+                  <p className="font-medium">{checkfrontCredentials?.is_active ? "Active" : "Inactive"}</p>
+                </div>
+              </div>
+
+              <ApiMilestones systemType="checkfront" className="pt-4 border-t" />
+
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setEditingCheckfront(true)}>
+                  {isConfigured ? "Update Credentials" : "Configure"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
   if (loading) {
     return (
       <>
@@ -876,6 +1151,9 @@ export default function AdminKeys() {
 
               {/* NightsBridge Card - Special handling */}
               {renderNightsbridgeCard()}
+
+              {/* Checkfront Card - Special handling */}
+              {renderCheckfrontCard()}
 
               {/* Other PMS Keys */}
               {pmsKeys.map(renderKeyCard)}
