@@ -103,19 +103,19 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     liveMonitor: false,
   },
   checkfront: {
-    // ❌ Token/OAuth2 auth structure defined but no dedicated edge function
-    auth: false,
-    // ❌ No implementation
-    healthCheck: false,
-    // ❌ Structure in sync-rates-availability but incomplete
-    pullAvailability: false,
-    // ❌ Sync function exists but incomplete
-    syncIn: false,
-    // ❌ No implementation
-    pullBookings: false,
-    // ❌ Structure in push-booking but incomplete
-    pushBooking: false,
-    // ❌ Not implemented
+    // 🟠 Token pair + OAuth2 auth implemented in checkfront-api edge function
+    auth: 'pending',
+    // 🟠 Health check action implemented - PENDING: credentials to test
+    healthCheck: 'pending',
+    // 🟠 getItems, getItemAvailability, getRatedItem implemented - PENDING: credentials
+    pullAvailability: 'pending',
+    // 🟠 Availability caching to pms_availability_cache implemented - PENDING: credentials
+    syncIn: 'pending',
+    // 🟠 getBookings, syncBookingsToLocal implemented - PENDING: credentials
+    pullBookings: 'pending',
+    // 🟠 startSession, createBooking, storeBookingLocally implemented - PENDING: credentials
+    pushBooking: 'pending',
+    // ❌ Not yet live
     liveMonitor: false,
   },
   semper: {
