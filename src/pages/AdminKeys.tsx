@@ -351,7 +351,7 @@ export default function AdminKeys() {
             </div>
             <div>
               {isResendConfigured ? (
-                <Badge variant="default" className="flex items-center gap-1">
+                <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="h-3 w-3" />
                   Configured
                 </Badge>
@@ -421,7 +421,7 @@ export default function AdminKeys() {
                 </div>
                 <div>
                   <Label className="text-muted-foreground">API Key</Label>
-                  <p className="font-medium">{isResendConfigured ? "Configured" : "Not set"}</p>
+                  <p className={`font-medium ${isResendConfigured ? "text-green-600" : ""}`}>{isResendConfigured ? "Configured" : "Not set"}</p>
                 </div>
               </div>
 
@@ -507,7 +507,7 @@ export default function AdminKeys() {
                   Not Configured
                 </Badge>
               ) : (
-                <Badge variant="default" className="flex items-center gap-1">
+                <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="h-3 w-3" />
                   Configured
                 </Badge>
@@ -592,7 +592,7 @@ export default function AdminKeys() {
             </div>
             <div>
               {isConfigured ? (
-                <Badge variant="default" className="flex items-center gap-1">
+                <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="h-3 w-3" />
                   Configured
                 </Badge>
@@ -671,11 +671,11 @@ export default function AdminKeys() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
                   <Label className="text-muted-foreground">Username</Label>
-                  <p className="font-medium">{isConfigured ? "Configured" : "Not set"}</p>
+                  <p className={`font-medium ${isConfigured ? "text-green-600" : ""}`}>{isConfigured ? "Configured" : "Not set"}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Password</Label>
-                  <p className="font-medium">{isConfigured ? "Configured" : "Not set"}</p>
+                  <p className={`font-medium ${isConfigured ? "text-green-600" : ""}`}>{isConfigured ? "Configured" : "Not set"}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Environment</Label>
@@ -729,7 +729,7 @@ export default function AdminKeys() {
             </div>
             <div>
               {isConfigured ? (
-                <Badge variant="default" className="flex items-center gap-1">
+                <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="h-3 w-3" />
                   Configured
                 </Badge>
@@ -808,11 +808,11 @@ export default function AdminKeys() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
                   <Label className="text-muted-foreground">API Key</Label>
-                  <p className="font-medium">{nightsbridgeCredentials?.api_key ? "Configured" : "Not set"}</p>
+                  <p className={`font-medium ${nightsbridgeCredentials?.api_key ? "text-green-600" : ""}`}>{nightsbridgeCredentials?.api_key ? "Configured" : "Not set"}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Agent Code</Label>
-                  <p className="font-medium">{nightsbridgeCredentials?.agent_code ? "Configured" : "Not set"}</p>
+                  <p className={`font-medium ${nightsbridgeCredentials?.agent_code ? "text-green-600" : ""}`}>{nightsbridgeCredentials?.agent_code ? "Configured" : "Not set"}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Environment</Label>
