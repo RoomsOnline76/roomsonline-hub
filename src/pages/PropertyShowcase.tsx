@@ -227,7 +227,7 @@ export default function PropertyShowcase() {
             variant="secondary" 
             size="sm" 
             className="bg-background/80 backdrop-blur-sm hover:bg-background shadow-lg"
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/")}
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
             Back to Search
