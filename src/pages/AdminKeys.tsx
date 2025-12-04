@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
+import { ApiMilestones } from "@/components/ApiMilestones";
 import {
   Key,
   AlertCircle,
@@ -687,6 +688,8 @@ export default function AdminKeys() {
                 </div>
               </div>
 
+              <ApiMilestones systemType="benson" className="pt-4 border-t" />
+
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setEditingBenson(true)}>
                   {isConfigured ? "Update Credentials" : "Configure"}
@@ -823,6 +826,8 @@ export default function AdminKeys() {
                   <p className="font-medium">{nightsbridgeCredentials?.is_active ? "Active" : "Inactive"}</p>
                 </div>
               </div>
+
+              <ApiMilestones systemType="nightsbridge" className="pt-4 border-t" />
 
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setEditingNightsbridge(true)}>
