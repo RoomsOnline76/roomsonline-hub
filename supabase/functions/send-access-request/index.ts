@@ -93,7 +93,7 @@ const handler = async (req: Request): Promise<Response> => {
           </div>
           
           <p>Please review this request in the admin panel:</p>
-          <a href="${Deno.env.get("SUPABASE_URL")?.replace(".supabase.co", ".lovable.app")}/admin/access-requests" 
+          <a href="https://roomsonline-hub.lovable.app/admin/access-requests" 
              style="display: inline-block; background: #e91e63; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">
             Review Request
           </a>
