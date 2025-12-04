@@ -63,6 +63,8 @@ interface PMSCredentials {
   environment: string;
   username: string | null;
   password: string | null;
+  api_key: string | null;
+  agent_code: string | null;
   is_active: boolean;
 }
 
@@ -82,6 +84,14 @@ export default function AdminKeys() {
   const [editingBenson, setEditingBenson] = useState(false);
   const [savingBenson, setSavingBenson] = useState(false);
 
+  // NightsBridge-specific state
+  const [nightsbridgeCredentials, setNightsbridgeCredentials] = useState<PMSCredentials | null>(null);
+  const [nightsbridgeApiKey, setNightsbridgeApiKey] = useState("");
+  const [nightsbridgeAgentCode, setNightsbridgeAgentCode] = useState("");
+  const [nightsbridgeEnvironment, setNightsbridgeEnvironment] = useState<"staging" | "production">("staging");
+  const [editingNightsbridge, setEditingNightsbridge] = useState(false);
+  const [savingNightsbridge, setSavingNightsbridge] = useState(false);
+
   // Resend-specific state
   const [resendFromEmail, setResendFromEmail] = useState("");
   const [resendToEmail, setResendToEmail] = useState("");
@@ -91,6 +101,7 @@ export default function AdminKeys() {
   useEffect(() => {
     fetchApiKeys();
     fetchBensonCredentials();
+    fetchNightsbridgeCredentials();
     fetchResendConfig();
   }, []);
 
@@ -183,6 +194,19 @@ export default function AdminKeys() {
     }
   };
 
+  const fetchNightsbridgeCredentials = async () => {
+    const { data, error } = await supabase
+      .from("pms_credentials")
+      .select("*")
+      .eq("system_type", "nightsbridge")
+      .maybeSingle();
+
+    if (!error && data) {
+      setNightsbridgeCredentials(data);
+      setNightsbridgeEnvironment(data.environment as "staging" | "production");
+    }
+  };
+
   const handleUpdateKey = async (keyId: string) => {
     const { error } = await supabase.from("api_keys").update({ key_value: editValue }).eq("id", keyId);
 
@@ -242,6 +266,45 @@ export default function AdminKeys() {
     setSavingBenson(false);
   };
 
+  const handleSaveNightsbridgeCredentials = async () => {
+    setSavingNightsbridge(true);
+
+    const credData = {
+      system_type: "nightsbridge",
+      environment: nightsbridgeEnvironment,
+      api_key: nightsbridgeApiKey || nightsbridgeCredentials?.api_key || null,
+      agent_code: nightsbridgeAgentCode || nightsbridgeCredentials?.agent_code || null,
+      is_active: true,
+    };
+
+    let error;
+    if (nightsbridgeCredentials) {
+      const result = await supabase.from("pms_credentials").update(credData).eq("id", nightsbridgeCredentials.id);
+      error = result.error;
+    } else {
+      const result = await supabase.from("pms_credentials").insert(credData);
+      error = result.error;
+    }
+
+    if (error) {
+      toast({
+        title: "Error saving credentials",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Credentials saved",
+        description: "NightsBridge credentials have been updated successfully",
+      });
+      setEditingNightsbridge(false);
+      setNightsbridgeApiKey("");
+      setNightsbridgeAgentCode("");
+      fetchNightsbridgeCredentials();
+    }
+    setSavingNightsbridge(false);
+  };
+
   const isPlaceholder = (value: string | null) => {
     return !value || value.startsWith("placeholder_key_");
   };
@@ -252,7 +315,7 @@ export default function AdminKeys() {
   // Group API keys: PMS systems vs Additional Services (Google Maps, SendGrid, Resend, etc.)
   const additionalServiceTypes = ["google", "sendgrid", "resend"];
   const pmsKeys = apiKeys
-    .filter((k) => k.system_type && !additionalServiceTypes.includes(k.system_type) && k.system_type !== "benson")
+    .filter((k) => k.system_type && !additionalServiceTypes.includes(k.system_type) && k.system_type !== "benson" && k.system_type !== "nightsbridge")
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
   // Filter out Resend email config keys from additionalKeys since we handle them in custom card
@@ -640,6 +703,139 @@ export default function AdminKeys() {
     );
   };
 
+  // NightsBridge-specific card with API Key and Agent Code
+  const renderNightsbridgeCard = () => {
+    const isConfigured = nightsbridgeCredentials?.api_key && nightsbridgeCredentials?.agent_code;
+
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                <BedDouble className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  NightsBridge
+                  <Badge variant="outline" className="ml-2">
+                    API Key + Agent Code
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Property Management System integration for South African properties
+                </CardDescription>
+              </div>
+            </div>
+            <div>
+              {isConfigured ? (
+                <Badge variant="default" className="flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Configured
+                </Badge>
+              ) : (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Not Configured
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {editingNightsbridge ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nightsbridge-apikey">API Key</Label>
+                  <Input
+                    id="nightsbridge-apikey"
+                    type="password"
+                    value={nightsbridgeApiKey}
+                    onChange={(e) => setNightsbridgeApiKey(e.target.value)}
+                    placeholder={nightsbridgeCredentials?.api_key ? "••••••••" : "Enter API key"}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nightsbridge-agentcode">Agent Code</Label>
+                  <Input
+                    id="nightsbridge-agentcode"
+                    value={nightsbridgeAgentCode}
+                    onChange={(e) => setNightsbridgeAgentCode(e.target.value)}
+                    placeholder={nightsbridgeCredentials?.agent_code ? "••••••••" : "Enter agent code"}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <Label className="text-sm">Environment:</Label>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-sm ${nightsbridgeEnvironment === "staging" ? "font-medium" : "text-muted-foreground"}`}
+                  >
+                    Staging
+                  </span>
+                  <Switch
+                    checked={nightsbridgeEnvironment === "production"}
+                    onCheckedChange={(checked) => setNightsbridgeEnvironment(checked ? "production" : "staging")}
+                  />
+                  <span
+                    className={`text-sm ${nightsbridgeEnvironment === "production" ? "font-medium" : "text-muted-foreground"}`}
+                  >
+                    Production
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={handleSaveNightsbridgeCredentials} disabled={savingNightsbridge}>
+                  {savingNightsbridge ? "Saving..." : "Save"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setEditingNightsbridge(false);
+                    setNightsbridgeApiKey("");
+                    setNightsbridgeAgentCode("");
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <Label className="text-muted-foreground">API Key</Label>
+                  <p className="font-medium">{nightsbridgeCredentials?.api_key ? "Configured" : "Not set"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Agent Code</Label>
+                  <p className="font-medium">{nightsbridgeCredentials?.agent_code ? "Configured" : "Not set"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Environment</Label>
+                  <p className="font-medium capitalize">{nightsbridgeCredentials?.environment || "Staging"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Status</Label>
+                  <p className="font-medium">{nightsbridgeCredentials?.is_active ? "Active" : "Inactive"}</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setEditingNightsbridge(true)}>
+                  {isConfigured ? "Update Credentials" : "Configure"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
   if (loading) {
     return (
       <>
@@ -672,6 +868,9 @@ export default function AdminKeys() {
             <div className="space-y-4">
               {/* Benson Card - Special handling */}
               {renderBensonCard()}
+
+              {/* NightsBridge Card - Special handling */}
+              {renderNightsbridgeCard()}
 
               {/* Other PMS Keys */}
               {pmsKeys.map(renderKeyCard)}
