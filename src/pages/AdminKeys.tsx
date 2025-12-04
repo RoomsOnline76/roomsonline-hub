@@ -627,23 +627,45 @@ export default function AdminKeys() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-between">
-              <div className="font-mono text-sm text-muted-foreground">
-                {isPlaceholderValue ? (
-                  <span className="italic">No key configured - using placeholder</span>
-                ) : (
-                  <span>••••••••••••••••</span>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="font-mono text-sm text-muted-foreground">
+                  {isPlaceholderValue ? (
+                    <span className="italic">No key configured - using placeholder</span>
+                  ) : (
+                    <span>••••••••••••••••</span>
+                  )}
+                </div>
+              </div>
+              
+              {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
+                <ApiMilestones systemType={apiKey.system_type} className="pt-4 border-t" />
+              )}
+              
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setEditingKey(apiKey.id);
+                    setEditValue(apiKey.key_value || "");
+                  }}
+                >
+                  {isPlaceholderValue ? "Configure" : "Update"}
+                </Button>
+                {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
+                  <Button 
+                    variant="default" 
+                    onClick={() => toast({
+                      title: "Coming Soon",
+                      description: `${apiKey.name} field mappings configuration is under development`,
+                    })}
+                    disabled={isPlaceholderValue}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Field Mappings
+                  </Button>
                 )}
               </div>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setEditingKey(apiKey.id);
-                  setEditValue(apiKey.key_value || "");
-                }}
-              >
-                {isPlaceholderValue ? "Configure" : "Update"}
-              </Button>
             </div>
           )}
         </CardContent>
@@ -917,6 +939,17 @@ export default function AdminKeys() {
                 <Button variant="outline" onClick={() => setEditingNightsbridge(true)}>
                   {isConfigured ? "Update Credentials" : "Configure"}
                 </Button>
+                <Button 
+                  variant="default" 
+                  onClick={() => toast({
+                    title: "Coming Soon",
+                    description: "NightsBridge field mappings configuration is under development",
+                  })}
+                  disabled={!isConfigured}
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Field Mappings
+                </Button>
               </div>
             </div>
           )}
@@ -1107,6 +1140,17 @@ export default function AdminKeys() {
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setEditingCheckfront(true)}>
                   {isConfigured ? "Update Credentials" : "Configure"}
+                </Button>
+                <Button 
+                  variant="default" 
+                  onClick={() => toast({
+                    title: "Coming Soon",
+                    description: "Checkfront field mappings configuration is under development",
+                  })}
+                  disabled={!isConfigured}
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Field Mappings
                 </Button>
               </div>
             </div>
