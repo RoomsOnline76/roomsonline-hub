@@ -2,14 +2,17 @@ import { LucideIcon, KeyRound, HeartPulse, Download, RefreshCw, CalendarDays, Up
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
+// Milestone status: false = not started, 'pending' = implemented but not tested, true = complete
+export type MilestoneValue = boolean | 'pending';
+
 export interface MilestoneStatus {
-  auth: boolean;
-  healthCheck: boolean;
-  pullAvailability: boolean;
-  syncIn: boolean;
-  pullBookings: boolean;
-  pushBooking: boolean;
-  liveMonitor: boolean;
+  auth: MilestoneValue;
+  healthCheck: MilestoneValue;
+  pullAvailability: MilestoneValue;
+  syncIn: MilestoneValue;
+  pullBookings: MilestoneValue;
+  pushBooking: MilestoneValue;
+  liveMonitor: MilestoneValue;
 }
 
 interface Milestone {
@@ -68,18 +71,18 @@ const milestones: Milestone[] = [
 // Update these as implementation progresses
 export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
   benson: {
-    // ⏳ HTTP Basic Auth code implemented - PENDING: username/password credentials
-    auth: false,
-    // ⏳ Code ready - PENDING: credentials to test connectivity
-    healthCheck: false,
-    // ⏳ fetchAvailability function implemented - PENDING: credentials
-    pullAvailability: false,
-    // ⏳ Data caching code ready - PENDING: credentials
-    syncIn: false,
-    // ⏳ getReservations function implemented - PENDING: credentials
-    pullBookings: false,
-    // ⏳ createReservation/postBill functions implemented - PENDING: credentials
-    pushBooking: false,
+    // 🟠 HTTP Basic Auth code implemented - PENDING: username/password credentials
+    auth: 'pending',
+    // 🟠 Code ready - PENDING: credentials to test connectivity
+    healthCheck: 'pending',
+    // 🟠 fetchAvailability function implemented - PENDING: credentials
+    pullAvailability: 'pending',
+    // 🟠 Data caching code ready - PENDING: credentials
+    syncIn: 'pending',
+    // 🟠 getReservations function implemented - PENDING: credentials
+    pullBookings: 'pending',
+    // 🟠 createReservation/postBill functions implemented - PENDING: credentials
+    pushBooking: 'pending',
     // ❌ Not yet live
     liveMonitor: false,
   },
@@ -157,7 +160,14 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
 export const getCompletedMilestoneCount = (systemType: string): number => {
   const status = pmsIntegrationStatus[systemType];
   if (!status) return 0;
-  return Object.values(status).filter(Boolean).length;
+  return Object.values(status).filter(v => v === true).length;
+};
+
+// Get count of pending (implemented but not tested) milestones
+export const getPendingMilestoneCount = (systemType: string): number => {
+  const status = pmsIntegrationStatus[systemType];
+  if (!status) return 0;
+  return Object.values(status).filter(v => v === 'pending').length;
 };
 
 // Get total milestone count
@@ -186,7 +196,8 @@ export function ApiMilestones({ systemType, className }: ApiMilestonesProps) {
     liveMonitor: false,
   };
 
-  const completedCount = Object.values(status).filter(Boolean).length;
+  const completedCount = Object.values(status).filter(v => v === true).length;
+  const pendingCount = Object.values(status).filter(v => v === 'pending').length;
 
   return (
     <div className={cn("space-y-2", className)}>
@@ -195,13 +206,16 @@ export function ApiMilestones({ systemType, className }: ApiMilestonesProps) {
           Implementation Progress
         </span>
         <span className="text-xs text-muted-foreground">
-          {completedCount}/{milestones.length}
+          {completedCount}/{milestones.length} complete
+          {pendingCount > 0 && ` • ${pendingCount} pending`}
         </span>
       </div>
       <div className="flex items-center gap-1.5">
         {milestones.map((milestone) => {
           const Icon = milestone.icon;
-          const isComplete = status[milestone.key];
+          const value = status[milestone.key];
+          const isComplete = value === true;
+          const isPending = value === 'pending';
 
           return (
             <Tooltip key={milestone.key}>
@@ -211,6 +225,8 @@ export function ApiMilestones({ systemType, className }: ApiMilestonesProps) {
                     "p-1.5 rounded-md transition-colors cursor-help",
                     isComplete
                       ? "bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400"
+                      : isPending
+                      ? "bg-orange-100 text-orange-600 dark:bg-orange-950 dark:text-orange-400"
                       : "bg-muted text-muted-foreground"
                   )}
                 >
@@ -222,10 +238,13 @@ export function ApiMilestones({ systemType, className }: ApiMilestonesProps) {
                   <p className="font-medium flex items-center gap-1.5">
                     {isComplete ? (
                       <span className="text-green-500">✓</span>
+                    ) : isPending ? (
+                      <span className="text-orange-500">◐</span>
                     ) : (
                       <span className="text-muted-foreground">○</span>
                     )}
                     {milestone.label}
+                    {isPending && <span className="text-xs text-orange-500 font-normal">(pending test)</span>}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {milestone.description}
