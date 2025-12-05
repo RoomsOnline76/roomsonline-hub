@@ -541,7 +541,7 @@ serve(async (req) => {
       }
 
       case "fetch_availability":
-        result = await fetchAvailability(
+        const rawAvailability = await fetchAvailability(
           creds,
           propertyCode,
           params.start_date,
@@ -550,10 +550,19 @@ serve(async (req) => {
           params.rate_type_ids
         );
         
+        // Benson returns an array of room types directly - wrap it in expected structure
+        const availabilityRoomTypes = Array.isArray(rawAvailability) ? rawAvailability : (rawAvailability?.roomTypes || []);
+        result = { roomTypes: availabilityRoomTypes };
+        
         console.log(`Benson availability response structure:`, JSON.stringify({
           hasRoomTypes: !!result.roomTypes,
           roomTypesCount: result.roomTypes?.length || 0,
-          keys: Object.keys(result || {}),
+          sampleRoomType: result.roomTypes?.[0] ? {
+            roomTypeId: result.roomTypes[0].roomTypeId,
+            name: result.roomTypes[0].name,
+            hasRatesTypes: !!result.roomTypes[0].rateTypes,
+            rateTypesCount: result.roomTypes[0].rateTypes?.length || 0,
+          } : null,
         }));
         
         // Cache the availability data
