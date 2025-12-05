@@ -140,6 +140,7 @@ export type Database = {
           check_out_date: string
           children: number | null
           created_at: string | null
+          external_reservation_id: string | null
           guest_email: string
           guest_name: string
           guest_phone: string | null
@@ -147,11 +148,16 @@ export type Database = {
           infants: number | null
           payment_intent_id: string | null
           property_id: string
+          rate_type_id: string | null
+          room_type_id: string | null
+          rooms: Json | null
           special_requests: string | null
           status: string
+          teens: number | null
           total_price: number
           updated_at: string | null
           user_id: string
+          voucher: string | null
         }
         Insert: {
           adults?: number
@@ -159,6 +165,7 @@ export type Database = {
           check_out_date: string
           children?: number | null
           created_at?: string | null
+          external_reservation_id?: string | null
           guest_email: string
           guest_name: string
           guest_phone?: string | null
@@ -166,11 +173,16 @@ export type Database = {
           infants?: number | null
           payment_intent_id?: string | null
           property_id: string
+          rate_type_id?: string | null
+          room_type_id?: string | null
+          rooms?: Json | null
           special_requests?: string | null
           status?: string
+          teens?: number | null
           total_price: number
           updated_at?: string | null
           user_id: string
+          voucher?: string | null
         }
         Update: {
           adults?: number
@@ -178,6 +190,7 @@ export type Database = {
           check_out_date?: string
           children?: number | null
           created_at?: string | null
+          external_reservation_id?: string | null
           guest_email?: string
           guest_name?: string
           guest_phone?: string | null
@@ -185,11 +198,16 @@ export type Database = {
           infants?: number | null
           payment_intent_id?: string | null
           property_id?: string
+          rate_type_id?: string | null
+          room_type_id?: string | null
+          rooms?: Json | null
           special_requests?: string | null
           status?: string
+          teens?: number | null
           total_price?: number
           updated_at?: string | null
           user_id?: string
+          voucher?: string | null
         }
         Relationships: [
           {
