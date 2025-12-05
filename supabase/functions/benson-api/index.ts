@@ -569,9 +569,6 @@ serve(async (req) => {
     );
   } catch (error: any) {
     console.error("Benson API error:", error);
-
-    // Log the error server-side only
-    console.error("Benson API error:", error);
     
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -588,10 +585,25 @@ serve(async (req) => {
       console.error("Failed to log error:", logError);
     }
 
-    // Return generic error message to client - never expose internal details
+    // Parse error message for user-friendly response
+    const errorMsg = error.message || "";
+    let userMessage = "An error occurred processing your request";
+    let statusCode = 500;
+
+    if (errorMsg.includes("401")) {
+      userMessage = "Authentication failed. Please verify your Benson username and password in API Keys settings.";
+      statusCode = 401;
+    } else if (errorMsg.includes("404")) {
+      userMessage = "Benson API endpoint not found. Please verify the property code and API URL are correct.";
+      statusCode = 404;
+    } else if (errorMsg.includes("403")) {
+      userMessage = "Access denied. Your Benson account may not have API access enabled.";
+      statusCode = 403;
+    }
+
     return new Response(
-      JSON.stringify({ error: "An error occurred processing your request" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: userMessage }),
+      { status: statusCode, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
