@@ -824,8 +824,14 @@ export default function PropertyForm() {
     maxStay: 0,
   });
 
-  // Season rates state: { [roomId]: { [seasonId]: { unitRate: number, weekendRate: number } } }
-  const [seasonRates, setSeasonRates] = useState<Record<string, Record<string, { unitRate: number; weekendRate: number }>>>({});
+  // Season rates state: { [roomId]: { [seasonId]: { roomAmount, adultAmount, teenAmount, childAmount, infantAmount } } }
+  const [seasonRates, setSeasonRates] = useState<Record<string, Record<string, { 
+    roomAmount: number; 
+    adultAmount: number; 
+    teenAmount: number; 
+    childAmount: number; 
+    infantAmount: number;
+  }>>>({});
 
   // PMS Rate Types state (imported from Benson/other PMS) - full Benson API spec
   const [pmsRateTypes, setPmsRateTypes] = useState<{
@@ -972,7 +978,8 @@ export default function PropertyForm() {
   };
 
   // Rate update function
-  const updateSeasonRate = (roomId: string, seasonId: string, field: 'unitRate' | 'weekendRate', value: number) => {
+  type RateField = 'roomAmount' | 'adultAmount' | 'teenAmount' | 'childAmount' | 'infantAmount';
+  const updateSeasonRate = (roomId: string, seasonId: string, field: RateField, value: number) => {
     setSeasonRates(prev => ({
       ...prev,
       [roomId]: {
@@ -986,7 +993,7 @@ export default function PropertyForm() {
     setIsDirty(true);
   };
 
-  const getSeasonRate = (roomId: string, seasonId: string, field: 'unitRate' | 'weekendRate') => {
+  const getSeasonRate = (roomId: string, seasonId: string, field: RateField) => {
     return seasonRates[roomId]?.[seasonId]?.[field] || 0;
   };
 
@@ -4480,11 +4487,6 @@ export default function PropertyForm() {
                                     <Badge variant="outline" className="font-mono text-xs">
                                       ID: {rateType.id}
                                     </Badge>
-                                    {rateType.priceType && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        {rateType.priceType}
-                                      </Badge>
-                                    )}
                                   </div>
                                   {rateType.pms_synced && (
                                     <Badge variant="outline" className="text-xs bg-primary/10">
@@ -4497,7 +4499,13 @@ export default function PropertyForm() {
                                 )}
                               </CardHeader>
                               <CardContent className="pt-0">
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                  {/* Price Type */}
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-muted-foreground">Price Type</Label>
+                                    <p className="font-medium">{rateType.priceType || "-"}</p>
+                                  </div>
+                                  
                                   {/* Stay Requirements */}
                                   <div className="space-y-1">
                                     <Label className="text-xs text-muted-foreground">Min Stay (Days)</Label>
@@ -4508,7 +4516,7 @@ export default function PropertyForm() {
                                     <p className="font-medium">
                                       {(rateType.maxStayDays ?? rateType.maxNights) 
                                         ? (rateType.maxStayDays ?? rateType.maxNights) 
-                                        : "No limit"}
+                                        : "-"}
                                     </p>
                                   </div>
                                   
@@ -4519,37 +4527,33 @@ export default function PropertyForm() {
                                   </div>
                                   <div className="space-y-1">
                                     <Label className="text-xs text-muted-foreground">Max Advance (Days)</Label>
-                                    <p className="font-medium">{rateType.maxAdvanceDays ?? "No limit"}</p>
+                                    <p className="font-medium">{rateType.maxAdvanceDays ?? "-"}</p>
                                   </div>
                                 </div>
                                 
-                                {/* Stay Pay Discount Section */}
-                                {(rateType.stayPayStayNights || rateType.stayPayDiscountNights || rateType.stayPayDiscountPercentage) && (
-                                  <>
-                                    <Separator className="my-4" />
-                                    <div className="space-y-2">
-                                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Stay/Pay Discount</Label>
-                                      <div className="grid grid-cols-3 gap-4">
-                                        <div className="space-y-1">
-                                          <Label className="text-xs text-muted-foreground">Stay Nights</Label>
-                                          <p className="font-medium">{rateType.stayPayStayNights ?? "-"}</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                          <Label className="text-xs text-muted-foreground">Discount Nights</Label>
-                                          <p className="font-medium">{rateType.stayPayDiscountNights ?? "-"}</p>
-                                        </div>
-                                        <div className="space-y-1">
-                                          <Label className="text-xs text-muted-foreground">Discount %</Label>
-                                          <p className="font-medium">
-                                            {rateType.stayPayDiscountPercentage != null 
-                                              ? `${rateType.stayPayDiscountPercentage}%` 
-                                              : "-"}
-                                          </p>
-                                        </div>
-                                      </div>
+                                {/* Stay Pay Discount Section - Always show */}
+                                <Separator className="my-4" />
+                                <div className="space-y-2">
+                                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Stay/Pay Discount</Label>
+                                  <div className="grid grid-cols-3 gap-4">
+                                    <div className="space-y-1">
+                                      <Label className="text-xs text-muted-foreground">Stay Nights</Label>
+                                      <p className="font-medium">{rateType.stayPayStayNights ?? "-"}</p>
                                     </div>
-                                  </>
-                                )}
+                                    <div className="space-y-1">
+                                      <Label className="text-xs text-muted-foreground">Discount Nights</Label>
+                                      <p className="font-medium">{rateType.stayPayDiscountNights ?? "-"}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Label className="text-xs text-muted-foreground">Discount %</Label>
+                                      <p className="font-medium">
+                                        {rateType.stayPayDiscountPercentage != null 
+                                          ? `${rateType.stayPayDiscountPercentage}%` 
+                                          : "-"}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
                               </CardContent>
                             </Card>
                           ))}
@@ -4768,29 +4772,61 @@ export default function PropertyForm() {
                                       {mealType}
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-6 max-w-md mx-auto">
+                                    <div className="grid grid-cols-5 gap-4">
                                       <div className="space-y-2">
-                                        <Label className="text-sm font-medium">Unit Rate</Label>
+                                        <Label className="text-xs font-medium">Room Amount</Label>
                                         <Input
                                           type="number"
                                           min="0"
-                                          value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'unitRate')}
-                                          onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'unitRate', parseFloat(e.target.value) || 0)}
+                                          value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'roomAmount')}
+                                          onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'roomAmount', parseFloat(e.target.value) || 0)}
                                           className="text-center"
                                           placeholder="0.00"
                                         />
                                       </div>
                                       <div className="space-y-2">
-                                        <Label className="text-sm font-medium">Weekend Rate</Label>
+                                        <Label className="text-xs font-medium">Adult Amount</Label>
                                         <Input
                                           type="number"
                                           min="0"
-                                          value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'weekendRate')}
-                                          onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'weekendRate', parseFloat(e.target.value) || 0)}
+                                          value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'adultAmount')}
+                                          onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'adultAmount', parseFloat(e.target.value) || 0)}
                                           className="text-center"
                                           placeholder="0.00"
                                         />
-                                        <p className="text-xs text-muted-foreground text-center">Fri & Sat nights</p>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label className="text-xs font-medium">Teen Amount</Label>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'teenAmount')}
+                                          onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'teenAmount', parseFloat(e.target.value) || 0)}
+                                          className="text-center"
+                                          placeholder="0.00"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label className="text-xs font-medium">Child Amount</Label>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'childAmount')}
+                                          onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'childAmount', parseFloat(e.target.value) || 0)}
+                                          className="text-center"
+                                          placeholder="0.00"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label className="text-xs font-medium">Infant Amount</Label>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'infantAmount')}
+                                          onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'infantAmount', parseFloat(e.target.value) || 0)}
+                                          className="text-center"
+                                          placeholder="0.00"
+                                        />
                                       </div>
                                     </div>
                                   </div>
@@ -4823,8 +4859,11 @@ export default function PropertyForm() {
                                   <th className="text-left p-3 font-semibold text-sm">SEASON</th>
                                   <th className="text-left p-3 font-semibold text-sm">PERIOD</th>
                                   <th className="text-left p-3 font-semibold text-sm">MEAL TYPE</th>
-                                  <th className="text-right p-3 font-semibold text-sm">UNIT RATE</th>
-                                  <th className="text-right p-3 font-semibold text-sm">WEEKEND RATE</th>
+                                  <th className="text-right p-3 font-semibold text-sm">ROOM</th>
+                                  <th className="text-right p-3 font-semibold text-sm">ADULT</th>
+                                  <th className="text-right p-3 font-semibold text-sm">TEEN</th>
+                                  <th className="text-right p-3 font-semibold text-sm">CHILD</th>
+                                  <th className="text-right p-3 font-semibold text-sm">INFANT</th>
                                   <th className="text-left p-3 font-semibold text-sm">STAY</th>
                                 </tr>
                               </thead>
@@ -4844,10 +4883,19 @@ export default function PropertyForm() {
                                       )}
                                       <td className="p-3">{mealType}</td>
                                       <td className="p-3 text-right font-mono">
-                                        {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'unitRate') || "—"}
+                                        {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'roomAmount') || "—"}
                                       </td>
                                       <td className="p-3 text-right font-mono">
-                                        {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'weekendRate') || "—"}
+                                        {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'adultAmount') || "—"}
+                                      </td>
+                                      <td className="p-3 text-right font-mono">
+                                        {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'teenAmount') || "—"}
+                                      </td>
+                                      <td className="p-3 text-right font-mono">
+                                        {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'childAmount') || "—"}
+                                      </td>
+                                      <td className="p-3 text-right font-mono">
+                                        {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'infantAmount') || "—"}
                                       </td>
                                       {idx === 0 && (
                                         <td className="p-3 text-sm text-muted-foreground" rowSpan={selectedMealTypes.length}>
@@ -4859,7 +4907,7 @@ export default function PropertyForm() {
                                 ))}
                                 {seasons.length > 0 && selectedMealTypes.length === 0 && (
                                   <tr>
-                                    <td colSpan={6} className="p-4 text-center text-muted-foreground">
+                                    <td colSpan={9} className="p-4 text-center text-muted-foreground">
                                       No meal types configured. Add meal types in the General tab.
                                     </td>
                                   </tr>
