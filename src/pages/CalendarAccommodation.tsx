@@ -805,22 +805,37 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     });
   }, [selectedPropertyData, pmsData]);
 
-  // Get rate type options from calendarRoomData - filter out rate types with no actual rates
+  // Get rate type options from calendarRoomData, PMS data, and saved property rate types
   const rateTypeOptions = React.useMemo(() => {
-    const rateTypesMap = new Map<string, { id: string; label: string; hasRates: boolean }>();
+    const rateTypesMap = new Map<string, { id: string; label: string; hasRates: boolean; fromPms: boolean }>();
     
+    // First, collect from property's saved pms_rate_types (ensures all synced rate types appear)
+    if (selectedPropertyData?.amenities?.pms_rate_types) {
+      const savedRateTypes = selectedPropertyData.amenities.pms_rate_types as any[];
+      savedRateTypes.forEach(rt => {
+        if (rt.id && rt.name) {
+          rateTypesMap.set(rt.id, {
+            id: rt.id,
+            label: rt.name,
+            hasRates: false,
+            fromPms: true
+          });
+        }
+      });
+    }
+    
+    // Collect from calendarRoomData
     calendarRoomData.forEach(room => {
       room.rates.forEach(rate => {
         const existing = rateTypesMap.get(rate.rateTypeId);
-        
-        // Check if this rate has any actual values
         const hasRoomAmount = rate.values && Object.values(rate.values).some(v => v != null && v > 0);
         
         if (!existing) {
           rateTypesMap.set(rate.rateTypeId, {
             id: rate.rateTypeId,
             label: rate.rateTypeName || rate.rateType,
-            hasRates: hasRoomAmount
+            hasRates: hasRoomAmount,
+            fromPms: false
           });
         } else if (hasRoomAmount) {
           existing.hasRates = true;
@@ -828,7 +843,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       });
     });
     
-    // Also check PMS data for actual rate values
+    // Also collect from PMS data - include ALL rate types from PMS
     if (pmsData.roomTypes.length > 0) {
       pmsData.roomTypes.forEach(room => {
         Object.values(room.ratesByDate).forEach(dateRates => {
@@ -844,19 +859,23 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
               rateTypesMap.set(rate.rateTypeId, {
                 id: rate.rateTypeId,
                 label: rate.rateTypeName,
-                hasRates: hasValues
+                hasRates: hasValues,
+                fromPms: true
               });
-            } else if (hasValues) {
-              existing.hasRates = true;
+            } else {
+              existing.fromPms = true;
+              if (hasValues) {
+                existing.hasRates = true;
+              }
             }
           });
         });
       });
     }
     
-    // Only return rate types that have actual rates
-    return Array.from(rateTypesMap.values()).filter(rt => rt.hasRates);
-  }, [calendarRoomData, pmsData]);
+    // Return all PMS rate types, but only manual rate types that have rates
+    return Array.from(rateTypesMap.values()).filter(rt => rt.fromPms || rt.hasRates);
+  }, [calendarRoomData, pmsData, selectedPropertyData]);
 
   // Set all rate types selected when rateTypeOptions changes
   useEffect(() => {
