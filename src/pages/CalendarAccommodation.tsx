@@ -637,7 +637,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     if (pmsData.roomTypes.length > 0) {
       return pmsData.roomTypes.map(pmsRoom => {
         // Build rates from PMS rate types - one row per unique rate type
-        const rates: { rateType: string; rateTypeId: string; mealType: string; priceType: string; values: { [date: string]: number } }[] = [];
+        const rates: { rateType: string; rateTypeName: string; rateTypeId: string; mealType: string; priceType: string; values: { [date: string]: number } }[] = [];
         
         // Collect all unique rate types from all dates
         const rateTypesMap = new Map<string, { rateTypeId: string; rateTypeName: string; priceType: string }>();
@@ -691,6 +691,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           
           rates.push({
             rateType: displayRateType,
+            rateTypeName: rateInfo.rateTypeName, // Actual rate type name from PMS
             rateTypeId: rateInfo.rateTypeId,
             mealType: mealType,
             priceType: rateInfo.priceType,
@@ -702,6 +703,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         if (rates.length === 0) {
           rates.push({
             rateType: "UnitRate",
+            rateTypeName: "Standard Rate",
             rateTypeId: "default",
             mealType: "Standard",
             priceType: "PER ROOM",
@@ -724,7 +726,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     const propRoomTypes = selectedPropertyData.amenities.room_types as any[] || [];
     
     return propRoomTypes.map(room => {
-      const rates: { rateType: string; rateTypeId: string; mealType: string; priceType: string; values: { [date: string]: number } }[] = [];
+      const rates: { rateType: string; rateTypeName: string; rateTypeId: string; mealType: string; priceType: string; values: { [date: string]: number } }[] = [];
       
       if (room.rate_info && Array.isArray(room.rate_info)) {
         room.rate_info.forEach((rateInfo: any) => {
@@ -734,9 +736,10 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           mealTypes.forEach((mealType: string) => {
             rates.push({
               rateType: rateName,
+              rateTypeName: rateName,
               rateTypeId: rateInfo.id?.toString() || Date.now().toString(),
               mealType: mealType,
-              priceType: "PER ROOM",
+              priceType: rateInfo.priceType || "PER ROOM",
               values: {} as { [date: string]: number }
             });
           });
@@ -748,6 +751,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         propMealTypes.forEach((mealType: string) => {
           rates.push({
             rateType: room.rateType,
+            rateTypeName: room.rateType,
             rateTypeId: "default",
             mealType: mealType,
             priceType: "PER ROOM",
@@ -925,8 +929,14 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     return { value: null, fromPms: false };
   };
 
-  // PMS-aware helper to get rate for a room/rateType/date
-  const getRate = (roomName: string, rateTypeId: string, priceType: string, date: Date): { value: number | null; fromPms: boolean } => {
+  // PMS-aware helper to get rate for a room/rateType/date with occupancy support
+  const getRate = (
+    roomName: string, 
+    rateTypeId: string, 
+    priceType: string, 
+    date: Date, 
+    occupancyType?: "room" | "1adult" | "2adults" | "teen" | "child" | "infant"
+  ): { value: number | null; fromPms: boolean } => {
     const dateStr = format(date, "yyyy-MM-dd");
     
     // Check PMS data first
@@ -955,10 +965,36 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         }
         
         if (matchingRate) {
-          // For per-person rates, show adult amount
-          if (matchingRate.priceType?.toUpperCase().includes("PERSON") && matchingRate.adultAmounts) {
+          const isPerPerson = matchingRate.priceType?.toUpperCase().includes("PERSON");
+          
+          // If occupancy type specified, return the specific amount
+          if (occupancyType && isPerPerson && matchingRate.adultAmounts) {
+            switch (occupancyType) {
+              case "1adult":
+                return { value: matchingRate.adultAmounts.adultAmount1 ?? null, fromPms: true };
+              case "2adults":
+                return { value: matchingRate.adultAmounts.adultAmount2 ?? null, fromPms: true };
+              case "teen":
+                return { value: matchingRate.adultAmounts.teenAmount ?? null, fromPms: true };
+              case "child":
+                return { value: matchingRate.adultAmounts.childAmount ?? null, fromPms: true };
+              case "infant":
+                return { value: matchingRate.adultAmounts.infantAmount ?? null, fromPms: true };
+              case "room":
+                return { value: matchingRate.roomAmount ?? null, fromPms: true };
+            }
+          }
+          
+          // For PER ROOM or no occupancy type specified
+          if (!isPerPerson || occupancyType === "room") {
+            return { value: matchingRate.roomAmount || 0, fromPms: true };
+          }
+          
+          // Default for per-person: show adult amount 1
+          if (isPerPerson && matchingRate.adultAmounts) {
             return { value: matchingRate.adultAmounts.adultAmount1 || matchingRate.adultAmounts.adultAmount2 || 0, fromPms: true };
           }
+          
           return { value: matchingRate.roomAmount || 0, fromPms: true };
         }
       }
@@ -1579,35 +1615,89 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   );
                                 })}
                               </tr>
-                              {/* Rate Rows */}
-                              {selectedDisplayOptions.includes("rates") && filteredRates.map((rate, rateIndex) => (
-                                <tr key={`${room.name}-${rateIndex}`}>
-                                  <td className="border p-2 pl-4 text-sm text-muted-foreground sticky left-0 bg-background z-10">
-                                    <span className="text-foreground">{rate.rateType}</span>
-                                    <span className="mx-1">-</span>
-                                    <span>{rate.mealType}</span>
-                                  </td>
-                                  {calendarDates.map((date, index) => {
-                                    const weekend = isWeekend(date);
-                                    const isHoliday = !!getHolidayName(date);
-                                    const rateData = getRate(room.name, rate.rateTypeId || rate.rateType, rate.priceType || "PER ROOM", date);
-                                    return (
-                                      <td
-                                        key={index}
-                                        className={`border p-2 text-center text-sm ${
-                                          isHoliday 
-                                            ? "bg-green-100 dark:bg-green-950/30" 
-                                            : weekend 
-                                              ? "bg-red-50 dark:bg-red-950/20" 
-                                              : ""
-                                        }`}
-                                      >
-                                        {renderCellValue(rateData.value, rateData.fromPms)}
+                              {/* Rate Rows - Now with PER ROOM / PER PERSON structure */}
+                              {selectedDisplayOptions.includes("rates") && filteredRates.map((rate, rateIndex) => {
+                                const isPerPerson = rate.priceType?.toUpperCase().includes("PERSON");
+                                const priceTypeLabel = isPerPerson ? "PER PERSON" : "PER ROOM";
+                                const rateLabel = `${rate.rateTypeName || rate.rateType} [${rate.mealType}] ${priceTypeLabel}`;
+                                
+                                // Occupancy sub-rows for PER PERSON rates
+                                const occupancyRows = isPerPerson ? [
+                                  { key: "1adult", label: "1 Adult" },
+                                  { key: "2adults", label: "2 Adults" },
+                                  { key: "teen", label: "Teen" },
+                                  { key: "child", label: "Child" },
+                                  { key: "infant", label: "Infant" },
+                                ] : [];
+                                
+                                return (
+                                  <React.Fragment key={`${room.name}-rate-${rateIndex}`}>
+                                    {/* Rate Type Header Row */}
+                                    <tr>
+                                      <td className="border p-2 pl-4 text-sm sticky left-0 bg-background z-10">
+                                        <span className="text-foreground font-medium">{rateLabel}</span>
                                       </td>
-                                    );
-                                  })}
-                                </tr>
-                              ))}
+                                      {!isPerPerson && calendarDates.map((date, index) => {
+                                        const weekend = isWeekend(date);
+                                        const isHoliday = !!getHolidayName(date);
+                                        const rateData = getRate(room.name, rate.rateTypeId || rate.rateType, rate.priceType || "PER ROOM", date, "room");
+                                        return (
+                                          <td
+                                            key={index}
+                                            className={`border p-2 text-center text-sm ${
+                                              isHoliday 
+                                                ? "bg-green-100 dark:bg-green-950/30" 
+                                                : weekend 
+                                                  ? "bg-red-50 dark:bg-red-950/20" 
+                                                  : ""
+                                            }`}
+                                          >
+                                            {renderCellValue(rateData.value, rateData.fromPms)}
+                                          </td>
+                                        );
+                                      })}
+                                      {isPerPerson && calendarDates.map((_, index) => (
+                                        <td key={index} className="border p-2 text-center text-sm text-muted-foreground">
+                                          —
+                                        </td>
+                                      ))}
+                                    </tr>
+                                    {/* Occupancy Sub-Rows for PER PERSON */}
+                                    {isPerPerson && occupancyRows.map(occ => (
+                                      <tr key={`${room.name}-rate-${rateIndex}-${occ.key}`}>
+                                        <td className="border p-2 pl-8 text-sm text-muted-foreground sticky left-0 bg-background z-10">
+                                          {occ.label}
+                                        </td>
+                                        {calendarDates.map((date, index) => {
+                                          const weekend = isWeekend(date);
+                                          const isHoliday = !!getHolidayName(date);
+                                          const rateData = getRate(
+                                            room.name, 
+                                            rate.rateTypeId || rate.rateType, 
+                                            rate.priceType || "PER PERSON", 
+                                            date, 
+                                            occ.key as "1adult" | "2adults" | "teen" | "child" | "infant"
+                                          );
+                                          return (
+                                            <td
+                                              key={index}
+                                              className={`border p-2 text-center text-sm ${
+                                                isHoliday 
+                                                  ? "bg-green-100 dark:bg-green-950/30" 
+                                                  : weekend 
+                                                    ? "bg-red-50 dark:bg-red-950/20" 
+                                                    : ""
+                                              }`}
+                                            >
+                                              {renderCellValue(rateData.value, rateData.fromPms)}
+                                            </td>
+                                          );
+                                        })}
+                                      </tr>
+                                    ))}
+                                  </React.Fragment>
+                                );
+                              })}
                             </React.Fragment>
                           );
                         })}
@@ -1790,35 +1880,89 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   );
                                 })}
                               </tr>
-                              {/* Rate Rows */}
-                              {selectedDisplayOptions.includes("rates") && filteredRates.map((rate, rateIndex) => (
-                                <tr key={`${room.name}-${rateIndex}`}>
-                                  <td className="border p-1 pl-4 text-xs text-muted-foreground sticky left-0 bg-background z-10">
-                                    <span className="text-foreground">{rate.rateType}</span>
-                                    <span className="mx-1">-</span>
-                                    <span>{rate.mealType}</span>
-                                  </td>
-                                  {calendarDates.map((date, index) => {
-                                    const weekend = isWeekend(date);
-                                    const isHoliday = !!getHolidayName(date);
-                                    const rateData = getRate(room.name, rate.rateTypeId || rate.rateType, rate.priceType || "PER ROOM", date);
-                                    return (
-                                      <td
-                                        key={index}
-                                        className={`border p-1 text-center text-xs ${
-                                          isHoliday 
-                                            ? "bg-green-100 dark:bg-green-950/30" 
-                                            : weekend 
-                                              ? "bg-red-50 dark:bg-red-950/20" 
-                                              : ""
-                                        }`}
-                                      >
-                                        {renderCellValue(rateData.value, rateData.fromPms)}
+                              {/* Rate Rows - Now with PER ROOM / PER PERSON structure */}
+                              {selectedDisplayOptions.includes("rates") && filteredRates.map((rate, rateIndex) => {
+                                const isPerPerson = rate.priceType?.toUpperCase().includes("PERSON");
+                                const priceTypeLabel = isPerPerson ? "PER PERSON" : "PER ROOM";
+                                const rateLabel = `${rate.rateTypeName || rate.rateType} [${rate.mealType}] ${priceTypeLabel}`;
+                                
+                                // Occupancy sub-rows for PER PERSON rates
+                                const occupancyRows = isPerPerson ? [
+                                  { key: "1adult", label: "1 Adult" },
+                                  { key: "2adults", label: "2 Adults" },
+                                  { key: "teen", label: "Teen" },
+                                  { key: "child", label: "Child" },
+                                  { key: "infant", label: "Infant" },
+                                ] : [];
+                                
+                                return (
+                                  <React.Fragment key={`${room.name}-rate-${rateIndex}`}>
+                                    {/* Rate Type Header Row */}
+                                    <tr>
+                                      <td className="border p-1 pl-4 text-xs sticky left-0 bg-background z-10">
+                                        <span className="text-foreground font-medium">{rateLabel}</span>
                                       </td>
-                                    );
-                                  })}
-                                </tr>
-                              ))}
+                                      {!isPerPerson && calendarDates.map((date, index) => {
+                                        const weekend = isWeekend(date);
+                                        const isHoliday = !!getHolidayName(date);
+                                        const rateData = getRate(room.name, rate.rateTypeId || rate.rateType, rate.priceType || "PER ROOM", date, "room");
+                                        return (
+                                          <td
+                                            key={index}
+                                            className={`border p-1 text-center text-xs ${
+                                              isHoliday 
+                                                ? "bg-green-100 dark:bg-green-950/30" 
+                                                : weekend 
+                                                  ? "bg-red-50 dark:bg-red-950/20" 
+                                                  : ""
+                                            }`}
+                                          >
+                                            {renderCellValue(rateData.value, rateData.fromPms)}
+                                          </td>
+                                        );
+                                      })}
+                                      {isPerPerson && calendarDates.map((_, index) => (
+                                        <td key={index} className="border p-1 text-center text-xs text-muted-foreground">
+                                          —
+                                        </td>
+                                      ))}
+                                    </tr>
+                                    {/* Occupancy Sub-Rows for PER PERSON */}
+                                    {isPerPerson && occupancyRows.map(occ => (
+                                      <tr key={`${room.name}-rate-${rateIndex}-${occ.key}`}>
+                                        <td className="border p-1 pl-8 text-xs text-muted-foreground sticky left-0 bg-background z-10">
+                                          {occ.label}
+                                        </td>
+                                        {calendarDates.map((date, index) => {
+                                          const weekend = isWeekend(date);
+                                          const isHoliday = !!getHolidayName(date);
+                                          const rateData = getRate(
+                                            room.name, 
+                                            rate.rateTypeId || rate.rateType, 
+                                            rate.priceType || "PER PERSON", 
+                                            date, 
+                                            occ.key as "1adult" | "2adults" | "teen" | "child" | "infant"
+                                          );
+                                          return (
+                                            <td
+                                              key={index}
+                                              className={`border p-1 text-center text-xs ${
+                                                isHoliday 
+                                                  ? "bg-green-100 dark:bg-green-950/30" 
+                                                  : weekend 
+                                                    ? "bg-red-50 dark:bg-red-950/20" 
+                                                    : ""
+                                              }`}
+                                            >
+                                              {renderCellValue(rateData.value, rateData.fromPms)}
+                                            </td>
+                                          );
+                                        })}
+                                      </tr>
+                                    ))}
+                                  </React.Fragment>
+                                );
+                              })}
                             </React.Fragment>
                           );
                         })}
