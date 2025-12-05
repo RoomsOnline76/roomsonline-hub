@@ -60,6 +60,7 @@ const Booking = () => {
   const [guestName, setGuestName] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
+  const [voucher, setVoucher] = useState("");
   const [specialRequests, setSpecialRequests] = useState("");
   const [selectedRateType, setSelectedRateType] = useState<string>("");
   const [rooms, setRooms] = useState<RoomBooking[]>([]);
@@ -229,6 +230,7 @@ const Booking = () => {
       bookingData.room_type_id = rooms[0]?.roomTypeId || null;
       bookingData.rate_type_id = selectedRateType;
       bookingData.rooms = rooms;
+      bookingData.voucher = voucher || null;
 
       const { data, error } = await supabase
         .from('bookings')
@@ -573,21 +575,35 @@ const Booking = () => {
               </CardContent>
             </Card>
 
-            {/* Special Requests */}
+            {/* Voucher & Special Requests (Optional) */}
             <Card>
               <CardHeader>
-                <CardTitle>Special Requests</CardTitle>
+                <CardTitle>Additional Information</CardTitle>
               </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={specialRequests}
-                  onChange={(e) => setSpecialRequests(e.target.value)}
-                  placeholder="Any special requests or dietary requirements..."
-                  rows={4}
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Special requests are subject to availability and may incur additional charges.
-                </p>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="voucher">Voucher Code (Optional)</Label>
+                  <Input
+                    id="voucher"
+                    value={voucher}
+                    onChange={(e) => setVoucher(e.target.value)}
+                    placeholder="Enter voucher or promo code if applicable"
+                    maxLength={100}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="special_requests">Special Requests (Optional)</Label>
+                  <Textarea
+                    id="special_requests"
+                    value={specialRequests}
+                    onChange={(e) => setSpecialRequests(e.target.value)}
+                    placeholder="Any special requests or dietary requirements..."
+                    rows={4}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Special requests are subject to availability and may incur additional charges.
+                  </p>
+                </div>
               </CardContent>
             </Card>
 
