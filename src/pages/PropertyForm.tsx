@@ -411,6 +411,8 @@ export default function PropertyForm() {
               facilities: existing.facilities || [],
               amenities: existing.amenities || [],
               rate_info: existing.rate_info || [],
+              // Update linked rate types from PMS if available
+              linkedRateTypes: pmsRoom.linkedRateTypeIds || existing.linkedRateTypes || [],
             };
             updatedCount++;
           } else {
@@ -430,6 +432,8 @@ export default function PropertyForm() {
               facilities: [],
               amenities: [],
               rate_info: [],
+              // Pre-populate linked rate types from PMS
+              linkedRateTypes: pmsRoom.linkedRateTypeIds || [],
             });
             newCount++;
           }
