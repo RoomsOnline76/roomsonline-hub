@@ -465,11 +465,11 @@ const Booking = () => {
                         </div>
                       )}
 
-                      {/* Guest Counts */}
+                      {/* Guest Counts - All required by Benson API */}
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        {/* Adults */}
+                        {/* Adults (required, min 1) */}
                         <div className="space-y-2">
-                          <Label className="text-sm">Adults</Label>
+                          <Label className="text-sm">Adults *</Label>
                           <div className="flex items-center gap-2">
                             <Button 
                               variant="outline" 
@@ -492,86 +492,80 @@ const Booking = () => {
                           </div>
                         </div>
 
-                        {/* Teens */}
-                        {(roomType?.allowTeens !== false) && (
-                          <div className="space-y-2">
-                            <Label className="text-sm">Teens</Label>
-                            <div className="flex items-center gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                className="h-8 w-8"
-                                onClick={() => adjustGuestCount(index, 'numberOfTeens', -1)}
-                                disabled={room.numberOfTeens <= 0}
-                              >
-                                <Minus className="h-4 w-4" />
-                              </Button>
-                              <span className="w-8 text-center font-medium">{room.numberOfTeens}</span>
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                className="h-8 w-8"
-                                onClick={() => adjustGuestCount(index, 'numberOfTeens', 1)}
-                              >
-                                <Plus className="h-4 w-4" />
-                              </Button>
-                            </div>
+                        {/* Teens (required) */}
+                        <div className="space-y-2">
+                          <Label className="text-sm">Teens *</Label>
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-8 w-8"
+                              onClick={() => adjustGuestCount(index, 'numberOfTeens', -1)}
+                              disabled={room.numberOfTeens <= 0}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <span className="w-8 text-center font-medium">{room.numberOfTeens}</span>
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-8 w-8"
+                              onClick={() => adjustGuestCount(index, 'numberOfTeens', 1)}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
                           </div>
-                        )}
+                        </div>
 
-                        {/* Children */}
-                        {(roomType?.allowChildren !== false) && (
-                          <div className="space-y-2">
-                            <Label className="text-sm">Children</Label>
-                            <div className="flex items-center gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                className="h-8 w-8"
-                                onClick={() => adjustGuestCount(index, 'numberOfChildren', -1)}
-                                disabled={room.numberOfChildren <= 0}
-                              >
-                                <Minus className="h-4 w-4" />
-                              </Button>
-                              <span className="w-8 text-center font-medium">{room.numberOfChildren}</span>
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                className="h-8 w-8"
-                                onClick={() => adjustGuestCount(index, 'numberOfChildren', 1)}
-                              >
-                                <Plus className="h-4 w-4" />
-                              </Button>
-                            </div>
+                        {/* Children (required) */}
+                        <div className="space-y-2">
+                          <Label className="text-sm">Children *</Label>
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-8 w-8"
+                              onClick={() => adjustGuestCount(index, 'numberOfChildren', -1)}
+                              disabled={room.numberOfChildren <= 0}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <span className="w-8 text-center font-medium">{room.numberOfChildren}</span>
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-8 w-8"
+                              onClick={() => adjustGuestCount(index, 'numberOfChildren', 1)}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
                           </div>
-                        )}
+                        </div>
 
-                        {/* Infants */}
-                        {(roomType?.allowInfants !== false) && (
-                          <div className="space-y-2">
-                            <Label className="text-sm">Infants</Label>
-                            <div className="flex items-center gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                className="h-8 w-8"
-                                onClick={() => adjustGuestCount(index, 'numberOfInfants', -1)}
-                                disabled={room.numberOfInfants <= 0}
-                              >
-                                <Minus className="h-4 w-4" />
-                              </Button>
-                              <span className="w-8 text-center font-medium">{room.numberOfInfants}</span>
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                className="h-8 w-8"
-                                onClick={() => adjustGuestCount(index, 'numberOfInfants', 1)}
-                              >
-                                <Plus className="h-4 w-4" />
-                              </Button>
-                            </div>
+                        {/* Infants (required) */}
+                        <div className="space-y-2">
+                          <Label className="text-sm">Infants *</Label>
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-8 w-8"
+                              onClick={() => adjustGuestCount(index, 'numberOfInfants', -1)}
+                              disabled={room.numberOfInfants <= 0}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <span className="w-8 text-center font-medium">{room.numberOfInfants}</span>
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-8 w-8"
+                              onClick={() => adjustGuestCount(index, 'numberOfInfants', 1)}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
                           </div>
-                        )}
+                        </div>
                       </div>
                     </div>
                   );
