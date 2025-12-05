@@ -767,6 +767,16 @@ serve(async (req) => {
         
         if (Array.isArray(availabilityData)) {
           availabilityData.forEach((roomType: any) => {
+            // Collect linked rate type IDs for this room type
+            const linkedRateTypeIds: number[] = [];
+            if (roomType.rateTypes && Array.isArray(roomType.rateTypes)) {
+              roomType.rateTypes.forEach((rt: any) => {
+                if (rt.rateTypeId) {
+                  linkedRateTypeIds.push(rt.rateTypeId);
+                }
+              });
+            }
+            
             // Extract room type info - capture all available fields from Benson
             extractedRoomTypes.push({
               id: roomType.roomTypeId,
@@ -786,6 +796,8 @@ serve(async (req) => {
               // Additional Benson fields
               minAgeCategory: roomType.minAgeCategory,
               minAdultsToOfferNonAdultRates: roomType.minAdultsToOfferNonAdultRates,
+              // Linked rate types from API
+              linkedRateTypeIds: linkedRateTypeIds,
             });
             
             // Extract rate types from this room type - capture all Benson rate type fields
