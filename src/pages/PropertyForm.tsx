@@ -4616,6 +4616,7 @@ export default function PropertyForm() {
                       <TabsTrigger value="season">Seasons</TabsTrigger>
                       <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
                       <TabsTrigger value="overview">Overview</TabsTrigger>
+                      <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>
                     </TabsList>
 
                     {/* Rate Types Sub-tab */}
@@ -5432,6 +5433,29 @@ export default function PropertyForm() {
                                 </div>
                               );
                             })}
+                          </>
+                        );
+                      })()}
+                    </TabsContent>
+
+                    {/* Data Explorer Sub-tab */}
+                    <TabsContent value="data-explorer" className="p-6 space-y-4">
+                      {(() => {
+                        const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
+                        if (!currentRoom) {
+                          return (
+                            <div className="border rounded-lg p-8 text-center text-muted-foreground">
+                              <Info className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                              <p>Select a room type to explore its data.</p>
+                            </div>
+                          );
+                        }
+                        return (
+                          <>
+                            <p className="text-sm text-muted-foreground">
+                              Raw data explorer for <strong>{currentRoom.name}</strong>
+                            </p>
+                            <RoomTypeDataViewer room={currentRoom} rateTypes={pmsRateTypes} />
                           </>
                         );
                       })()}
