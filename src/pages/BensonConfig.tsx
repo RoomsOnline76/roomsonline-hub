@@ -81,11 +81,21 @@ export default function BensonConfig() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Load Benson credentials
+      // First get the active Benson environment
+      const { data: envSetting } = await supabase
+        .from("api_keys")
+        .select("key_value")
+        .eq("key_name", "BENSON_ACTIVE_ENVIRONMENT")
+        .single();
+      
+      const activeEnv = envSetting?.key_value || "staging";
+
+      // Load Benson credentials for the active environment
       const { data: creds } = await supabase
         .from("pms_credentials")
         .select("*")
         .eq("system_type", "benson")
+        .eq("environment", activeEnv)
         .single();
       
       if (creds) {
