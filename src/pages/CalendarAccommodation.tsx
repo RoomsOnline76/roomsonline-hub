@@ -702,11 +702,21 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           });
         }
         
+        // Get room settings from property amenities
+        const propRoomTypes = selectedPropertyData?.amenities?.room_types as any[] || [];
+        const matchingRoom = propRoomTypes.find(r => 
+          r.pms_id?.toString() === pmsRoom.roomTypeId || 
+          r.name === pmsRoom.roomTypeName
+        );
+        
         return {
           name: pmsRoom.roomTypeName,
           pmsRoomTypeId: pmsRoom.roomTypeId,
           rates,
-          availability: pmsRoom.availabilityByDate
+          availability: pmsRoom.availabilityByDate,
+          allowTeens: matchingRoom?.allowTeens ?? true,
+          allowChildren: matchingRoom?.allowChildren ?? true,
+          allowInfants: matchingRoom?.allowInfants ?? true,
         };
       });
     }
@@ -755,7 +765,10 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         name: room.name || "Unnamed Room",
         pmsRoomTypeId: room.pms_id?.toString() || "",
         rates,
-        availability: {} as { [date: string]: number | AvailabilityData }
+        availability: {} as { [date: string]: number | AvailabilityData },
+        allowTeens: room.allowTeens ?? true,
+        allowChildren: room.allowChildren ?? true,
+        allowInfants: room.allowInfants ?? true,
       };
     });
   }, [selectedPropertyData, pmsData]);
@@ -1635,14 +1648,14 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                 const priceTypeLabel = isPerPerson ? "PER PERSON" : "PER ROOM";
                                 const rateLabel = `${rate.rateTypeName || rate.rateType} ${priceTypeLabel}`;
                                 
-                                // Occupancy sub-rows for PER PERSON rates
+                                // Occupancy sub-rows for PER PERSON rates - filter based on room settings
                                 const occupancyRows = isPerPerson ? [
-                                  { key: "1adult", label: "1 Adult" },
-                                  { key: "2adults", label: "2 Adults" },
-                                  { key: "teen", label: "Teen" },
-                                  { key: "child", label: "Child" },
-                                  { key: "infant", label: "Infant" },
-                                ] : [];
+                                  { key: "1adult", label: "1 Adult", show: true },
+                                  { key: "2adults", label: "2 Adults", show: true },
+                                  { key: "teen", label: "Teen", show: room.allowTeens !== false },
+                                  { key: "child", label: "Child", show: room.allowChildren !== false },
+                                  { key: "infant", label: "Infant", show: room.allowInfants !== false },
+                                ].filter(row => row.show) : [];
                                 
                                 return (
                                   <React.Fragment key={`${room.name}-rate-${rateIndex}`}>
@@ -1900,14 +1913,14 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                 const priceTypeLabel = isPerPerson ? "PER PERSON" : "PER ROOM";
                                 const rateLabel = `${rate.rateTypeName || rate.rateType} ${priceTypeLabel}`;
                                 
-                                // Occupancy sub-rows for PER PERSON rates
+                                // Occupancy sub-rows for PER PERSON rates - filter based on room settings
                                 const occupancyRows = isPerPerson ? [
-                                  { key: "1adult", label: "1 Adult" },
-                                  { key: "2adults", label: "2 Adults" },
-                                  { key: "teen", label: "Teen" },
-                                  { key: "child", label: "Child" },
-                                  { key: "infant", label: "Infant" },
-                                ] : [];
+                                  { key: "1adult", label: "1 Adult", show: true },
+                                  { key: "2adults", label: "2 Adults", show: true },
+                                  { key: "teen", label: "Teen", show: room.allowTeens !== false },
+                                  { key: "child", label: "Child", show: room.allowChildren !== false },
+                                  { key: "infant", label: "Infant", show: room.allowInfants !== false },
+                                ].filter(row => row.show) : [];
                                 
                                 return (
                                   <React.Fragment key={`${room.name}-rate-${rateIndex}`}>
