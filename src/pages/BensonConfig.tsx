@@ -5,13 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, RefreshCw, CheckCircle2, AlertCircle, Loader2, Save, ChevronRight, FolderTree } from "lucide-react";
+import { ArrowLeft, RefreshCw, CheckCircle2, AlertCircle, Loader2, Save, ChevronDown, ChevronRight, Database, ArrowRight } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { internalFieldMap, getFieldsPopulatableByPMS, FieldDefinition } from "@/config/internalFieldMap";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface PMSCredentials {
   id: string;
@@ -28,61 +27,90 @@ interface Property {
   benson_property_code: string | null;
 }
 
-interface ExternalType {
-  id: number;
-  name: string;
+// Define all Benson data fields and their target internal fields
+interface BensonFieldDefinition {
+  bensonField: string;
+  bensonLabel: string;
+  description: string;
+  internalField: string;
+  internalLabel: string;
 }
 
-interface TypeMapping {
+interface BensonDataCategory {
   id: string;
-  mappingType: string;
-  targetFieldPath: string;
-  targetFieldLabel: string;
+  label: string;
+  description: string;
+  fields: BensonFieldDefinition[];
+  sampleData?: any[];
 }
 
-// Extract all array/object fields that can be populated by Benson
-const getPmsPopulatableArrayFields = (): { path: string; label: string; breadcrumb: string }[] => {
-  const fields: { path: string; label: string; breadcrumb: string }[] = [];
-  
-  // Get all Benson-populatable fields
-  const bensonFields = getFieldsPopulatableByPMS('benson');
-  
-  // Also add key array fields that are natural targets for PMS data
-  const keyArrayFields = [
-    { path: 'amenities.room_types', label: 'Room Types', breadcrumb: 'Property Form → Room Information → Room Types' },
-    { path: 'amenities.room_types[].rate_info', label: 'Rate Information', breadcrumb: 'Property Form → Room Information → Rate Info' },
-    { path: 'amenities.meal_types', label: 'Meal Types', breadcrumb: 'Property Form → Offerings → Meal Options' },
-    { path: 'amenities.facilities', label: 'Facilities', breadcrumb: 'Property Form → Property Info → Facilities' },
-    { path: 'amenities.seasons', label: 'Seasons', breadcrumb: 'Property Form → Rate Breakdown → Seasons' },
-    { path: 'property_availability', label: 'Availability', breadcrumb: 'Calendar → Accommodation → Availability Grid' },
-    { path: 'property_rates', label: 'Rates', breadcrumb: 'Calendar → Accommodation → Rate Grid' },
-    { path: 'bookings', label: 'Bookings', breadcrumb: 'Bookings → Booking Records' },
-    { path: 'pms_reservations', label: 'PMS Reservations', breadcrumb: 'Sync → PMS Reservations' },
-  ];
+// Define the Benson data structure and default field mappings
+const bensonDataCategories: BensonDataCategory[] = [
+  {
+    id: "room_types",
+    label: "Room Types",
+    description: "Room type definitions from Benson including IDs, names, and guest configurations",
+    fields: [
+      { bensonField: "id", bensonLabel: "Room Type ID", description: "Unique identifier for the room type", internalField: "amenities.room_types[].pmsRoomId", internalLabel: "Benson Room ID" },
+      { bensonField: "name", bensonLabel: "Room Name", description: "Display name of the room type", internalField: "amenities.room_types[].name", internalLabel: "Room Name" },
+      { bensonField: "description", bensonLabel: "Description", description: "Full description of the room", internalField: "amenities.room_types[].description", internalLabel: "Room Description" },
+      { bensonField: "maxGuests", bensonLabel: "Max Guests", description: "Maximum guest capacity", internalField: "amenities.room_types[].maxPeople", internalLabel: "Max People" },
+      { bensonField: "minGuests", bensonLabel: "Min Guests", description: "Minimum guests required", internalField: "amenities.room_types[].minGuests", internalLabel: "Min Guests" },
+      { bensonField: "allowTeens", bensonLabel: "Allow Teens", description: "Whether teens are allowed", internalField: "amenities.room_types[].allowTeens", internalLabel: "Allow Teens" },
+      { bensonField: "teenMinAge", bensonLabel: "Teen Min Age", description: "Minimum age for teens", internalField: "amenities.room_types[].teenMinAge", internalLabel: "Teen Min Age" },
+      { bensonField: "teenMaxAge", bensonLabel: "Teen Max Age", description: "Maximum age for teens", internalField: "amenities.room_types[].teenMaxAge", internalLabel: "Teen Max Age" },
+      { bensonField: "allowChildren", bensonLabel: "Allow Children", description: "Whether children are allowed", internalField: "amenities.room_types[].allowChildren", internalLabel: "Allow Children" },
+      { bensonField: "childMinAge", bensonLabel: "Child Min Age", description: "Minimum age for children", internalField: "amenities.room_types[].childMinAge", internalLabel: "Child Min Age" },
+      { bensonField: "childMaxAge", bensonLabel: "Child Max Age", description: "Maximum age for children", internalField: "amenities.room_types[].childMaxAge", internalLabel: "Child Max Age" },
+      { bensonField: "allowInfants", bensonLabel: "Allow Infants", description: "Whether infants are allowed", internalField: "amenities.room_types[].allowInfants", internalLabel: "Allow Infants" },
+      { bensonField: "infantMinAge", bensonLabel: "Infant Min Age", description: "Minimum age for infants", internalField: "amenities.room_types[].infantMinAge", internalLabel: "Infant Min Age" },
+      { bensonField: "infantMaxAge", bensonLabel: "Infant Max Age", description: "Maximum age for infants", internalField: "amenities.room_types[].infantMaxAge", internalLabel: "Infant Max Age" },
+    ],
+  },
+  {
+    id: "rate_types",
+    label: "Rate Types",
+    description: "Rate type definitions from Benson including pricing categories and meal plans",
+    fields: [
+      { bensonField: "id", bensonLabel: "Rate Type ID", description: "Unique identifier for the rate type", internalField: "amenities.room_types[].rate_info[].pmsRateId", internalLabel: "Benson Rate ID" },
+      { bensonField: "name", bensonLabel: "Rate Name", description: "Display name of the rate type", internalField: "amenities.room_types[].rate_info[].name", internalLabel: "Rate Name" },
+      { bensonField: "description", bensonLabel: "Description", description: "Description of the rate", internalField: "amenities.room_types[].rate_info[].description", internalLabel: "Rate Description" },
+      { bensonField: "mealType", bensonLabel: "Meal Type", description: "Included meal plan", internalField: "amenities.room_types[].rate_info[].mealTypes", internalLabel: "Meal Types" },
+    ],
+  },
+];
 
-  fields.push(...keyArrayFields);
-  
-  // Add individual PMS-populatable fields grouped by section
-  bensonFields.forEach(field => {
-    if (!fields.some(f => f.path === field.id)) {
-      fields.push({
-        path: field.id,
-        label: field.label,
-        breadcrumb: `Property Form → ${field.id.split('.').slice(0, -1).join(' → ')}`
-      });
-    }
-  });
-
-  return fields;
-};
-
-// Define what each Benson type maps to by default
-const defaultMappings: Record<string, { path: string; label: string }> = {
-  room_type: { path: 'amenities.room_types', label: 'Room Types' },
-  rate_type: { path: 'amenities.room_types[].rate_info', label: 'Rate Information' },
-  charge_type: { path: 'bookings.charges', label: 'Booking Charges' },
-  payment_type: { path: 'bookings.payments', label: 'Booking Payments' },
-};
+// All available internal fields for custom mapping
+const availableInternalFields = [
+  { path: "amenities.room_types[].pmsRoomId", label: "Benson Room ID" },
+  { path: "amenities.room_types[].pmsRoomType", label: "Benson Room Type" },
+  { path: "amenities.room_types[].name", label: "Room Name" },
+  { path: "amenities.room_types[].description", label: "Room Description" },
+  { path: "amenities.room_types[].maxPeople", label: "Max People" },
+  { path: "amenities.room_types[].maxAdults", label: "Max Adults" },
+  { path: "amenities.room_types[].maxChildren", label: "Max Children" },
+  { path: "amenities.room_types[].minGuests", label: "Min Guests" },
+  { path: "amenities.room_types[].numRooms", label: "Number of Rooms" },
+  { path: "amenities.room_types[].roomSize", label: "Room Size" },
+  { path: "amenities.room_types[].bathrooms", label: "Bathrooms" },
+  { path: "amenities.room_types[].bedConfiguration", label: "Bed Configuration" },
+  { path: "amenities.room_types[].minStay", label: "Minimum Stay" },
+  { path: "amenities.room_types[].maxStay", label: "Maximum Stay" },
+  { path: "amenities.room_types[].allowTeens", label: "Allow Teens" },
+  { path: "amenities.room_types[].teenMinAge", label: "Teen Min Age" },
+  { path: "amenities.room_types[].teenMaxAge", label: "Teen Max Age" },
+  { path: "amenities.room_types[].allowChildren", label: "Allow Children" },
+  { path: "amenities.room_types[].childMinAge", label: "Child Min Age" },
+  { path: "amenities.room_types[].childMaxAge", label: "Child Max Age" },
+  { path: "amenities.room_types[].allowInfants", label: "Allow Infants" },
+  { path: "amenities.room_types[].infantMinAge", label: "Infant Min Age" },
+  { path: "amenities.room_types[].infantMaxAge", label: "Infant Max Age" },
+  { path: "amenities.room_types[].rate_info[].pmsRateId", label: "Benson Rate ID" },
+  { path: "amenities.room_types[].rate_info[].name", label: "Rate Name" },
+  { path: "amenities.room_types[].rate_info[].description", label: "Rate Description" },
+  { path: "amenities.room_types[].rate_info[].mealTypes", label: "Meal Types" },
+  { path: "amenities.room_types[].rate_info[].amount", label: "Rate Amount" },
+];
 
 export default function BensonConfig() {
   const navigate = useNavigate();
@@ -95,21 +123,20 @@ export default function BensonConfig() {
   const [saving, setSaving] = useState(false);
   const [fetchingExternal, setFetchingExternal] = useState(false);
   
-  // External types fetched from Benson
-  const [externalRoomTypes, setExternalRoomTypes] = useState<ExternalType[]>([]);
-  const [externalRateTypes, setExternalRateTypes] = useState<ExternalType[]>([]);
-  const [externalChargeTypes, setExternalChargeTypes] = useState<ExternalType[]>([]);
-  const [externalPaymentTypes, setExternalPaymentTypes] = useState<ExternalType[]>([]);
+  // Store fetched Benson data
+  const [bensonData, setBensonData] = useState<{
+    roomTypes: any[];
+    rateTypes: any[];
+  }>({ roomTypes: [], rateTypes: [] });
 
-  // Type mappings configuration
-  const [typeMappings, setTypeMappings] = useState<TypeMapping[]>([
-    { id: 'room_type', mappingType: 'room_type', targetFieldPath: 'amenities.room_types', targetFieldLabel: 'Room Types' },
-    { id: 'rate_type', mappingType: 'rate_type', targetFieldPath: 'amenities.room_types[].rate_info', targetFieldLabel: 'Rate Information' },
-    { id: 'charge_type', mappingType: 'charge_type', targetFieldPath: 'bookings.charges', targetFieldLabel: 'Booking Charges' },
-    { id: 'payment_type', mappingType: 'payment_type', targetFieldPath: 'bookings.payments', targetFieldLabel: 'Booking Payments' },
-  ]);
+  // Field mappings state - maps bensonField to internalField
+  const [fieldMappings, setFieldMappings] = useState<Record<string, Record<string, string>>>({});
 
-  const availableFields = getPmsPopulatableArrayFields();
+  // Open state for collapsibles
+  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
+    room_types: true,
+    rate_types: false,
+  });
 
   useEffect(() => {
     loadData();
@@ -117,14 +144,13 @@ export default function BensonConfig() {
 
   useEffect(() => {
     if (selectedPropertyId) {
-      loadTypeMappings();
+      loadFieldMappings();
     }
   }, [selectedPropertyId]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      // First get the active Benson environment
       const { data: envSetting } = await supabase
         .from("api_keys")
         .select("key_value")
@@ -133,7 +159,6 @@ export default function BensonConfig() {
       
       const activeEnv = envSetting?.key_value || "staging";
 
-      // Load Benson credentials for the active environment
       const { data: creds } = await supabase
         .from("pms_credentials")
         .select("*")
@@ -145,7 +170,6 @@ export default function BensonConfig() {
         setCredentials(creds);
       }
 
-      // Load properties with Benson integration
       const { data: props } = await supabase
         .from("properties")
         .select("id, name, benson_property_code")
@@ -165,22 +189,31 @@ export default function BensonConfig() {
     setLoading(false);
   };
 
-  const loadTypeMappings = async () => {
+  const loadFieldMappings = async () => {
     if (!selectedPropertyId) return;
 
-    // Load existing type mappings from pms_mappings (stored as metadata)
     const { data, error } = await supabase
       .from("pms_mappings")
       .select("*")
       .eq("property_id", selectedPropertyId)
       .eq("system_type", "benson")
-      .eq("mapping_type", "type_config");
+      .eq("mapping_type", "field_mappings");
 
     if (data && data.length > 0) {
       const savedMappings = data[0].metadata as any;
-      if (savedMappings?.typeMappings) {
-        setTypeMappings(savedMappings.typeMappings);
+      if (savedMappings?.fieldMappings) {
+        setFieldMappings(savedMappings.fieldMappings);
       }
+    } else {
+      // Initialize with default mappings
+      const defaultMappings: Record<string, Record<string, string>> = {};
+      bensonDataCategories.forEach(cat => {
+        defaultMappings[cat.id] = {};
+        cat.fields.forEach(field => {
+          defaultMappings[cat.id][field.bensonField] = field.internalField;
+        });
+      });
+      setFieldMappings(defaultMappings);
     }
   };
 
@@ -215,18 +248,18 @@ export default function BensonConfig() {
 
       if (error) throw error;
 
-      if (data.chargeTypes) setExternalChargeTypes(data.chargeTypes);
-      if (data.paymentTypes) setExternalPaymentTypes(data.paymentTypes);
-      if (data.roomTypes) setExternalRoomTypes(data.roomTypes);
-      if (data.rateTypes) setExternalRateTypes(data.rateTypes);
+      setBensonData({
+        roomTypes: data.roomTypes || [],
+        rateTypes: data.rateTypes || [],
+      });
 
       toast({
-        title: "Types fetched",
+        title: "Data fetched",
         description: `Found ${data.roomTypes?.length || 0} room types, ${data.rateTypes?.length || 0} rate types`,
       });
     } catch (error: any) {
       toast({
-        title: "Error fetching types",
+        title: "Error fetching data",
         description: error.message,
         variant: "destructive",
       });
@@ -234,28 +267,27 @@ export default function BensonConfig() {
     setFetchingExternal(false);
   };
 
-  const saveTypeMappings = async () => {
+  const saveFieldMappings = async () => {
     if (!selectedPropertyId) return;
     
     setSaving(true);
     try {
-      // Check if mapping exists
       const { data: existing } = await supabase
         .from("pms_mappings")
         .select("id")
         .eq("property_id", selectedPropertyId)
         .eq("system_type", "benson")
-        .eq("mapping_type", "type_config")
-        .eq("external_id", "type_mappings")
+        .eq("mapping_type", "field_mappings")
+        .eq("external_id", "field_config")
         .single();
 
       const mappingData = {
         property_id: selectedPropertyId,
         system_type: "benson",
-        mapping_type: "type_config",
-        external_id: "type_mappings",
-        external_name: "Type Mappings Configuration",
-        metadata: { typeMappings } as any,
+        mapping_type: "field_mappings",
+        external_id: "field_config",
+        external_name: "Field Mappings Configuration",
+        metadata: { fieldMappings } as any,
         is_active: true,
       };
 
@@ -286,112 +318,29 @@ export default function BensonConfig() {
     setSaving(false);
   };
 
-  const updateTypeMapping = (mappingType: string, fieldPath: string) => {
-    const field = availableFields.find(f => f.path === fieldPath);
-    setTypeMappings(prev => prev.map(m => 
-      m.mappingType === mappingType 
-        ? { ...m, targetFieldPath: fieldPath, targetFieldLabel: field?.label || fieldPath }
-        : m
-    ));
+  const updateFieldMapping = (categoryId: string, bensonField: string, internalField: string) => {
+    setFieldMappings(prev => ({
+      ...prev,
+      [categoryId]: {
+        ...prev[categoryId],
+        [bensonField]: internalField,
+      },
+    }));
   };
 
-  const getExternalTypesByMapping = (mappingType: string): ExternalType[] => {
-    switch (mappingType) {
-      case 'room_type': return externalRoomTypes;
-      case 'rate_type': return externalRateTypes;
-      case 'charge_type': return externalChargeTypes;
-      case 'payment_type': return externalPaymentTypes;
+  const getSampleDataForCategory = (categoryId: string): any[] => {
+    switch (categoryId) {
+      case "room_types": return bensonData.roomTypes;
+      case "rate_types": return bensonData.rateTypes;
       default: return [];
     }
   };
 
-  const getMappingLabel = (mappingType: string): string => {
-    switch (mappingType) {
-      case 'room_type': return 'Room Types';
-      case 'rate_type': return 'Rate Types';
-      case 'charge_type': return 'Charge Types';
-      case 'payment_type': return 'Payment Types';
-      default: return mappingType;
-    }
-  };
-
-  const renderMappingCard = (mapping: TypeMapping) => {
-    const externalTypes = getExternalTypesByMapping(mapping.mappingType);
-    const currentField = availableFields.find(f => f.path === mapping.targetFieldPath);
-    
-    return (
-      <Card key={mapping.id}>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <FolderTree className="h-5 w-5 text-primary" />
-              {getMappingLabel(mapping.mappingType)}
-            </span>
-            <Badge variant={externalTypes.length > 0 ? "default" : "secondary"}>
-              {externalTypes.length} from Benson
-            </Badge>
-          </CardTitle>
-          <CardDescription>
-            Configure where Benson {getMappingLabel(mapping.mappingType).toLowerCase()} data is stored
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Target Field Path Selection */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Maps to Internal Field</Label>
-            <Select
-              value={mapping.targetFieldPath}
-              onValueChange={(value) => updateTypeMapping(mapping.mappingType, value)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select target field..." />
-              </SelectTrigger>
-              <SelectContent>
-                {availableFields.map((field) => (
-                  <SelectItem key={field.path} value={field.path}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{field.label}</span>
-                      <span className="text-xs text-muted-foreground">{field.path}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {currentField && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <ChevronRight className="h-3 w-3" />
-                {currentField.breadcrumb}
-              </p>
-            )}
-          </div>
-
-          {/* Available External Types from Benson */}
-          {externalTypes.length > 0 && (
-            <Collapsible>
-              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-                <ChevronRight className="h-4 w-4 transition-transform ui-expanded:rotate-90" />
-                View {externalTypes.length} items from Benson
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-2">
-                <div className="flex flex-wrap gap-2 p-3 bg-muted/50 rounded-md">
-                  {externalTypes.map((et) => (
-                    <Badge key={et.id} variant="outline" className="text-xs">
-                      {et.name} <span className="text-muted-foreground ml-1">(ID: {et.id})</span>
-                    </Badge>
-                  ))}
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          )}
-
-          {externalTypes.length === 0 && (
-            <p className="text-sm text-muted-foreground italic">
-              No data fetched yet. Click "Fetch from Benson" to load.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-    );
+  const toggleCategory = (categoryId: string) => {
+    setOpenCategories(prev => ({
+      ...prev,
+      [categoryId]: !prev[categoryId],
+    }));
   };
 
   if (loading) {
@@ -409,15 +358,15 @@ export default function BensonConfig() {
     <>
       <Navbar />
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <Button variant="ghost" size="icon" onClick={() => navigate("/admin/api-keys")}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-3xl font-bold">Benson Configuration</h1>
+              <h1 className="text-3xl font-bold">Benson Field Mappings</h1>
               <p className="text-muted-foreground">
-                Map Benson data types to internal field paths
+                Map each Benson data field to the corresponding internal UI field
               </p>
             </div>
           </div>
@@ -511,12 +460,12 @@ export default function BensonConfig() {
             </CardContent>
           </Card>
 
-          {/* Type Mappings */}
+          {/* Field Mappings List */}
           {selectedPropertyId && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Field Mappings</h2>
-                <Button onClick={saveTypeMappings} disabled={saving}>
+                <h2 className="text-lg font-semibold">Data Categories & Field Mappings</h2>
+                <Button onClick={saveFieldMappings} disabled={saving}>
                   {saving ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
@@ -525,21 +474,121 @@ export default function BensonConfig() {
                   Save Mappings
                 </Button>
               </div>
-              
-              <Tabs defaultValue="room_type">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="room_type">Room Types</TabsTrigger>
-                  <TabsTrigger value="rate_type">Rate Types</TabsTrigger>
-                  <TabsTrigger value="charge_type">Charge Types</TabsTrigger>
-                  <TabsTrigger value="payment_type">Payment Types</TabsTrigger>
-                </TabsList>
 
-                {typeMappings.map((mapping) => (
-                  <TabsContent key={mapping.id} value={mapping.mappingType} className="mt-4">
-                    {renderMappingCard(mapping)}
-                  </TabsContent>
-                ))}
-              </Tabs>
+              <div className="space-y-3">
+                {bensonDataCategories.map((category) => {
+                  const sampleData = getSampleDataForCategory(category.id);
+                  const isOpen = openCategories[category.id];
+                  
+                  return (
+                    <Card key={category.id}>
+                      <Collapsible open={isOpen} onOpenChange={() => toggleCategory(category.id)}>
+                        <CollapsibleTrigger asChild>
+                          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                {isOpen ? (
+                                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                                )}
+                                <Database className="h-5 w-5 text-primary" />
+                                <div>
+                                  <CardTitle className="text-base">{category.label}</CardTitle>
+                                  <CardDescription className="text-xs">{category.description}</CardDescription>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline">{category.fields.length} fields</Badge>
+                                {sampleData.length > 0 && (
+                                  <Badge className="bg-primary">{sampleData.length} items from Benson</Badge>
+                                )}
+                              </div>
+                            </div>
+                          </CardHeader>
+                        </CollapsibleTrigger>
+                        
+                        <CollapsibleContent>
+                          <CardContent className="pt-0">
+                            {/* Sample Data Preview */}
+                            {sampleData.length > 0 && (
+                              <div className="mb-4 p-3 bg-muted/30 rounded-lg">
+                                <Label className="text-xs text-muted-foreground mb-2 block">
+                                  Sample data from Benson ({sampleData.length} items):
+                                </Label>
+                                <ScrollArea className="max-h-24">
+                                  <div className="flex flex-wrap gap-2">
+                                    {sampleData.slice(0, 10).map((item, idx) => (
+                                      <Badge key={idx} variant="secondary" className="text-xs">
+                                        {item.name || item.id} 
+                                        <span className="text-muted-foreground ml-1">(ID: {item.id})</span>
+                                      </Badge>
+                                    ))}
+                                    {sampleData.length > 10 && (
+                                      <Badge variant="outline" className="text-xs">+{sampleData.length - 10} more</Badge>
+                                    )}
+                                  </div>
+                                </ScrollArea>
+                              </div>
+                            )}
+
+                            {/* Field Mapping Table */}
+                            <div className="border rounded-lg overflow-hidden">
+                              <div className="grid grid-cols-[1fr,auto,1fr] gap-2 p-3 bg-muted/50 text-sm font-medium border-b">
+                                <div>Benson Field</div>
+                                <div></div>
+                                <div>Internal UI Field</div>
+                              </div>
+                              <div className="divide-y">
+                                {category.fields.map((field) => (
+                                  <div key={field.bensonField} className="grid grid-cols-[1fr,auto,1fr] gap-2 p-3 items-center">
+                                    <div>
+                                      <p className="font-medium text-sm">{field.bensonLabel}</p>
+                                      <p className="text-xs text-muted-foreground">{field.bensonField}</p>
+                                    </div>
+                                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                                    <Select
+                                      value={fieldMappings[category.id]?.[field.bensonField] || field.internalField}
+                                      onValueChange={(value) => updateFieldMapping(category.id, field.bensonField, value)}
+                                    >
+                                      <SelectTrigger className="w-full">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__skip__">
+                                          <span className="text-muted-foreground italic">Skip (don't map)</span>
+                                        </SelectItem>
+                                        {availableInternalFields.map((f) => (
+                                          <SelectItem key={f.path} value={f.path}>
+                                            <div className="flex flex-col">
+                                              <span>{f.label}</span>
+                                              <span className="text-xs text-muted-foreground">{f.path}</span>
+                                            </div>
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </Card>
+                  );
+                })}
+              </div>
+
+              {/* Info about Charge/Payment Types */}
+              <Card className="bg-muted/30">
+                <CardContent className="pt-6">
+                  <p className="text-sm text-muted-foreground">
+                    <strong>Note:</strong> Charge Types and Payment Types from Benson are not currently used. 
+                    These will be added when booking/billing integration is implemented.
+                  </p>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>
