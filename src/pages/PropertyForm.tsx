@@ -714,10 +714,35 @@ export default function PropertyForm() {
       images: [] as string[],
       facilities: [] as string[],
       amenities: [] as string[],
+      linkedRateTypes: [] as number[],
     };
     setRoomTypes([...roomTypes, newRoom]);
     setSelectedRoomType(newRoom.id);
     setIsDirty(true);
+  };
+
+  // Toggle rate type link for a room
+  const toggleRoomRateTypeLink = (roomId: string, rateTypeId: number) => {
+    setRoomTypes(roomTypes.map(room => {
+      if (room.id === roomId) {
+        const linked = room.linkedRateTypes || [];
+        const isLinked = linked.includes(rateTypeId);
+        return {
+          ...room,
+          linkedRateTypes: isLinked 
+            ? linked.filter((id: number) => id !== rateTypeId)
+            : [...linked, rateTypeId]
+        };
+      }
+      return room;
+    }));
+    setIsDirty(true);
+  };
+
+  // Get linked rate types for a room
+  const getRoomLinkedRateTypes = (roomId: string): number[] => {
+    const room = roomTypes.find(r => r.id === roomId);
+    return room?.linkedRateTypes || [];
   };
 
   const deleteRoomType = (id: string) => {
@@ -5099,83 +5124,115 @@ export default function PropertyForm() {
 
                     {/* Overview Sub-tab */}
                     <TabsContent value="overview" className="p-6 space-y-6">
-                      {seasons.length === 0 ? (
-                        <div className="border rounded-lg p-8 text-center text-muted-foreground">
-                          <Info className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                          <p>No seasons or rates configured yet.</p>
-                          <p className="text-sm">Add seasons and configure rates to see an overview here.</p>
-                        </div>
-                      ) : (
-                        <>
-                          <p className="text-sm text-muted-foreground">
-                            Rate overview for <strong>{roomTypes.find(r => r.id === selectedRoomType)?.name}</strong>
-                          </p>
+                      {(() => {
+                        const linkedRateTypes = getRoomLinkedRateTypes(selectedRoomType);
+                        const linkedRateTypeData = pmsRateTypes.filter(rt => linkedRateTypes.includes(rt.id));
+                        
+                        if (linkedRateTypeData.length === 0) {
+                          return (
+                            <div className="border rounded-lg p-8 text-center text-muted-foreground">
+                              <Info className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                              <p>No rate types linked to this room.</p>
+                              <p className="text-sm">Link rate types in the "Rate Types" tab to see the overview.</p>
+                            </div>
+                          );
+                        }
 
-                          <div className="border rounded-lg overflow-hidden">
-                            <table className="w-full">
-                              <thead className="bg-muted">
-                                <tr>
-                                  <th className="text-left p-3 font-semibold text-sm">SEASON</th>
-                                  <th className="text-left p-3 font-semibold text-sm">PERIOD</th>
-                                  <th className="text-left p-3 font-semibold text-sm">MEAL TYPE</th>
-                                  <th className="text-right p-3 font-semibold text-sm">ROOM</th>
-                                  <th className="text-right p-3 font-semibold text-sm">ADULT</th>
-                                  <th className="text-right p-3 font-semibold text-sm">TEEN</th>
-                                  <th className="text-right p-3 font-semibold text-sm">CHILD</th>
-                                  <th className="text-right p-3 font-semibold text-sm">INFANT</th>
-                                  <th className="text-left p-3 font-semibold text-sm">STAY</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {seasons.map((season) => (
-                                  selectedMealTypes.map((mealType, idx) => (
-                                    <tr key={`${season.id}-${mealType}`} className="border-t hover:bg-muted/50">
-                                      {idx === 0 && (
-                                        <>
-                                          <td className="p-3 font-medium" rowSpan={selectedMealTypes.length}>
-                                            {season.name || season.title}
-                                          </td>
-                                          <td className="p-3 text-muted-foreground text-sm" rowSpan={selectedMealTypes.length}>
-                                            {season.from ? format(new Date(season.from), "dd MMM") : ""} - {season.to ? format(new Date(season.to), "dd MMM yyyy") : ""}
-                                          </td>
-                                        </>
-                                      )}
-                                      <td className="p-3">{mealType}</td>
-                                      <td className="p-3 text-right font-mono">
-                                        {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'roomAmount') || "—"}
-                                      </td>
-                                      <td className="p-3 text-right font-mono">
-                                        {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'adultAmount') || "—"}
-                                      </td>
-                                      <td className="p-3 text-right font-mono">
-                                        {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'teenAmount') || "—"}
-                                      </td>
-                                      <td className="p-3 text-right font-mono">
-                                        {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'childAmount') || "—"}
-                                      </td>
-                                      <td className="p-3 text-right font-mono">
-                                        {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'infantAmount') || "—"}
-                                      </td>
-                                      {idx === 0 && (
-                                        <td className="p-3 text-sm text-muted-foreground" rowSpan={selectedMealTypes.length}>
-                                          {season.minStay || 1}-{season.maxStay || "∞"} nights
-                                        </td>
-                                      )}
+                        if (seasons.length === 0) {
+                          return (
+                            <div className="border rounded-lg p-8 text-center text-muted-foreground">
+                              <Info className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                              <p>No seasons configured yet.</p>
+                              <p className="text-sm">Add seasons in the Seasons tab to see the rate overview.</p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <>
+                            <p className="text-sm text-muted-foreground">
+                              Rate overview for <strong>{roomTypes.find(r => r.id === selectedRoomType)?.name}</strong>
+                            </p>
+
+                            {linkedRateTypeData.map((rateType) => (
+                              <div key={rateType.id} className="border rounded-lg overflow-hidden">
+                                <div className="bg-primary/10 px-4 py-3 border-b">
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="font-semibold">{rateType.name}</h4>
+                                    {rateType.priceType && (
+                                      <Badge variant="secondary">{rateType.priceType}</Badge>
+                                    )}
+                                  </div>
+                                  {rateType.description && (
+                                    <p className="text-xs text-muted-foreground mt-1">{rateType.description}</p>
+                                  )}
+                                </div>
+                                
+                                <table className="w-full">
+                                  <thead className="bg-muted">
+                                    <tr>
+                                      <th className="text-left p-3 font-semibold text-sm">SEASON</th>
+                                      <th className="text-left p-3 font-semibold text-sm">PERIOD</th>
+                                      <th className="text-left p-3 font-semibold text-sm">MEAL TYPE</th>
+                                      <th className="text-right p-3 font-semibold text-sm">ROOM</th>
+                                      <th className="text-right p-3 font-semibold text-sm">ADULT</th>
+                                      <th className="text-right p-3 font-semibold text-sm">TEEN</th>
+                                      <th className="text-right p-3 font-semibold text-sm">CHILD</th>
+                                      <th className="text-right p-3 font-semibold text-sm">INFANT</th>
                                     </tr>
-                                  ))
-                                ))}
-                                {seasons.length > 0 && selectedMealTypes.length === 0 && (
-                                  <tr>
-                                    <td colSpan={9} className="p-4 text-center text-muted-foreground">
-                                      No meal types configured. Add meal types in the General tab.
-                                    </td>
-                                  </tr>
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        </>
-                      )}
+                                  </thead>
+                                  <tbody>
+                                    {seasons.map((season) => (
+                                      selectedMealTypes.length > 0 ? (
+                                        selectedMealTypes.map((mealType, idx) => (
+                                          <tr key={`${rateType.id}-${season.id}-${mealType}`} className="border-t hover:bg-muted/50">
+                                            {idx === 0 && (
+                                              <>
+                                                <td className="p-3 font-medium" rowSpan={selectedMealTypes.length}>
+                                                  {season.name || season.title}
+                                                </td>
+                                                <td className="p-3 text-muted-foreground text-sm" rowSpan={selectedMealTypes.length}>
+                                                  {season.from ? format(new Date(season.from), "dd MMM") : ""} - {season.to ? format(new Date(season.to), "dd MMM") : ""}
+                                                </td>
+                                              </>
+                                            )}
+                                            <td className="p-3">{mealType}</td>
+                                            <td className="p-3 text-right font-mono">
+                                              {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'roomAmount') || "—"}
+                                            </td>
+                                            <td className="p-3 text-right font-mono">
+                                              {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'adultAmount') || "—"}
+                                            </td>
+                                            <td className="p-3 text-right font-mono">
+                                              {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'teenAmount') || "—"}
+                                            </td>
+                                            <td className="p-3 text-right font-mono">
+                                              {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'childAmount') || "—"}
+                                            </td>
+                                            <td className="p-3 text-right font-mono">
+                                              {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'infantAmount') || "—"}
+                                            </td>
+                                          </tr>
+                                        ))
+                                      ) : (
+                                        <tr key={`${rateType.id}-${season.id}`} className="border-t">
+                                          <td className="p-3 font-medium">{season.name || season.title}</td>
+                                          <td className="p-3 text-muted-foreground text-sm">
+                                            {season.from ? format(new Date(season.from), "dd MMM") : ""} - {season.to ? format(new Date(season.to), "dd MMM") : ""}
+                                          </td>
+                                          <td colSpan={6} className="p-3 text-center text-muted-foreground text-sm">
+                                            No meal types configured
+                                          </td>
+                                        </tr>
+                                      )
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ))}
+                          </>
+                        );
+                      })()}
                     </TabsContent>
                   </Tabs>
                 </div>
@@ -5273,6 +5330,7 @@ export default function PropertyForm() {
                   <Tabs defaultValue="room-type" className="w-full">
                     <TabsList>
                       <TabsTrigger value="room-type">Room Type</TabsTrigger>
+                      <TabsTrigger value="rate-types">Rate Types</TabsTrigger>
                       <TabsTrigger value="facilities">Facilities</TabsTrigger>
                       <TabsTrigger value="amenities">Amenities</TabsTrigger>
                       <TabsTrigger value="room-images">Images</TabsTrigger>
@@ -5773,6 +5831,79 @@ export default function PropertyForm() {
                             placeholder="Type meal type and press Enter..."
                             onNewTag={handleNewMealType}
                           />
+                        </div>
+                      </div>
+                    </TabsContent>
+
+                    {/* Rate Types Sub-tab */}
+                    <TabsContent value="rate-types" className="p-6 space-y-4">
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="font-semibold text-lg mb-2">Link Rate Types to {roomTypes.find(r => r.id === selectedRoomType)?.name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Select which rate types are applicable to this room type. This determines which rates appear in the overview.
+                          </p>
+                        </div>
+
+                        {pmsRateTypes.length === 0 ? (
+                          <div className="border rounded-lg p-8 text-center text-muted-foreground">
+                            <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                            <p>No rate types available.</p>
+                            <p className="text-sm">Sync with your PMS or add rate types manually in the Rate Breakdown tab.</p>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-3">
+                            {pmsRateTypes.map((rateType) => {
+                              const isLinked = getRoomLinkedRateTypes(selectedRoomType).includes(rateType.id);
+                              return (
+                                <div
+                                  key={rateType.id}
+                                  onClick={() => toggleRoomRateTypeLink(selectedRoomType, rateType.id)}
+                                  className={cn(
+                                    "border rounded-lg p-4 cursor-pointer transition-all",
+                                    isLinked 
+                                      ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                                      : "border-border hover:border-primary/50 hover:bg-muted/50"
+                                  )}
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <Checkbox 
+                                          checked={isLinked}
+                                          className="pointer-events-none"
+                                        />
+                                        <span className="font-medium">{rateType.name}</span>
+                                      </div>
+                                      {rateType.description && (
+                                        <p className="text-xs text-muted-foreground mt-1 ml-6 line-clamp-2">
+                                          {rateType.description}
+                                        </p>
+                                      )}
+                                      <div className="flex items-center gap-2 mt-2 ml-6">
+                                        {rateType.priceType && (
+                                          <Badge variant="secondary" className="text-xs">
+                                            {rateType.priceType}
+                                          </Badge>
+                                        )}
+                                        {(rateType.minStayDays || rateType.minNights) && (
+                                          <Badge variant="outline" className="text-xs">
+                                            Min {rateType.minStayDays || rateType.minNights} nights
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <div className="bg-muted/50 border rounded-lg p-4 mt-4">
+                          <p className="text-sm text-muted-foreground">
+                            <strong>{getRoomLinkedRateTypes(selectedRoomType).length}</strong> rate type{getRoomLinkedRateTypes(selectedRoomType).length !== 1 ? 's' : ''} linked to this room.
+                          </p>
                         </div>
                       </div>
                     </TabsContent>
