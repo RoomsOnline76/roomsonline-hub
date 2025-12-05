@@ -431,6 +431,8 @@ export default function PropertyForm() {
             updatedRoomTypes[existingIndex] = {
               ...existing,
               ...pmsRoom,
+              // CRITICAL: Preserve original room ID for URL consistency
+              id: existing.id,
               // Preserve local fields that aren't from PMS
               url: existing.url || pmsRoom.url,
               images: existing.images || [],
