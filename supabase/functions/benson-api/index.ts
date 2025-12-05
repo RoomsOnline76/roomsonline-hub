@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Benson API Base URLs
+// Benson API Base URLs (defaults)
 const BENSON_STAGING_URL = "https://staging-api.bensonsoftware.com/api/v3/integrations";
 const BENSON_PRODUCTION_URL = "https://api.bensonsoftware.com/api/v3/integrations";
 
@@ -14,6 +14,7 @@ interface BensonCredentials {
   username: string;
   password: string;
   environment: "staging" | "production";
+  baseUrl?: string; // Custom URL override
 }
 
 interface PropertyInfo {
@@ -28,8 +29,9 @@ const getAuthHeader = (username: string, password: string): string => {
 };
 
 // Helper to get the correct base URL
-const getBaseUrl = (environment: string, propertyCode: string): string => {
-  const baseUrl = environment === "production" ? BENSON_PRODUCTION_URL : BENSON_STAGING_URL;
+const getBaseUrl = (creds: BensonCredentials, propertyCode: string): string => {
+  // Use custom URL if provided, otherwise use default based on environment
+  const baseUrl = creds.baseUrl || (creds.environment === "production" ? BENSON_PRODUCTION_URL : BENSON_STAGING_URL);
   return `${baseUrl}/${propertyCode}`;
 };
 
@@ -42,7 +44,7 @@ async function fetchAvailability(
   roomTypeIds?: number[],
   rateTypeIds?: number[]
 ): Promise<any> {
-  const baseUrl = getBaseUrl(creds.environment, propertyCode);
+  const baseUrl = getBaseUrl(creds, propertyCode);
   let url = `${baseUrl}/availability?startdate=${startDate}&enddate=${endDate}`;
   
   if (roomTypeIds?.length) {
@@ -92,7 +94,7 @@ async function createReservation(
     }>;
   }
 ): Promise<any> {
-  const baseUrl = getBaseUrl(creds.environment, propertyCode);
+  const baseUrl = getBaseUrl(creds, propertyCode);
   const url = `${baseUrl}/reservations`;
 
   console.log(`Creating reservation at: ${url}`);
@@ -125,7 +127,7 @@ async function getReservations(
   endDate: string,
   statuses: string[]
 ): Promise<any> {
-  const baseUrl = getBaseUrl(creds.environment, propertyCode);
+  const baseUrl = getBaseUrl(creds, propertyCode);
   let url = `${baseUrl}/reservations?startDate=${startDate}&endDate=${endDate}`;
   
   statuses.forEach(status => url += `&status=${status}`);
@@ -150,7 +152,7 @@ async function getReservations(
 
 // Get charge types from Benson
 async function getChargeTypes(creds: BensonCredentials, propertyCode: string): Promise<any> {
-  const baseUrl = getBaseUrl(creds.environment, propertyCode);
+  const baseUrl = getBaseUrl(creds, propertyCode);
   const url = `${baseUrl}/chargetypes`;
 
   console.log(`Fetching charge types from: ${url}`);
@@ -173,7 +175,7 @@ async function getChargeTypes(creds: BensonCredentials, propertyCode: string): P
 
 // Get payment types from Benson
 async function getPaymentTypes(creds: BensonCredentials, propertyCode: string): Promise<any> {
-  const baseUrl = getBaseUrl(creds.environment, propertyCode);
+  const baseUrl = getBaseUrl(creds, propertyCode);
   const url = `${baseUrl}/paymenttypes`;
 
   console.log(`Fetching payment types from: ${url}`);
@@ -196,7 +198,7 @@ async function getPaymentTypes(creds: BensonCredentials, propertyCode: string): 
 
 // Get current rooms from Benson
 async function getCurrentRooms(creds: BensonCredentials, propertyCode: string): Promise<any> {
-  const baseUrl = getBaseUrl(creds.environment, propertyCode);
+  const baseUrl = getBaseUrl(creds, propertyCode);
   const url = `${baseUrl}/currentrooms`;
 
   console.log(`Fetching current rooms from: ${url}`);
@@ -219,7 +221,7 @@ async function getCurrentRooms(creds: BensonCredentials, propertyCode: string): 
 
 // Get client default invoices from Benson
 async function getClientDefaultInvoices(creds: BensonCredentials, propertyCode: string): Promise<any> {
-  const baseUrl = getBaseUrl(creds.environment, propertyCode);
+  const baseUrl = getBaseUrl(creds, propertyCode);
   const url = `${baseUrl}/clientdefaultinvoices`;
 
   console.log(`Fetching client default invoices from: ${url}`);
@@ -253,7 +255,7 @@ async function postBill(
     payments?: Array<{ paymentTypeId: number; amount: number }>;
   }
 ): Promise<any> {
-  const baseUrl = getBaseUrl(creds.environment, propertyCode);
+  const baseUrl = getBaseUrl(creds, propertyCode);
   const url = `${baseUrl}/bill`;
 
   console.log(`Posting bill to: ${url}`);
@@ -294,25 +296,35 @@ serve(async (req) => {
 
     console.log(`Benson API action: ${action}, property_id: ${property_id}`);
 
-    // Get Benson credentials
+    // Get active environment setting
+    const { data: envSetting } = await supabase
+      .from("api_keys")
+      .select("key_value")
+      .eq("key_name", "BENSON_ACTIVE_ENVIRONMENT")
+      .maybeSingle();
+
+    const activeEnvironment = envSetting?.key_value || "staging";
+    console.log(`Using Benson ${activeEnvironment} environment`);
+
+    // Get Benson credentials for the active environment
     const { data: credentials, error: credError } = await supabase
       .from("pms_credentials")
       .select("*")
       .eq("system_type", "benson")
-      .eq("is_active", true)
-      .single();
+      .eq("environment", activeEnvironment)
+      .maybeSingle();
 
     if (credError || !credentials) {
       console.error("Benson credentials not found:", credError);
       return new Response(
-        JSON.stringify({ error: "Benson credentials not configured" }),
+        JSON.stringify({ error: `Benson ${activeEnvironment} credentials not configured` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     if (!credentials.username || !credentials.password) {
       return new Response(
-        JSON.stringify({ error: "Benson username/password not configured" }),
+        JSON.stringify({ error: `Benson ${activeEnvironment} username/password not configured` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -321,6 +333,7 @@ serve(async (req) => {
       username: credentials.username,
       password: credentials.password,
       environment: credentials.environment as "staging" | "production",
+      baseUrl: credentials.base_url || undefined,
     };
 
     // Get property info
