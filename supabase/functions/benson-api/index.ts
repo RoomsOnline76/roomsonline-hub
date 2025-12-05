@@ -24,21 +24,15 @@ interface PropertyInfo {
 
 // Helper to get base64 encoded auth header (handles special characters)
 const getAuthHeader = (username: string, password: string): string => {
-  const credentialString = `${username}:${password}`;
-  console.log(`Auth credential string length: ${credentialString.length}`);
-  console.log(`Username: ${username}`);
-  console.log(`Password (first 3 chars): ${password.substring(0, 3)}...`);
-  
   // Use TextEncoder to properly handle special characters
   const encoder = new TextEncoder();
-  const data = encoder.encode(credentialString);
+  const data = encoder.encode(`${username}:${password}`);
   // Convert to base64 using Uint8Array
   let binary = '';
   for (let i = 0; i < data.length; i++) {
     binary += String.fromCharCode(data[i]);
   }
   const credentials = btoa(binary);
-  console.log(`Base64 auth (first 20 chars): ${credentials.substring(0, 20)}...`);
   return `Basic ${credentials}`;
 };
 

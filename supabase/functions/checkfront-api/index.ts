@@ -1,5 +1,28 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+
+// Input validation schemas
+const baseRequestSchema = z.object({
+  action: z.enum([
+    'get_items',
+    'get_item_details',
+    'get_item_availability',
+    'create_booking',
+    'get_bookings',
+    'get_booking_details',
+    'update_booking',
+    'cancel_booking',
+    'test_connection'
+  ]),
+  property_id: z.string().uuid().optional(),
+  item_id: z.string().optional(),
+  category_id: z.string().optional(),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD format').optional(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD format').optional(),
+  booking_id: z.string().optional(),
+  booking_data: z.record(z.unknown()).optional(),
+});
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -372,6 +395,20 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
+    
+    // Validate request body
+    const validationResult = baseRequestSchema.safeParse(body);
+    if (!validationResult.success) {
+      console.error("Validation error:", validationResult.error.errors);
+      return new Response(
+        JSON.stringify({ 
+          error: "Invalid request parameters", 
+          details: validationResult.error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
     const { action, property_id, ...params } = body;
 
     console.log(`Checkfront API action: ${action}, property_id: ${property_id}`);

@@ -119,7 +119,8 @@ export default function RoomShowcase() {
       // Check if propertySlug is a UUID or slug
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(propertySlug || "");
       
-      let query = supabase.from("properties").select("*");
+      // Use public view for unauthenticated access
+      let query = supabase.from("public_properties").select("*");
       
       if (isUuid) {
         query = query.eq("id", propertySlug);

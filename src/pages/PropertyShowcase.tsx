@@ -97,9 +97,9 @@ export default function PropertyShowcase() {
       // Check if id is a UUID or slug
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || "");
       
-      // Fetch property by UUID or slug
+      // Fetch property by UUID or slug using public view (safe for unauthenticated users)
       let query = supabase
-        .from("properties")
+        .from("public_properties")
         .select("*");
       
       if (isUuid) {
