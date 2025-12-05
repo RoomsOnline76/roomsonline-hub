@@ -3,28 +3,15 @@ import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, RefreshCw, Plus, Trash2, CheckCircle2, AlertCircle, Loader2, Save } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-
-interface PMSMapping {
-  id: string;
-  property_id: string | null;
-  system_type: string;
-  mapping_type: string;
-  external_id: string;
-  external_name: string | null;
-  internal_id: string | null;
-  internal_name: string | null;
-  is_active: boolean;
-}
+import { ArrowLeft, RefreshCw, CheckCircle2, AlertCircle, Loader2, Save, ChevronRight, FolderTree } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { internalFieldMap, getFieldsPopulatableByPMS, FieldDefinition } from "@/config/internalFieldMap";
 
 interface PMSCredentials {
   id: string;
@@ -46,6 +33,57 @@ interface ExternalType {
   name: string;
 }
 
+interface TypeMapping {
+  id: string;
+  mappingType: string;
+  targetFieldPath: string;
+  targetFieldLabel: string;
+}
+
+// Extract all array/object fields that can be populated by Benson
+const getPmsPopulatableArrayFields = (): { path: string; label: string; breadcrumb: string }[] => {
+  const fields: { path: string; label: string; breadcrumb: string }[] = [];
+  
+  // Get all Benson-populatable fields
+  const bensonFields = getFieldsPopulatableByPMS('benson');
+  
+  // Also add key array fields that are natural targets for PMS data
+  const keyArrayFields = [
+    { path: 'amenities.room_types', label: 'Room Types', breadcrumb: 'Property Form → Room Information → Room Types' },
+    { path: 'amenities.room_types[].rate_info', label: 'Rate Information', breadcrumb: 'Property Form → Room Information → Rate Info' },
+    { path: 'amenities.meal_types', label: 'Meal Types', breadcrumb: 'Property Form → Offerings → Meal Options' },
+    { path: 'amenities.facilities', label: 'Facilities', breadcrumb: 'Property Form → Property Info → Facilities' },
+    { path: 'amenities.seasons', label: 'Seasons', breadcrumb: 'Property Form → Rate Breakdown → Seasons' },
+    { path: 'property_availability', label: 'Availability', breadcrumb: 'Calendar → Accommodation → Availability Grid' },
+    { path: 'property_rates', label: 'Rates', breadcrumb: 'Calendar → Accommodation → Rate Grid' },
+    { path: 'bookings', label: 'Bookings', breadcrumb: 'Bookings → Booking Records' },
+    { path: 'pms_reservations', label: 'PMS Reservations', breadcrumb: 'Sync → PMS Reservations' },
+  ];
+
+  fields.push(...keyArrayFields);
+  
+  // Add individual PMS-populatable fields grouped by section
+  bensonFields.forEach(field => {
+    if (!fields.some(f => f.path === field.id)) {
+      fields.push({
+        path: field.id,
+        label: field.label,
+        breadcrumb: `Property Form → ${field.id.split('.').slice(0, -1).join(' → ')}`
+      });
+    }
+  });
+
+  return fields;
+};
+
+// Define what each Benson type maps to by default
+const defaultMappings: Record<string, { path: string; label: string }> = {
+  room_type: { path: 'amenities.room_types', label: 'Room Types' },
+  rate_type: { path: 'amenities.room_types[].rate_info', label: 'Rate Information' },
+  charge_type: { path: 'bookings.charges', label: 'Booking Charges' },
+  payment_type: { path: 'bookings.payments', label: 'Booking Payments' },
+};
+
 export default function BensonConfig() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -53,7 +91,6 @@ export default function BensonConfig() {
   const [credentials, setCredentials] = useState<PMSCredentials | null>(null);
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
-  const [mappings, setMappings] = useState<PMSMapping[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [fetchingExternal, setFetchingExternal] = useState(false);
@@ -64,8 +101,15 @@ export default function BensonConfig() {
   const [externalChargeTypes, setExternalChargeTypes] = useState<ExternalType[]>([]);
   const [externalPaymentTypes, setExternalPaymentTypes] = useState<ExternalType[]>([]);
 
-  // Internal room types from our system
-  const [internalRoomTypes, setInternalRoomTypes] = useState<{ id: string; name: string }[]>([]);
+  // Type mappings configuration
+  const [typeMappings, setTypeMappings] = useState<TypeMapping[]>([
+    { id: 'room_type', mappingType: 'room_type', targetFieldPath: 'amenities.room_types', targetFieldLabel: 'Room Types' },
+    { id: 'rate_type', mappingType: 'rate_type', targetFieldPath: 'amenities.room_types[].rate_info', targetFieldLabel: 'Rate Information' },
+    { id: 'charge_type', mappingType: 'charge_type', targetFieldPath: 'bookings.charges', targetFieldLabel: 'Booking Charges' },
+    { id: 'payment_type', mappingType: 'payment_type', targetFieldPath: 'bookings.payments', targetFieldLabel: 'Booking Payments' },
+  ]);
+
+  const availableFields = getPmsPopulatableArrayFields();
 
   useEffect(() => {
     loadData();
@@ -73,8 +117,7 @@ export default function BensonConfig() {
 
   useEffect(() => {
     if (selectedPropertyId) {
-      loadMappings();
-      loadInternalRoomTypes();
+      loadTypeMappings();
     }
   }, [selectedPropertyId]);
 
@@ -122,45 +165,21 @@ export default function BensonConfig() {
     setLoading(false);
   };
 
-  const loadMappings = async () => {
+  const loadTypeMappings = async () => {
     if (!selectedPropertyId) return;
 
+    // Load existing type mappings from pms_mappings (stored as metadata)
     const { data, error } = await supabase
       .from("pms_mappings")
       .select("*")
       .eq("property_id", selectedPropertyId)
       .eq("system_type", "benson")
-      .order("mapping_type")
-      .order("external_name");
+      .eq("mapping_type", "type_config");
 
-    if (error) {
-      toast({
-        title: "Error loading mappings",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      setMappings(data || []);
-    }
-  };
-
-  const loadInternalRoomTypes = async () => {
-    if (!selectedPropertyId) return;
-
-    // Load room types from property's amenities
-    const { data: property } = await supabase
-      .from("properties")
-      .select("amenities")
-      .eq("id", selectedPropertyId)
-      .single();
-
-    if (property?.amenities) {
-      const amenities = property.amenities as any;
-      if (amenities.room_types && Array.isArray(amenities.room_types)) {
-        setInternalRoomTypes(amenities.room_types.map((rt: any) => ({
-          id: rt.id || rt.name,
-          name: rt.name
-        })));
+    if (data && data.length > 0) {
+      const savedMappings = data[0].metadata as any;
+      if (savedMappings?.typeMappings) {
+        setTypeMappings(savedMappings.typeMappings);
       }
     }
   };
@@ -203,7 +222,7 @@ export default function BensonConfig() {
 
       toast({
         title: "Types fetched",
-        description: "Successfully fetched types from Benson API",
+        description: `Found ${data.roomTypes?.length || 0} room types, ${data.rateTypes?.length || 0} rate types`,
       });
     } catch (error: any) {
       toast({
@@ -215,207 +234,159 @@ export default function BensonConfig() {
     setFetchingExternal(false);
   };
 
-  const saveMapping = async (mapping: PMSMapping) => {
+  const saveTypeMappings = async () => {
+    if (!selectedPropertyId) return;
+    
     setSaving(true);
-    const { error } = await supabase
-      .from("pms_mappings")
-      .upsert({
-        id: mapping.id,
-        property_id: mapping.property_id,
-        system_type: mapping.system_type,
-        mapping_type: mapping.mapping_type,
-        external_id: mapping.external_id,
-        external_name: mapping.external_name,
-        internal_id: mapping.internal_id,
-        internal_name: mapping.internal_name,
-        is_active: mapping.is_active,
-      });
+    try {
+      // Check if mapping exists
+      const { data: existing } = await supabase
+        .from("pms_mappings")
+        .select("id")
+        .eq("property_id", selectedPropertyId)
+        .eq("system_type", "benson")
+        .eq("mapping_type", "type_config")
+        .eq("external_id", "type_mappings")
+        .single();
 
-    if (error) {
+      const mappingData = {
+        property_id: selectedPropertyId,
+        system_type: "benson",
+        mapping_type: "type_config",
+        external_id: "type_mappings",
+        external_name: "Type Mappings Configuration",
+        metadata: { typeMappings } as any,
+        is_active: true,
+      };
+
+      let error;
+      if (existing?.id) {
+        const result = await supabase
+          .from("pms_mappings")
+          .update(mappingData)
+          .eq("id", existing.id);
+        error = result.error;
+      } else {
+        const result = await supabase
+          .from("pms_mappings")
+          .insert(mappingData);
+        error = result.error;
+      }
+
+      if (error) throw error;
+
+      toast({ title: "Mappings saved successfully" });
+    } catch (error: any) {
       toast({
-        title: "Error saving mapping",
+        title: "Error saving mappings",
         description: error.message,
         variant: "destructive",
       });
-    } else {
-      toast({ title: "Mapping saved" });
-      loadMappings();
     }
     setSaving(false);
   };
 
-  const addMapping = async (type: string, externalId: string, externalName: string) => {
-    const { error } = await supabase.from("pms_mappings").insert({
-      property_id: selectedPropertyId,
-      system_type: "benson",
-      mapping_type: type,
-      external_id: externalId,
-      external_name: externalName,
-      is_active: true,
-    });
-
-    if (error) {
-      if (error.code === "23505") {
-        toast({
-          title: "Mapping exists",
-          description: "This mapping already exists",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Error adding mapping",
-          description: error.message,
-          variant: "destructive",
-        });
-      }
-    } else {
-      toast({ title: "Mapping added" });
-      loadMappings();
-    }
-  };
-
-  const deleteMapping = async (id: string) => {
-    const { error } = await supabase.from("pms_mappings").delete().eq("id", id);
-    if (error) {
-      toast({
-        title: "Error deleting mapping",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({ title: "Mapping deleted" });
-      loadMappings();
-    }
-  };
-
-  const updateMappingInternal = (id: string, internalId: string, internalName: string) => {
-    setMappings(mappings.map(m => 
-      m.id === id ? { ...m, internal_id: internalId, internal_name: internalName } : m
+  const updateTypeMapping = (mappingType: string, fieldPath: string) => {
+    const field = availableFields.find(f => f.path === fieldPath);
+    setTypeMappings(prev => prev.map(m => 
+      m.mappingType === mappingType 
+        ? { ...m, targetFieldPath: fieldPath, targetFieldLabel: field?.label || fieldPath }
+        : m
     ));
   };
 
-  const getMappingsByType = (type: string) => mappings.filter(m => m.mapping_type === type);
+  const getExternalTypesByMapping = (mappingType: string): ExternalType[] => {
+    switch (mappingType) {
+      case 'room_type': return externalRoomTypes;
+      case 'rate_type': return externalRateTypes;
+      case 'charge_type': return externalChargeTypes;
+      case 'payment_type': return externalPaymentTypes;
+      default: return [];
+    }
+  };
 
-  const renderMappingTable = (
-    type: string,
-    title: string,
-    externalTypes: ExternalType[],
-    internalOptions: { id: string; name: string }[]
-  ) => {
-    const typeMappings = getMappingsByType(type);
-    const unmappedExternal = externalTypes.filter(
-      et => !typeMappings.some(m => m.external_id === et.id.toString())
-    );
+  const getMappingLabel = (mappingType: string): string => {
+    switch (mappingType) {
+      case 'room_type': return 'Room Types';
+      case 'rate_type': return 'Rate Types';
+      case 'charge_type': return 'Charge Types';
+      case 'payment_type': return 'Payment Types';
+      default: return mappingType;
+    }
+  };
 
+  const renderMappingCard = (mapping: TypeMapping) => {
+    const externalTypes = getExternalTypesByMapping(mapping.mappingType);
+    const currentField = availableFields.find(f => f.path === mapping.targetFieldPath);
+    
     return (
-      <Card>
+      <Card key={mapping.id}>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>{title}</span>
-            <Badge variant={typeMappings.length > 0 ? "default" : "secondary"}>
-              {typeMappings.length} mapped
+            <span className="flex items-center gap-2">
+              <FolderTree className="h-5 w-5 text-primary" />
+              {getMappingLabel(mapping.mappingType)}
+            </span>
+            <Badge variant={externalTypes.length > 0 ? "default" : "secondary"}>
+              {externalTypes.length} from Benson
             </Badge>
           </CardTitle>
           <CardDescription>
-            Map Benson {title.toLowerCase()} to your internal system
+            Configure where Benson {getMappingLabel(mapping.mappingType).toLowerCase()} data is stored
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {typeMappings.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Benson ID</TableHead>
-                  <TableHead>Benson Name</TableHead>
-                  <TableHead>Internal Mapping</TableHead>
-                  <TableHead>Active</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {typeMappings.map((mapping) => (
-                  <TableRow key={mapping.id}>
-                    <TableCell className="font-mono">{mapping.external_id}</TableCell>
-                    <TableCell>{mapping.external_name}</TableCell>
-                    <TableCell>
-                      <Select
-                        value={mapping.internal_id || ""}
-                        onValueChange={(value) => {
-                          const option = internalOptions.find(o => o.id === value);
-                          updateMappingInternal(mapping.id, value, option?.name || "");
-                        }}
-                      >
-                        <SelectTrigger className="w-48">
-                          <SelectValue placeholder="Select internal..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {internalOptions.map((opt) => (
-                            <SelectItem key={opt.id} value={opt.id}>
-                              {opt.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={mapping.is_active}
-                        onCheckedChange={(checked) => {
-                          setMappings(mappings.map(m =>
-                            m.id === mapping.id ? { ...m, is_active: checked } : m
-                          ));
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => saveMapping(mapping)}
-                          disabled={saving}
-                        >
-                          <Save className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => deleteMapping(mapping.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+        <CardContent className="space-y-4">
+          {/* Target Field Path Selection */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Maps to Internal Field</Label>
+            <Select
+              value={mapping.targetFieldPath}
+              onValueChange={(value) => updateTypeMapping(mapping.mappingType, value)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select target field..." />
+              </SelectTrigger>
+              <SelectContent>
+                {availableFields.map((field) => (
+                  <SelectItem key={field.path} value={field.path}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{field.label}</span>
+                      <span className="text-xs text-muted-foreground">{field.path}</span>
+                    </div>
+                  </SelectItem>
                 ))}
-              </TableBody>
-            </Table>
+              </SelectContent>
+            </Select>
+            {currentField && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <ChevronRight className="h-3 w-3" />
+                {currentField.breadcrumb}
+              </p>
+            )}
+          </div>
+
+          {/* Available External Types from Benson */}
+          {externalTypes.length > 0 && (
+            <Collapsible>
+              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+                <ChevronRight className="h-4 w-4 transition-transform ui-expanded:rotate-90" />
+                View {externalTypes.length} items from Benson
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2">
+                <div className="flex flex-wrap gap-2 p-3 bg-muted/50 rounded-md">
+                  {externalTypes.map((et) => (
+                    <Badge key={et.id} variant="outline" className="text-xs">
+                      {et.name} <span className="text-muted-foreground ml-1">(ID: {et.id})</span>
+                    </Badge>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           )}
 
-          {unmappedExternal.length > 0 && (
-            <div className="mt-4">
-              <Label className="text-sm text-muted-foreground mb-2 block">
-                Available from Benson (click to add):
-              </Label>
-              <div className="flex flex-wrap gap-2">
-                {unmappedExternal.map((et) => (
-                  <Button
-                    key={et.id}
-                    size="sm"
-                    variant="outline"
-                    onClick={() => addMapping(type, et.id.toString(), et.name)}
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    {et.name} ({et.id})
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {typeMappings.length === 0 && unmappedExternal.length === 0 && (
-            <p className="text-muted-foreground text-sm">
-              No {title.toLowerCase()} available. Click "Fetch from Benson" to load.
+          {externalTypes.length === 0 && (
+            <p className="text-sm text-muted-foreground italic">
+              No data fetched yet. Click "Fetch from Benson" to load.
             </p>
           )}
         </CardContent>
@@ -438,7 +409,7 @@ export default function BensonConfig() {
     <>
       <Navbar />
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <Button variant="ghost" size="icon" onClick={() => navigate("/admin/api-keys")}>
               <ArrowLeft className="h-5 w-5" />
@@ -446,7 +417,7 @@ export default function BensonConfig() {
             <div>
               <h1 className="text-3xl font-bold">Benson Configuration</h1>
               <p className="text-muted-foreground">
-                Map Benson field IDs to your internal system
+                Map Benson data types to internal field paths
               </p>
             </div>
           </div>
@@ -496,7 +467,7 @@ export default function BensonConfig() {
             <CardHeader>
               <CardTitle>Select Property</CardTitle>
               <CardDescription>
-                Choose a property to configure mappings for
+                Choose a property to configure field mappings for
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -535,64 +506,41 @@ export default function BensonConfig() {
               {selectedPropertyId && !properties.find(p => p.id === selectedPropertyId)?.benson_property_code && (
                 <p className="text-sm text-yellow-600 dark:text-yellow-400 mt-2">
                   ⚠️ This property doesn't have a Benson property code configured.
-                  Please update it in the property settings.
                 </p>
               )}
             </CardContent>
           </Card>
 
-          {/* Mappings Tabs */}
+          {/* Type Mappings */}
           {selectedPropertyId && (
-            <Tabs defaultValue="room_type">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="room_type">Room Types</TabsTrigger>
-                <TabsTrigger value="rate_type">Rate Types</TabsTrigger>
-                <TabsTrigger value="charge_type">Charge Types</TabsTrigger>
-                <TabsTrigger value="payment_type">Payment Types</TabsTrigger>
-              </TabsList>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Field Mappings</h2>
+                <Button onClick={saveTypeMappings} disabled={saving}>
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  Save Mappings
+                </Button>
+              </div>
+              
+              <Tabs defaultValue="room_type">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="room_type">Room Types</TabsTrigger>
+                  <TabsTrigger value="rate_type">Rate Types</TabsTrigger>
+                  <TabsTrigger value="charge_type">Charge Types</TabsTrigger>
+                  <TabsTrigger value="payment_type">Payment Types</TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="room_type" className="mt-4">
-                {renderMappingTable("room_type", "Room Types", externalRoomTypes, internalRoomTypes)}
-              </TabsContent>
-
-              <TabsContent value="rate_type" className="mt-4">
-                {renderMappingTable("rate_type", "Rate Types", externalRateTypes, [
-                  { id: "standard", name: "Standard Rate" },
-                  { id: "best_available", name: "Best Available Rate" },
-                  { id: "early_bird", name: "Early Bird" },
-                  { id: "last_minute", name: "Last Minute" },
-                  { id: "long_stay", name: "Long Stay" },
-                  { id: "corporate", name: "Corporate Rate" },
-                ])}
-              </TabsContent>
-
-              <TabsContent value="charge_type" className="mt-4">
-                {renderMappingTable("charge_type", "Charge Types", externalChargeTypes, [
-                  { id: "accommodation", name: "Accommodation" },
-                  { id: "food_beverage", name: "Food & Beverage" },
-                  { id: "spa", name: "Spa Services" },
-                  { id: "minibar", name: "Minibar" },
-                  { id: "laundry", name: "Laundry" },
-                  { id: "transport", name: "Transport" },
-                  { id: "activity", name: "Activity/Tour" },
-                  { id: "gratuity", name: "Gratuity" },
-                  { id: "damage", name: "Damage Fee" },
-                  { id: "other", name: "Other" },
-                ])}
-              </TabsContent>
-
-              <TabsContent value="payment_type" className="mt-4">
-                {renderMappingTable("payment_type", "Payment Types", externalPaymentTypes, [
-                  { id: "credit_card", name: "Credit Card" },
-                  { id: "debit_card", name: "Debit Card" },
-                  { id: "eft", name: "EFT/Bank Transfer" },
-                  { id: "cash", name: "Cash" },
-                  { id: "account", name: "Account" },
-                  { id: "voucher", name: "Voucher" },
-                  { id: "write_off", name: "Write-Off" },
-                ])}
-              </TabsContent>
-            </Tabs>
+                {typeMappings.map((mapping) => (
+                  <TabsContent key={mapping.id} value={mapping.mappingType} className="mt-4">
+                    {renderMappingCard(mapping)}
+                  </TabsContent>
+                ))}
+              </Tabs>
+            </div>
           )}
         </div>
       </div>
