@@ -79,13 +79,13 @@ interface PMSData {
 
 type PMSSyncStatus = "idle" | "loading" | "success" | "error" | "not_configured" | "no_property_code";
 
-const displayOptions = [
+// Restriction display options with colored indicators
+const restrictionOptions = [
   { id: "stop_sell", label: "Stop Sell", color: "bg-red-500" },
-  { id: "rates", label: "Rates", color: "bg-gray-500" },
+  { id: "min_stay", label: "Min Stay", color: "bg-blue-500" },
+  { id: "max_stay", label: "Max Stay", color: "bg-pink-500" },
   { id: "lead_days_advance", label: "Lead Days Advance", color: "bg-yellow-500" },
   { id: "lead_days_post", label: "Lead Days Post", color: "bg-orange-500" },
-  { id: "max_stay", label: "Max Stay", color: "bg-pink-500" },
-  { id: "min_stay", label: "Min Stay", color: "bg-blue-500" },
 ];
 
 // South African Public Holidays (including observed days when holiday falls on Sunday)
@@ -1349,7 +1349,21 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 {/* Display Options with colored indicator legend */}
                 <div className="flex flex-wrap items-center gap-4 mb-6">
                   <span className="text-sm font-medium text-muted-foreground">Show:</span>
-                  {displayOptions.map((option) => (
+                  {/* Rates toggle - no colored indicator */}
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="legend-rates"
+                      checked={selectedDisplayOptions.includes("rates")}
+                      onCheckedChange={() => toggleDisplayOption("rates")}
+                    />
+                    <label htmlFor="legend-rates" className="text-sm cursor-pointer font-medium">
+                      Rates
+                    </label>
+                  </div>
+                  <span className="text-muted-foreground">|</span>
+                  <span className="text-xs text-muted-foreground">Restrictions:</span>
+                  {/* Restriction options with colored indicators */}
+                  {restrictionOptions.map((option) => (
                     <div key={option.id} className="flex items-center gap-2">
                       <Checkbox
                         id={`legend-${option.id}`}
