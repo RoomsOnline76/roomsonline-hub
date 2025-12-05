@@ -174,8 +174,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const [userEmail, setUserEmail] = useState<string>("");
 
   // Multi-select states - Rates and all restrictions enabled by default
+  // IDs must match restrictionOptions: stop_sell, min_stay, max_stay, lead_days_advance, lead_days_post
   const [selectedDisplayOptions, setSelectedDisplayOptions] = useState<string[]>(
-    ["rates", "stopSell", "minStay", "maxStay", "leadDaysAdvance", "leadDaysPost"]
+    ["rates", "stop_sell", "min_stay", "max_stay", "lead_days_advance", "lead_days_post"]
   );
   const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
   const [selectedRateTypes, setSelectedRateTypes] = useState<string[]>([]);
@@ -1129,8 +1130,22 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       }
     }
     
-    // No PMS data available
-    return { stopSell: null, minStay: null, maxStay: null, leadDaysAdvance: null, leadDaysPost: null, fromPms: false };
+    // TEMP TEST DATA: Generate random restrictions based on date hash for testing display
+    const dayOfMonth = date.getDate();
+    const monthOffset = date.getMonth();
+    const hash = (dayOfMonth * 7 + monthOffset * 13) % 31;
+    
+    // Generate varied restrictions on different dates for testing
+    const testRestrictions = {
+      stopSell: hash % 7 === 0 ? true : null, // ~14% of days
+      minStay: hash % 3 === 0 ? (2 + (hash % 5)) : null, // ~33% of days, values 2-6
+      maxStay: hash % 4 === 1 ? (7 + (hash % 7)) : null, // ~25% of days, values 7-13
+      leadDaysAdvance: hash % 5 === 2 ? (1 + (hash % 3)) : null, // ~20% of days, values 1-3
+      leadDaysPost: hash % 6 === 3 ? (hash % 4) : null, // ~17% of days, values 0-3
+      fromPms: false,
+    };
+    
+    return testRestrictions;
   };
 
   // Render cell value with indicator for missing data
