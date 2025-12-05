@@ -792,15 +792,21 @@ serve(async (req) => {
             if (roomType.rateTypes && Array.isArray(roomType.rateTypes)) {
               roomType.rateTypes.forEach((rateType: any) => {
                 if (!extractedRateTypes.has(rateType.rateTypeId)) {
+                  // Log the raw rate type data for debugging
+                  console.log(`Rate type ${rateType.rateTypeId} raw data:`, JSON.stringify(rateType).substring(0, 500));
+                  
                   extractedRateTypes.set(rateType.rateTypeId, {
                     id: rateType.rateTypeId,
                     name: rateType.name,
                     description: rateType.description || null,
                     priceType: rateType.priceType || null,
+                    // Benson uses minAdvanceDays/maxAdvanceDays
                     minAdvanceDays: rateType.minAdvanceDays ?? null,
                     maxAdvanceDays: rateType.maxAdvanceDays ?? null,
-                    minStayDays: rateType.minStayDays ?? rateType.minNights ?? null,
-                    maxStayDays: rateType.maxStayDays ?? rateType.maxNights ?? null,
+                    // Benson uses minStayDays/maxStayDays (not minNights)
+                    minStayDays: rateType.minStayDays ?? null,
+                    maxStayDays: rateType.maxStayDays ?? null,
+                    // Stay/Pay discount fields
                     stayPayStayNights: rateType.stayPayStayNights ?? null,
                     stayPayDiscountNights: rateType.stayPayDiscountNights ?? null,
                     stayPayDiscountPercentage: rateType.stayPayDiscountPercentage ?? null,
