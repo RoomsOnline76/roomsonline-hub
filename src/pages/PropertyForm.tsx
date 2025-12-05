@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RoomTypeDataViewer, ExpandableDataViewer, RateTypeItem } from "@/components/ExpandableDataViewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -5874,49 +5875,16 @@ export default function PropertyForm() {
                                   <p className="text-sm">Sync with your PMS to load rate types for this room.</p>
                                 </div>
                               ) : (
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-3">
                                   {availableRateTypesForRoom.map((rateType) => {
                                     const isLinked = getRoomLinkedRateTypes(selectedRoomType).includes(rateType.id);
                                     return (
-                                      <div
+                                      <RateTypeItem
                                         key={rateType.id}
-                                        onClick={() => toggleRoomRateTypeLink(selectedRoomType, rateType.id)}
-                                        className={cn(
-                                          "border rounded-lg p-4 cursor-pointer transition-all",
-                                          isLinked 
-                                            ? "border-primary bg-primary/5 ring-1 ring-primary" 
-                                            : "border-border hover:border-primary/50 hover:bg-muted/50"
-                                        )}
-                                      >
-                                        <div className="flex items-start justify-between">
-                                          <div className="flex-1">
-                                            <div className="flex items-center gap-2">
-                                              <Checkbox 
-                                                checked={isLinked}
-                                                className="pointer-events-none"
-                                              />
-                                              <span className="font-medium">{rateType.name}</span>
-                                            </div>
-                                            {rateType.description && (
-                                              <p className="text-xs text-muted-foreground mt-1 ml-6 line-clamp-2">
-                                                {rateType.description}
-                                              </p>
-                                            )}
-                                            <div className="flex items-center gap-2 mt-2 ml-6">
-                                              {rateType.priceType && (
-                                                <Badge variant="secondary" className="text-xs">
-                                                  {rateType.priceType}
-                                                </Badge>
-                                              )}
-                                              {(rateType.minStayDays || rateType.minNights) && (
-                                                <Badge variant="outline" className="text-xs">
-                                                  Min {rateType.minStayDays || rateType.minNights} nights
-                                                </Badge>
-                                              )}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
+                                        rateType={rateType}
+                                        isLinked={isLinked}
+                                        onToggleLink={() => toggleRoomRateTypeLink(selectedRoomType, rateType.id)}
+                                      />
                                     );
                                   })}
                                 </div>
@@ -5927,6 +5895,14 @@ export default function PropertyForm() {
                                   <strong>{getRoomLinkedRateTypes(selectedRoomType).length}</strong> rate type{getRoomLinkedRateTypes(selectedRoomType).length !== 1 ? 's' : ''} linked to this room.
                                 </p>
                               </div>
+
+                              {/* Room Data Explorer */}
+                              {currentRoom && (
+                                <div className="border-t pt-4 mt-6">
+                                  <h4 className="font-semibold text-sm mb-3">Room Data Explorer</h4>
+                                  <RoomTypeDataViewer room={currentRoom} rateTypes={pmsRateTypes} />
+                                </div>
+                              )}
                             </>
                           );
                         })()}
