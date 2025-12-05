@@ -813,7 +813,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     if (selectedPropertyData?.amenities?.pms_rate_types) {
       const savedRateTypes = selectedPropertyData.amenities.pms_rate_types as any[];
       savedRateTypes.forEach(rt => {
-        if (rt.id && rt.name) {
+        if (rt.id && rt.name && !rateTypesMap.has(rt.id)) {
           rateTypesMap.set(rt.id, {
             id: rt.id,
             label: rt.name,
@@ -827,6 +827,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     // Collect from calendarRoomData
     calendarRoomData.forEach(room => {
       room.rates.forEach(rate => {
+        if (!rate.rateTypeId) return;
         const existing = rateTypesMap.get(rate.rateTypeId);
         const hasRoomAmount = rate.values && Object.values(rate.values).some(v => v != null && v > 0);
         
@@ -843,11 +844,12 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       });
     });
     
-    // Also collect from PMS data - include ALL rate types from PMS
+    // Also collect from PMS data
     if (pmsData.roomTypes.length > 0) {
       pmsData.roomTypes.forEach(room => {
         Object.values(room.ratesByDate).forEach(dateRates => {
           dateRates.forEach(rate => {
+            if (!rate.rateTypeId) return;
             const existing = rateTypesMap.get(rate.rateTypeId);
             const hasValues = (rate.roomAmount != null && rate.roomAmount > 0) || 
                              (rate.adultAmounts && Object.values(rate.adultAmounts).some(v => v != null && v > 0)) ||
@@ -873,16 +875,17 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       });
     }
     
-    // Return all PMS rate types, but only manual rate types that have rates
-    return Array.from(rateTypesMap.values()).filter(rt => rt.fromPms || rt.hasRates);
+    // Return all rate types (unique by ID)
+    return Array.from(rateTypesMap.values());
   }, [calendarRoomData, pmsData, selectedPropertyData]);
 
-  // Set all rate types selected when rateTypeOptions changes
+  // Set only rate types WITH rates as selected by default
   useEffect(() => {
     if (rateTypeOptions.length > 0) {
-      setSelectedRateTypes(rateTypeOptions.map(r => r.id));
+      const rateTypesWithRates = rateTypeOptions.filter(r => r.hasRates).map(r => r.id);
+      setSelectedRateTypes(rateTypesWithRates);
     }
-  }, [rateTypeOptions.length]);
+  }, [rateTypeOptions]);
 
   const fetchRoomTypes = async (propertyId: string) => {
     try {
@@ -1399,8 +1402,12 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                           checked={selectedRateTypes.includes(rateType.id)}
                           onCheckedChange={() => toggleRateType(rateType.id)}
                         />
-                        <label htmlFor={`rate-${rateType.id}`} className="text-sm cursor-pointer flex-1">
+                        <label 
+                          htmlFor={`rate-${rateType.id}`} 
+                          className={`text-sm cursor-pointer flex-1 ${!rateType.hasRates ? 'text-muted-foreground italic' : ''}`}
+                        >
                           {rateType.label}
+                          {!rateType.hasRates && <span className="ml-1 text-xs">(no rates)</span>}
                         </label>
                       </div>
                     ))}
@@ -1644,7 +1651,8 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                       <tbody>
                         {filteredRooms.map((room) => {
                           const filteredRates = room.rates.filter(rate =>
-                            selectedRateTypes.includes(rate.rateTypeId)
+                            selectedRateTypes.includes(rate.rateTypeId) &&
+                            rate.values && Object.values(rate.values).some(v => v != null && v > 0)
                           );
 
                           return (
@@ -1993,7 +2001,8 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                       <tbody>
                         {filteredRooms.map((room) => {
                           const filteredRates = room.rates.filter(rate =>
-                            selectedRateTypes.includes(rate.rateTypeId)
+                            selectedRateTypes.includes(rate.rateTypeId) &&
+                            rate.values && Object.values(rate.values).some(v => v != null && v > 0)
                           );
 
                           return (
