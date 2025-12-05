@@ -48,9 +48,8 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
   useEffect(() => {
     const fetchProperties = async () => {
       const { data, error } = await supabase
-        .from("properties")
+        .from("public_properties")
         .select("id, name, slug, latitude, longitude, city, country, price_per_night, property_type")
-        .eq("is_active", true)
         .not("latitude", "is", null)
         .not("longitude", "is", null);
 
