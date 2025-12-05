@@ -4904,11 +4904,124 @@ export default function PropertyForm() {
                     {/* Rate Breakdown Sub-tab */}
                     <TabsContent value="rate-breakdown" className="p-6 space-y-6">
                       {seasons.length === 0 ? (
-                        <div className="border rounded-lg p-8 text-center text-muted-foreground">
-                          <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                          <p>No seasons defined yet.</p>
-                          <p className="text-sm">Please add seasons in the Seasons tab first to configure rates.</p>
-                        </div>
+                        (() => {
+                          const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
+                          const linkedRateTypes = currentRoom?.linkedRateTypes || [];
+                          const availableRateTypes = (pmsRateTypes || []) as Array<{id: number | string; name: string; priceType?: string}>;
+                          const roomLinkedRateTypes = availableRateTypes.filter(rt => linkedRateTypes.includes(String(rt.id)));
+                          const currentRoomMealTypes = currentRoom?.mealTypes || [];
+                          
+                          if (roomLinkedRateTypes.length === 0) {
+                            return (
+                              <div className="border rounded-lg p-8 text-center text-muted-foreground">
+                                <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                <p>No rate types linked to this room.</p>
+                                <p className="text-sm">Link rate types in the Room Type tab first.</p>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-6">
+                              <p className="text-sm text-muted-foreground">
+                                Set base rates for <strong>{currentRoom?.name}</strong> (no seasons defined).
+                              </p>
+                              
+                              {roomLinkedRateTypes.map((rateType) => {
+                                const priceType = rateType.priceType || 'Per Unit';
+                                const isPerPerson = priceType.toLowerCase().includes('person');
+                                
+                                return (
+                                  <div key={rateType.id} className="border rounded-lg overflow-hidden">
+                                    <div className="p-4 bg-muted/50">
+                                      <div className="flex items-center gap-2">
+                                        <h3 className="font-semibold">{rateType.name}</h3>
+                                        <Badge variant="outline" className="text-xs">{priceType}</Badge>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="p-4 space-y-4">
+                                      {currentRoomMealTypes.length === 0 ? (
+                                        <div className="text-center text-muted-foreground text-sm py-4">
+                                          No meal types configured. Add meal types in the Room Type tab.
+                                        </div>
+                                      ) : (
+                                        currentRoomMealTypes.map((mealType: string) => (
+                                          <div key={mealType} className="border rounded-lg p-4 bg-card">
+                                            <div className="text-sm font-medium text-muted-foreground mb-3">{mealType}</div>
+                                            
+                                            {isPerPerson ? (
+                                              <div className="grid grid-cols-4 gap-4">
+                                                <div className="space-y-2">
+                                                  <Label className="text-xs font-medium">Adult Amount</Label>
+                                                  <Input
+                                                    type="number"
+                                                    min="0"
+                                                    value={getSeasonRate(selectedRoomType, `base-${rateType.id}-${mealType}`, 'adultAmount')}
+                                                    onChange={(e) => updateSeasonRate(selectedRoomType, `base-${rateType.id}-${mealType}`, 'adultAmount', parseFloat(e.target.value) || 0)}
+                                                    className="text-center"
+                                                    placeholder="0.00"
+                                                  />
+                                                </div>
+                                                <div className="space-y-2">
+                                                  <Label className="text-xs font-medium">Teen Amount</Label>
+                                                  <Input
+                                                    type="number"
+                                                    min="0"
+                                                    value={getSeasonRate(selectedRoomType, `base-${rateType.id}-${mealType}`, 'teenAmount')}
+                                                    onChange={(e) => updateSeasonRate(selectedRoomType, `base-${rateType.id}-${mealType}`, 'teenAmount', parseFloat(e.target.value) || 0)}
+                                                    className="text-center"
+                                                    placeholder="0.00"
+                                                  />
+                                                </div>
+                                                <div className="space-y-2">
+                                                  <Label className="text-xs font-medium">Child Amount</Label>
+                                                  <Input
+                                                    type="number"
+                                                    min="0"
+                                                    value={getSeasonRate(selectedRoomType, `base-${rateType.id}-${mealType}`, 'childAmount')}
+                                                    onChange={(e) => updateSeasonRate(selectedRoomType, `base-${rateType.id}-${mealType}`, 'childAmount', parseFloat(e.target.value) || 0)}
+                                                    className="text-center"
+                                                    placeholder="0.00"
+                                                  />
+                                                </div>
+                                                <div className="space-y-2">
+                                                  <Label className="text-xs font-medium">Infant Amount</Label>
+                                                  <Input
+                                                    type="number"
+                                                    min="0"
+                                                    value={getSeasonRate(selectedRoomType, `base-${rateType.id}-${mealType}`, 'infantAmount')}
+                                                    onChange={(e) => updateSeasonRate(selectedRoomType, `base-${rateType.id}-${mealType}`, 'infantAmount', parseFloat(e.target.value) || 0)}
+                                                    className="text-center"
+                                                    placeholder="0.00"
+                                                  />
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <div className="max-w-xs">
+                                                <div className="space-y-2">
+                                                  <Label className="text-xs font-medium">Room Amount</Label>
+                                                  <Input
+                                                    type="number"
+                                                    min="0"
+                                                    value={getSeasonRate(selectedRoomType, `base-${rateType.id}-${mealType}`, 'roomAmount')}
+                                                    onChange={(e) => updateSeasonRate(selectedRoomType, `base-${rateType.id}-${mealType}`, 'roomAmount', parseFloat(e.target.value) || 0)}
+                                                    className="text-center"
+                                                    placeholder="0.00"
+                                                  />
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()
                       ) : (
                         <>
                           <div className="flex items-center justify-between mb-4">
