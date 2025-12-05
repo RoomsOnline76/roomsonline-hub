@@ -150,6 +150,9 @@ export function RoomTypeDataViewer({ room, rateTypes = [] }: RoomTypeDataViewerP
     (room.availableRateTypes || room.linkedRateTypes || []).includes(rt.id)
   );
   
+  // Get embedded rate types from room (from Benson API nested array)
+  const embeddedRateTypes = room.rateTypes || [];
+  
   return (
     <div className="space-y-2 text-sm">
       {/* Basic Fields */}
@@ -158,9 +161,38 @@ export function RoomTypeDataViewer({ room, rateTypes = [] }: RoomTypeDataViewerP
         <div><span className="text-muted-foreground">Name:</span> <span className="font-medium">{room.name}</span></div>
         {room.pmsRoomId && <div><span className="text-muted-foreground">PMS ID:</span> <span className="font-mono">{room.pmsRoomId}</span></div>}
         {room.maxPeople && <div><span className="text-muted-foreground">Max People:</span> {room.maxPeople}</div>}
+        {room.minAgeCategory && <div><span className="text-muted-foreground">Min Age Category:</span> {room.minAgeCategory}</div>}
+        {room.minAdultsToOfferNonAdultRates !== undefined && <div><span className="text-muted-foreground">Min Adults for Non-Adult Rates:</span> {room.minAdultsToOfferNonAdultRates}</div>}
       </div>
       
-      {/* Rate Types Section */}
+      {/* Embedded Rate Types from Room (nested array from API) */}
+      {embeddedRateTypes.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <button
+            type="button"
+            onClick={() => toggleSection('embeddedRateTypes')}
+            className="flex items-center gap-2 w-full p-2 bg-muted/50 hover:bg-muted transition-colors text-left"
+          >
+            {expandedSections['embeddedRateTypes'] ? (
+              <Minus className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <Plus className="h-4 w-4 text-muted-foreground" />
+            )}
+            <span className="font-medium">Rate Types (Nested from API)</span>
+            <Badge variant="outline" className="ml-auto">
+              {embeddedRateTypes.length} entries
+            </Badge>
+          </button>
+          
+          {expandedSections['embeddedRateTypes'] && (
+            <div className="p-3 max-h-[400px] overflow-auto">
+              <ExpandableDataViewer data={embeddedRateTypes} level={0} />
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Rate Types Section - from prop */}
       {availableRateTypeData.length > 0 && (
         <div className="border rounded-lg overflow-hidden">
           <button
@@ -173,7 +205,7 @@ export function RoomTypeDataViewer({ room, rateTypes = [] }: RoomTypeDataViewerP
             ) : (
               <Plus className="h-4 w-4 text-muted-foreground" />
             )}
-            <span className="font-medium">Rate Types</span>
+            <span className="font-medium">Rate Types (Linked)</span>
             <Badge variant="outline" className="ml-auto">
               {linkedRateTypeData.length}/{availableRateTypeData.length} linked
             </Badge>

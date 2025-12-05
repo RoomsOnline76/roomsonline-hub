@@ -384,6 +384,24 @@ export default function PropertyForm() {
             pmsSyncedFields.push('minAdultsToOfferNonAdultRates');
           }
           
+          // Include nested arrays from Benson API for exploration in configurator
+          if (rt.roomsAvailablePerNight && Array.isArray(rt.roomsAvailablePerNight)) {
+            roomData.roomsAvailablePerNight = rt.roomsAvailablePerNight;
+            pmsSyncedFields.push('roomsAvailablePerNight');
+          }
+          if (rt.rateTypes && Array.isArray(rt.rateTypes)) {
+            roomData.rateTypes = rt.rateTypes;
+            pmsSyncedFields.push('rateTypes');
+          }
+          
+          // Store linked rate type IDs extracted from nested rateTypes
+          if (rt.linkedRateTypeIds && Array.isArray(rt.linkedRateTypeIds)) {
+            roomData.linkedRateTypeIds = rt.linkedRateTypeIds;
+          } else if (rt.rateTypes && Array.isArray(rt.rateTypes)) {
+            // Extract linked rate type IDs from nested rateTypes array
+            roomData.linkedRateTypeIds = rt.rateTypes.map((rate: any) => rate.rateTypeId);
+          }
+          
           // Store the list of PMS-synced fields
           roomData.pms_synced_fields = pmsSyncedFields;
           
