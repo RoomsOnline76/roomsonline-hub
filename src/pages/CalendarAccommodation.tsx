@@ -657,20 +657,37 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         
         // Create rate row for each rate type
         rateTypesMap.forEach(rateInfo => {
-          // Determine display rate type based on price type
+          // Determine display rate type based on price type (for display column)
           let displayRateType = rateInfo.priceType || "UnitRate";
-          if (displayRateType.toUpperCase() === "PER ROOM") displayRateType = "UnitRate";
-          else if (displayRateType.toUpperCase() === "PER PERSON") displayRateType = "PerPersonRate";
-          else displayRateType = "SingleRate";
+          const priceTypeUpper = displayRateType.toUpperCase();
+          if (priceTypeUpper === "PER ROOM" || priceTypeUpper === "PERROOM") {
+            displayRateType = "UnitRate";
+          } else if (priceTypeUpper === "PER PERSON" || priceTypeUpper === "PERPERSON") {
+            displayRateType = "PerPersonRate";
+          } else if (priceTypeUpper === "SINGLE" || priceTypeUpper === "SINGLERATE") {
+            displayRateType = "SingleRate";
+          }
           
-          // Determine meal type from rate name
-          let mealType = "Breakfast"; // Default
+          // Extract meal type from rate type name
+          let mealType = "Standard"; // Default
           const rateName = rateInfo.rateTypeName.toLowerCase();
-          if (rateName.includes("room only")) mealType = "Room Only";
-          else if (rateName.includes("self") || rateName.includes("catering")) mealType = "SelfCatering";
-          else if (rateName.includes("all inclusive")) mealType = "All Inclusive";
-          else if (rateName.includes("dinner")) mealType = "Dinner";
-          else if (rateName.includes("breakfast")) mealType = "Breakfast";
+          if (rateName.includes("room only") || rateName.includes("roomonly")) {
+            mealType = "Room Only";
+          } else if (rateName.includes("self catering") || rateName.includes("selfcatering") || rateName.includes("self-catering")) {
+            mealType = "SelfCatering";
+          } else if (rateName.includes("all inclusive") || rateName.includes("allinclusive") || rateName.includes("all-inclusive")) {
+            mealType = "All Inclusive";
+          } else if (rateName.includes("dinner") && rateName.includes("breakfast")) {
+            mealType = "DBB";
+          } else if (rateName.includes("full board")) {
+            mealType = "Full Board";
+          } else if (rateName.includes("half board")) {
+            mealType = "Half Board";
+          } else if (rateName.includes("bed & breakfast") || rateName.includes("bed and breakfast") || rateName.includes("b&b") || rateName.includes("breakfast")) {
+            mealType = "Breakfast";
+          } else if (rateName.includes("dinner")) {
+            mealType = "Dinner";
+          }
           
           rates.push({
             rateType: displayRateType,
