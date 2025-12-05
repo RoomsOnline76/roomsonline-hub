@@ -84,6 +84,10 @@ export default function AdminKeys() {
   const [bensonStagingCredentials, setBensonStagingCredentials] = useState<PMSCredentials | null>(null);
   const [bensonProductionCredentials, setBensonProductionCredentials] = useState<PMSCredentials | null>(null);
   
+  // Active environment toggle
+  const [bensonActiveEnvironment, setBensonActiveEnvironment] = useState<"staging" | "production">("staging");
+  const [savingBensonActiveEnv, setSavingBensonActiveEnv] = useState(false);
+  
   // Staging form state
   const [bensonStagingUsername, setBensonStagingUsername] = useState("");
   const [bensonStagingPassword, setBensonStagingPassword] = useState("");
@@ -131,6 +135,7 @@ export default function AdminKeys() {
   useEffect(() => {
     fetchApiKeys();
     fetchBensonCredentials();
+    fetchBensonActiveEnvironment();
     fetchNightsbridgeCredentials();
     fetchCheckfrontCredentials();
     fetchResendConfig();
@@ -224,6 +229,47 @@ export default function AdminKeys() {
       setBensonStagingCredentials(staging || null);
       setBensonProductionCredentials(production || null);
     }
+  };
+
+  const fetchBensonActiveEnvironment = async () => {
+    const { data } = await supabase
+      .from("api_keys")
+      .select("*")
+      .eq("key_name", "BENSON_ACTIVE_ENVIRONMENT")
+      .maybeSingle();
+
+    if (data?.key_value) {
+      setBensonActiveEnvironment(data.key_value as "staging" | "production");
+    }
+  };
+
+  const handleSaveBensonActiveEnvironment = async (newEnv: "staging" | "production") => {
+    setSavingBensonActiveEnv(true);
+    
+    const { error } = await supabase
+      .from("api_keys")
+      .upsert({
+        key_name: "BENSON_ACTIVE_ENVIRONMENT",
+        name: "Benson Active Environment",
+        key_value: newEnv,
+        system_type: "benson",
+        description: "Which Benson environment to use for API calls",
+      }, { onConflict: "key_name" });
+
+    if (error) {
+      toast({
+        title: "Error saving environment",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      setBensonActiveEnvironment(newEnv);
+      toast({
+        title: "Environment updated",
+        description: `Benson now using ${newEnv} credentials`,
+      });
+    }
+    setSavingBensonActiveEnv(false);
   };
 
   const fetchNightsbridgeCredentials = async () => {
@@ -926,6 +972,33 @@ export default function AdminKeys() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Active Environment Toggle */}
+          <div className="flex items-center justify-between p-4 rounded-lg border bg-primary/5 border-primary/20">
+            <div className="space-y-1">
+              <Label className="text-sm font-medium">Active Environment</Label>
+              <p className="text-xs text-muted-foreground">
+                API calls will use {bensonActiveEnvironment} credentials
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className={`text-sm ${bensonActiveEnvironment === "staging" ? "font-semibold text-primary" : "text-muted-foreground"}`}
+              >
+                Staging
+              </span>
+              <Switch
+                checked={bensonActiveEnvironment === "production"}
+                onCheckedChange={(checked) => handleSaveBensonActiveEnvironment(checked ? "production" : "staging")}
+                disabled={savingBensonActiveEnv}
+              />
+              <span
+                className={`text-sm ${bensonActiveEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}
+              >
+                Production
+              </span>
+            </div>
+          </div>
+
           {renderEnvironmentSection(
             "staging",
             bensonStagingCredentials,
