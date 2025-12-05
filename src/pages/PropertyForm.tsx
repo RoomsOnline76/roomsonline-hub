@@ -344,21 +344,116 @@ export default function PropertyForm() {
         });
       }
 
-      // Store rate types info for rate breakdown - update room rate_info
-      if (data?.rateTypes && Array.isArray(data.rateTypes)) {
+      // Store rate types as meal types for rate breakdown
+      if (data?.rateTypes && Array.isArray(data.rateTypes) && data.rateTypes.length > 0) {
         console.log("Rate types from Benson:", data.rateTypes);
-        toast({
-          title: "Rate Types Found",
-          description: `Found ${data.rateTypes.length} rate types from Benson.`,
-        });
+        // Map Benson rate types to meal types (rate types are essentially meal plans in Benson)
+        const bensonMealTypes = data.rateTypes
+          .map((rt: any) => rt.name || rt.description || `Rate Type ${rt.id}`)
+          .filter((name: string) => name);
+        
+        if (bensonMealTypes.length > 0) {
+          // Merge with existing meal types
+          const mergedMealTypes = [...new Set([...selectedMealTypes, ...bensonMealTypes])];
+          setSelectedMealTypes(mergedMealTypes);
+          hasChanges = true;
+          toast({
+            title: "Rate Types Synced",
+            description: `Found ${data.rateTypes.length} rate types from Benson.`,
+          });
+        }
       }
 
-      // Process rates data for rate breakdown if available
-      if (data?.rates) {
+      // Process rates data to create seasons and populate rate breakdown
+      if (data?.rates && Array.isArray(data.rates) && data.rates.length > 0) {
         console.log("Rates data from Benson:", data.rates);
+        
+        // Group rates by date ranges to create seasons
+        const ratesByDateRange: Record<string, { from: string; to: string; rates: any[] }> = {};
+        
+        data.rates.forEach((rate: any) => {
+          // Benson rates typically have startDate/endDate or date fields
+          const startDate = rate.startDate || rate.fromDate || rate.date;
+          const endDate = rate.endDate || rate.toDate || rate.date;
+          
+          if (startDate) {
+            const key = `${startDate}_${endDate || startDate}`;
+            if (!ratesByDateRange[key]) {
+              ratesByDateRange[key] = {
+                from: startDate,
+                to: endDate || startDate,
+                rates: []
+              };
+            }
+            ratesByDateRange[key].rates.push(rate);
+          }
+        });
+
+        // Create seasons from date ranges
+        const newSeasons: any[] = [];
+        const newSeasonRates: Record<string, Record<string, { unitRate: number; weekendRate: number }>> = { ...seasonRates };
+        
+        Object.entries(ratesByDateRange).forEach(([key, { from, to, rates }], index) => {
+          // Check if season already exists for this date range
+          const existingSeason = seasons.find(s => s.from === from && s.to === to);
+          const seasonId = existingSeason?.id || `benson-${Date.now()}-${index}`;
+          
+          if (!existingSeason) {
+            // Create new season
+            newSeasons.push({
+              id: seasonId,
+              name: `Season ${index + 1}`,
+              title: `${from} - ${to}`,
+              from,
+              to,
+              minStay: rates[0]?.minStay || rates[0]?.minNights || 1,
+              maxStay: rates[0]?.maxStay || rates[0]?.maxNights || 0,
+              pms_synced: true,
+            });
+          }
+
+          // Process rates for this season
+          rates.forEach((rate: any) => {
+            const roomTypeId = rate.roomTypeId?.toString() || rate.roomType?.id?.toString();
+            const rateTypeName = rate.rateTypeName || rate.rateName || rate.name || 'Standard';
+            const amount = rate.amount || rate.price || rate.rate || 0;
+            
+            // Find matching room by PMS ID
+            const matchingRoom = roomTypes.find(r => 
+              r.pms_id?.toString() === roomTypeId || 
+              r.id === roomTypeId
+            );
+            
+            if (matchingRoom) {
+              const rateKey = `${existingSeason?.id || seasonId}-${rateTypeName}`;
+              
+              if (!newSeasonRates[matchingRoom.id]) {
+                newSeasonRates[matchingRoom.id] = {};
+              }
+              
+              newSeasonRates[matchingRoom.id][rateKey] = {
+                unitRate: amount,
+                weekendRate: rate.weekendRate || rate.weekendPrice || amount,
+              };
+            }
+          });
+        });
+
+        // Merge seasons
+        if (newSeasons.length > 0) {
+          setSeasons(prev => [...prev, ...newSeasons]);
+          hasChanges = true;
+        }
+        
+        // Update season rates
+        if (Object.keys(newSeasonRates).length > 0) {
+          setSeasonRates(newSeasonRates);
+          hasChanges = true;
+        }
+        
         toast({
-          title: "Rates Retrieved",
-          description: "Rate data retrieved. Configure in Rate Breakdown tab.",
+          title: "Rates Configured",
+          description: `Processed ${data.rates.length} rates into ${newSeasons.length} seasons.`,
         });
       }
 
