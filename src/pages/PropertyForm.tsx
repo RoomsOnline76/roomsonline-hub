@@ -526,9 +526,47 @@ export default function PropertyForm() {
         });
       }
 
-      // Log rates data for reference (rates are displayed in calendar, not used for seasons)
+      // Store rates per room type - group by roomTypeId
       if (data?.rates && Array.isArray(data.rates) && data.rates.length > 0) {
-        console.log("Rates data from Benson (for calendar display):", data.rates.length, "rate entries");
+        console.log("Rates data from Benson:", data.rates.length, "rate entries");
+        
+        // Group rates by roomTypeId
+        const ratesByRoomType: Record<number, any[]> = {};
+        data.rates.forEach((rate: any) => {
+          if (!ratesByRoomType[rate.roomTypeId]) {
+            ratesByRoomType[rate.roomTypeId] = [];
+          }
+          ratesByRoomType[rate.roomTypeId].push({
+            rateTypeId: rate.rateTypeId,
+            rateTypeName: rate.rateTypeName,
+            date: rate.date,
+            roomAmount: rate.roomAmount,
+            adultAmount1: rate.adultAmount1,
+            adultAmount2: rate.adultAmount2,
+            teenAmount: rate.teenAmount,
+            childAmount: rate.childAmount,
+            infantAmount: rate.infantAmount,
+          });
+        });
+        
+        // Update room types with their rates
+        setRoomTypes(prev => prev.map(room => {
+          const pmsId = room.pms_id;
+          if (pmsId && ratesByRoomType[pmsId]) {
+            return {
+              ...room,
+              pms_rates: ratesByRoomType[pmsId],
+              pms_rates_synced_at: new Date().toISOString(),
+            };
+          }
+          return room;
+        }));
+        
+        hasChanges = true;
+        toast({
+          title: "Rates Synced",
+          description: `Stored ${data.rates.length} rate entries across ${Object.keys(ratesByRoomType).length} room types.`,
+        });
       }
 
       // Trigger dirty state if any changes were made
