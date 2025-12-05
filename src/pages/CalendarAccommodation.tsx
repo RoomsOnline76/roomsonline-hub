@@ -173,9 +173,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const [isAdmin, setIsAdmin] = useState(false);
   const [userEmail, setUserEmail] = useState<string>("");
 
-  // Multi-select states - only Rates enabled by default
+  // Multi-select states - Rates and all restrictions enabled by default
   const [selectedDisplayOptions, setSelectedDisplayOptions] = useState<string[]>(
-    ["rates"]
+    ["rates", "stopSell", "minStay", "maxStay", "leadDaysAdvance", "leadDaysPost"]
   );
   const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
   const [selectedRateTypes, setSelectedRateTypes] = useState<string[]>([]);
