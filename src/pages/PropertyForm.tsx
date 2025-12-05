@@ -2247,8 +2247,8 @@ export default function PropertyForm() {
 
                     <Separator className="my-6" />
 
-                    <div className="space-y-4">
-                      <div className="space-y-2 max-w-xs">
+                    <div className="flex flex-wrap items-end gap-4">
+                      <div className="space-y-2 min-w-[200px]">
                         <Label htmlFor="pms_system">Property Management System</Label>
                         <Select
                           value={selectedPMS || "none"}
@@ -2283,7 +2283,7 @@ export default function PropertyForm() {
                       </div>
 
                       {selectedPMS === "nightsbridge" && (
-                        <div className="max-w-xs">
+                        <div className="space-y-2 min-w-[150px]">
                           <Label htmlFor="bb_id">BBID</Label>
                           <Input
                             id="bb_id"
@@ -2295,49 +2295,49 @@ export default function PropertyForm() {
                       )}
 
                       {selectedPMS === "semper" && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                          <div className="space-y-2">
+                        <>
+                          <div className="space-y-2 min-w-[120px]">
                             <Label htmlFor="venue_id">VENUE ID</Label>
                             <Input
                               id="venue_id"
                               value={formData.venue_id}
                               onChange={(e) => handleInputChange("venue_id", e.target.value)}
-                              placeholder="Enter venue ID"
+                              placeholder="Venue ID"
                             />
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-2 min-w-[120px]">
                             <Label htmlFor="channel_id">CHANNEL ID</Label>
                             <Input
                               id="channel_id"
                               value={formData.channel_id}
                               onChange={(e) => handleInputChange("channel_id", e.target.value)}
-                              placeholder="Enter channel ID"
+                              placeholder="Channel ID"
                             />
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-2 min-w-[120px]">
                             <Label htmlFor="account_id">ACCOUNT ID</Label>
                             <Input
                               id="account_id"
                               value={formData.account_id}
                               onChange={(e) => handleInputChange("account_id", e.target.value)}
-                              placeholder="Enter account ID"
+                              placeholder="Account ID"
                             />
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-2 min-w-[120px]">
                             <Label htmlFor="agent_id">AGENT ID</Label>
                             <Input
                               id="agent_id"
                               value={formData.agent_id}
                               onChange={(e) => handleInputChange("agent_id", e.target.value)}
-                              placeholder="Enter agent ID"
+                              placeholder="Agent ID"
                             />
                           </div>
-                        </div>
+                        </>
                       )}
 
                       {selectedPMS === "benson" && (
-                        <div className="space-y-4">
-                          <div className="max-w-xs">
+                        <>
+                          <div className="space-y-2 min-w-[280px]">
                             <Label htmlFor="benson_property_code">Benson Property Code *</Label>
                             <Input
                               id="benson_property_code"
@@ -2349,35 +2349,31 @@ export default function PropertyForm() {
                               placeholder="Enter Benson property code"
                               required
                             />
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Unique identifier assigned by Benson for this property
-                            </p>
                           </div>
                           {bensonPropertyCode && (
-                            <div className="flex items-center gap-4">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="gap-2"
-                                onClick={syncFromBenson}
-                                disabled={isSyncingPms}
-                              >
-                                {isSyncingPms ? (
-                                  <RefreshCw className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <RefreshCw className="h-4 w-4" />
-                                )}
-                                {isSyncingPms ? "Syncing..." : "Sync Room & Rate Types from Benson"}
-                              </Button>
-                              {lastPmsSync && (
-                                <span className="text-sm text-muted-foreground">
-                                  Last synced: {lastPmsSync.toLocaleString()}
-                                </span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="default"
+                              className="gap-2"
+                              onClick={syncFromBenson}
+                              disabled={isSyncingPms}
+                            >
+                              {isSyncingPms ? (
+                                <RefreshCw className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4" />
                               )}
-                            </div>
+                              {isSyncingPms ? "Syncing..." : "Sync from Benson"}
+                            </Button>
                           )}
-                        </div>
+                        </>
+                      )}
+
+                      {lastPmsSync && selectedPMS === "benson" && (
+                        <span className="text-sm text-muted-foreground self-center">
+                          Last synced: {lastPmsSync.toLocaleString()}
+                        </span>
                       )}
                     </div>
                   </CardContent>
