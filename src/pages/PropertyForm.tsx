@@ -446,16 +446,22 @@ export default function PropertyForm() {
         });
       }
 
-      // Store rate types as a separate array (not mixed with meal types)
+      // Store rate types as a separate array with all Benson API fields
       if (data?.rateTypes && Array.isArray(data.rateTypes) && data.rateTypes.length > 0) {
         console.log("Rate types from Benson:", data.rateTypes);
         
         const importedRateTypes = data.rateTypes.map((rt: any) => ({
           id: rt.id,
           name: rt.name || `Rate Type ${rt.id}`,
-          priceType: rt.priceType || '',
-          minNights: rt.minNights || 1,
-          maxNights: rt.maxNights || 0,
+          description: rt.description || null,
+          priceType: rt.priceType || null,
+          minAdvanceDays: rt.minAdvanceDays ?? null,
+          maxAdvanceDays: rt.maxAdvanceDays ?? null,
+          minStayDays: rt.minStayDays ?? null,
+          maxStayDays: rt.maxStayDays ?? null,
+          stayPayStayNights: rt.stayPayStayNights ?? null,
+          stayPayDiscountNights: rt.stayPayDiscountNights ?? null,
+          stayPayDiscountPercentage: rt.stayPayDiscountPercentage ?? null,
           pms_synced: true,
         }));
         
@@ -821,15 +827,20 @@ export default function PropertyForm() {
   // Season rates state: { [roomId]: { [seasonId]: { unitRate: number, weekendRate: number } } }
   const [seasonRates, setSeasonRates] = useState<Record<string, Record<string, { unitRate: number; weekendRate: number }>>>({});
 
-  // PMS Rate Types state (imported from Benson/other PMS)
+  // PMS Rate Types state (imported from Benson/other PMS) - full Benson API spec
   const [pmsRateTypes, setPmsRateTypes] = useState<{
     id: number;
     name: string;
-    priceType?: string;
-    minNights?: number;
-    maxNights?: number;
+    description?: string | null;
+    priceType?: string | null;
+    minAdvanceDays?: number | null;
+    maxAdvanceDays?: number | null;
+    minStayDays?: number | null;
+    maxStayDays?: number | null;
+    stayPayStayNights?: number | null;
+    stayPayDiscountNights?: number | null;
+    stayPayDiscountPercentage?: number | null;
     pms_synced?: boolean;
-    [key: string]: any;
   }[]>([]);
 
   // Season CRUD functions
@@ -4410,37 +4421,85 @@ export default function PropertyForm() {
                           <p className="text-sm">Connect to your PMS and sync to import rate types.</p>
                         </div>
                       ) : (
-                        <div className="border rounded-lg overflow-hidden">
-                          <table className="w-full">
-                            <thead className="bg-muted">
-                              <tr>
-                                <th className="text-left p-3 font-semibold text-sm">ID</th>
-                                <th className="text-left p-3 font-semibold text-sm">NAME</th>
-                                <th className="text-left p-3 font-semibold text-sm">PRICE TYPE</th>
-                                <th className="text-left p-3 font-semibold text-sm">MIN NIGHTS</th>
-                                <th className="text-left p-3 font-semibold text-sm">MAX NIGHTS</th>
-                                <th className="text-left p-3 font-semibold text-sm">SOURCE</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {pmsRateTypes.map((rateType) => (
-                                <tr key={rateType.id} className="border-t hover:bg-muted/50">
-                                  <td className="p-3 font-mono text-sm">{rateType.id}</td>
-                                  <td className="p-3 font-medium">{rateType.name}</td>
-                                  <td className="p-3">{rateType.priceType || "-"}</td>
-                                  <td className="p-3">{rateType.minNights || 1}</td>
-                                  <td className="p-3">{rateType.maxNights || "No limit"}</td>
-                                  <td className="p-3">
-                                    {rateType.pms_synced && (
-                                      <Badge variant="outline" className="text-xs bg-primary/10">
-                                        <Cloud className="h-3 w-3 mr-1" />PMS
+                        <div className="space-y-4">
+                          {pmsRateTypes.map((rateType) => (
+                            <Card key={rateType.id} className="border">
+                              <CardHeader className="pb-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <CardTitle className="text-lg">{rateType.name}</CardTitle>
+                                    <Badge variant="outline" className="font-mono text-xs">
+                                      ID: {rateType.id}
+                                    </Badge>
+                                    {rateType.priceType && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        {rateType.priceType}
                                       </Badge>
                                     )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                                  </div>
+                                  {rateType.pms_synced && (
+                                    <Badge variant="outline" className="text-xs bg-primary/10">
+                                      <Cloud className="h-3 w-3 mr-1" />PMS
+                                    </Badge>
+                                  )}
+                                </div>
+                                {rateType.description && (
+                                  <p className="text-sm text-muted-foreground mt-2">{rateType.description}</p>
+                                )}
+                              </CardHeader>
+                              <CardContent className="pt-0">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                  {/* Stay Requirements */}
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-muted-foreground">Min Stay (Days)</Label>
+                                    <p className="font-medium">{rateType.minStayDays ?? "-"}</p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-muted-foreground">Max Stay (Days)</Label>
+                                    <p className="font-medium">{rateType.maxStayDays ?? "No limit"}</p>
+                                  </div>
+                                  
+                                  {/* Advance Booking Requirements */}
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-muted-foreground">Min Advance (Days)</Label>
+                                    <p className="font-medium">{rateType.minAdvanceDays ?? "-"}</p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-muted-foreground">Max Advance (Days)</Label>
+                                    <p className="font-medium">{rateType.maxAdvanceDays ?? "No limit"}</p>
+                                  </div>
+                                </div>
+                                
+                                {/* Stay Pay Discount Section */}
+                                {(rateType.stayPayStayNights || rateType.stayPayDiscountNights || rateType.stayPayDiscountPercentage) && (
+                                  <>
+                                    <Separator className="my-4" />
+                                    <div className="space-y-2">
+                                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Stay/Pay Discount</Label>
+                                      <div className="grid grid-cols-3 gap-4">
+                                        <div className="space-y-1">
+                                          <Label className="text-xs text-muted-foreground">Stay Nights</Label>
+                                          <p className="font-medium">{rateType.stayPayStayNights ?? "-"}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <Label className="text-xs text-muted-foreground">Discount Nights</Label>
+                                          <p className="font-medium">{rateType.stayPayDiscountNights ?? "-"}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <Label className="text-xs text-muted-foreground">Discount %</Label>
+                                          <p className="font-medium">
+                                            {rateType.stayPayDiscountPercentage != null 
+                                              ? `${rateType.stayPayDiscountPercentage}%` 
+                                              : "-"}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </>
+                                )}
+                              </CardContent>
+                            </Card>
+                          ))}
                         </div>
                       )}
                     </TabsContent>

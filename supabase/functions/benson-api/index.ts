@@ -788,16 +788,22 @@ serve(async (req) => {
               minAdultsToOfferNonAdultRates: roomType.minAdultsToOfferNonAdultRates,
             });
             
-            // Extract rate types from this room type
+            // Extract rate types from this room type - capture all Benson rate type fields
             if (roomType.rateTypes && Array.isArray(roomType.rateTypes)) {
               roomType.rateTypes.forEach((rateType: any) => {
                 if (!extractedRateTypes.has(rateType.rateTypeId)) {
                   extractedRateTypes.set(rateType.rateTypeId, {
                     id: rateType.rateTypeId,
                     name: rateType.name,
-                    priceType: rateType.priceType,
-                    minNights: rateType.minNights,
-                    maxNights: rateType.maxNights,
+                    description: rateType.description || null,
+                    priceType: rateType.priceType || null,
+                    minAdvanceDays: rateType.minAdvanceDays ?? null,
+                    maxAdvanceDays: rateType.maxAdvanceDays ?? null,
+                    minStayDays: rateType.minStayDays ?? rateType.minNights ?? null,
+                    maxStayDays: rateType.maxStayDays ?? rateType.maxNights ?? null,
+                    stayPayStayNights: rateType.stayPayStayNights ?? null,
+                    stayPayDiscountNights: rateType.stayPayDiscountNights ?? null,
+                    stayPayDiscountPercentage: rateType.stayPayDiscountPercentage ?? null,
                   });
                 }
                 
