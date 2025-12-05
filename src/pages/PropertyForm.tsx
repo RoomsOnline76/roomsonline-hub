@@ -4856,9 +4856,9 @@ export default function PropertyForm() {
                                 >
                                   <div className="flex items-center gap-3">
                                     {isExpanded ? (
-                                      <Minus className="h-4 w-4 text-muted-foreground" />
+                                      <Minus className="h-4 w-4 text-primary" />
                                     ) : (
-                                      <Plus className="h-4 w-4 text-muted-foreground" />
+                                      <Plus className="h-4 w-4 text-primary" />
                                     )}
                                     <div>
                                       <h3 className="font-semibold">
@@ -4988,9 +4988,9 @@ export default function PropertyForm() {
                                     >
                                       <div className="flex items-center gap-3">
                                         {isExpanded ? (
-                                          <Minus className="h-4 w-4 text-muted-foreground" />
+                                          <Minus className="h-4 w-4 text-primary" />
                                         ) : (
-                                          <Plus className="h-4 w-4 text-muted-foreground" />
+                                          <Plus className="h-4 w-4 text-primary" />
                                         )}
                                         <div>
                                           <h3 className="font-semibold">{mealType}</h3>
