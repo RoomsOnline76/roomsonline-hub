@@ -433,117 +433,49 @@ export default function PropertyForm() {
         });
       }
 
-      // Store rate types as meal types for rate breakdown
+      // Store rate types as a separate array (not mixed with meal types)
       if (data?.rateTypes && Array.isArray(data.rateTypes) && data.rateTypes.length > 0) {
         console.log("Rate types from Benson:", data.rateTypes);
-        // Map Benson rate types to meal types (rate types are essentially meal plans in Benson)
-        const bensonMealTypes = data.rateTypes
-          .map((rt: any) => rt.name || rt.description || `Rate Type ${rt.id}`)
-          .filter((name: string) => name);
         
-        if (bensonMealTypes.length > 0) {
-          // Merge with existing meal types
-          const mergedMealTypes = [...new Set([...selectedMealTypes, ...bensonMealTypes])];
-          setSelectedMealTypes(mergedMealTypes);
-          hasChanges = true;
-          toast({
-            title: "Rate Types Synced",
-            description: `Found ${data.rateTypes.length} rate types from Benson.`,
-          });
-        }
+        const importedRateTypes = data.rateTypes.map((rt: any) => ({
+          id: rt.id,
+          name: rt.name || `Rate Type ${rt.id}`,
+          priceType: rt.priceType || '',
+          minNights: rt.minNights || 1,
+          maxNights: rt.maxNights || 0,
+          pms_synced: true,
+        }));
+        
+        // Merge with existing rate types (update existing, add new)
+        const updatedRateTypes = [...pmsRateTypes];
+        let newRateTypeCount = 0;
+        let updatedRateTypeCount = 0;
+        
+        importedRateTypes.forEach((imported: any) => {
+          const existingIndex = updatedRateTypes.findIndex(
+            (rt) => rt.id === imported.id || rt.name.toLowerCase() === imported.name.toLowerCase()
+          );
+          
+          if (existingIndex >= 0) {
+            updatedRateTypes[existingIndex] = { ...updatedRateTypes[existingIndex], ...imported };
+            updatedRateTypeCount++;
+          } else {
+            updatedRateTypes.push(imported);
+            newRateTypeCount++;
+          }
+        });
+        
+        setPmsRateTypes(updatedRateTypes);
+        hasChanges = true;
+        toast({
+          title: "Rate Types Synced",
+          description: `Found ${data.rateTypes.length} rate types. ${newRateTypeCount} new, ${updatedRateTypeCount} updated.`,
+        });
       }
 
-      // Process rates data to create seasons and populate rate breakdown
+      // Log rates data for reference (rates are displayed in calendar, not used for seasons)
       if (data?.rates && Array.isArray(data.rates) && data.rates.length > 0) {
-        console.log("Rates data from Benson:", data.rates);
-        
-        // Group rates by date ranges to create seasons
-        const ratesByDateRange: Record<string, { from: string; to: string; rates: any[] }> = {};
-        
-        data.rates.forEach((rate: any) => {
-          // Benson rates typically have startDate/endDate or date fields
-          const startDate = rate.startDate || rate.fromDate || rate.date;
-          const endDate = rate.endDate || rate.toDate || rate.date;
-          
-          if (startDate) {
-            const key = `${startDate}_${endDate || startDate}`;
-            if (!ratesByDateRange[key]) {
-              ratesByDateRange[key] = {
-                from: startDate,
-                to: endDate || startDate,
-                rates: []
-              };
-            }
-            ratesByDateRange[key].rates.push(rate);
-          }
-        });
-
-        // Create seasons from date ranges
-        const newSeasons: any[] = [];
-        const newSeasonRates: Record<string, Record<string, { unitRate: number; weekendRate: number }>> = { ...seasonRates };
-        
-        Object.entries(ratesByDateRange).forEach(([key, { from, to, rates }], index) => {
-          // Check if season already exists for this date range
-          const existingSeason = seasons.find(s => s.from === from && s.to === to);
-          const seasonId = existingSeason?.id || `benson-${Date.now()}-${index}`;
-          
-          if (!existingSeason) {
-            // Create new season
-            newSeasons.push({
-              id: seasonId,
-              name: `Season ${index + 1}`,
-              title: `${from} - ${to}`,
-              from,
-              to,
-              minStay: rates[0]?.minStay || rates[0]?.minNights || 1,
-              maxStay: rates[0]?.maxStay || rates[0]?.maxNights || 0,
-              pms_synced: true,
-            });
-          }
-
-          // Process rates for this season
-          rates.forEach((rate: any) => {
-            const roomTypeId = rate.roomTypeId?.toString() || rate.roomType?.id?.toString();
-            const rateTypeName = rate.rateTypeName || rate.rateName || rate.name || 'Standard';
-            const amount = rate.amount || rate.price || rate.rate || 0;
-            
-            // Find matching room by PMS ID
-            const matchingRoom = roomTypes.find(r => 
-              r.pms_id?.toString() === roomTypeId || 
-              r.id === roomTypeId
-            );
-            
-            if (matchingRoom) {
-              const rateKey = `${existingSeason?.id || seasonId}-${rateTypeName}`;
-              
-              if (!newSeasonRates[matchingRoom.id]) {
-                newSeasonRates[matchingRoom.id] = {};
-              }
-              
-              newSeasonRates[matchingRoom.id][rateKey] = {
-                unitRate: amount,
-                weekendRate: rate.weekendRate || rate.weekendPrice || amount,
-              };
-            }
-          });
-        });
-
-        // Merge seasons
-        if (newSeasons.length > 0) {
-          setSeasons(prev => [...prev, ...newSeasons]);
-          hasChanges = true;
-        }
-        
-        // Update season rates
-        if (Object.keys(newSeasonRates).length > 0) {
-          setSeasonRates(newSeasonRates);
-          hasChanges = true;
-        }
-        
-        toast({
-          title: "Rates Configured",
-          description: `Processed ${data.rates.length} rates into ${newSeasons.length} seasons.`,
-        });
+        console.log("Rates data from Benson (for calendar display):", data.rates.length, "rate entries");
       }
 
       // Trigger dirty state if any changes were made
@@ -875,6 +807,17 @@ export default function PropertyForm() {
 
   // Season rates state: { [roomId]: { [seasonId]: { unitRate: number, weekendRate: number } } }
   const [seasonRates, setSeasonRates] = useState<Record<string, Record<string, { unitRate: number; weekendRate: number }>>>({});
+
+  // PMS Rate Types state (imported from Benson/other PMS)
+  const [pmsRateTypes, setPmsRateTypes] = useState<{
+    id: number;
+    name: string;
+    priceType?: string;
+    minNights?: number;
+    maxNights?: number;
+    pms_synced?: boolean;
+    [key: string]: any;
+  }[]>([]);
 
   // Season CRUD functions
   const openAddSeasonDialog = () => {
@@ -1486,6 +1429,7 @@ export default function PropertyForm() {
           if (amenities?.cancellation_policies) setCancellationPolicies(amenities.cancellation_policies);
           if (amenities?.seasons) setSeasons(amenities.seasons);
           if (amenities?.season_rates) setSeasonRates(amenities.season_rates);
+          if (amenities?.pms_rate_types) setPmsRateTypes(amenities.pms_rate_types);
           if (amenities?.addons) setAddons(amenities.addons);
           if (amenities?.packages) setPackages(amenities.packages);
           if (amenities?.announcements) setAnnouncements(amenities.announcements);
@@ -1837,6 +1781,7 @@ export default function PropertyForm() {
           },
           seasons: seasons,
           season_rates: seasonRates,
+          pms_rate_types: pmsRateTypes,
           addons: addons,
           packages: packages,
           announcements: announcements,
@@ -4429,12 +4374,63 @@ export default function PropertyForm() {
 
                 {/* Main Content - Rate Breakdown Details */}
                 <div className="flex-1 overflow-auto">
-                  <Tabs defaultValue="season" className="w-full">
+                  <Tabs defaultValue="rate-types" className="w-full">
                     <TabsList>
+                      <TabsTrigger value="rate-types">Rate Types</TabsTrigger>
                       <TabsTrigger value="season">Seasons</TabsTrigger>
                       <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
                       <TabsTrigger value="overview">Overview</TabsTrigger>
                     </TabsList>
+
+                    {/* Rate Types Sub-tab */}
+                    <TabsContent value="rate-types" className="p-6 space-y-4">
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm text-muted-foreground">
+                          Rate types imported from your PMS system. Use the "Sync from PMS" button to import or update rate types.
+                        </p>
+                      </div>
+
+                      {pmsRateTypes.length === 0 ? (
+                        <div className="border rounded-lg p-8 text-center text-muted-foreground">
+                          <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                          <p>No rate types imported yet.</p>
+                          <p className="text-sm">Connect to your PMS and sync to import rate types.</p>
+                        </div>
+                      ) : (
+                        <div className="border rounded-lg overflow-hidden">
+                          <table className="w-full">
+                            <thead className="bg-muted">
+                              <tr>
+                                <th className="text-left p-3 font-semibold text-sm">ID</th>
+                                <th className="text-left p-3 font-semibold text-sm">NAME</th>
+                                <th className="text-left p-3 font-semibold text-sm">PRICE TYPE</th>
+                                <th className="text-left p-3 font-semibold text-sm">MIN NIGHTS</th>
+                                <th className="text-left p-3 font-semibold text-sm">MAX NIGHTS</th>
+                                <th className="text-left p-3 font-semibold text-sm">SOURCE</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {pmsRateTypes.map((rateType) => (
+                                <tr key={rateType.id} className="border-t hover:bg-muted/50">
+                                  <td className="p-3 font-mono text-sm">{rateType.id}</td>
+                                  <td className="p-3 font-medium">{rateType.name}</td>
+                                  <td className="p-3">{rateType.priceType || "-"}</td>
+                                  <td className="p-3">{rateType.minNights || 1}</td>
+                                  <td className="p-3">{rateType.maxNights || "No limit"}</td>
+                                  <td className="p-3">
+                                    {rateType.pms_synced && (
+                                      <Badge variant="outline" className="text-xs bg-primary/10">
+                                        <Cloud className="h-3 w-3 mr-1" />PMS
+                                      </Badge>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </TabsContent>
 
                     {/* Season Sub-tab */}
                     <TabsContent value="season" className="p-6 space-y-4">
