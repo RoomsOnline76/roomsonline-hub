@@ -10,11 +10,51 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Rate limiting configuration
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const MAX_REQUESTS_PER_IP = 5; // Max 5 requests per IP per hour
+const DUPLICATE_EMAIL_WINDOW_HOURS = 24; // Block duplicate emails for 24 hours
+
+// In-memory rate limit store (resets on cold start, but provides basic protection)
+const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+
 const requestSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100, "Name too long"),
   email: z.string().trim().email("Invalid email address").max(255, "Email too long"),
   message: z.string().trim().max(1000, "Message too long").optional(),
 });
+
+function getClientIP(req: Request): string {
+  // Check common headers for real IP behind proxies
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    return forwardedFor.split(",")[0].trim();
+  }
+  const realIP = req.headers.get("x-real-ip");
+  if (realIP) {
+    return realIP;
+  }
+  return "unknown";
+}
+
+function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const record = rateLimitStore.get(ip);
+
+  if (!record || now > record.resetTime) {
+    // Reset or create new record
+    rateLimitStore.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true };
+  }
+
+  if (record.count >= MAX_REQUESTS_PER_IP) {
+    const retryAfter = Math.ceil((record.resetTime - now) / 1000);
+    return { allowed: false, retryAfter };
+  }
+
+  record.count++;
+  return { allowed: true };
+}
 
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight
@@ -23,6 +63,25 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Rate limiting check
+    const clientIP = getClientIP(req);
+    const rateCheck = checkRateLimit(clientIP);
+    
+    if (!rateCheck.allowed) {
+      console.warn(`Rate limit exceeded for IP: ${clientIP}`);
+      return new Response(
+        JSON.stringify({ error: "Too many requests. Please try again later." }),
+        { 
+          status: 429, 
+          headers: { 
+            "Content-Type": "application/json",
+            "Retry-After": String(rateCheck.retryAfter),
+            ...corsHeaders 
+          } 
+        }
+      );
+    }
+
     const body = await req.json();
     
     const validationResult = requestSchema.safeParse(body);
@@ -36,12 +95,46 @@ const handler = async (req: Request): Promise<Response> => {
     
     const { name, email, message } = validationResult.data;
 
-    console.log("Received access request:", { name, email });
+    console.log("Received access request:", { name, email, ip: clientIP });
 
     // Create Supabase client with service role for inserting without auth
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Check for duplicate email requests within the window
+    const windowStart = new Date();
+    windowStart.setHours(windowStart.getHours() - DUPLICATE_EMAIL_WINDOW_HOURS);
+    
+    const { data: existingRequests, error: checkError } = await supabase
+      .from("access_requests")
+      .select("id, status, created_at")
+      .eq("email", email)
+      .gte("created_at", windowStart.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (checkError) {
+      console.error("Error checking duplicate requests:", checkError);
+    } else if (existingRequests && existingRequests.length > 0) {
+      const existing = existingRequests[0];
+      console.warn(`Duplicate request blocked for email: ${email}, existing status: ${existing.status}`);
+      
+      // Provide helpful message based on status
+      let userMessage = "You have already submitted an access request. ";
+      if (existing.status === "pending") {
+        userMessage += "Your request is being reviewed.";
+      } else if (existing.status === "approved") {
+        userMessage += "Your request has been approved. Please check your email.";
+      } else {
+        userMessage += "Please contact support if you need assistance.";
+      }
+      
+      return new Response(
+        JSON.stringify({ error: userMessage }),
+        { status: 409, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     // Fetch configurable email addresses from api_keys table
     const { data: emailConfig } = await supabase
