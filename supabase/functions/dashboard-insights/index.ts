@@ -1,9 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const requestSchema = z.object({
+  prompt: z.string().min(1, "Prompt is required").max(500, "Prompt too long"),
+  dashboardData: z.record(z.any()),
+});
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -11,7 +17,18 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, dashboardData } = await req.json();
+    const body = await req.json();
+    
+    const validationResult = requestSchema.safeParse(body);
+    if (!validationResult.success) {
+      console.error("Validation failed:", validationResult.error);
+      return new Response(
+        JSON.stringify({ error: "Invalid request parameters" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    const { prompt, dashboardData } = validationResult.data;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
