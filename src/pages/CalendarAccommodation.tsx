@@ -177,11 +177,47 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
   const [selectedMealTypes, setSelectedMealTypes] = useState<string[]>([]);
 
-  // PMS sync state
-  const [pmsData, setPmsData] = useState<PMSData>({ roomTypes: [], lastSynced: null, systemType: "" });
-  const [pmsSyncStatus, setPmsSyncStatus] = useState<PMSSyncStatus>("idle");
+  // PMS sync state - initialize from sessionStorage if available
+  const [pmsData, setPmsData] = useState<PMSData>(() => {
+    const propertyId = searchParams.get("property");
+    if (propertyId) {
+      const cached = sessionStorage.getItem(`pms_data_${propertyId}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          return {
+            ...parsed,
+            lastSynced: parsed.lastSynced ? new Date(parsed.lastSynced) : null
+          };
+        } catch (e) {
+          console.error("Failed to parse cached PMS data:", e);
+        }
+      }
+    }
+    return { roomTypes: [], lastSynced: null, systemType: "" };
+  });
+  const [pmsSyncStatus, setPmsSyncStatus] = useState<PMSSyncStatus>(() => {
+    const propertyId = searchParams.get("property");
+    if (propertyId) {
+      const cached = sessionStorage.getItem(`pms_data_${propertyId}`);
+      if (cached) return "success";
+    }
+    return "idle";
+  });
   const [pmsSyncError, setPmsSyncError] = useState<string>("");
-  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(() => {
+    const propertyId = searchParams.get("property");
+    if (propertyId) {
+      const cached = sessionStorage.getItem(`pms_data_${propertyId}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          return parsed.lastSynced ? new Date(parsed.lastSynced) : null;
+        } catch (e) {}
+      }
+    }
+    return null;
+  });
 
   const selectedPropertyData = properties.find(p => p.id === selectedProperty);
   const hasAccommodation = selectedPropertyData?.amenities?.offerings?.accommodation === true;
@@ -495,15 +531,29 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     }
   }, [selectedPropertyData, hasPmsPropertyCode, currentDate, viewMode, toast, loadCachedAvailability]);
 
+  // Persist PMS data to sessionStorage when it changes
+  useEffect(() => {
+    if (selectedProperty && pmsData.roomTypes.length > 0) {
+      sessionStorage.setItem(`pms_data_${selectedProperty}`, JSON.stringify(pmsData));
+    }
+  }, [selectedProperty, pmsData]);
+
   // Trigger PMS sync when property or date changes
   useEffect(() => {
     if (selectedProperty && isPmsProperty) {
-      fetchPmsAvailability(false); // Load from cache first
-    } else {
+      // Only fetch if we don't already have data for this property
+      if (pmsData.roomTypes.length === 0) {
+        fetchPmsAvailability(false); // Load from cache first
+      }
+    } else if (!isPmsProperty) {
+      // Only clear if switching to a non-PMS property
       setPmsSyncStatus("idle");
       setPmsData({ roomTypes: [], lastSynced: null, systemType: "" });
+      if (selectedProperty) {
+        sessionStorage.removeItem(`pms_data_${selectedProperty}`);
+      }
     }
-  }, [selectedProperty, currentDate, viewMode, isPmsProperty]);
+  }, [selectedProperty, isPmsProperty]);
 
   const checkUserRoleAndFetchProperties = async () => {
     try {
