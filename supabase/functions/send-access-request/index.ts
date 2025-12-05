@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -9,11 +10,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface AccessRequestPayload {
-  name: string;
-  email: string;
-  message: string;
-}
+const requestSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(100, "Name too long"),
+  email: z.string().trim().email("Invalid email address").max(255, "Email too long"),
+  message: z.string().trim().max(1000, "Message too long").optional(),
+});
 
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight
@@ -22,17 +23,20 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { name, email, message }: AccessRequestPayload = await req.json();
-
-    console.log("Received access request:", { name, email });
-
-    // Validate input
-    if (!name || !email) {
+    const body = await req.json();
+    
+    const validationResult = requestSchema.safeParse(body);
+    if (!validationResult.success) {
+      console.error("Validation failed:", validationResult.error);
       return new Response(
-        JSON.stringify({ error: "Name and email are required" }),
+        JSON.stringify({ error: "Invalid request data" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
+    
+    const { name, email, message } = validationResult.data;
+
+    console.log("Received access request:", { name, email });
 
     // Create Supabase client with service role for inserting without auth
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

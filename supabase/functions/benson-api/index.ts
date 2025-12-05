@@ -1,10 +1,81 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Input validation schemas
+const baseRequestSchema = z.object({
+  action: z.enum([
+    "test_connection",
+    "fetch_availability",
+    "create_reservation",
+    "get_reservations",
+    "fetch_types",
+    "fetch_property_data",
+    "get_current_rooms",
+    "get_client_invoices",
+    "post_bill"
+  ]),
+  property_id: z.string().uuid({ message: "Invalid property ID format" }),
+});
+
+const fetchAvailabilitySchema = baseRequestSchema.extend({
+  action: z.literal("fetch_availability"),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Start date must be YYYY-MM-DD format" }),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "End date must be YYYY-MM-DD format" }),
+  room_type_ids: z.array(z.number()).optional(),
+  rate_type_ids: z.array(z.number()).optional(),
+});
+
+const getReservationsSchema = baseRequestSchema.extend({
+  action: z.literal("get_reservations"),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Start date must be YYYY-MM-DD format" }),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "End date must be YYYY-MM-DD format" }),
+  statuses: z.array(z.string()).optional(),
+});
+
+const createReservationSchema = baseRequestSchema.extend({
+  action: z.literal("create_reservation"),
+  reservation_data: z.object({
+    arrivalDate: z.string(),
+    departureDate: z.string(),
+    rateTypeId: z.number(),
+    contactName: z.string().min(1),
+    contactNumber: z.string(),
+    contactEmail: z.string().email(),
+    voucher: z.string().optional(),
+    note: z.string().optional(),
+    rooms: z.array(z.object({
+      roomTypeId: z.number(),
+      numberOfAdults: z.number().min(0),
+      numberOfTeens: z.number().min(0),
+      numberOfChildren: z.number().min(0),
+      numberOfInfants: z.number().min(0),
+    })),
+  }),
+});
+
+const postBillSchema = baseRequestSchema.extend({
+  action: z.literal("post_bill"),
+  bill_data: z.object({
+    roomId: z.number().optional(),
+    reservationId: z.number().optional(),
+    clientId: z.number().optional(),
+    sourceReference: z.string(),
+    charges: z.array(z.object({
+      chargeTypeId: z.number(),
+      amount: z.number(),
+    })).optional(),
+    payments: z.array(z.object({
+      paymentTypeId: z.number(),
+      amount: z.number(),
+    })).optional(),
+  }),
+});
 
 // Benson API Base URLs (defaults)
 const BENSON_STAGING_URL = "https://staging-api.bensonsoftware.com/api/v3/integrations";
@@ -339,6 +410,17 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
+    
+    // Validate base request structure
+    const baseValidation = baseRequestSchema.safeParse(body);
+    if (!baseValidation.success) {
+      console.error("Validation failed:", baseValidation.error);
+      return new Response(
+        JSON.stringify({ error: "Invalid request parameters", details: baseValidation.error.issues }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
     const { action, property_id, ...params } = body;
 
     console.log(`Benson API action: ${action}, property_id: ${property_id}`);

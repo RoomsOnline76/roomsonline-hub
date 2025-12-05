@@ -1,10 +1,15 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const requestSchema = z.object({
+  email: z.string().trim().email("Invalid email address").max(255, "Email too long"),
+});
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -52,14 +57,18 @@ serve(async (req) => {
       );
     }
 
-    const { email } = await req.json();
-
-    if (!email) {
+    const body = await req.json();
+    
+    const validationResult = requestSchema.safeParse(body);
+    if (!validationResult.success) {
+      console.error("Validation failed:", validationResult.error);
       return new Response(
-        JSON.stringify({ error: 'Email is required' }),
+        JSON.stringify({ error: 'Invalid email address' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    const { email } = validationResult.data;
 
     // Send password reset email
     const redirectUrl = `${Deno.env.get('SUPABASE_URL')}/auth/v1/verify`;
