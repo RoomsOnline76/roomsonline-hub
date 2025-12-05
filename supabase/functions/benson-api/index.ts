@@ -22,9 +22,17 @@ interface PropertyInfo {
   benson_property_code: string;
 }
 
-// Helper to get base64 encoded auth header
+// Helper to get base64 encoded auth header (handles special characters)
 const getAuthHeader = (username: string, password: string): string => {
-  const credentials = btoa(`${username}:${password}`);
+  // Use TextEncoder to properly handle special characters
+  const encoder = new TextEncoder();
+  const data = encoder.encode(`${username}:${password}`);
+  // Convert to base64 using Uint8Array
+  let binary = '';
+  for (let i = 0; i < data.length; i++) {
+    binary += String.fromCharCode(data[i]);
+  }
+  const credentials = btoa(binary);
   return `Basic ${credentials}`;
 };
 
@@ -362,6 +370,55 @@ serve(async (req) => {
     let result: any;
 
     switch (action) {
+      case "test_connection": {
+        // Simple test to verify credentials work
+        const baseUrl = creds.baseUrl || (creds.environment === "production" ? BENSON_PRODUCTION_URL : BENSON_STAGING_URL);
+        const testUrl = `${baseUrl}/${propertyCode}/roomtypes`;
+        
+        console.log(`Testing connection to: ${testUrl}`);
+        console.log(`Username: ${creds.username}`);
+        console.log(`Password length: ${creds.password.length}`);
+        console.log(`Environment: ${creds.environment}`);
+        
+        // Log the auth header (masked)
+        const authHeader = getAuthHeader(creds.username, creds.password);
+        console.log(`Auth header prefix: ${authHeader.substring(0, 15)}...`);
+        
+        const testResponse = await fetch(testUrl, {
+          headers: {
+            "Authorization": authHeader,
+            "Content-Type": "application/json",
+          },
+        });
+        
+        console.log(`Test response status: ${testResponse.status}`);
+        
+        if (!testResponse.ok) {
+          const errorText = await testResponse.text();
+          console.error(`Test failed: ${testResponse.status} - ${errorText}`);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              status: testResponse.status,
+              error: errorText || "Authentication failed",
+              url: testUrl,
+              username: creds.username,
+              environment: creds.environment
+            }),
+            { status: testResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        const testData = await testResponse.json();
+        result = { 
+          success: true, 
+          message: "Connection successful",
+          roomTypesCount: Array.isArray(testData) ? testData.length : 0,
+          data: testData
+        };
+        break;
+      }
+
       case "fetch_availability":
         result = await fetchAvailability(
           creds,
