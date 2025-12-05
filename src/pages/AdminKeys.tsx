@@ -66,6 +66,9 @@ interface PMSCredentials {
   password: string | null;
   api_key: string | null;
   agent_code: string | null;
+  property_code: string | null;
+  property_name: string | null;
+  base_url: string | null;
   is_active: boolean;
 }
 
@@ -77,13 +80,28 @@ export default function AdminKeys() {
   const [editValue, setEditValue] = useState("");
   const { toast } = useToast();
 
-  // Benson-specific state
-  const [bensonCredentials, setBensonCredentials] = useState<PMSCredentials | null>(null);
-  const [bensonUsername, setBensonUsername] = useState("");
-  const [bensonPassword, setBensonPassword] = useState("");
-  const [bensonEnvironment, setBensonEnvironment] = useState<"staging" | "production">("staging");
-  const [editingBenson, setEditingBenson] = useState(false);
-  const [savingBenson, setSavingBenson] = useState(false);
+  // Benson-specific state - separate for staging and production
+  const [bensonStagingCredentials, setBensonStagingCredentials] = useState<PMSCredentials | null>(null);
+  const [bensonProductionCredentials, setBensonProductionCredentials] = useState<PMSCredentials | null>(null);
+  
+  // Staging form state
+  const [bensonStagingUsername, setBensonStagingUsername] = useState("");
+  const [bensonStagingPassword, setBensonStagingPassword] = useState("");
+  const [bensonStagingPropertyCode, setBensonStagingPropertyCode] = useState("");
+  const [bensonStagingPropertyName, setBensonStagingPropertyName] = useState("");
+  const [bensonStagingUrl, setBensonStagingUrl] = useState("");
+  
+  // Production form state
+  const [bensonProductionUsername, setBensonProductionUsername] = useState("");
+  const [bensonProductionPassword, setBensonProductionPassword] = useState("");
+  const [bensonProductionPropertyCode, setBensonProductionPropertyCode] = useState("");
+  const [bensonProductionPropertyName, setBensonProductionPropertyName] = useState("");
+  const [bensonProductionUrl, setBensonProductionUrl] = useState("");
+  
+  const [editingBensonStaging, setEditingBensonStaging] = useState(false);
+  const [editingBensonProduction, setEditingBensonProduction] = useState(false);
+  const [savingBensonStaging, setSavingBensonStaging] = useState(false);
+  const [savingBensonProduction, setSavingBensonProduction] = useState(false);
 
   // NightsBridge-specific state
   const [nightsbridgeCredentials, setNightsbridgeCredentials] = useState<PMSCredentials | null>(null);
@@ -198,12 +216,13 @@ export default function AdminKeys() {
     const { data, error } = await supabase
       .from("pms_credentials")
       .select("*")
-      .eq("system_type", "benson")
-      .maybeSingle();
+      .eq("system_type", "benson");
 
     if (!error && data) {
-      setBensonCredentials(data);
-      setBensonEnvironment(data.environment as "staging" | "production");
+      const staging = data.find(d => d.environment === "staging");
+      const production = data.find(d => d.environment === "production");
+      setBensonStagingCredentials(staging || null);
+      setBensonProductionCredentials(production || null);
     }
   };
 
@@ -259,20 +278,23 @@ export default function AdminKeys() {
     }
   };
 
-  const handleSaveBensonCredentials = async () => {
-    setSavingBenson(true);
+  const handleSaveBensonStagingCredentials = async () => {
+    setSavingBensonStaging(true);
 
     const credData = {
       system_type: "benson",
-      environment: bensonEnvironment,
-      username: bensonUsername || bensonCredentials?.username || null,
-      password: bensonPassword || bensonCredentials?.password || null,
+      environment: "staging",
+      username: bensonStagingUsername || bensonStagingCredentials?.username || null,
+      password: bensonStagingPassword || bensonStagingCredentials?.password || null,
+      property_code: bensonStagingPropertyCode || bensonStagingCredentials?.property_code || null,
+      property_name: bensonStagingPropertyName || bensonStagingCredentials?.property_name || null,
+      base_url: bensonStagingUrl || bensonStagingCredentials?.base_url || null,
       is_active: true,
     };
 
     let error;
-    if (bensonCredentials) {
-      const result = await supabase.from("pms_credentials").update(credData).eq("id", bensonCredentials.id);
+    if (bensonStagingCredentials) {
+      const result = await supabase.from("pms_credentials").update(credData).eq("id", bensonStagingCredentials.id);
       error = result.error;
     } else {
       const result = await supabase.from("pms_credentials").insert(credData);
@@ -287,15 +309,63 @@ export default function AdminKeys() {
       });
     } else {
       toast({
-        title: "Credentials saved",
-        description: "Benson credentials have been updated successfully",
+        title: "Staging credentials saved",
+        description: "Benson staging credentials have been updated successfully",
       });
-      setEditingBenson(false);
-      setBensonUsername("");
-      setBensonPassword("");
+      setEditingBensonStaging(false);
+      setBensonStagingUsername("");
+      setBensonStagingPassword("");
+      setBensonStagingPropertyCode("");
+      setBensonStagingPropertyName("");
+      setBensonStagingUrl("");
       fetchBensonCredentials();
     }
-    setSavingBenson(false);
+    setSavingBensonStaging(false);
+  };
+
+  const handleSaveBensonProductionCredentials = async () => {
+    setSavingBensonProduction(true);
+
+    const credData = {
+      system_type: "benson",
+      environment: "production",
+      username: bensonProductionUsername || bensonProductionCredentials?.username || null,
+      password: bensonProductionPassword || bensonProductionCredentials?.password || null,
+      property_code: bensonProductionPropertyCode || bensonProductionCredentials?.property_code || null,
+      property_name: bensonProductionPropertyName || bensonProductionCredentials?.property_name || null,
+      base_url: bensonProductionUrl || bensonProductionCredentials?.base_url || null,
+      is_active: true,
+    };
+
+    let error;
+    if (bensonProductionCredentials) {
+      const result = await supabase.from("pms_credentials").update(credData).eq("id", bensonProductionCredentials.id);
+      error = result.error;
+    } else {
+      const result = await supabase.from("pms_credentials").insert(credData);
+      error = result.error;
+    }
+
+    if (error) {
+      toast({
+        title: "Error saving credentials",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Production credentials saved",
+        description: "Benson production credentials have been updated successfully",
+      });
+      setEditingBensonProduction(false);
+      setBensonProductionUsername("");
+      setBensonProductionPassword("");
+      setBensonProductionPropertyCode("");
+      setBensonProductionPropertyName("");
+      setBensonProductionUrl("");
+      fetchBensonCredentials();
+    }
+    setSavingBensonProduction(false);
   };
 
   const handleSaveNightsbridgeCredentials = async () => {
@@ -673,9 +743,151 @@ export default function AdminKeys() {
     );
   };
 
-  // Benson-specific card with username/password
+  // Benson-specific card with staging/production sections
   const renderBensonCard = () => {
-    const isConfigured = bensonCredentials?.username && bensonCredentials?.password;
+    const isStagingConfigured = bensonStagingCredentials?.username && bensonStagingCredentials?.password;
+    const isProductionConfigured = bensonProductionCredentials?.username && bensonProductionCredentials?.password;
+    const isAnyConfigured = isStagingConfigured || isProductionConfigured;
+
+    const renderEnvironmentSection = (
+      env: "staging" | "production",
+      credentials: PMSCredentials | null,
+      isConfigured: boolean,
+      editing: boolean,
+      setEditing: (v: boolean) => void,
+      saving: boolean,
+      handleSave: () => void,
+      username: string,
+      setUsername: (v: string) => void,
+      password: string,
+      setPassword: (v: string) => void,
+      propertyCode: string,
+      setPropertyCode: (v: string) => void,
+      propertyName: string,
+      setPropertyName: (v: string) => void,
+      url: string,
+      setUrl: (v: string) => void
+    ) => (
+      <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
+        <div className="flex items-center justify-between">
+          <h4 className="font-semibold capitalize flex items-center gap-2">
+            {env}
+            {isConfigured ? (
+              <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Configured
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-muted-foreground">
+                Not Configured
+              </Badge>
+            )}
+          </h4>
+          {!editing && (
+            <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+              {isConfigured ? "Edit" : "Configure"}
+            </Button>
+          )}
+        </div>
+
+        {editing ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor={`benson-${env}-username`}>Username</Label>
+                <Input
+                  id={`benson-${env}-username`}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder={credentials?.username ? "••••••••" : "Enter username"}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`benson-${env}-password`}>Password</Label>
+                <Input
+                  id={`benson-${env}-password`}
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={credentials?.password ? "••••••••" : "Enter password"}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`benson-${env}-property-code`}>Property Code</Label>
+                <Input
+                  id={`benson-${env}-property-code`}
+                  value={propertyCode}
+                  onChange={(e) => setPropertyCode(e.target.value)}
+                  placeholder={credentials?.property_code || "Enter property code"}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`benson-${env}-property-name`}>Property Name</Label>
+                <Input
+                  id={`benson-${env}-property-name`}
+                  value={propertyName}
+                  onChange={(e) => setPropertyName(e.target.value)}
+                  placeholder={credentials?.property_name || "Enter property name"}
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor={`benson-${env}-url`}>URL</Label>
+                <Input
+                  id={`benson-${env}-url`}
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder={credentials?.base_url || "Enter API URL"}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? "Saving..." : "Save"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditing(false);
+                  setUsername("");
+                  setPassword("");
+                  setPropertyCode("");
+                  setPropertyName("");
+                  setUrl("");
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : isConfigured ? (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+            <div>
+              <Label className="text-muted-foreground text-xs">Username</Label>
+              <p className="font-medium text-green-600">Configured</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-xs">Password</Label>
+              <p className="font-medium text-green-600">Configured</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-xs">Property Code</Label>
+              <p className="font-medium truncate">{credentials?.property_code || "—"}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-xs">Property Name</Label>
+              <p className="font-medium truncate">{credentials?.property_name || "—"}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground text-xs">URL</Label>
+              <p className="font-medium truncate text-xs">{credentials?.base_url || "—"}</p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground italic">Click Configure to set up {env} credentials</p>
+        )}
+      </div>
+    );
 
     return (
       <Card>
@@ -698,10 +910,11 @@ export default function AdminKeys() {
               </div>
             </div>
             <div>
-              {isConfigured ? (
+              {isAnyConfigured ? (
                 <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="h-3 w-3" />
-                  Configured
+                  {isStagingConfigured && isProductionConfigured ? "Both Configured" : 
+                   isStagingConfigured ? "Staging Only" : "Production Only"}
                 </Badge>
               ) : (
                 <Badge variant="destructive" className="flex items-center gap-1">
@@ -712,101 +925,55 @@ export default function AdminKeys() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          {editingBenson ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="benson-username">Username</Label>
-                  <Input
-                    id="benson-username"
-                    value={bensonUsername}
-                    onChange={(e) => setBensonUsername(e.target.value)}
-                    placeholder={bensonCredentials?.username ? "••••••••" : "Enter username"}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="benson-password">Password</Label>
-                  <Input
-                    id="benson-password"
-                    type="password"
-                    value={bensonPassword}
-                    onChange={(e) => setBensonPassword(e.target.value)}
-                    placeholder={bensonCredentials?.password ? "••••••••" : "Enter password"}
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <Label className="text-sm">Environment:</Label>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-sm ${bensonEnvironment === "staging" ? "font-medium" : "text-muted-foreground"}`}
-                  >
-                    Staging
-                  </span>
-                  <Switch
-                    checked={bensonEnvironment === "production"}
-                    onCheckedChange={(checked) => setBensonEnvironment(checked ? "production" : "staging")}
-                  />
-                  <span
-                    className={`text-sm ${bensonEnvironment === "production" ? "font-medium" : "text-muted-foreground"}`}
-                  >
-                    Production
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button onClick={handleSaveBensonCredentials} disabled={savingBenson}>
-                  {savingBenson ? "Saving..." : "Save"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setEditingBenson(false);
-                    setBensonUsername("");
-                    setBensonPassword("");
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <Label className="text-muted-foreground">Username</Label>
-                  <p className={`font-medium ${isConfigured ? "text-green-600" : ""}`}>{isConfigured ? "Configured" : "Not set"}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Password</Label>
-                  <p className={`font-medium ${isConfigured ? "text-green-600" : ""}`}>{isConfigured ? "Configured" : "Not set"}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Environment</Label>
-                  <p className="font-medium capitalize">{bensonCredentials?.environment || "Staging"}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Status</Label>
-                  <p className="font-medium">{bensonCredentials?.is_active ? "Active" : "Inactive"}</p>
-                </div>
-              </div>
-
-              <ApiMilestones systemType="benson" className="pt-4 border-t" />
-
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setEditingBenson(true)}>
-                  {isConfigured ? "Update Credentials" : "Configure"}
-                </Button>
-                <Button variant="default" onClick={() => navigate("/admin/benson-config")} disabled={!isConfigured}>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Field Mappings
-                </Button>
-              </div>
-            </div>
+        <CardContent className="space-y-4">
+          {renderEnvironmentSection(
+            "staging",
+            bensonStagingCredentials,
+            !!isStagingConfigured,
+            editingBensonStaging,
+            setEditingBensonStaging,
+            savingBensonStaging,
+            handleSaveBensonStagingCredentials,
+            bensonStagingUsername,
+            setBensonStagingUsername,
+            bensonStagingPassword,
+            setBensonStagingPassword,
+            bensonStagingPropertyCode,
+            setBensonStagingPropertyCode,
+            bensonStagingPropertyName,
+            setBensonStagingPropertyName,
+            bensonStagingUrl,
+            setBensonStagingUrl
           )}
+
+          {renderEnvironmentSection(
+            "production",
+            bensonProductionCredentials,
+            !!isProductionConfigured,
+            editingBensonProduction,
+            setEditingBensonProduction,
+            savingBensonProduction,
+            handleSaveBensonProductionCredentials,
+            bensonProductionUsername,
+            setBensonProductionUsername,
+            bensonProductionPassword,
+            setBensonProductionPassword,
+            bensonProductionPropertyCode,
+            setBensonProductionPropertyCode,
+            bensonProductionPropertyName,
+            setBensonProductionPropertyName,
+            bensonProductionUrl,
+            setBensonProductionUrl
+          )}
+
+          <ApiMilestones systemType="benson" className="pt-4 border-t" />
+
+          <div className="flex gap-2 pt-2">
+            <Button variant="default" onClick={() => navigate("/admin/benson-config")} disabled={!isAnyConfigured}>
+              <Settings className="h-4 w-4 mr-2" />
+              Field Mappings
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );

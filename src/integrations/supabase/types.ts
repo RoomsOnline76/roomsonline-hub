@@ -339,11 +339,14 @@ export type Database = {
         Row: {
           agent_code: string | null
           api_key: string | null
+          base_url: string | null
           created_at: string | null
           environment: string
           id: string
           is_active: boolean | null
           password: string | null
+          property_code: string | null
+          property_name: string | null
           system_type: string
           updated_at: string | null
           username: string | null
@@ -351,11 +354,14 @@ export type Database = {
         Insert: {
           agent_code?: string | null
           api_key?: string | null
+          base_url?: string | null
           created_at?: string | null
           environment?: string
           id?: string
           is_active?: boolean | null
           password?: string | null
+          property_code?: string | null
+          property_name?: string | null
           system_type: string
           updated_at?: string | null
           username?: string | null
@@ -363,11 +369,14 @@ export type Database = {
         Update: {
           agent_code?: string | null
           api_key?: string | null
+          base_url?: string | null
           created_at?: string | null
           environment?: string
           id?: string
           is_active?: boolean | null
           password?: string | null
+          property_code?: string | null
+          property_name?: string | null
           system_type?: string
           updated_at?: string | null
           username?: string | null
