@@ -330,6 +330,7 @@ export default function PropertyForm() {
           // Map children settings
           if (rt.allowChildren !== undefined) {
             roomData.allowChildren = rt.allowChildren;
+            pmsSyncedFields.push('allowChildren');
             if (rt.allowChildren && rt.childMaxAge) {
               roomData.maxChildren = Math.min(rt.maxGuests || 2, 4); // Reasonable default
               pmsSyncedFields.push('maxChildren');
@@ -347,6 +348,7 @@ export default function PropertyForm() {
           // Map teen settings
           if (rt.allowTeens !== undefined) {
             roomData.allowTeens = rt.allowTeens;
+            pmsSyncedFields.push('allowTeens');
             if (rt.teenMinAge !== undefined) {
               roomData.teenMinAge = rt.teenMinAge;
               pmsSyncedFields.push('teenMinAge');
@@ -360,6 +362,7 @@ export default function PropertyForm() {
           // Map infant settings
           if (rt.allowInfants !== undefined) {
             roomData.allowInfants = rt.allowInfants;
+            pmsSyncedFields.push('allowInfants');
             if (rt.infantMinAge !== undefined) {
               roomData.infantMinAge = rt.infantMinAge;
               pmsSyncedFields.push('infantMinAge');
@@ -368,6 +371,16 @@ export default function PropertyForm() {
               roomData.infantMaxAge = rt.infantMaxAge;
               pmsSyncedFields.push('infantMaxAge');
             }
+          }
+          
+          // Map additional Benson fields
+          if (rt.minAgeCategory) {
+            roomData.minAgeCategory = rt.minAgeCategory;
+            pmsSyncedFields.push('minAgeCategory');
+          }
+          if (rt.minAdultsToOfferNonAdultRates !== undefined) {
+            roomData.minAdultsToOfferNonAdultRates = rt.minAdultsToOfferNonAdultRates;
+            pmsSyncedFields.push('minAdultsToOfferNonAdultRates');
           }
           
           // Store the list of PMS-synced fields
@@ -5228,6 +5241,51 @@ export default function PropertyForm() {
                         )}
                       </div>
 
+                      {/* Additional PMS Fields */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            Min Age Category
+                            {isRoomFieldPmsSynced(selectedRoomType, 'minAgeCategory') && (
+                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                            )}
+                          </Label>
+                          <Select
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.minAgeCategory || ""}
+                            onValueChange={(value) => updateRoomTypeField(selectedRoomType, "minAgeCategory", value)}
+                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'minAgeCategory')}
+                          >
+                            <SelectTrigger className={getRoomPmsFieldClass(selectedRoomType, 'minAgeCategory')}>
+                              <SelectValue placeholder="Select category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ADULT">Adult</SelectItem>
+                              <SelectItem value="TEEN">Teen</SelectItem>
+                              <SelectItem value="CHILD">Child</SelectItem>
+                              <SelectItem value="INFANT">Infant</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            Min Adults for Non-Adult Rates
+                            {isRoomFieldPmsSynced(selectedRoomType, 'minAdultsToOfferNonAdultRates') && (
+                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                            )}
+                          </Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.minAdultsToOfferNonAdultRates || 0}
+                            onChange={(e) =>
+                              updateRoomTypeField(selectedRoomType, "minAdultsToOfferNonAdultRates", parseInt(e.target.value) || 0)
+                            }
+                            className={getRoomPmsFieldClass(selectedRoomType, 'minAdultsToOfferNonAdultRates')}
+                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'minAdultsToOfferNonAdultRates')}
+                          />
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Min Stay*</Label>
@@ -5290,8 +5348,10 @@ export default function PropertyForm() {
 
                     {/* Facilities Sub-tab */}
                     <TabsContent value="facilities" className="p-6 space-y-4">
-                      <div className="bg-blue-50 border border-blue-200 rounded-md p-2 mb-4">
-                        <p className="text-sm text-blue-700">Select the facilities available in this room type.</p>
+                      <div className="bg-amber-50 border border-amber-200 rounded-md p-2 mb-4">
+                        <p className="text-sm text-amber-700">
+                          <strong>Manual Entry:</strong> Facilities are not available from the PMS API. Select the facilities available in this room type.
+                        </p>
                       </div>
 
                       <div className="grid grid-cols-6 gap-6">
@@ -5474,8 +5534,10 @@ export default function PropertyForm() {
 
                     {/* Amenities Sub-tab */}
                     <TabsContent value="amenities" className="p-6 space-y-4">
-                      <div className="bg-blue-50 border border-blue-200 rounded-md p-2 mb-4">
-                        <p className="text-sm text-blue-700">Select the amenities available in this room type.</p>
+                      <div className="bg-amber-50 border border-amber-200 rounded-md p-2 mb-4">
+                        <p className="text-sm text-amber-700">
+                          <strong>Manual Entry:</strong> Amenities are not available from the PMS API. Select the amenities available in this room type.
+                        </p>
                       </div>
 
                       <div className="grid grid-cols-3 gap-6">
