@@ -603,34 +603,57 @@ serve(async (req) => {
         break;
 
       case "fetch_types":
-        // Fetch room types and rate types from dedicated endpoints
-        const [roomTypesResult, rateTypesResult] = await Promise.allSettled([
-          getRoomTypes(creds, propertyCode),
-          getRateTypes(creds, propertyCode),
-        ]);
+        // Fetch room types and rate types from availability endpoint
+        console.log(`Fetching types via availability endpoint`);
         
-        // Extract results
-        const roomTypesData = roomTypesResult.status === 'fulfilled' ? roomTypesResult.value : [];
-        const rateTypesData = rateTypesResult.status === 'fulfilled' ? rateTypesResult.value : [];
+        const typesStartDate = new Date();
+        const typesEndDate = new Date();
+        typesEndDate.setDate(typesEndDate.getDate() + 7); // Only need a few days to get types
         
-        // Log warnings for failed requests
-        if (roomTypesResult.status === 'rejected') {
-          console.warn(`Could not fetch room types: ${roomTypesResult.reason?.message || 'Unknown error'}`);
+        let typesAvailData: any = [];
+        try {
+          typesAvailData = await fetchAvailability(
+            creds, 
+            propertyCode, 
+            typesStartDate.toISOString().split("T")[0],
+            typesEndDate.toISOString().split("T")[0]
+          );
+        } catch (availError: any) {
+          console.warn(`Could not fetch availability for types: ${availError.message}`);
         }
-        if (rateTypesResult.status === 'rejected') {
-          console.warn(`Could not fetch rate types: ${rateTypesResult.reason?.message || 'Unknown error'}`);
+        
+        // Extract room types and rate types from availability response
+        const fetchedRoomTypes: any[] = [];
+        const fetchedRateTypes: Map<number, any> = new Map();
+        
+        if (Array.isArray(typesAvailData)) {
+          typesAvailData.forEach((roomType: any) => {
+            fetchedRoomTypes.push({
+              id: roomType.roomTypeId,
+              name: roomType.name,
+            });
+            
+            // Extract rate types from this room type
+            if (roomType.rateTypes && Array.isArray(roomType.rateTypes)) {
+              roomType.rateTypes.forEach((rateType: any) => {
+                if (!fetchedRateTypes.has(rateType.rateTypeId)) {
+                  fetchedRateTypes.set(rateType.rateTypeId, {
+                    id: rateType.rateTypeId,
+                    name: rateType.name,
+                  });
+                }
+              });
+            }
+          });
         }
         
-        console.log(`Fetched ${Array.isArray(roomTypesData) ? roomTypesData.length : 0} room types`);
-        console.log(`Fetched ${Array.isArray(rateTypesData) ? rateTypesData.length : 0} rate types`);
+        console.log(`Fetched ${fetchedRoomTypes.length} room types, ${fetchedRateTypes.size} rate types from availability`);
         
         result = {
-          roomTypes: Array.isArray(roomTypesData) ? roomTypesData : [],
-          rateTypes: Array.isArray(rateTypesData) ? rateTypesData : [],
-          warnings: [
-            ...(roomTypesResult.status === 'rejected' ? ['Room types not accessible with current credentials'] : []),
-            ...(rateTypesResult.status === 'rejected' ? ['Rate types not accessible with current credentials'] : []),
-          ],
+          roomTypes: fetchedRoomTypes,
+          rateTypes: Array.from(fetchedRateTypes.values()),
+          chargeTypes: [], // Not available from availability endpoint
+          paymentTypes: [], // Not available from availability endpoint
         };
         break;
 
