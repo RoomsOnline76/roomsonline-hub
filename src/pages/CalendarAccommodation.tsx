@@ -877,12 +877,13 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     return Array.from(rateTypesMap.values()).filter(rt => rt.fromPms || rt.hasRates);
   }, [calendarRoomData, pmsData, selectedPropertyData]);
 
-  // Set all rate types selected when rateTypeOptions changes
+  // Set only rate types with data as selected when rateTypeOptions changes
   useEffect(() => {
     if (rateTypeOptions.length > 0) {
-      setSelectedRateTypes(rateTypeOptions.map(r => r.id));
+      // Only auto-select rate types that have rates
+      setSelectedRateTypes(rateTypeOptions.filter(r => r.hasRates).map(r => r.id));
     }
-  }, [rateTypeOptions.length]);
+  }, [rateTypeOptions]);
 
   const fetchRoomTypes = async (propertyId: string) => {
     try {
