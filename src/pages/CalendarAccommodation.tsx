@@ -1660,6 +1660,12 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   const avail = getAvailability(room.name, date);
                                   const restrictions = getRestrictions(room.name, date);
                                   
+                                  // Get previous and next day restrictions to determine line continuity
+                                  const prevDate = index > 0 ? calendarDates[index - 1] : null;
+                                  const nextDate = index < calendarDates.length - 1 ? calendarDates[index + 1] : null;
+                                  const prevRestrictions = prevDate ? getRestrictions(room.name, prevDate) : null;
+                                  const nextRestrictions = nextDate ? getRestrictions(room.name, nextDate) : null;
+                                  
                                   // Determine which restriction indicators to show
                                   const showStopSell = selectedDisplayOptions.includes("stop_sell") && restrictions.stopSell;
                                   const showMinStay = selectedDisplayOptions.includes("min_stay") && restrictions.minStay !== null && restrictions.minStay > 0;
@@ -1667,6 +1673,28 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   const showLeadAdv = selectedDisplayOptions.includes("lead_days_advance") && restrictions.leadDaysAdvance !== null && restrictions.leadDaysAdvance > 0;
                                   const showLeadPost = selectedDisplayOptions.includes("lead_days_post") && restrictions.leadDaysPost !== null && restrictions.leadDaysPost > 0;
                                   const hasRestrictions = showStopSell || showMinStay || showMaxStay || showLeadAdv || showLeadPost;
+                                  
+                                  // Helper to get rounded corners based on continuity
+                                  const getLineClass = (
+                                    hasPrev: boolean,
+                                    hasNext: boolean,
+                                    baseColor: string
+                                  ) => {
+                                    const rounded = hasPrev && hasNext ? "" : hasPrev ? "rounded-r-full" : hasNext ? "rounded-l-full" : "rounded-full";
+                                    return `h-1.5 flex-1 ${baseColor} ${rounded}`;
+                                  };
+                                  
+                                  // Check continuity for each restriction type (with same value for min/max stay)
+                                  const stopSellPrev = prevRestrictions?.stopSell === true;
+                                  const stopSellNext = nextRestrictions?.stopSell === true;
+                                  const minStayPrev = prevRestrictions?.minStay === restrictions.minStay && prevRestrictions?.minStay && prevRestrictions.minStay > 0;
+                                  const minStayNext = nextRestrictions?.minStay === restrictions.minStay && nextRestrictions?.minStay && nextRestrictions.minStay > 0;
+                                  const maxStayPrev = prevRestrictions?.maxStay === restrictions.maxStay && prevRestrictions?.maxStay && prevRestrictions.maxStay > 0;
+                                  const maxStayNext = nextRestrictions?.maxStay === restrictions.maxStay && nextRestrictions?.maxStay && nextRestrictions.maxStay > 0;
+                                  const leadAdvPrev = prevRestrictions?.leadDaysAdvance === restrictions.leadDaysAdvance && prevRestrictions?.leadDaysAdvance && prevRestrictions.leadDaysAdvance > 0;
+                                  const leadAdvNext = nextRestrictions?.leadDaysAdvance === restrictions.leadDaysAdvance && nextRestrictions?.leadDaysAdvance && nextRestrictions.leadDaysAdvance > 0;
+                                  const leadPostPrev = prevRestrictions?.leadDaysPost === restrictions.leadDaysPost && prevRestrictions?.leadDaysPost && prevRestrictions.leadDaysPost > 0;
+                                  const leadPostNext = nextRestrictions?.leadDaysPost === restrictions.leadDaysPost && nextRestrictions?.leadDaysPost && nextRestrictions.leadDaysPost > 0;
                                   
                                   return (
                                     <td
@@ -1682,11 +1710,11 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                       <div className="flex flex-col items-center gap-0.5">
                                         <span className="font-semibold">{renderCellValue(avail.value, avail.fromPms)}</span>
                                         {hasRestrictions && (
-                                          <div className="flex gap-0.5 flex-wrap justify-center">
+                                          <div className="flex flex-col gap-0.5 w-full px-0">
                                             {showStopSell && (
                                               <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                  <div className="h-1.5 w-4 rounded-full bg-red-500" />
+                                                  <div className={getLineClass(stopSellPrev, stopSellNext, "bg-red-500")} />
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                   <p className="text-xs font-medium">Stop Sell Active</p>
@@ -1696,7 +1724,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             {showMinStay && (
                                               <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                  <div className="h-1.5 w-4 rounded-full bg-blue-500 flex items-center justify-center">
+                                                  <div className={`${getLineClass(minStayPrev, minStayNext, "bg-blue-500")} flex items-center justify-center`}>
                                                     <span className="text-[8px] text-white font-bold leading-none">{restrictions.minStay}</span>
                                                   </div>
                                                 </TooltipTrigger>
@@ -1708,7 +1736,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             {showMaxStay && (
                                               <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                  <div className="h-1.5 w-4 rounded-full bg-pink-500 flex items-center justify-center">
+                                                  <div className={`${getLineClass(maxStayPrev, maxStayNext, "bg-pink-500")} flex items-center justify-center`}>
                                                     <span className="text-[8px] text-white font-bold leading-none">{restrictions.maxStay}</span>
                                                   </div>
                                                 </TooltipTrigger>
@@ -1720,7 +1748,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             {showLeadAdv && (
                                               <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                  <div className="h-1.5 w-4 rounded-full bg-yellow-500" />
+                                                  <div className={getLineClass(leadAdvPrev, leadAdvNext, "bg-yellow-500")} />
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                   <p className="text-xs font-medium">Lead Days Advance: {restrictions.leadDaysAdvance}</p>
@@ -1730,7 +1758,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             {showLeadPost && (
                                               <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                  <div className="h-1.5 w-4 rounded-full bg-orange-500" />
+                                                  <div className={getLineClass(leadPostPrev, leadPostNext, "bg-orange-500")} />
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                   <p className="text-xs font-medium">Lead Days Post: {restrictions.leadDaysPost}</p>
@@ -1981,6 +2009,12 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   const avail = getAvailability(room.name, date);
                                   const restrictions = getRestrictions(room.name, date);
                                   
+                                  // Get previous and next day restrictions to determine line continuity
+                                  const prevDate = index > 0 ? calendarDates[index - 1] : null;
+                                  const nextDate = index < calendarDates.length - 1 ? calendarDates[index + 1] : null;
+                                  const prevRestrictions = prevDate ? getRestrictions(room.name, prevDate) : null;
+                                  const nextRestrictions = nextDate ? getRestrictions(room.name, nextDate) : null;
+                                  
                                   // Determine which restriction indicators to show
                                   const showStopSell = selectedDisplayOptions.includes("stop_sell") && restrictions.stopSell;
                                   const showMinStay = selectedDisplayOptions.includes("min_stay") && restrictions.minStay !== null && restrictions.minStay > 0;
@@ -1988,6 +2022,28 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   const showLeadAdv = selectedDisplayOptions.includes("lead_days_advance") && restrictions.leadDaysAdvance !== null && restrictions.leadDaysAdvance > 0;
                                   const showLeadPost = selectedDisplayOptions.includes("lead_days_post") && restrictions.leadDaysPost !== null && restrictions.leadDaysPost > 0;
                                   const hasRestrictions = showStopSell || showMinStay || showMaxStay || showLeadAdv || showLeadPost;
+                                  
+                                  // Helper to get rounded corners based on continuity
+                                  const getLineClass = (
+                                    hasPrev: boolean,
+                                    hasNext: boolean,
+                                    baseColor: string
+                                  ) => {
+                                    const rounded = hasPrev && hasNext ? "" : hasPrev ? "rounded-r-full" : hasNext ? "rounded-l-full" : "rounded-full";
+                                    return `h-1 flex-1 ${baseColor} ${rounded}`;
+                                  };
+                                  
+                                  // Check continuity for each restriction type
+                                  const stopSellPrev = prevRestrictions?.stopSell === true;
+                                  const stopSellNext = nextRestrictions?.stopSell === true;
+                                  const minStayPrev = prevRestrictions?.minStay === restrictions.minStay && prevRestrictions?.minStay && prevRestrictions.minStay > 0;
+                                  const minStayNext = nextRestrictions?.minStay === restrictions.minStay && nextRestrictions?.minStay && nextRestrictions.minStay > 0;
+                                  const maxStayPrev = prevRestrictions?.maxStay === restrictions.maxStay && prevRestrictions?.maxStay && prevRestrictions.maxStay > 0;
+                                  const maxStayNext = nextRestrictions?.maxStay === restrictions.maxStay && nextRestrictions?.maxStay && nextRestrictions.maxStay > 0;
+                                  const leadAdvPrev = prevRestrictions?.leadDaysAdvance === restrictions.leadDaysAdvance && prevRestrictions?.leadDaysAdvance && prevRestrictions.leadDaysAdvance > 0;
+                                  const leadAdvNext = nextRestrictions?.leadDaysAdvance === restrictions.leadDaysAdvance && nextRestrictions?.leadDaysAdvance && nextRestrictions.leadDaysAdvance > 0;
+                                  const leadPostPrev = prevRestrictions?.leadDaysPost === restrictions.leadDaysPost && prevRestrictions?.leadDaysPost && prevRestrictions.leadDaysPost > 0;
+                                  const leadPostNext = nextRestrictions?.leadDaysPost === restrictions.leadDaysPost && nextRestrictions?.leadDaysPost && nextRestrictions.leadDaysPost > 0;
                                   
                                   return (
                                     <td
@@ -2003,11 +2059,11 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                       <div className="flex flex-col items-center gap-0.5">
                                         <span className="font-semibold text-sm">{renderCellValue(avail.value, avail.fromPms)}</span>
                                         {hasRestrictions && (
-                                          <div className="flex gap-0.5 flex-wrap justify-center">
+                                          <div className="flex flex-col gap-0.5 w-full px-0">
                                             {showStopSell && (
                                               <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                  <div className="h-1 w-3 rounded-full bg-red-500" />
+                                                  <div className={getLineClass(stopSellPrev, stopSellNext, "bg-red-500")} />
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                   <p className="text-xs font-medium">Stop Sell Active</p>
@@ -2017,7 +2073,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             {showMinStay && (
                                               <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                  <div className="h-1 w-3 rounded-full bg-blue-500" />
+                                                  <div className={getLineClass(minStayPrev, minStayNext, "bg-blue-500")} />
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                   <p className="text-xs font-medium">Min Stay: {restrictions.minStay}</p>
@@ -2027,7 +2083,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             {showMaxStay && (
                                               <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                  <div className="h-1 w-3 rounded-full bg-pink-500" />
+                                                  <div className={getLineClass(maxStayPrev, maxStayNext, "bg-pink-500")} />
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                   <p className="text-xs font-medium">Max Stay: {restrictions.maxStay}</p>
@@ -2037,7 +2093,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             {showLeadAdv && (
                                               <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                  <div className="h-1 w-3 rounded-full bg-yellow-500" />
+                                                  <div className={getLineClass(leadAdvPrev, leadAdvNext, "bg-yellow-500")} />
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                   <p className="text-xs font-medium">Lead Advance: {restrictions.leadDaysAdvance}</p>
@@ -2047,7 +2103,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             {showLeadPost && (
                                               <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                  <div className="h-1 w-3 rounded-full bg-orange-500" />
+                                                  <div className={getLineClass(leadPostPrev, leadPostNext, "bg-orange-500")} />
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                   <p className="text-xs font-medium">Lead Post: {restrictions.leadDaysPost}</p>
