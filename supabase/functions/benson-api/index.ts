@@ -71,13 +71,24 @@ async function fetchAvailability(
     },
   });
 
+  console.log(`Availability response status: ${response.status}`);
+  
+  const responseText = await response.text();
+  console.log(`Availability raw response (first 1000 chars): ${responseText.substring(0, 1000)}`);
+
   if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`Benson API error: ${response.status} - ${errorText}`);
-    throw new Error(`Benson API error: ${response.status} - ${errorText}`);
+    console.error(`Benson API error: ${response.status} - ${responseText}`);
+    throw new Error(`Benson API error: ${response.status} - ${responseText}`);
   }
 
-  return response.json();
+  try {
+    const data = JSON.parse(responseText);
+    console.log(`Parsed availability data keys: ${Object.keys(data).join(', ')}`);
+    return data;
+  } catch (e) {
+    console.error(`Failed to parse availability response as JSON:`, e);
+    throw new Error(`Invalid JSON response from Benson API`);
+  }
 }
 
 // Create reservation in Benson
