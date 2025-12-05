@@ -911,6 +911,52 @@ export default function PropertyForm() {
     setIsDirty(true);
   };
 
+  // Create default Southern Hemisphere seasons
+  const createDefaultSeasons = () => {
+    const currentYear = new Date().getFullYear();
+    const defaultSeasons = [
+      {
+        id: `summer-${Date.now()}`,
+        name: "Summer (Peak)",
+        title: "Summer (Peak)",
+        from: `${currentYear}-12-01`,
+        to: `${currentYear + 1}-02-28`,
+        minStay: 2,
+        maxStay: 0,
+      },
+      {
+        id: `autumn-${Date.now() + 1}`,
+        name: "Autumn (Shoulder)",
+        title: "Autumn (Shoulder)",
+        from: `${currentYear}-03-01`,
+        to: `${currentYear}-05-31`,
+        minStay: 1,
+        maxStay: 0,
+      },
+      {
+        id: `winter-${Date.now() + 2}`,
+        name: "Winter (Low)",
+        title: "Winter (Low)",
+        from: `${currentYear}-06-01`,
+        to: `${currentYear}-08-31`,
+        minStay: 1,
+        maxStay: 0,
+      },
+      {
+        id: `spring-${Date.now() + 3}`,
+        name: "Spring (Shoulder)",
+        title: "Spring (Shoulder)",
+        from: `${currentYear}-09-01`,
+        to: `${currentYear}-11-30`,
+        minStay: 1,
+        maxStay: 0,
+      },
+    ];
+    setSeasons(defaultSeasons);
+    setIsDirty(true);
+    toast({ title: "Default seasons created", description: "4 Southern Hemisphere seasons have been added." });
+  };
+
   const deleteSeason = (seasonId: string) => {
     setSeasons(seasons.filter(s => s.id !== seasonId));
     // Also clean up rates for this season
@@ -4517,17 +4563,29 @@ export default function PropertyForm() {
                         <p className="text-sm text-muted-foreground">
                           Manually define seasonal periods with custom stay requirements. Seasons are not imported from PMS.
                         </p>
-                        <Button onClick={openAddSeasonDialog} className="gap-2">
-                          <Plus className="h-4 w-4" />
-                          Add Season
-                        </Button>
+                        <div className="flex gap-2">
+                          {seasons.length === 0 && (
+                            <Button variant="outline" onClick={createDefaultSeasons} className="gap-2">
+                              <Calendar className="h-4 w-4" />
+                              Add Default Seasons
+                            </Button>
+                          )}
+                          <Button onClick={openAddSeasonDialog} className="gap-2">
+                            <Plus className="h-4 w-4" />
+                            Add Season
+                          </Button>
+                        </div>
                       </div>
 
                       {seasons.length === 0 ? (
                         <div className="border rounded-lg p-8 text-center text-muted-foreground">
                           <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
                           <p>No seasons defined.</p>
-                          <p className="text-sm">Seasons are optional. Add them manually if you need different rate periods.</p>
+                          <p className="text-sm mb-4">Seasons are optional. Add them manually if you need different rate periods.</p>
+                          <Button variant="secondary" onClick={createDefaultSeasons} className="gap-2">
+                            <Calendar className="h-4 w-4" />
+                            Create Southern Hemisphere Seasons
+                          </Button>
                         </div>
                       ) : (
                         <div className="border rounded-lg overflow-hidden">
