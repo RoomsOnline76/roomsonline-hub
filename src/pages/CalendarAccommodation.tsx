@@ -179,7 +179,26 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   );
   const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
   const [selectedRateTypes, setSelectedRateTypes] = useState<string[]>([]);
-
+  
+  // Track checked occupancy rows for per-person rates: key = "roomName-rateTypeId-occKey"
+  const [checkedOccupancyRows, setCheckedOccupancyRows] = useState<Set<string>>(new Set());
+  
+  const toggleOccupancyRow = (roomName: string, rateTypeId: string, occKey: string) => {
+    const key = `${roomName}-${rateTypeId}-${occKey}`;
+    setCheckedOccupancyRows(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+  
+  const isOccupancyRowChecked = (roomName: string, rateTypeId: string, occKey: string) => {
+    return checkedOccupancyRows.has(`${roomName}-${rateTypeId}-${occKey}`);
+  };
   // PMS sync state - initialize from sessionStorage if available
   const [pmsData, setPmsData] = useState<PMSData>(() => {
     const propertyId = searchParams.get("property");
@@ -1706,6 +1725,34 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   { key: "infant", label: "Infant", show: room.allowInfants !== false },
                                 ].filter(row => row.show) : [];
                                 
+                                const showCheckboxes = occupancyRows.length > 1;
+                                const rateTypeId = rate.rateTypeId || rate.rateType;
+                                
+                                // Calculate sum for header row based on checked rows (or single row if only one)
+                                const getHeaderSum = (date: Date) => {
+                                  if (!isPerPerson) return null;
+                                  
+                                  if (occupancyRows.length === 1) {
+                                    // Only one row - show its rate directly
+                                    const rateData = getRate(room.name, rateTypeId, rate.priceType || "PER PERSON", date, occupancyRows[0].key as any);
+                                    return rateData.value;
+                                  }
+                                  
+                                  // Sum checked rows
+                                  let sum = 0;
+                                  let hasChecked = false;
+                                  occupancyRows.forEach(occ => {
+                                    if (isOccupancyRowChecked(room.name, rateTypeId, occ.key)) {
+                                      const rateData = getRate(room.name, rateTypeId, rate.priceType || "PER PERSON", date, occ.key as any);
+                                      if (rateData.value != null) {
+                                        sum += rateData.value;
+                                        hasChecked = true;
+                                      }
+                                    }
+                                  });
+                                  return hasChecked ? sum : null;
+                                };
+                                
                                 return (
                                   <React.Fragment key={`${room.name}-rate-${rateIndex}`}>
                                     {/* Rate Type Header Row */}
@@ -1732,17 +1779,40 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                           </td>
                                         );
                                       })}
-                                      {isPerPerson && calendarDates.map((_, index) => (
-                                        <td key={index} className="border p-2 text-center text-sm text-muted-foreground">
-                                          —
-                                        </td>
-                                      ))}
+                                      {isPerPerson && calendarDates.map((date, index) => {
+                                        const weekend = isWeekend(date);
+                                        const isHoliday = !!getHolidayName(date);
+                                        const headerSum = getHeaderSum(date);
+                                        return (
+                                          <td
+                                            key={index}
+                                            className={`border p-2 text-center text-sm font-medium ${
+                                              isHoliday 
+                                                ? "bg-green-100 dark:bg-green-950/30" 
+                                                : weekend 
+                                                  ? "bg-red-50 dark:bg-red-950/20" 
+                                                  : ""
+                                            } ${headerSum != null ? "text-primary" : "text-muted-foreground"}`}
+                                          >
+                                            {headerSum != null ? headerSum.toLocaleString() : "—"}
+                                          </td>
+                                        );
+                                      })}
                                     </tr>
                                     {/* Occupancy Sub-Rows for PER PERSON */}
                                     {isPerPerson && occupancyRows.map(occ => (
                                       <tr key={`${room.name}-rate-${rateIndex}-${occ.key}`}>
-                                        <td className="border p-2 pl-8 text-sm text-muted-foreground sticky left-0 bg-background z-10">
-                                          {occ.label}
+                                        <td className="border p-2 pl-6 text-sm text-muted-foreground sticky left-0 bg-background z-10">
+                                          <div className="flex items-center gap-2">
+                                            {showCheckboxes && (
+                                              <Checkbox 
+                                                checked={isOccupancyRowChecked(room.name, rateTypeId, occ.key)}
+                                                onCheckedChange={() => toggleOccupancyRow(room.name, rateTypeId, occ.key)}
+                                                className="h-4 w-4"
+                                              />
+                                            )}
+                                            <span>{occ.label}</span>
+                                          </div>
                                         </td>
                                         {calendarDates.map((date, index) => {
                                           const weekend = isWeekend(date);
@@ -1754,6 +1824,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             date, 
                                             occ.key as "1adult" | "2adults" | "teen" | "child" | "infant"
                                           );
+                                          const isChecked = isOccupancyRowChecked(room.name, rateTypeId, occ.key);
                                           return (
                                             <td
                                               key={index}
@@ -1763,7 +1834,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                                   : weekend 
                                                     ? "bg-red-50 dark:bg-red-950/20" 
                                                     : ""
-                                              }`}
+                                              } ${isChecked ? "bg-primary/10" : ""}`}
                                             >
                                               {renderCellValue(rateData.value, rateData.fromPms)}
                                             </td>
@@ -1971,6 +2042,34 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   { key: "infant", label: "Infant", show: room.allowInfants !== false },
                                 ].filter(row => row.show) : [];
                                 
+                                const showCheckboxes = occupancyRows.length > 1;
+                                const rateTypeId = rate.rateTypeId || rate.rateType;
+                                
+                                // Calculate sum for header row based on checked rows (or single row if only one)
+                                const getHeaderSum = (date: Date) => {
+                                  if (!isPerPerson) return null;
+                                  
+                                  if (occupancyRows.length === 1) {
+                                    // Only one row - show its rate directly
+                                    const rateData = getRate(room.name, rateTypeId, rate.priceType || "PER PERSON", date, occupancyRows[0].key as any);
+                                    return rateData.value;
+                                  }
+                                  
+                                  // Sum checked rows
+                                  let sum = 0;
+                                  let hasChecked = false;
+                                  occupancyRows.forEach(occ => {
+                                    if (isOccupancyRowChecked(room.name, rateTypeId, occ.key)) {
+                                      const rateData = getRate(room.name, rateTypeId, rate.priceType || "PER PERSON", date, occ.key as any);
+                                      if (rateData.value != null) {
+                                        sum += rateData.value;
+                                        hasChecked = true;
+                                      }
+                                    }
+                                  });
+                                  return hasChecked ? sum : null;
+                                };
+                                
                                 return (
                                   <React.Fragment key={`${room.name}-rate-${rateIndex}`}>
                                     {/* Rate Type Header Row */}
@@ -1997,17 +2096,40 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                           </td>
                                         );
                                       })}
-                                      {isPerPerson && calendarDates.map((_, index) => (
-                                        <td key={index} className="border p-1 text-center text-xs text-muted-foreground">
-                                          —
-                                        </td>
-                                      ))}
+                                      {isPerPerson && calendarDates.map((date, index) => {
+                                        const weekend = isWeekend(date);
+                                        const isHoliday = !!getHolidayName(date);
+                                        const headerSum = getHeaderSum(date);
+                                        return (
+                                          <td
+                                            key={index}
+                                            className={`border p-1 text-center text-xs font-medium ${
+                                              isHoliday 
+                                                ? "bg-green-100 dark:bg-green-950/30" 
+                                                : weekend 
+                                                  ? "bg-red-50 dark:bg-red-950/20" 
+                                                  : ""
+                                            } ${headerSum != null ? "text-primary" : "text-muted-foreground"}`}
+                                          >
+                                            {headerSum != null ? headerSum.toLocaleString() : "—"}
+                                          </td>
+                                        );
+                                      })}
                                     </tr>
                                     {/* Occupancy Sub-Rows for PER PERSON */}
                                     {isPerPerson && occupancyRows.map(occ => (
                                       <tr key={`${room.name}-rate-${rateIndex}-${occ.key}`}>
-                                        <td className="border p-1 pl-8 text-xs text-muted-foreground sticky left-0 bg-background z-10">
-                                          {occ.label}
+                                        <td className="border p-1 pl-6 text-xs text-muted-foreground sticky left-0 bg-background z-10">
+                                          <div className="flex items-center gap-1">
+                                            {showCheckboxes && (
+                                              <Checkbox 
+                                                checked={isOccupancyRowChecked(room.name, rateTypeId, occ.key)}
+                                                onCheckedChange={() => toggleOccupancyRow(room.name, rateTypeId, occ.key)}
+                                                className="h-3 w-3"
+                                              />
+                                            )}
+                                            <span>{occ.label}</span>
+                                          </div>
                                         </td>
                                         {calendarDates.map((date, index) => {
                                           const weekend = isWeekend(date);
@@ -2019,6 +2141,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             date, 
                                             occ.key as "1adult" | "2adults" | "teen" | "child" | "infant"
                                           );
+                                          const isChecked = isOccupancyRowChecked(room.name, rateTypeId, occ.key);
                                           return (
                                             <td
                                               key={index}
@@ -2028,7 +2151,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                                   : weekend 
                                                     ? "bg-red-50 dark:bg-red-950/20" 
                                                     : ""
-                                              }`}
+                                              } ${isChecked ? "bg-primary/10" : ""}`}
                                             >
                                               {renderCellValue(rateData.value, rateData.fromPms)}
                                             </td>
