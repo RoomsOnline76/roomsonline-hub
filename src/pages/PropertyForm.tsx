@@ -174,8 +174,8 @@ export default function PropertyForm() {
 
   useEffect(() => {
     const loadOwners = async () => {
-      // Get user IDs that have the 'user' role (property owners)
-      const { data: ownerRoles } = await supabase.from("user_roles").select("user_id").eq("role", "user");
+      // Get user IDs that have 'user' or 'admin' role (both can be property owners)
+      const { data: ownerRoles } = await supabase.from("user_roles").select("user_id").in("role", ["user", "admin"]);
 
       if (ownerRoles && ownerRoles.length > 0) {
         const ownerIds = ownerRoles.map((r) => r.user_id);
