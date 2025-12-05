@@ -2118,24 +2118,23 @@ export default function PropertyForm() {
               {activeTab === "addons" && "Addons"}
               {activeTab === "specials" && "Specials"}
               {activeTab === "packages" && "Packages"}
-              {activeTab === "announcements" && "Announcements"} <span className="text-primary">(Active)</span>
+              {activeTab === "announcements" && "Announcements"}
             </span>
           </div>
 
-          {/* Property Name Display */}
-          {isEditMode && formData.name && (
-            <div className="mb-6 flex justify-end">
-              <div className="inline-flex items-center gap-3 px-6 py-3 border-2 border-primary rounded-full bg-background">
-                <Building2 className="h-5 w-5 text-primary" />
-                <span className="font-semibold text-lg">{formData.name}</span>
-              </div>
-            </div>
-          )}
-
+          {/* Header with Property Name and Actions */}
           <div className="mb-6 flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">{isEditMode ? "Edit Property" : "Add New Property"}</h1>
-              <p className="text-muted-foreground">Configure property details and settings</p>
+            <div className="flex items-center gap-4">
+              <div>
+                <h1 className="text-3xl font-bold mb-1">{isEditMode ? "Edit Property" : "Add New Property"}</h1>
+                <p className="text-muted-foreground">Configure property details and settings</p>
+              </div>
+              {isEditMode && formData.name && (
+                <Badge variant="outline" className="px-4 py-2 text-base gap-2 border-primary/50 bg-primary/5">
+                  <Building2 className="h-4 w-4 text-primary" />
+                  {formData.name}
+                </Badge>
+              )}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
