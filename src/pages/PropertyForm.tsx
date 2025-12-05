@@ -6044,21 +6044,56 @@ export default function PropertyForm() {
 
                       <div className="space-y-4">
                         <h3 className="font-semibold">Rate Info</h3>
-                        <div className="space-y-2">
-                          <Label>Rate Type</Label>
-                          <Select
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.rateType || "per-unit"}
-                            onValueChange={(value) => updateRoomTypeField(selectedRoomType, "rateType", value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="per-unit">Per Unit</SelectItem>
-                              <SelectItem value="per-person">Per Person</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+                        {(() => {
+                          const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
+                          const linkedRateTypeIds = currentRoom?.linkedRateTypes || currentRoom?.availableRateTypes || [];
+                          const linkedRateTypesData = pmsRateTypes.filter(rt => linkedRateTypeIds.includes(rt.id));
+                          
+                          if (linkedRateTypesData.length > 0) {
+                            // Get unique price types from linked rate types
+                            const priceTypes = [...new Set(linkedRateTypesData.map(rt => rt.priceType).filter(Boolean))];
+                            return (
+                              <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                  Price Type (from linked Rate Types)
+                                  <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                                </Label>
+                                <div className="flex flex-wrap gap-2">
+                                  {priceTypes.length > 0 ? priceTypes.map((pt, idx) => (
+                                    <Badge key={idx} variant="secondary">{pt}</Badge>
+                                  )) : (
+                                    <span className="text-sm text-muted-foreground">No price types defined in linked rate types</span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Price types are determined by the rate types linked to this room. Manage linked rate types in the "Rate Types" tab.
+                                </p>
+                              </div>
+                            );
+                          }
+                          
+                          // Fallback for rooms without linked rate types
+                          return (
+                            <div className="space-y-2">
+                              <Label>Rate Type (Manual)</Label>
+                              <Select
+                                value={currentRoom?.rateType || "per-unit"}
+                                onValueChange={(value) => updateRoomTypeField(selectedRoomType, "rateType", value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="per-unit">Per Unit</SelectItem>
+                                  <SelectItem value="per-person">Per Person</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <p className="text-xs text-muted-foreground">
+                                Link rate types in the "Rate Types" tab to use PMS price types instead.
+                              </p>
+                            </div>
+                          );
+                        })()}
                         <div className="space-y-2">
                           <Label>Meal Types (for this room)</Label>
                           <TagInput
