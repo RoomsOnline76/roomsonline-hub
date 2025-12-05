@@ -4346,25 +4346,10 @@ export default function PropertyForm() {
               <Card>
                 <CardHeader>
                   <Tabs value={specialsCategory} onValueChange={setSpecialsCategory}>
-                    <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
-                      <TabsTrigger
-                        value="accommodations"
-                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
-                      >
-                        Accommodations
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="event-wedding"
-                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
-                      >
-                        Event/Wedding Venue
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="conference"
-                        className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
-                      >
-                        Conference Venue
-                      </TabsTrigger>
+                    <TabsList>
+                      <TabsTrigger value="accommodations">Accommodations</TabsTrigger>
+                      {isEvent && <TabsTrigger value="event-wedding">Event/Wedding Venue</TabsTrigger>}
+                      {isConference && <TabsTrigger value="conference">Conference Venue</TabsTrigger>}
                     </TabsList>
                   </Tabs>
                 </CardHeader>
@@ -6737,10 +6722,10 @@ export default function PropertyForm() {
             {/* Packages Tab */}
             <TabsContent value="packages" className="space-y-6">
               <Tabs value={packagesCategory} onValueChange={(v) => setPackagesCategory(v as any)} className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList>
                   <TabsTrigger value="accommodations">Accommodations</TabsTrigger>
-                  <TabsTrigger value="event">Event/Wedding Venue</TabsTrigger>
-                  <TabsTrigger value="conference">Conference Venue</TabsTrigger>
+                  {isEvent && <TabsTrigger value="event">Event/Wedding Venue</TabsTrigger>}
+                  {isConference && <TabsTrigger value="conference">Conference Venue</TabsTrigger>}
                 </TabsList>
 
                 <TabsContent value="accommodations" className="mt-6">
