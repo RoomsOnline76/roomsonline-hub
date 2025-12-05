@@ -56,6 +56,9 @@ interface PMSRoomTypeData {
       priceType: string;
       roomAmount: number;
       adultAmounts?: { [key: string]: number };
+      teenAmount?: number;
+      childAmount?: number;
+      infantAmount?: number;
     }[] 
   };
   restrictionsByDate: {
@@ -329,6 +332,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 priceType: rates.price_type || "UnitRate",
                 roomAmount: rates.room_amount || 0,
                 adultAmounts: rates.adult_amounts,
+                teenAmount: rates.teen_amount,
+                childAmount: rates.child_amount,
+                infantAmount: rates.infant_amount,
               });
             }
           }
@@ -488,6 +494,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                       adultAmount3: rate.adultAmount3,
                       adultAmount4: rate.adultAmount4,
                     } : undefined,
+                    teenAmount: rate.teenAmount,
+                    childAmount: rate.childAmount,
+                    infantAmount: rate.infantAmount,
                   });
                 }
               }
@@ -991,22 +1000,22 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           });
         }
         
-        if (matchingRate) {
+          if (matchingRate) {
           const isPerPerson = matchingRate.priceType?.toUpperCase().includes("PERSON");
           
           // If occupancy type specified, return the specific amount
-          if (occupancyType && isPerPerson && matchingRate.adultAmounts) {
+          if (occupancyType && isPerPerson) {
             switch (occupancyType) {
               case "1adult":
-                return { value: matchingRate.adultAmounts.adultAmount1 ?? null, fromPms: true };
+                return { value: matchingRate.adultAmounts?.adultAmount1 ?? null, fromPms: true };
               case "2adults":
-                return { value: matchingRate.adultAmounts.adultAmount2 ?? null, fromPms: true };
+                return { value: matchingRate.adultAmounts?.adultAmount2 ?? null, fromPms: true };
               case "teen":
-                return { value: matchingRate.adultAmounts.teenAmount ?? null, fromPms: true };
+                return { value: matchingRate.teenAmount ?? null, fromPms: true };
               case "child":
-                return { value: matchingRate.adultAmounts.childAmount ?? null, fromPms: true };
+                return { value: matchingRate.childAmount ?? null, fromPms: true };
               case "infant":
-                return { value: matchingRate.adultAmounts.infantAmount ?? null, fromPms: true };
+                return { value: matchingRate.infantAmount ?? null, fromPms: true };
               case "room":
                 return { value: matchingRate.roomAmount ?? null, fromPms: true };
             }
