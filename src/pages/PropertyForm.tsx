@@ -650,11 +650,117 @@ export default function PropertyForm() {
   };
 
   // Seasons state
-  const [seasons, setSeasons] = useState<any[]>([
-    { id: "1", title: "08/05/2025-30/09/2025", from: "2025-05-08", to: "2025-09-30", minStay: 5, maxStay: 0 },
-    { id: "2", title: "01/10/2025-30/09/2026", from: "2025-10-01", to: "2026-09-30", minStay: 5, maxStay: 0 },
-    { id: "3", title: "01/10/2026-30/09/2027", from: "2026-10-01", to: "2027-09-30", minStay: 5, maxStay: 0 },
-  ]);
+  const [seasons, setSeasons] = useState<any[]>([]);
+  const [isSeasonDialogOpen, setIsSeasonDialogOpen] = useState(false);
+  const [editingSeason, setEditingSeason] = useState<any>(null);
+  const [seasonForm, setSeasonForm] = useState({
+    name: "",
+    from: "",
+    to: "",
+    minStay: 1,
+    maxStay: 0,
+  });
+
+  // Season rates state: { [roomId]: { [seasonId]: { unitRate: number, weekendRate: number } } }
+  const [seasonRates, setSeasonRates] = useState<Record<string, Record<string, { unitRate: number; weekendRate: number }>>>({});
+
+  // Season CRUD functions
+  const openAddSeasonDialog = () => {
+    setEditingSeason(null);
+    setSeasonForm({ name: "", from: "", to: "", minStay: 1, maxStay: 0 });
+    setIsSeasonDialogOpen(true);
+  };
+
+  const openEditSeasonDialog = (season: any) => {
+    setEditingSeason(season);
+    setSeasonForm({
+      name: season.name || season.title || "",
+      from: season.from,
+      to: season.to,
+      minStay: season.minStay || 1,
+      maxStay: season.maxStay || 0,
+    });
+    setIsSeasonDialogOpen(true);
+  };
+
+  const generateSeasonTitle = (from: string, to: string) => {
+    if (!from || !to) return "";
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+    return `${format(fromDate, "dd/MM/yyyy")}-${format(toDate, "dd/MM/yyyy")}`;
+  };
+
+  const saveSeason = () => {
+    if (!seasonForm.from || !seasonForm.to) {
+      toast({ title: "Error", description: "Please select start and end dates", variant: "destructive" });
+      return;
+    }
+
+    const title = seasonForm.name || generateSeasonTitle(seasonForm.from, seasonForm.to);
+
+    if (editingSeason) {
+      // Update existing season
+      setSeasons(seasons.map(s => s.id === editingSeason.id ? {
+        ...s,
+        name: seasonForm.name,
+        title,
+        from: seasonForm.from,
+        to: seasonForm.to,
+        minStay: seasonForm.minStay,
+        maxStay: seasonForm.maxStay,
+      } : s));
+      toast({ title: "Season updated", description: "Season has been updated successfully." });
+    } else {
+      // Add new season
+      const newSeason = {
+        id: Date.now().toString(),
+        name: seasonForm.name,
+        title,
+        from: seasonForm.from,
+        to: seasonForm.to,
+        minStay: seasonForm.minStay,
+        maxStay: seasonForm.maxStay,
+      };
+      setSeasons([...seasons, newSeason]);
+      toast({ title: "Season created", description: "New season has been added." });
+    }
+
+    setIsSeasonDialogOpen(false);
+    setIsDirty(true);
+  };
+
+  const deleteSeason = (seasonId: string) => {
+    setSeasons(seasons.filter(s => s.id !== seasonId));
+    // Also clean up rates for this season
+    const updatedRates = { ...seasonRates };
+    Object.keys(updatedRates).forEach(roomId => {
+      if (updatedRates[roomId][seasonId]) {
+        delete updatedRates[roomId][seasonId];
+      }
+    });
+    setSeasonRates(updatedRates);
+    setIsDirty(true);
+    toast({ title: "Season deleted", description: "Season has been removed." });
+  };
+
+  // Rate update function
+  const updateSeasonRate = (roomId: string, seasonId: string, field: 'unitRate' | 'weekendRate', value: number) => {
+    setSeasonRates(prev => ({
+      ...prev,
+      [roomId]: {
+        ...prev[roomId],
+        [seasonId]: {
+          ...prev[roomId]?.[seasonId],
+          [field]: value,
+        },
+      },
+    }));
+    setIsDirty(true);
+  };
+
+  const getSeasonRate = (roomId: string, seasonId: string, field: 'unitRate' | 'weekendRate') => {
+    return seasonRates[roomId]?.[seasonId]?.[field] || 0;
+  };
 
   // Meal types state
   const [selectedMealTypes, setSelectedMealTypes] = useState<string[]>(["Self Catering"]);
@@ -1167,6 +1273,7 @@ export default function PropertyForm() {
           if (amenities?.facilities && Array.isArray(amenities.facilities)) setSelectedFacilities(amenities.facilities);
           if (amenities?.cancellation_policies) setCancellationPolicies(amenities.cancellation_policies);
           if (amenities?.seasons) setSeasons(amenities.seasons);
+          if (amenities?.season_rates) setSeasonRates(amenities.season_rates);
           if (amenities?.addons) setAddons(amenities.addons);
           if (amenities?.packages) setPackages(amenities.packages);
           if (amenities?.announcements) setAnnouncements(amenities.announcements);
@@ -1517,6 +1624,7 @@ export default function PropertyForm() {
             website_colors: websiteColors,
           },
           seasons: seasons,
+          season_rates: seasonRates,
           addons: addons,
           packages: packages,
           announcements: announcements,
@@ -4091,9 +4199,6 @@ export default function PropertyForm() {
                 <div className="w-64 border-r bg-muted/30 p-4 space-y-2">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-sm">ROOM TYPES</h3>
-                    <Button size="sm" variant="outline" className="text-xs px-2 py-1">
-                      Sort by Created At
-                    </Button>
                   </div>
                   {roomTypes.map((room) => (
                     <div
@@ -4114,114 +4219,311 @@ export default function PropertyForm() {
                 <div className="flex-1 overflow-auto">
                   <Tabs defaultValue="season" className="w-full">
                     <TabsList>
-                      <TabsTrigger value="season">Season</TabsTrigger>
+                      <TabsTrigger value="season">Seasons</TabsTrigger>
                       <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
                       <TabsTrigger value="overview">Overview</TabsTrigger>
                     </TabsList>
 
                     {/* Season Sub-tab */}
                     <TabsContent value="season" className="p-6 space-y-4">
-                      <div className="flex justify-end">
-                        <Button className="gap-2">
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm text-muted-foreground">
+                          Define seasonal periods with custom stay requirements. Rates are configured per room type in the Rate Breakdown tab.
+                        </p>
+                        <Button onClick={openAddSeasonDialog} className="gap-2">
                           <Plus className="h-4 w-4" />
                           Add Season
                         </Button>
                       </div>
 
-                      <div className="border rounded-lg overflow-hidden">
-                        <table className="w-full">
-                          <thead className="bg-muted">
-                            <tr>
-                              <th className="text-left p-3 font-semibold text-sm">TITLE</th>
-                              <th className="text-left p-3 font-semibold text-sm">FROM</th>
-                              <th className="text-left p-3 font-semibold text-sm">TO</th>
-                              <th className="w-20"></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {seasons.map((season) => (
-                              <tr key={season.id} className="border-t hover:bg-muted/50">
-                                <td className="p-3">{season.title}</td>
-                                <td className="p-3 text-muted-foreground">{season.from}</td>
-                                <td className="p-3 text-muted-foreground">{season.to}</td>
-                                <td className="p-3">
-                                  <div className="flex gap-2 justify-end">
-                                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-blue-600">
-                                      <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive">
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </td>
+                      {seasons.length === 0 ? (
+                        <div className="border rounded-lg p-8 text-center text-muted-foreground">
+                          <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                          <p>No seasons defined yet.</p>
+                          <p className="text-sm">Add seasons to configure different rate periods throughout the year.</p>
+                        </div>
+                      ) : (
+                        <div className="border rounded-lg overflow-hidden">
+                          <table className="w-full">
+                            <thead className="bg-muted">
+                              <tr>
+                                <th className="text-left p-3 font-semibold text-sm">NAME / PERIOD</th>
+                                <th className="text-left p-3 font-semibold text-sm">FROM</th>
+                                <th className="text-left p-3 font-semibold text-sm">TO</th>
+                                <th className="text-left p-3 font-semibold text-sm">MIN STAY</th>
+                                <th className="text-left p-3 font-semibold text-sm">MAX STAY</th>
+                                <th className="w-24"></th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                            </thead>
+                            <tbody>
+                              {seasons.map((season) => (
+                                <tr key={season.id} className="border-t hover:bg-muted/50">
+                                  <td className="p-3 font-medium">{season.name || season.title}</td>
+                                  <td className="p-3 text-muted-foreground">
+                                    {season.from ? format(new Date(season.from), "dd MMM yyyy") : "-"}
+                                  </td>
+                                  <td className="p-3 text-muted-foreground">
+                                    {season.to ? format(new Date(season.to), "dd MMM yyyy") : "-"}
+                                  </td>
+                                  <td className="p-3">{season.minStay || 1} nights</td>
+                                  <td className="p-3">{season.maxStay || "No limit"}</td>
+                                  <td className="p-3">
+                                    <div className="flex gap-2 justify-end">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-8 w-8 p-0"
+                                        onClick={() => openEditSeasonDialog(season)}
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                        onClick={() => deleteSeason(season.id)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Season Dialog */}
+                      <Dialog open={isSeasonDialogOpen} onOpenChange={setIsSeasonDialogOpen}>
+                        <DialogContent className="max-w-md">
+                          <DialogHeader>
+                            <DialogTitle>{editingSeason ? "Edit Season" : "Add New Season"}</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4 pt-4">
+                            <div className="space-y-2">
+                              <Label>Season Name (optional)</Label>
+                              <Input
+                                placeholder="e.g., Peak Season, Low Season, Christmas"
+                                value={seasonForm.name}
+                                onChange={(e) => setSeasonForm({ ...seasonForm, name: e.target.value })}
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                If left empty, the date range will be used as the name
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label>Start Date *</Label>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                      <CalendarIcon className="mr-2 h-4 w-4" />
+                                      {seasonForm.from ? format(new Date(seasonForm.from), "dd MMM yyyy") : "Select date"}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <CalendarComponent
+                                      mode="single"
+                                      selected={seasonForm.from ? new Date(seasonForm.from) : undefined}
+                                      onSelect={(date) => setSeasonForm({ ...seasonForm, from: date ? format(date, "yyyy-MM-dd") : "" })}
+                                      className="pointer-events-auto"
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>End Date *</Label>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                      <CalendarIcon className="mr-2 h-4 w-4" />
+                                      {seasonForm.to ? format(new Date(seasonForm.to), "dd MMM yyyy") : "Select date"}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <CalendarComponent
+                                      mode="single"
+                                      selected={seasonForm.to ? new Date(seasonForm.to) : undefined}
+                                      onSelect={(date) => setSeasonForm({ ...seasonForm, to: date ? format(date, "yyyy-MM-dd") : "" })}
+                                      className="pointer-events-auto"
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label>Minimum Stay (nights)</Label>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={seasonForm.minStay}
+                                  onChange={(e) => setSeasonForm({ ...seasonForm, minStay: parseInt(e.target.value) || 1 })}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Maximum Stay (nights)</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={seasonForm.maxStay}
+                                  onChange={(e) => setSeasonForm({ ...seasonForm, maxStay: parseInt(e.target.value) || 0 })}
+                                />
+                                <p className="text-xs text-muted-foreground">0 = No limit</p>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-4">
+                              <Button variant="outline" onClick={() => setIsSeasonDialogOpen(false)}>
+                                Cancel
+                              </Button>
+                              <Button onClick={saveSeason}>
+                                {editingSeason ? "Update Season" : "Add Season"}
+                              </Button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
                     </TabsContent>
 
                     {/* Rate Breakdown Sub-tab */}
                     <TabsContent value="rate-breakdown" className="p-6 space-y-6">
-                      {seasons.map((season) => (
-                        <div key={season.id} className="space-y-4">
-                          <h3 className="text-lg font-semibold text-muted-foreground">Season: {season.title}</h3>
-
-                          <div className="border rounded-lg p-6 space-y-4 bg-card">
-                            <div className="text-center text-sm text-muted-foreground mb-4">Self Catering</div>
-
-                            <div className="grid grid-cols-2 gap-6 max-w-md">
-                              <div className="space-y-2">
-                                <Label className="text-sm font-medium">UnitRate</Label>
-                                <Input
-                                  type="number"
-                                  defaultValue={season.id === "3" ? "7000" : "6500"}
-                                  className="text-center"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label className="text-sm font-medium">WeekendRate</Label>
-                                <Input type="number" defaultValue="0" className="text-center" />
-                              </div>
-                            </div>
-                          </div>
+                      {seasons.length === 0 ? (
+                        <div className="border rounded-lg p-8 text-center text-muted-foreground">
+                          <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                          <p>No seasons defined yet.</p>
+                          <p className="text-sm">Please add seasons in the Seasons tab first to configure rates.</p>
                         </div>
-                      ))}
+                      ) : (
+                        <>
+                          <p className="text-sm text-muted-foreground">
+                            Set unit rates and weekend rates for <strong>{roomTypes.find(r => r.id === selectedRoomType)?.name}</strong> across all seasons.
+                          </p>
+                          
+                          {seasons.map((season) => (
+                            <div key={season.id} className="space-y-4">
+                              <h3 className="text-lg font-semibold border-b pb-2">
+                                {season.name || season.title}
+                                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                                  ({season.from ? format(new Date(season.from), "dd MMM yyyy") : ""} - {season.to ? format(new Date(season.to), "dd MMM yyyy") : ""})
+                                </span>
+                              </h3>
 
-                      <div className="flex justify-end gap-4 pt-4">
-                        <Button variant="outline">Cancel</Button>
-                        <Button>Save</Button>
-                      </div>
+                              {selectedMealTypes.length === 0 ? (
+                                <div className="border rounded-lg p-4 text-center text-muted-foreground text-sm">
+                                  No meal types configured. Add meal types in the General tab.
+                                </div>
+                              ) : (
+                                selectedMealTypes.map((mealType) => (
+                                  <div key={mealType} className="border rounded-lg p-6 space-y-4 bg-card">
+                                    <div className="text-center text-sm font-medium text-muted-foreground mb-4">
+                                      {mealType}
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-6 max-w-md mx-auto">
+                                      <div className="space-y-2">
+                                        <Label className="text-sm font-medium">Unit Rate</Label>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'unitRate')}
+                                          onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'unitRate', parseFloat(e.target.value) || 0)}
+                                          className="text-center"
+                                          placeholder="0.00"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label className="text-sm font-medium">Weekend Rate</Label>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'weekendRate')}
+                                          onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'weekendRate', parseFloat(e.target.value) || 0)}
+                                          className="text-center"
+                                          placeholder="0.00"
+                                        />
+                                        <p className="text-xs text-muted-foreground text-center">Fri & Sat nights</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          ))}
+                        </>
+                      )}
                     </TabsContent>
 
                     {/* Overview Sub-tab */}
                     <TabsContent value="overview" className="p-6 space-y-6">
-                      {seasons.map((season) => (
-                        <div key={season.id} className="space-y-4">
-                          <div className="flex items-baseline gap-4">
-                            <h3 className="font-semibold">{season.title}</h3>
-                            <div className="flex gap-6 text-sm text-muted-foreground">
-                              <div>
-                                <span className="font-medium">Minimum Stay</span>
-                                <span className="ml-2">{season.minStay}</span>
-                              </div>
-                              <div>
-                                <span className="font-medium">Maximum Stay</span>
-                                <span className="ml-2">{season.maxStay}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="border rounded-lg p-6 bg-card">
-                            <div className="text-center text-sm text-muted-foreground">Self Catering</div>
-                          </div>
+                      {seasons.length === 0 ? (
+                        <div className="border rounded-lg p-8 text-center text-muted-foreground">
+                          <Info className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                          <p>No seasons or rates configured yet.</p>
+                          <p className="text-sm">Add seasons and configure rates to see an overview here.</p>
                         </div>
-                      ))}
+                      ) : (
+                        <>
+                          <p className="text-sm text-muted-foreground">
+                            Rate overview for <strong>{roomTypes.find(r => r.id === selectedRoomType)?.name}</strong>
+                          </p>
 
-                      <div className="flex justify-end gap-4 pt-4">
-                        <Button variant="outline">Cancel</Button>
-                        <Button>Save</Button>
-                      </div>
+                          <div className="border rounded-lg overflow-hidden">
+                            <table className="w-full">
+                              <thead className="bg-muted">
+                                <tr>
+                                  <th className="text-left p-3 font-semibold text-sm">SEASON</th>
+                                  <th className="text-left p-3 font-semibold text-sm">PERIOD</th>
+                                  <th className="text-left p-3 font-semibold text-sm">MEAL TYPE</th>
+                                  <th className="text-right p-3 font-semibold text-sm">UNIT RATE</th>
+                                  <th className="text-right p-3 font-semibold text-sm">WEEKEND RATE</th>
+                                  <th className="text-left p-3 font-semibold text-sm">STAY</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {seasons.map((season) => (
+                                  selectedMealTypes.map((mealType, idx) => (
+                                    <tr key={`${season.id}-${mealType}`} className="border-t hover:bg-muted/50">
+                                      {idx === 0 && (
+                                        <>
+                                          <td className="p-3 font-medium" rowSpan={selectedMealTypes.length}>
+                                            {season.name || season.title}
+                                          </td>
+                                          <td className="p-3 text-muted-foreground text-sm" rowSpan={selectedMealTypes.length}>
+                                            {season.from ? format(new Date(season.from), "dd MMM") : ""} - {season.to ? format(new Date(season.to), "dd MMM yyyy") : ""}
+                                          </td>
+                                        </>
+                                      )}
+                                      <td className="p-3">{mealType}</td>
+                                      <td className="p-3 text-right font-mono">
+                                        {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'unitRate') || "—"}
+                                      </td>
+                                      <td className="p-3 text-right font-mono">
+                                        {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'weekendRate') || "—"}
+                                      </td>
+                                      {idx === 0 && (
+                                        <td className="p-3 text-sm text-muted-foreground" rowSpan={selectedMealTypes.length}>
+                                          {season.minStay || 1}-{season.maxStay || "∞"} nights
+                                        </td>
+                                      )}
+                                    </tr>
+                                  ))
+                                ))}
+                                {seasons.length > 0 && selectedMealTypes.length === 0 && (
+                                  <tr>
+                                    <td colSpan={6} className="p-4 text-center text-muted-foreground">
+                                      No meal types configured. Add meal types in the General tab.
+                                    </td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </>
+                      )}
                     </TabsContent>
                   </Tabs>
                 </div>
