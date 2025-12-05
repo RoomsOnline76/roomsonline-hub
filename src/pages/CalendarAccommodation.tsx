@@ -242,8 +242,92 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const pmsPropertyCode = getPmsPropertyCode(selectedPropertyData);
   const hasPmsPropertyCode = !!pmsPropertyCode;
 
+  // Load cached PMS availability from database
+  const loadCachedAvailability = useCallback(async (propertyId: string, startDateStr: string, endDateStr: string): Promise<PMSRoomTypeData[] | null> => {
+    try {
+      const { data: cachedData, error } = await supabase
+        .from("pms_availability_cache")
+        .select("*")
+        .eq("property_id", propertyId)
+        .gte("date", startDateStr)
+        .lte("date", endDateStr)
+        .order("date");
+      
+      if (error || !cachedData || cachedData.length === 0) {
+        return null;
+      }
+
+      // Check if cache is fresh (within last 30 minutes)
+      const latestFetch = cachedData.reduce((latest, row) => {
+        const fetchedAt = new Date(row.fetched_at || row.created_at);
+        return fetchedAt > latest ? fetchedAt : latest;
+      }, new Date(0));
+      
+      const cacheAgeMinutes = (Date.now() - latestFetch.getTime()) / (1000 * 60);
+      if (cacheAgeMinutes > 30) {
+        console.log(`Cache is ${Math.round(cacheAgeMinutes)} minutes old, fetching fresh data`);
+        return null; // Cache is stale
+      }
+
+      // Group cached data by room type
+      const roomTypeMap = new Map<string, PMSRoomTypeData>();
+      
+      for (const row of cachedData) {
+        const roomTypeId = row.external_room_type_id;
+        
+        if (!roomTypeMap.has(roomTypeId)) {
+          const rawData = row.raw_data as Record<string, any> | null;
+          roomTypeMap.set(roomTypeId, {
+            roomTypeId,
+            roomTypeName: rawData?.roomTypeName || `Room ${roomTypeId}`,
+            availabilityByDate: {},
+            ratesByDate: {},
+            restrictionsByDate: {},
+          });
+        }
+        
+        const roomData = roomTypeMap.get(roomTypeId)!;
+        const dateStr = row.date;
+        
+        // Map availability
+        roomData.availabilityByDate[dateStr] = row.available_units ?? 0;
+        
+        // Map rates if present
+        if (row.rates && typeof row.rates === 'object') {
+          const rates = row.rates as any;
+          if (!roomData.ratesByDate[dateStr]) {
+            roomData.ratesByDate[dateStr] = [];
+          }
+          roomData.ratesByDate[dateStr].push({
+            rateTypeId: rates.rate_type_id?.toString() || "",
+            rateTypeName: rates.rate_type_name || "Standard",
+            priceType: rates.price_type || "UnitRate",
+            roomAmount: rates.room_amount || 0,
+            adultAmounts: rates.adult_amounts,
+          });
+        }
+        
+        // Map restrictions if present
+        if (row.restrictions && Array.isArray(row.restrictions) && row.restrictions.length > 0) {
+          roomData.restrictionsByDate[dateStr] = {
+            stopSell: false,
+            closedToArrival: false,
+            closedToDeparture: false,
+          };
+        }
+      }
+
+      const result = Array.from(roomTypeMap.values());
+      console.log(`Loaded ${result.length} room types from cache with ${cachedData.length} date entries`);
+      return result;
+    } catch (err) {
+      console.error("Error loading cached availability:", err);
+      return null;
+    }
+  }, []);
+
   // Fetch PMS availability (system-agnostic)
-  const fetchPmsAvailability = useCallback(async () => {
+  const fetchPmsAvailability = useCallback(async (forceRefresh = false) => {
     if (!selectedPropertyData?.external_system) {
       setPmsSyncStatus("idle");
       return;
@@ -255,28 +339,49 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       return;
     }
 
+    // Calculate date range based on current view
+    const startDate = new Date(currentDate);
+    if (viewMode === "month") {
+      startDate.setDate(1);
+    } else {
+      const day = startDate.getDay();
+      const diff = day === 6 ? 0 : -(day + 1);
+      startDate.setDate(startDate.getDate() + diff);
+    }
+
+    const endDate = new Date(startDate);
+    if (viewMode === "month") {
+      endDate.setMonth(endDate.getMonth() + 1);
+      endDate.setDate(0);
+    } else {
+      endDate.setDate(endDate.getDate() + 8);
+    }
+
+    const startDateStr = format(startDate, "yyyy-MM-dd");
+    const endDateStr = format(endDate, "yyyy-MM-dd");
+
+    // Try to load from cache first (unless forcing refresh)
+    if (!forceRefresh) {
+      setPmsSyncStatus("loading");
+      const cachedData = await loadCachedAvailability(selectedPropertyData.id, startDateStr, endDateStr);
+      
+      if (cachedData && cachedData.length > 0) {
+        setPmsData({
+          roomTypes: cachedData,
+          lastSynced: new Date(),
+          systemType: selectedPropertyData.external_system,
+        });
+        setPmsSyncStatus("success");
+        setLastSyncTime(new Date());
+        console.log("Using cached PMS data");
+        return;
+      }
+    }
+
     setPmsSyncStatus("loading");
     setPmsSyncError("");
 
     try {
-      // Calculate date range based on current view
-      const startDate = new Date(currentDate);
-      if (viewMode === "month") {
-        startDate.setDate(1);
-      } else {
-        const day = startDate.getDay();
-        const diff = day === 6 ? 0 : -(day + 1);
-        startDate.setDate(startDate.getDate() + diff);
-      }
-
-      const endDate = new Date(startDate);
-      if (viewMode === "month") {
-        endDate.setMonth(endDate.getMonth() + 1);
-        endDate.setDate(0);
-      } else {
-        endDate.setDate(endDate.getDate() + 8);
-      }
-
       // Route to appropriate edge function based on PMS
       const edgeFunction = `${selectedPropertyData.external_system}-api`;
       
@@ -284,8 +389,8 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         body: {
           action: "fetch_availability",
           property_id: selectedPropertyData.id,
-          start_date: format(startDate, "yyyy-MM-dd"),
-          end_date: format(endDate, "yyyy-MM-dd"),
+          start_date: startDateStr,
+          end_date: endDateStr,
         },
       });
 
@@ -388,12 +493,12 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         variant: "destructive",
       });
     }
-  }, [selectedPropertyData, hasPmsPropertyCode, currentDate, viewMode, toast]);
+  }, [selectedPropertyData, hasPmsPropertyCode, currentDate, viewMode, toast, loadCachedAvailability]);
 
   // Trigger PMS sync when property or date changes
   useEffect(() => {
     if (selectedProperty && isPmsProperty) {
-      fetchPmsAvailability();
+      fetchPmsAvailability(false); // Load from cache first
     } else {
       setPmsSyncStatus("idle");
       setPmsData({ roomTypes: [], lastSynced: null, systemType: "" });
@@ -989,7 +1094,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 className="gap-2"
                 onClick={() => {
                   if (isPmsProperty) {
-                    fetchPmsAvailability();
+                    fetchPmsAvailability(true); // Force fresh fetch from PMS
                   }
                 }}
                 disabled={pmsSyncStatus === "loading"}
