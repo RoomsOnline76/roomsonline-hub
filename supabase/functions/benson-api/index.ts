@@ -429,12 +429,20 @@ serve(async (req) => {
           params.rate_type_ids
         );
         
+        console.log(`Benson availability response structure:`, JSON.stringify({
+          hasRoomTypes: !!result.roomTypes,
+          roomTypesCount: result.roomTypes?.length || 0,
+          keys: Object.keys(result || {}),
+        }));
+        
         // Cache the availability data
-        if (result.roomTypes) {
+        if (result.roomTypes && result.roomTypes.length > 0) {
+          console.log(`Processing ${result.roomTypes.length} room types for caching`);
           for (const roomType of result.roomTypes) {
+            console.log(`Room type: ${roomType.roomTypeId} - ${roomType.name}, availPerNight: ${roomType.roomsAvailablePerNight?.length || 0}`);
             if (roomType.roomsAvailablePerNight) {
               for (const availability of roomType.roomsAvailablePerNight) {
-                await supabase.from("pms_availability_cache").upsert({
+                const { error: availError } = await supabase.from("pms_availability_cache").upsert({
                   property_id: property_id,
                   system_type: "benson",
                   external_room_type_id: roomType.roomTypeId.toString(),
@@ -446,6 +454,9 @@ serve(async (req) => {
                 }, {
                   onConflict: "property_id,system_type,external_room_type_id,date"
                 });
+                if (availError) {
+                  console.error(`Error caching availability for ${roomType.roomTypeId} on ${availability.date}:`, availError);
+                }
               }
             }
             
@@ -454,7 +465,7 @@ serve(async (req) => {
               for (const rateType of roomType.rateTypes) {
                 if (rateType.rates) {
                   for (const rate of rateType.rates) {
-                    await supabase.from("pms_availability_cache").upsert({
+                    const { error: rateError } = await supabase.from("pms_availability_cache").upsert({
                       property_id: property_id,
                       system_type: "benson",
                       external_room_type_id: roomType.roomTypeId.toString(),
@@ -475,11 +486,16 @@ serve(async (req) => {
                     }, {
                       onConflict: "property_id,system_type,external_room_type_id,date"
                     });
+                    if (rateError) {
+                      console.error(`Error caching rate for ${roomType.roomTypeId} on ${rate.date}:`, rateError);
+                    }
                   }
                 }
               }
             }
           }
+        } else {
+          console.warn(`No room types found in Benson response. Full response:`, JSON.stringify(result).substring(0, 500));
         }
         break;
 
