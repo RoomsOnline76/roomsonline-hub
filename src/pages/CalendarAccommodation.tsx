@@ -175,7 +175,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     ["rates"]
   );
   const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
-  const [selectedMealTypes, setSelectedMealTypes] = useState<string[]>([]);
+  const [selectedRateTypes, setSelectedRateTypes] = useState<string[]>([]);
 
   // PMS sync state - initialize from sessionStorage if available
   const [pmsData, setPmsData] = useState<PMSData>(() => {
@@ -224,16 +224,6 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const hasEventWedding = selectedPropertyData?.amenities?.offerings?.event_wedding === true;
   const hasConference = selectedPropertyData?.amenities?.offerings?.conference === true;
 
-  // Get meal types from property amenities
-  const mealTypeOptions = React.useMemo(() => {
-    if (!selectedPropertyData?.amenities?.meal_types) return [];
-    const mealTypes = selectedPropertyData.amenities.meal_types as string[];
-    return mealTypes.map(mt => ({
-      id: mt.toLowerCase().replace(/ /g, "_"),
-      label: mt
-    }));
-  }, [selectedPropertyData]);
-
   useEffect(() => {
     checkUserRoleAndFetchProperties();
   }, []);
@@ -251,13 +241,6 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       setSelectedRoomTypes(roomTypes.map(r => r.name || r));
     }
   }, [roomTypes]);
-
-  // Set all meal types selected when mealTypeOptions changes
-  useEffect(() => {
-    if (mealTypeOptions.length > 0) {
-      setSelectedMealTypes(mealTypeOptions.map(m => m.id));
-    }
-  }, [mealTypeOptions.length]);
 
   // PMS-agnostic: get property code based on connected system
   const getPmsPropertyCode = useCallback((property: Property | undefined): string | null => {
@@ -769,6 +752,29 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     });
   }, [selectedPropertyData, pmsData]);
 
+  // Get rate type options from calendarRoomData
+  const rateTypeOptions = React.useMemo(() => {
+    const rateTypesSet = new Map<string, { id: string; label: string }>();
+    calendarRoomData.forEach(room => {
+      room.rates.forEach(rate => {
+        if (!rateTypesSet.has(rate.rateTypeId)) {
+          rateTypesSet.set(rate.rateTypeId, {
+            id: rate.rateTypeId,
+            label: rate.rateTypeName || rate.rateType
+          });
+        }
+      });
+    });
+    return Array.from(rateTypesSet.values());
+  }, [calendarRoomData]);
+
+  // Set all rate types selected when rateTypeOptions changes
+  useEffect(() => {
+    if (rateTypeOptions.length > 0) {
+      setSelectedRateTypes(rateTypeOptions.map(r => r.id));
+    }
+  }, [rateTypeOptions.length]);
+
   const fetchRoomTypes = async (propertyId: string) => {
     try {
       // Room types are now derived from selectedPropertyData.amenities.room_types
@@ -815,11 +821,11 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     );
   };
 
-  const toggleMealType = (mealId: string) => {
-    setSelectedMealTypes(prev =>
-      prev.includes(mealId)
-        ? prev.filter(id => id !== mealId)
-        : [...prev, mealId]
+  const toggleRateType = (rateTypeId: string) => {
+    setSelectedRateTypes(prev =>
+      prev.includes(rateTypeId)
+        ? prev.filter(id => id !== rateTypeId)
+        : [...prev, rateTypeId]
     );
   };
 
@@ -1253,25 +1259,25 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 </PopoverContent>
               </Popover>
 
-              {/* Meal Types Dropdown */}
+              {/* Rate Types Dropdown */}
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-[200px] justify-between">
-                    Meal Types ({getSelectedCount(selectedMealTypes, mealTypeOptions.length)})
+                    Rate Types ({getSelectedCount(selectedRateTypes, rateTypeOptions.length)})
                     <ChevronDown className="h-4 w-4 ml-2" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[200px] p-2 bg-popover" align="start">
-                  <div className="space-y-2">
-                    {mealTypeOptions.map((meal) => (
-                      <div key={meal.id} className="flex items-center space-x-2">
+                <PopoverContent className="w-[250px] p-2 bg-popover" align="start">
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {rateTypeOptions.map((rateType) => (
+                      <div key={rateType.id} className="flex items-center space-x-2">
                         <Checkbox
-                          id={meal.id}
-                          checked={selectedMealTypes.includes(meal.id)}
-                          onCheckedChange={() => toggleMealType(meal.id)}
+                          id={`rate-${rateType.id}`}
+                          checked={selectedRateTypes.includes(rateType.id)}
+                          onCheckedChange={() => toggleRateType(rateType.id)}
                         />
-                        <label htmlFor={meal.id} className="text-sm cursor-pointer flex-1">
-                          {meal.label}
+                        <label htmlFor={`rate-${rateType.id}`} className="text-sm cursor-pointer flex-1">
+                          {rateType.label}
                         </label>
                       </div>
                     ))}
@@ -1515,7 +1521,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                       <tbody>
                         {filteredRooms.map((room) => {
                           const filteredRates = room.rates.filter(rate =>
-                            selectedMealTypes.includes(getMealTypeId(rate.mealType))
+                            selectedRateTypes.includes(rate.rateTypeId)
                           );
 
                           return (
@@ -1784,7 +1790,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                       <tbody>
                         {filteredRooms.map((room) => {
                           const filteredRates = room.rates.filter(rate =>
-                            selectedMealTypes.includes(getMealTypeId(rate.mealType))
+                            selectedRateTypes.includes(rate.rateTypeId)
                           );
 
                           return (
