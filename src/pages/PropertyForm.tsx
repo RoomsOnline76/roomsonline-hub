@@ -5047,6 +5047,191 @@ export default function PropertyForm() {
                         </div>
                       </div>
 
+                      <div className="grid grid-cols-4 gap-4">
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            Min Guests
+                            {isRoomFieldPmsSynced(selectedRoomType, 'minGuests') && (
+                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                            )}
+                          </Label>
+                          <Input
+                            type="number"
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.minGuests || 1}
+                            onChange={(e) =>
+                              updateRoomTypeField(selectedRoomType, "minGuests", parseInt(e.target.value) || 1)
+                            }
+                            className={getRoomPmsFieldClass(selectedRoomType, 'minGuests')}
+                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'minGuests')}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Guest Policy: Teens */}
+                      <div className="border rounded-lg p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <Label className="flex items-center gap-2 font-semibold">
+                            Allow Teens
+                            {isRoomFieldPmsSynced(selectedRoomType, 'allowTeens') && (
+                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                            )}
+                          </Label>
+                          <Switch
+                            checked={roomTypes.find((r) => r.id === selectedRoomType)?.allowTeens || false}
+                            onCheckedChange={(checked) => updateRoomTypeField(selectedRoomType, "allowTeens", checked)}
+                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'allowTeens')}
+                          />
+                        </div>
+                        {roomTypes.find((r) => r.id === selectedRoomType)?.allowTeens && (
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="flex items-center gap-2">
+                                Teen Min Age
+                                {isRoomFieldPmsSynced(selectedRoomType, 'teenMinAge') && (
+                                  <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                                )}
+                              </Label>
+                              <Input
+                                type="number"
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.teenMinAge || 13}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "teenMinAge", parseInt(e.target.value) || 13)
+                                }
+                                className={getRoomPmsFieldClass(selectedRoomType, 'teenMinAge')}
+                                disabled={isRoomFieldPmsSynced(selectedRoomType, 'teenMinAge')}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="flex items-center gap-2">
+                                Teen Max Age
+                                {isRoomFieldPmsSynced(selectedRoomType, 'teenMaxAge') && (
+                                  <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                                )}
+                              </Label>
+                              <Input
+                                type="number"
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.teenMaxAge || 17}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "teenMaxAge", parseInt(e.target.value) || 17)
+                                }
+                                className={getRoomPmsFieldClass(selectedRoomType, 'teenMaxAge')}
+                                disabled={isRoomFieldPmsSynced(selectedRoomType, 'teenMaxAge')}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Guest Policy: Children */}
+                      <div className="border rounded-lg p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <Label className="flex items-center gap-2 font-semibold">
+                            Allow Children
+                            {isRoomFieldPmsSynced(selectedRoomType, 'allowChildren') && (
+                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                            )}
+                          </Label>
+                          <Switch
+                            checked={roomTypes.find((r) => r.id === selectedRoomType)?.allowChildren || false}
+                            onCheckedChange={(checked) => updateRoomTypeField(selectedRoomType, "allowChildren", checked)}
+                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'allowChildren')}
+                          />
+                        </div>
+                        {roomTypes.find((r) => r.id === selectedRoomType)?.allowChildren && (
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="flex items-center gap-2">
+                                Child Min Age
+                                {isRoomFieldPmsSynced(selectedRoomType, 'childMinAge') && (
+                                  <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                                )}
+                              </Label>
+                              <Input
+                                type="number"
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.childMinAge || 2}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "childMinAge", parseInt(e.target.value) || 2)
+                                }
+                                className={getRoomPmsFieldClass(selectedRoomType, 'childMinAge')}
+                                disabled={isRoomFieldPmsSynced(selectedRoomType, 'childMinAge')}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="flex items-center gap-2">
+                                Child Max Age
+                                {isRoomFieldPmsSynced(selectedRoomType, 'childMaxAge') && (
+                                  <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                                )}
+                              </Label>
+                              <Input
+                                type="number"
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.childMaxAge || 12}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "childMaxAge", parseInt(e.target.value) || 12)
+                                }
+                                className={getRoomPmsFieldClass(selectedRoomType, 'childMaxAge')}
+                                disabled={isRoomFieldPmsSynced(selectedRoomType, 'childMaxAge')}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Guest Policy: Infants */}
+                      <div className="border rounded-lg p-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <Label className="flex items-center gap-2 font-semibold">
+                            Allow Infants
+                            {isRoomFieldPmsSynced(selectedRoomType, 'allowInfants') && (
+                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                            )}
+                          </Label>
+                          <Switch
+                            checked={roomTypes.find((r) => r.id === selectedRoomType)?.allowInfants || false}
+                            onCheckedChange={(checked) => updateRoomTypeField(selectedRoomType, "allowInfants", checked)}
+                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'allowInfants')}
+                          />
+                        </div>
+                        {roomTypes.find((r) => r.id === selectedRoomType)?.allowInfants && (
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="flex items-center gap-2">
+                                Infant Min Age
+                                {isRoomFieldPmsSynced(selectedRoomType, 'infantMinAge') && (
+                                  <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                                )}
+                              </Label>
+                              <Input
+                                type="number"
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.infantMinAge || 0}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "infantMinAge", parseInt(e.target.value) || 0)
+                                }
+                                className={getRoomPmsFieldClass(selectedRoomType, 'infantMinAge')}
+                                disabled={isRoomFieldPmsSynced(selectedRoomType, 'infantMinAge')}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="flex items-center gap-2">
+                                Infant Max Age
+                                {isRoomFieldPmsSynced(selectedRoomType, 'infantMaxAge') && (
+                                  <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                                )}
+                              </Label>
+                              <Input
+                                type="number"
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.infantMaxAge || 2}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "infantMaxAge", parseInt(e.target.value) || 2)
+                                }
+                                className={getRoomPmsFieldClass(selectedRoomType, 'infantMaxAge')}
+                                disabled={isRoomFieldPmsSynced(selectedRoomType, 'infantMaxAge')}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Min Stay*</Label>
