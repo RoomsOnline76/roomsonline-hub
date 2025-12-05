@@ -311,19 +311,27 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         // Map availability
         roomData.availabilityByDate[dateStr] = row.available_units ?? 0;
         
-        // Map rates if present
-        if (row.rates && typeof row.rates === 'object') {
-          const rates = row.rates as any;
+        // Map rates if present - handle both array and single object formats
+        if (row.rates) {
           if (!roomData.ratesByDate[dateStr]) {
             roomData.ratesByDate[dateStr] = [];
           }
-          roomData.ratesByDate[dateStr].push({
-            rateTypeId: rates.rate_type_id?.toString() || "",
-            rateTypeName: rates.rate_type_name || "Standard",
-            priceType: rates.price_type || "UnitRate",
-            roomAmount: rates.room_amount || 0,
-            adultAmounts: rates.adult_amounts,
-          });
+          
+          // Handle array format (new) or single object format (legacy)
+          const rawRates = row.rates as any;
+          const ratesArray = Array.isArray(rawRates) ? rawRates : [rawRates];
+          
+          for (const rates of ratesArray) {
+            if (rates && typeof rates === 'object') {
+              roomData.ratesByDate[dateStr].push({
+                rateTypeId: rates.rate_type_id?.toString() || "",
+                rateTypeName: rates.rate_type_name || "Standard",
+                priceType: rates.price_type || "UnitRate",
+                roomAmount: rates.room_amount || 0,
+                adultAmounts: rates.adult_amounts,
+              });
+            }
+          }
         }
         
         // Map restrictions if present

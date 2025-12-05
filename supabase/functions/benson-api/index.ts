@@ -594,40 +594,52 @@ serve(async (req) => {
               }
             }
             
-            // Cache rate data - include room type name
+            // Cache rate data - aggregate all rate types per date into an array
             if (roomType.rateTypes) {
+              // Group rates by date first
+              const ratesByDate = new Map<string, any[]>();
+              
               for (const rateType of roomType.rateTypes) {
                 if (rateType.rates) {
                   for (const rate of rateType.rates) {
-                    const { error: rateError } = await supabase.from("pms_availability_cache").upsert({
-                      property_id: property_id,
-                      system_type: "benson",
-                      external_room_type_id: roomType.roomTypeId.toString(),
-                      date: rate.date,
-                      rates: {
-                        rate_type_id: rateType.rateTypeId,
-                        rate_type_name: rateType.name,
-                        price_type: rateType.priceType,
-                        room_amount: rate.roomAmount,
-                        adult_amounts: Object.entries(rate)
-                          .filter(([k]) => k.startsWith("adultAmount"))
-                          .reduce((acc, [k, v]) => ({ ...acc, [k]: v }), {}),
-                        teen_amount: rate.teenAmount,
-                        child_amount: rate.childAmount,
-                        infant_amount: rate.infantAmount,
-                      },
-                      raw_data: {
-                        roomTypeName: roomType.name,
-                        roomTypeId: roomType.roomTypeId,
-                      },
-                      fetched_at: new Date().toISOString(),
-                    }, {
-                      onConflict: "property_id,system_type,external_room_type_id,date"
-                    });
-                    if (rateError) {
-                      console.error(`Error caching rate for ${roomType.roomTypeId} on ${rate.date}:`, rateError);
+                    const dateStr = rate.date;
+                    if (!ratesByDate.has(dateStr)) {
+                      ratesByDate.set(dateStr, []);
                     }
+                    ratesByDate.get(dateStr)!.push({
+                      rate_type_id: rateType.rateTypeId,
+                      rate_type_name: rateType.name,
+                      price_type: rateType.priceType,
+                      room_amount: rate.roomAmount,
+                      adult_amounts: Object.entries(rate)
+                        .filter(([k]) => k.startsWith("adultAmount"))
+                        .reduce((acc, [k, v]) => ({ ...acc, [k]: v }), {}),
+                      teen_amount: rate.teenAmount,
+                      child_amount: rate.childAmount,
+                      infant_amount: rate.infantAmount,
+                    });
                   }
+                }
+              }
+              
+              // Now upsert with all rate types per date as an array
+              for (const [dateStr, ratesArray] of ratesByDate.entries()) {
+                const { error: rateError } = await supabase.from("pms_availability_cache").upsert({
+                  property_id: property_id,
+                  system_type: "benson",
+                  external_room_type_id: roomType.roomTypeId.toString(),
+                  date: dateStr,
+                  rates: ratesArray, // Store as array instead of single object
+                  raw_data: {
+                    roomTypeName: roomType.name,
+                    roomTypeId: roomType.roomTypeId,
+                  },
+                  fetched_at: new Date().toISOString(),
+                }, {
+                  onConflict: "property_id,system_type,external_room_type_id,date"
+                });
+                if (rateError) {
+                  console.error(`Error caching rate for ${roomType.roomTypeId} on ${dateStr}:`, rateError);
                 }
               }
             }
