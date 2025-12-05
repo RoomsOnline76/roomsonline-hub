@@ -289,20 +289,92 @@ export default function PropertyForm() {
 
       let hasChanges = false;
 
-      // Update room types from PMS
+      // Update room types from PMS with all available fields
       if (data?.roomTypes && Array.isArray(data.roomTypes)) {
-        const pmsRoomTypes = data.roomTypes.map((rt: any) => ({
-          id: rt.id?.toString() || Date.now().toString(),
-          name: rt.name || `Room Type ${rt.id}`,
-          url: "",
-          selected: false,
-          pms_id: rt.id,
-          pms_synced: true,
-          // Map additional Benson fields if available
-          maxPeople: rt.maxPeople || rt.maxGuests || undefined,
-          numRooms: rt.numberOfRooms || rt.quantity || undefined,
-          description: rt.description || undefined,
-        }));
+        const pmsRoomTypes = data.roomTypes.map((rt: any) => {
+          // Track which fields are populated from PMS
+          const pmsSyncedFields: string[] = ['name', 'pmsRoomId'];
+          
+          const roomData: any = {
+            id: rt.id?.toString() || Date.now().toString(),
+            name: rt.name || `Room Type ${rt.id}`,
+            url: "",
+            selected: false,
+            pms_id: rt.id,
+            pmsRoomId: rt.id?.toString() || "",
+            pms_synced: true,
+          };
+          
+          // Map description
+          if (rt.description) {
+            roomData.description = rt.description;
+            pmsSyncedFields.push('description');
+          }
+          
+          // Map guest capacity
+          if (rt.maxGuests !== undefined) {
+            roomData.maxPeople = rt.maxGuests;
+            pmsSyncedFields.push('maxPeople');
+          }
+          if (rt.minGuests !== undefined) {
+            roomData.minGuests = rt.minGuests;
+            pmsSyncedFields.push('minGuests');
+          }
+          
+          // Calculate max adults (maxGuests minus potential children/teens)
+          if (rt.maxGuests !== undefined) {
+            roomData.maxAdults = rt.maxGuests;
+            pmsSyncedFields.push('maxAdults');
+          }
+          
+          // Map children settings
+          if (rt.allowChildren !== undefined) {
+            roomData.allowChildren = rt.allowChildren;
+            if (rt.allowChildren && rt.childMaxAge) {
+              roomData.maxChildren = Math.min(rt.maxGuests || 2, 4); // Reasonable default
+              pmsSyncedFields.push('maxChildren');
+            }
+            if (rt.childMinAge !== undefined) {
+              roomData.childMinAge = rt.childMinAge;
+              pmsSyncedFields.push('childMinAge');
+            }
+            if (rt.childMaxAge !== undefined) {
+              roomData.childMaxAge = rt.childMaxAge;
+              pmsSyncedFields.push('childMaxAge');
+            }
+          }
+          
+          // Map teen settings
+          if (rt.allowTeens !== undefined) {
+            roomData.allowTeens = rt.allowTeens;
+            if (rt.teenMinAge !== undefined) {
+              roomData.teenMinAge = rt.teenMinAge;
+              pmsSyncedFields.push('teenMinAge');
+            }
+            if (rt.teenMaxAge !== undefined) {
+              roomData.teenMaxAge = rt.teenMaxAge;
+              pmsSyncedFields.push('teenMaxAge');
+            }
+          }
+          
+          // Map infant settings
+          if (rt.allowInfants !== undefined) {
+            roomData.allowInfants = rt.allowInfants;
+            if (rt.infantMinAge !== undefined) {
+              roomData.infantMinAge = rt.infantMinAge;
+              pmsSyncedFields.push('infantMinAge');
+            }
+            if (rt.infantMaxAge !== undefined) {
+              roomData.infantMaxAge = rt.infantMaxAge;
+              pmsSyncedFields.push('infantMaxAge');
+            }
+          }
+          
+          // Store the list of PMS-synced fields
+          roomData.pms_synced_fields = pmsSyncedFields;
+          
+          return roomData;
+        });
 
         // Merge with existing room types - update existing or add new
         const updatedRoomTypes = [...roomTypes];
@@ -315,20 +387,37 @@ export default function PropertyForm() {
           );
 
           if (existingIndex >= 0) {
-            // Update existing room - preserve local edits but mark as synced
+            // Update existing room - merge PMS data while preserving local-only fields
             const existing = updatedRoomTypes[existingIndex];
-            if (existing.name !== pmsRoom.name) {
-              updatedRoomTypes[existingIndex] = {
-                ...existing,
-                name: pmsRoom.name,
-                pms_id: pmsRoom.pms_id,
-                pms_synced: true,
-              };
-              updatedCount++;
-            }
+            updatedRoomTypes[existingIndex] = {
+              ...existing,
+              ...pmsRoom,
+              // Preserve local fields that aren't from PMS
+              url: existing.url || pmsRoom.url,
+              images: existing.images || [],
+              facilities: existing.facilities || [],
+              amenities: existing.amenities || [],
+              rate_info: existing.rate_info || [],
+            };
+            updatedCount++;
           } else {
-            // Add new room type
-            updatedRoomTypes.push(pmsRoom);
+            // Add new room type with defaults
+            updatedRoomTypes.push({
+              ...pmsRoom,
+              url: "",
+              numRooms: 1,
+              bedConfiguration: "",
+              roomSize: 0,
+              bathrooms: 1,
+              minStay: 1,
+              maxStay: 0,
+              rateType: "per-unit",
+              splitPercent: 0,
+              images: [],
+              facilities: [],
+              amenities: [],
+              rate_info: [],
+            });
             newCount++;
           }
         });
@@ -702,6 +791,20 @@ export default function PropertyForm() {
   const updateRoomTypeField = (id: string, field: string, value: any) => {
     setRoomTypes(roomTypes.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
     setIsDirty(true);
+  };
+
+  // Helper to check if a room field is synced from PMS
+  const isRoomFieldPmsSynced = (roomId: string, fieldName: string): boolean => {
+    const room = roomTypes.find((r) => r.id === roomId);
+    return room?.pms_synced_fields?.includes(fieldName) || false;
+  };
+
+  // Helper to get PMS field styling for room fields
+  const getRoomPmsFieldClass = (roomId: string, fieldName: string): string => {
+    if (isRoomFieldPmsSynced(roomId, fieldName)) {
+      return "bg-primary/5 border-primary/20";
+    }
+    return "";
   };
 
   const handleRoomImageUpload = async (files: FileList | null) => {
@@ -4824,11 +4927,18 @@ export default function PropertyForm() {
                       )}
 
                       <div className="space-y-2">
-                        <Label>Room Type Description</Label>
+                        <Label className="flex items-center gap-2">
+                          Room Type Description
+                          {isRoomFieldPmsSynced(selectedRoomType, 'description') && (
+                            <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                          )}
+                        </Label>
                         <Textarea
                           rows={4}
                           value={roomTypes.find((r) => r.id === selectedRoomType)?.description || ""}
                           onChange={(e) => updateRoomTypeField(selectedRoomType, "description", e.target.value)}
+                          className={getRoomPmsFieldClass(selectedRoomType, 'description')}
+                          disabled={isRoomFieldPmsSynced(selectedRoomType, 'description')}
                         />
                       </div>
 
@@ -4885,33 +4995,54 @@ export default function PropertyForm() {
 
                       <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
-                          <Label>Max people per Room*</Label>
+                          <Label className="flex items-center gap-2">
+                            Max people per Room*
+                            {isRoomFieldPmsSynced(selectedRoomType, 'maxPeople') && (
+                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                            )}
+                          </Label>
                           <Input
                             type="number"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.maxPeople || 2}
                             onChange={(e) =>
                               updateRoomTypeField(selectedRoomType, "maxPeople", parseInt(e.target.value) || 1)
                             }
+                            className={getRoomPmsFieldClass(selectedRoomType, 'maxPeople')}
+                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'maxPeople')}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Max adult*</Label>
+                          <Label className="flex items-center gap-2">
+                            Max adult*
+                            {isRoomFieldPmsSynced(selectedRoomType, 'maxAdults') && (
+                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                            )}
+                          </Label>
                           <Input
                             type="number"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.maxAdults || 2}
                             onChange={(e) =>
                               updateRoomTypeField(selectedRoomType, "maxAdults", parseInt(e.target.value) || 1)
                             }
+                            className={getRoomPmsFieldClass(selectedRoomType, 'maxAdults')}
+                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'maxAdults')}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Max children*</Label>
+                          <Label className="flex items-center gap-2">
+                            Max children*
+                            {isRoomFieldPmsSynced(selectedRoomType, 'maxChildren') && (
+                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                            )}
+                          </Label>
                           <Input
                             type="number"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.maxChildren || 0}
                             onChange={(e) =>
                               updateRoomTypeField(selectedRoomType, "maxChildren", parseInt(e.target.value) || 0)
                             }
+                            className={getRoomPmsFieldClass(selectedRoomType, 'maxChildren')}
+                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'maxChildren')}
                           />
                         </div>
                       </div>
