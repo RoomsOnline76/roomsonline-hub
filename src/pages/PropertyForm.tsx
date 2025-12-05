@@ -421,6 +421,13 @@ export default function PropertyForm() {
           if (existingIndex >= 0) {
             // Update existing room - merge PMS data while preserving local-only fields
             const existing = updatedRoomTypes[existingIndex];
+            
+            // Determine linked rate types - use existing if manually configured, otherwise use PMS data
+            const existingLinked = existing.linkedRateTypes;
+            const pmsLinkedIds = pmsRoom.linkedRateTypeIds || [];
+            // Only preserve existing if it has values AND they're valid (not just an empty array)
+            const shouldPreserveExisting = Array.isArray(existingLinked) && existingLinked.length > 0;
+            
             updatedRoomTypes[existingIndex] = {
               ...existing,
               ...pmsRoom,
@@ -431,11 +438,9 @@ export default function PropertyForm() {
               amenities: existing.amenities || [],
               rate_info: existing.rate_info || [],
               // Store available rate types from PMS (used to filter options in configurator)
-              availableRateTypes: pmsRoom.linkedRateTypeIds || [],
-              // Default linkedRateTypes to all available if not already set
-              linkedRateTypes: existing.linkedRateTypes?.length > 0 
-                ? existing.linkedRateTypes 
-                : (pmsRoom.linkedRateTypeIds || []),
+              availableRateTypes: pmsLinkedIds,
+              // Default linkedRateTypes to all available if not already set or if empty
+              linkedRateTypes: shouldPreserveExisting ? existingLinked : pmsLinkedIds,
             };
             updatedCount++;
           } else {
@@ -5154,7 +5159,12 @@ export default function PropertyForm() {
                     {/* Overview Sub-tab */}
                     <TabsContent value="overview" className="p-6 space-y-6">
                       {(() => {
-                        const linkedRateTypes = getRoomLinkedRateTypes(selectedRoomType);
+                        const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
+                        // Use linkedRateTypes if manually set, otherwise fall back to availableRateTypes
+                        let linkedRateTypes = getRoomLinkedRateTypes(selectedRoomType);
+                        if (linkedRateTypes.length === 0 && currentRoom?.availableRateTypes?.length > 0) {
+                          linkedRateTypes = currentRoom.availableRateTypes;
+                        }
                         const linkedRateTypeData = pmsRateTypes.filter(rt => linkedRateTypes.includes(rt.id));
                         
                         if (linkedRateTypeData.length === 0) {
