@@ -665,10 +665,10 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         
         Object.values(pmsRoom.ratesByDate).forEach(dateRates => {
           dateRates.forEach(rate => {
-            const key = rate.rateTypeId;
+            const key = String(rate.rateTypeId);
             if (!rateTypesMap.has(key)) {
               rateTypesMap.set(key, {
-                rateTypeId: rate.rateTypeId,
+                rateTypeId: key,
                 rateTypeName: rate.rateTypeName,
                 priceType: rate.priceType,
               });
@@ -814,13 +814,15 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       const savedRateTypes = selectedPropertyData.amenities.pms_rate_types as any[];
       savedRateTypes.forEach(rt => {
         if (rt.id && rt.name) {
+          const rtIdStr = String(rt.id);
           // Check if this rate type has any rates in the PMS data
           let hasRates = false;
           if (pmsData.roomTypes.length > 0) {
             pmsData.roomTypes.forEach(room => {
               Object.values(room.ratesByDate).forEach(dateRates => {
                 dateRates.forEach(rate => {
-                  if (rate.rateTypeId === rt.id) {
+                  // Compare as strings to avoid type mismatch
+                  if (String(rate.rateTypeId) === rtIdStr) {
                     const hasValues = (rate.roomAmount != null && rate.roomAmount > 0) || 
                                      (rate.adultAmounts && Object.values(rate.adultAmounts).some(v => v != null && v > 0)) ||
                                      (rate.teenAmount != null && rate.teenAmount > 0) ||
@@ -834,7 +836,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           }
           
           rateTypes.push({
-            id: rt.id,
+            id: rtIdStr,
             label: rt.name,
             hasRates
           });
@@ -1612,8 +1614,8 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                       </thead>
                       <tbody>
                         {filteredRooms.map((room) => {
-                          const filteredRates = room.rates.filter(rate =>
-                            selectedRateTypes.includes(rate.rateTypeId)
+        const filteredRates = room.rates.filter(rate =>
+                            selectedRateTypes.includes(String(rate.rateTypeId))
                           );
 
                           return (
@@ -1962,7 +1964,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                       <tbody>
                         {filteredRooms.map((room) => {
                           const filteredRates = room.rates.filter(rate =>
-                            selectedRateTypes.includes(rate.rateTypeId)
+                            selectedRateTypes.includes(String(rate.rateTypeId))
                           );
 
                           return (
