@@ -5782,15 +5782,17 @@ export default function PropertyForm() {
                     <TabsContent value="room-type" className="p-6 space-y-6">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Room Type Name</Label>
+                          <Label className="flex items-center gap-2">
+                            Room Type Name
+                            {isRoomFieldPmsSynced(selectedRoomType, 'name') && (
+                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />Benson</Badge>
+                            )}
+                          </Label>
                           <Input
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.name || ""}
                             onChange={(e) => updateRoomTypeName(selectedRoomType, e.target.value)}
-                            className={cn(
-                              roomTypes.find((r) => r.id === selectedRoomType)?.pms_synced
-                                ? "bg-primary/5 border-primary/20"
-                                : "",
-                            )}
+                            className={getRoomPmsFieldClass(selectedRoomType, 'name')}
+                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'name')}
                           />
                         </div>
                         <div className="space-y-2">
