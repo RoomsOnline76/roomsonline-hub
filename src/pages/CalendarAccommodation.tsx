@@ -726,6 +726,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           allowTeens: matchingRoom?.allowTeens ?? true,
           allowChildren: matchingRoom?.allowChildren ?? true,
           allowInfants: matchingRoom?.allowInfants ?? true,
+          minGuests: matchingRoom?.minGuests ?? 1,
         };
       });
     }
@@ -778,6 +779,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         allowTeens: room.allowTeens ?? true,
         allowChildren: room.allowChildren ?? true,
         allowInfants: room.allowInfants ?? true,
+        minGuests: room.minGuests ?? 1,
       };
     });
   }, [selectedPropertyData, pmsData]);
@@ -1659,7 +1661,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                 
                                 // Occupancy sub-rows for PER PERSON rates - filter based on room settings
                                 const occupancyRows = isPerPerson ? [
-                                  { key: "1adult", label: "1 Adult", show: true },
+                                  { key: "1adult", label: "1 Adult", show: (room.minGuests ?? 1) <= 1 },
                                   { key: "2adults", label: "2 Adults", show: true },
                                   { key: "teen", label: "Teen", show: room.allowTeens !== false },
                                   { key: "child", label: "Child", show: room.allowChildren !== false },
@@ -1924,7 +1926,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                 
                                 // Occupancy sub-rows for PER PERSON rates - filter based on room settings
                                 const occupancyRows = isPerPerson ? [
-                                  { key: "1adult", label: "1 Adult", show: true },
+                                  { key: "1adult", label: "1 Adult", show: (room.minGuests ?? 1) <= 1 },
                                   { key: "2adults", label: "2 Adults", show: true },
                                   { key: "teen", label: "Teen", show: room.allowTeens !== false },
                                   { key: "child", label: "Child", show: room.allowChildren !== false },
