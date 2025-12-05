@@ -1349,7 +1349,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 {/* Display Options with colored indicator legend */}
                 <div className="flex flex-wrap items-center gap-4 mb-6">
                   <span className="text-sm font-medium text-muted-foreground">Show:</span>
-                  {/* Rates toggle - no colored indicator */}
+                  {/* Rates toggle */}
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id="legend-rates"
@@ -1362,20 +1362,36 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                   </div>
                   <span className="text-muted-foreground">|</span>
                   <span className="text-xs text-muted-foreground">Restrictions:</span>
-                  {/* Restriction options with colored indicators */}
-                  {restrictionOptions.map((option) => (
-                    <div key={option.id} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`legend-${option.id}`}
-                        checked={selectedDisplayOptions.includes(option.id)}
-                        onCheckedChange={() => toggleDisplayOption(option.id)}
-                      />
-                      <div className={`h-2 w-5 rounded-full ${option.color}`} />
-                      <label htmlFor={`legend-${option.id}`} className="text-sm cursor-pointer">
-                        {option.label}
-                      </label>
-                    </div>
-                  ))}
+                  {/* Restriction options with colored checkboxes */}
+                  {restrictionOptions.map((option) => {
+                    const colorMap: Record<string, string> = {
+                      "bg-red-500": "#ef4444",
+                      "bg-blue-500": "#3b82f6",
+                      "bg-pink-500": "#ec4899",
+                      "bg-yellow-500": "#eab308",
+                      "bg-orange-500": "#f97316",
+                    };
+                    const bgColor = colorMap[option.color] || "#6b7280";
+                    const isChecked = selectedDisplayOptions.includes(option.id);
+                    
+                    return (
+                      <div key={option.id} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`legend-${option.id}`}
+                          checked={isChecked}
+                          onCheckedChange={() => toggleDisplayOption(option.id)}
+                          className="border-0"
+                          style={{ 
+                            backgroundColor: bgColor,
+                            color: "white"
+                          }}
+                        />
+                        <label htmlFor={`legend-${option.id}`} className="text-sm cursor-pointer">
+                          {option.label}
+                        </label>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Calendar Grid */}
