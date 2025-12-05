@@ -1346,16 +1346,17 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                   </div>
                 </div>
 
-                {/* Display Options as colored checkboxes */}
-                <div className="flex flex-wrap gap-4 mb-6">
+                {/* Display Options with colored indicator legend */}
+                <div className="flex flex-wrap items-center gap-4 mb-6">
+                  <span className="text-sm font-medium text-muted-foreground">Show:</span>
                   {displayOptions.map((option) => (
                     <div key={option.id} className="flex items-center gap-2">
                       <Checkbox
                         id={`legend-${option.id}`}
                         checked={selectedDisplayOptions.includes(option.id)}
                         onCheckedChange={() => toggleDisplayOption(option.id)}
-                        className={`${option.color} border-0 data-[state=checked]:${option.color} data-[state=checked]:text-white`}
                       />
+                      <div className={`h-2 w-5 rounded-full ${option.color}`} />
                       <label htmlFor={`legend-${option.id}`} className="text-sm cursor-pointer">
                         {option.label}
                       </label>
@@ -1457,7 +1458,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
 
                           return (
                             <React.Fragment key={room.name}>
-                              {/* Room Name Row with Availability */}
+                              {/* Room Name Row with Availability and Restriction Indicators */}
                               <tr className="bg-slate-100 dark:bg-slate-800">
                                 <td className="border p-2 font-bold text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
                                   {room.name}
@@ -1466,10 +1467,20 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   const weekend = isWeekend(date);
                                   const isHoliday = !!getHolidayName(date);
                                   const avail = getAvailability(room.name, date);
+                                  const restrictions = getRestrictions(room.name, date);
+                                  
+                                  // Determine which restriction indicators to show
+                                  const showStopSell = selectedDisplayOptions.includes("stop_sell") && restrictions.stopSell;
+                                  const showMinStay = selectedDisplayOptions.includes("min_stay") && restrictions.minStay !== null && restrictions.minStay > 0;
+                                  const showMaxStay = selectedDisplayOptions.includes("max_stay") && restrictions.maxStay !== null && restrictions.maxStay > 0;
+                                  const showLeadAdv = selectedDisplayOptions.includes("lead_days_advance") && restrictions.leadDaysAdvance !== null && restrictions.leadDaysAdvance > 0;
+                                  const showLeadPost = selectedDisplayOptions.includes("lead_days_post") && restrictions.leadDaysPost !== null && restrictions.leadDaysPost > 0;
+                                  const hasRestrictions = showStopSell || showMinStay || showMaxStay || showLeadAdv || showLeadPost;
+                                  
                                   return (
                                     <td
                                       key={index}
-                                      className={`border p-2 text-center font-semibold ${
+                                      className={`border p-1 text-center ${
                                         isHoliday 
                                           ? "bg-green-100 dark:bg-green-950/30" 
                                           : weekend 
@@ -1477,7 +1488,67 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             : ""
                                       }`}
                                     >
-                                      {renderCellValue(avail.value, avail.fromPms)}
+                                      <div className="flex flex-col items-center gap-0.5">
+                                        <span className="font-semibold">{renderCellValue(avail.value, avail.fromPms)}</span>
+                                        {hasRestrictions && (
+                                          <div className="flex gap-0.5 flex-wrap justify-center">
+                                            {showStopSell && (
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <div className="h-1.5 w-4 rounded-full bg-red-500" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                  <p className="text-xs font-medium">Stop Sell Active</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            )}
+                                            {showMinStay && (
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <div className="h-1.5 w-4 rounded-full bg-blue-500 flex items-center justify-center">
+                                                    <span className="text-[8px] text-white font-bold leading-none">{restrictions.minStay}</span>
+                                                  </div>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                  <p className="text-xs font-medium">Min Stay: {restrictions.minStay} nights</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            )}
+                                            {showMaxStay && (
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <div className="h-1.5 w-4 rounded-full bg-pink-500 flex items-center justify-center">
+                                                    <span className="text-[8px] text-white font-bold leading-none">{restrictions.maxStay}</span>
+                                                  </div>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                  <p className="text-xs font-medium">Max Stay: {restrictions.maxStay} nights</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            )}
+                                            {showLeadAdv && (
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <div className="h-1.5 w-4 rounded-full bg-yellow-500" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                  <p className="text-xs font-medium">Lead Days Advance: {restrictions.leadDaysAdvance}</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            )}
+                                            {showLeadPost && (
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <div className="h-1.5 w-4 rounded-full bg-orange-500" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                  <p className="text-xs font-medium">Lead Days Post: {restrictions.leadDaysPost}</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
                                     </td>
                                   );
                                 })}
@@ -1511,147 +1582,6 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   })}
                                 </tr>
                               ))}
-                              {/* Stop Sell Row */}
-                              {selectedDisplayOptions.includes("stop_sell") && (
-                                <tr>
-                                  <td className="border p-2 pl-4 text-sm text-muted-foreground sticky left-0 bg-background z-10">
-                                    <span className="text-red-600 font-medium">Stop Sell</span>
-                                  </td>
-                                  {calendarDates.map((date, index) => {
-                                    const weekend = isWeekend(date);
-                                    const isHoliday = !!getHolidayName(date);
-                                    const restrictions = getRestrictions(room.name, date);
-                                    return (
-                                      <td
-                                        key={index}
-                                        className={`border p-2 text-center text-sm ${
-                                          isHoliday 
-                                            ? "bg-green-100 dark:bg-green-950/30" 
-                                            : weekend 
-                                              ? "bg-red-50 dark:bg-red-950/20" 
-                                              : ""
-                                        }`}
-                                      >
-                                        {restrictions.stopSell === null ? (
-                                          <span className="text-muted-foreground/50 italic">—</span>
-                                        ) : restrictions.stopSell ? (
-                                          <span className="text-red-600 font-bold">✕</span>
-                                        ) : (
-                                          <span className="text-green-600">✓</span>
-                                        )}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              )}
-                              {/* Min Stay Row */}
-                              {selectedDisplayOptions.includes("min_stay") && (
-                                <tr>
-                                  <td className="border p-2 pl-4 text-sm text-muted-foreground sticky left-0 bg-background z-10">
-                                    <span className="text-blue-600 font-medium">Min Stay</span>
-                                  </td>
-                                  {calendarDates.map((date, index) => {
-                                    const weekend = isWeekend(date);
-                                    const isHoliday = !!getHolidayName(date);
-                                    const restrictions = getRestrictions(room.name, date);
-                                    return (
-                                      <td
-                                        key={index}
-                                        className={`border p-2 text-center text-sm ${
-                                          isHoliday 
-                                            ? "bg-green-100 dark:bg-green-950/30" 
-                                            : weekend 
-                                              ? "bg-red-50 dark:bg-red-950/20" 
-                                              : ""
-                                        }`}
-                                      >
-                                        {renderCellValue(restrictions.minStay, restrictions.fromPms)}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              )}
-                              {/* Max Stay Row */}
-                              {selectedDisplayOptions.includes("max_stay") && (
-                                <tr>
-                                  <td className="border p-2 pl-4 text-sm text-muted-foreground sticky left-0 bg-background z-10">
-                                    <span className="text-pink-600 font-medium">Max Stay</span>
-                                  </td>
-                                  {calendarDates.map((date, index) => {
-                                    const weekend = isWeekend(date);
-                                    const isHoliday = !!getHolidayName(date);
-                                    const restrictions = getRestrictions(room.name, date);
-                                    return (
-                                      <td
-                                        key={index}
-                                        className={`border p-2 text-center text-sm ${
-                                          isHoliday 
-                                            ? "bg-green-100 dark:bg-green-950/30" 
-                                            : weekend 
-                                              ? "bg-red-50 dark:bg-red-950/20" 
-                                              : ""
-                                        }`}
-                                      >
-                                        {renderCellValue(restrictions.maxStay, restrictions.fromPms)}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              )}
-                              {/* Lead Days Advance Row */}
-                              {selectedDisplayOptions.includes("lead_days_advance") && (
-                                <tr>
-                                  <td className="border p-2 pl-4 text-sm text-muted-foreground sticky left-0 bg-background z-10">
-                                    <span className="text-yellow-600 font-medium">Lead Days Adv</span>
-                                  </td>
-                                  {calendarDates.map((date, index) => {
-                                    const weekend = isWeekend(date);
-                                    const isHoliday = !!getHolidayName(date);
-                                    const restrictions = getRestrictions(room.name, date);
-                                    return (
-                                      <td
-                                        key={index}
-                                        className={`border p-2 text-center text-sm ${
-                                          isHoliday 
-                                            ? "bg-green-100 dark:bg-green-950/30" 
-                                            : weekend 
-                                              ? "bg-red-50 dark:bg-red-950/20" 
-                                              : ""
-                                        }`}
-                                      >
-                                        {renderCellValue(restrictions.leadDaysAdvance, restrictions.fromPms)}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              )}
-                              {/* Lead Days Post Row */}
-                              {selectedDisplayOptions.includes("lead_days_post") && (
-                                <tr>
-                                  <td className="border p-2 pl-4 text-sm text-muted-foreground sticky left-0 bg-background z-10">
-                                    <span className="text-orange-600 font-medium">Lead Days Post</span>
-                                  </td>
-                                  {calendarDates.map((date, index) => {
-                                    const weekend = isWeekend(date);
-                                    const isHoliday = !!getHolidayName(date);
-                                    const restrictions = getRestrictions(room.name, date);
-                                    return (
-                                      <td
-                                        key={index}
-                                        className={`border p-2 text-center text-sm ${
-                                          isHoliday 
-                                            ? "bg-green-100 dark:bg-green-950/30" 
-                                            : weekend 
-                                              ? "bg-red-50 dark:bg-red-950/20" 
-                                              : ""
-                                        }`}
-                                      >
-                                        {renderCellValue(restrictions.leadDaysPost, restrictions.fromPms)}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              )}
                             </React.Fragment>
                           );
                         })}
@@ -1747,7 +1677,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
 
                           return (
                             <React.Fragment key={room.name}>
-                              {/* Room Name Row with Availability */}
+                              {/* Room Name Row with Availability and Restriction Indicators */}
                               <tr className="bg-slate-100 dark:bg-slate-800">
                                 <td className="border p-2 font-bold text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
                                   {room.name}
@@ -1756,10 +1686,20 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   const weekend = isWeekend(date);
                                   const isHoliday = !!getHolidayName(date);
                                   const avail = getAvailability(room.name, date);
+                                  const restrictions = getRestrictions(room.name, date);
+                                  
+                                  // Determine which restriction indicators to show
+                                  const showStopSell = selectedDisplayOptions.includes("stop_sell") && restrictions.stopSell;
+                                  const showMinStay = selectedDisplayOptions.includes("min_stay") && restrictions.minStay !== null && restrictions.minStay > 0;
+                                  const showMaxStay = selectedDisplayOptions.includes("max_stay") && restrictions.maxStay !== null && restrictions.maxStay > 0;
+                                  const showLeadAdv = selectedDisplayOptions.includes("lead_days_advance") && restrictions.leadDaysAdvance !== null && restrictions.leadDaysAdvance > 0;
+                                  const showLeadPost = selectedDisplayOptions.includes("lead_days_post") && restrictions.leadDaysPost !== null && restrictions.leadDaysPost > 0;
+                                  const hasRestrictions = showStopSell || showMinStay || showMaxStay || showLeadAdv || showLeadPost;
+                                  
                                   return (
                                     <td
                                       key={index}
-                                      className={`border p-1 text-center text-sm font-semibold ${
+                                      className={`border p-1 text-center ${
                                         isHoliday 
                                           ? "bg-green-100 dark:bg-green-950/30" 
                                           : weekend 
@@ -1767,7 +1707,63 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             : ""
                                       }`}
                                     >
-                                      {renderCellValue(avail.value, avail.fromPms)}
+                                      <div className="flex flex-col items-center gap-0.5">
+                                        <span className="font-semibold text-sm">{renderCellValue(avail.value, avail.fromPms)}</span>
+                                        {hasRestrictions && (
+                                          <div className="flex gap-0.5 flex-wrap justify-center">
+                                            {showStopSell && (
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <div className="h-1 w-3 rounded-full bg-red-500" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                  <p className="text-xs font-medium">Stop Sell Active</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            )}
+                                            {showMinStay && (
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <div className="h-1 w-3 rounded-full bg-blue-500" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                  <p className="text-xs font-medium">Min Stay: {restrictions.minStay}</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            )}
+                                            {showMaxStay && (
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <div className="h-1 w-3 rounded-full bg-pink-500" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                  <p className="text-xs font-medium">Max Stay: {restrictions.maxStay}</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            )}
+                                            {showLeadAdv && (
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <div className="h-1 w-3 rounded-full bg-yellow-500" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                  <p className="text-xs font-medium">Lead Advance: {restrictions.leadDaysAdvance}</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            )}
+                                            {showLeadPost && (
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <div className="h-1 w-3 rounded-full bg-orange-500" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                  <p className="text-xs font-medium">Lead Post: {restrictions.leadDaysPost}</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
                                     </td>
                                   );
                                 })}
@@ -1801,147 +1797,6 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   })}
                                 </tr>
                               ))}
-                              {/* Stop Sell Row */}
-                              {selectedDisplayOptions.includes("stop_sell") && (
-                                <tr>
-                                  <td className="border p-1 pl-4 text-xs text-muted-foreground sticky left-0 bg-background z-10">
-                                    <span className="text-red-600 font-medium">Stop Sell</span>
-                                  </td>
-                                  {calendarDates.map((date, index) => {
-                                    const weekend = isWeekend(date);
-                                    const isHoliday = !!getHolidayName(date);
-                                    const restrictions = getRestrictions(room.name, date);
-                                    return (
-                                      <td
-                                        key={index}
-                                        className={`border p-1 text-center text-xs ${
-                                          isHoliday 
-                                            ? "bg-green-100 dark:bg-green-950/30" 
-                                            : weekend 
-                                              ? "bg-red-50 dark:bg-red-950/20" 
-                                              : ""
-                                        }`}
-                                      >
-                                        {restrictions.stopSell === null ? (
-                                          <span className="text-muted-foreground/50 italic">—</span>
-                                        ) : restrictions.stopSell ? (
-                                          <span className="text-red-600 font-bold">✕</span>
-                                        ) : (
-                                          <span className="text-green-600">✓</span>
-                                        )}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              )}
-                              {/* Min Stay Row */}
-                              {selectedDisplayOptions.includes("min_stay") && (
-                                <tr>
-                                  <td className="border p-1 pl-4 text-xs text-muted-foreground sticky left-0 bg-background z-10">
-                                    <span className="text-blue-600 font-medium">Min Stay</span>
-                                  </td>
-                                  {calendarDates.map((date, index) => {
-                                    const weekend = isWeekend(date);
-                                    const isHoliday = !!getHolidayName(date);
-                                    const restrictions = getRestrictions(room.name, date);
-                                    return (
-                                      <td
-                                        key={index}
-                                        className={`border p-1 text-center text-xs ${
-                                          isHoliday 
-                                            ? "bg-green-100 dark:bg-green-950/30" 
-                                            : weekend 
-                                              ? "bg-red-50 dark:bg-red-950/20" 
-                                              : ""
-                                        }`}
-                                      >
-                                        {renderCellValue(restrictions.minStay, restrictions.fromPms)}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              )}
-                              {/* Max Stay Row */}
-                              {selectedDisplayOptions.includes("max_stay") && (
-                                <tr>
-                                  <td className="border p-1 pl-4 text-xs text-muted-foreground sticky left-0 bg-background z-10">
-                                    <span className="text-pink-600 font-medium">Max Stay</span>
-                                  </td>
-                                  {calendarDates.map((date, index) => {
-                                    const weekend = isWeekend(date);
-                                    const isHoliday = !!getHolidayName(date);
-                                    const restrictions = getRestrictions(room.name, date);
-                                    return (
-                                      <td
-                                        key={index}
-                                        className={`border p-1 text-center text-xs ${
-                                          isHoliday 
-                                            ? "bg-green-100 dark:bg-green-950/30" 
-                                            : weekend 
-                                              ? "bg-red-50 dark:bg-red-950/20" 
-                                              : ""
-                                        }`}
-                                      >
-                                        {renderCellValue(restrictions.maxStay, restrictions.fromPms)}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              )}
-                              {/* Lead Days Advance Row */}
-                              {selectedDisplayOptions.includes("lead_days_advance") && (
-                                <tr>
-                                  <td className="border p-1 pl-4 text-xs text-muted-foreground sticky left-0 bg-background z-10">
-                                    <span className="text-yellow-600 font-medium">Lead Days Adv</span>
-                                  </td>
-                                  {calendarDates.map((date, index) => {
-                                    const weekend = isWeekend(date);
-                                    const isHoliday = !!getHolidayName(date);
-                                    const restrictions = getRestrictions(room.name, date);
-                                    return (
-                                      <td
-                                        key={index}
-                                        className={`border p-1 text-center text-xs ${
-                                          isHoliday 
-                                            ? "bg-green-100 dark:bg-green-950/30" 
-                                            : weekend 
-                                              ? "bg-red-50 dark:bg-red-950/20" 
-                                              : ""
-                                        }`}
-                                      >
-                                        {renderCellValue(restrictions.leadDaysAdvance, restrictions.fromPms)}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              )}
-                              {/* Lead Days Post Row */}
-                              {selectedDisplayOptions.includes("lead_days_post") && (
-                                <tr>
-                                  <td className="border p-1 pl-4 text-xs text-muted-foreground sticky left-0 bg-background z-10">
-                                    <span className="text-orange-600 font-medium">Lead Days Post</span>
-                                  </td>
-                                  {calendarDates.map((date, index) => {
-                                    const weekend = isWeekend(date);
-                                    const isHoliday = !!getHolidayName(date);
-                                    const restrictions = getRestrictions(room.name, date);
-                                    return (
-                                      <td
-                                        key={index}
-                                        className={`border p-1 text-center text-xs ${
-                                          isHoliday 
-                                            ? "bg-green-100 dark:bg-green-950/30" 
-                                            : weekend 
-                                              ? "bg-red-50 dark:bg-red-950/20" 
-                                              : ""
-                                        }`}
-                                      >
-                                        {renderCellValue(restrictions.leadDaysPost, restrictions.fromPms)}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              )}
                             </React.Fragment>
                           );
                         })}
