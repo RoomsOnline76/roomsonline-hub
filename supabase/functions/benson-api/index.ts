@@ -635,45 +635,95 @@ serve(async (req) => {
         break;
 
       case "fetch_property_data":
-        // Fetch all data needed for property form: room types, rate types, and rates
-        console.log(`Fetching property data for form population`);
+        // Fetch all data from availability endpoint which contains room types and rate types
+        console.log(`Fetching property data for form population via availability endpoint`);
         
-        const [propRoomTypes, propRateTypes] = await Promise.allSettled([
-          getRoomTypes(creds, propertyCode),
-          getRateTypes(creds, propertyCode),
-        ]);
+        // Get availability for 30 days - this returns room types with embedded rate types
+        const propStartDate = new Date();
+        const propEndDate = new Date();
+        propEndDate.setDate(propEndDate.getDate() + 30);
         
-        // Get rates for the next 365 days
-        const ratesStartDate = new Date();
-        const ratesEndDate = new Date();
-        ratesEndDate.setDate(ratesEndDate.getDate() + 365);
-        
-        let ratesData: any = [];
+        let availabilityData: any = [];
         try {
-          ratesData = await getRates(
+          availabilityData = await fetchAvailability(
             creds, 
             propertyCode, 
-            ratesStartDate.toISOString().split("T")[0],
-            ratesEndDate.toISOString().split("T")[0]
+            propStartDate.toISOString().split("T")[0],
+            propEndDate.toISOString().split("T")[0]
           );
-        } catch (ratesError: any) {
-          console.warn(`Could not fetch rates: ${ratesError.message}`);
+        } catch (availError: any) {
+          console.warn(`Could not fetch availability: ${availError.message}`);
         }
         
-        const fetchedRoomTypes = propRoomTypes.status === 'fulfilled' ? propRoomTypes.value : [];
-        const fetchedRateTypes = propRateTypes.status === 'fulfilled' ? propRateTypes.value : [];
+        // Extract room types from availability response
+        const extractedRoomTypes: any[] = [];
+        const extractedRateTypes: Map<number, any> = new Map();
+        const extractedRates: any[] = [];
         
-        console.log(`Property data - Room types: ${Array.isArray(fetchedRoomTypes) ? fetchedRoomTypes.length : 0}, Rate types: ${Array.isArray(fetchedRateTypes) ? fetchedRateTypes.length : 0}`);
-        console.log(`Property data - Rates: ${Array.isArray(ratesData) ? ratesData.length : 'object'}`);
+        if (Array.isArray(availabilityData)) {
+          availabilityData.forEach((roomType: any) => {
+            // Extract room type info
+            extractedRoomTypes.push({
+              id: roomType.roomTypeId,
+              name: roomType.name,
+              description: roomType.description,
+              minGuests: roomType.minGuests,
+              maxGuests: roomType.maxGuests,
+              allowTeens: roomType.allowTeens,
+              teenMinAge: roomType.teenMinAge,
+              teenMaxAge: roomType.teenMaxAge,
+              allowChildren: roomType.allowChildren,
+              childMinAge: roomType.childMinAge,
+              childMaxAge: roomType.childMaxAge,
+              allowInfants: roomType.allowInfants,
+              infantMinAge: roomType.infantMinAge,
+              infantMaxAge: roomType.infantMaxAge,
+            });
+            
+            // Extract rate types from this room type
+            if (roomType.rateTypes && Array.isArray(roomType.rateTypes)) {
+              roomType.rateTypes.forEach((rateType: any) => {
+                if (!extractedRateTypes.has(rateType.rateTypeId)) {
+                  extractedRateTypes.set(rateType.rateTypeId, {
+                    id: rateType.rateTypeId,
+                    name: rateType.name,
+                    priceType: rateType.priceType,
+                    minNights: rateType.minNights,
+                    maxNights: rateType.maxNights,
+                  });
+                }
+                
+                // Extract rates for this room/rate type combination
+                if (rateType.rates && Array.isArray(rateType.rates)) {
+                  rateType.rates.forEach((rate: any) => {
+                    extractedRates.push({
+                      roomTypeId: roomType.roomTypeId,
+                      roomTypeName: roomType.name,
+                      rateTypeId: rateType.rateTypeId,
+                      rateTypeName: rateType.name,
+                      date: rate.date,
+                      roomAmount: rate.roomAmount,
+                      adultAmount1: rate.adultAmount1,
+                      adultAmount2: rate.adultAmount2,
+                      teenAmount: rate.teenAmount,
+                      childAmount: rate.childAmount,
+                      infantAmount: rate.infantAmount,
+                    });
+                  });
+                }
+              });
+            }
+          });
+        }
+        
+        console.log(`Property data - Room types: ${extractedRoomTypes.length}, Rate types: ${extractedRateTypes.size}`);
+        console.log(`Property data - Rates: ${extractedRates.length}`);
         
         result = {
-          roomTypes: Array.isArray(fetchedRoomTypes) ? fetchedRoomTypes : [],
-          rateTypes: Array.isArray(fetchedRateTypes) ? fetchedRateTypes : [],
-          rates: ratesData,
-          warnings: [
-            ...(propRoomTypes.status === 'rejected' ? ['Room types not accessible'] : []),
-            ...(propRateTypes.status === 'rejected' ? ['Rate types not accessible'] : []),
-          ],
+          roomTypes: extractedRoomTypes,
+          rateTypes: Array.from(extractedRateTypes.values()),
+          rates: extractedRates,
+          warnings: availabilityData.length === 0 ? ['No availability data returned from Benson'] : [],
         };
         break;
 
