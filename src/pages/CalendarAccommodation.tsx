@@ -1481,14 +1481,10 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                           const filteredRates = room.rates.filter(rate =>
                             selectedMealTypes.includes(getMealTypeId(rate.mealType))
                           );
-                          
-                          if (filteredRates.length === 0 && !selectedDisplayOptions.includes("rates")) {
-                            return null;
-                          }
 
                           return (
                             <React.Fragment key={room.name}>
-                              {/* Room Name Row with Availability and Restriction Indicators */}
+                              {/* Room Name Row with Availability - ALWAYS visible */}
                               <tr className="bg-slate-100 dark:bg-slate-800">
                                 <td className="border p-2 font-bold text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
                                   {room.name}
@@ -1700,14 +1696,10 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                           const filteredRates = room.rates.filter(rate =>
                             selectedMealTypes.includes(getMealTypeId(rate.mealType))
                           );
-                          
-                          if (filteredRates.length === 0 && !selectedDisplayOptions.includes("rates")) {
-                            return null;
-                          }
 
                           return (
                             <React.Fragment key={room.name}>
-                              {/* Room Name Row with Availability and Restriction Indicators */}
+                              {/* Room Name Row with Availability - ALWAYS visible */}
                               <tr className="bg-slate-100 dark:bg-slate-800">
                                 <td className="border p-2 font-bold text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
                                   {room.name}
