@@ -276,7 +276,7 @@ export default function PropertyForm() {
     try {
       const { data, error } = await supabase.functions.invoke("benson-api", {
         body: {
-          action: "fetch_types",
+          action: "fetch_property_data",
           property_id: propertyId,
         },
       });
@@ -298,6 +298,10 @@ export default function PropertyForm() {
           selected: false,
           pms_id: rt.id,
           pms_synced: true,
+          // Map additional Benson fields if available
+          maxPeople: rt.maxPeople || rt.maxGuests || undefined,
+          numRooms: rt.numberOfRooms || rt.quantity || undefined,
+          description: rt.description || undefined,
         }));
 
         // Merge with existing room types - update existing or add new
@@ -340,11 +344,21 @@ export default function PropertyForm() {
         });
       }
 
-      // Store rate types info for rate breakdown
+      // Store rate types info for rate breakdown - update room rate_info
       if (data?.rateTypes && Array.isArray(data.rateTypes)) {
+        console.log("Rate types from Benson:", data.rateTypes);
         toast({
           title: "Rate Types Found",
           description: `Found ${data.rateTypes.length} rate types from Benson.`,
+        });
+      }
+
+      // Process rates data for rate breakdown if available
+      if (data?.rates) {
+        console.log("Rates data from Benson:", data.rates);
+        toast({
+          title: "Rates Retrieved",
+          description: "Rate data retrieved. Configure in Rate Breakdown tab.",
         });
       }
 

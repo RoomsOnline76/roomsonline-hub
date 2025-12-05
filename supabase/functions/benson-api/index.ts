@@ -169,12 +169,12 @@ async function getReservations(
   return response.json();
 }
 
-// Get charge types from Benson
-async function getChargeTypes(creds: BensonCredentials, propertyCode: string): Promise<any> {
+// Get room types from Benson (Room Information)
+async function getRoomTypes(creds: BensonCredentials, propertyCode: string): Promise<any> {
   const baseUrl = getBaseUrl(creds, propertyCode);
-  const url = `${baseUrl}/chargetypes`;
+  const url = `${baseUrl}/roomtypes`;
 
-  console.log(`Fetching charge types from: ${url}`);
+  console.log(`Fetching room types from: ${url}`);
 
   const response = await fetch(url, {
     headers: {
@@ -192,12 +192,40 @@ async function getChargeTypes(creds: BensonCredentials, propertyCode: string): P
   return response.json();
 }
 
-// Get payment types from Benson
-async function getPaymentTypes(creds: BensonCredentials, propertyCode: string): Promise<any> {
+// Get rate types from Benson (Rate Info dropdown)
+async function getRateTypes(creds: BensonCredentials, propertyCode: string): Promise<any> {
   const baseUrl = getBaseUrl(creds, propertyCode);
-  const url = `${baseUrl}/paymenttypes`;
+  const url = `${baseUrl}/ratetypes`;
 
-  console.log(`Fetching payment types from: ${url}`);
+  console.log(`Fetching rate types from: ${url}`);
+
+  const response = await fetch(url, {
+    headers: {
+      "Authorization": getAuthHeader(creds.username, creds.password),
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`Benson API error: ${response.status} - ${errorText}`);
+    throw new Error(`Benson API error: ${response.status} - ${errorText}`);
+  }
+
+  return response.json();
+}
+
+// Get rates from Benson (Rate Breakdown)
+async function getRates(
+  creds: BensonCredentials, 
+  propertyCode: string,
+  startDate: string,
+  endDate: string
+): Promise<any> {
+  const baseUrl = getBaseUrl(creds, propertyCode);
+  const url = `${baseUrl}/rates?startdate=${startDate}&enddate=${endDate}`;
+
+  console.log(`Fetching rates from: ${url}`);
 
   const response = await fetch(url, {
     headers: {
@@ -575,61 +603,76 @@ serve(async (req) => {
         break;
 
       case "fetch_types":
-        // Fetch all types in parallel with graceful error handling
-        // Some Benson accounts may not have access to all endpoints
-        const [chargeTypesResult, paymentTypesResult] = await Promise.allSettled([
-          getChargeTypes(creds, propertyCode),
-          getPaymentTypes(creds, propertyCode),
+        // Fetch room types and rate types from dedicated endpoints
+        const [roomTypesResult, rateTypesResult] = await Promise.allSettled([
+          getRoomTypes(creds, propertyCode),
+          getRateTypes(creds, propertyCode),
         ]);
         
-        // Extract results, using empty arrays for failed requests (e.g., 403 access denied)
-        const chargeTypes = chargeTypesResult.status === 'fulfilled' ? chargeTypesResult.value : [];
-        const paymentTypes = paymentTypesResult.status === 'fulfilled' ? paymentTypesResult.value : [];
+        // Extract results
+        const roomTypesData = roomTypesResult.status === 'fulfilled' ? roomTypesResult.value : [];
+        const rateTypesData = rateTypesResult.status === 'fulfilled' ? rateTypesResult.value : [];
         
         // Log warnings for failed requests
-        if (chargeTypesResult.status === 'rejected') {
-          console.warn(`Could not fetch charge types: ${chargeTypesResult.reason?.message || 'Unknown error'}`);
+        if (roomTypesResult.status === 'rejected') {
+          console.warn(`Could not fetch room types: ${roomTypesResult.reason?.message || 'Unknown error'}`);
         }
-        if (paymentTypesResult.status === 'rejected') {
-          console.warn(`Could not fetch payment types: ${paymentTypesResult.reason?.message || 'Unknown error'}`);
+        if (rateTypesResult.status === 'rejected') {
+          console.warn(`Could not fetch rate types: ${rateTypesResult.reason?.message || 'Unknown error'}`);
         }
         
-        // Also fetch availability to get room types and rate types
-        const today = new Date();
-        const thirtyDaysLater = new Date(today);
-        thirtyDaysLater.setDate(today.getDate() + 30);
-        
-        const availabilityData = await fetchAvailability(
-          creds,
-          propertyCode,
-          today.toISOString().split("T")[0],
-          thirtyDaysLater.toISOString().split("T")[0]
-        );
-        
-        const roomTypes: { id: number; name: string }[] = [];
-        const rateTypes: { id: number; name: string }[] = [];
-        
-        if (availabilityData.roomTypes) {
-          for (const rt of availabilityData.roomTypes) {
-            roomTypes.push({ id: rt.roomTypeId, name: rt.name });
-            if (rt.rateTypes) {
-              for (const rate of rt.rateTypes) {
-                if (!rateTypes.find(r => r.id === rate.rateTypeId)) {
-                  rateTypes.push({ id: rate.rateTypeId, name: rate.name });
-                }
-              }
-            }
-          }
-        }
+        console.log(`Fetched ${Array.isArray(roomTypesData) ? roomTypesData.length : 0} room types`);
+        console.log(`Fetched ${Array.isArray(rateTypesData) ? rateTypesData.length : 0} rate types`);
         
         result = {
-          chargeTypes,
-          paymentTypes,
-          roomTypes,
-          rateTypes,
+          roomTypes: Array.isArray(roomTypesData) ? roomTypesData : [],
+          rateTypes: Array.isArray(rateTypesData) ? rateTypesData : [],
           warnings: [
-            ...(chargeTypesResult.status === 'rejected' ? ['Charge types not accessible with current credentials'] : []),
-            ...(paymentTypesResult.status === 'rejected' ? ['Payment types not accessible with current credentials'] : []),
+            ...(roomTypesResult.status === 'rejected' ? ['Room types not accessible with current credentials'] : []),
+            ...(rateTypesResult.status === 'rejected' ? ['Rate types not accessible with current credentials'] : []),
+          ],
+        };
+        break;
+
+      case "fetch_property_data":
+        // Fetch all data needed for property form: room types, rate types, and rates
+        console.log(`Fetching property data for form population`);
+        
+        const [propRoomTypes, propRateTypes] = await Promise.allSettled([
+          getRoomTypes(creds, propertyCode),
+          getRateTypes(creds, propertyCode),
+        ]);
+        
+        // Get rates for the next 365 days
+        const ratesStartDate = new Date();
+        const ratesEndDate = new Date();
+        ratesEndDate.setDate(ratesEndDate.getDate() + 365);
+        
+        let ratesData: any = [];
+        try {
+          ratesData = await getRates(
+            creds, 
+            propertyCode, 
+            ratesStartDate.toISOString().split("T")[0],
+            ratesEndDate.toISOString().split("T")[0]
+          );
+        } catch (ratesError: any) {
+          console.warn(`Could not fetch rates: ${ratesError.message}`);
+        }
+        
+        const fetchedRoomTypes = propRoomTypes.status === 'fulfilled' ? propRoomTypes.value : [];
+        const fetchedRateTypes = propRateTypes.status === 'fulfilled' ? propRateTypes.value : [];
+        
+        console.log(`Property data - Room types: ${Array.isArray(fetchedRoomTypes) ? fetchedRoomTypes.length : 0}, Rate types: ${Array.isArray(fetchedRateTypes) ? fetchedRateTypes.length : 0}`);
+        console.log(`Property data - Rates: ${Array.isArray(ratesData) ? ratesData.length : 'object'}`);
+        
+        result = {
+          roomTypes: Array.isArray(fetchedRoomTypes) ? fetchedRoomTypes : [],
+          rateTypes: Array.isArray(fetchedRateTypes) ? fetchedRateTypes : [],
+          rates: ratesData,
+          warnings: [
+            ...(propRoomTypes.status === 'rejected' ? ['Room types not accessible'] : []),
+            ...(propRateTypes.status === 'rejected' ? ['Rate types not accessible'] : []),
           ],
         };
         break;
