@@ -4432,11 +4432,11 @@ export default function PropertyForm() {
                       )}
                     </TabsContent>
 
-                    {/* Season Sub-tab */}
+                    {/* Season Sub-tab - Manual entry only */}
                     <TabsContent value="season" className="p-6 space-y-4">
                       <div className="flex justify-between items-center">
                         <p className="text-sm text-muted-foreground">
-                          Define seasonal periods with custom stay requirements. Rates are configured per room type in the Rate Breakdown tab.
+                          Manually define seasonal periods with custom stay requirements. Seasons are not imported from PMS.
                         </p>
                         <Button onClick={openAddSeasonDialog} className="gap-2">
                           <Plus className="h-4 w-4" />
@@ -4447,8 +4447,8 @@ export default function PropertyForm() {
                       {seasons.length === 0 ? (
                         <div className="border rounded-lg p-8 text-center text-muted-foreground">
                           <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                          <p>No seasons defined yet.</p>
-                          <p className="text-sm">Add seasons to configure different rate periods throughout the year.</p>
+                          <p>No seasons defined.</p>
+                          <p className="text-sm">Seasons are optional. Add them manually if you need different rate periods.</p>
                         </div>
                       ) : (
                         <div className="border rounded-lg overflow-hidden">
