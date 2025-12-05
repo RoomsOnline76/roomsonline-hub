@@ -2107,7 +2107,6 @@ export default function PropertyForm() {
             <ChevronRight className="h-4 w-4" />
             <span className="text-foreground">
               {activeTab === "general" && "General"}
-              {activeTab === "house-style" && "House Style"}
               {activeTab === "info-facilities" && "Property info and Facilities"}
               {activeTab === "house-rules" && "House Rules"}
               {activeTab === "images" && "Property Images"}
@@ -2153,7 +2152,6 @@ export default function PropertyForm() {
             <TabsList className="bg-secondary">
               {[
                 { value: "general", icon: Home, label: "General" },
-                { value: "house-style", icon: Building2, label: "House Style" },
                 { value: "info-facilities", icon: Building2, label: "Property Info & Facilities" },
                 { value: "house-rules", icon: FileText, label: "House Rules" },
                 { value: "images", icon: Image, label: "Property Images" },
@@ -3695,10 +3693,15 @@ export default function PropertyForm() {
                     </div>
 
                     {/* Age Ranges */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <Card>
                         <CardHeader>
-                          <CardTitle className="text-base">Infant Ages</CardTitle>
+                          <CardTitle className="text-base flex items-center gap-2">
+                            Infant Ages
+                            {selectedPMS === 'benson' && (
+                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />Benson</Badge>
+                            )}
+                          </CardTitle>
                         </CardHeader>
                         <CardContent>
                           <div className="grid grid-cols-2 gap-4">
@@ -3707,6 +3710,8 @@ export default function PropertyForm() {
                               <Input
                                 value={formData.infant_age_from}
                                 onChange={(e) => handleInputChange("infant_age_from", e.target.value)}
+                                disabled={selectedPMS === 'benson'}
+                                className={selectedPMS === 'benson' ? 'bg-muted cursor-not-allowed' : ''}
                               />
                             </div>
                             <div className="space-y-2">
@@ -3714,6 +3719,8 @@ export default function PropertyForm() {
                               <Input
                                 value={formData.infant_age_to}
                                 onChange={(e) => handleInputChange("infant_age_to", e.target.value)}
+                                disabled={selectedPMS === 'benson'}
+                                className={selectedPMS === 'benson' ? 'bg-muted cursor-not-allowed' : ''}
                               />
                             </div>
                           </div>
@@ -3722,7 +3729,45 @@ export default function PropertyForm() {
 
                       <Card>
                         <CardHeader>
-                          <CardTitle className="text-base">Children Ages</CardTitle>
+                          <CardTitle className="text-base flex items-center gap-2">
+                            Teen Ages
+                            {selectedPMS === 'benson' && (
+                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />Benson</Badge>
+                            )}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label className="text-xs text-muted-foreground">From</Label>
+                              <Input
+                                value={(formData as any).teen_age_from || ''}
+                                onChange={(e) => handleInputChange("teen_age_from" as any, e.target.value)}
+                                disabled={selectedPMS === 'benson'}
+                                className={selectedPMS === 'benson' ? 'bg-muted cursor-not-allowed' : ''}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs text-muted-foreground">To</Label>
+                              <Input
+                                value={(formData as any).teen_age_to || ''}
+                                onChange={(e) => handleInputChange("teen_age_to" as any, e.target.value)}
+                                disabled={selectedPMS === 'benson'}
+                                className={selectedPMS === 'benson' ? 'bg-muted cursor-not-allowed' : ''}
+                              />
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base flex items-center gap-2">
+                            Children Ages
+                            {selectedPMS === 'benson' && (
+                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />Benson</Badge>
+                            )}
+                          </CardTitle>
                         </CardHeader>
                         <CardContent>
                           <div className="grid grid-cols-2 gap-4">
@@ -3731,6 +3776,8 @@ export default function PropertyForm() {
                               <Input
                                 value={formData.children_age_from}
                                 onChange={(e) => handleInputChange("children_age_from", e.target.value)}
+                                disabled={selectedPMS === 'benson'}
+                                className={selectedPMS === 'benson' ? 'bg-muted cursor-not-allowed' : ''}
                               />
                             </div>
                             <div className="space-y-2">
@@ -3738,6 +3785,8 @@ export default function PropertyForm() {
                               <Input
                                 value={formData.children_age_to}
                                 onChange={(e) => handleInputChange("children_age_to", e.target.value)}
+                                disabled={selectedPMS === 'benson'}
+                                className={selectedPMS === 'benson' ? 'bg-muted cursor-not-allowed' : ''}
                               />
                             </div>
                           </div>
@@ -4933,13 +4982,26 @@ export default function PropertyForm() {
                                 const priceType = rateType.priceType || 'Per Unit';
                                 const isPerPerson = priceType.toLowerCase().includes('person');
                                 
-                                return (
-                                  <div key={rateType.id} className="border rounded-lg overflow-hidden">
+                                  // Get today's rate from PMS cache
+                                  const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
+                                  const roomRateTypes = currentRoom?.rateTypes || [];
+                                  const rateTypeData = roomRateTypes.find((rt: any) => rt.rateTypeId === rateType.id);
+                                  const todayStr = format(new Date(), 'yyyy-MM-dd');
+                                  const todayRateData = rateTypeData?.rates?.find((r: any) => r.date === todayStr);
+                                  
+                                  return (
+                                    <div key={rateType.id} className="border rounded-lg overflow-hidden">
                                     <div className="p-4 bg-muted/50">
                                       <div className="flex items-center gap-2">
                                         <h3 className="font-semibold">{rateType.name}</h3>
                                         <Badge variant="outline" className="text-xs">{priceType}</Badge>
+                                        {selectedPMS === 'benson' && (
+                                          <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />Benson</Badge>
+                                        )}
                                       </div>
+                                      {selectedPMS === 'benson' && (
+                                        <p className="text-xs text-muted-foreground mt-1">Today's rate from Benson ({todayStr})</p>
+                                      )}
                                     </div>
                                     
                                     <div className="p-4">
@@ -4950,76 +5012,76 @@ export default function PropertyForm() {
                                             <Input
                                               type="number"
                                               min="0"
-                                              value={getSeasonRate(selectedRoomType, `base-${rateType.id}`, 'roomAmount')}
+                                              value={todayRateData?.roomAmount ?? 0}
                                               className="text-center bg-muted cursor-not-allowed"
                                               placeholder="—"
                                               disabled
                                             />
                                           </div>
                                           <div className="space-y-2">
-                                            <Label className="text-xs font-medium">Adult Amount</Label>
+                                            <Label className="text-xs font-medium text-muted-foreground">Adult Amount</Label>
                                             <Input
                                               type="number"
                                               min="0"
-                                              value={getSeasonRate(selectedRoomType, `base-${rateType.id}`, 'adultAmount')}
-                                              onChange={(e) => updateSeasonRate(selectedRoomType, `base-${rateType.id}`, 'adultAmount', parseFloat(e.target.value) || 0)}
-                                              className="text-center"
-                                              placeholder="0.00"
+                                              value={todayRateData?.adultAmount1 ?? todayRateData?.adultAmount2 ?? 0}
+                                              className="text-center bg-muted cursor-not-allowed"
+                                              placeholder="—"
+                                              disabled
                                             />
                                           </div>
                                           <div className="space-y-2">
-                                            <Label className="text-xs font-medium">Teen Amount</Label>
+                                            <Label className="text-xs font-medium text-muted-foreground">Teen Amount</Label>
                                             <Input
                                               type="number"
                                               min="0"
-                                              value={getSeasonRate(selectedRoomType, `base-${rateType.id}`, 'teenAmount')}
-                                              onChange={(e) => updateSeasonRate(selectedRoomType, `base-${rateType.id}`, 'teenAmount', parseFloat(e.target.value) || 0)}
-                                              className="text-center"
-                                              placeholder="0.00"
+                                              value={todayRateData?.teenAmount ?? 0}
+                                              className="text-center bg-muted cursor-not-allowed"
+                                              placeholder="—"
+                                              disabled
                                             />
                                           </div>
                                           <div className="space-y-2">
-                                            <Label className="text-xs font-medium">Child Amount</Label>
+                                            <Label className="text-xs font-medium text-muted-foreground">Child Amount</Label>
                                             <Input
                                               type="number"
                                               min="0"
-                                              value={getSeasonRate(selectedRoomType, `base-${rateType.id}`, 'childAmount')}
-                                              onChange={(e) => updateSeasonRate(selectedRoomType, `base-${rateType.id}`, 'childAmount', parseFloat(e.target.value) || 0)}
-                                              className="text-center"
-                                              placeholder="0.00"
+                                              value={todayRateData?.childAmount ?? 0}
+                                              className="text-center bg-muted cursor-not-allowed"
+                                              placeholder="—"
+                                              disabled
                                             />
                                           </div>
                                           <div className="space-y-2">
-                                            <Label className="text-xs font-medium">Infant Amount</Label>
+                                            <Label className="text-xs font-medium text-muted-foreground">Infant Amount</Label>
                                             <Input
                                               type="number"
                                               min="0"
-                                              value={getSeasonRate(selectedRoomType, `base-${rateType.id}`, 'infantAmount')}
-                                              onChange={(e) => updateSeasonRate(selectedRoomType, `base-${rateType.id}`, 'infantAmount', parseFloat(e.target.value) || 0)}
-                                              className="text-center"
-                                              placeholder="0.00"
+                                              value={todayRateData?.infantAmount ?? 0}
+                                              className="text-center bg-muted cursor-not-allowed"
+                                              placeholder="—"
+                                              disabled
                                             />
                                           </div>
                                         </div>
                                       ) : (
                                         <div className="max-w-xs">
                                           <div className="space-y-2">
-                                            <Label className="text-xs font-medium">Room Amount</Label>
+                                            <Label className="text-xs font-medium text-muted-foreground">Room Amount</Label>
                                             <Input
                                               type="number"
                                               min="0"
-                                              value={getSeasonRate(selectedRoomType, `base-${rateType.id}`, 'roomAmount')}
-                                              onChange={(e) => updateSeasonRate(selectedRoomType, `base-${rateType.id}`, 'roomAmount', parseFloat(e.target.value) || 0)}
-                                              className="text-center"
-                                              placeholder="0.00"
+                                              value={todayRateData?.roomAmount ?? 0}
+                                              className="text-center bg-muted cursor-not-allowed"
+                                              placeholder="—"
+                                              disabled
                                             />
                                           </div>
                                         </div>
                                       )}
                                     </div>
                                   </div>
-                                );
-                              })}
+                                  );
+                                })}
                             </div>
                           );
                         })()
@@ -5425,14 +5487,18 @@ export default function PropertyForm() {
                               )}
                             </p>
 
-                            {displayRateTypes.map((rateType) => {
+                            {displayRateTypes.slice(0, 5).map((rateType) => {
                               const typeRates = pmsRatesByType[rateType.id] || [];
-                              const roomAmount = getPmsRateValue(rateType.id, 'roomAmount');
-                              const adultAmount1 = getPmsRateValue(rateType.id, 'adultAmount1');
-                              const adultAmount2 = getPmsRateValue(rateType.id, 'adultAmount2');
-                              const teenAmount = getPmsRateValue(rateType.id, 'teenAmount');
-                              const childAmount = getPmsRateValue(rateType.id, 'childAmount');
-                              const infantAmount = getPmsRateValue(rateType.id, 'infantAmount');
+                              // Get today's date in YYYY-MM-DD format
+                              const today = format(new Date(), 'yyyy-MM-dd');
+                              const todayRate = typeRates.find((r: any) => r.date === today);
+                              
+                              const roomAmount = todayRate?.roomAmount ?? '—';
+                              const adultAmount1 = todayRate?.adultAmount1 ?? '—';
+                              const adultAmount2 = todayRate?.adultAmount2 ?? '—';
+                              const teenAmount = todayRate?.teenAmount ?? '—';
+                              const childAmount = todayRate?.childAmount ?? '—';
+                              const infantAmount = todayRate?.infantAmount ?? '—';
                               
                               return (
                                 <div key={rateType.id} className="border rounded-lg overflow-hidden">
@@ -5448,57 +5514,45 @@ export default function PropertyForm() {
                                     )}
                                   </div>
                                   
-                                  {/* PMS Rates Display */}
+                                  {/* Today's PMS Rates Display */}
                                   {typeRates.length > 0 ? (
                                     <div className="p-4">
                                       <p className="text-xs text-muted-foreground mb-3">
-                                        Rates from PMS ({typeRates.length} date entries)
+                                        Today's rate ({today}) from Benson
                                       </p>
                                       <div className="grid grid-cols-6 gap-4 text-sm">
                                         <div className="text-center p-3 bg-muted/50 rounded">
                                           <div className="text-xs text-muted-foreground mb-1">ROOM</div>
-                                          <div className="font-mono font-semibold">{roomAmount ?? '—'}</div>
+                                          <div className="font-mono font-semibold">{roomAmount}</div>
                                         </div>
                                         <div className="text-center p-3 bg-muted/50 rounded">
                                           <div className="text-xs text-muted-foreground mb-1">1 ADULT</div>
-                                          <div className="font-mono font-semibold">{adultAmount1 ?? '—'}</div>
+                                          <div className="font-mono font-semibold">{adultAmount1}</div>
                                         </div>
                                         <div className="text-center p-3 bg-muted/50 rounded">
                                           <div className="text-xs text-muted-foreground mb-1">2 ADULTS</div>
-                                          <div className="font-mono font-semibold">{adultAmount2 ?? '—'}</div>
+                                          <div className="font-mono font-semibold">{adultAmount2}</div>
                                         </div>
                                         <div className="text-center p-3 bg-muted/50 rounded">
                                           <div className="text-xs text-muted-foreground mb-1">TEEN</div>
-                                          <div className="font-mono font-semibold">{teenAmount ?? '—'}</div>
+                                          <div className="font-mono font-semibold">{teenAmount}</div>
                                         </div>
                                         <div className="text-center p-3 bg-muted/50 rounded">
                                           <div className="text-xs text-muted-foreground mb-1">CHILD</div>
-                                          <div className="font-mono font-semibold">{childAmount ?? '—'}</div>
+                                          <div className="font-mono font-semibold">{childAmount}</div>
                                         </div>
                                         <div className="text-center p-3 bg-muted/50 rounded">
                                           <div className="text-xs text-muted-foreground mb-1">INFANT</div>
-                                          <div className="font-mono font-semibold">{infantAmount ?? '—'}</div>
+                                          <div className="font-mono font-semibold">{infantAmount}</div>
                                         </div>
                                       </div>
                                       
-                                      {/* Sample of date-specific rates */}
+                                      {/* First 5 date-specific rates */}
                                       <div className="mt-4">
-                                        <p className="text-xs text-muted-foreground mb-2">Sample rates by date:</p>
                                         <div className="overflow-x-auto">
                                           <table className="w-full text-xs">
-                                            <thead>
-                                              <tr className="bg-muted/30">
-                                                <th className="p-2 text-left">Date</th>
-                                                <th className="p-2 text-right">Room</th>
-                                                <th className="p-2 text-right">1 Adult</th>
-                                                <th className="p-2 text-right">2 Adults</th>
-                                                <th className="p-2 text-right">Teen</th>
-                                                <th className="p-2 text-right">Child</th>
-                                                <th className="p-2 text-right">Infant</th>
-                                              </tr>
-                                            </thead>
                                             <tbody>
-                                              {typeRates.slice(0, 7).map((rate: any, idx: number) => (
+                                              {typeRates.slice(0, 5).map((rate: any, idx: number) => (
                                                 <tr key={idx} className="border-t hover:bg-muted/20">
                                                   <td className="p-2 font-mono">{rate.date}</td>
                                                   <td className="p-2 text-right">{rate.roomAmount ?? '—'}</td>
@@ -5511,9 +5565,9 @@ export default function PropertyForm() {
                                               ))}
                                             </tbody>
                                           </table>
-                                          {typeRates.length > 7 && (
+                                          {typeRates.length > 5 && (
                                             <p className="text-xs text-muted-foreground mt-1">
-                                              + {typeRates.length - 7} more dates
+                                              + {typeRates.length - 5} more dates
                                             </p>
                                           )}
                                         </div>
@@ -6311,14 +6365,6 @@ export default function PropertyForm() {
                                   <strong>{getRoomLinkedRateTypes(selectedRoomType).length}</strong> rate type{getRoomLinkedRateTypes(selectedRoomType).length !== 1 ? 's' : ''} linked to this room.
                                 </p>
                               </div>
-
-                              {/* Room Data Explorer */}
-                              {currentRoom && (
-                                <div className="border-t pt-4 mt-6">
-                                  <h4 className="font-semibold text-sm mb-3">Room Data Explorer</h4>
-                                  <RoomTypeDataViewer room={currentRoom} rateTypes={pmsRateTypes} />
-                                </div>
-                              )}
                             </>
                           );
                         })()}
