@@ -1,27 +1,76 @@
-import { useParams, useSearchParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, Users, ArrowLeft } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar, Users, ArrowLeft, Minus, Plus, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { format, parseISO, differenceInDays } from "date-fns";
 import { getPropertyUrl } from "@/lib/config";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
+import { z } from "zod";
+
+// Booking form validation schema
+const bookingSchema = z.object({
+  guest_name: z.string().min(2, "Name must be at least 2 characters"),
+  guest_email: z.string().email("Invalid email address"),
+  guest_phone: z.string().min(10, "Phone must be at least 10 digits").regex(/^\+?[0-9\s-]+$/, "Invalid phone format"),
+  special_requests: z.string().optional(),
+});
+
+interface RoomBooking {
+  roomTypeId: string;
+  roomTypeName: string;
+  numberOfAdults: number;
+  numberOfTeens: number;
+  numberOfChildren: number;
+  numberOfInfants: number;
+}
+
+interface RoomType {
+  id: string;
+  name: string;
+  maxGuests?: number;
+  allowTeens?: boolean;
+  allowChildren?: boolean;
+  allowInfants?: boolean;
+}
+
+interface RateType {
+  id: string;
+  name: string;
+}
 
 const Booking = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   
   const checkIn = searchParams.get("checkIn");
   const checkOut = searchParams.get("checkOut");
-  const guests = searchParams.get("guests");
+  const initialGuests = parseInt(searchParams.get("guests") || "2");
+
+  // Form state
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [specialRequests, setSpecialRequests] = useState("");
+  const [selectedRateType, setSelectedRateType] = useState<string>("");
+  const [rooms, setRooms] = useState<RoomBooking[]>([]);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [bookingId, setBookingId] = useState<string | null>(null);
 
   // Fetch property by ID or slug
   const { data: property, isLoading } = useQuery({
     queryKey: ["property-booking", id],
     queryFn: async () => {
-      // Try UUID first, then slug
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || "");
       
       let query = supabase
@@ -41,6 +90,176 @@ const Booking = () => {
       return data;
     },
     enabled: !!id,
+  });
+
+  // Extract room types and rate types from property amenities
+  const amenities = property?.amenities as Record<string, any> | null;
+  const roomTypes: RoomType[] = amenities?.rooms || [];
+  const rateTypes: RateType[] = amenities?.pms_rate_types || [];
+
+  // Initialize rooms with first room type when property loads
+  useEffect(() => {
+    if (property && roomTypes.length > 0 && rooms.length === 0) {
+      const firstRoom = roomTypes[0];
+      setRooms([{
+        roomTypeId: String(firstRoom.id),
+        roomTypeName: firstRoom.name,
+        numberOfAdults: Math.min(initialGuests, firstRoom.maxGuests || 2),
+        numberOfTeens: 0,
+        numberOfChildren: 0,
+        numberOfInfants: 0,
+      }]);
+    }
+    if (rateTypes.length > 0 && !selectedRateType) {
+      setSelectedRateType(String(rateTypes[0].id));
+    }
+  }, [property, roomTypes, rateTypes, initialGuests]);
+
+  // Calculate totals
+  const totalGuests = rooms.reduce((sum, room) => 
+    sum + room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants, 0
+  );
+  const nights = checkIn && checkOut ? differenceInDays(parseISO(checkOut), parseISO(checkIn)) : 0;
+
+  // Add room
+  const addRoom = () => {
+    if (roomTypes.length > 0) {
+      const firstRoom = roomTypes[0];
+      setRooms([...rooms, {
+        roomTypeId: String(firstRoom.id),
+        roomTypeName: firstRoom.name,
+        numberOfAdults: 1,
+        numberOfTeens: 0,
+        numberOfChildren: 0,
+        numberOfInfants: 0,
+      }]);
+    }
+  };
+
+  // Remove room
+  const removeRoom = (index: number) => {
+    if (rooms.length > 1) {
+      setRooms(rooms.filter((_, i) => i !== index));
+    }
+  };
+
+  // Update room
+  const updateRoom = (index: number, field: keyof RoomBooking, value: string | number) => {
+    const newRooms = [...rooms];
+    if (field === 'roomTypeId') {
+      const roomType = roomTypes.find(rt => String(rt.id) === value);
+      newRooms[index] = {
+        ...newRooms[index],
+        roomTypeId: String(value),
+        roomTypeName: roomType?.name || '',
+      };
+    } else {
+      newRooms[index] = { ...newRooms[index], [field]: value };
+    }
+    setRooms(newRooms);
+  };
+
+  // Increment/decrement guest count
+  const adjustGuestCount = (roomIndex: number, field: 'numberOfAdults' | 'numberOfTeens' | 'numberOfChildren' | 'numberOfInfants', delta: number) => {
+    const newRooms = [...rooms];
+    const currentValue = newRooms[roomIndex][field];
+    const newValue = Math.max(field === 'numberOfAdults' ? 1 : 0, currentValue + delta);
+    newRooms[roomIndex][field] = newValue;
+    setRooms(newRooms);
+  };
+
+  // Create booking mutation
+  const createBookingMutation = useMutation({
+    mutationFn: async () => {
+      // Validate form
+      const validation = bookingSchema.safeParse({
+        guest_name: guestName,
+        guest_email: guestEmail,
+        guest_phone: guestPhone,
+        special_requests: specialRequests,
+      });
+
+      if (!validation.success) {
+        const errors: Record<string, string> = {};
+        validation.error.errors.forEach(err => {
+          errors[err.path[0]] = err.message;
+        });
+        setFormErrors(errors);
+        throw new Error("Please fix the form errors");
+      }
+
+      setFormErrors({});
+
+      if (!checkIn || !checkOut) {
+        throw new Error("Check-in and check-out dates are required");
+      }
+
+      if (!selectedRateType) {
+        throw new Error("Please select a rate type");
+      }
+
+      if (rooms.length === 0) {
+        throw new Error("At least one room is required");
+      }
+
+      // Calculate total (placeholder - would come from rate calculation)
+      const totalPrice = 0; // Will be calculated based on rates
+
+      // Get current user or create anonymous booking
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const bookingData = {
+        property_id: property!.id,
+        user_id: user?.id || '00000000-0000-0000-0000-000000000000', // Anonymous user placeholder
+        check_in_date: checkIn,
+        check_out_date: checkOut,
+        guest_name: guestName,
+        guest_email: guestEmail,
+        guest_phone: guestPhone,
+        special_requests: specialRequests || null,
+        adults: rooms.reduce((sum, r) => sum + r.numberOfAdults, 0),
+        children: rooms.reduce((sum, r) => sum + r.numberOfChildren, 0),
+        infants: rooms.reduce((sum, r) => sum + r.numberOfInfants, 0),
+        total_price: totalPrice,
+        status: 'pending',
+      } as any;
+
+      // Add new columns (not yet in generated types)
+      bookingData.teens = rooms.reduce((sum: number, r: RoomBooking) => sum + r.numberOfTeens, 0);
+      bookingData.room_type_id = rooms[0]?.roomTypeId || null;
+      bookingData.rate_type_id = selectedRateType;
+      bookingData.rooms = rooms;
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert(bookingData)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Push to external system if configured
+      if (property?.external_system) {
+        try {
+          await supabase.functions.invoke('push-booking', {
+            body: { booking_id: data.id },
+          });
+        } catch (pushError) {
+          console.error('Failed to push booking to external system:', pushError);
+          // Don't fail the booking, just log the error
+        }
+      }
+
+      return data;
+    },
+    onSuccess: (data) => {
+      setBookingId(data.id);
+      setBookingSuccess(true);
+      toast.success("Booking request submitted successfully!");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to create booking");
+    },
   });
 
   if (isLoading) {
@@ -72,6 +291,34 @@ const Booking = () => {
     );
   }
 
+  // Success state
+  if (bookingSuccess) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="container mx-auto px-4 py-16">
+          <Card className="max-w-lg mx-auto text-center">
+            <CardContent className="pt-8 pb-8">
+              <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold mb-2">Booking Request Submitted!</h2>
+              <p className="text-muted-foreground mb-6">
+                Your booking request for {property.name} has been submitted. 
+                You will receive a confirmation email at {guestEmail} shortly.
+              </p>
+              <div className="space-y-2 text-sm text-left bg-muted/50 rounded-lg p-4 mb-6">
+                <p><strong>Booking Reference:</strong> {bookingId?.slice(0, 8).toUpperCase()}</p>
+                <p><strong>Check-in:</strong> {checkIn && format(parseISO(checkIn), "MMM d, yyyy")}</p>
+                <p><strong>Check-out:</strong> {checkOut && format(parseISO(checkOut), "MMM d, yyyy")}</p>
+                <p><strong>Guests:</strong> {totalGuests}</p>
+              </div>
+              <Button onClick={() => navigate("/")}>Return to Home</Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -87,22 +334,287 @@ const Booking = () => {
         </a>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Booking Form - Placeholder */}
-          <div className="lg:col-span-2">
+          {/* Booking Form */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Guest Details */}
             <Card>
               <CardHeader>
-                <CardTitle>Complete Your Booking</CardTitle>
+                <CardTitle>Guest Details</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="bg-muted/50 rounded-lg p-8 text-center">
-                  <h3 className="text-lg font-medium mb-2">Booking Form Coming Soon</h3>
-                  <p className="text-muted-foreground">
-                    The booking form will be implemented here with guest details, 
-                    payment processing, and booking confirmation.
+              <CardContent className="space-y-4">
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="guest_name">Full Name *</Label>
+                    <Input
+                      id="guest_name"
+                      value={guestName}
+                      onChange={(e) => setGuestName(e.target.value)}
+                      placeholder="John Smith"
+                      className={formErrors.guest_name ? "border-destructive" : ""}
+                    />
+                    {formErrors.guest_name && (
+                      <p className="text-sm text-destructive">{formErrors.guest_name}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="guest_email">Email Address *</Label>
+                    <Input
+                      id="guest_email"
+                      type="email"
+                      value={guestEmail}
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                      placeholder="john@example.com"
+                      className={formErrors.guest_email ? "border-destructive" : ""}
+                    />
+                    {formErrors.guest_email && (
+                      <p className="text-sm text-destructive">{formErrors.guest_email}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="guest_phone">Phone Number *</Label>
+                  <Input
+                    id="guest_phone"
+                    type="tel"
+                    value={guestPhone}
+                    onChange={(e) => setGuestPhone(e.target.value)}
+                    placeholder="+27 12 345 6789"
+                    className={formErrors.guest_phone ? "border-destructive" : ""}
+                  />
+                  {formErrors.guest_phone && (
+                    <p className="text-sm text-destructive">{formErrors.guest_phone}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Include country code (e.g., +27 for South Africa)
                   </p>
                 </div>
               </CardContent>
             </Card>
+
+            {/* Rate Type Selection */}
+            {rateTypes.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Rate Type</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Select value={selectedRateType} onValueChange={setSelectedRateType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select rate type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {rateTypes.map((rt) => (
+                        <SelectItem key={rt.id} value={String(rt.id)}>
+                          {rt.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Room Selection */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Rooms & Guests</CardTitle>
+                <Button variant="outline" size="sm" onClick={addRoom}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Room
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {rooms.map((room, index) => {
+                  const roomType = roomTypes.find(rt => String(rt.id) === room.roomTypeId);
+                  
+                  return (
+                    <div key={index} className="border rounded-lg p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium">Room {index + 1}</h4>
+                        {rooms.length > 1 && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => removeRoom(index)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Room Type Selection */}
+                      {roomTypes.length > 0 && (
+                        <div className="space-y-2">
+                          <Label>Room Type</Label>
+                          <Select 
+                            value={room.roomTypeId} 
+                            onValueChange={(value) => updateRoom(index, 'roomTypeId', value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select room type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {roomTypes.map((rt) => (
+                                <SelectItem key={rt.id} value={String(rt.id)}>
+                                  {rt.name} {rt.maxGuests ? `(Max ${rt.maxGuests} guests)` : ''}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {/* Guest Counts */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        {/* Adults */}
+                        <div className="space-y-2">
+                          <Label className="text-sm">Adults</Label>
+                          <div className="flex items-center gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-8 w-8"
+                              onClick={() => adjustGuestCount(index, 'numberOfAdults', -1)}
+                              disabled={room.numberOfAdults <= 1}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <span className="w-8 text-center font-medium">{room.numberOfAdults}</span>
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-8 w-8"
+                              onClick={() => adjustGuestCount(index, 'numberOfAdults', 1)}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Teens */}
+                        {(roomType?.allowTeens !== false) && (
+                          <div className="space-y-2">
+                            <Label className="text-sm">Teens</Label>
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-8 w-8"
+                                onClick={() => adjustGuestCount(index, 'numberOfTeens', -1)}
+                                disabled={room.numberOfTeens <= 0}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <span className="w-8 text-center font-medium">{room.numberOfTeens}</span>
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-8 w-8"
+                                onClick={() => adjustGuestCount(index, 'numberOfTeens', 1)}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Children */}
+                        {(roomType?.allowChildren !== false) && (
+                          <div className="space-y-2">
+                            <Label className="text-sm">Children</Label>
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-8 w-8"
+                                onClick={() => adjustGuestCount(index, 'numberOfChildren', -1)}
+                                disabled={room.numberOfChildren <= 0}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <span className="w-8 text-center font-medium">{room.numberOfChildren}</span>
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-8 w-8"
+                                onClick={() => adjustGuestCount(index, 'numberOfChildren', 1)}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Infants */}
+                        {(roomType?.allowInfants !== false) && (
+                          <div className="space-y-2">
+                            <Label className="text-sm">Infants</Label>
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-8 w-8"
+                                onClick={() => adjustGuestCount(index, 'numberOfInfants', -1)}
+                                disabled={room.numberOfInfants <= 0}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <span className="w-8 text-center font-medium">{room.numberOfInfants}</span>
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-8 w-8"
+                                onClick={() => adjustGuestCount(index, 'numberOfInfants', 1)}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+
+            {/* Special Requests */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Special Requests</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  value={specialRequests}
+                  onChange={(e) => setSpecialRequests(e.target.value)}
+                  placeholder="Any special requests or dietary requirements..."
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  Special requests are subject to availability and may incur additional charges.
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Submit Button (Mobile) */}
+            <div className="lg:hidden">
+              <Button 
+                className="w-full" 
+                size="lg"
+                onClick={() => createBookingMutation.mutate()}
+                disabled={createBookingMutation.isPending}
+              >
+                {createBookingMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  'Confirm Booking'
+                )}
+              </Button>
+            </div>
           </div>
 
           {/* Booking Summary */}
@@ -126,22 +638,65 @@ const Booking = () => {
                   </div>
                 )}
 
-                {guests && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <span>{guests} guest{parseInt(guests) !== 1 ? 's' : ''}</span>
+                {nights > 0 && (
+                  <p className="text-sm text-muted-foreground">{nights} night{nights !== 1 ? 's' : ''}</p>
+                )}
+
+                <div className="flex items-center gap-2 text-sm">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span>{totalGuests} guest{totalGuests !== 1 ? 's' : ''}</span>
+                </div>
+
+                {rooms.length > 0 && (
+                  <div className="space-y-1 text-sm">
+                    <p className="font-medium">{rooms.length} Room{rooms.length !== 1 ? 's' : ''}</p>
+                    {rooms.map((room, i) => (
+                      <p key={i} className="text-muted-foreground text-xs">
+                        Room {i + 1}: {room.roomTypeName || 'Standard'} 
+                        ({room.numberOfAdults}A
+                        {room.numberOfTeens > 0 && `, ${room.numberOfTeens}T`}
+                        {room.numberOfChildren > 0 && `, ${room.numberOfChildren}C`}
+                        {room.numberOfInfants > 0 && `, ${room.numberOfInfants}I`})
+                      </p>
+                    ))}
                   </div>
                 )}
 
                 <div className="border-t pt-4">
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Total</span>
-                    <span className="text-xl font-bold">—</span>
+                    <span className="text-xl font-bold">On request</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Price calculation coming soon
+                    Final price will be confirmed by the property
                   </p>
                 </div>
+
+                {/* Submit Button (Desktop) */}
+                <div className="hidden lg:block pt-2">
+                  <Button 
+                    className="w-full" 
+                    size="lg"
+                    onClick={() => createBookingMutation.mutate()}
+                    disabled={createBookingMutation.isPending}
+                  >
+                    {createBookingMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      'Confirm Booking'
+                    )}
+                  </Button>
+                </div>
+
+                {createBookingMutation.isError && (
+                  <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>Please check the form for errors</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
