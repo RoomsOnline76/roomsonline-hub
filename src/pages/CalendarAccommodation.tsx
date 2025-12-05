@@ -581,40 +581,109 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     }
   };
 
-  // Build dynamic room data from property's room types and their rate_info
+  // Build dynamic room data from PMS data or property's room types
   const calendarRoomData = React.useMemo(() => {
+    // If we have PMS data, use that as the source of truth
+    if (pmsData.roomTypes.length > 0) {
+      return pmsData.roomTypes.map(pmsRoom => {
+        // Build rates from PMS rate types - one row per unique rate type
+        const rates: { rateType: string; rateTypeId: string; mealType: string; priceType: string; values: { [date: string]: number } }[] = [];
+        
+        // Collect all unique rate types from all dates
+        const rateTypesMap = new Map<string, { rateTypeId: string; rateTypeName: string; priceType: string }>();
+        
+        Object.values(pmsRoom.ratesByDate).forEach(dateRates => {
+          dateRates.forEach(rate => {
+            const key = rate.rateTypeId;
+            if (!rateTypesMap.has(key)) {
+              rateTypesMap.set(key, {
+                rateTypeId: rate.rateTypeId,
+                rateTypeName: rate.rateTypeName,
+                priceType: rate.priceType,
+              });
+            }
+          });
+        });
+        
+        // Create rate row for each rate type
+        rateTypesMap.forEach(rateInfo => {
+          // Determine display rate type based on price type
+          let displayRateType = rateInfo.priceType || "UnitRate";
+          if (displayRateType.toUpperCase() === "PER ROOM") displayRateType = "UnitRate";
+          else if (displayRateType.toUpperCase() === "PER PERSON") displayRateType = "PerPersonRate";
+          else displayRateType = "SingleRate";
+          
+          // Determine meal type from rate name
+          let mealType = "Breakfast"; // Default
+          const rateName = rateInfo.rateTypeName.toLowerCase();
+          if (rateName.includes("room only")) mealType = "Room Only";
+          else if (rateName.includes("self") || rateName.includes("catering")) mealType = "SelfCatering";
+          else if (rateName.includes("all inclusive")) mealType = "All Inclusive";
+          else if (rateName.includes("dinner")) mealType = "Dinner";
+          else if (rateName.includes("breakfast")) mealType = "Breakfast";
+          
+          rates.push({
+            rateType: displayRateType,
+            rateTypeId: rateInfo.rateTypeId,
+            mealType: mealType,
+            priceType: rateInfo.priceType,
+            values: {}
+          });
+        });
+        
+        // If no rate types found, add a placeholder
+        if (rates.length === 0) {
+          rates.push({
+            rateType: "UnitRate",
+            rateTypeId: "default",
+            mealType: "Standard",
+            priceType: "PER ROOM",
+            values: {}
+          });
+        }
+        
+        return {
+          name: pmsRoom.roomTypeName,
+          pmsRoomTypeId: pmsRoom.roomTypeId,
+          rates,
+          availability: pmsRoom.availabilityByDate
+        };
+      });
+    }
+    
+    // Fallback: use property amenities if no PMS data
     if (!selectedPropertyData?.amenities?.room_types) return [];
     
     const propRoomTypes = selectedPropertyData.amenities.room_types as any[] || [];
     
     return propRoomTypes.map(room => {
-      // Build rates from room's rate_info array
-      // Each rate_info has: name (rate type), mealTypes array, baseRate, etc.
-      const rates: { rateType: string; mealType: string; values: { [date: string]: number } }[] = [];
+      const rates: { rateType: string; rateTypeId: string; mealType: string; priceType: string; values: { [date: string]: number } }[] = [];
       
       if (room.rate_info && Array.isArray(room.rate_info)) {
         room.rate_info.forEach((rateInfo: any) => {
           const rateName = rateInfo.name || room.rateType || "Standard";
           const mealTypes = rateInfo.mealTypes || [];
           
-          // Create a rate row for each meal type in this rate_info
           mealTypes.forEach((mealType: string) => {
             rates.push({
               rateType: rateName,
+              rateTypeId: rateInfo.id?.toString() || Date.now().toString(),
               mealType: mealType,
+              priceType: "PER ROOM",
               values: {} as { [date: string]: number }
             });
           });
         });
       }
       
-      // Fallback: if no rate_info, use room.rateType with property meal_types
       if (rates.length === 0 && room.rateType) {
         const propMealTypes = selectedPropertyData.amenities.meal_types as string[] || [];
         propMealTypes.forEach((mealType: string) => {
           rates.push({
             rateType: room.rateType,
+            rateTypeId: "default",
             mealType: mealType,
+            priceType: "PER ROOM",
             values: {} as { [date: string]: number }
           });
         });
@@ -622,11 +691,12 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       
       return {
         name: room.name || "Unnamed Room",
+        pmsRoomTypeId: room.pms_id?.toString() || "",
         rates,
         availability: {} as { [date: string]: number | AvailabilityData }
       };
     });
-  }, [selectedPropertyData]);
+  }, [selectedPropertyData, pmsData]);
 
   const fetchRoomTypes = async (propertyId: string) => {
     try {
@@ -771,8 +841,10 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     
     // Check PMS data first
     if (pmsData.roomTypes.length > 0) {
-      // Try to find matching room by name
+      // Try exact match first, then fuzzy match
       const pmsRoom = pmsData.roomTypes.find(rt => 
+        rt.roomTypeName === roomName
+      ) || pmsData.roomTypes.find(rt => 
         rt.roomTypeName.toLowerCase().includes(roomName.toLowerCase()) ||
         roomName.toLowerCase().includes(rt.roomTypeName.toLowerCase())
       );
@@ -787,24 +859,39 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   };
 
   // PMS-aware helper to get rate for a room/rateType/date
-  const getRate = (roomName: string, rateType: string, date: Date): { value: number | null; fromPms: boolean } => {
+  const getRate = (roomName: string, rateTypeId: string, priceType: string, date: Date): { value: number | null; fromPms: boolean } => {
     const dateStr = format(date, "yyyy-MM-dd");
     
     // Check PMS data first
     if (pmsData.roomTypes.length > 0) {
       const pmsRoom = pmsData.roomTypes.find(rt => 
+        rt.roomTypeName === roomName
+      ) || pmsData.roomTypes.find(rt => 
         rt.roomTypeName.toLowerCase().includes(roomName.toLowerCase()) ||
         roomName.toLowerCase().includes(rt.roomTypeName.toLowerCase())
       );
       
       if (pmsRoom && pmsRoom.ratesByDate[dateStr]) {
-        const matchingRate = pmsRoom.ratesByDate[dateStr].find(r =>
-          r.rateTypeName.toLowerCase().includes(rateType.toLowerCase()) ||
-          r.priceType.toLowerCase().includes(rateType.toLowerCase()) ||
-          rateType.toLowerCase().includes(r.priceType.toLowerCase())
-        );
+        // Find by rate type ID first
+        let matchingRate = pmsRoom.ratesByDate[dateStr].find(r => r.rateTypeId === rateTypeId);
+        
+        // Fallback: find by price type
+        if (!matchingRate) {
+          const normalizedPriceType = priceType === "UnitRate" ? "PER ROOM" : 
+                                      priceType === "PerPersonRate" ? "PER PERSON" : 
+                                      priceType === "SingleRate" ? "PER PERSON" : priceType;
+          
+          matchingRate = pmsRoom.ratesByDate[dateStr].find(r => {
+            const rPriceType = r.priceType?.toUpperCase() || "";
+            return rPriceType === normalizedPriceType.toUpperCase();
+          });
+        }
         
         if (matchingRate) {
+          // For per-person rates, show adult amount
+          if (matchingRate.priceType?.toUpperCase().includes("PERSON") && matchingRate.adultAmounts) {
+            return { value: matchingRate.adultAmounts.adultAmount1 || matchingRate.adultAmounts.adultAmount2 || 0, fromPms: true };
+          }
           return { value: matchingRate.roomAmount || 0, fromPms: true };
         }
       }
@@ -1339,7 +1426,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   {calendarDates.map((date, index) => {
                                     const weekend = isWeekend(date);
                                     const isHoliday = !!getHolidayName(date);
-                                    const rateData = getRate(room.name, rate.rateType, date);
+                                    const rateData = getRate(room.name, rate.rateTypeId || rate.rateType, rate.priceType || "PER ROOM", date);
                                     return (
                                       <td
                                         key={index}
@@ -1629,7 +1716,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   {calendarDates.map((date, index) => {
                                     const weekend = isWeekend(date);
                                     const isHoliday = !!getHolidayName(date);
-                                    const rateData = getRate(room.name, rate.rateType, date);
+                                    const rateData = getRate(room.name, rate.rateTypeId || rate.rateType, rate.priceType || "PER ROOM", date);
                                     return (
                                       <td
                                         key={index}
