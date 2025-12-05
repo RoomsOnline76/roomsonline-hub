@@ -411,8 +411,12 @@ export default function PropertyForm() {
               facilities: existing.facilities || [],
               amenities: existing.amenities || [],
               rate_info: existing.rate_info || [],
-              // Update linked rate types from PMS if available
-              linkedRateTypes: pmsRoom.linkedRateTypeIds || existing.linkedRateTypes || [],
+              // Store available rate types from PMS (used to filter options in configurator)
+              availableRateTypes: pmsRoom.linkedRateTypeIds || [],
+              // Default linkedRateTypes to all available if not already set
+              linkedRateTypes: existing.linkedRateTypes?.length > 0 
+                ? existing.linkedRateTypes 
+                : (pmsRoom.linkedRateTypeIds || []),
             };
             updatedCount++;
           } else {
@@ -432,7 +436,9 @@ export default function PropertyForm() {
               facilities: [],
               amenities: [],
               rate_info: [],
-              // Pre-populate linked rate types from PMS
+              // Store available rate types from PMS (used to filter options in configurator)
+              availableRateTypes: pmsRoom.linkedRateTypeIds || [],
+              // Pre-populate linked rate types from PMS (all selected by default)
               linkedRateTypes: pmsRoom.linkedRateTypeIds || [],
             });
             newCount++;
@@ -5842,73 +5848,88 @@ export default function PropertyForm() {
                     {/* Rate Types Sub-tab */}
                     <TabsContent value="rate-types" className="p-6 space-y-4">
                       <div className="space-y-4">
-                        <div>
-                          <h3 className="font-semibold text-lg mb-2">Link Rate Types to {roomTypes.find(r => r.id === selectedRoomType)?.name}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            Select which rate types are applicable to this room type. This determines which rates appear in the overview.
-                          </p>
-                        </div>
+                        {(() => {
+                          const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
+                          const availableRateTypeIds = currentRoom?.availableRateTypes || currentRoom?.linkedRateTypes || [];
+                          const availableRateTypesForRoom = pmsRateTypes.filter(rt => availableRateTypeIds.includes(rt.id));
+                          
+                          return (
+                            <>
+                              <div>
+                                <h3 className="font-semibold text-lg mb-2">Link Rate Types to {currentRoom?.name}</h3>
+                                <p className="text-sm text-muted-foreground">
+                                  Select which rate types are applicable to this room type. This determines which rates appear in the overview.
+                                </p>
+                                {availableRateTypesForRoom.length > 0 && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Showing {availableRateTypesForRoom.length} rate type{availableRateTypesForRoom.length !== 1 ? 's' : ''} available for this room from PMS.
+                                  </p>
+                                )}
+                              </div>
 
-                        {pmsRateTypes.length === 0 ? (
-                          <div className="border rounded-lg p-8 text-center text-muted-foreground">
-                            <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                            <p>No rate types available.</p>
-                            <p className="text-sm">Sync with your PMS or add rate types manually in the Rate Breakdown tab.</p>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-2 gap-3">
-                            {pmsRateTypes.map((rateType) => {
-                              const isLinked = getRoomLinkedRateTypes(selectedRoomType).includes(rateType.id);
-                              return (
-                                <div
-                                  key={rateType.id}
-                                  onClick={() => toggleRoomRateTypeLink(selectedRoomType, rateType.id)}
-                                  className={cn(
-                                    "border rounded-lg p-4 cursor-pointer transition-all",
-                                    isLinked 
-                                      ? "border-primary bg-primary/5 ring-1 ring-primary" 
-                                      : "border-border hover:border-primary/50 hover:bg-muted/50"
-                                  )}
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2">
-                                        <Checkbox 
-                                          checked={isLinked}
-                                          className="pointer-events-none"
-                                        />
-                                        <span className="font-medium">{rateType.name}</span>
-                                      </div>
-                                      {rateType.description && (
-                                        <p className="text-xs text-muted-foreground mt-1 ml-6 line-clamp-2">
-                                          {rateType.description}
-                                        </p>
-                                      )}
-                                      <div className="flex items-center gap-2 mt-2 ml-6">
-                                        {rateType.priceType && (
-                                          <Badge variant="secondary" className="text-xs">
-                                            {rateType.priceType}
-                                          </Badge>
-                                        )}
-                                        {(rateType.minStayDays || rateType.minNights) && (
-                                          <Badge variant="outline" className="text-xs">
-                                            Min {rateType.minStayDays || rateType.minNights} nights
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
+                              {availableRateTypesForRoom.length === 0 ? (
+                                <div className="border rounded-lg p-8 text-center text-muted-foreground">
+                                  <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                  <p>No rate types available for this room.</p>
+                                  <p className="text-sm">Sync with your PMS to load rate types for this room.</p>
                                 </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                              ) : (
+                                <div className="grid grid-cols-2 gap-3">
+                                  {availableRateTypesForRoom.map((rateType) => {
+                                    const isLinked = getRoomLinkedRateTypes(selectedRoomType).includes(rateType.id);
+                                    return (
+                                      <div
+                                        key={rateType.id}
+                                        onClick={() => toggleRoomRateTypeLink(selectedRoomType, rateType.id)}
+                                        className={cn(
+                                          "border rounded-lg p-4 cursor-pointer transition-all",
+                                          isLinked 
+                                            ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                                            : "border-border hover:border-primary/50 hover:bg-muted/50"
+                                        )}
+                                      >
+                                        <div className="flex items-start justify-between">
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                              <Checkbox 
+                                                checked={isLinked}
+                                                className="pointer-events-none"
+                                              />
+                                              <span className="font-medium">{rateType.name}</span>
+                                            </div>
+                                            {rateType.description && (
+                                              <p className="text-xs text-muted-foreground mt-1 ml-6 line-clamp-2">
+                                                {rateType.description}
+                                              </p>
+                                            )}
+                                            <div className="flex items-center gap-2 mt-2 ml-6">
+                                              {rateType.priceType && (
+                                                <Badge variant="secondary" className="text-xs">
+                                                  {rateType.priceType}
+                                                </Badge>
+                                              )}
+                                              {(rateType.minStayDays || rateType.minNights) && (
+                                                <Badge variant="outline" className="text-xs">
+                                                  Min {rateType.minStayDays || rateType.minNights} nights
+                                                </Badge>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
 
-                        <div className="bg-muted/50 border rounded-lg p-4 mt-4">
-                          <p className="text-sm text-muted-foreground">
-                            <strong>{getRoomLinkedRateTypes(selectedRoomType).length}</strong> rate type{getRoomLinkedRateTypes(selectedRoomType).length !== 1 ? 's' : ''} linked to this room.
-                          </p>
-                        </div>
+                              <div className="bg-muted/50 border rounded-lg p-4 mt-4">
+                                <p className="text-sm text-muted-foreground">
+                                  <strong>{getRoomLinkedRateTypes(selectedRoomType).length}</strong> rate type{getRoomLinkedRateTypes(selectedRoomType).length !== 1 ? 's' : ''} linked to this room.
+                                </p>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     </TabsContent>
 
