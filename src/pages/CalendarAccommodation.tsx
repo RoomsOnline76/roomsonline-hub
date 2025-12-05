@@ -1633,7 +1633,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                               {selectedDisplayOptions.includes("rates") && filteredRates.map((rate, rateIndex) => {
                                 const isPerPerson = rate.priceType?.toUpperCase().includes("PERSON");
                                 const priceTypeLabel = isPerPerson ? "PER PERSON" : "PER ROOM";
-                                const rateLabel = `${rate.rateTypeName || rate.rateType} [${rate.mealType}] ${priceTypeLabel}`;
+                                const rateLabel = `${rate.rateTypeName || rate.rateType} ${priceTypeLabel}`;
                                 
                                 // Occupancy sub-rows for PER PERSON rates
                                 const occupancyRows = isPerPerson ? [
@@ -1898,7 +1898,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                               {selectedDisplayOptions.includes("rates") && filteredRates.map((rate, rateIndex) => {
                                 const isPerPerson = rate.priceType?.toUpperCase().includes("PERSON");
                                 const priceTypeLabel = isPerPerson ? "PER PERSON" : "PER ROOM";
-                                const rateLabel = `${rate.rateTypeName || rate.rateType} [${rate.mealType}] ${priceTypeLabel}`;
+                                const rateLabel = `${rate.rateTypeName || rate.rateType} ${priceTypeLabel}`;
                                 
                                 // Occupancy sub-rows for PER PERSON rates
                                 const occupancyRows = isPerPerson ? [
