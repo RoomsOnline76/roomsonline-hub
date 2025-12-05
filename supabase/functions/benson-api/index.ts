@@ -548,11 +548,24 @@ serve(async (req) => {
         break;
 
       case "fetch_types":
-        // Fetch all types in parallel
-        const [chargeTypes, paymentTypes] = await Promise.all([
+        // Fetch all types in parallel with graceful error handling
+        // Some Benson accounts may not have access to all endpoints
+        const [chargeTypesResult, paymentTypesResult] = await Promise.allSettled([
           getChargeTypes(creds, propertyCode),
           getPaymentTypes(creds, propertyCode),
         ]);
+        
+        // Extract results, using empty arrays for failed requests (e.g., 403 access denied)
+        const chargeTypes = chargeTypesResult.status === 'fulfilled' ? chargeTypesResult.value : [];
+        const paymentTypes = paymentTypesResult.status === 'fulfilled' ? paymentTypesResult.value : [];
+        
+        // Log warnings for failed requests
+        if (chargeTypesResult.status === 'rejected') {
+          console.warn(`Could not fetch charge types: ${chargeTypesResult.reason?.message || 'Unknown error'}`);
+        }
+        if (paymentTypesResult.status === 'rejected') {
+          console.warn(`Could not fetch payment types: ${paymentTypesResult.reason?.message || 'Unknown error'}`);
+        }
         
         // Also fetch availability to get room types and rate types
         const today = new Date();
@@ -587,6 +600,10 @@ serve(async (req) => {
           paymentTypes,
           roomTypes,
           rateTypes,
+          warnings: [
+            ...(chargeTypesResult.status === 'rejected' ? ['Charge types not accessible with current credentials'] : []),
+            ...(paymentTypesResult.status === 'rejected' ? ['Payment types not accessible with current credentials'] : []),
+          ],
         };
         break;
 
