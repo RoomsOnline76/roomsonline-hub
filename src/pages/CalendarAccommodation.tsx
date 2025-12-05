@@ -538,22 +538,23 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     }
   }, [selectedProperty, pmsData]);
 
-  // Trigger PMS sync when property or date changes
+  // Trigger PMS sync when property changes and data is available
   useEffect(() => {
-    if (selectedProperty && isPmsProperty) {
+    // Wait until properties are loaded and we have selectedPropertyData
+    if (!selectedProperty || properties.length === 0) return;
+    
+    if (isPmsProperty) {
       // Only fetch if we don't already have data for this property
       if (pmsData.roomTypes.length === 0) {
         fetchPmsAvailability(false); // Load from cache first
       }
-    } else if (!isPmsProperty) {
+    } else {
       // Only clear if switching to a non-PMS property
       setPmsSyncStatus("idle");
       setPmsData({ roomTypes: [], lastSynced: null, systemType: "" });
-      if (selectedProperty) {
-        sessionStorage.removeItem(`pms_data_${selectedProperty}`);
-      }
+      sessionStorage.removeItem(`pms_data_${selectedProperty}`);
     }
-  }, [selectedProperty, isPmsProperty]);
+  }, [selectedProperty, isPmsProperty, properties.length]);
 
   const checkUserRoleAndFetchProperties = async () => {
     try {
