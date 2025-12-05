@@ -777,7 +777,7 @@ serve(async (req) => {
               });
             }
             
-            // Extract room type info - capture all available fields from Benson
+            // Extract room type info - capture all available fields from Benson INCLUDING nested arrays
             extractedRoomTypes.push({
               id: roomType.roomTypeId,
               name: roomType.name,
@@ -798,6 +798,9 @@ serve(async (req) => {
               minAdultsToOfferNonAdultRates: roomType.minAdultsToOfferNonAdultRates,
               // Linked rate types from API
               linkedRateTypeIds: linkedRateTypeIds,
+              // NESTED ARRAYS - include full data for exploration in configurator
+              roomsAvailablePerNight: roomType.roomsAvailablePerNight || [],
+              rateTypes: roomType.rateTypes || [],
             });
             
             // Extract rate types from this room type - capture all Benson rate type fields
