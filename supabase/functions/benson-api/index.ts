@@ -579,7 +579,11 @@ serve(async (req) => {
                   date: availability.date,
                   available_units: availability.numberOfRoomsAvailable,
                   restrictions: availability.blockedRooms || [],
-                  raw_data: availability,
+                  raw_data: {
+                    ...availability,
+                    roomTypeName: roomType.name,
+                    roomTypeId: roomType.roomTypeId,
+                  },
                   fetched_at: new Date().toISOString(),
                 }, {
                   onConflict: "property_id,system_type,external_room_type_id,date"
@@ -590,7 +594,7 @@ serve(async (req) => {
               }
             }
             
-            // Cache rate data
+            // Cache rate data - include room type name
             if (roomType.rateTypes) {
               for (const rateType of roomType.rateTypes) {
                 if (rateType.rates) {
@@ -611,6 +615,10 @@ serve(async (req) => {
                         teen_amount: rate.teenAmount,
                         child_amount: rate.childAmount,
                         infant_amount: rate.infantAmount,
+                      },
+                      raw_data: {
+                        roomTypeName: roomType.name,
+                        roomTypeId: roomType.roomTypeId,
                       },
                       fetched_at: new Date().toISOString(),
                     }, {
