@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/Home";
+import StagingBook from "./pages/StagingBook";
 import Results from "./pages/Results";
 import PropertyOverview from "./pages/PropertyOverview";
 import Calendar from "./pages/Calendar";
@@ -38,10 +39,11 @@ const App = () => (
         <Routes>
           <Route path="/" element={
             window.location.hostname === 'book.sleepinafrica.roomsonline.co.za' 
-              ? <Home /> 
+              ? <StagingBook /> 
               : <Navigate to="/dashboard/reports" replace />
           } />
           <Route path="/book" element={<Home />} />
+          <Route path="/staging" element={<StagingBook />} />
           <Route path="/search" element={<Results />} />
           <Route path="/results" element={<Navigate to="/search" replace />} />
           <Route path="/auth" element={<Auth />} />

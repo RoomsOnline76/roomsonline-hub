@@ -55,6 +55,15 @@ const Booking = () => {
   const checkIn = searchParams.get("checkIn");
   const checkOut = searchParams.get("checkOut");
   const initialGuests = parseInt(searchParams.get("guests") || "2");
+  
+  // Pre-selected values from URL (from staging booking flow)
+  const preSelectedRoomTypeId = searchParams.get("roomTypeId");
+  const preSelectedRoomTypeName = searchParams.get("roomTypeName");
+  const preSelectedRateTypeId = searchParams.get("rateTypeId");
+  const preSelectedAdults = parseInt(searchParams.get("adults") || "0");
+  const preSelectedTeens = parseInt(searchParams.get("teens") || "0");
+  const preSelectedChildren = parseInt(searchParams.get("children") || "0");
+  const preSelectedInfants = parseInt(searchParams.get("infants") || "0");
 
   // Form state
   const [guestName, setGuestName] = useState("");
@@ -155,23 +164,38 @@ const Booking = () => {
       }))
   ) || [];
 
-  // Initialize rooms with first room type when property loads
+  // Initialize rooms with pre-selected or first room type when property loads
   useEffect(() => {
-    if (property && roomTypes.length > 0 && rooms.length === 0) {
-      const firstRoom = roomTypes[0];
-      setRooms([{
-        roomTypeId: String(firstRoom.id),
-        roomTypeName: firstRoom.name,
-        numberOfAdults: Math.min(initialGuests, firstRoom.maxGuests || 2),
-        numberOfTeens: 0,
-        numberOfChildren: 0,
-        numberOfInfants: 0,
-      }]);
+    if (property && rooms.length === 0) {
+      // Use pre-selected room if available, otherwise use first room type
+      if (preSelectedRoomTypeId && preSelectedRoomTypeName) {
+        setRooms([{
+          roomTypeId: preSelectedRoomTypeId,
+          roomTypeName: preSelectedRoomTypeName,
+          numberOfAdults: preSelectedAdults || 2,
+          numberOfTeens: preSelectedTeens,
+          numberOfChildren: preSelectedChildren,
+          numberOfInfants: preSelectedInfants,
+        }]);
+      } else if (roomTypes.length > 0) {
+        const firstRoom = roomTypes[0];
+        setRooms([{
+          roomTypeId: String(firstRoom.id),
+          roomTypeName: firstRoom.name,
+          numberOfAdults: Math.min(initialGuests, firstRoom.maxGuests || 2),
+          numberOfTeens: 0,
+          numberOfChildren: 0,
+          numberOfInfants: 0,
+        }]);
+      }
     }
-    if (rateTypes.length > 0 && !selectedRateType) {
+    // Use pre-selected rate type if available
+    if (preSelectedRateTypeId && !selectedRateType) {
+      setSelectedRateType(preSelectedRateTypeId);
+    } else if (rateTypes.length > 0 && !selectedRateType) {
       setSelectedRateType(String(rateTypes[0].id));
     }
-  }, [property, roomTypes, rateTypes, initialGuests]);
+  }, [property, roomTypes, rateTypes, initialGuests, preSelectedRoomTypeId, preSelectedRateTypeId]);
 
   // Calculate totals
   const totalGuests = rooms.reduce((sum, room) => 
