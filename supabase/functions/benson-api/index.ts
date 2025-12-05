@@ -883,9 +883,59 @@ serve(async (req) => {
         console.log(`Property data - Room types: ${extractedRoomTypes.length}, Rate types: ${extractedRateTypes.size}`);
         console.log(`Property data - Rates: ${extractedRates.length}`);
         
+        // Cache room types to pms_room_types_cache table
+        if (extractedRoomTypes.length > 0) {
+          for (const rt of extractedRoomTypes) {
+            await supabase.from("pms_room_types_cache").upsert({
+              property_id: property_id,
+              system_type: "benson",
+              external_room_type_id: String(rt.id),
+              name: rt.name,
+              description: rt.description || null,
+              min_guests: rt.minGuests || 1,
+              max_guests: rt.maxGuests || 2,
+              allow_teens: rt.allowTeens ?? true,
+              teen_min_age: rt.teenMinAge || null,
+              teen_max_age: rt.teenMaxAge || null,
+              allow_children: rt.allowChildren ?? true,
+              child_min_age: rt.childMinAge || null,
+              child_max_age: rt.childMaxAge || null,
+              allow_infants: rt.allowInfants ?? true,
+              infant_min_age: rt.infantMinAge || null,
+              infant_max_age: rt.infantMaxAge || null,
+              linked_rate_type_ids: rt.linkedRateTypeIds || [],
+              raw_data: rt,
+              fetched_at: new Date().toISOString(),
+            }, { onConflict: "property_id,system_type,external_room_type_id" });
+          }
+          console.log(`Cached ${extractedRoomTypes.length} room types to database`);
+        }
+        
+        // Cache rate types to pms_rate_types_cache table
+        const rateTypesArray = Array.from(extractedRateTypes.values());
+        if (rateTypesArray.length > 0) {
+          for (const rt of rateTypesArray) {
+            await supabase.from("pms_rate_types_cache").upsert({
+              property_id: property_id,
+              system_type: "benson",
+              external_rate_type_id: String(rt.id),
+              name: rt.name,
+              description: rt.description || null,
+              price_type: rt.priceType || null,
+              min_stay_days: rt.minStayDays || null,
+              max_stay_days: rt.maxStayDays || null,
+              min_advance_days: rt.minAdvanceDays || null,
+              max_advance_days: rt.maxAdvanceDays || null,
+              raw_data: rt,
+              fetched_at: new Date().toISOString(),
+            }, { onConflict: "property_id,system_type,external_rate_type_id" });
+          }
+          console.log(`Cached ${rateTypesArray.length} rate types to database`);
+        }
+        
         result = {
           roomTypes: extractedRoomTypes,
-          rateTypes: Array.from(extractedRateTypes.values()),
+          rateTypes: rateTypesArray,
           rates: extractedRates,
           warnings: availabilityData.length === 0 ? ['No availability data returned from Benson'] : [],
         };
