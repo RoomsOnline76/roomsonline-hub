@@ -816,6 +816,35 @@ export default function PropertyForm() {
   const [seasons, setSeasons] = useState<any[]>([]);
   const [isSeasonDialogOpen, setIsSeasonDialogOpen] = useState(false);
   const [editingSeason, setEditingSeason] = useState<any>(null);
+  const [expandedSeasons, setExpandedSeasons] = useState<Record<string, boolean>>({});
+
+  // Toggle season expand/collapse
+  const toggleSeasonExpanded = (seasonId: string) => {
+    setExpandedSeasons(prev => ({ ...prev, [seasonId]: !prev[seasonId] }));
+  };
+
+  // Calculate min/max rates for a season across all meal types
+  const getSeasonRateSummary = (seasonId: string, roomId: string) => {
+    const rateFields = ['roomAmount', 'adultAmount', 'teenAmount', 'childAmount', 'infantAmount'] as const;
+    let minRate = Infinity;
+    let maxRate = -Infinity;
+
+    selectedMealTypes.forEach((mealType) => {
+      const key = `${seasonId}-${mealType}`;
+      rateFields.forEach((field) => {
+        const rate = seasonRates[roomId]?.[key]?.[field] || 0;
+        if (rate > 0) {
+          minRate = Math.min(minRate, rate);
+          maxRate = Math.max(maxRate, rate);
+        }
+      });
+    });
+
+    return {
+      min: minRate === Infinity ? 0 : minRate,
+      max: maxRate === -Infinity ? 0 : maxRate
+    };
+  };
   const [seasonForm, setSeasonForm] = useState({
     name: "",
     from: "",
@@ -4748,92 +4777,132 @@ export default function PropertyForm() {
                         </div>
                       ) : (
                         <>
-                          <p className="text-sm text-muted-foreground">
-                            Set unit rates and weekend rates for <strong>{roomTypes.find(r => r.id === selectedRoomType)?.name}</strong> across all seasons.
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Set rates for <strong>{roomTypes.find(r => r.id === selectedRoomType)?.name}</strong> across all seasons.
                           </p>
                           
-                          {seasons.map((season) => (
-                            <div key={season.id} className="space-y-4">
-                              <h3 className="text-lg font-semibold border-b pb-2">
-                                {season.name || season.title}
-                                <span className="ml-2 text-sm font-normal text-muted-foreground">
-                                  ({season.from ? format(new Date(season.from), "dd MMM yyyy") : ""} - {season.to ? format(new Date(season.to), "dd MMM yyyy") : ""})
-                                </span>
-                              </h3>
-
-                              {selectedMealTypes.length === 0 ? (
-                                <div className="border rounded-lg p-4 text-center text-muted-foreground text-sm">
-                                  No meal types configured. Add meal types in the General tab.
-                                </div>
-                              ) : (
-                                selectedMealTypes.map((mealType) => (
-                                  <div key={mealType} className="border rounded-lg p-6 space-y-4 bg-card">
-                                    <div className="text-center text-sm font-medium text-muted-foreground mb-4">
-                                      {mealType}
-                                    </div>
-
-                                    <div className="grid grid-cols-5 gap-4">
-                                      <div className="space-y-2">
-                                        <Label className="text-xs font-medium">Room Amount</Label>
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'roomAmount')}
-                                          onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'roomAmount', parseFloat(e.target.value) || 0)}
-                                          className="text-center"
-                                          placeholder="0.00"
-                                        />
-                                      </div>
-                                      <div className="space-y-2">
-                                        <Label className="text-xs font-medium">Adult Amount</Label>
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'adultAmount')}
-                                          onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'adultAmount', parseFloat(e.target.value) || 0)}
-                                          className="text-center"
-                                          placeholder="0.00"
-                                        />
-                                      </div>
-                                      <div className="space-y-2">
-                                        <Label className="text-xs font-medium">Teen Amount</Label>
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'teenAmount')}
-                                          onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'teenAmount', parseFloat(e.target.value) || 0)}
-                                          className="text-center"
-                                          placeholder="0.00"
-                                        />
-                                      </div>
-                                      <div className="space-y-2">
-                                        <Label className="text-xs font-medium">Child Amount</Label>
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'childAmount')}
-                                          onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'childAmount', parseFloat(e.target.value) || 0)}
-                                          className="text-center"
-                                          placeholder="0.00"
-                                        />
-                                      </div>
-                                      <div className="space-y-2">
-                                        <Label className="text-xs font-medium">Infant Amount</Label>
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'infantAmount')}
-                                          onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'infantAmount', parseFloat(e.target.value) || 0)}
-                                          className="text-center"
-                                          placeholder="0.00"
-                                        />
-                                      </div>
+                          {seasons.map((season) => {
+                            const isExpanded = expandedSeasons[season.id] ?? true;
+                            const rateSummary = getSeasonRateSummary(season.id, selectedRoomType);
+                            
+                            return (
+                              <div key={season.id} className="border rounded-lg overflow-hidden">
+                                {/* Collapsible Header */}
+                                <button
+                                  type="button"
+                                  onClick={() => toggleSeasonExpanded(season.id)}
+                                  className="w-full flex items-center justify-between p-4 bg-muted/50 hover:bg-muted transition-colors text-left"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    {isExpanded ? (
+                                      <Minus className="h-4 w-4 text-muted-foreground" />
+                                    ) : (
+                                      <Plus className="h-4 w-4 text-muted-foreground" />
+                                    )}
+                                    <div>
+                                      <h3 className="font-semibold">
+                                        {season.name || season.title}
+                                      </h3>
+                                      <span className="text-sm text-muted-foreground">
+                                        {season.from ? format(new Date(season.from), "dd MMM yyyy") : ""} - {season.to ? format(new Date(season.to), "dd MMM yyyy") : ""}
+                                      </span>
                                     </div>
                                   </div>
-                                ))
-                              )}
-                            </div>
-                          ))}
+                                  
+                                  {/* Min/Max Rate Summary - shown when collapsed */}
+                                  {!isExpanded && (
+                                    <div className="flex items-center gap-4 text-sm">
+                                      <div className="text-right">
+                                        <div className="text-muted-foreground text-xs">Min Rate</div>
+                                        <div className="font-mono font-medium">{rateSummary.min > 0 ? rateSummary.min.toFixed(2) : "—"}</div>
+                                      </div>
+                                      <div className="text-right">
+                                        <div className="text-muted-foreground text-xs">Max Rate</div>
+                                        <div className="font-mono font-medium">{rateSummary.max > 0 ? rateSummary.max.toFixed(2) : "—"}</div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </button>
+
+                                {/* Collapsible Content */}
+                                {isExpanded && (
+                                  <div className="p-4 space-y-4">
+                                    {selectedMealTypes.length === 0 ? (
+                                      <div className="border rounded-lg p-4 text-center text-muted-foreground text-sm">
+                                        No meal types configured. Add meal types in the General tab.
+                                      </div>
+                                    ) : (
+                                      selectedMealTypes.map((mealType) => (
+                                        <div key={mealType} className="border rounded-lg p-6 space-y-4 bg-card">
+                                          <div className="text-center text-sm font-medium text-muted-foreground mb-4">
+                                            {mealType}
+                                          </div>
+
+                                          <div className="grid grid-cols-5 gap-4">
+                                            <div className="space-y-2">
+                                              <Label className="text-xs font-medium">Room Amount</Label>
+                                              <Input
+                                                type="number"
+                                                min="0"
+                                                value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'roomAmount')}
+                                                onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'roomAmount', parseFloat(e.target.value) || 0)}
+                                                className="text-center"
+                                                placeholder="0.00"
+                                              />
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label className="text-xs font-medium">Adult Amount</Label>
+                                              <Input
+                                                type="number"
+                                                min="0"
+                                                value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'adultAmount')}
+                                                onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'adultAmount', parseFloat(e.target.value) || 0)}
+                                                className="text-center"
+                                                placeholder="0.00"
+                                              />
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label className="text-xs font-medium">Teen Amount</Label>
+                                              <Input
+                                                type="number"
+                                                min="0"
+                                                value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'teenAmount')}
+                                                onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'teenAmount', parseFloat(e.target.value) || 0)}
+                                                className="text-center"
+                                                placeholder="0.00"
+                                              />
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label className="text-xs font-medium">Child Amount</Label>
+                                              <Input
+                                                type="number"
+                                                min="0"
+                                                value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'childAmount')}
+                                                onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'childAmount', parseFloat(e.target.value) || 0)}
+                                                className="text-center"
+                                                placeholder="0.00"
+                                              />
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label className="text-xs font-medium">Infant Amount</Label>
+                                              <Input
+                                                type="number"
+                                                min="0"
+                                                value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'infantAmount')}
+                                                onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'infantAmount', parseFloat(e.target.value) || 0)}
+                                                className="text-center"
+                                                placeholder="0.00"
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </>
                       )}
                     </TabsContent>
