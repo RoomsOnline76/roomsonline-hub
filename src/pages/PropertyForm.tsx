@@ -837,6 +837,9 @@ export default function PropertyForm() {
     maxAdvanceDays?: number | null;
     minStayDays?: number | null;
     maxStayDays?: number | null;
+    // Legacy field names (for backward compatibility)
+    minNights?: number | null;
+    maxNights?: number | null;
     stayPayStayNights?: number | null;
     stayPayDiscountNights?: number | null;
     stayPayDiscountPercentage?: number | null;
@@ -4452,11 +4455,15 @@ export default function PropertyForm() {
                                   {/* Stay Requirements */}
                                   <div className="space-y-1">
                                     <Label className="text-xs text-muted-foreground">Min Stay (Days)</Label>
-                                    <p className="font-medium">{rateType.minStayDays ?? "-"}</p>
+                                    <p className="font-medium">{rateType.minStayDays ?? rateType.minNights ?? "-"}</p>
                                   </div>
                                   <div className="space-y-1">
                                     <Label className="text-xs text-muted-foreground">Max Stay (Days)</Label>
-                                    <p className="font-medium">{rateType.maxStayDays ?? "No limit"}</p>
+                                    <p className="font-medium">
+                                      {(rateType.maxStayDays ?? rateType.maxNights) 
+                                        ? (rateType.maxStayDays ?? rateType.maxNights) 
+                                        : "No limit"}
+                                    </p>
                                   </div>
                                   
                                   {/* Advance Booking Requirements */}
