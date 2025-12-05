@@ -767,7 +767,7 @@ serve(async (req) => {
         
         if (Array.isArray(availabilityData)) {
           availabilityData.forEach((roomType: any) => {
-            // Extract room type info
+            // Extract room type info - capture all available fields from Benson
             extractedRoomTypes.push({
               id: roomType.roomTypeId,
               name: roomType.name,
@@ -783,6 +783,9 @@ serve(async (req) => {
               allowInfants: roomType.allowInfants,
               infantMinAge: roomType.infantMinAge,
               infantMaxAge: roomType.infantMaxAge,
+              // Additional Benson fields
+              minAgeCategory: roomType.minAgeCategory,
+              minAdultsToOfferNonAdultRates: roomType.minAdultsToOfferNonAdultRates,
             });
             
             // Extract rate types from this room type
