@@ -482,6 +482,75 @@ export type Database = {
           },
         ]
       }
+      pms_rate_types_cache: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          external_rate_type_id: string
+          fetched_at: string | null
+          id: string
+          max_advance_days: number | null
+          max_stay_days: number | null
+          min_advance_days: number | null
+          min_stay_days: number | null
+          name: string
+          price_type: string | null
+          property_id: string
+          raw_data: Json | null
+          system_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          external_rate_type_id: string
+          fetched_at?: string | null
+          id?: string
+          max_advance_days?: number | null
+          max_stay_days?: number | null
+          min_advance_days?: number | null
+          min_stay_days?: number | null
+          name: string
+          price_type?: string | null
+          property_id: string
+          raw_data?: Json | null
+          system_type?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          external_rate_type_id?: string
+          fetched_at?: string | null
+          id?: string
+          max_advance_days?: number | null
+          max_stay_days?: number | null
+          min_advance_days?: number | null
+          min_stay_days?: number | null
+          name?: string
+          price_type?: string | null
+          property_id?: string
+          raw_data?: Json | null
+          system_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_rate_types_cache_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_rate_types_cache_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pms_reservations: {
         Row: {
           arrival_date: string
@@ -562,6 +631,96 @@ export type Database = {
           },
           {
             foreignKeyName: "pms_reservations_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pms_room_types_cache: {
+        Row: {
+          allow_children: boolean | null
+          allow_infants: boolean | null
+          allow_teens: boolean | null
+          child_max_age: number | null
+          child_min_age: number | null
+          created_at: string | null
+          description: string | null
+          external_room_type_id: string
+          fetched_at: string | null
+          id: string
+          infant_max_age: number | null
+          infant_min_age: number | null
+          linked_rate_type_ids: Json | null
+          max_guests: number | null
+          min_guests: number | null
+          name: string
+          property_id: string
+          raw_data: Json | null
+          system_type: string
+          teen_max_age: number | null
+          teen_min_age: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          allow_children?: boolean | null
+          allow_infants?: boolean | null
+          allow_teens?: boolean | null
+          child_max_age?: number | null
+          child_min_age?: number | null
+          created_at?: string | null
+          description?: string | null
+          external_room_type_id: string
+          fetched_at?: string | null
+          id?: string
+          infant_max_age?: number | null
+          infant_min_age?: number | null
+          linked_rate_type_ids?: Json | null
+          max_guests?: number | null
+          min_guests?: number | null
+          name: string
+          property_id: string
+          raw_data?: Json | null
+          system_type?: string
+          teen_max_age?: number | null
+          teen_min_age?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          allow_children?: boolean | null
+          allow_infants?: boolean | null
+          allow_teens?: boolean | null
+          child_max_age?: number | null
+          child_min_age?: number | null
+          created_at?: string | null
+          description?: string | null
+          external_room_type_id?: string
+          fetched_at?: string | null
+          id?: string
+          infant_max_age?: number | null
+          infant_min_age?: number | null
+          linked_rate_type_ids?: Json | null
+          max_guests?: number | null
+          min_guests?: number | null
+          name?: string
+          property_id?: string
+          raw_data?: Json | null
+          system_type?: string
+          teen_max_age?: number | null
+          teen_min_age?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pms_room_types_cache_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pms_room_types_cache_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "public_properties"

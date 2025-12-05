@@ -93,10 +93,67 @@ const Booking = () => {
     enabled: !!id,
   });
 
-  // Extract room types and rate types from property amenities
+  // Fetch cached room types from database (fallback if not in amenities)
+  const { data: cachedRoomTypes } = useQuery({
+    queryKey: ["cached-room-types", property?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pms_room_types_cache")
+        .select("*")
+        .eq("property_id", property!.id)
+        .order("name");
+      
+      if (error) {
+        console.error("Error fetching cached room types:", error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!property?.id,
+  });
+
+  // Fetch cached rate types from database (fallback if not in amenities)
+  const { data: cachedRateTypes } = useQuery({
+    queryKey: ["cached-rate-types", property?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pms_rate_types_cache")
+        .select("*")
+        .eq("property_id", property!.id)
+        .order("name");
+      
+      if (error) {
+        console.error("Error fetching cached rate types:", error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!property?.id,
+  });
+
+  // Extract room types and rate types - prefer amenities, fallback to cached tables
   const amenities = property?.amenities as Record<string, any> | null;
-  const roomTypes: RoomType[] = amenities?.rooms || [];
-  const rateTypes: RateType[] = amenities?.pms_rate_types || [];
+  
+  // Map cached data to expected format
+  const roomTypes: RoomType[] = (amenities?.rooms?.length > 0 
+    ? amenities.rooms 
+    : cachedRoomTypes?.map(rt => ({
+        id: rt.external_room_type_id,
+        name: rt.name,
+        maxGuests: rt.max_guests,
+        allowTeens: rt.allow_teens,
+        allowChildren: rt.allow_children,
+        allowInfants: rt.allow_infants,
+      }))
+  ) || [];
+  
+  const rateTypes: RateType[] = (amenities?.pms_rate_types?.length > 0 
+    ? amenities.pms_rate_types 
+    : cachedRateTypes?.map(rt => ({
+        id: rt.external_rate_type_id,
+        name: rt.name,
+      }))
+  ) || [];
 
   // Initialize rooms with first room type when property loads
   useEffect(() => {
