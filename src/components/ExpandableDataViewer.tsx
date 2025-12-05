@@ -251,6 +251,83 @@ export function RoomTypeDataViewer({ room, rateTypes = [] }: RoomTypeDataViewerP
         </div>
       )}
       
+      {/* PMS Rates (date-specific rates from API) */}
+      {room.pms_rates && room.pms_rates.length > 0 && (
+        <div className="border rounded-lg overflow-hidden border-primary/30">
+          <button
+            type="button"
+            onClick={() => toggleSection('pmsRates')}
+            className="flex items-center gap-2 w-full p-2 bg-primary/10 hover:bg-primary/20 transition-colors text-left"
+          >
+            {expandedSections['pmsRates'] ? (
+              <Minus className="h-4 w-4 text-primary" />
+            ) : (
+              <Plus className="h-4 w-4 text-primary" />
+            )}
+            <span className="font-medium text-primary">Rates from PMS</span>
+            <Badge variant="default" className="ml-auto">
+              {room.pms_rates.length} rate entries
+            </Badge>
+          </button>
+          
+          {expandedSections['pmsRates'] && (
+            <div className="p-3 max-h-[400px] overflow-auto">
+              {/* Group rates by rate type for easier viewing */}
+              {(() => {
+                const ratesByType: Record<string, any[]> = {};
+                room.pms_rates.forEach((rate: any) => {
+                  const key = rate.rateTypeName || `Rate Type ${rate.rateTypeId}`;
+                  if (!ratesByType[key]) ratesByType[key] = [];
+                  ratesByType[key].push(rate);
+                });
+                
+                return Object.entries(ratesByType).map(([typeName, rates]) => (
+                  <div key={typeName} className="mb-3 last:mb-0">
+                    <div className="font-medium text-sm mb-2 flex items-center gap-2">
+                      {typeName}
+                      <Badge variant="outline" className="text-xs">{rates.length} dates</Badge>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-muted/50">
+                            <th className="border p-1 text-left">Date</th>
+                            <th className="border p-1 text-right">Room</th>
+                            <th className="border p-1 text-right">1 Adult</th>
+                            <th className="border p-1 text-right">2 Adults</th>
+                            <th className="border p-1 text-right">Teen</th>
+                            <th className="border p-1 text-right">Child</th>
+                            <th className="border p-1 text-right">Infant</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rates.slice(0, 10).map((rate: any, idx: number) => (
+                            <tr key={idx} className="hover:bg-muted/30">
+                              <td className="border p-1 font-mono">{rate.date}</td>
+                              <td className="border p-1 text-right">{rate.roomAmount ?? '—'}</td>
+                              <td className="border p-1 text-right">{rate.adultAmount1 ?? '—'}</td>
+                              <td className="border p-1 text-right">{rate.adultAmount2 ?? '—'}</td>
+                              <td className="border p-1 text-right">{rate.teenAmount ?? '—'}</td>
+                              <td className="border p-1 text-right">{rate.childAmount ?? '—'}</td>
+                              <td className="border p-1 text-right">{rate.infantAmount ?? '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {rates.length > 10 && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Showing 10 of {rates.length} entries
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          )}
+        </div>
+      )}
+      
       {/* Rooms Available Per Night */}
       {room.roomsAvailablePerNight && room.roomsAvailablePerNight.length > 0 && (
         <div className="border rounded-lg overflow-hidden">
