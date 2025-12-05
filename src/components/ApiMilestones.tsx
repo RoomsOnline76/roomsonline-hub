@@ -71,19 +71,19 @@ const milestones: Milestone[] = [
 // Update these as implementation progresses
 export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
   benson: {
-    // 🟠 HTTP Basic Auth code implemented - PENDING: username/password credentials
-    auth: 'pending',
-    // 🟠 Code ready - PENDING: credentials to test connectivity
-    healthCheck: 'pending',
-    // 🟠 fetchAvailability function implemented - PENDING: credentials
-    pullAvailability: 'pending',
-    // 🟠 Data caching code ready - PENDING: credentials
-    syncIn: 'pending',
-    // 🟠 getReservations function implemented - PENDING: credentials
+    // ✅ HTTP Basic Auth working - successful API calls with credentials
+    auth: true,
+    // ✅ Connectivity confirmed - API returns 200 responses
+    healthCheck: true,
+    // ✅ fetchAvailability working - room types, rates, availability returned
+    pullAvailability: true,
+    // ✅ Data caching working - pms_availability_cache populated
+    syncIn: true,
+    // 🟠 getReservations function implemented - PENDING: testing with live bookings
     pullBookings: 'pending',
-    // 🟠 createReservation/postBill functions implemented - PENDING: credentials
+    // 🟠 createReservation/postBill functions implemented - PENDING: testing
     pushBooking: 'pending',
-    // ❌ Not yet live
+    // ❌ Not yet live in production
     liveMonitor: false,
   },
   nightsbridge: {
