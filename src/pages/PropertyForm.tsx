@@ -757,6 +757,7 @@ export default function PropertyForm() {
       images: [] as string[],
       facilities: [] as string[],
       amenities: [] as string[],
+      mealTypes: [] as string[],
     },
   ]);
   const [selectedRoomType, setSelectedRoomType] = useState<string>("1");
@@ -787,6 +788,7 @@ export default function PropertyForm() {
       facilities: [] as string[],
       amenities: [] as string[],
       linkedRateTypes: [] as number[],
+      mealTypes: [] as string[],
     };
     setRoomTypes([...roomTypes, newRoom]);
     setSelectedRoomType(newRoom.id);
@@ -927,13 +929,17 @@ export default function PropertyForm() {
     setExpandedMealTypes(prev => ({ ...prev, [mealType]: !prev[mealType] }));
   };
 
-  // Calculate min/max rates for a season across all meal types
+  // Calculate min/max rates for a season across all meal types (room-specific)
   const getSeasonRateSummary = (seasonId: string, roomId: string) => {
     const rateFields = ['roomAmount', 'adultAmount', 'teenAmount', 'childAmount', 'infantAmount'] as const;
     let minRate = Infinity;
     let maxRate = -Infinity;
 
-    selectedMealTypes.forEach((mealType) => {
+    // Use room-specific meal types
+    const room = roomTypes.find(r => r.id === roomId);
+    const roomMealTypes = room?.mealTypes || [];
+    
+    roomMealTypes.forEach((mealType: string) => {
       const key = `${seasonId}-${mealType}`;
       rateFields.forEach((field) => {
         const rate = seasonRates[roomId]?.[key]?.[field] || 0;
@@ -4986,77 +4992,80 @@ export default function PropertyForm() {
                                 {/* Collapsible Content */}
                                 {isExpanded && (
                                   <div className="p-4 space-y-4">
-                                    {selectedMealTypes.length === 0 ? (
-                                      <div className="border rounded-lg p-4 text-center text-muted-foreground text-sm">
-                                        No meal types configured. Add meal types in the General tab.
-                                      </div>
-                                    ) : (
-                                      selectedMealTypes.map((mealType) => (
-                                        <div key={mealType} className="border rounded-lg p-6 space-y-4 bg-card">
-                                          <div className="text-center text-sm font-medium text-muted-foreground mb-4">
-                                            {mealType}
-                                          </div>
-
-                                          <div className="grid grid-cols-5 gap-4">
-                                            <div className="space-y-2">
-                                              <Label className="text-xs font-medium">Room Amount</Label>
-                                              <Input
-                                                type="number"
-                                                min="0"
-                                                value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'roomAmount')}
-                                                onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'roomAmount', parseFloat(e.target.value) || 0)}
-                                                className="text-center"
-                                                placeholder="0.00"
-                                              />
-                                            </div>
-                                            <div className="space-y-2">
-                                              <Label className="text-xs font-medium">Adult Amount</Label>
-                                              <Input
-                                                type="number"
-                                                min="0"
-                                                value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'adultAmount')}
-                                                onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'adultAmount', parseFloat(e.target.value) || 0)}
-                                                className="text-center"
-                                                placeholder="0.00"
-                                              />
-                                            </div>
-                                            <div className="space-y-2">
-                                              <Label className="text-xs font-medium">Teen Amount</Label>
-                                              <Input
-                                                type="number"
-                                                min="0"
-                                                value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'teenAmount')}
-                                                onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'teenAmount', parseFloat(e.target.value) || 0)}
-                                                className="text-center"
-                                                placeholder="0.00"
-                                              />
-                                            </div>
-                                            <div className="space-y-2">
-                                              <Label className="text-xs font-medium">Child Amount</Label>
-                                              <Input
-                                                type="number"
-                                                min="0"
-                                                value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'childAmount')}
-                                                onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'childAmount', parseFloat(e.target.value) || 0)}
-                                                className="text-center"
-                                                placeholder="0.00"
-                                              />
-                                            </div>
-                                            <div className="space-y-2">
-                                              <Label className="text-xs font-medium">Infant Amount</Label>
-                                              <Input
-                                                type="number"
-                                                min="0"
-                                                value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'infantAmount')}
-                                                onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'infantAmount', parseFloat(e.target.value) || 0)}
-                                                className="text-center"
-                                                placeholder="0.00"
-                                              />
-                                            </div>
-                                          </div>
+                                    {(() => {
+                                      const currentRoomMealTypes = roomTypes.find(r => r.id === selectedRoomType)?.mealTypes || [];
+                                      return currentRoomMealTypes.length === 0 ? (
+                                        <div className="border rounded-lg p-4 text-center text-muted-foreground text-sm">
+                                          No meal types configured for this room. Add meal types in the Room Type tab.
                                         </div>
-                                      ))
-                                    )}
+                                      ) : (
+                                        currentRoomMealTypes.map((mealType: string) => (
+                                          <div key={mealType} className="border rounded-lg p-6 space-y-4 bg-card">
+                                            <div className="text-center text-sm font-medium text-muted-foreground mb-4">
+                                              {mealType}
+                                            </div>
+
+                                            <div className="grid grid-cols-5 gap-4">
+                                              <div className="space-y-2">
+                                                <Label className="text-xs font-medium">Room Amount</Label>
+                                                <Input
+                                                  type="number"
+                                                  min="0"
+                                                  value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'roomAmount')}
+                                                  onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'roomAmount', parseFloat(e.target.value) || 0)}
+                                                  className="text-center"
+                                                  placeholder="0.00"
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label className="text-xs font-medium">Adult Amount</Label>
+                                                <Input
+                                                  type="number"
+                                                  min="0"
+                                                  value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'adultAmount')}
+                                                  onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'adultAmount', parseFloat(e.target.value) || 0)}
+                                                  className="text-center"
+                                                  placeholder="0.00"
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label className="text-xs font-medium">Teen Amount</Label>
+                                                <Input
+                                                  type="number"
+                                                  min="0"
+                                                  value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'teenAmount')}
+                                                  onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'teenAmount', parseFloat(e.target.value) || 0)}
+                                                  className="text-center"
+                                                  placeholder="0.00"
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label className="text-xs font-medium">Child Amount</Label>
+                                                <Input
+                                                  type="number"
+                                                  min="0"
+                                                  value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'childAmount')}
+                                                  onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'childAmount', parseFloat(e.target.value) || 0)}
+                                                  className="text-center"
+                                                  placeholder="0.00"
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label className="text-xs font-medium">Infant Amount</Label>
+                                                <Input
+                                                  type="number"
+                                                  min="0"
+                                                  value={getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'infantAmount')}
+                                                  onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'infantAmount', parseFloat(e.target.value) || 0)}
+                                                  className="text-center"
+                                                  placeholder="0.00"
+                                                />
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))
+                                      );
+                                    })()}
                                   </div>
                                 )}
                               </div>
@@ -5064,15 +5073,16 @@ export default function PropertyForm() {
                           })}
 
                           {/* Group by Rate Type (Meal Type) View */}
-                          {rateBreakdownGroupBy === 'mealType' && (
-                            selectedMealTypes.length === 0 ? (
+                          {rateBreakdownGroupBy === 'mealType' && (() => {
+                            const currentRoomMealTypes = roomTypes.find(r => r.id === selectedRoomType)?.mealTypes || [];
+                            return currentRoomMealTypes.length === 0 ? (
                               <div className="border rounded-lg p-8 text-center text-muted-foreground">
                                 <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                                <p>No meal types configured.</p>
-                                <p className="text-sm">Add meal types in the General tab first.</p>
+                                <p>No meal types configured for this room.</p>
+                                <p className="text-sm">Add meal types in the Room Type tab first.</p>
                               </div>
                             ) : (
-                              selectedMealTypes.map((mealType) => {
+                              currentRoomMealTypes.map((mealType: string) => {
                                 const isExpanded = expandedMealTypes[mealType] ?? true;
                                 const rateSummary = getMealTypeRateSummary(mealType, selectedRoomType);
                                 
@@ -5189,8 +5199,8 @@ export default function PropertyForm() {
                                   </div>
                                 );
                               })
-                            )
-                          )}
+                            );
+                          })()}
                         </>
                       )}
                     </TabsContent>
@@ -5376,16 +5386,17 @@ export default function PropertyForm() {
                                       </thead>
                                       <tbody>
                                         {seasons.length > 0 ? (
-                                          seasons.map((season) => (
-                                            selectedMealTypes.length > 0 ? (
-                                              selectedMealTypes.map((mealType, idx) => (
+                                          seasons.map((season) => {
+                                            const roomMealTypes = currentRoom?.mealTypes || [];
+                                            return roomMealTypes.length > 0 ? (
+                                              roomMealTypes.map((mealType: string, idx: number) => (
                                                 <tr key={`${rateType.id}-${season.id}-${mealType}`} className="border-t hover:bg-muted/50">
                                                   {idx === 0 && (
                                                     <>
-                                                      <td className="p-3 font-medium" rowSpan={selectedMealTypes.length}>
+                                                      <td className="p-3 font-medium" rowSpan={roomMealTypes.length}>
                                                         {season.name || season.title}
                                                       </td>
-                                                      <td className="p-3 text-muted-foreground text-sm" rowSpan={selectedMealTypes.length}>
+                                                      <td className="p-3 text-muted-foreground text-sm" rowSpan={roomMealTypes.length}>
                                                         {season.from ? format(new Date(season.from), "dd MMM") : ""} - {season.to ? format(new Date(season.to), "dd MMM") : ""}
                                                       </td>
                                                     </>
@@ -5415,11 +5426,11 @@ export default function PropertyForm() {
                                                   {season.from ? format(new Date(season.from), "dd MMM") : ""} - {season.to ? format(new Date(season.to), "dd MMM") : ""}
                                                 </td>
                                                 <td colSpan={6} className="p-3 text-center text-muted-foreground text-sm">
-                                                  No meal types configured
+                                                  No meal types configured for this room
                                                 </td>
                                               </tr>
-                                            )
-                                          ))
+                                            );
+                                          })
                                         ) : (
                                           <tr>
                                             <td colSpan={8} className="p-6 text-center text-muted-foreground">
@@ -6049,14 +6060,19 @@ export default function PropertyForm() {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label>Meal Type</Label>
+                          <Label>Meal Types (for this room)</Label>
                           <TagInput
-                            value={selectedMealTypes}
-                            onChange={handleMealTypesChange}
+                            value={roomTypes.find((r) => r.id === selectedRoomType)?.mealTypes || []}
+                            onChange={(newMealTypes) => {
+                              updateRoomTypeField(selectedRoomType, "mealTypes", newMealTypes);
+                            }}
                             suggestions={mealTypeSuggestions}
                             placeholder="Type meal type and press Enter..."
                             onNewTag={handleNewMealType}
                           />
+                          <p className="text-xs text-muted-foreground">
+                            Meal types are manual entry. Add meal types specific to this room (e.g., Self Catering, Bed & Breakfast, Full Board).
+                          </p>
                         </div>
                       </div>
                     </TabsContent>
