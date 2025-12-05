@@ -4908,7 +4908,10 @@ export default function PropertyForm() {
                           const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
                           const linkedRateTypes = currentRoom?.linkedRateTypes || [];
                           const availableRateTypes = (pmsRateTypes || []) as Array<{id: number | string; name: string; priceType?: string}>;
-                          const roomLinkedRateTypes = availableRateTypes.filter(rt => linkedRateTypes.includes(String(rt.id)));
+                          // Handle both number and string comparisons for linkedRateTypes
+                          const roomLinkedRateTypes = availableRateTypes.filter(rt => 
+                            linkedRateTypes.some((linked: number | string) => String(linked) === String(rt.id))
+                          );
                           
                           if (roomLinkedRateTypes.length === 0) {
                             return (
@@ -5063,7 +5066,9 @@ export default function PropertyForm() {
                             const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
                             const linkedRateTypes = currentRoom?.linkedRateTypes || [];
                             const availableRateTypes = (pmsRateTypes || []) as Array<{id: number | string; name: string; priceType?: string}>;
-                            const roomLinkedRateTypes = availableRateTypes.filter(rt => linkedRateTypes.includes(String(rt.id)));
+                            const roomLinkedRateTypes = availableRateTypes.filter(rt => 
+                              linkedRateTypes.some((linked: number | string) => String(linked) === String(rt.id))
+                            );
                             
                             return (
                               <div key={season.id} className="border rounded-lg overflow-hidden">
@@ -5211,7 +5216,9 @@ export default function PropertyForm() {
                             const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
                             const linkedRateTypes = currentRoom?.linkedRateTypes || [];
                             const availableRateTypes = (pmsRateTypes || []) as Array<{id: number | string; name: string; priceType?: string}>;
-                            const roomLinkedRateTypes = availableRateTypes.filter(rt => linkedRateTypes.includes(String(rt.id)));
+                            const roomLinkedRateTypes = availableRateTypes.filter(rt => 
+                              linkedRateTypes.some((linked: number | string) => String(linked) === String(rt.id))
+                            );
                             
                             return roomLinkedRateTypes.length === 0 ? (
                               <div className="border rounded-lg p-8 text-center text-muted-foreground">
