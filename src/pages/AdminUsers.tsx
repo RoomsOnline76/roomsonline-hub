@@ -77,7 +77,16 @@ export default function AdminUsers() {
       // Get property counts for each user
       const usersWithData = await Promise.all(
         (profiles || []).map(async (profile) => {
-          const userRole = roles?.find(r => r.user_id === profile.id);
+          // Get all roles for this user and prioritize: dev > admin > user
+          const userRoles = roles?.filter(r => r.user_id === profile.id).map(r => r.role) || [];
+          let primaryRole = "user";
+          if (userRoles.includes("dev")) {
+            primaryRole = "dev";
+          } else if (userRoles.includes("admin")) {
+            primaryRole = "admin";
+          } else if (userRoles.includes("user")) {
+            primaryRole = "user";
+          }
           
           // Count properties owned by this user
           const { count } = await supabase
@@ -87,7 +96,7 @@ export default function AdminUsers() {
 
           return {
             ...profile,
-            role: userRole?.role || "user",
+            role: primaryRole,
             property_count: count || 0,
           };
         })
