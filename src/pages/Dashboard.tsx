@@ -12,7 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, differenceInDays } from "date-fns";
-import { CalendarIcon, CalendarDays, XCircle, Building2, Download, TrendingUp, TrendingDown, Percent, BedDouble, Sparkles, Send, Loader2 } from "lucide-react";
+import { CalendarIcon, CalendarDays, XCircle, Building2, Download, TrendingUp, TrendingDown, Percent, BedDouble, Sparkles, Send, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, LineChart, Line, ComposedChart, Cell, ReferenceLine, PieChart, Pie } from "recharts";
 import { DateRange } from "react-day-picker";
@@ -28,6 +28,7 @@ const Dashboard = () => {
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("all");
   const [selectedOwner, setSelectedOwner] = useState<string>("all");
   const [selectedType, setSelectedType] = useState<string>("all");
+  const [propertySearch, setPropertySearch] = useState<string>("");
   const [drillDownDate, setDrillDownDate] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiInsight, setAiInsight] = useState<string | null>(null);
@@ -142,6 +143,13 @@ const Dashboard = () => {
       return ownerMatch && typeMatch;
     });
   }, [properties, selectedOwner, selectedType]);
+
+  // Search-filtered properties for dropdown
+  const searchFilteredProperties = useMemo(() => {
+    if (!propertySearch.trim()) return filteredProperties;
+    const query = propertySearch.toLowerCase();
+    return filteredProperties.filter(p => p.name?.toLowerCase().includes(query));
+  }, [filteredProperties, propertySearch]);
 
   // Filtered owners based on type selection
   const filteredOwners = useMemo(() => {
@@ -1071,16 +1079,25 @@ const Dashboard = () => {
             </Select>
           </div>
 
-          {/* Property Filter */}
+          {/* Property Filter with Search */}
           <div className="flex items-center gap-2">
             <Label className="text-sm font-medium whitespace-nowrap">Property:</Label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search..."
+                value={propertySearch}
+                onChange={(e) => setPropertySearch(e.target.value)}
+                className="w-[140px] pl-8 h-9"
+              />
+            </div>
             <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId}>
               <SelectTrigger className="w-[220px]">
                 <SelectValue placeholder="All properties" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All properties ({filteredProperties.length})</SelectItem>
-                {filteredProperties.map(p => (
+                <SelectItem value="all">All properties ({searchFilteredProperties.length})</SelectItem>
+                {searchFilteredProperties.map(p => (
                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                 ))}
               </SelectContent>
