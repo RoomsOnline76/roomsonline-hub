@@ -366,24 +366,30 @@ const TestBookingBenson = () => {
           runningTotal += totalRoomAmount;
         }
       } else {
-        // Per person pricing - sum per-person amounts across nights
+        // Per person pricing
+        // adultAmount1 = rate for 1 adult
+        // adultAmount2 = TOTAL rate for 2 adults (NOT per person - it's the combined rate)
+        // teenAmount, childAmount, infantAmount = per person rates
         let totalAdultAmount = 0;
         let totalTeenAmount = 0;
         let totalChildAmount = 0;
         let totalInfantAmount = 0;
 
         rates.forEach((rate: any) => {
-          // Benson uses adultAmount1 (1 adult) or adultAmount2 (2 adults sharing) or just adultAmount
-          // If 1 adult: use adultAmount1 or adultAmount
-          // If 2+ adults: use adultAmount2 (per person for 2 sharing) or adultAmount
+          // Adult rates: adultAmount2 is the TOTAL for 2 adults, not per-person
           if (adults === 1) {
             totalAdultAmount += rate.adultAmount1 || rate.adultAmount || 0;
-          } else if (adults >= 2) {
-            // adultAmount2 is per-person rate for 2 adults sharing, multiply by number of adults
-            const perPersonRate = rate.adultAmount2 || rate.adultAmount || 0;
-            totalAdultAmount += perPersonRate * adults;
+          } else if (adults === 2) {
+            // adultAmount2 is the total rate for 2 adults sharing (not multiplied)
+            totalAdultAmount += rate.adultAmount2 || rate.adultAmount || 0;
+          } else if (adults > 2) {
+            // For more than 2 adults, use adultAmount2 as base + additional adults at adultAmount1 rate
+            const baseRate = rate.adultAmount2 || rate.adultAmount || 0;
+            const additionalAdultRate = rate.adultAmount1 || rate.adultAmount || 0;
+            totalAdultAmount += baseRate + (additionalAdultRate * (adults - 2));
           }
           
+          // Teen, child, infant rates ARE per-person
           if (teens > 0) {
             totalTeenAmount += (rate.teenAmount || 0) * teens;
           }
