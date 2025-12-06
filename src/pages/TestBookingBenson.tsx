@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ExpandableDataViewer } from "@/components/ExpandableDataViewer";
 import { 
   CalendarDays, Users, Loader2, Send, Calculator, 
-  ArrowLeft, Plus, Minus, CheckCircle2, AlertCircle, RefreshCw 
+  ArrowLeft, Plus, Minus, CheckCircle2, AlertCircle, RefreshCw, Trash2, BedDouble
 } from "lucide-react";
 import { format, addDays, differenceInDays, startOfDay, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -57,6 +57,16 @@ interface CostLineItem {
   total: number;
 }
 
+interface BookingRoom {
+  id: string;
+  roomTypeId: string;
+  rateTypeId: string;
+  adults: number;
+  teens: number;
+  children: number;
+  infants: number;
+}
+
 interface BookingTest {
   id: string;
   timestamp: string;
@@ -80,12 +90,11 @@ const TestBookingBenson = () => {
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
   const [checkInDate, setCheckInDate] = useState<Date | undefined>(addDays(today, 1));
   const [checkOutDate, setCheckOutDate] = useState<Date | undefined>(addDays(today, 3));
-  const [selectedRoomTypeId, setSelectedRoomTypeId] = useState<string>("");
-  const [selectedRateTypeId, setSelectedRateTypeId] = useState<string>("");
-  const [adults, setAdults] = useState(2);
-  const [teens, setTeens] = useState(0);
-  const [children, setChildren] = useState(0);
-  const [infants, setInfants] = useState(0);
+  // Multi-room booking state
+  const [bookingRooms, setBookingRooms] = useState<BookingRoom[]>([
+    { id: crypto.randomUUID(), roomTypeId: "", rateTypeId: "", adults: 2, teens: 0, children: 0, infants: 0 }
+  ]);
+  
   const [guestName, setGuestName] = useState("Test Guest");
   const [guestEmail, setGuestEmail] = useState("test@example.com");
   const [guestPhone, setGuestPhone] = useState("+27000000000");
@@ -151,14 +160,12 @@ const TestBookingBenson = () => {
     });
   }, [availabilityData]);
 
-  // Derive rate types from the SELECTED room type only
-  // Only include rate types that have rates for the selected date range
-  const rateTypes = useMemo(() => {
-    if (!availabilityData?.roomTypes || !selectedRoomTypeId) return [];
+  // Get rate types for a specific room type
+  const getRateTypesForRoom = (roomTypeId: string) => {
+    if (!availabilityData?.roomTypes || !roomTypeId) return [];
     
-    // Find the selected room type in availability data
     const selectedRoom = availabilityData.roomTypes.find(
-      (rt: any) => String(rt.roomTypeId) === selectedRoomTypeId
+      (rt: any) => String(rt.roomTypeId) === roomTypeId
     );
     
     if (!selectedRoom?.rateTypes) return [];
@@ -168,9 +175,6 @@ const TestBookingBenson = () => {
     selectedRoom.rateTypes.forEach((rate: any) => {
       const rateTypeId = String(rate.rateTypeId);
       
-      // Check if this rate type has any rates with values > 0
-      // For per-room: check roomAmount
-      // For per-person: check adultAmount1, adultAmount2, adultAmount, teenAmount, childAmount, infantAmount
       const hasRates = rate.rates?.some((r: any) => {
         const roomAmount = r.roomAmount || 0;
         const adultAmount1 = r.adultAmount1 || 0;
@@ -193,13 +197,8 @@ const TestBookingBenson = () => {
       });
     });
     
-    // Filter to only rate types that have rates available
     return rateList.filter(rt => rt.hasRates);
-  }, [availabilityData, selectedRoomTypeId]);
-
-  // Get selected room and rate type for validation
-  const selectedRoomType = roomTypes.find(rt => rt.external_room_type_id === selectedRoomTypeId);
-  const selectedRateType = rateTypes.find(rt => rt.external_rate_type_id === selectedRateTypeId);
+  };
 
   // Calculate number of nights
   const nights = useMemo(() => {
@@ -207,58 +206,92 @@ const TestBookingBenson = () => {
     return differenceInDays(checkOutDate, checkInDate);
   }, [checkInDate, checkOutDate]);
 
-  // Calculate total guests for occupancy validation
-  const totalGuests = adults + teens + children + infants;
-  const maxGuests = selectedRoomType?.max_guests || 10;
-  const minGuests = selectedRoomType?.min_guests || 1;
-  const isOverCapacity = totalGuests > maxGuests;
-  const isUnderCapacity = totalGuests < minGuests;
+  // Helper functions for multi-room management
+  const addRoom = () => {
+    setBookingRooms(prev => [...prev, {
+      id: crypto.randomUUID(),
+      roomTypeId: "",
+      rateTypeId: "",
+      adults: 2,
+      teens: 0,
+      children: 0,
+      infants: 0
+    }]);
+  };
 
-  // Min/max stay validation
-  const minStay = selectedRateType?.min_stay || 1;
-  const maxStay = selectedRateType?.max_stay || 365;
-  const isUnderMinStay = nights > 0 && nights < minStay;
-  const isOverMaxStay = nights > maxStay;
+  const removeRoom = (roomId: string) => {
+    if (bookingRooms.length <= 1) return;
+    setBookingRooms(prev => prev.filter(r => r.id !== roomId));
+  };
 
-  // Restore cached data or reset form when property changes
+  const updateRoom = (roomId: string, updates: Partial<BookingRoom>) => {
+    setBookingRooms(prev => prev.map(room => {
+      if (room.id !== roomId) return room;
+      
+      const updatedRoom = { ...room, ...updates };
+      
+      // If room type changed, reset rate type and enforce guest restrictions
+      if (updates.roomTypeId !== undefined && updates.roomTypeId !== room.roomTypeId) {
+        updatedRoom.rateTypeId = "";
+        const roomType = roomTypes.find(rt => rt.external_room_type_id === updates.roomTypeId);
+        if (roomType) {
+          if (!roomType.allow_teens) updatedRoom.teens = 0;
+          if (!roomType.allow_children) updatedRoom.children = 0;
+          if (!roomType.allow_infants) updatedRoom.infants = 0;
+        }
+      }
+      
+      return updatedRoom;
+    }));
+  };
+
+  // Validation helpers per room
+  const getRoomValidation = (room: BookingRoom) => {
+    const roomType = roomTypes.find(rt => rt.external_room_type_id === room.roomTypeId);
+    const rateType = getRateTypesForRoom(room.roomTypeId).find(rt => rt.external_rate_type_id === room.rateTypeId);
+    
+    const totalGuests = room.adults + room.teens + room.children + room.infants;
+    const maxGuests = roomType?.max_guests || 10;
+    const minGuests = roomType?.min_guests || 1;
+    const minStay = rateType?.min_stay || 1;
+    const maxStay = rateType?.max_stay || 365;
+    
+    return {
+      roomType,
+      rateType,
+      totalGuests,
+      maxGuests,
+      minGuests,
+      isOverCapacity: totalGuests > maxGuests,
+      isUnderCapacity: totalGuests < minGuests,
+      isUnderMinStay: nights > 0 && nights < minStay,
+      isOverMaxStay: nights > maxStay,
+      minStay,
+      maxStay,
+    };
+  };
+
+  // Check if any room has validation errors
+  const hasValidationErrors = bookingRooms.some(room => {
+    const validation = getRoomValidation(room);
+    return !room.roomTypeId || !room.rateTypeId || validation.isOverCapacity || validation.isUnderCapacity || validation.isUnderMinStay || validation.isOverMaxStay;
+  });
+
+  // Calculate grand totals across all rooms
+  const grandTotalGuests = bookingRooms.reduce((sum, room) => sum + room.adults + room.teens + room.children + room.infants, 0);
+
+  // Reset booking rooms when property changes
   useEffect(() => {
-    setSelectedRoomTypeId("");
-    setSelectedRateTypeId("");
+    setBookingRooms([{ id: crypto.randomUUID(), roomTypeId: "", rateTypeId: "", adults: 2, teens: 0, children: 0, infants: 0 }]);
     setCostBreakdown([]);
     setTotalCost(0);
-    setAdults(2);
-    setTeens(0);
-    setChildren(0);
-    setInfants(0);
     
-    // Restore cached availability data for this property if available
     if (selectedPropertyId && availabilityCache[selectedPropertyId]) {
       setAvailabilityData(availabilityCache[selectedPropertyId]);
     } else {
       setAvailabilityData(null);
     }
   }, [selectedPropertyId]);
-
-  // Reset disallowed guest types and enforce max occupancy when room type changes
-  useEffect(() => {
-    if (!selectedRoomType) return;
-    
-    // Reset disallowed guest types to 0
-    if (!selectedRoomType.allow_teens) setTeens(0);
-    if (!selectedRoomType.allow_children) setChildren(0);
-    if (!selectedRoomType.allow_infants) setInfants(0);
-    
-    // Enforce max occupancy by reducing adults if needed
-    const currentTotal = adults + 
-      (selectedRoomType.allow_teens ? teens : 0) + 
-      (selectedRoomType.allow_children ? children : 0) + 
-      (selectedRoomType.allow_infants ? infants : 0);
-    
-    if (currentTotal > selectedRoomType.max_guests) {
-      const excess = currentTotal - selectedRoomType.max_guests;
-      setAdults(Math.max(1, adults - excess));
-    }
-  }, [selectedRoomTypeId, selectedRoomType]);
 
   // Fetch fresh availability from Benson
   const fetchAvailability = async () => {
@@ -304,10 +337,12 @@ const TestBookingBenson = () => {
     setFetchingAvailability(false);
   };
 
-  // Calculate cost based on availability data
+  // Calculate cost based on availability data - for ALL rooms
   const calculateCost = async () => {
-    if (!selectedPropertyId || !selectedRoomTypeId || !selectedRateTypeId || !checkInDate || !checkOutDate) {
-      toast({ title: "Missing data", description: "Fill in all required fields", variant: "destructive" });
+    // Check all rooms have required selections
+    const hasIncompleteRooms = bookingRooms.some(room => !room.roomTypeId || !room.rateTypeId);
+    if (!selectedPropertyId || hasIncompleteRooms || !checkInDate || !checkOutDate) {
+      toast({ title: "Missing data", description: "Fill in all required fields for all rooms", variant: "destructive" });
       return;
     }
 
@@ -330,163 +365,142 @@ const TestBookingBenson = () => {
         setAvailabilityData(data);
       }
 
-      // Find the selected room type
-      const roomType = availability?.roomTypes?.find(
-        (rt: any) => String(rt.roomTypeId) === selectedRoomTypeId
-      );
-
-      if (!roomType) {
-        toast({ title: "Room type not found", description: "Selected room type not in availability data", variant: "destructive" });
-        setCostBreakdown([]);
-        setTotalCost(0);
-        setCalculating(false);
-        return;
-      }
-
-      // Find the selected rate type
-      const rateType = roomType.rateTypes?.find(
-        (rt: any) => String(rt.rateTypeId) === selectedRateTypeId
-      );
-
-      if (!rateType) {
-        toast({ title: "Rate type not found", description: "Selected rate type not available for this room", variant: "destructive" });
-        setCostBreakdown([]);
-        setTotalCost(0);
-        setCalculating(false);
-        return;
-      }
-
-      // Calculate cost line items
       const lineItems: CostLineItem[] = [];
       let runningTotal = 0;
 
-      // Process rates - only use rates for the selected nights (first N entries)
-      const allRates = rateType.rates || [];
-      const rates = allRates.slice(0, nights); // Only take rates for the selected nights
-      const priceType = (rateType.priceType || 'PER ROOM').toUpperCase();
-      
-      if (priceType === 'PER ROOM' || priceType === 'PERROOM') {
-        // Per room pricing - total is just sum of roomAmount for each night
-        // NOT multiplied by number of guests
-        let totalRoomAmount = 0;
-        rates.forEach((rate: any) => {
-          totalRoomAmount += rate.roomAmount || 0;
-        });
-        
-        if (totalRoomAmount > 0) {
-          lineItems.push({
-            description: `Room Rate (${rateType.name}) - ${totalGuests} guests`,
-            nights: nights,
-            quantity: 1, // Room rate is per room, not per person
-            unitPrice: totalRoomAmount / nights,
-            total: totalRoomAmount,
-          });
-          runningTotal += totalRoomAmount;
-        }
-      } else {
-        // Per person pricing
-        // adultAmount1 = rate for 1 adult (or adultAmount2 / 2 if not available)
-        // adultAmount2 = TOTAL rate for 2 adults (NOT per person - it's the combined rate)
-        // teenAmount, childAmount, infantAmount = per person rates
-        let totalAdultAmount = 0;
-        let totalTeenAmount = 0;
-        let totalChildAmount = 0;
-        let totalInfantAmount = 0;
+      // Calculate cost for each room
+      for (let roomIndex = 0; roomIndex < bookingRooms.length; roomIndex++) {
+        const bookingRoom = bookingRooms[roomIndex];
+        const roomType = availability?.roomTypes?.find(
+          (rt: any) => String(rt.roomTypeId) === bookingRoom.roomTypeId
+        );
 
-        rates.forEach((rate: any) => {
-          // Adult rates: adultAmount2 is the TOTAL for 2 adults, not per-person
-          if (adults === 1) {
-            totalAdultAmount += rate.adultAmount1 || rate.adultAmount || 0;
-          } else if (adults === 2) {
-            // adultAmount2 is the total rate for 2 adults sharing (not multiplied)
-            totalAdultAmount += rate.adultAmount2 || rate.adultAmount || 0;
-          } else if (adults > 2) {
-            // For more than 2 adults, use adultAmount2 as base + additional adults at adultAmount1 rate
-            const baseRate = rate.adultAmount2 || rate.adultAmount || 0;
-            const additionalAdultRate = rate.adultAmount1 || rate.adultAmount || 0;
-            totalAdultAmount += baseRate + (additionalAdultRate * (adults - 2));
+        if (!roomType) continue;
+
+        const rateType = roomType.rateTypes?.find(
+          (rt: any) => String(rt.rateTypeId) === bookingRoom.rateTypeId
+        );
+
+        if (!rateType) continue;
+
+        const roomLabel = `Room ${roomIndex + 1}: ${roomType.name}`;
+        const allRates = rateType.rates || [];
+        const rates = allRates.slice(0, nights);
+        const priceType = (rateType.priceType || 'PER ROOM').toUpperCase();
+        const roomTotalGuests = bookingRoom.adults + bookingRoom.teens + bookingRoom.children + bookingRoom.infants;
+
+        if (priceType === 'PER ROOM' || priceType === 'PERROOM') {
+          let totalRoomAmount = 0;
+          rates.forEach((rate: any) => {
+            totalRoomAmount += rate.roomAmount || 0;
+          });
+
+          if (totalRoomAmount > 0) {
+            lineItems.push({
+              description: `${roomLabel} (${rateType.name}) - ${roomTotalGuests} guests`,
+              nights: nights,
+              quantity: 1,
+              unitPrice: totalRoomAmount / nights,
+              total: totalRoomAmount,
+            });
+            runningTotal += totalRoomAmount;
           }
-          
-          // Teen, child, infant rates ARE per-person
-          if (teens > 0) {
-            totalTeenAmount += (rate.teenAmount || 0) * teens;
+        } else {
+          // Per person pricing
+          let totalAdultAmount = 0;
+          let totalTeenAmount = 0;
+          let totalChildAmount = 0;
+          let totalInfantAmount = 0;
+
+          rates.forEach((rate: any) => {
+            if (bookingRoom.adults === 1) {
+              totalAdultAmount += rate.adultAmount1 || rate.adultAmount || 0;
+            } else if (bookingRoom.adults === 2) {
+              totalAdultAmount += rate.adultAmount2 || rate.adultAmount || 0;
+            } else if (bookingRoom.adults > 2) {
+              const baseRate = rate.adultAmount2 || rate.adultAmount || 0;
+              const additionalAdultRate = rate.adultAmount1 || rate.adultAmount || 0;
+              totalAdultAmount += baseRate + (additionalAdultRate * (bookingRoom.adults - 2));
+            }
+
+            if (bookingRoom.teens > 0) {
+              totalTeenAmount += (rate.teenAmount || 0) * bookingRoom.teens;
+            }
+            if (bookingRoom.children > 0) {
+              totalChildAmount += (rate.childAmount || 0) * bookingRoom.children;
+            }
+            if (bookingRoom.infants > 0) {
+              totalInfantAmount += (rate.infantAmount || 0) * bookingRoom.infants;
+            }
+          });
+
+          if (totalAdultAmount > 0) {
+            lineItems.push({
+              description: `${roomLabel} - Adult Rate (${bookingRoom.adults} adult${bookingRoom.adults > 1 ? 's' : ''})`,
+              nights: nights,
+              quantity: 1,
+              unitPrice: totalAdultAmount / nights,
+              total: totalAdultAmount,
+            });
+            runningTotal += totalAdultAmount;
           }
-          if (children > 0) {
-            totalChildAmount += (rate.childAmount || 0) * children;
+
+          if (totalTeenAmount > 0 && bookingRoom.teens > 0) {
+            const perPersonPerNight = totalTeenAmount / nights / bookingRoom.teens;
+            lineItems.push({
+              description: `${roomLabel} - Teen Rate (${bookingRoom.teens} teen${bookingRoom.teens > 1 ? 's' : ''})`,
+              nights: nights,
+              quantity: bookingRoom.teens,
+              unitPrice: perPersonPerNight,
+              total: totalTeenAmount,
+            });
+            runningTotal += totalTeenAmount;
           }
-          if (infants > 0) {
-            totalInfantAmount += (rate.infantAmount || 0) * infants;
+
+          if (totalChildAmount > 0 && bookingRoom.children > 0) {
+            const perPersonPerNight = totalChildAmount / nights / bookingRoom.children;
+            lineItems.push({
+              description: `${roomLabel} - Child Rate (${bookingRoom.children} child${bookingRoom.children > 1 ? 'ren' : ''})`,
+              nights: nights,
+              quantity: bookingRoom.children,
+              unitPrice: perPersonPerNight,
+              total: totalChildAmount,
+            });
+            runningTotal += totalChildAmount;
           }
-        });
 
-        if (totalAdultAmount > 0) {
-          // For 2 adults, adultAmount2 is a combined rate (Qty=1), not per-person
-          // For 1 adult, adultAmount1 is also a single rate (Qty=1)
-          lineItems.push({
-            description: `Adult Rate (${adults} adult${adults > 1 ? 's' : ''})`,
-            nights: nights,
-            quantity: 1, // Combined rate, not per-person
-            unitPrice: totalAdultAmount / nights,
-            total: totalAdultAmount,
-          });
-          runningTotal += totalAdultAmount;
-        }
-
-        if (totalTeenAmount > 0 && teens > 0) {
-          // Unit price is the per-person rate from API
-          const perPersonPerNight = totalTeenAmount / nights / teens;
-          lineItems.push({
-            description: `Teen Rate (${teens} teen${teens > 1 ? 's' : ''})`,
-            nights: nights,
-            quantity: teens,
-            unitPrice: perPersonPerNight,
-            total: totalTeenAmount,
-          });
-          runningTotal += totalTeenAmount;
-        }
-
-        if (totalChildAmount > 0 && children > 0) {
-          const perPersonPerNight = totalChildAmount / nights / children;
-          lineItems.push({
-            description: `Child Rate (${children} child${children > 1 ? 'ren' : ''})`,
-            nights: nights,
-            quantity: children,
-            unitPrice: perPersonPerNight,
-            total: totalChildAmount,
-          });
-          runningTotal += totalChildAmount;
-        }
-
-        if (totalInfantAmount > 0 && infants > 0) {
-          const perPersonPerNight = totalInfantAmount / nights / infants;
-          lineItems.push({
-            description: `Infant Rate (${infants} infant${infants > 1 ? 's' : ''})`,
-            nights: nights,
-            quantity: infants,
-            unitPrice: perPersonPerNight,
-            total: totalInfantAmount,
-          });
-          runningTotal += totalInfantAmount;
+          if (totalInfantAmount > 0 && bookingRoom.infants > 0) {
+            const perPersonPerNight = totalInfantAmount / nights / bookingRoom.infants;
+            lineItems.push({
+              description: `${roomLabel} - Infant Rate (${bookingRoom.infants} infant${bookingRoom.infants > 1 ? 's' : ''})`,
+              nights: nights,
+              quantity: bookingRoom.infants,
+              unitPrice: perPersonPerNight,
+              total: totalInfantAmount,
+            });
+            runningTotal += totalInfantAmount;
+          }
         }
       }
 
       setCostBreakdown(lineItems);
       setTotalCost(runningTotal);
-      toast({ title: "Cost calculated", description: `Total: R${runningTotal.toFixed(2)}` });
+      toast({ title: "Cost calculated", description: `Total: R${runningTotal.toFixed(2)} for ${bookingRooms.length} room(s)` });
     } catch (error: any) {
       toast({ title: "Calculation error", description: error.message, variant: "destructive" });
     }
     setCalculating(false);
   };
 
-  // Submit booking to Benson
+  // Submit booking to Benson - with all rooms
   const submitBooking = async () => {
-    if (!selectedPropertyId || !selectedRoomTypeId || !selectedRateTypeId || !checkInDate || !checkOutDate) {
-      toast({ title: "Missing data", description: "Fill in all required fields", variant: "destructive" });
+    const hasIncompleteRooms = bookingRooms.some(room => !room.roomTypeId || !room.rateTypeId);
+    if (!selectedPropertyId || hasIncompleteRooms || !checkInDate || !checkOutDate) {
+      toast({ title: "Missing data", description: "Fill in all required fields for all rooms", variant: "destructive" });
       return;
     }
 
-    if (!guestName || !guestEmail || !guestPhone) {
+    if (!guestName.trim() || !guestEmail.trim() || !guestPhone.trim()) {
       toast({ title: "Missing guest info", description: "Fill in guest name, email and phone", variant: "destructive" });
       return;
     }
@@ -494,40 +508,46 @@ const TestBookingBenson = () => {
     setSubmitting(true);
     const testId = `test-${Date.now()}`;
     const property = properties.find(p => p.id === selectedPropertyId);
-    const roomType = roomTypes.find(rt => rt.external_room_type_id === selectedRoomTypeId);
-    const rateType = rateTypes.find(rt => rt.external_rate_type_id === selectedRateTypeId);
+    
+    // Build guests summary
+    const guestsSummary = bookingRooms.map((room, idx) => 
+      `R${idx + 1}: ${room.adults}A ${room.teens}T ${room.children}C ${room.infants}I`
+    ).join(' | ');
 
     // Add to tracking table
     const newTest: BookingTest = {
       id: testId,
       timestamp: new Date().toISOString(),
       property: property?.name || 'Unknown',
-      roomType: roomType?.name || selectedRoomTypeId,
-      rateType: rateType?.name || selectedRateTypeId,
+      roomType: `${bookingRooms.length} room(s)`,
+      rateType: 'Multiple',
       dates: `${format(checkInDate, "yyyy-MM-dd")} to ${format(checkOutDate, "yyyy-MM-dd")}`,
-      guests: `${adults}A ${teens}T ${children}C ${infants}I`,
+      guests: guestsSummary,
       totalCost: totalCost,
       status: 'pending',
     };
     setBookingTests(prev => [newTest, ...prev]);
 
     try {
+      // Build rooms array for API
+      const roomsPayload = bookingRooms.map(room => ({
+        roomTypeId: parseInt(room.roomTypeId),
+        rateTypeId: parseInt(room.rateTypeId),
+        numberOfAdults: room.adults,
+        numberOfTeens: room.teens,
+        numberOfChildren: room.children,
+        numberOfInfants: room.infants,
+      }));
+
       const reservationData = {
         arrivalDate: format(checkInDate, "yyyy-MM-dd"),
         departureDate: format(checkOutDate, "yyyy-MM-dd"),
-        rateTypeId: parseInt(selectedRateTypeId),
         contactName: guestName,
         contactNumber: guestPhone,
         contactEmail: guestEmail,
         voucher: voucher || undefined,
         note: notes || undefined,
-        rooms: [{
-          roomTypeId: parseInt(selectedRoomTypeId),
-          numberOfAdults: adults,
-          numberOfTeens: teens,
-          numberOfChildren: children,
-          numberOfInfants: infants,
-        }],
+        rooms: roomsPayload,
       };
 
       const { data, error } = await supabase.functions.invoke("benson-api", {
@@ -720,228 +740,244 @@ const TestBookingBenson = () => {
                     </CardContent>
                   </Card>
 
-                  {/* Room & Rate Selection */}
+                  {/* Rooms Section - Multi-Room */}
                   <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Room & Rate</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <Label>Room Type</Label>
-                        <Select 
-                          value={selectedRoomTypeId} 
-                          onValueChange={setSelectedRoomTypeId}
-                          disabled={!availabilityData || !selectedPropertyId}
-                        >
-                          <SelectTrigger className={cn(
-                            selectedRoomType?.available_units === 0 && "border-amber-500"
-                          )}>
-                            <SelectValue placeholder="Select room type..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {roomTypes.map((rt) => (
-                              <SelectItem key={rt.id} value={rt.external_room_type_id}>
-                                <div className="flex items-center justify-between w-full gap-2">
-                                  <span>{rt.name}</span>
-                                  <span className={cn(
-                                    "text-xs px-1.5 py-0.5 rounded",
-                                    rt.available_units > 0 
-                                      ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" 
-                                      : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                                  )}>
-                                    {rt.available_units} {rt.available_units === 1 ? 'unit' : 'units'}
-                                  </span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {selectedRoomType && selectedRoomType.available_units === 0 && (
-                          <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md flex items-start gap-2">
-                            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                            <p className="text-xs text-amber-700 dark:text-amber-300">
-                              No rooms available for the full date range selected. Some nights may be blocked or fully booked.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <Label>Rate Type</Label>
-                        <Select 
-                          value={selectedRateTypeId} 
-                          onValueChange={setSelectedRateTypeId}
-                          disabled={!availabilityData || !selectedPropertyId}
-                        >
-                          <SelectTrigger className={cn((isUnderMinStay || isOverMaxStay) && "border-destructive")}>
-                            <SelectValue placeholder="Select rate type..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {rateTypes.map((rt) => (
-                              <SelectItem key={rt.id} value={rt.external_rate_type_id}>
-                                {rt.name}
-                                <span className="text-muted-foreground text-xs ml-2">
-                                  ({rt.price_type || 'N/A'}{rt.min_stay && rt.min_stay > 1 ? `, min ${rt.min_stay} nights` : ''})
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {selectedRateType && (isUnderMinStay || isOverMaxStay) && (
-                          <p className="text-sm text-destructive mt-1">
-                            <AlertCircle className="h-4 w-4 inline mr-1" />
-                            {isUnderMinStay && `Minimum stay is ${minStay} nights (selected ${nights})`}
-                            {isOverMaxStay && `Maximum stay is ${maxStay} nights (selected ${nights})`}
-                          </p>
-                        )}
-                        {selectedRateType && !isUnderMinStay && !isOverMaxStay && minStay > 1 && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Min stay: {minStay} nights
-                          </p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Guests */}
-                  <Card className={cn((isOverCapacity || isUnderCapacity) && "border-destructive")}>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-lg flex items-center justify-between">
-                        <span>Guests</span>
-                        {selectedRoomType && (
-                          <div className="flex gap-2">
-                            {minGuests > 1 && (
-                              <Badge variant={isUnderCapacity ? "destructive" : "outline"}>
-                                min {minGuests}
-                              </Badge>
-                            )}
-                            <Badge variant={isOverCapacity ? "destructive" : "secondary"}>
-                              {totalGuests}/{maxGuests} max
-                            </Badge>
-                          </div>
-                        )}
-                      </CardTitle>
-                      {isUnderCapacity && (
-                        <p className="text-sm text-destructive">
-                          <AlertCircle className="h-4 w-4 inline mr-1" />
-                          Minimum {minGuests} guests required
-                        </p>
-                      )}
-                      {isOverCapacity && (
-                        <p className="text-sm text-destructive">
-                          <AlertCircle className="h-4 w-4 inline mr-1" />
-                          Exceeds max occupancy of {maxGuests} guests
-                        </p>
-                      )}
-                      {selectedRateType && minStay > 1 && (
-                        <p className="text-xs text-muted-foreground">
-                          Min stay rules apply ({minStay} nights required)
-                        </p>
-                      )}
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 gap-4">
-                        {/* Adults */}
-                        <div>
-                          <Label>Adults</Label>
-                          <p className="text-xs text-muted-foreground mb-1">18+ years</p>
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              onClick={() => setAdults(Math.max(1, adults - 1))}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <span className="w-8 text-center font-medium">{adults}</span>
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              onClick={() => setAdults(adults + 1)}
-                              disabled={totalGuests >= maxGuests}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          </div>
+                        <span className="flex items-center gap-2">
+                          <BedDouble className="h-5 w-5" />
+                          Rooms ({bookingRooms.length})
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary">
+                            {grandTotalGuests} total guests
+                          </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={addRoom}
+                            disabled={!availabilityData}
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add Room
+                          </Button>
                         </div>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {bookingRooms.map((room, index) => {
+                        const validation = getRoomValidation(room);
+                        const rateTypesForRoom = getRateTypesForRoom(room.roomTypeId);
+                        const hasErrors = validation.isOverCapacity || validation.isUnderCapacity || validation.isUnderMinStay || validation.isOverMaxStay;
                         
-                        {/* Teens - only show if allowed */}
-                        {selectedRoomType?.allow_teens !== false && (
-                          <div>
-                            <Label>Teens</Label>
-                            <p className="text-xs text-muted-foreground mb-1">13-17 years</p>
-                            <div className="flex items-center gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                onClick={() => setTeens(Math.max(0, teens - 1))}
-                              >
-                                <Minus className="h-4 w-4" />
-                              </Button>
-                              <span className="w-8 text-center font-medium">{teens}</span>
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                onClick={() => setTeens(teens + 1)}
-                                disabled={totalGuests >= maxGuests}
-                              >
-                                <Plus className="h-4 w-4" />
-                              </Button>
+                        return (
+                          <Card key={room.id} className={cn("p-4", hasErrors && "border-destructive")}>
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="font-medium">Room {index + 1}</span>
+                              <div className="flex items-center gap-2">
+                                {validation.roomType && (
+                                  <Badge variant={hasErrors ? "destructive" : "secondary"}>
+                                    {room.adults + room.teens + room.children + room.infants}/{validation.maxGuests} guests
+                                  </Badge>
+                                )}
+                                {bookingRooms.length > 1 && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removeRoom(room.id)}
+                                    className="h-8 w-8 text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        )}
-                        
-                        {/* Children - only show if allowed */}
-                        {selectedRoomType?.allow_children !== false && (
-                          <div>
-                            <Label>Children</Label>
-                            <p className="text-xs text-muted-foreground mb-1">2-12 years</p>
-                            <div className="flex items-center gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                onClick={() => setChildren(Math.max(0, children - 1))}
-                              >
-                                <Minus className="h-4 w-4" />
-                              </Button>
-                              <span className="w-8 text-center font-medium">{children}</span>
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                onClick={() => setChildren(children + 1)}
-                                disabled={totalGuests >= maxGuests}
-                              >
-                                <Plus className="h-4 w-4" />
-                              </Button>
+
+                            {/* Room Type Selection */}
+                            <div className="grid gap-4 mb-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <Label className="text-xs">Room Type</Label>
+                                  <Select 
+                                    value={room.roomTypeId} 
+                                    onValueChange={(value) => updateRoom(room.id, { roomTypeId: value })}
+                                    disabled={!availabilityData}
+                                  >
+                                    <SelectTrigger className="h-9">
+                                      <SelectValue placeholder="Select room..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {roomTypes.map((rt) => (
+                                        <SelectItem key={rt.id} value={rt.external_room_type_id}>
+                                          <div className="flex items-center gap-2">
+                                            <span>{rt.name}</span>
+                                            <span className={cn(
+                                              "text-xs px-1 py-0.5 rounded",
+                                              rt.available_units > 0 
+                                                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" 
+                                                : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                            )}>
+                                              {rt.available_units}
+                                            </span>
+                                          </div>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Rate Type</Label>
+                                  <Select 
+                                    value={room.rateTypeId} 
+                                    onValueChange={(value) => updateRoom(room.id, { rateTypeId: value })}
+                                    disabled={!room.roomTypeId}
+                                  >
+                                    <SelectTrigger className={cn("h-9", validation.isUnderMinStay && "border-destructive")}>
+                                      <SelectValue placeholder="Select rate..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {rateTypesForRoom.map((rt) => (
+                                        <SelectItem key={rt.id} value={rt.external_rate_type_id}>
+                                          {rt.name}
+                                          <span className="text-muted-foreground text-xs ml-1">
+                                            ({rt.price_type?.substring(0, 4) || 'N/A'})
+                                          </span>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+
+                              {/* Validation warnings */}
+                              {hasErrors && (
+                                <div className="text-xs text-destructive space-y-0.5">
+                                  {validation.isUnderCapacity && (
+                                    <p><AlertCircle className="h-3 w-3 inline mr-1" />Min {validation.minGuests} guests required</p>
+                                  )}
+                                  {validation.isOverCapacity && (
+                                    <p><AlertCircle className="h-3 w-3 inline mr-1" />Max {validation.maxGuests} guests exceeded</p>
+                                  )}
+                                  {validation.isUnderMinStay && (
+                                    <p><AlertCircle className="h-3 w-3 inline mr-1" />Min stay: {validation.minStay} nights</p>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        )}
-                        
-                        {/* Infants - only show if allowed */}
-                        {selectedRoomType?.allow_infants !== false && (
-                          <div>
-                            <Label>Infants</Label>
-                            <p className="text-xs text-muted-foreground mb-1">Under 2 years</p>
-                            <div className="flex items-center gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                onClick={() => setInfants(Math.max(0, infants - 1))}
-                              >
-                                <Minus className="h-4 w-4" />
-                              </Button>
-                              <span className="w-8 text-center font-medium">{infants}</span>
-                              <Button 
-                                variant="outline" 
-                                size="icon" 
-                                onClick={() => setInfants(infants + 1)}
-                                disabled={totalGuests >= maxGuests}
-                              >
-                                <Plus className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+
+                            {/* Guest Counts */}
+                            {room.roomTypeId && (
+                              <div className="grid grid-cols-4 gap-2">
+                                {/* Adults */}
+                                <div>
+                                  <Label className="text-xs">Adults</Label>
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <Button 
+                                      variant="outline" 
+                                      size="icon" 
+                                      className="h-7 w-7"
+                                      onClick={() => updateRoom(room.id, { adults: Math.max(1, room.adults - 1) })}
+                                    >
+                                      <Minus className="h-3 w-3" />
+                                    </Button>
+                                    <span className="w-6 text-center text-sm font-medium">{room.adults}</span>
+                                    <Button 
+                                      variant="outline" 
+                                      size="icon" 
+                                      className="h-7 w-7"
+                                      onClick={() => updateRoom(room.id, { adults: room.adults + 1 })}
+                                      disabled={room.adults + room.teens + room.children + room.infants >= validation.maxGuests}
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                                
+                                {/* Teens */}
+                                {validation.roomType?.allow_teens !== false && (
+                                  <div>
+                                    <Label className="text-xs">Teens</Label>
+                                    <div className="flex items-center gap-1 mt-1">
+                                      <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        className="h-7 w-7"
+                                        onClick={() => updateRoom(room.id, { teens: Math.max(0, room.teens - 1) })}
+                                      >
+                                        <Minus className="h-3 w-3" />
+                                      </Button>
+                                      <span className="w-6 text-center text-sm font-medium">{room.teens}</span>
+                                      <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        className="h-7 w-7"
+                                        onClick={() => updateRoom(room.id, { teens: room.teens + 1 })}
+                                        disabled={room.adults + room.teens + room.children + room.infants >= validation.maxGuests}
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Children */}
+                                {validation.roomType?.allow_children !== false && (
+                                  <div>
+                                    <Label className="text-xs">Children</Label>
+                                    <div className="flex items-center gap-1 mt-1">
+                                      <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        className="h-7 w-7"
+                                        onClick={() => updateRoom(room.id, { children: Math.max(0, room.children - 1) })}
+                                      >
+                                        <Minus className="h-3 w-3" />
+                                      </Button>
+                                      <span className="w-6 text-center text-sm font-medium">{room.children}</span>
+                                      <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        className="h-7 w-7"
+                                        onClick={() => updateRoom(room.id, { children: room.children + 1 })}
+                                        disabled={room.adults + room.teens + room.children + room.infants >= validation.maxGuests}
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Infants */}
+                                {validation.roomType?.allow_infants !== false && (
+                                  <div>
+                                    <Label className="text-xs">Infants</Label>
+                                    <div className="flex items-center gap-1 mt-1">
+                                      <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        className="h-7 w-7"
+                                        onClick={() => updateRoom(room.id, { infants: Math.max(0, room.infants - 1) })}
+                                      >
+                                        <Minus className="h-3 w-3" />
+                                      </Button>
+                                      <span className="w-6 text-center text-sm font-medium">{room.infants}</span>
+                                      <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        className="h-7 w-7"
+                                        onClick={() => updateRoom(room.id, { infants: room.infants + 1 })}
+                                        disabled={room.adults + room.teens + room.children + room.infants >= validation.maxGuests}
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </Card>
+                        );
+                      })}
                     </CardContent>
                   </Card>
 
@@ -1015,7 +1051,7 @@ const TestBookingBenson = () => {
                     <CardContent>
                       <Button 
                         onClick={calculateCost} 
-                        disabled={calculating || !selectedPropertyId || !selectedRoomTypeId || !selectedRateTypeId}
+                        disabled={calculating || !selectedPropertyId || hasValidationErrors}
                         className="w-full mb-4"
                         variant="outline"
                       >
@@ -1024,7 +1060,7 @@ const TestBookingBenson = () => {
                         ) : (
                           <Calculator className="h-4 w-4 mr-2" />
                         )}
-                        Calculate Cost
+                        Calculate Cost ({bookingRooms.length} room{bookingRooms.length > 1 ? 's' : ''})
                       </Button>
 
                       {costBreakdown.length > 0 ? (
@@ -1066,37 +1102,17 @@ const TestBookingBenson = () => {
                   <Card>
                     <CardContent className="pt-6 space-y-3">
                       {/* Validation warnings */}
-                      {(isOverCapacity || isUnderCapacity || isUnderMinStay || isOverMaxStay) && (
-                        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md space-y-1">
-                          {isUnderCapacity && (
-                            <p className="text-sm text-destructive flex items-center gap-2">
-                              <AlertCircle className="h-4 w-4" />
-                              Below min occupancy ({totalGuests}/{minGuests} guests required)
-                            </p>
-                          )}
-                          {isOverCapacity && (
-                            <p className="text-sm text-destructive flex items-center gap-2">
-                              <AlertCircle className="h-4 w-4" />
-                              Exceeds max occupancy ({totalGuests}/{maxGuests})
-                            </p>
-                          )}
-                          {isUnderMinStay && (
-                            <p className="text-sm text-destructive flex items-center gap-2">
-                              <AlertCircle className="h-4 w-4" />
-                              Below min stay ({nights}/{minStay} nights required)
-                            </p>
-                          )}
-                          {isOverMaxStay && (
-                            <p className="text-sm text-destructive flex items-center gap-2">
-                              <AlertCircle className="h-4 w-4" />
-                              Exceeds max stay ({nights}/{maxStay} nights)
-                            </p>
-                          )}
+                      {hasValidationErrors && (
+                        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                          <p className="text-sm text-destructive flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4" />
+                            Please fix room validation errors before submitting
+                          </p>
                         </div>
                       )}
                       <Button 
                         onClick={submitBooking} 
-                        disabled={submitting || !selectedPropertyId || !selectedRoomTypeId || !selectedRateTypeId || isOverCapacity || isUnderCapacity || isUnderMinStay || isOverMaxStay || !guestName.trim() || !guestEmail.trim() || !guestPhone.trim()}
+                        disabled={submitting || !selectedPropertyId || hasValidationErrors || !guestName.trim() || !guestEmail.trim() || !guestPhone.trim()}
                         className="w-full"
                         size="lg"
                       >
