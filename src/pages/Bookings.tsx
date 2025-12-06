@@ -20,7 +20,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Calendar, Search, Filter, RefreshCw, Users, CalendarDays, Building2, CloudDownload, Loader2 } from "lucide-react";
+import { Calendar, Search, Filter, RefreshCw, Users, CalendarDays, Building2, CloudDownload, Loader2, ChevronDown, ChevronUp, Bed } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -70,6 +75,7 @@ const Bookings = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [syncingBookings, setSyncingBookings] = useState(false);
+  const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
 
   const canViewAllProperties = isAdmin || isDev;
 
@@ -596,40 +602,106 @@ const Bookings = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredBookings.map((booking) => (
-                      <TableRow key={booking.id}>
-                        <TableCell className="font-medium">
-                          {booking.property_name}
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{booking.guest_name}</p>
-                            <p className="text-sm text-muted-foreground">{booking.guest_email}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {format(parseISO(booking.check_in_date), "dd MMM yyyy")}
-                        </TableCell>
-                        <TableCell>
-                          {format(parseISO(booking.check_out_date), "dd MMM yyyy")}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Users className="h-4 w-4 text-muted-foreground" />
-                            {getTotalGuests(booking)}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          R{Number(booking.total_price).toLocaleString()}
-                        </TableCell>
-                        <TableCell>
-                          {getStatusBadge(booking.status)}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {booking.external_reservation_id || booking.id.slice(0, 8)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {filteredBookings.map((booking) => {
+                      const rooms = booking.rooms && Array.isArray(booking.rooms) ? booking.rooms : [];
+                      const hasMultipleRooms = rooms.length > 1;
+                      const isExpanded = expandedBookingId === booking.id;
+                      
+                      return (
+                        <>
+                          <TableRow 
+                            key={booking.id} 
+                            className={hasMultipleRooms ? "cursor-pointer hover:bg-muted/50" : ""}
+                            onClick={() => hasMultipleRooms && setExpandedBookingId(isExpanded ? null : booking.id)}
+                          >
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                {hasMultipleRooms && (
+                                  isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                                )}
+                                {booking.property_name}
+                                {hasMultipleRooms && (
+                                  <Badge variant="outline" className="ml-1 text-xs">
+                                    {rooms.length} rooms
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{booking.guest_name}</p>
+                                <p className="text-sm text-muted-foreground">{booking.guest_email}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {format(parseISO(booking.check_in_date), "dd MMM yyyy")}
+                            </TableCell>
+                            <TableCell>
+                              {format(parseISO(booking.check_out_date), "dd MMM yyyy")}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <Users className="h-4 w-4 text-muted-foreground" />
+                                {getTotalGuests(booking)}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              R{Number(booking.total_price).toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              {getStatusBadge(booking.status)}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {booking.external_reservation_id || booking.id.slice(0, 8)}
+                            </TableCell>
+                          </TableRow>
+                          {/* Expanded room details */}
+                          {isExpanded && hasMultipleRooms && (
+                            <TableRow key={`${booking.id}-details`} className="bg-muted/30">
+                              <TableCell colSpan={8} className="p-4">
+                                <div className="space-y-2">
+                                  <p className="text-sm font-medium text-muted-foreground mb-3">Room Details</p>
+                                  <div className="grid gap-3">
+                                    {rooms.map((room: any, index: number) => (
+                                      <div key={index} className="flex items-start gap-4 p-3 bg-background rounded-lg border">
+                                        <Bed className="h-5 w-5 text-muted-foreground mt-0.5" />
+                                        <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                          <div>
+                                            <p className="text-muted-foreground">Room Type</p>
+                                            <p className="font-medium">{room.roomTypeName || room.roomName || `Room ${index + 1}`}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-muted-foreground">Dates</p>
+                                            <p className="font-medium">
+                                              {room.arrivalDate ? format(parseISO(room.arrivalDate), "dd MMM") : format(parseISO(booking.check_in_date), "dd MMM")}
+                                              {" → "}
+                                              {room.departureDate ? format(parseISO(room.departureDate), "dd MMM") : format(parseISO(booking.check_out_date), "dd MMM")}
+                                            </p>
+                                          </div>
+                                          <div>
+                                            <p className="text-muted-foreground">Guests</p>
+                                            <p className="font-medium">
+                                              {room.numberOfAdults || 0}A
+                                              {(room.numberOfTeens || 0) > 0 && `, ${room.numberOfTeens}T`}
+                                              {(room.numberOfChildren || 0) > 0 && `, ${room.numberOfChildren}C`}
+                                              {(room.numberOfInfants || 0) > 0 && `, ${room.numberOfInfants}I`}
+                                            </p>
+                                          </div>
+                                          <div>
+                                            <p className="text-muted-foreground">Status</p>
+                                            <p className="font-medium">{room.status || "—"}</p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
