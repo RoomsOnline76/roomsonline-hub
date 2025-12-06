@@ -155,14 +155,16 @@ const TestBookingBenson = () => {
       
       // Check if this rate type has any rates with values > 0
       // For per-room: check roomAmount
-      // For per-person: check adultAmount, teenAmount, childAmount, infantAmount
+      // For per-person: check adultAmount1, adultAmount2, adultAmount, teenAmount, childAmount, infantAmount
       const hasRates = rate.rates?.some((r: any) => {
         const roomAmount = r.roomAmount || 0;
+        const adultAmount1 = r.adultAmount1 || 0;
+        const adultAmount2 = r.adultAmount2 || 0;
         const adultAmount = r.adultAmount || 0;
         const teenAmount = r.teenAmount || 0;
         const childAmount = r.childAmount || 0;
         const infantAmount = r.infantAmount || 0;
-        return roomAmount > 0 || adultAmount > 0 || teenAmount > 0 || childAmount > 0 || infantAmount > 0;
+        return roomAmount > 0 || adultAmount1 > 0 || adultAmount2 > 0 || adultAmount > 0 || teenAmount > 0 || childAmount > 0 || infantAmount > 0;
       }) ?? false;
       
       rateList.push({
