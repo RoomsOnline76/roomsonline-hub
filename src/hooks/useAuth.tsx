@@ -7,20 +7,21 @@ export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isDev, setIsDev] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
-    const checkAdminStatus = async (userId: string) => {
+    const checkRoles = async (userId: string) => {
       const { data } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", userId)
-        .eq("role", "admin")
-        .maybeSingle();
+        .eq("user_id", userId);
 
       if (mounted) {
-        setIsAdmin(!!data);
+        const roles = data?.map(r => r.role) || [];
+        setIsAdmin(roles.includes("admin"));
+        setIsDev(roles.includes("dev"));
         setLoading(false);
       }
     };
@@ -35,9 +36,10 @@ export function useAuth() {
         
         if (session?.user) {
           setLoading(true);
-          checkAdminStatus(session.user.id);
+          checkRoles(session.user.id);
         } else {
           setIsAdmin(false);
+          setIsDev(false);
           setLoading(false);
         }
       }
@@ -50,7 +52,7 @@ export function useAuth() {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          checkAdminStatus(session.user.id);
+          checkRoles(session.user.id);
         } else {
           setLoading(false);
         }
@@ -67,5 +69,5 @@ export function useAuth() {
     await supabase.auth.signOut();
   };
 
-  return { user, session, loading, isAdmin, signOut };
+  return { user, session, loading, isAdmin, isDev, signOut };
 }

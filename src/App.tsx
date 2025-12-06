@@ -55,7 +55,7 @@ const App = () => (
           <Route
             path="/admin-keys"
             element={
-              <ProtectedRoute requireAdmin={true}>
+              <ProtectedRoute requireDev={true}>
                 <AdminKeys />
               </ProtectedRoute>
             }
@@ -79,7 +79,7 @@ const App = () => (
           <Route
             path="/admin/api-keys"
             element={
-              <ProtectedRoute requireAdmin={true}>
+              <ProtectedRoute requireDev={true}>
                 <AdminKeys />
               </ProtectedRoute>
             }

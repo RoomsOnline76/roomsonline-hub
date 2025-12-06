@@ -18,7 +18,7 @@ import { pmsIntegrationStatus, getCompletedMilestoneCount, getTotalMilestoneCoun
 import { ProfileModal } from "@/components/ProfileModal";
 
 export const Navbar = () => {
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, isDev, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [profile, setProfile] = useState<any>(null);
@@ -173,25 +173,27 @@ export const Navbar = () => {
                 </DropdownMenu>
               </>
             )}
+            {isDev && !isBookPage && (
+              <Link to="/admin-keys">
+                <Button variant="ghost" className="flex items-center gap-2 relative">
+                  <Key className="h-4 w-4" />
+                  API Keys
+                  {apiHealthStatus.unhealthy > 0 ? (
+                    <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1 text-xs flex items-center gap-0.5">
+                      <Activity className="h-3 w-3" />
+                      {apiHealthStatus.unhealthy}
+                    </Badge>
+                  ) : apiHealthStatus.healthy > 0 ? (
+                    <Badge className="ml-1 h-5 min-w-5 px-1 text-xs bg-green-500 hover:bg-green-600 flex items-center gap-0.5">
+                      <Activity className="h-3 w-3" />
+                      {apiHealthStatus.healthy}
+                    </Badge>
+                  ) : null}
+                </Button>
+              </Link>
+            )}
             {isAdmin && !isBookPage && (
               <>
-                <Link to="/admin-keys">
-                  <Button variant="ghost" className="flex items-center gap-2 relative">
-                    <Key className="h-4 w-4" />
-                    API Keys
-                    {apiHealthStatus.unhealthy > 0 ? (
-                      <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1 text-xs flex items-center gap-0.5">
-                        <Activity className="h-3 w-3" />
-                        {apiHealthStatus.unhealthy}
-                      </Badge>
-                    ) : apiHealthStatus.healthy > 0 ? (
-                      <Badge className="ml-1 h-5 min-w-5 px-1 text-xs bg-green-500 hover:bg-green-600 flex items-center gap-0.5">
-                        <Activity className="h-3 w-3" />
-                        {apiHealthStatus.healthy}
-                      </Badge>
-                    ) : null}
-                  </Button>
-                </Link>
                 <Link to="/admin-users">
                   <Button variant="ghost" className="flex items-center gap-2">
                     <Shield className="h-4 w-4" />
