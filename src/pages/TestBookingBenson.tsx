@@ -402,11 +402,13 @@ const TestBookingBenson = () => {
         });
 
         if (totalAdultAmount > 0) {
+          // For 2 adults, adultAmount2 is a combined rate (Qty=1), not per-person
+          // For 1 adult, adultAmount1 is also a single rate (Qty=1)
           lineItems.push({
             description: `Adult Rate (${adults} adult${adults > 1 ? 's' : ''})`,
             nights: nights,
-            quantity: adults,
-            unitPrice: totalAdultAmount / nights / adults,
+            quantity: 1, // Combined rate, not per-person
+            unitPrice: totalAdultAmount / nights,
             total: totalAdultAmount,
           });
           runningTotal += totalAdultAmount;
