@@ -65,6 +65,9 @@ interface BookingRoom {
   teens: number;
   children: number;
   infants: number;
+  // Optional per-room dates (uses main dates if not set)
+  customCheckIn?: Date;
+  customCheckOut?: Date;
 }
 
 interface BookingTest {
@@ -206,6 +209,16 @@ const TestBookingBenson = () => {
     return differenceInDays(checkOutDate, checkInDate);
   }, [checkInDate, checkOutDate]);
 
+  // Helper to get effective dates for a room (uses custom dates or falls back to main dates)
+  const getRoomDates = (room: BookingRoom) => {
+    const effectiveCheckIn = room.customCheckIn || checkInDate;
+    const effectiveCheckOut = room.customCheckOut || checkOutDate;
+    const roomNights = effectiveCheckIn && effectiveCheckOut 
+      ? differenceInDays(effectiveCheckOut, effectiveCheckIn) 
+      : 0;
+    return { checkIn: effectiveCheckIn, checkOut: effectiveCheckOut, nights: roomNights };
+  };
+
   // Helper functions for multi-room management
   const addRoom = () => {
     setBookingRooms(prev => [...prev, {
@@ -215,7 +228,10 @@ const TestBookingBenson = () => {
       adults: 2,
       teens: 0,
       children: 0,
-      infants: 0
+      infants: 0,
+      // New rooms default to main dates (undefined = use main)
+      customCheckIn: undefined,
+      customCheckOut: undefined,
     }]);
   };
 
@@ -256,6 +272,9 @@ const TestBookingBenson = () => {
     const minStay = rateType?.min_stay || 1;
     const maxStay = rateType?.max_stay || 365;
     
+    // Use room-specific nights for validation
+    const { nights: roomNights } = getRoomDates(room);
+    
     return {
       roomType,
       rateType,
@@ -264,10 +283,11 @@ const TestBookingBenson = () => {
       minGuests,
       isOverCapacity: totalGuests > maxGuests,
       isUnderCapacity: totalGuests < minGuests,
-      isUnderMinStay: nights > 0 && nights < minStay,
-      isOverMaxStay: nights > maxStay,
+      isUnderMinStay: roomNights > 0 && roomNights < minStay,
+      isOverMaxStay: roomNights > maxStay,
       minStay,
       maxStay,
+      roomNights,
     };
   };
 
@@ -371,6 +391,8 @@ const TestBookingBenson = () => {
       // Calculate cost for each room
       for (let roomIndex = 0; roomIndex < bookingRooms.length; roomIndex++) {
         const bookingRoom = bookingRooms[roomIndex];
+        const { nights: roomNights } = getRoomDates(bookingRoom);
+        
         const roomType = availability?.roomTypes?.find(
           (rt: any) => String(rt.roomTypeId) === bookingRoom.roomTypeId
         );
@@ -385,7 +407,7 @@ const TestBookingBenson = () => {
 
         const roomLabel = `Room ${roomIndex + 1}: ${roomType.name}`;
         const allRates = rateType.rates || [];
-        const rates = allRates.slice(0, nights);
+        const rates = allRates.slice(0, roomNights);
         const priceType = (rateType.priceType || 'PER ROOM').toUpperCase();
         const roomTotalGuests = bookingRoom.adults + bookingRoom.teens + bookingRoom.children + bookingRoom.infants;
 
@@ -398,9 +420,9 @@ const TestBookingBenson = () => {
           if (totalRoomAmount > 0) {
             lineItems.push({
               description: `${roomLabel} (${rateType.name}) - ${roomTotalGuests} guests`,
-              nights: nights,
+              nights: roomNights,
               quantity: 1,
-              unitPrice: totalRoomAmount / nights,
+              unitPrice: totalRoomAmount / roomNights,
               total: totalRoomAmount,
             });
             runningTotal += totalRoomAmount;
@@ -437,19 +459,19 @@ const TestBookingBenson = () => {
           if (totalAdultAmount > 0) {
             lineItems.push({
               description: `${roomLabel} - Adult Rate (${bookingRoom.adults} adult${bookingRoom.adults > 1 ? 's' : ''})`,
-              nights: nights,
+              nights: roomNights,
               quantity: 1,
-              unitPrice: totalAdultAmount / nights,
+              unitPrice: totalAdultAmount / roomNights,
               total: totalAdultAmount,
             });
             runningTotal += totalAdultAmount;
           }
 
           if (totalTeenAmount > 0 && bookingRoom.teens > 0) {
-            const perPersonPerNight = totalTeenAmount / nights / bookingRoom.teens;
+            const perPersonPerNight = totalTeenAmount / roomNights / bookingRoom.teens;
             lineItems.push({
               description: `${roomLabel} - Teen Rate (${bookingRoom.teens} teen${bookingRoom.teens > 1 ? 's' : ''})`,
-              nights: nights,
+              nights: roomNights,
               quantity: bookingRoom.teens,
               unitPrice: perPersonPerNight,
               total: totalTeenAmount,
@@ -458,10 +480,10 @@ const TestBookingBenson = () => {
           }
 
           if (totalChildAmount > 0 && bookingRoom.children > 0) {
-            const perPersonPerNight = totalChildAmount / nights / bookingRoom.children;
+            const perPersonPerNight = totalChildAmount / roomNights / bookingRoom.children;
             lineItems.push({
               description: `${roomLabel} - Child Rate (${bookingRoom.children} child${bookingRoom.children > 1 ? 'ren' : ''})`,
-              nights: nights,
+              nights: roomNights,
               quantity: bookingRoom.children,
               unitPrice: perPersonPerNight,
               total: totalChildAmount,
@@ -470,10 +492,10 @@ const TestBookingBenson = () => {
           }
 
           if (totalInfantAmount > 0 && bookingRoom.infants > 0) {
-            const perPersonPerNight = totalInfantAmount / nights / bookingRoom.infants;
+            const perPersonPerNight = totalInfantAmount / roomNights / bookingRoom.infants;
             lineItems.push({
               description: `${roomLabel} - Infant Rate (${bookingRoom.infants} infant${bookingRoom.infants > 1 ? 's' : ''})`,
-              nights: nights,
+              nights: roomNights,
               quantity: bookingRoom.infants,
               unitPrice: perPersonPerNight,
               total: totalInfantAmount,
@@ -529,19 +551,28 @@ const TestBookingBenson = () => {
     setBookingTests(prev => [newTest, ...prev]);
 
     try {
-      // Build rooms array for API
-      const roomsPayload = bookingRooms.map(room => ({
-        roomTypeId: parseInt(room.roomTypeId),
-        rateTypeId: parseInt(room.rateTypeId),
-        numberOfAdults: room.adults,
-        numberOfTeens: room.teens,
-        numberOfChildren: room.children,
-        numberOfInfants: room.infants,
-      }));
+      // Build rooms array for API with per-room dates
+      const roomsPayload = bookingRooms.map(room => {
+        const roomDates = getRoomDates(room);
+        return {
+          roomTypeId: parseInt(room.roomTypeId),
+          rateTypeId: parseInt(room.rateTypeId),
+          numberOfAdults: room.adults,
+          numberOfTeens: room.teens,
+          numberOfChildren: room.children,
+          numberOfInfants: room.infants,
+          // Include per-room dates if different from main
+          arrivalDate: roomDates.checkIn ? format(roomDates.checkIn, "yyyy-MM-dd") : undefined,
+          departureDate: roomDates.checkOut ? format(roomDates.checkOut, "yyyy-MM-dd") : undefined,
+        };
+      });
 
+      // Use first room's dates as primary reservation dates
+      const primaryRoomDates = getRoomDates(bookingRooms[0]);
+      
       const reservationData = {
-        arrivalDate: format(checkInDate, "yyyy-MM-dd"),
-        departureDate: format(checkOutDate, "yyyy-MM-dd"),
+        arrivalDate: format(primaryRoomDates.checkIn || checkInDate, "yyyy-MM-dd"),
+        departureDate: format(primaryRoomDates.checkOut || checkOutDate, "yyyy-MM-dd"),
         rateTypeId: parseInt(bookingRooms[0].rateTypeId), // Use first room's rate type as primary
         contactName: guestName,
         contactNumber: guestPhone,
@@ -770,11 +801,25 @@ const TestBookingBenson = () => {
                         const validation = getRoomValidation(room);
                         const rateTypesForRoom = getRateTypesForRoom(room.roomTypeId);
                         const hasErrors = validation.isOverCapacity || validation.isUnderCapacity || validation.isUnderMinStay || validation.isOverMaxStay;
+                        const roomDates = getRoomDates(room);
+                        const hasCustomDates = room.customCheckIn || room.customCheckOut;
                         
                         return (
                           <Card key={room.id} className={cn("p-4", hasErrors && "border-destructive")}>
                             <div className="flex items-center justify-between mb-3">
-                              <span className="font-medium">Room {index + 1}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">Room {index + 1}</span>
+                                {hasCustomDates && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Custom dates
+                                  </Badge>
+                                )}
+                                {validation.roomNights > 0 && (
+                                  <span className="text-xs text-muted-foreground">
+                                    ({validation.roomNights} night{validation.roomNights !== 1 ? 's' : ''})
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex items-center gap-2">
                                 {validation.roomType && (
                                   <Badge variant={hasErrors ? "destructive" : "secondary"}>
@@ -792,6 +837,80 @@ const TestBookingBenson = () => {
                                   </Button>
                                 )}
                               </div>
+                            </div>
+
+                            {/* Per-Room Date Override */}
+                            <div className="mb-4 p-3 bg-muted/30 rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <Label className="text-xs font-medium">Dates for this room</Label>
+                                {hasCustomDates && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 text-xs"
+                                    onClick={() => updateRoom(room.id, { customCheckIn: undefined, customCheckOut: undefined })}
+                                  >
+                                    Reset to default
+                                  </Button>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className={cn(
+                                        "justify-start text-left font-normal h-9",
+                                        !roomDates.checkIn && "text-muted-foreground"
+                                      )}
+                                    >
+                                      <CalendarDays className="h-3.5 w-3.5 mr-2" />
+                                      {roomDates.checkIn ? format(roomDates.checkIn, "MMM d, yyyy") : "Check-in"}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                      mode="single"
+                                      selected={roomDates.checkIn}
+                                      onSelect={(date) => updateRoom(room.id, { customCheckIn: date })}
+                                      disabled={(date) => date < today}
+                                      initialFocus
+                                      className="pointer-events-auto"
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className={cn(
+                                        "justify-start text-left font-normal h-9",
+                                        !roomDates.checkOut && "text-muted-foreground"
+                                      )}
+                                    >
+                                      <CalendarDays className="h-3.5 w-3.5 mr-2" />
+                                      {roomDates.checkOut ? format(roomDates.checkOut, "MMM d, yyyy") : "Check-out"}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar
+                                      mode="single"
+                                      selected={roomDates.checkOut}
+                                      onSelect={(date) => updateRoom(room.id, { customCheckOut: date })}
+                                      disabled={(date) => date <= (roomDates.checkIn || today)}
+                                      initialFocus
+                                      className="pointer-events-auto"
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                              {!hasCustomDates && checkInDate && checkOutDate && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Using default: {format(checkInDate, "MMM d")} – {format(checkOutDate, "MMM d")}
+                                </p>
+                              )}
                             </div>
 
                             {/* Room Type Selection */}
@@ -860,7 +979,7 @@ const TestBookingBenson = () => {
                                     <p><AlertCircle className="h-3 w-3 inline mr-1" />Max {validation.maxGuests} guests exceeded</p>
                                   )}
                                   {validation.isUnderMinStay && (
-                                    <p><AlertCircle className="h-3 w-3 inline mr-1" />Min stay: {validation.minStay} nights</p>
+                                    <p><AlertCircle className="h-3 w-3 inline mr-1" />Min stay: {validation.minStay} nights (this room has {validation.roomNights})</p>
                                   )}
                                 </div>
                               )}
