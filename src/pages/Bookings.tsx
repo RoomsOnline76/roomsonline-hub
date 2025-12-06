@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Calendar, Search, Filter, RefreshCw, Users, CalendarDays, Building2, CloudDownload, Loader2, ChevronDown, ChevronUp, Bed } from "lucide-react";
+import { Calendar, Search, Filter, RefreshCw, Users, CalendarDays, Building2, CloudDownload, Loader2, ChevronDown, ChevronUp, Bed, Plus } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -617,7 +617,7 @@ const Bookings = () => {
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-2">
                                 {hasMultipleRooms && (
-                                  isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                                  <Plus className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-45" : ""}`} />
                                 )}
                                 {booking.property_name}
                                 {hasMultipleRooms && (

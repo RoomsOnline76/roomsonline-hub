@@ -14,11 +14,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { ExpandableDataViewer } from "@/components/ExpandableDataViewer";
 import { 
   CalendarDays, Users, Loader2, Send, Calculator, 
-  ArrowLeft, Plus, Minus, CheckCircle2, AlertCircle, RefreshCw, Trash2, BedDouble
+  ArrowLeft, Plus, Minus, CheckCircle2, AlertCircle, RefreshCw, Trash2, BedDouble, ChevronDown
 } from "lucide-react";
 import { format, addDays, differenceInDays, startOfDay, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -70,6 +71,16 @@ interface BookingRoom {
   customCheckOut?: Date;
 }
 
+interface RoomCostBreakdown {
+  roomId: string;
+  roomIndex: number;
+  roomName: string;
+  rateName: string;
+  dates: { checkIn: Date; checkOut: Date; nights: number };
+  lineItems: CostLineItem[];
+  roomTotal: number;
+}
+
 interface BookingTest {
   id: string;
   timestamp: string;
@@ -111,11 +122,22 @@ const TestBookingBenson = () => {
   
   // Results
   const [costBreakdown, setCostBreakdown] = useState<CostLineItem[]>([]);
+  const [roomCostBreakdowns, setRoomCostBreakdowns] = useState<RoomCostBreakdown[]>([]);
   const [totalCost, setTotalCost] = useState(0);
   const [bookingTests, setBookingTests] = useState<BookingTest[]>([]);
   const [lastResponse, setLastResponse] = useState<any>(null);
   const [availabilityData, setAvailabilityData] = useState<any>(null);
   const [availabilityCache, setAvailabilityCache] = useState<Record<string, any>>({});
+  
+  // Calendar open states for main dates
+  const [checkInOpen, setCheckInOpen] = useState(false);
+  const [checkOutOpen, setCheckOutOpen] = useState(false);
+  
+  // Per-room calendar open states
+  const [roomCalendarOpen, setRoomCalendarOpen] = useState<Record<string, { checkIn: boolean; checkOut: boolean }>>({});
+  
+  // Expandable cost breakdowns state
+  const [expandedRoomCosts, setExpandedRoomCosts] = useState<Record<string, boolean>>({});
 
   // Fetch Benson properties only
   const { data: properties = [], isLoading: propertiesLoading } = useQuery({
@@ -304,6 +326,8 @@ const TestBookingBenson = () => {
   useEffect(() => {
     setBookingRooms([{ id: crypto.randomUUID(), roomTypeId: "", rateTypeId: "", adults: 2, teens: 0, children: 0, infants: 0 }]);
     setCostBreakdown([]);
+    setRoomCostBreakdowns([]);
+    setExpandedRoomCosts({});
     setTotalCost(0);
     
     if (selectedPropertyId && availabilityCache[selectedPropertyId]) {
@@ -385,13 +409,15 @@ const TestBookingBenson = () => {
         setAvailabilityData(data);
       }
 
-      const lineItems: CostLineItem[] = [];
+      const allLineItems: CostLineItem[] = [];
+      const roomBreakdowns: RoomCostBreakdown[] = [];
       let runningTotal = 0;
 
       // Calculate cost for each room
       for (let roomIndex = 0; roomIndex < bookingRooms.length; roomIndex++) {
         const bookingRoom = bookingRooms[roomIndex];
-        const { nights: roomNights } = getRoomDates(bookingRoom);
+        const roomDates = getRoomDates(bookingRoom);
+        const roomNights = roomDates.nights;
         
         const roomType = availability?.roomTypes?.find(
           (rt: any) => String(rt.roomTypeId) === bookingRoom.roomTypeId
@@ -411,6 +437,9 @@ const TestBookingBenson = () => {
         const priceType = (rateType.priceType || 'PER ROOM').toUpperCase();
         const roomTotalGuests = bookingRoom.adults + bookingRoom.teens + bookingRoom.children + bookingRoom.infants;
 
+        const roomLineItems: CostLineItem[] = [];
+        let roomTotal = 0;
+
         if (priceType === 'PER ROOM' || priceType === 'PERROOM') {
           let totalRoomAmount = 0;
           rates.forEach((rate: any) => {
@@ -418,13 +447,16 @@ const TestBookingBenson = () => {
           });
 
           if (totalRoomAmount > 0) {
-            lineItems.push({
+            const lineItem = {
               description: `${roomLabel} (${rateType.name}) - ${roomTotalGuests} guests`,
               nights: roomNights,
               quantity: 1,
               unitPrice: totalRoomAmount / roomNights,
               total: totalRoomAmount,
-            });
+            };
+            allLineItems.push(lineItem);
+            roomLineItems.push({ ...lineItem, description: `Room Rate (${roomTotalGuests} guests)` });
+            roomTotal += totalRoomAmount;
             runningTotal += totalRoomAmount;
           }
         } else {
@@ -457,55 +489,83 @@ const TestBookingBenson = () => {
           });
 
           if (totalAdultAmount > 0) {
-            lineItems.push({
+            const lineItem = {
               description: `${roomLabel} - Adult Rate (${bookingRoom.adults} adult${bookingRoom.adults > 1 ? 's' : ''})`,
               nights: roomNights,
               quantity: 1,
               unitPrice: totalAdultAmount / roomNights,
               total: totalAdultAmount,
-            });
+            };
+            allLineItems.push(lineItem);
+            roomLineItems.push({ ...lineItem, description: `Adult Rate (${bookingRoom.adults} adult${bookingRoom.adults > 1 ? 's' : ''})` });
+            roomTotal += totalAdultAmount;
             runningTotal += totalAdultAmount;
           }
 
           if (totalTeenAmount > 0 && bookingRoom.teens > 0) {
             const perPersonPerNight = totalTeenAmount / roomNights / bookingRoom.teens;
-            lineItems.push({
+            const lineItem = {
               description: `${roomLabel} - Teen Rate (${bookingRoom.teens} teen${bookingRoom.teens > 1 ? 's' : ''})`,
               nights: roomNights,
               quantity: bookingRoom.teens,
               unitPrice: perPersonPerNight,
               total: totalTeenAmount,
-            });
+            };
+            allLineItems.push(lineItem);
+            roomLineItems.push({ ...lineItem, description: `Teen Rate (${bookingRoom.teens} teen${bookingRoom.teens > 1 ? 's' : ''})` });
+            roomTotal += totalTeenAmount;
             runningTotal += totalTeenAmount;
           }
 
           if (totalChildAmount > 0 && bookingRoom.children > 0) {
             const perPersonPerNight = totalChildAmount / roomNights / bookingRoom.children;
-            lineItems.push({
+            const lineItem = {
               description: `${roomLabel} - Child Rate (${bookingRoom.children} child${bookingRoom.children > 1 ? 'ren' : ''})`,
               nights: roomNights,
               quantity: bookingRoom.children,
               unitPrice: perPersonPerNight,
               total: totalChildAmount,
-            });
+            };
+            allLineItems.push(lineItem);
+            roomLineItems.push({ ...lineItem, description: `Child Rate (${bookingRoom.children} child${bookingRoom.children > 1 ? 'ren' : ''})` });
+            roomTotal += totalChildAmount;
             runningTotal += totalChildAmount;
           }
 
           if (totalInfantAmount > 0 && bookingRoom.infants > 0) {
             const perPersonPerNight = totalInfantAmount / roomNights / bookingRoom.infants;
-            lineItems.push({
+            const lineItem = {
               description: `${roomLabel} - Infant Rate (${bookingRoom.infants} infant${bookingRoom.infants > 1 ? 's' : ''})`,
               nights: roomNights,
               quantity: bookingRoom.infants,
               unitPrice: perPersonPerNight,
               total: totalInfantAmount,
-            });
+            };
+            allLineItems.push(lineItem);
+            roomLineItems.push({ ...lineItem, description: `Infant Rate (${bookingRoom.infants} infant${bookingRoom.infants > 1 ? 's' : ''})` });
+            roomTotal += totalInfantAmount;
             runningTotal += totalInfantAmount;
           }
         }
+
+        // Store room breakdown
+        roomBreakdowns.push({
+          roomId: bookingRoom.id,
+          roomIndex: roomIndex + 1,
+          roomName: roomType.name,
+          rateName: rateType.name,
+          dates: {
+            checkIn: roomDates.checkIn!,
+            checkOut: roomDates.checkOut!,
+            nights: roomNights,
+          },
+          lineItems: roomLineItems,
+          roomTotal,
+        });
       }
 
-      setCostBreakdown(lineItems);
+      setCostBreakdown(allLineItems);
+      setRoomCostBreakdowns(roomBreakdowns);
       setTotalCost(runningTotal);
       toast({ title: "Cost calculated", description: `Total: R${runningTotal.toFixed(2)} for ${bookingRooms.length} room(s)` });
     } catch (error: any) {
@@ -682,7 +742,7 @@ const TestBookingBenson = () => {
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <Label>Check-in</Label>
-                          <Popover>
+                          <Popover open={checkInOpen} onOpenChange={setCheckInOpen}>
                             <PopoverTrigger asChild>
                               <Button variant="outline" className="w-full justify-start">
                                 <CalendarDays className="mr-2 h-4 w-4" />
@@ -693,15 +753,19 @@ const TestBookingBenson = () => {
                               <Calendar
                                 mode="single"
                                 selected={checkInDate}
-                                onSelect={setCheckInDate}
+                                onSelect={(date) => {
+                                  setCheckInDate(date);
+                                  setCheckInOpen(false);
+                                }}
                                 disabled={(date) => date < today}
+                                className="pointer-events-auto"
                               />
                             </PopoverContent>
                           </Popover>
                         </div>
                         <div>
                           <Label>Check-out</Label>
-                          <Popover>
+                          <Popover open={checkOutOpen} onOpenChange={setCheckOutOpen}>
                             <PopoverTrigger asChild>
                               <Button variant="outline" className="w-full justify-start">
                                 <CalendarDays className="mr-2 h-4 w-4" />
@@ -712,8 +776,12 @@ const TestBookingBenson = () => {
                               <Calendar
                                 mode="single"
                                 selected={checkOutDate}
-                                onSelect={setCheckOutDate}
+                                onSelect={(date) => {
+                                  setCheckOutDate(date);
+                                  setCheckOutOpen(false);
+                                }}
                                 disabled={(date) => !checkInDate || date <= checkInDate}
+                                className="pointer-events-auto"
                               />
                             </PopoverContent>
                           </Popover>
@@ -855,7 +923,13 @@ const TestBookingBenson = () => {
                                 )}
                               </div>
                               <div className="grid grid-cols-2 gap-2">
-                                <Popover>
+                                <Popover 
+                                  open={roomCalendarOpen[room.id]?.checkIn || false}
+                                  onOpenChange={(open) => setRoomCalendarOpen(prev => ({
+                                    ...prev,
+                                    [room.id]: { ...prev[room.id], checkIn: open }
+                                  }))}
+                                >
                                   <PopoverTrigger asChild>
                                     <Button
                                       variant="outline"
@@ -873,14 +947,26 @@ const TestBookingBenson = () => {
                                     <Calendar
                                       mode="single"
                                       selected={roomDates.checkIn}
-                                      onSelect={(date) => updateRoom(room.id, { customCheckIn: date })}
+                                      onSelect={(date) => {
+                                        updateRoom(room.id, { customCheckIn: date });
+                                        setRoomCalendarOpen(prev => ({
+                                          ...prev,
+                                          [room.id]: { ...prev[room.id], checkIn: false }
+                                        }));
+                                      }}
                                       disabled={(date) => date < today}
                                       initialFocus
                                       className="pointer-events-auto"
                                     />
                                   </PopoverContent>
                                 </Popover>
-                                <Popover>
+                                <Popover
+                                  open={roomCalendarOpen[room.id]?.checkOut || false}
+                                  onOpenChange={(open) => setRoomCalendarOpen(prev => ({
+                                    ...prev,
+                                    [room.id]: { ...prev[room.id], checkOut: open }
+                                  }))}
+                                >
                                   <PopoverTrigger asChild>
                                     <Button
                                       variant="outline"
@@ -898,7 +984,13 @@ const TestBookingBenson = () => {
                                     <Calendar
                                       mode="single"
                                       selected={roomDates.checkOut}
-                                      onSelect={(date) => updateRoom(room.id, { customCheckOut: date })}
+                                      onSelect={(date) => {
+                                        updateRoom(room.id, { customCheckOut: date });
+                                        setRoomCalendarOpen(prev => ({
+                                          ...prev,
+                                          [room.id]: { ...prev[room.id], checkOut: false }
+                                        }));
+                                      }}
                                       disabled={(date) => date <= (roomDates.checkIn || today)}
                                       initialFocus
                                       className="pointer-events-auto"
@@ -1183,33 +1275,77 @@ const TestBookingBenson = () => {
                         Calculate Cost ({bookingRooms.length} room{bookingRooms.length > 1 ? 's' : ''})
                       </Button>
 
-                      {costBreakdown.length > 0 ? (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Description</TableHead>
-                              <TableHead className="text-right">Nights</TableHead>
-                              <TableHead className="text-right">Qty</TableHead>
-                              <TableHead className="text-right">Unit</TableHead>
-                              <TableHead className="text-right">Total</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {costBreakdown.map((item, idx) => (
-                              <TableRow key={idx}>
-                                <TableCell>{item.description}</TableCell>
-                                <TableCell className="text-right">{item.nights}</TableCell>
-                                <TableCell className="text-right">{item.quantity}</TableCell>
-                                <TableCell className="text-right">R{item.unitPrice.toFixed(2)}</TableCell>
-                                <TableCell className="text-right font-medium">R{item.total.toFixed(2)}</TableCell>
-                              </TableRow>
-                            ))}
-                            <TableRow className="border-t-2">
-                              <TableCell colSpan={4} className="font-bold">Total</TableCell>
-                              <TableCell className="text-right font-bold text-lg">R{totalCost.toFixed(2)}</TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
+                      {roomCostBreakdowns.length > 0 ? (
+                        <div className="space-y-3">
+                          {/* Per-room expandable breakdowns */}
+                          {roomCostBreakdowns.map((roomBreakdown) => (
+                            <Collapsible
+                              key={roomBreakdown.roomId}
+                              open={expandedRoomCosts[roomBreakdown.roomId] || false}
+                              onOpenChange={(open) => setExpandedRoomCosts(prev => ({
+                                ...prev,
+                                [roomBreakdown.roomId]: open
+                              }))}
+                            >
+                              <CollapsibleTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  className="w-full justify-between p-3 h-auto hover:bg-muted/50"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Plus className={cn(
+                                      "h-4 w-4 transition-transform",
+                                      expandedRoomCosts[roomBreakdown.roomId] && "rotate-45"
+                                    )} />
+                                    <div className="text-left">
+                                      <div className="font-medium">
+                                        Room {roomBreakdown.roomIndex}: {roomBreakdown.roomName}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {format(roomBreakdown.dates.checkIn, "MMM d")} – {format(roomBreakdown.dates.checkOut, "MMM d")} ({roomBreakdown.dates.nights} nights) • {roomBreakdown.rateName}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="font-bold text-right">
+                                    R{roomBreakdown.roomTotal.toFixed(2)}
+                                  </div>
+                                </Button>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <div className="px-3 pb-3">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead className="text-xs">Description</TableHead>
+                                        <TableHead className="text-right text-xs">Nights</TableHead>
+                                        <TableHead className="text-right text-xs">Qty</TableHead>
+                                        <TableHead className="text-right text-xs">Unit</TableHead>
+                                        <TableHead className="text-right text-xs">Total</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {roomBreakdown.lineItems.map((item, idx) => (
+                                        <TableRow key={idx}>
+                                          <TableCell className="text-sm">{item.description}</TableCell>
+                                          <TableCell className="text-right text-sm">{item.nights}</TableCell>
+                                          <TableCell className="text-right text-sm">{item.quantity}</TableCell>
+                                          <TableCell className="text-right text-sm">R{item.unitPrice.toFixed(2)}</TableCell>
+                                          <TableCell className="text-right text-sm font-medium">R{item.total.toFixed(2)}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          ))}
+                          
+                          {/* Grand Total */}
+                          <div className="border-t-2 pt-3 flex items-center justify-between px-3">
+                            <span className="font-bold text-lg">Grand Total</span>
+                            <span className="font-bold text-lg">R{totalCost.toFixed(2)}</span>
+                          </div>
+                        </div>
                       ) : (
                         <p className="text-muted-foreground text-center py-8">
                           Click "Calculate Cost" to see breakdown
