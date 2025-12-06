@@ -459,7 +459,7 @@ export default function PropertyShowcase() {
                             Book Now
                           </Button>
                           <Button variant="outline" asChild>
-                            <Link to={`/property/${id}/room/${room.id}`}>
+                            <Link to={`/property/${id}/room/${encodeURIComponent(room.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''))}`}>
                               View Room
                             </Link>
                           </Button>

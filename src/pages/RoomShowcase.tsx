@@ -100,18 +100,23 @@ const bedConfigLabels: Record<string, string> = {
 };
 
 export default function RoomShowcase() {
-  const { propertySlug, roomId } = useParams<{ propertySlug: string; roomId: string }>();
+  const { propertySlug, roomSlug } = useParams<{ propertySlug: string; roomSlug: string }>();
   const [property, setProperty] = useState<Property | null>(null);
   const [room, setRoom] = useState<RoomType | null>(null);
   const [rates, setRates] = useState<RateData[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
+  // Helper to create slug from room name
+  const slugifyRoomName = (name: string) => {
+    return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  };
+
   useEffect(() => {
-    if (propertySlug && roomId) {
+    if (propertySlug && roomSlug) {
       fetchData();
     }
-  }, [propertySlug, roomId]);
+  }, [propertySlug, roomSlug]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -134,10 +139,12 @@ export default function RoomShowcase() {
       
       setProperty(propertyData);
 
-      // Find the room type
+      // Find the room type by matching slugified name
       const amenitiesData = propertyData.amenities as any;
       const roomTypes = amenitiesData?.room_types || [];
-      const foundRoom = roomTypes.find((r: RoomType) => r.id === roomId);
+      const foundRoom = roomTypes.find((r: RoomType) => 
+        slugifyRoomName(r.name) === roomSlug || r.id === roomSlug
+      );
       
       if (foundRoom) {
         setRoom(foundRoom);
