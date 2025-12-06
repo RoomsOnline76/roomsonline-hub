@@ -1,0 +1,22 @@
+-- Add additional fields to pms_reservations to match Benson API response
+ALTER TABLE public.pms_reservations 
+ADD COLUMN IF NOT EXISTS reservation_name text,
+ADD COLUMN IF NOT EXISTS reservation_voucher text,
+ADD COLUMN IF NOT EXISTS consultant_name text,
+ADD COLUMN IF NOT EXISTS consultant_email text,
+ADD COLUMN IF NOT EXISTS consultant_contact_number text,
+ADD COLUMN IF NOT EXISTS originating_agent jsonb DEFAULT '{}'::jsonb,
+ADD COLUMN IF NOT EXISTS responsible_client jsonb DEFAULT '{}'::jsonb,
+ADD COLUMN IF NOT EXISTS guarantee jsonb DEFAULT '{}'::jsonb,
+ADD COLUMN IF NOT EXISTS cancellation jsonb DEFAULT '{}'::jsonb,
+ADD COLUMN IF NOT EXISTS number_of_rooms integer,
+ADD COLUMN IF NOT EXISTS number_of_guests integer,
+ADD COLUMN IF NOT EXISTS guest_nationality text,
+ADD COLUMN IF NOT EXISTS link_id text,
+ADD COLUMN IF NOT EXISTS create_date timestamp with time zone,
+ADD COLUMN IF NOT EXISTS create_user_name text,
+ADD COLUMN IF NOT EXISTS cancellation_date timestamp with time zone,
+ADD COLUMN IF NOT EXISTS cancellation_user_name text,
+ADD COLUMN IF NOT EXISTS cancellation_reason text,
+ADD COLUMN IF NOT EXISTS status_at_time_of_cancellation text,
+ADD COLUMN IF NOT EXISTS is_property_tax_inclusive boolean DEFAULT true;

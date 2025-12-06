@@ -20,16 +20,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Calendar, Search, Filter, RefreshCw, Users, CalendarDays, Building2 } from "lucide-react";
+import { Calendar, Search, Filter, RefreshCw, Users, CalendarDays, Building2, CloudDownload, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
+import { format, parseISO, subDays, addDays } from "date-fns";
 
 interface Property {
   id: string;
   name: string;
   slug: string | null;
+  external_system: string | null;
+  benson_property_code: string | null;
 }
 
 interface Booking {
@@ -54,6 +56,7 @@ interface Booking {
   voucher: string | null;
   external_reservation_id: string | null;
   created_at: string | null;
+  source?: "internal" | "pms";
 }
 
 const Bookings = () => {
@@ -62,10 +65,11 @@ const Bookings = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProperty, setSelectedProperty] = useState<string>("all");
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
+  const [dateFrom, setDateFrom] = useState<string>(format(subDays(new Date(), 30), "yyyy-MM-dd"));
+  const [dateTo, setDateTo] = useState<string>(format(addDays(new Date(), 60), "yyyy-MM-dd"));
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [syncingBookings, setSyncingBookings] = useState(false);
 
   const canViewAllProperties = isAdmin || isDev;
 
@@ -77,7 +81,7 @@ const Bookings = () => {
       try {
         let query = supabase
           .from("properties")
-          .select("id, name, slug")
+          .select("id, name, slug, external_system, benson_property_code")
           .eq("is_active", true)
           .is("permanently_deleted_at", null)
           .order("name");
@@ -108,7 +112,7 @@ const Bookings = () => {
     loadProperties();
   }, [user, canViewAllProperties]);
 
-  // Load bookings
+  // Load bookings from both internal bookings table and PMS reservations
   useEffect(() => {
     const loadBookings = async () => {
       if (!user) return;
@@ -124,48 +128,133 @@ const Bookings = () => {
           return;
         }
 
-        let query = supabase
+        // Fetch internal bookings
+        let internalQuery = supabase
           .from("bookings")
           .select("*")
           .order("check_in_date", { ascending: false });
 
-        // Filter by accessible properties for owners
         if (!canViewAllProperties && propertyIds.length > 0) {
-          query = query.in("property_id", propertyIds);
+          internalQuery = internalQuery.in("property_id", propertyIds);
         }
-
-        // Filter by selected property
         if (selectedProperty !== "all") {
-          query = query.eq("property_id", selectedProperty);
+          internalQuery = internalQuery.eq("property_id", selectedProperty);
         }
-
-        // Filter by date range
         if (dateFrom) {
-          query = query.gte("check_in_date", dateFrom);
+          internalQuery = internalQuery.gte("check_in_date", dateFrom);
         }
         if (dateTo) {
-          query = query.lte("check_in_date", dateTo);
+          internalQuery = internalQuery.lte("check_in_date", dateTo);
         }
-
-        // Filter by status
         if (statusFilter !== "all") {
-          query = query.eq("status", statusFilter);
+          internalQuery = internalQuery.eq("status", statusFilter.toLowerCase());
         }
 
-        const { data, error } = await query;
+        // Fetch PMS reservations
+        let pmsQuery = supabase
+          .from("pms_reservations")
+          .select("*")
+          .order("arrival_date", { ascending: false });
 
-        if (error) throw error;
+        if (!canViewAllProperties && propertyIds.length > 0) {
+          pmsQuery = pmsQuery.in("property_id", propertyIds);
+        }
+        if (selectedProperty !== "all") {
+          pmsQuery = pmsQuery.eq("property_id", selectedProperty);
+        }
+        if (dateFrom) {
+          pmsQuery = pmsQuery.gte("arrival_date", dateFrom);
+        }
+        if (dateTo) {
+          pmsQuery = pmsQuery.lte("arrival_date", dateTo);
+        }
+        if (statusFilter !== "all") {
+          pmsQuery = pmsQuery.ilike("status", `%${statusFilter}%`);
+        }
 
-        // Enrich bookings with property names
-        const enrichedBookings = (data || []).map(booking => {
+        const [internalResult, pmsResult] = await Promise.all([
+          internalQuery,
+          pmsQuery
+        ]);
+
+        if (internalResult.error) throw internalResult.error;
+        if (pmsResult.error) throw pmsResult.error;
+
+        // Transform internal bookings
+        const internalBookings: Booking[] = (internalResult.data || []).map(booking => {
           const property = properties.find(p => p.id === booking.property_id);
           return {
             ...booking,
-            property_name: property?.name || "Unknown Property"
+            property_name: property?.name || "Unknown Property",
+            source: "internal" as const
           };
         });
 
-        setBookings(enrichedBookings);
+        // Transform PMS reservations to match Booking interface
+        const pmsBookings: Booking[] = (pmsResult.data || []).map(res => {
+          const property = properties.find(p => p.id === res.property_id);
+          // Calculate guest counts from rooms or guests array
+          let adults = 0, teens = 0, children = 0, infants = 0;
+          if (res.rooms && Array.isArray(res.rooms)) {
+            res.rooms.forEach((room: any) => {
+              adults += room.numberOfAdults || 0;
+              teens += room.numberOfTeens || 0;
+              children += room.numberOfChildren || 0;
+              infants += room.numberOfInfants || 0;
+            });
+          }
+          
+          return {
+            id: res.id,
+            property_id: res.property_id,
+            property_name: property?.name || "Unknown Property",
+            check_in_date: res.arrival_date,
+            check_out_date: res.departure_date,
+            guest_name: res.contact_name || "Unknown Guest",
+            guest_email: res.contact_email || "",
+            guest_phone: res.contact_phone,
+            adults: adults || res.number_of_guests || 1,
+            teens,
+            children,
+            infants,
+            total_price: Number(res.total_amount) || 0,
+            status: res.status?.toLowerCase() || "unknown",
+            room_type_id: null,
+            rate_type_id: null,
+            rooms: res.rooms,
+            special_requests: null,
+            voucher: res.reservation_voucher,
+            external_reservation_id: res.external_reservation_id,
+            created_at: res.created_at,
+            source: "pms" as const
+          };
+        });
+
+        // Combine and deduplicate by external_reservation_id
+        const seenExternalIds = new Set<string>();
+        const allBookings: Booking[] = [];
+        
+        // Add PMS bookings first (they're the source of truth for external systems)
+        pmsBookings.forEach(booking => {
+          if (booking.external_reservation_id) {
+            seenExternalIds.add(booking.external_reservation_id);
+          }
+          allBookings.push(booking);
+        });
+        
+        // Add internal bookings that don't have a matching PMS reservation
+        internalBookings.forEach(booking => {
+          if (!booking.external_reservation_id || !seenExternalIds.has(booking.external_reservation_id)) {
+            allBookings.push(booking);
+          }
+        });
+
+        // Sort by check-in date descending
+        allBookings.sort((a, b) => 
+          new Date(b.check_in_date).getTime() - new Date(a.check_in_date).getTime()
+        );
+
+        setBookings(allBookings);
       } catch (error: any) {
         console.error("Error loading bookings:", error);
         toast.error("Failed to load bookings");
@@ -192,30 +281,38 @@ const Bookings = () => {
     );
   }, [bookings, searchTerm]);
 
-  // Stats
+  // Stats - normalize status comparisons (Benson uses uppercase, internal uses lowercase)
   const stats = useMemo(() => {
+    const normalizeStatus = (s: string) => s?.toLowerCase() || "";
     const total = filteredBookings.length;
-    const confirmed = filteredBookings.filter(b => b.status === "confirmed").length;
-    const pending = filteredBookings.filter(b => b.status === "pending").length;
-    const cancelled = filteredBookings.filter(b => b.status === "cancelled").length;
+    const confirmed = filteredBookings.filter(b => 
+      ["confirmed", "guaranteed", "checked-in"].includes(normalizeStatus(b.status))
+    ).length;
+    const pending = filteredBookings.filter(b => 
+      ["pending", "provisional"].includes(normalizeStatus(b.status))
+    ).length;
+    const cancelled = filteredBookings.filter(b => 
+      normalizeStatus(b.status) === "cancelled"
+    ).length;
     const totalRevenue = filteredBookings
-      .filter(b => b.status !== "cancelled")
+      .filter(b => normalizeStatus(b.status) !== "cancelled")
       .reduce((sum, b) => sum + Number(b.total_price), 0);
 
     return { total, confirmed, pending, cancelled, totalRevenue };
   }, [filteredBookings]);
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "confirmed":
-        return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Confirmed</Badge>;
-      case "pending":
-        return <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20">Pending</Badge>;
-      case "cancelled":
-        return <Badge className="bg-red-500/10 text-red-600 border-red-500/20">Cancelled</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
+    const normalized = status?.toLowerCase() || "";
+    if (["confirmed", "guaranteed", "checked-in"].includes(normalized)) {
+      return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">{status}</Badge>;
     }
+    if (["pending", "provisional"].includes(normalized)) {
+      return <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20">{status}</Badge>;
+    }
+    if (normalized === "cancelled") {
+      return <Badge className="bg-red-500/10 text-red-600 border-red-500/20">Cancelled</Badge>;
+    }
+    return <Badge variant="outline">{status}</Badge>;
   };
 
   const getTotalGuests = (booking: Booking) => {
@@ -224,24 +321,89 @@ const Bookings = () => {
 
   const clearFilters = () => {
     setSelectedProperty("all");
-    setDateFrom("");
-    setDateTo("");
+    setDateFrom(format(subDays(new Date(), 30), "yyyy-MM-dd"));
+    setDateTo(format(addDays(new Date(), 60), "yyyy-MM-dd"));
     setSearchTerm("");
     setStatusFilter("all");
   };
+
+  // Sync bookings from Benson API
+  const syncBensonBookings = async () => {
+    if (!selectedProperty || selectedProperty === "all") {
+      toast.error("Please select a specific property to sync");
+      return;
+    }
+
+    const property = properties.find(p => p.id === selectedProperty);
+    if (!property?.benson_property_code) {
+      toast.error("Selected property is not connected to Benson");
+      return;
+    }
+
+    setSyncingBookings(true);
+    try {
+      const startDate = dateFrom || format(subDays(new Date(), 30), "yyyy-MM-dd");
+      const endDate = dateTo || format(addDays(new Date(), 60), "yyyy-MM-dd");
+
+      const { data, error } = await supabase.functions.invoke("benson-api", {
+        body: {
+          action: "get_reservations",
+          property_id: selectedProperty,
+          start_date: startDate,
+          end_date: endDate,
+          statuses: ["PROVISIONAL", "CONFIRMED", "GUARANTEED", "CHECKED-IN", "CANCELLED"]
+        }
+      });
+
+      if (error) throw error;
+
+      const count = Array.isArray(data) ? data.length : 0;
+      toast.success(`Synced ${count} reservations from Benson`);
+      
+      // Reload bookings after sync
+      window.location.reload();
+    } catch (error: any) {
+      console.error("Error syncing bookings:", error);
+      toast.error(error.message || "Failed to sync bookings from Benson");
+    } finally {
+      setSyncingBookings(false);
+    }
+  };
+
+  // Check if selected property supports Benson sync
+  const selectedPropertyData = properties.find(p => p.id === selectedProperty);
+  const canSyncBenson = selectedProperty !== "all" && 
+    selectedPropertyData?.external_system === "benson" && 
+    selectedPropertyData?.benson_property_code;
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
 
       <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Bookings
-          </h1>
-          <p className="text-muted-foreground">
-            View and manage all reservations
-          </p>
+        <div className="flex justify-between items-start mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground mb-2">
+              Bookings
+            </h1>
+            <p className="text-muted-foreground">
+              View and manage all reservations
+            </p>
+          </div>
+          {canSyncBenson && (
+            <Button 
+              onClick={syncBensonBookings} 
+              disabled={syncingBookings}
+              variant="outline"
+            >
+              {syncingBookings ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CloudDownload className="h-4 w-4 mr-2" />
+              )}
+              Sync from Benson
+            </Button>
+          )}
         </div>
 
         {/* Stats Cards */}
