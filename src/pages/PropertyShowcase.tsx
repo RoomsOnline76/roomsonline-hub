@@ -97,6 +97,8 @@ export default function PropertyShowcase() {
       // Check if id is a UUID or slug
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || "");
       
+      console.log("PropertyShowcase: Fetching property", { id, isUuid });
+      
       // Fetch property by UUID or slug using public view (safe for unauthenticated users)
       let query = supabase
         .from("public_properties")
@@ -108,9 +110,15 @@ export default function PropertyShowcase() {
         query = query.eq("slug", id);
       }
       
-      const { data: propertyData, error: propertyError } = await query.single();
+      const { data: propertyData, error: propertyError } = await query.maybeSingle();
+
+      console.log("PropertyShowcase: Query result", { propertyData, propertyError });
 
       if (propertyError) throw propertyError;
+      if (!propertyData) {
+        console.error("PropertyShowcase: No property found for", { id, isUuid });
+        return;
+      }
       
       // Parse images
       const images = Array.isArray(propertyData.images) 
