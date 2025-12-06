@@ -714,7 +714,7 @@ const TestBookingBenson = () => {
 
                   {/* Guests */}
                   <Card className={cn(isOverCapacity && "border-destructive")}>
-                    <CardHeader>
+                    <CardHeader className="pb-3">
                       <CardTitle className="text-lg flex items-center justify-between">
                         <span>Guests</span>
                         {selectedRoomType && (
@@ -729,12 +729,18 @@ const TestBookingBenson = () => {
                           Exceeds max occupancy of {maxGuests} guests
                         </p>
                       )}
+                      {selectedRateType && minStay > 1 && (
+                        <p className="text-xs text-muted-foreground">
+                          Min stay rules apply ({minStay} nights required)
+                        </p>
+                      )}
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4">
                         {/* Adults */}
                         <div>
                           <Label>Adults</Label>
+                          <p className="text-xs text-muted-foreground mb-1">18+ years</p>
                           <div className="flex items-center gap-2">
                             <Button 
                               variant="outline" 
@@ -755,83 +761,83 @@ const TestBookingBenson = () => {
                           </div>
                         </div>
                         
-                        {/* Teens */}
-                        <div>
-                          <Label className={cn(!selectedRoomType?.allow_teens && "text-muted-foreground")}>
-                            Teens {!selectedRoomType?.allow_teens && "(N/A)"}
-                          </Label>
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              onClick={() => setTeens(Math.max(0, teens - 1))}
-                              disabled={!selectedRoomType?.allow_teens}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <span className="w-8 text-center font-medium">{teens}</span>
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              onClick={() => setTeens(teens + 1)}
-                              disabled={!selectedRoomType?.allow_teens || totalGuests >= maxGuests}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
+                        {/* Teens - only show if allowed */}
+                        {selectedRoomType?.allow_teens !== false && (
+                          <div>
+                            <Label>Teens</Label>
+                            <p className="text-xs text-muted-foreground mb-1">13-17 years</p>
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                onClick={() => setTeens(Math.max(0, teens - 1))}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <span className="w-8 text-center font-medium">{teens}</span>
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                onClick={() => setTeens(teens + 1)}
+                                disabled={totalGuests >= maxGuests}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                        </div>
+                        )}
                         
-                        {/* Children */}
-                        <div>
-                          <Label className={cn(!selectedRoomType?.allow_children && "text-muted-foreground")}>
-                            Children {!selectedRoomType?.allow_children && "(N/A)"}
-                          </Label>
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              onClick={() => setChildren(Math.max(0, children - 1))}
-                              disabled={!selectedRoomType?.allow_children}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <span className="w-8 text-center font-medium">{children}</span>
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              onClick={() => setChildren(children + 1)}
-                              disabled={!selectedRoomType?.allow_children || totalGuests >= maxGuests}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
+                        {/* Children - only show if allowed */}
+                        {selectedRoomType?.allow_children !== false && (
+                          <div>
+                            <Label>Children</Label>
+                            <p className="text-xs text-muted-foreground mb-1">2-12 years</p>
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                onClick={() => setChildren(Math.max(0, children - 1))}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <span className="w-8 text-center font-medium">{children}</span>
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                onClick={() => setChildren(children + 1)}
+                                disabled={totalGuests >= maxGuests}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                        </div>
+                        )}
                         
-                        {/* Infants */}
-                        <div>
-                          <Label className={cn(!selectedRoomType?.allow_infants && "text-muted-foreground")}>
-                            Infants {!selectedRoomType?.allow_infants && "(N/A)"}
-                          </Label>
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              onClick={() => setInfants(Math.max(0, infants - 1))}
-                              disabled={!selectedRoomType?.allow_infants}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <span className="w-8 text-center font-medium">{infants}</span>
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              onClick={() => setInfants(infants + 1)}
-                              disabled={!selectedRoomType?.allow_infants || totalGuests >= maxGuests}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
+                        {/* Infants - only show if allowed */}
+                        {selectedRoomType?.allow_infants !== false && (
+                          <div>
+                            <Label>Infants</Label>
+                            <p className="text-xs text-muted-foreground mb-1">Under 2 years</p>
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                onClick={() => setInfants(Math.max(0, infants - 1))}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <span className="w-8 text-center font-medium">{infants}</span>
+                              <Button 
+                                variant="outline" 
+                                size="icon" 
+                                onClick={() => setInfants(infants + 1)}
+                                disabled={totalGuests >= maxGuests}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
