@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { Resend } from "https://esm.sh/resend@2.0.0";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+
+const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -70,21 +73,93 @@ serve(async (req) => {
     
     const { email } = validationResult.data;
 
-    // Send password reset email
-    const redirectUrl = `${Deno.env.get('SUPABASE_URL')}/auth/v1/verify`;
-    const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-      redirectTo: redirectUrl,
+    // Get the user's name from profiles
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('full_name')
+      .eq('email', email)
+      .maybeSingle();
+
+    const userName = profile?.full_name || 'User';
+
+    // Generate password reset link with correct redirect URL
+    const redirectUrl = 'https://sleepinafrica.roomsonline.co.za/auth';
+    
+    const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email: email,
+      options: {
+        redirectTo: redirectUrl,
+      }
     });
 
     if (resetError) {
-      console.error('Reset password error:', resetError);
+      console.error('Generate reset link error:', resetError);
       return new Response(
-        JSON.stringify({ error: 'Unable to send password reset email' }),
+        JSON.stringify({ error: 'Unable to generate password reset link' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Password reset email sent to:', email);
+    // Fetch configurable email addresses from api_keys table
+    const { data: emailConfig } = await supabaseAdmin
+      .from("api_keys")
+      .select("key_name, key_value")
+      .in("key_name", ["RESEND_FROM_EMAIL"]);
+
+    const fromEmailConfig = emailConfig?.find((k: any) => k.key_name === "RESEND_FROM_EMAIL")?.key_value;
+    const fromEmail = fromEmailConfig || "RoomsOnline <noreply@notify.roomsonline.co.za>";
+
+    // The action link from Supabase
+    const resetLink = resetData.properties.action_link;
+
+    console.log('Sending password reset email to:', email);
+
+    // Send custom password reset email via Resend
+    const emailResponse = await resend.emails.send({
+      from: fromEmail,
+      to: [email],
+      subject: "Password Reset Request - RoomsOnline",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">Password Reset Request</h2>
+          <p>Hi ${userName},</p>
+          <p>We received a request to reset your password for your RoomsOnline account. Click the button below to set a new password:</p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetLink}" 
+               style="display: inline-block; background: #e91e63; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+              Reset Password
+            </a>
+          </div>
+          
+          <p style="color: #666; font-size: 14px;">
+            If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.
+          </p>
+          
+          <p style="color: #666; font-size: 14px;">
+            This link will expire in 24 hours for security reasons.
+          </p>
+          
+          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
+          
+          <p style="color: #999; font-size: 12px;">
+            Best regards,<br>
+            The RoomsOnline Team
+          </p>
+        </div>
+      `,
+    });
+
+    if (emailResponse.error) {
+      console.error('Resend email error:', emailResponse.error);
+      return new Response(
+        JSON.stringify({ error: 'Unable to send password reset email' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('Password reset email sent successfully to:', email);
 
     return new Response(
       JSON.stringify({ message: 'Password reset email sent successfully' }),
