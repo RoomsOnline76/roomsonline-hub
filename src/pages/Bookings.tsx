@@ -57,6 +57,7 @@ interface Booking {
   room_type_id: string | null;
   rate_type_id: string | null;
   rooms: any;
+  charges?: any[];
   special_requests: string | null;
   voucher: string | null;
   external_reservation_id: string | null;
@@ -671,8 +672,15 @@ const Bookings = () => {
                                         ? Math.ceil((new Date(room.departureDate).getTime() - new Date(room.arrivalDate).getTime()) / (1000 * 60 * 60 * 24))
                                         : Math.ceil((new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) / (1000 * 60 * 60 * 24));
                                       
-                                      const roomTotal = room.totalAmount || room.roomTotal || 0;
-                                      const hasLineItems = room.lineItems && Array.isArray(room.lineItems) && room.lineItems.length > 0;
+                                      // Get charges for this room from booking.charges (Benson data structure)
+                                      const bookingCharges = booking.charges || [];
+                                      const roomCharges = bookingCharges.filter((charge: any) => 
+                                        charge.roomName === room.roomName
+                                      );
+                                      const roomTotal = roomCharges.reduce((sum: number, charge: any) => 
+                                        sum + (Number(charge.amount) || 0), 0
+                                      ) || room.totalAmount || room.roomTotal || 0;
+                                      const hasCharges = roomCharges.length > 0;
                                       
                                       return (
                                         <div key={index} className="p-3 bg-background rounded-lg border">
@@ -697,15 +705,18 @@ const Bookings = () => {
                                             </div>
                                           </div>
                                           
-                                          {/* Cost line items if available */}
-                                          {hasLineItems && (
+                                          {/* Cost line items from charges */}
+                                          {hasCharges && (
                                             <div className="mt-3 pt-3 border-t">
                                               <p className="text-xs font-medium text-muted-foreground mb-2">Cost Breakdown</p>
                                               <div className="space-y-1">
-                                                {room.lineItems.map((item: any, itemIdx: number) => (
-                                                  <div key={itemIdx} className="flex justify-between text-sm">
-                                                    <span className="text-muted-foreground">{item.description}</span>
-                                                    <span>R{Number(item.total || 0).toLocaleString()}</span>
+                                                {roomCharges.map((charge: any, chargeIdx: number) => (
+                                                  <div key={chargeIdx} className="flex justify-between text-sm">
+                                                    <span className="text-muted-foreground">
+                                                      {charge.chargeTypeName} - {format(parseISO(charge.date), "dd MMM")}
+                                                      {charge.tax > 0 && ` (incl. R${Number(charge.tax).toFixed(2)} tax)`}
+                                                    </span>
+                                                    <span>R{Number(charge.amount || charge.price || 0).toLocaleString()}</span>
                                                   </div>
                                                 ))}
                                               </div>
