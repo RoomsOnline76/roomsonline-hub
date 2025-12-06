@@ -733,7 +733,9 @@ const TestBookingBenson = () => {
                           onValueChange={setSelectedRoomTypeId}
                           disabled={!availabilityData || !selectedPropertyId}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className={cn(
+                            selectedRoomType?.available_units === 0 && "border-amber-500"
+                          )}>
                             <SelectValue placeholder="Select room type..." />
                           </SelectTrigger>
                           <SelectContent>
@@ -754,6 +756,14 @@ const TestBookingBenson = () => {
                             ))}
                           </SelectContent>
                         </Select>
+                        {selectedRoomType && selectedRoomType.available_units === 0 && (
+                          <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md flex items-start gap-2">
+                            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-amber-700 dark:text-amber-300">
+                              No rooms available for the full date range selected. Some nights may be blocked or fully booked.
+                            </p>
+                          </div>
+                        )}
                       </div>
                       <div>
                         <Label>Rate Type</Label>
