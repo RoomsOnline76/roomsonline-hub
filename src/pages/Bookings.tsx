@@ -655,45 +655,72 @@ const Bookings = () => {
                               {booking.external_reservation_id || booking.id.slice(0, 8)}
                             </TableCell>
                           </TableRow>
-                          {/* Expanded room details */}
+                          {/* Expanded room details with cost breakdown */}
                           {isExpanded && hasMultipleRooms && (
                             <TableRow key={`${booking.id}-details`} className="bg-muted/30">
                               <TableCell colSpan={8} className="p-4">
                                 <div className="space-y-2">
-                                  <p className="text-sm font-medium text-muted-foreground mb-3">Room Details</p>
+                                  <p className="text-sm font-medium text-muted-foreground mb-3">Room Details & Cost Breakdown</p>
                                   <div className="grid gap-3">
-                                    {rooms.map((room: any, index: number) => (
-                                      <div key={index} className="flex items-start gap-4 p-3 bg-background rounded-lg border">
-                                        <Bed className="h-5 w-5 text-muted-foreground mt-0.5" />
-                                        <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                          <div>
-                                            <p className="text-muted-foreground">Room Type</p>
-                                            <p className="font-medium">{room.roomTypeName || room.roomName || `Room ${index + 1}`}</p>
+                                    {rooms.map((room: any, index: number) => {
+                                      const roomDates = {
+                                        checkIn: room.arrivalDate || booking.check_in_date,
+                                        checkOut: room.departureDate || booking.check_out_date,
+                                      };
+                                      const nights = room.arrivalDate && room.departureDate
+                                        ? Math.ceil((new Date(room.departureDate).getTime() - new Date(room.arrivalDate).getTime()) / (1000 * 60 * 60 * 24))
+                                        : Math.ceil((new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) / (1000 * 60 * 60 * 24));
+                                      
+                                      const roomTotal = room.totalAmount || room.roomTotal || 0;
+                                      const hasLineItems = room.lineItems && Array.isArray(room.lineItems) && room.lineItems.length > 0;
+                                      
+                                      return (
+                                        <div key={index} className="p-3 bg-background rounded-lg border">
+                                          <div className="flex items-start justify-between gap-4">
+                                            <div className="flex items-start gap-3">
+                                              <Bed className="h-5 w-5 text-muted-foreground mt-0.5" />
+                                              <div>
+                                                <p className="font-medium">{room.roomTypeName || room.roomName || `Room ${index + 1}`}</p>
+                                                <p className="text-sm text-muted-foreground">
+                                                  {format(parseISO(roomDates.checkIn), "dd MMM")} → {format(parseISO(roomDates.checkOut), "dd MMM")} ({nights} nights)
+                                                </p>
+                                              </div>
+                                            </div>
+                                            <div className="text-right">
+                                              <p className="font-bold">R{Number(roomTotal).toLocaleString()}</p>
+                                              <p className="text-xs text-muted-foreground">
+                                                {room.numberOfAdults || 0}A
+                                                {(room.numberOfTeens || 0) > 0 && `, ${room.numberOfTeens}T`}
+                                                {(room.numberOfChildren || 0) > 0 && `, ${room.numberOfChildren}C`}
+                                                {(room.numberOfInfants || 0) > 0 && `, ${room.numberOfInfants}I`}
+                                              </p>
+                                            </div>
                                           </div>
-                                          <div>
-                                            <p className="text-muted-foreground">Dates</p>
-                                            <p className="font-medium">
-                                              {room.arrivalDate ? format(parseISO(room.arrivalDate), "dd MMM") : format(parseISO(booking.check_in_date), "dd MMM")}
-                                              {" → "}
-                                              {room.departureDate ? format(parseISO(room.departureDate), "dd MMM") : format(parseISO(booking.check_out_date), "dd MMM")}
+                                          
+                                          {/* Cost line items if available */}
+                                          {hasLineItems && (
+                                            <div className="mt-3 pt-3 border-t">
+                                              <p className="text-xs font-medium text-muted-foreground mb-2">Cost Breakdown</p>
+                                              <div className="space-y-1">
+                                                {room.lineItems.map((item: any, itemIdx: number) => (
+                                                  <div key={itemIdx} className="flex justify-between text-sm">
+                                                    <span className="text-muted-foreground">{item.description}</span>
+                                                    <span>R{Number(item.total || 0).toLocaleString()}</span>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                          
+                                          {/* Rate type info if available */}
+                                          {room.rateTypeName && (
+                                            <p className="text-xs text-muted-foreground mt-2">
+                                              Rate: {room.rateTypeName}
                                             </p>
-                                          </div>
-                                          <div>
-                                            <p className="text-muted-foreground">Guests</p>
-                                            <p className="font-medium">
-                                              {room.numberOfAdults || 0}A
-                                              {(room.numberOfTeens || 0) > 0 && `, ${room.numberOfTeens}T`}
-                                              {(room.numberOfChildren || 0) > 0 && `, ${room.numberOfChildren}C`}
-                                              {(room.numberOfInfants || 0) > 0 && `, ${room.numberOfInfants}I`}
-                                            </p>
-                                          </div>
-                                          <div>
-                                            <p className="text-muted-foreground">Status</p>
-                                            <p className="font-medium">{room.status || "—"}</p>
-                                          </div>
+                                          )}
                                         </div>
-                                      </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               </TableCell>
