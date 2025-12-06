@@ -560,21 +560,25 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
 
   // Trigger PMS sync when property changes and data is available
   useEffect(() => {
-    // Wait until properties are loaded and we have selectedPropertyData
+    // Wait until properties are loaded and we have the selected property in the list
     if (!selectedProperty || properties.length === 0) return;
     
-    if (isPmsProperty) {
-      // Only fetch if we don't already have data for this property
-      if (pmsData.roomTypes.length === 0) {
-        fetchPmsAvailability(false); // Load from cache first
-      }
+    // Make sure selectedPropertyData is actually found in properties
+    const propertyData = properties.find(p => p.id === selectedProperty);
+    if (!propertyData) return;
+    
+    const isPms = !!propertyData.external_system;
+    
+    if (isPms) {
+      // Always fetch on property change - the function will handle caching
+      fetchPmsAvailability(false);
     } else {
-      // Only clear if switching to a non-PMS property
+      // Clear data for non-PMS properties
       setPmsSyncStatus("idle");
       setPmsData({ roomTypes: [], lastSynced: null, systemType: "" });
       sessionStorage.removeItem(`pms_data_${selectedProperty}`);
     }
-  }, [selectedProperty, isPmsProperty, properties.length]);
+  }, [selectedProperty, properties, fetchPmsAvailability]);
 
   const checkUserRoleAndFetchProperties = async () => {
     try {
