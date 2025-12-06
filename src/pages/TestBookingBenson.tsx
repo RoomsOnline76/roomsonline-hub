@@ -953,25 +953,50 @@ const TestBookingBenson = () => {
                     <CardContent className="space-y-4">
                       <div>
                         <Label>Name *</Label>
-                        <Input value={guestName} onChange={(e) => setGuestName(e.target.value)} />
+                        <Input 
+                          value={guestName} 
+                          onChange={(e) => setGuestName(e.target.value)} 
+                          className={cn(!guestName.trim() && "border-destructive")}
+                          placeholder="Guest full name"
+                        />
+                        {!guestName.trim() && (
+                          <p className="text-xs text-destructive mt-1">Name is required</p>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <Label>Email *</Label>
-                          <Input type="email" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} />
+                          <Input 
+                            type="email" 
+                            value={guestEmail} 
+                            onChange={(e) => setGuestEmail(e.target.value)} 
+                            className={cn(!guestEmail.trim() && "border-destructive")}
+                            placeholder="email@example.com"
+                          />
+                          {!guestEmail.trim() && (
+                            <p className="text-xs text-destructive mt-1">Email is required</p>
+                          )}
                         </div>
                         <div>
                           <Label>Phone *</Label>
-                          <Input value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} />
+                          <Input 
+                            value={guestPhone} 
+                            onChange={(e) => setGuestPhone(e.target.value)} 
+                            className={cn(!guestPhone.trim() && "border-destructive")}
+                            placeholder="+27..."
+                          />
+                          {!guestPhone.trim() && (
+                            <p className="text-xs text-destructive mt-1">Phone is required</p>
+                          )}
                         </div>
                       </div>
                       <div>
                         <Label>Voucher Code (optional)</Label>
-                        <Input value={voucher} onChange={(e) => setVoucher(e.target.value)} />
+                        <Input value={voucher} onChange={(e) => setVoucher(e.target.value)} placeholder="Enter voucher code" />
                       </div>
                       <div>
                         <Label>Notes (optional)</Label>
-                        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
+                        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Special requests or notes..." />
                       </div>
                     </CardContent>
                   </Card>
@@ -1071,7 +1096,7 @@ const TestBookingBenson = () => {
                       )}
                       <Button 
                         onClick={submitBooking} 
-                        disabled={submitting || !selectedPropertyId || !selectedRoomTypeId || !selectedRateTypeId || isOverCapacity || isUnderCapacity || isUnderMinStay || isOverMaxStay}
+                        disabled={submitting || !selectedPropertyId || !selectedRoomTypeId || !selectedRateTypeId || isOverCapacity || isUnderCapacity || isUnderMinStay || isOverMaxStay || !guestName.trim() || !guestEmail.trim() || !guestPhone.trim()}
                         className="w-full"
                         size="lg"
                       >
