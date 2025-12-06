@@ -345,10 +345,11 @@ const TestBookingBenson = () => {
 
       // Process each night
       const rates = rateType.rates || [];
-      const priceType = rateType.priceType || 'PER ROOM';
-
-      if (priceType === 'PER ROOM') {
-        // Per room pricing
+      const priceType = (rateType.priceType || 'PER ROOM').toUpperCase();
+      
+      if (priceType === 'PER ROOM' || priceType === 'PERROOM') {
+        // Per room pricing - total is just sum of roomAmount for each night
+        // NOT multiplied by number of guests
         let totalRoomAmount = 0;
         rates.forEach((rate: any) => {
           totalRoomAmount += rate.roomAmount || 0;
@@ -356,39 +357,41 @@ const TestBookingBenson = () => {
         
         if (totalRoomAmount > 0) {
           lineItems.push({
-            description: `Room Rate (${rateType.name})`,
+            description: `Room Rate (${rateType.name}) - ${totalGuests} guests`,
             nights: nights,
-            quantity: 1,
+            quantity: 1, // Room rate is per room, not per person
             unitPrice: totalRoomAmount / nights,
             total: totalRoomAmount,
           });
           runningTotal += totalRoomAmount;
         }
       } else {
-        // Per person pricing
+        // Per person pricing - sum per-person amounts across nights
         let totalAdultAmount = 0;
         let totalTeenAmount = 0;
         let totalChildAmount = 0;
         let totalInfantAmount = 0;
 
         rates.forEach((rate: any) => {
-          // Use appropriate adult rate based on number of adults
-          if (adults === 1 && rate.adultAmount1) {
-            totalAdultAmount += rate.adultAmount1;
-          } else if (adults >= 2 && rate.adultAmount2) {
-            totalAdultAmount += rate.adultAmount2 * adults;
-          } else if (rate.adultAmount1) {
-            totalAdultAmount += rate.adultAmount1 * adults;
+          // Benson uses adultAmount1 (1 adult) or adultAmount2 (2 adults sharing) or just adultAmount
+          // If 1 adult: use adultAmount1 or adultAmount
+          // If 2+ adults: use adultAmount2 (per person for 2 sharing) or adultAmount
+          if (adults === 1) {
+            totalAdultAmount += rate.adultAmount1 || rate.adultAmount || 0;
+          } else if (adults >= 2) {
+            // adultAmount2 is per-person rate for 2 adults sharing, multiply by number of adults
+            const perPersonRate = rate.adultAmount2 || rate.adultAmount || 0;
+            totalAdultAmount += perPersonRate * adults;
           }
           
-          if (teens > 0 && rate.teenAmount) {
-            totalTeenAmount += rate.teenAmount * teens;
+          if (teens > 0) {
+            totalTeenAmount += (rate.teenAmount || 0) * teens;
           }
-          if (children > 0 && rate.childAmount) {
-            totalChildAmount += rate.childAmount * children;
+          if (children > 0) {
+            totalChildAmount += (rate.childAmount || 0) * children;
           }
-          if (infants > 0 && rate.infantAmount) {
-            totalInfantAmount += rate.infantAmount * infants;
+          if (infants > 0) {
+            totalInfantAmount += (rate.infantAmount || 0) * infants;
           }
         });
 
