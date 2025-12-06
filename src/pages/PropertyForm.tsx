@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RoomTypeDataViewer, ExpandableDataViewer, RateTypeItem } from "@/components/ExpandableDataViewer";
@@ -141,6 +142,7 @@ export default function PropertyForm() {
   const navigate = useNavigate();
   const { id } = useParams(); // Can be UUID or slug
   const { toast } = useToast();
+  const { isDev } = useAuth();
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [owners, setOwners] = useState<any[]>([]);
@@ -4653,7 +4655,7 @@ export default function PropertyForm() {
                       <TabsTrigger value="season">Seasons</TabsTrigger>
                       <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
                       <TabsTrigger value="overview">Overview</TabsTrigger>
-                      <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>
+                      {isDev && <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>}
                     </TabsList>
 
                     {/* Rate Types Sub-tab */}
@@ -5635,28 +5637,30 @@ export default function PropertyForm() {
                       })()}
                     </TabsContent>
 
-                    {/* Data Explorer Sub-tab */}
-                    <TabsContent value="data-explorer" className="p-6 space-y-4">
-                      {(() => {
-                        const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
-                        if (!currentRoom) {
+                    {/* Data Explorer Sub-tab - Dev only */}
+                    {isDev && (
+                      <TabsContent value="data-explorer" className="p-6 space-y-4">
+                        {(() => {
+                          const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
+                          if (!currentRoom) {
+                            return (
+                              <div className="border rounded-lg p-8 text-center text-muted-foreground">
+                                <Info className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                <p>Select a room type to explore its data.</p>
+                              </div>
+                            );
+                          }
                           return (
-                            <div className="border rounded-lg p-8 text-center text-muted-foreground">
-                              <Info className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                              <p>Select a room type to explore its data.</p>
-                            </div>
+                            <>
+                              <p className="text-sm text-muted-foreground">
+                                Raw data explorer for <strong>{currentRoom.name}</strong>
+                              </p>
+                              <RoomTypeDataViewer room={currentRoom} rateTypes={pmsRateTypes} />
+                            </>
                           );
-                        }
-                        return (
-                          <>
-                            <p className="text-sm text-muted-foreground">
-                              Raw data explorer for <strong>{currentRoom.name}</strong>
-                            </p>
-                            <RoomTypeDataViewer room={currentRoom} rateTypes={pmsRateTypes} />
-                          </>
-                        );
-                      })()}
-                    </TabsContent>
+                        })()}
+                      </TabsContent>
+                    )}
                   </Tabs>
                 </div>
               </div>
