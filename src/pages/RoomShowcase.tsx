@@ -255,19 +255,27 @@ export default function RoomShowcase() {
   // Get room-specific meal types, not property-wide
   const roomMealTypes = room.mealTypes || [];
 
-  // Build occupancy display string
+  // Build occupancy display string - clarify whether it's adults AND children or adults OR children
   const buildOccupancyString = () => {
-    const parts: string[] = [];
     const maxPeople = room.maxPeople || 2;
     
+    // If both maxAdults and maxChildren are defined and non-zero
     if (room.maxAdults && room.maxChildren !== undefined && room.maxChildren > 0) {
-      parts.push(`${room.maxAdults} Adult${room.maxAdults > 1 ? 's' : ''}`);
-      parts.push(`${room.maxChildren} Child${room.maxChildren > 1 ? 'ren' : ''}`);
-      return `Max ${maxPeople} persons (${parts.join(' + ')})`;
+      // Check if combined or separate capacity
+      const combined = room.maxAdults + room.maxChildren;
+      if (combined === maxPeople) {
+        // It's maxAdults + maxChildren = total
+        return `Max ${maxPeople} guests (${room.maxAdults} adult${room.maxAdults > 1 ? 's' : ''} + ${room.maxChildren} child${room.maxChildren > 1 ? 'ren' : ''})`;
+      } else if (room.maxAdults === maxPeople || room.maxChildren === maxPeople) {
+        // It's either/or scenario
+        return `Max ${maxPeople} guests (${room.maxAdults} adult${room.maxAdults > 1 ? 's' : ''} or ${room.maxChildren} child${room.maxChildren > 1 ? 'ren' : ''})`;
+      }
+      // Default combined display
+      return `Max ${maxPeople} guests (${room.maxAdults} adult${room.maxAdults > 1 ? 's' : ''} + ${room.maxChildren} child${room.maxChildren > 1 ? 'ren' : ''})`;
     } else if (room.maxAdults) {
-      return `Max ${maxPeople} persons (${room.maxAdults} Adult${room.maxAdults > 1 ? 's' : ''})`;
+      return `Max ${maxPeople} guests (${room.maxAdults} adult${room.maxAdults > 1 ? 's' : ''})`;
     }
-    return `Max ${maxPeople} persons`;
+    return `Max ${maxPeople} guests`;
   };
 
   return (
@@ -436,14 +444,13 @@ export default function RoomShowcase() {
                     <span className="font-medium">{buildOccupancyString()}</span>
                   </div>
 
-                  {/* Stay Requirements - only show if minStay > 1 or maxStay > 0 */}
-                  {((room.minStay && room.minStay > 1) || (room.maxStay && room.maxStay > 0)) && (
+                  {/* Stay Requirements - only show if minStay > 1, hide maxStay if 0 or unavailable */}
+                  {(room.minStay && room.minStay > 1) && (
                     <div className="flex items-center gap-3">
                       <Moon className="h-5 w-5 text-primary" />
                       <span className="font-medium">
-                        {room.minStay && room.minStay > 1 && `Min Stay ${room.minStay} night(s)`}
-                        {room.minStay && room.minStay > 1 && room.maxStay && room.maxStay > 0 && ' | '}
-                        {room.maxStay && room.maxStay > 0 && `Max Stay ${room.maxStay} night(s)`}
+                        Min Stay {room.minStay} night{room.minStay > 1 ? 's' : ''}
+                        {room.maxStay && room.maxStay > 0 && ` | Max Stay ${room.maxStay} night${room.maxStay > 1 ? 's' : ''}`}
                       </span>
                     </div>
                   )}
@@ -642,7 +649,7 @@ export default function RoomShowcase() {
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold mb-4">Rates</h3>
                 
-                {rates.length > 0 && (
+                {rates.length > 0 ? (
                   <div className="space-y-3">
                     {rates.map((rate, idx) => (
                       <div 
@@ -661,6 +668,8 @@ export default function RoomShowcase() {
                       </div>
                     ))}
                   </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No rates currently available</p>
                 )}
 
                 <Separator className="my-6" />
