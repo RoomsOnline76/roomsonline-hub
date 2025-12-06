@@ -224,7 +224,7 @@ export const Navbar = () => {
                     <div className="flex flex-col items-start">
                       <span className="text-sm font-medium">{profile?.full_name || profile?.email || user.email}</span>
                       <span className="text-xs text-muted-foreground capitalize">
-                        {isAdmin ? "Admin" : isDev ? "Dev" : "Property Owner"}
+                        {isDev ? "Dev" : isAdmin ? "Admin" : "Property Owner"}
                       </span>
                     </div>
                     <ChevronDown className="h-4 w-4" />
