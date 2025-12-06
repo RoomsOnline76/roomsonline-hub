@@ -343,8 +343,9 @@ const TestBookingBenson = () => {
       const lineItems: CostLineItem[] = [];
       let runningTotal = 0;
 
-      // Process each night
-      const rates = rateType.rates || [];
+      // Process rates - only use rates for the selected nights (first N entries)
+      const allRates = rateType.rates || [];
+      const rates = allRates.slice(0, nights); // Only take rates for the selected nights
       const priceType = (rateType.priceType || 'PER ROOM').toUpperCase();
       
       if (priceType === 'PER ROOM' || priceType === 'PERROOM') {
@@ -367,7 +368,7 @@ const TestBookingBenson = () => {
         }
       } else {
         // Per person pricing
-        // adultAmount1 = rate for 1 adult
+        // adultAmount1 = rate for 1 adult (or adultAmount2 / 2 if not available)
         // adultAmount2 = TOTAL rate for 2 adults (NOT per person - it's the combined rate)
         // teenAmount, childAmount, infantAmount = per person rates
         let totalAdultAmount = 0;
@@ -415,9 +416,8 @@ const TestBookingBenson = () => {
         }
 
         if (totalTeenAmount > 0 && teens > 0) {
-          // Unit price is the per-person rate from API (total / nights / count)
-          const ratesCount = rates.length || 1;
-          const perPersonPerNight = totalTeenAmount / ratesCount / teens;
+          // Unit price is the per-person rate from API
+          const perPersonPerNight = totalTeenAmount / nights / teens;
           lineItems.push({
             description: `Teen Rate (${teens} teen${teens > 1 ? 's' : ''})`,
             nights: nights,
@@ -429,8 +429,7 @@ const TestBookingBenson = () => {
         }
 
         if (totalChildAmount > 0 && children > 0) {
-          const ratesCount = rates.length || 1;
-          const perPersonPerNight = totalChildAmount / ratesCount / children;
+          const perPersonPerNight = totalChildAmount / nights / children;
           lineItems.push({
             description: `Child Rate (${children} child${children > 1 ? 'ren' : ''})`,
             nights: nights,
@@ -442,8 +441,7 @@ const TestBookingBenson = () => {
         }
 
         if (totalInfantAmount > 0 && infants > 0) {
-          const ratesCount = rates.length || 1;
-          const perPersonPerNight = totalInfantAmount / ratesCount / infants;
+          const perPersonPerNight = totalInfantAmount / nights / infants;
           lineItems.push({
             description: `Infant Rate (${infants} infant${infants > 1 ? 's' : ''})`,
             nights: nights,
