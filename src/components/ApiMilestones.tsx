@@ -72,8 +72,8 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     pullAvailability: true,
     // ✅ Data caching working - pms_availability_cache populated
     syncIn: true,
-    // 🟠 createReservation/postBill functions implemented - PENDING: testing
-    pushBooking: 'pending',
+    // ✅ createReservation/postBill tested and working
+    pushBooking: true,
     // ❌ Not yet live in production
     liveMonitor: false,
   },
@@ -174,7 +174,6 @@ export function ApiMilestones({ systemType, className }: ApiMilestonesProps) {
     healthCheck: false,
     pullAvailability: false,
     syncIn: false,
-    pullBookings: false,
     pushBooking: false,
     liveMonitor: false,
   };
