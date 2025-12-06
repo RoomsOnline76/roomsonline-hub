@@ -378,7 +378,29 @@ const PropertyOverview = () => {
                     <TableBody>
                       {activeProperties.map((property) => (
                         <TableRow key={property.id}>
-                          <TableCell className="font-medium">{property.name}</TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => window.open(getPropertyUrl(property.slug || property.id), "_blank")}
+                                title="View Property Showcase"
+                              >
+                                <Home className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => navigate(`/admin/properties/${property.slug || property.id}`)}
+                                title="Edit Property"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <span>{property.name}</span>
+                            </div>
+                          </TableCell>
                           <TableCell>
                             {property.external_system ? (
                               <Badge variant="outline" className="capitalize">
@@ -419,32 +441,14 @@ const PropertyOverview = () => {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => window.open(getPropertyUrl(property.slug || property.id), "_blank")}
-                                title="View Property Showcase"
-                              >
-                                <Home className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => navigate(`/admin/properties/${property.slug || property.id}`)}
-                                title="Edit Property"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDeleteProperty(property.id)}
-                                title="Delete Property"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteProperty(property.id)}
+                              title="Delete Property"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
