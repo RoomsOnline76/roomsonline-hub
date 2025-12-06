@@ -286,9 +286,17 @@ const TestBookingBenson = () => {
   };
 
   // Validation helpers per room
-  const getRoomValidation = (room: BookingRoom) => {
+  const getRoomValidation = (room: BookingRoom, roomIndex: number) => {
     const roomType = roomTypes.find(rt => rt.external_room_type_id === room.roomTypeId);
-    const rateType = getRateTypesForRoom(room.roomTypeId).find(rt => rt.external_rate_type_id === room.rateTypeId);
+    
+    // For rate type validation, always use the first room's rate type since it's global
+    // But look up the rate in the CURRENT room's available rates (since same rate ID may have different constraints per room type)
+    const firstRoomRateTypeId = bookingRooms[0]?.rateTypeId;
+    const rateType = getRateTypesForRoom(room.roomTypeId).find(rt => rt.external_rate_type_id === firstRoomRateTypeId);
+    
+    // Check if the selected global rate type is available for this room type
+    const rateTypeAvailableForRoom = roomIndex === 0 || !firstRoomRateTypeId || 
+      getRateTypesForRoom(room.roomTypeId).some(rt => rt.external_rate_type_id === firstRoomRateTypeId);
     
     const totalGuests = room.adults + room.teens + room.children + room.infants;
     const maxGuests = roomType?.max_guests || 10;
@@ -309,6 +317,7 @@ const TestBookingBenson = () => {
       isUnderCapacity: totalGuests < minGuests,
       isUnderMinStay: roomNights > 0 && roomNights < minStay,
       isOverMaxStay: roomNights > maxStay,
+      rateTypeUnavailable: !rateTypeAvailableForRoom,
       minStay,
       maxStay,
       roomNights,
@@ -316,9 +325,9 @@ const TestBookingBenson = () => {
   };
 
   // Check if any room has validation errors
-  const hasValidationErrors = bookingRooms.some(room => {
-    const validation = getRoomValidation(room);
-    return !room.roomTypeId || !room.rateTypeId || validation.isOverCapacity || validation.isUnderCapacity || validation.isUnderMinStay || validation.isOverMaxStay;
+  const hasValidationErrors = bookingRooms.some((room, index) => {
+    const validation = getRoomValidation(room, index);
+    return !room.roomTypeId || !room.rateTypeId || validation.isOverCapacity || validation.isUnderCapacity || validation.isUnderMinStay || validation.isOverMaxStay || validation.rateTypeUnavailable;
   });
 
   // Calculate grand totals across all rooms
@@ -868,9 +877,9 @@ const TestBookingBenson = () => {
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {bookingRooms.map((room, index) => {
-                        const validation = getRoomValidation(room);
+                        const validation = getRoomValidation(room, index);
                         const rateTypesForRoom = getRateTypesForRoom(room.roomTypeId);
-                        const hasErrors = validation.isOverCapacity || validation.isUnderCapacity || validation.isUnderMinStay || validation.isOverMaxStay;
+                        const hasErrors = validation.isOverCapacity || validation.isUnderCapacity || validation.isUnderMinStay || validation.isOverMaxStay || validation.rateTypeUnavailable;
                         const roomDates = getRoomDates(room);
                         const hasCustomDates = room.customCheckIn || room.customCheckOut;
                         
@@ -1090,6 +1099,9 @@ const TestBookingBenson = () => {
                                   )}
                                   {validation.isUnderMinStay && (
                                     <p><AlertCircle className="h-3 w-3 inline mr-1" />Min stay: {validation.minStay} nights (this room has {validation.roomNights})</p>
+                                  )}
+                                  {validation.rateTypeUnavailable && (
+                                    <p><AlertCircle className="h-3 w-3 inline mr-1" />Selected rate type not available for this room type</p>
                                   )}
                                 </div>
                               )}
