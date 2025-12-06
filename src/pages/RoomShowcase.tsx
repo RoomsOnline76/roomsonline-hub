@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getPropertyUrl } from "@/lib/config";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,7 @@ interface RoomType {
   extraPersonPolicy?: string;
   pmsRoomType?: string;
   pmsRoomId?: string;
+  mealTypes?: string[];
 }
 
 interface Property {
@@ -72,6 +73,11 @@ interface RateData {
   meal_type: string | null;
   amount: number;
   currency: string;
+}
+
+interface AvailabilityData {
+  available_units: number;
+  date: string;
 }
 
 const facilityIcons: Record<string, any> = {
@@ -100,10 +106,12 @@ const bedConfigLabels: Record<string, string> = {
 };
 
 export default function RoomShowcase() {
+  const navigate = useNavigate();
   const { propertySlug, roomSlug } = useParams<{ propertySlug: string; roomSlug: string }>();
   const [property, setProperty] = useState<Property | null>(null);
   const [room, setRoom] = useState<RoomType | null>(null);
   const [rates, setRates] = useState<RateData[]>([]);
+  const [availableUnits, setAvailableUnits] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
@@ -160,6 +168,23 @@ export default function RoomShowcase() {
         if (ratesData) {
           setRates(ratesData);
         }
+
+        // Fetch availability for today to get available units
+        const roomId = foundRoom.pmsRoomId || foundRoom.id;
+        const today = new Date().toISOString().split('T')[0];
+        
+        const { data: availData } = await supabase
+          .from("pms_availability_cache")
+          .select("available_units, date")
+          .eq("property_id", propertyData.id)
+          .eq("external_room_type_id", roomId)
+          .gte("date", today)
+          .order("date", { ascending: true })
+          .limit(1);
+
+        if (availData && availData.length > 0) {
+          setAvailableUnits(availData[0].available_units);
+        }
       }
     } catch (error) {
       console.error("Error fetching room:", error);
@@ -181,6 +206,13 @@ export default function RoomShowcase() {
       setCurrentImageIndex((prev) => 
         prev === 0 ? (room.images?.length || 1) - 1 : prev - 1
       );
+    }
+  };
+
+  const handleCheckAvailability = () => {
+    if (property && room) {
+      const roomSlugName = slugifyRoomName(room.name);
+      navigate(`/property/${property.slug || property.id}/room/${roomSlugName}/availability`);
     }
   };
 
@@ -219,6 +251,24 @@ export default function RoomShowcase() {
   const facilities = room.facilities || [];
   const amenities = room.amenities || [];
   const lowestRate = rates.length > 0 ? Math.min(...rates.map(r => r.amount)) : null;
+  
+  // Get room-specific meal types, not property-wide
+  const roomMealTypes = room.mealTypes || [];
+
+  // Build occupancy display string
+  const buildOccupancyString = () => {
+    const parts: string[] = [];
+    const maxPeople = room.maxPeople || 2;
+    
+    if (room.maxAdults && room.maxChildren !== undefined && room.maxChildren > 0) {
+      parts.push(`${room.maxAdults} Adult${room.maxAdults > 1 ? 's' : ''}`);
+      parts.push(`${room.maxChildren} Child${room.maxChildren > 1 ? 'ren' : ''}`);
+      return `Max ${maxPeople} persons (${parts.join(' + ')})`;
+    } else if (room.maxAdults) {
+      return `Max ${maxPeople} persons (${room.maxAdults} Adult${room.maxAdults > 1 ? 's' : ''})`;
+    }
+    return `Max ${maxPeople} persons`;
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -303,7 +353,7 @@ export default function RoomShowcase() {
                     {room.rateType}
                   </Badge>
                 )}
-                {lowestRate !== null ? (
+                {lowestRate !== null && (
                   <>
                     <div className="text-sm text-muted-foreground">From</div>
                     <div className="text-3xl font-bold text-primary">
@@ -311,8 +361,6 @@ export default function RoomShowcase() {
                     </div>
                     <div className="text-xs text-muted-foreground">per night</div>
                   </>
-                ) : (
-                  <div className="text-muted-foreground italic">Rates on request</div>
                 )}
               </div>
             </div>
@@ -369,7 +417,7 @@ export default function RoomShowcase() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Left Column - Details */}
           <div className="lg:col-span-2 space-y-8">
-            {/* Room Summary Card - Similar to reference */}
+            {/* Room Summary Card */}
             <Card className="overflow-hidden border-l-4 border-l-primary">
               <CardContent className="p-6">
                 <h2 className="text-2xl font-bold mb-4">{room.name}</h2>
@@ -380,26 +428,33 @@ export default function RoomShowcase() {
                   </p>
                 )}
 
-                {/* Key Info - Styled like reference */}
+                {/* Key Info */}
                 <div className="space-y-3">
                   {/* Occupancy */}
                   <div className="flex items-center gap-3">
                     <Users className="h-5 w-5 text-primary" />
-                    <span className="font-medium">
-                      Max {room.maxPeople || 2} persons 
-                      {room.maxAdults && ` (${room.maxAdults} Adult${room.maxAdults > 1 ? 's' : ''}`}
-                      {room.maxChildren !== undefined && room.maxChildren > 0 && `, ${room.maxChildren} Child${room.maxChildren > 1 ? 'ren' : ''}`}
-                      {room.maxAdults && ')'}
-                    </span>
+                    <span className="font-medium">{buildOccupancyString()}</span>
                   </div>
 
-                  {/* Stay Requirements */}
-                  <div className="flex items-center gap-3">
-                    <Moon className="h-5 w-5 text-primary" />
-                    <span className="font-medium">
-                      Min Stay <strong>{room.minStay || 1}</strong> night(s) | Max Stay <strong>{room.maxStay || 0}</strong> night(s)
-                    </span>
-                  </div>
+                  {/* Stay Requirements - only show if minStay > 1 or maxStay > 0 */}
+                  {((room.minStay && room.minStay > 1) || (room.maxStay && room.maxStay > 0)) && (
+                    <div className="flex items-center gap-3">
+                      <Moon className="h-5 w-5 text-primary" />
+                      <span className="font-medium">
+                        {room.minStay && room.minStay > 1 && `Min Stay ${room.minStay} night(s)`}
+                        {room.minStay && room.minStay > 1 && room.maxStay && room.maxStay > 0 && ' | '}
+                        {room.maxStay && room.maxStay > 0 && `Max Stay ${room.maxStay} night(s)`}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Available Units */}
+                  {availableUnits !== null && (
+                    <div className="flex items-center gap-3">
+                      <Bed className="h-5 w-5 text-primary" />
+                      <span className="font-medium">{availableUnits} unit{availableUnits !== 1 ? 's' : ''} available</span>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -437,7 +492,7 @@ export default function RoomShowcase() {
                     <div className="space-y-1 text-muted-foreground">
                       <p>Maximum guests: <strong className="text-foreground">{room.maxPeople || 2}</strong></p>
                       <p>Adults: <strong className="text-foreground">{room.maxAdults || room.maxPeople || 2}</strong></p>
-                      {room.maxChildren !== undefined && (
+                      {room.maxChildren !== undefined && room.maxChildren > 0 && (
                         <p>Children allowed: <strong className="text-foreground">{room.maxChildren}</strong></p>
                       )}
                     </div>
@@ -480,29 +535,6 @@ export default function RoomShowcase() {
               </div>
             </section>
 
-            {/* Stay Requirements */}
-            <section>
-              <h2 className="text-xl font-semibold mb-4">Stay Requirements</h2>
-              <Card>
-                <CardContent className="p-6">
-                  <div className="grid sm:grid-cols-3 gap-6">
-                    <div className="text-center p-4 bg-muted/50 rounded-lg">
-                      <div className="text-3xl font-bold text-primary mb-1">{room.minStay || 1}</div>
-                      <div className="text-sm text-muted-foreground">Minimum nights</div>
-                    </div>
-                    <div className="text-center p-4 bg-muted/50 rounded-lg">
-                      <div className="text-3xl font-bold text-primary mb-1">{room.maxStay || '∞'}</div>
-                      <div className="text-sm text-muted-foreground">Maximum nights</div>
-                    </div>
-                    <div className="text-center p-4 bg-muted/50 rounded-lg">
-                      <div className="text-3xl font-bold text-primary mb-1">{room.numRooms || 1}</div>
-                      <div className="text-sm text-muted-foreground">Available units</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </section>
-
             {/* Rate Type Info */}
             {room.rateType && (
               <section>
@@ -527,8 +559,8 @@ export default function RoomShowcase() {
               </section>
             )}
 
-            {/* Meal Options */}
-            {property?.amenities?.meal_types && (property.amenities.meal_types as string[]).length > 0 && (
+            {/* Meal Options - only show if room has meal types */}
+            {roomMealTypes.length > 0 && (
               <section>
                 <h2 className="text-xl font-semibold mb-4">Meal Options</h2>
                 <Card>
@@ -540,7 +572,7 @@ export default function RoomShowcase() {
                       <h3 className="font-semibold">Available Meal Plans</h3>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {(property.amenities.meal_types as string[]).map((meal, idx) => (
+                      {roomMealTypes.map((meal, idx) => (
                         <Badge key={idx} variant="outline" className="px-3 py-1.5">
                           {meal}
                         </Badge>
@@ -610,7 +642,7 @@ export default function RoomShowcase() {
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold mb-4">Rates</h3>
                 
-                {rates.length > 0 ? (
+                {rates.length > 0 && (
                   <div className="space-y-3">
                     {rates.map((rate, idx) => (
                       <div 
@@ -629,15 +661,11 @@ export default function RoomShowcase() {
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-muted-foreground text-sm italic">
-                    Rates on request
-                  </p>
                 )}
 
                 <Separator className="my-6" />
 
-                <Button className="w-full" size="lg">
+                <Button className="w-full" size="lg" onClick={handleCheckAvailability}>
                   <Calendar className="mr-2 h-4 w-4" />
                   Check Availability
                 </Button>
