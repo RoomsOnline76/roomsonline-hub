@@ -125,11 +125,17 @@ const TestBookingBenson = () => {
   const roomTypes = useMemo(() => {
     if (!availabilityData?.roomTypes) return [];
     return availabilityData.roomTypes.map((rt: any) => {
-      // Calculate min available units across all dates in the range
-      const availableUnits = rt.rateTypes?.[0]?.rates?.reduce((min: number, rate: any) => {
-        const units = rate.availableUnits ?? rate.available ?? 0;
-        return Math.min(min, units);
-      }, Infinity) ?? 0;
+      // Get available units from roomsAvailablePerNight array (Benson structure)
+      // Calculate minimum available units across all dates in the range
+      let availableUnits = 0;
+      
+      if (rt.roomsAvailablePerNight && rt.roomsAvailablePerNight.length > 0) {
+        // Get minimum units across all nights in the range
+        availableUnits = rt.roomsAvailablePerNight.reduce((min: number, night: any) => {
+          const units = night.numberOfRoomsAvailable ?? 0;
+          return Math.min(min, units);
+        }, rt.roomsAvailablePerNight[0]?.numberOfRoomsAvailable ?? 0);
+      }
       
       return {
         id: String(rt.roomTypeId),
@@ -140,7 +146,7 @@ const TestBookingBenson = () => {
         allow_teens: rt.allowTeens ?? true,
         allow_children: rt.allowChildren ?? true,
         allow_infants: rt.allowInfants ?? true,
-        available_units: availableUnits === Infinity ? 0 : availableUnits,
+        available_units: availableUnits,
       };
     });
   }, [availabilityData]);
