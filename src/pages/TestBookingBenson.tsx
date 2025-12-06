@@ -136,42 +136,44 @@ const TestBookingBenson = () => {
     }));
   }, [availabilityData]);
 
-  // Derive rate types from availability data with min/max stay info
+  // Derive rate types from the SELECTED room type only
   // Only include rate types that have rates for the selected date range
   const rateTypes = useMemo(() => {
-    if (!availabilityData?.roomTypes) return [];
-    const rateMap = new Map<string, RateType & { min_stay?: number; max_stay?: number; hasRates: boolean }>();
+    if (!availabilityData?.roomTypes || !selectedRoomTypeId) return [];
     
-    availabilityData.roomTypes.forEach((rt: any) => {
-      rt.rateTypes?.forEach((rate: any) => {
-        const rateTypeId = String(rate.rateTypeId);
-        
-        // Check if this rate type has any rates with values > 0
-        const hasRates = rate.rates?.some((r: any) => {
-          const roomAmount = r.roomAmount || 0;
-          const adultAmount = r.adultAmount || 0;
-          return roomAmount > 0 || adultAmount > 0;
-        }) ?? false;
-        
-        // Only add if not already in map, or update if this instance has rates
-        const existing = rateMap.get(rateTypeId);
-        if (!existing || (!existing.hasRates && hasRates)) {
-          rateMap.set(rateTypeId, {
-            id: rateTypeId,
-            external_rate_type_id: rateTypeId,
-            name: rate.name,
-            price_type: rate.priceType,
-            min_stay: rate.minStayDays || rate.minNights || 1,
-            max_stay: rate.maxStayDays || rate.maxNights || 365,
-            hasRates,
-          });
-        }
+    // Find the selected room type in availability data
+    const selectedRoom = availabilityData.roomTypes.find(
+      (rt: any) => String(rt.roomTypeId) === selectedRoomTypeId
+    );
+    
+    if (!selectedRoom?.rateTypes) return [];
+    
+    const rateList: (RateType & { min_stay?: number; max_stay?: number; hasRates: boolean })[] = [];
+    
+    selectedRoom.rateTypes.forEach((rate: any) => {
+      const rateTypeId = String(rate.rateTypeId);
+      
+      // Check if this rate type has any rates with values > 0
+      const hasRates = rate.rates?.some((r: any) => {
+        const roomAmount = r.roomAmount || 0;
+        const adultAmount = r.adultAmount || 0;
+        return roomAmount > 0 || adultAmount > 0;
+      }) ?? false;
+      
+      rateList.push({
+        id: rateTypeId,
+        external_rate_type_id: rateTypeId,
+        name: rate.name,
+        price_type: rate.priceType,
+        min_stay: rate.minStayDays || rate.minNights || 1,
+        max_stay: rate.maxStayDays || rate.maxNights || 365,
+        hasRates,
       });
     });
     
     // Filter to only rate types that have rates available
-    return Array.from(rateMap.values()).filter(rt => rt.hasRates);
-  }, [availabilityData]);
+    return rateList.filter(rt => rt.hasRates);
+  }, [availabilityData, selectedRoomTypeId]);
 
   // Get selected room and rate type for validation
   const selectedRoomType = roomTypes.find(rt => rt.external_room_type_id === selectedRoomTypeId);
