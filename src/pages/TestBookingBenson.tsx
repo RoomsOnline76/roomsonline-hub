@@ -604,6 +604,12 @@ const TestBookingBenson = () => {
       return;
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(guestEmail)) {
+      toast({ title: "Invalid email", description: "Please enter a valid email address", variant: "destructive" });
+      return;
+    }
+
     setSubmitting(true);
     const testId = `test-${Date.now()}`;
     const property = properties.find(p => p.id === selectedPropertyId);
@@ -1254,11 +1260,16 @@ const TestBookingBenson = () => {
                             type="email" 
                             value={guestEmail} 
                             onChange={(e) => setGuestEmail(e.target.value)} 
-                            className={cn(!guestEmail.trim() && "border-destructive")}
+                            className={cn(
+                              (!guestEmail.trim() || (guestEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail))) && "border-destructive"
+                            )}
                             placeholder="email@example.com"
                           />
                           {!guestEmail.trim() && (
                             <p className="text-xs text-destructive mt-1">Email is required</p>
+                          )}
+                          {guestEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail) && (
+                            <p className="text-xs text-destructive mt-1">Invalid email format</p>
                           )}
                         </div>
                         <div>
