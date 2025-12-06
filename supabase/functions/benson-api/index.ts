@@ -218,8 +218,10 @@ async function getReservations(
   statuses: string[]
 ): Promise<any> {
   const baseUrl = getBaseUrl(creds, propertyCode);
-  let url = `${baseUrl}/reservations?startDate=${startDate}&endDate=${endDate}`;
+  // Use lowercase query params as per Benson API docs
+  let url = `${baseUrl}/reservations?startdate=${startDate}&enddate=${endDate}`;
   
+  // Add status filters - use lowercase 'status' param
   statuses.forEach(status => url += `&status=${status}`);
 
   console.log(`Fetching reservations from: ${url}`);
@@ -228,6 +230,7 @@ async function getReservations(
     headers: {
       "Authorization": getAuthHeader(creds.username, creds.password),
       "Content-Type": "application/json",
+      "Accept": "application/json",
     },
   });
 
