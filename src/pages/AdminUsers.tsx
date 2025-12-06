@@ -157,7 +157,19 @@ export default function AdminUsers() {
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
+  const devCount = useMemo(() => users.filter(u => u.role === "dev").length, [users]);
+
+  const isLastDevUser = (user: UserProfile) => {
+    return user.role === "dev" && devCount <= 1;
+  };
+
+  const handleDeleteUser = async (userId: string, userRole: string) => {
+    // Prevent deleting the last dev user
+    if (userRole === "dev" && devCount <= 1) {
+      toast.error("Cannot delete the last dev user. Create another dev account first.");
+      return;
+    }
+
     try {
       // Delete user role first
       await supabase.from("user_roles").delete().eq("user_id", userId);
@@ -387,7 +399,8 @@ export default function AdminUsers() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                disabled={user.id === currentUser?.id}
+                                disabled={user.id === currentUser?.id || isLastDevUser(user)}
+                                title={isLastDevUser(user) ? "Cannot delete the last dev user" : undefined}
                               >
                                 <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
@@ -403,7 +416,7 @@ export default function AdminUsers() {
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
-                                  onClick={() => handleDeleteUser(user.id)}
+                                  onClick={() => handleDeleteUser(user.id, user.role)}
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                 >
                                   Delete
