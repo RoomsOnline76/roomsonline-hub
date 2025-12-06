@@ -47,6 +47,7 @@ interface Property {
   is_active: boolean;
   external_system: string | null;
   benson_property_code: string | null;
+  slug: string | null;
 }
 
 interface RoomType {
@@ -54,14 +55,18 @@ interface RoomType {
   name: string;
   url?: string;
   selected?: boolean;
+  maxPeople?: number;
+  maxAdults?: number;
+  maxChildren?: number;
+  description?: string;
+  pmsRoomId?: string;
 }
 
-interface RateData {
-  room_type: string;
-  rate_type: string;
-  meal_type: string | null;
-  amount: number;
-  currency: string;
+interface AvailabilityData {
+  external_room_type_id: string;
+  available_units: number;
+  rates: any;
+  date: string;
 }
 
 const amenityIcons: Record<string, any> = {
@@ -75,11 +80,15 @@ const amenityIcons: Record<string, any> = {
   phone: Phone,
 };
 
+const slugifyRoomName = (name: string) => {
+  return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+};
+
 export default function PropertyShowcase() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [property, setProperty] = useState<Property | null>(null);
-  const [rates, setRates] = useState<RateData[]>([]);
+  const [availability, setAvailability] = useState<Map<string, AvailabilityData>>(new Map());
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
@@ -97,9 +106,7 @@ export default function PropertyShowcase() {
       // Check if id is a UUID or slug
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || "");
       
-      console.log("PropertyShowcase: Fetching property", { id, isUuid });
-      
-      // Fetch property by UUID or slug using public view (safe for unauthenticated users)
+      // Fetch property by UUID or slug using public view
       let query = supabase
         .from("public_properties")
         .select("*");
@@ -111,8 +118,6 @@ export default function PropertyShowcase() {
       }
       
       const { data: propertyData, error: propertyError } = await query.maybeSingle();
-
-      console.log("PropertyShowcase: Query result", { propertyData, propertyError });
 
       if (propertyError) throw propertyError;
       if (!propertyData) {
@@ -127,16 +132,20 @@ export default function PropertyShowcase() {
       
       setProperty({ ...propertyData, images });
 
-      // Fetch rates for this property (use the actual property ID, not the slug)
-      const { data: ratesData, error: ratesError } = await supabase
-        .from("property_rates")
-        .select("room_type, rate_type, meal_type, amount, currency")
+      // Fetch availability data from pms_availability_cache for today
+      const today = new Date().toISOString().split('T')[0];
+      const { data: availData } = await supabase
+        .from("pms_availability_cache")
+        .select("external_room_type_id, available_units, rates, date")
         .eq("property_id", propertyData.id)
-        .order("room_type")
-        .order("rate_type");
+        .eq("date", today);
 
-      if (!ratesError && ratesData) {
-        setRates(ratesData);
+      if (availData) {
+        const availMap = new Map<string, AvailabilityData>();
+        availData.forEach((item) => {
+          availMap.set(item.external_room_type_id, item);
+        });
+        setAvailability(availMap);
       }
     } catch (error) {
       console.error("Error fetching property:", error);
@@ -170,8 +179,35 @@ export default function PropertyShowcase() {
     return property.amenities.room_types.filter((rt: RoomType) => rt.selected !== false);
   };
 
-  const getRatesForRoom = (roomName: string): RateData[] => {
-    return rates.filter(r => r.room_type === roomName);
+  const getAvailabilityForRoom = (room: RoomType): AvailabilityData | undefined => {
+    const roomId = room.pmsRoomId || room.id;
+    return availability.get(roomId);
+  };
+
+  const getLowestRateFromAvailability = (availData: AvailabilityData | undefined): number | null => {
+    if (!availData?.rates) return null;
+    
+    const rates = Array.isArray(availData.rates) ? availData.rates : [availData.rates];
+    let lowestRate: number | null = null;
+    
+    rates.forEach((rate: any) => {
+      // Check room_amount for PER ROOM rates
+      if (rate.room_amount && typeof rate.room_amount === 'number') {
+        if (lowestRate === null || rate.room_amount < lowestRate) {
+          lowestRate = rate.room_amount;
+        }
+      }
+      // Check adult_amounts for PER PERSON rates
+      if (rate.adult_amounts) {
+        Object.values(rate.adult_amounts).forEach((amount: any) => {
+          if (typeof amount === 'number' && (lowestRate === null || amount < lowestRate)) {
+            lowestRate = amount;
+          }
+        });
+      }
+    });
+    
+    return lowestRate;
   };
 
   const getMealTypes = (): string[] => {
@@ -188,6 +224,20 @@ export default function PropertyShowcase() {
 
   const getStarRating = (): number => {
     return property?.amenities?.star_rating || 0;
+  };
+
+  // Calculate total max guests from room types
+  const getTotalMaxGuests = (): number => {
+    const roomTypes = getRoomTypes();
+    if (roomTypes.length === 0) return property?.max_guests || 0;
+    
+    return roomTypes.reduce((total, room) => total + (room.maxPeople || 0), 0);
+  };
+
+  const handleRoomClick = (room: RoomType) => {
+    const propertySlug = property?.slug || property?.id;
+    const roomSlug = slugifyRoomName(room.name);
+    navigate(`/property/${propertySlug}/room/${roomSlug}`);
   };
 
   if (loading) {
@@ -225,6 +275,7 @@ export default function PropertyShowcase() {
   const mealTypes = getMealTypes();
   const houseRules = getHouseRules();
   const starRating = getStarRating();
+  const totalMaxGuests = getTotalMaxGuests();
 
   return (
     <div className="min-h-screen bg-background">
@@ -349,14 +400,16 @@ export default function PropertyShowcase() {
       <section className="border-b bg-card">
         <div className="container mx-auto px-4 py-4">
           <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10 text-sm">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
-              <span>Up to {property.max_guests} guests</span>
-            </div>
-            {property.bedrooms && (
+            {totalMaxGuests > 0 && (
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                <span>Up to {totalMaxGuests} guests</span>
+              </div>
+            )}
+            {roomTypes.length > 0 && (
               <div className="flex items-center gap-2">
                 <Bed className="h-4 w-4 text-primary" />
-                <span>{property.bedrooms} bedroom{property.bedrooms > 1 ? 's' : ''}</span>
+                <span>{roomTypes.length} room type{roomTypes.length > 1 ? 's' : ''}</span>
               </div>
             )}
             {property.bathrooms && (
@@ -391,13 +444,16 @@ export default function PropertyShowcase() {
           {roomTypes.length > 0 ? (
             <div className="grid gap-6">
               {roomTypes.map((room) => {
-                const roomRates = getRatesForRoom(room.name);
-                const lowestRate = roomRates.length > 0 
-                  ? Math.min(...roomRates.map(r => r.amount))
-                  : null;
+                const availData = getAvailabilityForRoom(room);
+                const lowestRate = getLowestRateFromAvailability(availData);
+                const availableUnits = availData?.available_units;
                 
                 return (
-                  <Card key={room.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                  <Card 
+                    key={room.id} 
+                    className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+                    onClick={() => handleRoomClick(room)}
+                  >
                     <div className="md:flex">
                       {/* Room Image Placeholder */}
                       <div className="md:w-1/3 h-48 md:h-auto bg-muted flex items-center justify-center">
@@ -409,15 +465,19 @@ export default function PropertyShowcase() {
                         <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
                           <div>
                             <h3 className="text-xl font-semibold">{room.name}</h3>
-                            {mealTypes.length > 0 && (
-                              <div className="flex flex-wrap gap-2 mt-2">
-                                {mealTypes.map((meal) => (
-                                  <Badge key={meal} variant="outline" className="text-xs">
-                                    {meal}
-                                  </Badge>
-                                ))}
-                              </div>
-                            )}
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {room.maxPeople && (
+                                <Badge variant="outline" className="text-xs">
+                                  <Users className="h-3 w-3 mr-1" />
+                                  Sleeps {room.maxPeople}
+                                </Badge>
+                              )}
+                              {availableUnits !== undefined && (
+                                <Badge variant={availableUnits > 0 ? "secondary" : "destructive"} className="text-xs">
+                                  {availableUnits > 0 ? `${availableUnits} available` : 'Sold out'}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                           
                           <div className="text-right">
@@ -431,45 +491,55 @@ export default function PropertyShowcase() {
                               </>
                             ) : (
                               <div className="text-muted-foreground italic">
-                                Rates on request
+                                Contact for rates
                               </div>
                             )}
                           </div>
                         </div>
 
-                        {/* Rate Breakdown */}
-                        {roomRates.length > 0 && (
+                        {/* Rate Types from API */}
+                        {availData?.rates && (
                           <div className="border-t pt-4 mt-4">
                             <h4 className="text-sm font-medium mb-3 text-muted-foreground">Rate Options</h4>
                             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {roomRates.slice(0, 6).map((rate, idx) => (
-                                <div 
-                                  key={idx}
-                                  className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                                >
-                                  <div>
-                                    <div className="font-medium text-sm">{rate.rate_type}</div>
-                                    {rate.meal_type && (
-                                      <div className="text-xs text-muted-foreground">{rate.meal_type}</div>
-                                    )}
-                                  </div>
-                                  <div className="font-semibold text-primary">
-                                    {rate.currency} {rate.amount.toLocaleString()}
-                                  </div>
-                                </div>
-                              ))}
+                              {(Array.isArray(availData.rates) ? availData.rates : [availData.rates])
+                                .filter((rate: any) => rate.room_amount || (rate.adult_amounts && Object.keys(rate.adult_amounts).length > 0))
+                                .slice(0, 3)
+                                .map((rate: any, idx: number) => {
+                                  const rateAmount = rate.room_amount || 
+                                    (rate.adult_amounts ? Math.min(...Object.values(rate.adult_amounts).filter((v): v is number => typeof v === 'number')) : null);
+                                  
+                                  if (!rateAmount) return null;
+                                  
+                                  return (
+                                    <div 
+                                      key={idx}
+                                      className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                                    >
+                                      <div>
+                                        <div className="font-medium text-sm">{rate.rate_type_name}</div>
+                                        <div className="text-xs text-muted-foreground">{rate.price_type}</div>
+                                      </div>
+                                      <div className="font-semibold text-primary">
+                                        {property.amenities?.currency || 'ZAR'} {rateAmount.toLocaleString()}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                             </div>
                           </div>
                         )}
 
                         <div className="mt-6 flex gap-3">
-                          <Button className="bg-primary hover:bg-primary/90">
-                            Book Now
-                          </Button>
-                          <Button variant="outline" asChild>
-                            <Link to={`/property/${id}/room/${encodeURIComponent(room.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''))}`}>
-                              View Room
-                            </Link>
+                          <Button 
+                            className="bg-primary hover:bg-primary/90"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRoomClick(room);
+                            }}
+                          >
+                            View Room Details
+                            <ArrowRight className="ml-2 h-4 w-4" />
                           </Button>
                         </div>
                       </div>
