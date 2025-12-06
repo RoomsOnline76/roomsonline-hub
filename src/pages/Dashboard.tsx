@@ -3,7 +3,6 @@ import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PropertySearchDropdown } from "@/components/PropertySearchDropdown";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
@@ -27,6 +26,8 @@ const Dashboard = () => {
   const [period, setPeriod] = useState("this_month");
   const [comparePrevYear, setComparePrevYear] = useState(true);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("all");
+  const [selectedOwner, setSelectedOwner] = useState<string>("all");
+  const [selectedType, setSelectedType] = useState<string>("all");
   const [drillDownDate, setDrillDownDate] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiInsight, setAiInsight] = useState<string | null>(null);
@@ -113,7 +114,59 @@ const Dashboard = () => {
     enabled: !!user && (isAdmin || !!profile?.email),
   });
 
-  const propertyIds = useMemo(() => properties.map(p => p.id), [properties]);
+  // Unique owners and types for filter dropdowns
+  const uniqueOwners = useMemo(() => {
+    const owners = new Map<string, string>();
+    properties.forEach(p => {
+      const ownerKey = p.owner_email || '';
+      if (ownerKey && !owners.has(ownerKey)) {
+        owners.set(ownerKey, p.owner_name || p.owner_email?.split('@')[0] || 'Unknown');
+      }
+    });
+    return Array.from(owners.entries()).map(([email, name]) => ({ email, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [properties]);
+
+  const uniqueTypes = useMemo(() => {
+    const types = new Set<string>();
+    properties.forEach(p => {
+      if (p.property_type) types.add(p.property_type);
+    });
+    return Array.from(types).sort();
+  }, [properties]);
+
+  // Filtered properties based on owner and type selection
+  const filteredProperties = useMemo(() => {
+    return properties.filter(p => {
+      const ownerMatch = selectedOwner === "all" || p.owner_email === selectedOwner;
+      const typeMatch = selectedType === "all" || p.property_type === selectedType;
+      return ownerMatch && typeMatch;
+    });
+  }, [properties, selectedOwner, selectedType]);
+
+  // Filtered owners based on type selection
+  const filteredOwners = useMemo(() => {
+    if (selectedType === "all") return uniqueOwners;
+    const ownersForType = new Set<string>();
+    properties.filter(p => p.property_type === selectedType).forEach(p => {
+      if (p.owner_email) ownersForType.add(p.owner_email);
+    });
+    return uniqueOwners.filter(o => ownersForType.has(o.email));
+  }, [properties, uniqueOwners, selectedType]);
+
+  // Filtered types based on owner selection  
+  const filteredTypes = useMemo(() => {
+    if (selectedOwner === "all") return uniqueTypes;
+    const typesForOwner = new Set<string>();
+    properties.filter(p => p.owner_email === selectedOwner).forEach(p => {
+      if (p.property_type) typesForOwner.add(p.property_type);
+    });
+    return uniqueTypes.filter(t => typesForOwner.has(t));
+  }, [properties, uniqueTypes, selectedOwner]);
+
+  const propertyIds = useMemo(() => {
+    if (selectedPropertyId !== "all") return [selectedPropertyId];
+    return filteredProperties.map(p => p.id);
+  }, [filteredProperties, selectedPropertyId]);
 
   // Fetch current period bookings (from both internal bookings and PMS reservations)
   const { data: bookings = [], isLoading: bookingsLoading } = useQuery({
@@ -962,17 +1015,76 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Property Filter */}
-        <div className="flex items-center gap-4 mb-4">
+        {/* Filters Row */}
+        <div className="flex flex-wrap items-center gap-4 mb-4">
+          {/* Type Filter */}
           <div className="flex items-center gap-2">
-            <Label className="text-sm font-medium">Property:</Label>
-            <PropertySearchDropdown
-              properties={properties}
-              selectedPropertyId={selectedPropertyId}
-              onPropertyChange={setSelectedPropertyId}
-              includeAllOption={true}
-              className="w-[300px]"
-            />
+            <Label className="text-sm font-medium whitespace-nowrap">Type:</Label>
+            <Select value={selectedType} onValueChange={(value) => {
+              setSelectedType(value);
+              // Reset property if it's no longer in filtered list
+              if (selectedPropertyId !== "all") {
+                const prop = properties.find(p => p.id === selectedPropertyId);
+                if (prop && value !== "all" && prop.property_type !== value) {
+                  setSelectedPropertyId("all");
+                }
+              }
+            }}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="All types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                {filteredTypes.map(type => (
+                  <SelectItem key={type} value={type}>
+                    {type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Owner Filter */}
+          <div className="flex items-center gap-2">
+            <Label className="text-sm font-medium whitespace-nowrap">Owner:</Label>
+            <Select value={selectedOwner} onValueChange={(value) => {
+              setSelectedOwner(value);
+              // Reset property if it's no longer in filtered list
+              if (selectedPropertyId !== "all") {
+                const prop = properties.find(p => p.id === selectedPropertyId);
+                if (prop && value !== "all" && prop.owner_email !== value) {
+                  setSelectedPropertyId("all");
+                }
+              }
+            }}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="All owners" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All owners</SelectItem>
+                {filteredOwners.map(owner => (
+                  <SelectItem key={owner.email} value={owner.email}>
+                    {owner.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Property Filter */}
+          <div className="flex items-center gap-2">
+            <Label className="text-sm font-medium whitespace-nowrap">Property:</Label>
+            <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId}>
+              <SelectTrigger className="w-[220px]">
+                <SelectValue placeholder="All properties" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All properties ({filteredProperties.length})</SelectItem>
+                {filteredProperties.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
