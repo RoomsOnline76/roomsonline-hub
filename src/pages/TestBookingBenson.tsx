@@ -166,15 +166,17 @@ const TestBookingBenson = () => {
     return differenceInDays(checkOutDate, checkInDate);
   }, [checkInDate, checkOutDate]);
 
-  // Calculate total guests for max occupancy validation
+  // Calculate total guests for occupancy validation
   const totalGuests = adults + teens + children + infants;
   const maxGuests = selectedRoomType?.max_guests || 10;
+  const minGuests = selectedRoomType?.min_guests || 1;
   const isOverCapacity = totalGuests > maxGuests;
+  const isUnderCapacity = totalGuests < minGuests;
 
-  // Min stay validation
+  // Min/max stay validation
   const minStay = selectedRateType?.min_stay || 1;
   const maxStay = selectedRateType?.max_stay || 365;
-  const isUnderMinStay = nights < minStay;
+  const isUnderMinStay = nights > 0 && nights < minStay;
   const isOverMaxStay = nights > maxStay;
 
   // Reset form when property changes
@@ -713,16 +715,29 @@ const TestBookingBenson = () => {
                   </Card>
 
                   {/* Guests */}
-                  <Card className={cn(isOverCapacity && "border-destructive")}>
+                  <Card className={cn((isOverCapacity || isUnderCapacity) && "border-destructive")}>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-lg flex items-center justify-between">
                         <span>Guests</span>
                         {selectedRoomType && (
-                          <Badge variant={isOverCapacity ? "destructive" : "secondary"}>
-                            {totalGuests}/{maxGuests} max
-                          </Badge>
+                          <div className="flex gap-2">
+                            {minGuests > 1 && (
+                              <Badge variant={isUnderCapacity ? "destructive" : "outline"}>
+                                min {minGuests}
+                              </Badge>
+                            )}
+                            <Badge variant={isOverCapacity ? "destructive" : "secondary"}>
+                              {totalGuests}/{maxGuests} max
+                            </Badge>
+                          </div>
                         )}
                       </CardTitle>
+                      {isUnderCapacity && (
+                        <p className="text-sm text-destructive">
+                          <AlertCircle className="h-4 w-4 inline mr-1" />
+                          Minimum {minGuests} guests required
+                        </p>
+                      )}
                       {isOverCapacity && (
                         <p className="text-sm text-destructive">
                           <AlertCircle className="h-4 w-4 inline mr-1" />
@@ -938,8 +953,14 @@ const TestBookingBenson = () => {
                   <Card>
                     <CardContent className="pt-6 space-y-3">
                       {/* Validation warnings */}
-                      {(isOverCapacity || isUnderMinStay || isOverMaxStay) && (
+                      {(isOverCapacity || isUnderCapacity || isUnderMinStay || isOverMaxStay) && (
                         <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md space-y-1">
+                          {isUnderCapacity && (
+                            <p className="text-sm text-destructive flex items-center gap-2">
+                              <AlertCircle className="h-4 w-4" />
+                              Below min occupancy ({totalGuests}/{minGuests} guests required)
+                            </p>
+                          )}
                           {isOverCapacity && (
                             <p className="text-sm text-destructive flex items-center gap-2">
                               <AlertCircle className="h-4 w-4" />
@@ -949,7 +970,7 @@ const TestBookingBenson = () => {
                           {isUnderMinStay && (
                             <p className="text-sm text-destructive flex items-center gap-2">
                               <AlertCircle className="h-4 w-4" />
-                              Below min stay ({nights}/{minStay} nights)
+                              Below min stay ({nights}/{minStay} nights required)
                             </p>
                           )}
                           {isOverMaxStay && (
@@ -962,7 +983,7 @@ const TestBookingBenson = () => {
                       )}
                       <Button 
                         onClick={submitBooking} 
-                        disabled={submitting || !selectedPropertyId || !selectedRoomTypeId || !selectedRateTypeId || isOverCapacity || isUnderMinStay || isOverMaxStay}
+                        disabled={submitting || !selectedPropertyId || !selectedRoomTypeId || !selectedRateTypeId || isOverCapacity || isUnderCapacity || isUnderMinStay || isOverMaxStay}
                         className="w-full"
                         size="lg"
                       >
