@@ -440,8 +440,10 @@ const TestBookingBenson = () => {
 
         if (!roomType) continue;
 
+        // Use first room's rate type since it's global
+        const effectiveRateTypeId = bookingRooms[0]?.rateTypeId;
         const rateType = roomType.rateTypes?.find(
-          (rt: any) => String(rt.rateTypeId) === bookingRoom.rateTypeId
+          (rt: any) => String(rt.rateTypeId) === effectiveRateTypeId
         );
 
         if (!rateType) continue;
