@@ -542,6 +542,7 @@ const TestBookingBenson = () => {
       const reservationData = {
         arrivalDate: format(checkInDate, "yyyy-MM-dd"),
         departureDate: format(checkOutDate, "yyyy-MM-dd"),
+        rateTypeId: parseInt(bookingRooms[0].rateTypeId), // Use first room's rate type as primary
         contactName: guestName,
         contactNumber: guestPhone,
         contactEmail: guestEmail,
