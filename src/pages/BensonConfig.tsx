@@ -424,16 +424,21 @@ export default function BensonConfig() {
       <Navbar />
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-5xl mx-auto">
-          <div className="flex items-center gap-4 mb-6">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/admin/api-keys")}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold">Benson Field Mappings</h1>
-              <p className="text-muted-foreground">
-                Map each Benson data field to the corresponding internal UI field
-              </p>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" onClick={() => navigate("/admin/api-keys")}>
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div>
+                <h1 className="text-3xl font-bold">Benson Field Mappings</h1>
+                <p className="text-muted-foreground">
+                  Map each Benson data field to the corresponding internal UI field
+                </p>
+              </div>
             </div>
+            <Button onClick={() => navigate("/admin/test-booking-benson")} variant="outline">
+              Test Booking
+            </Button>
           </div>
 
           {/* Connection Status */}
