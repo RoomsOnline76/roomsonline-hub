@@ -598,6 +598,7 @@ const Bookings = () => {
                       <TableHead>Check-in</TableHead>
                       <TableHead>Check-out</TableHead>
                       <TableHead>Guests</TableHead>
+                      <TableHead>Rate Type</TableHead>
                       <TableHead>Total</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Ref</TableHead>
@@ -647,6 +648,9 @@ const Bookings = () => {
                                 {getTotalGuests(booking)}
                               </div>
                             </TableCell>
+                            <TableCell className="text-sm">
+                              {booking.rate_type_name || "—"}
+                            </TableCell>
                             <TableCell className="font-medium">
                               R{Number(booking.total_price).toLocaleString()}
                             </TableCell>
@@ -660,7 +664,7 @@ const Bookings = () => {
                           {/* Expanded room details with cost breakdown */}
                           {isExpanded && hasMultipleRooms && (
                             <TableRow key={`${booking.id}-details`} className="bg-muted/30">
-                              <TableCell colSpan={8} className="p-4">
+                              <TableCell colSpan={9} className="p-4">
                                 <div className="space-y-2">
                                   <p className="text-sm font-medium text-muted-foreground mb-3">Room Details & Cost Breakdown</p>
                                   <div className="grid gap-3">
