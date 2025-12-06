@@ -231,8 +231,15 @@ const TestBookingBenson = () => {
 
       if (error) throw error;
 
-      // Add fetch timestamp to the data
-      setAvailabilityData({ ...data, fetchedAt: new Date().toISOString() });
+      // Add fetch timestamp and date range to the data
+      setAvailabilityData({ 
+        ...data, 
+        fetchedAt: new Date().toISOString(),
+        fetchedForDates: {
+          checkIn: format(checkInDate, "yyyy-MM-dd"),
+          checkOut: format(checkOutDate, "yyyy-MM-dd"),
+        }
+      });
       toast({ title: "Availability fetched", description: `Retrieved data for ${data.roomTypes?.length || 0} room types` });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -587,37 +594,55 @@ const TestBookingBenson = () => {
                           </Popover>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-1">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
                           <span className="text-sm text-muted-foreground">
                             {nights} night{nights !== 1 ? 's' : ''}
                           </span>
-                          {availabilityData && (
-                            <div className="text-xs text-muted-foreground">
-                              <span className="text-foreground font-medium">
-                                {availabilityData.roomTypes?.length || 0} room types
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={fetchAvailability}
+                            disabled={!selectedPropertyId || !checkInDate || !checkOutDate || fetchingAvailability}
+                          >
+                            {fetchingAvailability ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                            )}
+                            Fetch Availability
+                          </Button>
+                        </div>
+                        {availabilityData && (
+                          <div className="text-xs p-2 bg-muted/50 rounded-md space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">
+                                {availabilityData.roomTypes?.length || 0} room types available
                               </span>
                               {availabilityData.fetchedAt && (
-                                <span className="ml-2">
-                                  · fetched {formatDistanceToNow(new Date(availabilityData.fetchedAt), { addSuffix: true })}
+                                <span className="text-muted-foreground">
+                                  {formatDistanceToNow(new Date(availabilityData.fetchedAt), { addSuffix: true })}
                                 </span>
                               )}
                             </div>
-                          )}
-                        </div>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={fetchAvailability}
-                          disabled={!selectedPropertyId || !checkInDate || !checkOutDate || fetchingAvailability}
-                        >
-                          {fetchingAvailability ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                          )}
-                          Fetch Availability
-                        </Button>
+                            {availabilityData.fetchedForDates && (
+                              <>
+                                <div className="text-muted-foreground">
+                                  Data for: {availabilityData.fetchedForDates.checkIn} → {availabilityData.fetchedForDates.checkOut}
+                                </div>
+                                {checkInDate && checkOutDate && (
+                                  availabilityData.fetchedForDates.checkIn !== format(checkInDate, "yyyy-MM-dd") ||
+                                  availabilityData.fetchedForDates.checkOut !== format(checkOutDate, "yyyy-MM-dd")
+                                ) && (
+                                  <div className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                    <AlertCircle className="h-3 w-3" />
+                                    Dates changed - re-fetch recommended
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
