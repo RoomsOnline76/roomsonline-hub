@@ -397,7 +397,9 @@ const TestBookingBenson = () => {
   // Calculate cost based on availability data - for ALL rooms
   const calculateCost = async () => {
     // Check all rooms have required selections
-    const hasIncompleteRooms = bookingRooms.some(room => !room.roomTypeId || !room.rateTypeId);
+    // Rate type is global (from first room), so only check first room's rateTypeId
+    const firstRoomRateTypeId = bookingRooms[0]?.rateTypeId;
+    const hasIncompleteRooms = bookingRooms.some(room => !room.roomTypeId) || !firstRoomRateTypeId;
     if (!selectedPropertyId || hasIncompleteRooms || !checkInDate || !checkOutDate) {
       toast({ title: "Missing data", description: "Fill in all required fields for all rooms", variant: "destructive" });
       return;
@@ -589,7 +591,9 @@ const TestBookingBenson = () => {
 
   // Submit booking to Benson - with all rooms
   const submitBooking = async () => {
-    const hasIncompleteRooms = bookingRooms.some(room => !room.roomTypeId || !room.rateTypeId);
+    // Rate type is global (from first room), so only check first room's rateTypeId
+    const firstRoomRateTypeId = bookingRooms[0]?.rateTypeId;
+    const hasIncompleteRooms = bookingRooms.some(room => !room.roomTypeId) || !firstRoomRateTypeId;
     if (!selectedPropertyId || hasIncompleteRooms || !checkInDate || !checkOutDate) {
       toast({ title: "Missing data", description: "Fill in all required fields for all rooms", variant: "destructive" });
       return;
