@@ -243,10 +243,12 @@ const TestBookingBenson = () => {
 
   // Helper functions for multi-room management
   const addRoom = () => {
+    // New rooms inherit rate type from first room
+    const firstRoomRateTypeId = bookingRooms[0]?.rateTypeId || "";
     setBookingRooms(prev => [...prev, {
       id: crypto.randomUUID(),
       roomTypeId: "",
-      rateTypeId: "",
+      rateTypeId: firstRoomRateTypeId, // Inherit from first room
       adults: 2,
       teens: 0,
       children: 0,
@@ -1038,26 +1040,42 @@ const TestBookingBenson = () => {
                                   </Select>
                                 </div>
                                 <div>
-                                  <Label className="text-xs">Rate Type</Label>
-                                  <Select 
-                                    value={room.rateTypeId} 
-                                    onValueChange={(value) => updateRoom(room.id, { rateTypeId: value })}
-                                    disabled={!room.roomTypeId}
-                                  >
-                                    <SelectTrigger className={cn("h-9", validation.isUnderMinStay && "border-destructive")}>
-                                      <SelectValue placeholder="Select rate..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {rateTypesForRoom.map((rt) => (
-                                        <SelectItem key={rt.id} value={rt.external_rate_type_id}>
-                                          {rt.name}
-                                          <span className="text-muted-foreground text-xs ml-1">
-                                            ({rt.price_type?.substring(0, 4) || 'N/A'})
-                                          </span>
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                                  <Label className="text-xs">
+                                    Rate Type
+                                    {index === 0 && <span className="text-muted-foreground ml-1">(applies to all rooms)</span>}
+                                  </Label>
+                                  {index === 0 ? (
+                                    // First room - show rate type selector
+                                    <Select 
+                                      value={room.rateTypeId} 
+                                      onValueChange={(value) => {
+                                        // Update all rooms with this rate type
+                                        bookingRooms.forEach(r => updateRoom(r.id, { rateTypeId: value }));
+                                      }}
+                                      disabled={!room.roomTypeId}
+                                    >
+                                      <SelectTrigger className={cn("h-9", validation.isUnderMinStay && "border-destructive")}>
+                                        <SelectValue placeholder="Select rate..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {rateTypesForRoom.map((rt) => (
+                                          <SelectItem key={rt.id} value={rt.external_rate_type_id}>
+                                            {rt.name}
+                                            <span className="text-muted-foreground text-xs ml-1">
+                                              ({rt.price_type?.substring(0, 4) || 'N/A'})
+                                            </span>
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    // Subsequent rooms - show read-only badge with first room's rate type
+                                    <div className="h-9 flex items-center">
+                                      <Badge variant="secondary" className="font-normal">
+                                        {getRateTypesForRoom(bookingRooms[0]?.roomTypeId).find(rt => rt.external_rate_type_id === bookingRooms[0]?.rateTypeId)?.name || "Select in Room 1"}
+                                      </Badge>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
 
