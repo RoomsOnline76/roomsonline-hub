@@ -45,6 +45,8 @@ interface RateType {
   external_rate_type_id: string;
   name: string;
   price_type: string | null;
+  min_stay?: number;
+  max_stay?: number;
 }
 
 interface CostLineItem {
@@ -125,18 +127,18 @@ const TestBookingBenson = () => {
       id: String(rt.roomTypeId),
       external_room_type_id: String(rt.roomTypeId),
       name: rt.name,
-      max_guests: rt.maxGuests,
-      min_guests: rt.minGuests,
-      allow_teens: rt.allowTeens,
-      allow_children: rt.allowChildren,
-      allow_infants: rt.allowInfants,
+      max_guests: rt.maxGuests || rt.maxPeople || 10,
+      min_guests: rt.minGuests || 1,
+      allow_teens: rt.allowTeens ?? true,
+      allow_children: rt.allowChildren ?? true,
+      allow_infants: rt.allowInfants ?? true,
     }));
   }, [availabilityData]);
 
-  // Derive rate types from availability data (unique across all room types)
+  // Derive rate types from availability data with min/max stay info
   const rateTypes = useMemo(() => {
     if (!availabilityData?.roomTypes) return [];
-    const rateMap = new Map<string, RateType>();
+    const rateMap = new Map<string, RateType & { min_stay?: number; max_stay?: number }>();
     availabilityData.roomTypes.forEach((rt: any) => {
       rt.rateTypes?.forEach((rate: any) => {
         if (!rateMap.has(String(rate.rateTypeId))) {
@@ -145,12 +147,35 @@ const TestBookingBenson = () => {
             external_rate_type_id: String(rate.rateTypeId),
             name: rate.name,
             price_type: rate.priceType,
+            min_stay: rate.minStayDays || rate.minNights || 1,
+            max_stay: rate.maxStayDays || rate.maxNights || 365,
           });
         }
       });
     });
     return Array.from(rateMap.values());
   }, [availabilityData]);
+
+  // Get selected room and rate type for validation
+  const selectedRoomType = roomTypes.find(rt => rt.external_room_type_id === selectedRoomTypeId);
+  const selectedRateType = rateTypes.find(rt => rt.external_rate_type_id === selectedRateTypeId);
+
+  // Calculate number of nights
+  const nights = useMemo(() => {
+    if (!checkInDate || !checkOutDate) return 0;
+    return differenceInDays(checkOutDate, checkInDate);
+  }, [checkInDate, checkOutDate]);
+
+  // Calculate total guests for max occupancy validation
+  const totalGuests = adults + teens + children + infants;
+  const maxGuests = selectedRoomType?.max_guests || 10;
+  const isOverCapacity = totalGuests > maxGuests;
+
+  // Min stay validation
+  const minStay = selectedRateType?.min_stay || 1;
+  const maxStay = selectedRateType?.max_stay || 365;
+  const isUnderMinStay = nights < minStay;
+  const isOverMaxStay = nights > maxStay;
 
   // Reset form when property changes
   useEffect(() => {
@@ -159,13 +184,32 @@ const TestBookingBenson = () => {
     setCostBreakdown([]);
     setTotalCost(0);
     setAvailabilityData(null);
+    setAdults(2);
+    setTeens(0);
+    setChildren(0);
+    setInfants(0);
   }, [selectedPropertyId]);
 
-  // Calculate number of nights
-  const nights = useMemo(() => {
-    if (!checkInDate || !checkOutDate) return 0;
-    return differenceInDays(checkOutDate, checkInDate);
-  }, [checkInDate, checkOutDate]);
+  // Reset disallowed guest types and enforce max occupancy when room type changes
+  useEffect(() => {
+    if (!selectedRoomType) return;
+    
+    // Reset disallowed guest types to 0
+    if (!selectedRoomType.allow_teens) setTeens(0);
+    if (!selectedRoomType.allow_children) setChildren(0);
+    if (!selectedRoomType.allow_infants) setInfants(0);
+    
+    // Enforce max occupancy by reducing adults if needed
+    const currentTotal = adults + 
+      (selectedRoomType.allow_teens ? teens : 0) + 
+      (selectedRoomType.allow_children ? children : 0) + 
+      (selectedRoomType.allow_infants ? infants : 0);
+    
+    if (currentTotal > selectedRoomType.max_guests) {
+      const excess = currentTotal - selectedRoomType.max_guests;
+      setAdults(Math.max(1, adults - excess));
+    }
+  }, [selectedRoomTypeId, selectedRoomType]);
 
   // Fetch fresh availability from Benson
   const fetchAvailability = async () => {
@@ -437,7 +481,7 @@ const TestBookingBenson = () => {
     setSubmitting(false);
   };
 
-  const selectedRoomType = roomTypes.find(rt => rt.external_room_type_id === selectedRoomTypeId);
+  // selectedRoomType is defined above with other validations
 
   return (
     <>
@@ -598,7 +642,7 @@ const TestBookingBenson = () => {
                           onValueChange={setSelectedRateTypeId}
                           disabled={!availabilityData || !selectedPropertyId}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className={cn((isUnderMinStay || isOverMaxStay) && "border-destructive")}>
                             <SelectValue placeholder="Select rate type..." />
                           </SelectTrigger>
                           <SelectContent>
@@ -606,20 +650,45 @@ const TestBookingBenson = () => {
                               <SelectItem key={rt.id} value={rt.external_rate_type_id}>
                                 {rt.name}
                                 <span className="text-muted-foreground text-xs ml-2">
-                                  ({rt.price_type || 'N/A'})
+                                  ({rt.price_type || 'N/A'}{rt.min_stay && rt.min_stay > 1 ? `, min ${rt.min_stay} nights` : ''})
                                 </span>
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                        {selectedRateType && (isUnderMinStay || isOverMaxStay) && (
+                          <p className="text-sm text-destructive mt-1">
+                            <AlertCircle className="h-4 w-4 inline mr-1" />
+                            {isUnderMinStay && `Minimum stay is ${minStay} nights (selected ${nights})`}
+                            {isOverMaxStay && `Maximum stay is ${maxStay} nights (selected ${nights})`}
+                          </p>
+                        )}
+                        {selectedRateType && !isUnderMinStay && !isOverMaxStay && minStay > 1 && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Min stay: {minStay} nights
+                          </p>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
 
                   {/* Guests */}
-                  <Card>
+                  <Card className={cn(isOverCapacity && "border-destructive")}>
                     <CardHeader>
-                      <CardTitle className="text-lg">Guests</CardTitle>
+                      <CardTitle className="text-lg flex items-center justify-between">
+                        <span>Guests</span>
+                        {selectedRoomType && (
+                          <Badge variant={isOverCapacity ? "destructive" : "secondary"}>
+                            {totalGuests}/{maxGuests} max
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      {isOverCapacity && (
+                        <p className="text-sm text-destructive">
+                          <AlertCircle className="h-4 w-4 inline mr-1" />
+                          Exceeds max occupancy of {maxGuests} guests
+                        </p>
+                      )}
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4">
@@ -639,6 +708,7 @@ const TestBookingBenson = () => {
                               variant="outline" 
                               size="icon" 
                               onClick={() => setAdults(adults + 1)}
+                              disabled={totalGuests >= maxGuests}
                             >
                               <Plus className="h-4 w-4" />
                             </Button>
@@ -664,7 +734,7 @@ const TestBookingBenson = () => {
                               variant="outline" 
                               size="icon" 
                               onClick={() => setTeens(teens + 1)}
-                              disabled={!selectedRoomType?.allow_teens}
+                              disabled={!selectedRoomType?.allow_teens || totalGuests >= maxGuests}
                             >
                               <Plus className="h-4 w-4" />
                             </Button>
@@ -690,7 +760,7 @@ const TestBookingBenson = () => {
                               variant="outline" 
                               size="icon" 
                               onClick={() => setChildren(children + 1)}
-                              disabled={!selectedRoomType?.allow_children}
+                              disabled={!selectedRoomType?.allow_children || totalGuests >= maxGuests}
                             >
                               <Plus className="h-4 w-4" />
                             </Button>
@@ -716,7 +786,7 @@ const TestBookingBenson = () => {
                               variant="outline" 
                               size="icon" 
                               onClick={() => setInfants(infants + 1)}
-                              disabled={!selectedRoomType?.allow_infants}
+                              disabled={!selectedRoomType?.allow_infants || totalGuests >= maxGuests}
                             >
                               <Plus className="h-4 w-4" />
                             </Button>
@@ -820,10 +890,33 @@ const TestBookingBenson = () => {
 
                   {/* Submit Button */}
                   <Card>
-                    <CardContent className="pt-6">
+                    <CardContent className="pt-6 space-y-3">
+                      {/* Validation warnings */}
+                      {(isOverCapacity || isUnderMinStay || isOverMaxStay) && (
+                        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md space-y-1">
+                          {isOverCapacity && (
+                            <p className="text-sm text-destructive flex items-center gap-2">
+                              <AlertCircle className="h-4 w-4" />
+                              Exceeds max occupancy ({totalGuests}/{maxGuests})
+                            </p>
+                          )}
+                          {isUnderMinStay && (
+                            <p className="text-sm text-destructive flex items-center gap-2">
+                              <AlertCircle className="h-4 w-4" />
+                              Below min stay ({nights}/{minStay} nights)
+                            </p>
+                          )}
+                          {isOverMaxStay && (
+                            <p className="text-sm text-destructive flex items-center gap-2">
+                              <AlertCircle className="h-4 w-4" />
+                              Exceeds max stay ({nights}/{maxStay} nights)
+                            </p>
+                          )}
+                        </div>
+                      )}
                       <Button 
                         onClick={submitBooking} 
-                        disabled={submitting || !selectedPropertyId || !selectedRoomTypeId || !selectedRateTypeId}
+                        disabled={submitting || !selectedPropertyId || !selectedRoomTypeId || !selectedRateTypeId || isOverCapacity || isUnderMinStay || isOverMaxStay}
                         className="w-full"
                         size="lg"
                       >
@@ -834,7 +927,7 @@ const TestBookingBenson = () => {
                         )}
                         Submit Booking to Benson
                       </Button>
-                      <p className="text-xs text-muted-foreground text-center mt-2">
+                      <p className="text-xs text-muted-foreground text-center">
                         This will create a real reservation in Benson
                       </p>
                     </CardContent>
