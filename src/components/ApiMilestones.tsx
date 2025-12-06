@@ -1,4 +1,4 @@
-import { LucideIcon, KeyRound, HeartPulse, Download, RefreshCw, CalendarDays, Upload, Rocket } from "lucide-react";
+import { LucideIcon, KeyRound, HeartPulse, Download, RefreshCw, Upload, Rocket } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -10,7 +10,6 @@ export interface MilestoneStatus {
   healthCheck: MilestoneValue;
   pullAvailability: MilestoneValue;
   syncIn: MilestoneValue;
-  pullBookings: MilestoneValue;
   pushBooking: MilestoneValue;
   liveMonitor: MilestoneValue;
 }
@@ -48,12 +47,6 @@ const milestones: Milestone[] = [
     description: "Build cron/edge function to pull availability + rates → property_availability & property_rates tables",
   },
   {
-    key: "pullBookings",
-    icon: CalendarDays,
-    label: "Pull Bookings",
-    description: "Import existing and future reservations from the PMS into your bookings table",
-  },
-  {
     key: "pushBooking",
     icon: Upload,
     label: "Push Booking",
@@ -79,8 +72,6 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     pullAvailability: true,
     // ✅ Data caching working - pms_availability_cache populated
     syncIn: true,
-    // 🟠 getReservations function implemented - PENDING: testing with live bookings
-    pullBookings: 'pending',
     // 🟠 createReservation/postBill functions implemented - PENDING: testing
     pushBooking: 'pending',
     // ❌ Not yet live in production
@@ -95,8 +86,6 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     pullAvailability: false,
     // ❌ Sync function exists but uses different credential approach
     syncIn: false,
-    // ❌ No implementation
-    pullBookings: false,
     // ❌ Structure in push-booking but incomplete
     pushBooking: false,
     // ❌ Not implemented
@@ -111,8 +100,6 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     pullAvailability: 'pending',
     // 🟠 Availability caching to pms_availability_cache implemented - PENDING: credentials
     syncIn: 'pending',
-    // 🟠 getBookings, syncBookingsToLocal implemented - PENDING: credentials
-    pullBookings: 'pending',
     // 🟠 startSession, createBooking, storeBookingLocally implemented - PENDING: credentials
     pushBooking: 'pending',
     // ❌ Not yet live
@@ -123,7 +110,6 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     healthCheck: false,
     pullAvailability: false,
     syncIn: false,
-    pullBookings: false,
     pushBooking: false,
     liveMonitor: false,
   },
@@ -132,7 +118,6 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     healthCheck: false,
     pullAvailability: false,
     syncIn: false,
-    pullBookings: false,
     pushBooking: false,
     liveMonitor: false,
   },
@@ -141,7 +126,6 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     healthCheck: false,
     pullAvailability: false,
     syncIn: false,
-    pullBookings: false,
     pushBooking: false,
     liveMonitor: false,
   },
@@ -150,7 +134,6 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     healthCheck: false,
     pullAvailability: false,
     syncIn: false,
-    pullBookings: false,
     pushBooking: false,
     liveMonitor: false,
   },
