@@ -254,9 +254,11 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   useEffect(() => {
     if (selectedProperty) {
       fetchRoomTypes(selectedProperty);
-      setSearchParams({ property: selectedProperty }, { replace: true });
+      // Update URL without navigation using window.history
+      const newUrl = `${window.location.pathname}?property=${selectedProperty}`;
+      window.history.replaceState(null, '', newUrl);
     }
-  }, [selectedProperty, setSearchParams]);
+  }, [selectedProperty]);
 
   // Set all room types selected when roomTypes changes
   useEffect(() => {
