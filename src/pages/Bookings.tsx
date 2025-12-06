@@ -668,7 +668,7 @@ const Bookings = () => {
                             </TableCell>
                           </TableRow>
                           {/* Expanded room details with cost breakdown */}
-                          {isExpanded && hasMultipleRooms && (
+                          {isExpanded && (
                             <TableRow key={`${booking.id}-details`} className="bg-muted/30">
                               <TableCell colSpan={9} className="p-4">
                                 <div className="space-y-2">
