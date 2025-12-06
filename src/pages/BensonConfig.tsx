@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, RefreshCw, CheckCircle2, AlertCircle, Loader2, Save, ChevronDown, ChevronRight, Database, ArrowRight } from "lucide-react";
+import { ArrowLeft, RefreshCw, CheckCircle2, AlertCircle, Loader2, Save, ChevronDown, ChevronRight, Database, ArrowRight, Eye } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { RoomTypeDataViewer, ExpandableDataViewer, RateTypeItem } from "@/components/ExpandableDataViewer";
 
 interface PMSCredentials {
   id: string;
@@ -460,136 +462,282 @@ export default function BensonConfig() {
             </CardContent>
           </Card>
 
-          {/* Field Mappings List */}
+          {/* Tabs for Field Mappings and Data Explorer */}
           {selectedPropertyId && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Data Categories & Field Mappings</h2>
-                <Button onClick={saveFieldMappings} disabled={saving}>
-                  {saving ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4 mr-2" />
-                  )}
-                  Save Mappings
-                </Button>
-              </div>
+            <Tabs defaultValue="mappings" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="mappings">
+                  <Database className="h-4 w-4 mr-2" />
+                  Field Mappings
+                </TabsTrigger>
+                <TabsTrigger value="data-explorer">
+                  <Eye className="h-4 w-4 mr-2" />
+                  Data Explorer
+                </TabsTrigger>
+              </TabsList>
 
-              <div className="space-y-3">
-                {bensonDataCategories.map((category) => {
-                  const sampleData = getSampleDataForCategory(category.id);
-                  const isOpen = openCategories[category.id];
-                  
-                  return (
-                    <Card key={category.id}>
-                      <Collapsible open={isOpen} onOpenChange={() => toggleCategory(category.id)}>
-                        <CollapsibleTrigger asChild>
-                          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                {isOpen ? (
-                                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                                ) : (
-                                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                                )}
-                                <Database className="h-5 w-5 text-primary" />
-                                <div>
-                                  <CardTitle className="text-base">{category.label}</CardTitle>
-                                  <CardDescription className="text-xs">{category.description}</CardDescription>
+              {/* Field Mappings Tab */}
+              <TabsContent value="mappings" className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">Data Categories & Field Mappings</h2>
+                  <Button onClick={saveFieldMappings} disabled={saving}>
+                    {saving ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4 mr-2" />
+                    )}
+                    Save Mappings
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  {bensonDataCategories.map((category) => {
+                    const sampleData = getSampleDataForCategory(category.id);
+                    const isOpen = openCategories[category.id];
+                    
+                    return (
+                      <Card key={category.id}>
+                        <Collapsible open={isOpen} onOpenChange={() => toggleCategory(category.id)}>
+                          <CollapsibleTrigger asChild>
+                            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  {isOpen ? (
+                                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                                  )}
+                                  <Database className="h-5 w-5 text-primary" />
+                                  <div>
+                                    <CardTitle className="text-base">{category.label}</CardTitle>
+                                    <CardDescription className="text-xs">{category.description}</CardDescription>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline">{category.fields.length} fields</Badge>
+                                  {sampleData.length > 0 && (
+                                    <Badge className="bg-primary">{sampleData.length} items from Benson</Badge>
+                                  )}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline">{category.fields.length} fields</Badge>
-                                {sampleData.length > 0 && (
-                                  <Badge className="bg-primary">{sampleData.length} items from Benson</Badge>
-                                )}
-                              </div>
-                            </div>
-                          </CardHeader>
-                        </CollapsibleTrigger>
-                        
-                        <CollapsibleContent>
-                          <CardContent className="pt-0">
-                            {/* Sample Data Preview */}
-                            {sampleData.length > 0 && (
-                              <div className="mb-4 p-3 bg-muted/30 rounded-lg">
-                                <Label className="text-xs text-muted-foreground mb-2 block">
-                                  Sample data from Benson ({sampleData.length} items):
-                                </Label>
-                                <ScrollArea className="max-h-24">
-                                  <div className="flex flex-wrap gap-2">
-                                    {sampleData.slice(0, 10).map((item, idx) => (
-                                      <Badge key={idx} variant="secondary" className="text-xs">
-                                        {item.name || item.id} 
-                                        <span className="text-muted-foreground ml-1">(ID: {item.id})</span>
-                                      </Badge>
-                                    ))}
-                                    {sampleData.length > 10 && (
-                                      <Badge variant="outline" className="text-xs">+{sampleData.length - 10} more</Badge>
-                                    )}
-                                  </div>
-                                </ScrollArea>
-                              </div>
-                            )}
-
-                            {/* Field Mapping Table */}
-                            <div className="border rounded-lg overflow-hidden">
-                              <div className="grid grid-cols-[1fr,auto,1fr] gap-2 p-3 bg-muted/50 text-sm font-medium border-b">
-                                <div>Benson Field</div>
-                                <div></div>
-                                <div>Internal UI Field</div>
-                              </div>
-                              <div className="divide-y">
-                                {category.fields.map((field) => (
-                                  <div key={field.bensonField} className="grid grid-cols-[1fr,auto,1fr] gap-2 p-3 items-center">
-                                    <div>
-                                      <p className="font-medium text-sm">{field.bensonLabel}</p>
-                                      <p className="text-xs text-muted-foreground">{field.bensonField}</p>
+                            </CardHeader>
+                          </CollapsibleTrigger>
+                          
+                          <CollapsibleContent>
+                            <CardContent className="pt-0">
+                              {/* Sample Data Preview */}
+                              {sampleData.length > 0 && (
+                                <div className="mb-4 p-3 bg-muted/30 rounded-lg">
+                                  <Label className="text-xs text-muted-foreground mb-2 block">
+                                    Sample data from Benson ({sampleData.length} items):
+                                  </Label>
+                                  <ScrollArea className="max-h-24">
+                                    <div className="flex flex-wrap gap-2">
+                                      {sampleData.slice(0, 10).map((item, idx) => (
+                                        <Badge key={idx} variant="secondary" className="text-xs">
+                                          {item.name || item.id} 
+                                          <span className="text-muted-foreground ml-1">(ID: {item.id})</span>
+                                        </Badge>
+                                      ))}
+                                      {sampleData.length > 10 && (
+                                        <Badge variant="outline" className="text-xs">+{sampleData.length - 10} more</Badge>
+                                      )}
                                     </div>
-                                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                                    <Select
-                                      value={fieldMappings[category.id]?.[field.bensonField] || field.internalField}
-                                      onValueChange={(value) => updateFieldMapping(category.id, field.bensonField, value)}
-                                    >
-                                      <SelectTrigger className="w-full">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="__skip__">
-                                          <span className="text-muted-foreground italic">Skip (don't map)</span>
-                                        </SelectItem>
-                                        {availableInternalFields.map((f) => (
-                                          <SelectItem key={f.path} value={f.path}>
-                                            <div className="flex flex-col">
-                                              <span>{f.label}</span>
-                                              <span className="text-xs text-muted-foreground">{f.path}</span>
-                                            </div>
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </CardContent>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    </Card>
-                  );
-                })}
-              </div>
+                                  </ScrollArea>
+                                </div>
+                              )}
 
-              {/* Info about Charge/Payment Types */}
-              <Card className="bg-muted/30">
-                <CardContent className="pt-6">
-                  <p className="text-sm text-muted-foreground">
-                    <strong>Note:</strong> Charge Types and Payment Types from Benson are not currently used. 
-                    These will be added when booking/billing integration is implemented.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+                              {/* Field Mapping Table */}
+                              <div className="border rounded-lg overflow-hidden">
+                                <div className="grid grid-cols-[1fr,auto,1fr] gap-2 p-3 bg-muted/50 text-sm font-medium border-b">
+                                  <div>Benson Field</div>
+                                  <div></div>
+                                  <div>Internal UI Field</div>
+                                </div>
+                                <div className="divide-y">
+                                  {category.fields.map((field) => (
+                                    <div key={field.bensonField} className="grid grid-cols-[1fr,auto,1fr] gap-2 p-3 items-center">
+                                      <div>
+                                        <p className="font-medium text-sm">{field.bensonLabel}</p>
+                                        <p className="text-xs text-muted-foreground">{field.bensonField}</p>
+                                      </div>
+                                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                                      <Select
+                                        value={fieldMappings[category.id]?.[field.bensonField] || field.internalField}
+                                        onValueChange={(value) => updateFieldMapping(category.id, field.bensonField, value)}
+                                      >
+                                        <SelectTrigger className="w-full">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="__skip__">
+                                            <span className="text-muted-foreground italic">Skip (don't map)</span>
+                                          </SelectItem>
+                                          {availableInternalFields.map((f) => (
+                                            <SelectItem key={f.path} value={f.path}>
+                                              <div className="flex flex-col">
+                                                <span>{f.label}</span>
+                                                <span className="text-xs text-muted-foreground">{f.path}</span>
+                                              </div>
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </CardContent>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      </Card>
+                    );
+                  })}
+                </div>
+
+                {/* Info about Charge/Payment Types */}
+                <Card className="bg-muted/30">
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-muted-foreground">
+                      <strong>Note:</strong> Charge Types and Payment Types from Benson are not currently used. 
+                      These will be added when booking/billing integration is implemented.
+                    </p>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Data Explorer Tab */}
+              <TabsContent value="data-explorer" className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">Raw Benson API Data</h2>
+                  <Button
+                    variant="outline"
+                    onClick={fetchExternalTypes}
+                    disabled={fetchingExternal || !selectedPropertyId}
+                  >
+                    {fetchingExternal ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Refresh Data
+                  </Button>
+                </div>
+
+                {bensonData.roomTypes.length === 0 && bensonData.rateTypes.length === 0 ? (
+                  <Card className="bg-muted/30">
+                    <CardContent className="py-12 text-center">
+                      <Database className="h-12 w-12 mx-auto mb-4 text-muted-foreground/30" />
+                      <h3 className="font-semibold mb-2">No Data Loaded</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Click "Fetch from Benson" above to load API data for this property.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Room Types Explorer */}
+                    {bensonData.roomTypes.length > 0 && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            Room Types
+                            <Badge className="bg-primary">{bensonData.roomTypes.length} rooms</Badge>
+                          </CardTitle>
+                          <CardDescription>
+                            Raw room type data from Benson API with nested rate types and availability
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {bensonData.roomTypes.map((room, idx) => (
+                            <div key={room.id || idx} className="border rounded-lg overflow-hidden">
+                              <Collapsible>
+                                <CollapsibleTrigger asChild>
+                                  <div className="flex items-center justify-between p-3 bg-muted/50 hover:bg-muted cursor-pointer">
+                                    <div className="flex items-center gap-3">
+                                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                      <span className="font-medium">{room.name || `Room ${idx + 1}`}</span>
+                                      <Badge variant="outline" className="text-xs font-mono">{room.id}</Badge>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      {room.maxGuests && <span>Max: {room.maxGuests}</span>}
+                                      {room.rateTypes?.length > 0 && (
+                                        <Badge variant="secondary">{room.rateTypes.length} rate types</Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  <div className="p-4 border-t">
+                                    <RoomTypeDataViewer room={room} rateTypes={bensonData.rateTypes} />
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+                            </div>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Rate Types Explorer */}
+                    {bensonData.rateTypes.length > 0 && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            Rate Types
+                            <Badge className="bg-primary">{bensonData.rateTypes.length} rate types</Badge>
+                          </CardTitle>
+                          <CardDescription>
+                            Rate type definitions from Benson API
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          {bensonData.rateTypes.map((rateType, idx) => (
+                            <div key={rateType.id || idx} className="border rounded-lg overflow-hidden">
+                              <Collapsible>
+                                <CollapsibleTrigger asChild>
+                                  <div className="flex items-center justify-between p-3 bg-muted/50 hover:bg-muted cursor-pointer">
+                                    <div className="flex items-center gap-3">
+                                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                      <span className="font-medium">{rateType.name || `Rate ${idx + 1}`}</span>
+                                      <Badge variant="outline" className="text-xs font-mono">{rateType.id}</Badge>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      {rateType.priceType && <Badge variant="secondary">{rateType.priceType}</Badge>}
+                                    </div>
+                                  </div>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  <div className="p-4 border-t">
+                                    <ExpandableDataViewer data={rateType} defaultExpanded={true} />
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+                            </div>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Full Raw Data */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Full Raw Response</CardTitle>
+                        <CardDescription>Complete API response data for debugging</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ScrollArea className="h-[400px] border rounded-lg p-3">
+                          <ExpandableDataViewer 
+                            data={{ roomTypes: bensonData.roomTypes, rateTypes: bensonData.rateTypes }} 
+                            defaultExpanded={false} 
+                          />
+                        </ScrollArea>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
           )}
         </div>
       </div>
