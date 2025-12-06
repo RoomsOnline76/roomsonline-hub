@@ -327,7 +327,9 @@ const TestBookingBenson = () => {
   // Check if any room has validation errors
   const hasValidationErrors = bookingRooms.some((room, index) => {
     const validation = getRoomValidation(room, index);
-    return !room.roomTypeId || !room.rateTypeId || validation.isOverCapacity || validation.isUnderCapacity || validation.isUnderMinStay || validation.isOverMaxStay || validation.rateTypeUnavailable;
+    // For rate type check, use first room's rate type since it's global
+    const effectiveRateTypeId = index === 0 ? room.rateTypeId : bookingRooms[0]?.rateTypeId;
+    return !room.roomTypeId || !effectiveRateTypeId || validation.isOverCapacity || validation.isUnderCapacity || validation.isUnderMinStay || validation.isOverMaxStay || validation.rateTypeUnavailable;
   });
 
   // Calculate grand totals across all rooms
@@ -1058,8 +1060,8 @@ const TestBookingBenson = () => {
                                     <Select 
                                       value={room.rateTypeId} 
                                       onValueChange={(value) => {
-                                        // Update all rooms with this rate type
-                                        bookingRooms.forEach(r => updateRoom(r.id, { rateTypeId: value }));
+                                        // Update all rooms with this rate type in a single state update
+                                        setBookingRooms(prev => prev.map(r => ({ ...r, rateTypeId: value })));
                                       }}
                                       disabled={!room.roomTypeId}
                                     >
