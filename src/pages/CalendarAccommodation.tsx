@@ -592,10 +592,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
+        .in("role", ["admin", "dev"]);
 
-      const adminStatus = !!roleData;
+      const adminStatus = roleData && roleData.length > 0;
       setIsAdmin(adminStatus);
 
       const { data: profileData } = await supabase
