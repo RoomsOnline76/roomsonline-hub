@@ -679,10 +679,11 @@ const Bookings = () => {
                                         ? Math.ceil((new Date(room.departureDate).getTime() - new Date(room.arrivalDate).getTime()) / (1000 * 60 * 60 * 24))
                                         : Math.ceil((new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) / (1000 * 60 * 60 * 24));
                                       
-                                      // Get charges for this room from booking.charges (Benson data structure)
+                                      // Get charges for this room from booking.charges (Benson stored data)
                                       const bookingCharges = booking.charges || [];
+                                      // Match by roomName - convert both to string for comparison
                                       const roomCharges = bookingCharges.filter((charge: any) => 
-                                        charge.roomName === room.roomName
+                                        String(charge.roomName).trim() === String(room.roomName).trim()
                                       );
                                       const roomTotal = roomCharges.reduce((sum: number, charge: any) => 
                                         sum + (Number(charge.amount) || 0), 0
