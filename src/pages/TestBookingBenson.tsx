@@ -753,7 +753,7 @@ const TestBookingBenson = () => {
                             {grandTotalGuests} total guests
                           </Badge>
                           <Button
-                            variant="outline"
+                            variant="default"
                             size="sm"
                             onClick={addRoom}
                             disabled={!availabilityData}
