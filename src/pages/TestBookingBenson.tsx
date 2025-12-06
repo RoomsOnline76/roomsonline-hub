@@ -414,34 +414,41 @@ const TestBookingBenson = () => {
           runningTotal += totalAdultAmount;
         }
 
-        if (totalTeenAmount > 0) {
+        if (totalTeenAmount > 0 && teens > 0) {
+          // Unit price is the per-person rate from API (total / nights / count)
+          const ratesCount = rates.length || 1;
+          const perPersonPerNight = totalTeenAmount / ratesCount / teens;
           lineItems.push({
             description: `Teen Rate (${teens} teen${teens > 1 ? 's' : ''})`,
             nights: nights,
             quantity: teens,
-            unitPrice: totalTeenAmount / nights / teens,
+            unitPrice: perPersonPerNight,
             total: totalTeenAmount,
           });
           runningTotal += totalTeenAmount;
         }
 
-        if (totalChildAmount > 0) {
+        if (totalChildAmount > 0 && children > 0) {
+          const ratesCount = rates.length || 1;
+          const perPersonPerNight = totalChildAmount / ratesCount / children;
           lineItems.push({
             description: `Child Rate (${children} child${children > 1 ? 'ren' : ''})`,
             nights: nights,
             quantity: children,
-            unitPrice: totalChildAmount / nights / children,
+            unitPrice: perPersonPerNight,
             total: totalChildAmount,
           });
           runningTotal += totalChildAmount;
         }
 
-        if (totalInfantAmount > 0) {
+        if (totalInfantAmount > 0 && infants > 0) {
+          const ratesCount = rates.length || 1;
+          const perPersonPerNight = totalInfantAmount / ratesCount / infants;
           lineItems.push({
             description: `Infant Rate (${infants} infant${infants > 1 ? 's' : ''})`,
             nights: nights,
             quantity: infants,
-            unitPrice: totalInfantAmount / nights / infants,
+            unitPrice: perPersonPerNight,
             total: totalInfantAmount,
           });
           runningTotal += totalInfantAmount;
