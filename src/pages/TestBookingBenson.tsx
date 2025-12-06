@@ -103,6 +103,7 @@ const TestBookingBenson = () => {
   const [bookingTests, setBookingTests] = useState<BookingTest[]>([]);
   const [lastResponse, setLastResponse] = useState<any>(null);
   const [availabilityData, setAvailabilityData] = useState<any>(null);
+  const [availabilityCache, setAvailabilityCache] = useState<Record<string, any>>({});
 
   // Fetch Benson properties only
   const { data: properties = [], isLoading: propertiesLoading } = useQuery({
@@ -179,17 +180,23 @@ const TestBookingBenson = () => {
   const isUnderMinStay = nights > 0 && nights < minStay;
   const isOverMaxStay = nights > maxStay;
 
-  // Reset form when property changes
+  // Restore cached data or reset form when property changes
   useEffect(() => {
     setSelectedRoomTypeId("");
     setSelectedRateTypeId("");
     setCostBreakdown([]);
     setTotalCost(0);
-    setAvailabilityData(null);
     setAdults(2);
     setTeens(0);
     setChildren(0);
     setInfants(0);
+    
+    // Restore cached availability data for this property if available
+    if (selectedPropertyId && availabilityCache[selectedPropertyId]) {
+      setAvailabilityData(availabilityCache[selectedPropertyId]);
+    } else {
+      setAvailabilityData(null);
+    }
   }, [selectedPropertyId]);
 
   // Reset disallowed guest types and enforce max occupancy when room type changes
@@ -234,14 +241,22 @@ const TestBookingBenson = () => {
       if (error) throw error;
 
       // Add fetch timestamp and date range to the data
-      setAvailabilityData({ 
+      const enrichedData = { 
         ...data, 
         fetchedAt: new Date().toISOString(),
         fetchedForDates: {
           checkIn: format(checkInDate, "yyyy-MM-dd"),
           checkOut: format(checkOutDate, "yyyy-MM-dd"),
         }
-      });
+      };
+      setAvailabilityData(enrichedData);
+      
+      // Cache the data for this property
+      setAvailabilityCache(prev => ({
+        ...prev,
+        [selectedPropertyId]: enrichedData
+      }));
+      
       toast({ title: "Availability fetched", description: `Retrieved data for ${data.roomTypes?.length || 0} room types` });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
