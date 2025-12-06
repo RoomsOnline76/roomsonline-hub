@@ -20,7 +20,7 @@ import {
   CalendarDays, Users, Loader2, Send, Calculator, 
   ArrowLeft, Plus, Minus, CheckCircle2, AlertCircle, RefreshCw 
 } from "lucide-react";
-import { format, addDays, differenceInDays, startOfDay } from "date-fns";
+import { format, addDays, differenceInDays, startOfDay, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 
 interface Property {
@@ -231,7 +231,8 @@ const TestBookingBenson = () => {
 
       if (error) throw error;
 
-      setAvailabilityData(data);
+      // Add fetch timestamp to the data
+      setAvailabilityData({ ...data, fetchedAt: new Date().toISOString() });
       toast({ title: "Availability fetched", description: `Retrieved data for ${data.roomTypes?.length || 0} room types` });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -587,9 +588,23 @@ const TestBookingBenson = () => {
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">
-                          {nights} night{nights !== 1 ? 's' : ''}
-                        </span>
+                        <div className="space-y-1">
+                          <span className="text-sm text-muted-foreground">
+                            {nights} night{nights !== 1 ? 's' : ''}
+                          </span>
+                          {availabilityData && (
+                            <div className="text-xs text-muted-foreground">
+                              <span className="text-foreground font-medium">
+                                {availabilityData.roomTypes?.length || 0} room types
+                              </span>
+                              {availabilityData.fetchedAt && (
+                                <span className="ml-2">
+                                  · fetched {formatDistanceToNow(new Date(availabilityData.fetchedAt), { addSuffix: true })}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                         <Button 
                           variant="outline" 
                           size="sm"
