@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Calendar, Search, Filter, RefreshCw, Users, CalendarDays, Building2, CloudDownload, Loader2, ChevronDown, ChevronUp, Bed, Plus } from "lucide-react";
+import { Calendar, Search, Filter, RefreshCw, Users, CalendarDays, Building2, CloudDownload, Loader2, ChevronDown, ChevronUp, Bed, Plus, XCircle } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -78,8 +78,114 @@ const Bookings = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [syncingBookings, setSyncingBookings] = useState(false);
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
+  const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(null);
 
   const canViewAllProperties = isAdmin || isDev;
+
+  // Cancel entire reservation (internal only)
+  const handleCancelReservation = async (booking: Booking) => {
+    if (!confirm(`Are you sure you want to cancel this entire reservation for ${booking.guest_name}?`)) {
+      return;
+    }
+    
+    setCancellingBookingId(booking.id);
+    try {
+      if (booking.source === "pms") {
+        // Update pms_reservations
+        const { error } = await supabase
+          .from("pms_reservations")
+          .update({ status: "CANCELLED" })
+          .eq("external_reservation_id", booking.external_reservation_id);
+        
+        if (error) throw error;
+      } else {
+        // Update internal bookings
+        const { error } = await supabase
+          .from("bookings")
+          .update({ status: "cancelled" })
+          .eq("id", booking.id);
+        
+        if (error) throw error;
+      }
+      
+      // Update local state
+      setBookings(prev => prev.map(b => 
+        b.id === booking.id ? { ...b, status: "cancelled" } : b
+      ));
+      
+      toast.success("Reservation cancelled successfully");
+    } catch (error: any) {
+      console.error("Error cancelling reservation:", error);
+      toast.error(`Failed to cancel: ${error.message}`);
+    } finally {
+      setCancellingBookingId(null);
+    }
+  };
+
+  // Cancel individual room (internal only)
+  const handleCancelRoom = async (booking: Booking, roomIndex: number, roomName: string) => {
+    if (!confirm(`Are you sure you want to cancel room "${roomName}" from this reservation?`)) {
+      return;
+    }
+    
+    setCancellingBookingId(`${booking.id}-room-${roomIndex}`);
+    try {
+      const rooms = booking.rooms && Array.isArray(booking.rooms) ? [...booking.rooms] : [];
+      
+      if (rooms[roomIndex]) {
+        // Mark room as cancelled
+        rooms[roomIndex] = { ...rooms[roomIndex], status: "CANCELLED" };
+      }
+      
+      // Check if all rooms are now cancelled
+      const allCancelled = rooms.every((r: any) => r.status === "CANCELLED");
+      
+      if (booking.source === "pms") {
+        // Update pms_reservations
+        const updateData: any = { rooms };
+        if (allCancelled) {
+          updateData.status = "CANCELLED";
+        }
+        
+        const { error } = await supabase
+          .from("pms_reservations")
+          .update(updateData)
+          .eq("external_reservation_id", booking.external_reservation_id);
+        
+        if (error) throw error;
+      } else {
+        // Update internal bookings
+        const updateData: any = { rooms };
+        if (allCancelled) {
+          updateData.status = "cancelled";
+        }
+        
+        const { error } = await supabase
+          .from("bookings")
+          .update(updateData)
+          .eq("id", booking.id);
+        
+        if (error) throw error;
+      }
+      
+      // Update local state
+      setBookings(prev => prev.map(b => {
+        if (b.id !== booking.id) return b;
+        return { 
+          ...b, 
+          rooms, 
+          status: allCancelled ? "cancelled" : b.status 
+        };
+      }));
+      
+      toast.success(`Room "${roomName}" cancelled`);
+    } catch (error: any) {
+      console.error("Error cancelling room:", error);
+      toast.error(`Failed to cancel room: ${error.message}`);
+    } finally {
+      setCancellingBookingId(null);
+    }
+  };
 
   // Load properties based on user role
   useEffect(() => {
@@ -671,8 +777,30 @@ const Bookings = () => {
                           {isExpanded && (
                             <TableRow key={`${booking.id}-details`} className="bg-muted/30">
                               <TableCell colSpan={9} className="p-4">
-                                <div className="space-y-2">
-                                  <p className="text-sm font-medium text-muted-foreground mb-3">Room Details & Cost Breakdown</p>
+                                <div className="space-y-4">
+                                  {/* Header with cancel entire reservation button */}
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-sm font-medium text-muted-foreground">Room Details & Cost Breakdown</p>
+                                    {booking.status !== "cancelled" && (
+                                      <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCancelReservation(booking);
+                                        }}
+                                        disabled={cancellingBookingId === booking.id}
+                                      >
+                                        {cancellingBookingId === booking.id ? (
+                                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                                        ) : (
+                                          <XCircle className="h-4 w-4 mr-1" />
+                                        )}
+                                        Cancel Entire Reservation
+                                      </Button>
+                                    )}
+                                  </div>
+                                  
                                   <div className="grid gap-3">
                                     {rooms.map((room: any, index: number) => {
                                       const roomDates = {
@@ -693,27 +821,55 @@ const Bookings = () => {
                                         sum + (Number(charge.amount) || 0), 0
                                       ) || room.totalAmount || room.roomTotal || 0;
                                       const hasCharges = roomCharges.length > 0;
+                                      const isRoomCancelled = room.status === "CANCELLED" || room.status === "cancelled";
+                                      const roomDisplayName = room.roomTypeName || room.roomName || `Room ${index + 1}`;
                                       
                                       return (
-                                        <div key={index} className="p-3 bg-background rounded-lg border">
+                                        <div key={index} className={`p-3 bg-background rounded-lg border ${isRoomCancelled ? "opacity-50 border-destructive" : ""}`}>
                                           <div className="flex items-start justify-between gap-4">
                                             <div className="flex items-start gap-3">
                                               <Bed className="h-5 w-5 text-muted-foreground mt-0.5" />
                                               <div>
-                                                <p className="font-medium">{room.roomTypeName || room.roomName || `Room ${index + 1}`}</p>
+                                                <div className="flex items-center gap-2">
+                                                  <p className="font-medium">{roomDisplayName}</p>
+                                                  {isRoomCancelled && (
+                                                    <Badge variant="destructive" className="text-xs">Cancelled</Badge>
+                                                  )}
+                                                </div>
                                                 <p className="text-sm text-muted-foreground">
                                                   {format(parseISO(roomDates.checkIn), "dd MMM")} → {format(parseISO(roomDates.checkOut), "dd MMM")} ({nights} nights)
                                                 </p>
                                               </div>
                                             </div>
-                                            <div className="text-right">
-                                              <p className="font-bold">R{Number(roomTotal).toLocaleString()}</p>
-                                              <p className="text-xs text-muted-foreground">
-                                                {room.numberOfAdults || 0}A
-                                                {(room.numberOfTeens || 0) > 0 && `, ${room.numberOfTeens}T`}
-                                                {(room.numberOfChildren || 0) > 0 && `, ${room.numberOfChildren}C`}
-                                                {(room.numberOfInfants || 0) > 0 && `, ${room.numberOfInfants}I`}
-                                              </p>
+                                            <div className="flex items-start gap-3">
+                                              <div className="text-right">
+                                                <p className="font-bold">R{Number(roomTotal).toLocaleString()}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                  {room.numberOfAdults || 0}A
+                                                  {(room.numberOfTeens || 0) > 0 && `, ${room.numberOfTeens}T`}
+                                                  {(room.numberOfChildren || 0) > 0 && `, ${room.numberOfChildren}C`}
+                                                  {(room.numberOfInfants || 0) > 0 && `, ${room.numberOfInfants}I`}
+                                                </p>
+                                              </div>
+                                              {/* Cancel room button */}
+                                              {!isRoomCancelled && booking.status !== "cancelled" && rooms.length > 1 && (
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleCancelRoom(booking, index, roomDisplayName);
+                                                  }}
+                                                  disabled={cancellingBookingId === `${booking.id}-room-${index}`}
+                                                >
+                                                  {cancellingBookingId === `${booking.id}-room-${index}` ? (
+                                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                                  ) : (
+                                                    <XCircle className="h-3 w-3" />
+                                                  )}
+                                                </Button>
+                                              )}
                                             </div>
                                           </div>
                                           
