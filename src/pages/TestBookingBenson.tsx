@@ -69,6 +69,8 @@ interface BookingRoom {
   // Optional per-room dates (uses main dates if not set)
   customCheckIn?: Date;
   customCheckOut?: Date;
+  // Flag to track if dates were explicitly customized by user
+  hasCustomDates?: boolean;
 }
 
 interface RoomCostBreakdown {
@@ -231,10 +233,11 @@ const TestBookingBenson = () => {
     return differenceInDays(checkOutDate, checkInDate);
   }, [checkInDate, checkOutDate]);
 
-  // Helper to get effective dates for a room (uses custom dates or falls back to main dates)
+  // Helper to get effective dates for a room (uses custom dates if explicitly set, or falls back to main dates)
   const getRoomDates = (room: BookingRoom) => {
-    const effectiveCheckIn = room.customCheckIn || checkInDate;
-    const effectiveCheckOut = room.customCheckOut || checkOutDate;
+    // Only use custom dates if hasCustomDates flag is set
+    const effectiveCheckIn = room.hasCustomDates && room.customCheckIn ? room.customCheckIn : checkInDate;
+    const effectiveCheckOut = room.hasCustomDates && room.customCheckOut ? room.customCheckOut : checkOutDate;
     const roomNights = effectiveCheckIn && effectiveCheckOut 
       ? differenceInDays(effectiveCheckOut, effectiveCheckIn) 
       : 0;
@@ -278,6 +281,19 @@ const TestBookingBenson = () => {
           if (!roomType.allow_teens) updatedRoom.teens = 0;
           if (!roomType.allow_children) updatedRoom.children = 0;
           if (!roomType.allow_infants) updatedRoom.infants = 0;
+        }
+      }
+      
+      // When first setting hasCustomDates, initialize both dates from main dates
+      // so changing one date doesn't leave the other undefined
+      if (updates.hasCustomDates === true && !room.hasCustomDates) {
+        // If setting customCheckIn but not customCheckOut, init checkOut from main
+        if (updates.customCheckIn && !updates.customCheckOut && !room.customCheckOut) {
+          updatedRoom.customCheckOut = checkOutDate;
+        }
+        // If setting customCheckOut but not customCheckIn, init checkIn from main
+        if (updates.customCheckOut && !updates.customCheckIn && !room.customCheckIn) {
+          updatedRoom.customCheckIn = checkInDate;
         }
       }
       
@@ -895,7 +911,7 @@ const TestBookingBenson = () => {
                         const rateTypesForRoom = getRateTypesForRoom(room.roomTypeId);
                         const hasErrors = validation.isOverCapacity || validation.isUnderCapacity || validation.isUnderMinStay || validation.isOverMaxStay || validation.rateTypeUnavailable;
                         const roomDates = getRoomDates(room);
-                        const hasCustomDates = room.customCheckIn || room.customCheckOut;
+                        const hasCustomDates = room.hasCustomDates === true;
                         
                         return (
                           <Card key={room.id} className={cn("p-4", hasErrors && "border-destructive")}>
@@ -941,7 +957,7 @@ const TestBookingBenson = () => {
                                     variant="ghost"
                                     size="sm"
                                     className="h-6 text-xs"
-                                    onClick={() => updateRoom(room.id, { customCheckIn: undefined, customCheckOut: undefined })}
+                                    onClick={() => updateRoom(room.id, { customCheckIn: undefined, customCheckOut: undefined, hasCustomDates: false })}
                                   >
                                     Reset to default
                                   </Button>
@@ -973,7 +989,7 @@ const TestBookingBenson = () => {
                                       mode="single"
                                       selected={roomDates.checkIn}
                                       onSelect={(date) => {
-                                        updateRoom(room.id, { customCheckIn: date });
+                                        updateRoom(room.id, { customCheckIn: date, hasCustomDates: true });
                                         setRoomCalendarOpen(prev => ({
                                           ...prev,
                                           [room.id]: { ...prev[room.id], checkIn: false }
@@ -1010,7 +1026,7 @@ const TestBookingBenson = () => {
                                       mode="single"
                                       selected={roomDates.checkOut}
                                       onSelect={(date) => {
-                                        updateRoom(room.id, { customCheckOut: date });
+                                        updateRoom(room.id, { customCheckOut: date, hasCustomDates: true });
                                         setRoomCalendarOpen(prev => ({
                                           ...prev,
                                           [room.id]: { ...prev[room.id], checkOut: false }
@@ -1023,7 +1039,7 @@ const TestBookingBenson = () => {
                                   </PopoverContent>
                                 </Popover>
                               </div>
-                              {!hasCustomDates && checkInDate && checkOutDate && (
+                              {!room.hasCustomDates && checkInDate && checkOutDate && (
                                 <p className="text-xs text-muted-foreground mt-1">
                                   Using default: {format(checkInDate, "MMM d")} – {format(checkOutDate, "MMM d")}
                                 </p>
