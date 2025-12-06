@@ -129,7 +129,9 @@ export default function BensonConfig() {
   const [bensonData, setBensonData] = useState<{
     roomTypes: any[];
     rateTypes: any[];
-  }>({ roomTypes: [], rateTypes: [] });
+    reservations: any[];
+  }>({ roomTypes: [], rateTypes: [], reservations: [] });
+  const [fetchingReservations, setFetchingReservations] = useState(false);
 
   // Field mappings state - maps bensonField to internalField
   const [fieldMappings, setFieldMappings] = useState<Record<string, Record<string, string>>>({});
@@ -250,10 +252,11 @@ export default function BensonConfig() {
 
       if (error) throw error;
 
-      setBensonData({
+      setBensonData(prev => ({
+        ...prev,
         roomTypes: data.roomTypes || [],
         rateTypes: data.rateTypes || [],
-      });
+      }));
 
       toast({
         title: "Data fetched",
@@ -267,6 +270,66 @@ export default function BensonConfig() {
       });
     }
     setFetchingExternal(false);
+  };
+
+  const fetchReservations = async () => {
+    if (!selectedPropertyId || !credentials) {
+      toast({
+        title: "Missing configuration",
+        description: "Please select a property and ensure credentials are configured",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const property = properties.find(p => p.id === selectedPropertyId);
+    if (!property?.benson_property_code) {
+      toast({
+        title: "Missing property code",
+        description: "Please configure the Benson property code in property settings",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setFetchingReservations(true);
+    try {
+      // Fetch reservations for the next 90 days
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 1);
+      const endDate = new Date();
+      endDate.setMonth(endDate.getMonth() + 3);
+
+      const { data, error } = await supabase.functions.invoke("benson-api", {
+        body: {
+          action: "get_reservations",
+          property_id: selectedPropertyId,
+          start_date: startDate.toISOString().split('T')[0],
+          end_date: endDate.toISOString().split('T')[0],
+          statuses: ["PROVISIONAL", "CONFIRMED", "GUARANTEED", "CHECKED-IN", "CANCELLED"],
+        },
+      });
+
+      if (error) throw error;
+
+      const reservations = data.reservations || [];
+      setBensonData(prev => ({
+        ...prev,
+        reservations,
+      }));
+
+      toast({
+        title: "Reservations fetched",
+        description: `Found ${reservations.length} reservations`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error fetching reservations",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+    setFetchingReservations(false);
   };
 
   const saveFieldMappings = async () => {
@@ -719,6 +782,78 @@ export default function BensonConfig() {
                       </Card>
                     )}
 
+                    {/* Reservations Explorer */}
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="flex items-center gap-2">
+                              Reservations
+                              {bensonData.reservations.length > 0 && (
+                                <Badge className="bg-primary">{bensonData.reservations.length} reservations</Badge>
+                              )}
+                            </CardTitle>
+                            <CardDescription>
+                              Reservation data from Benson API (last month to 3 months ahead)
+                            </CardDescription>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={fetchReservations}
+                            disabled={fetchingReservations || !selectedPropertyId}
+                          >
+                            {fetchingReservations ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                            )}
+                            Fetch Reservations
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {bensonData.reservations.length === 0 ? (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <p>No reservations loaded. Click "Fetch Reservations" to load.</p>
+                          </div>
+                        ) : (
+                          bensonData.reservations.map((reservation, idx) => (
+                            <div key={reservation.id || idx} className="border rounded-lg overflow-hidden">
+                              <Collapsible>
+                                <CollapsibleTrigger asChild>
+                                  <div className="flex items-center justify-between p-3 bg-muted/50 hover:bg-muted cursor-pointer">
+                                    <div className="flex items-center gap-3">
+                                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                      <span className="font-medium">
+                                        {reservation.reservationName || reservation.contactName || `Reservation ${idx + 1}`}
+                                      </span>
+                                      <Badge variant="outline" className="text-xs font-mono">{reservation.id}</Badge>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      {reservation.status && (
+                                        <Badge variant={reservation.status === 'CANCELLED' ? 'destructive' : 'secondary'}>
+                                          {reservation.status}
+                                        </Badge>
+                                      )}
+                                      {reservation.arrivalDate && (
+                                        <span>{reservation.arrivalDate} → {reservation.departureDate}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  <div className="p-4 border-t">
+                                    <ExpandableDataViewer data={reservation} defaultExpanded={true} />
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+                            </div>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+
                     {/* Full Raw Data */}
                     <Card>
                       <CardHeader>
@@ -728,7 +863,11 @@ export default function BensonConfig() {
                       <CardContent>
                         <ScrollArea className="h-[400px] border rounded-lg p-3">
                           <ExpandableDataViewer 
-                            data={{ roomTypes: bensonData.roomTypes, rateTypes: bensonData.rateTypes }} 
+                            data={{ 
+                              roomTypes: bensonData.roomTypes, 
+                              rateTypes: bensonData.rateTypes,
+                              reservations: bensonData.reservations 
+                            }} 
                             defaultExpanded={false} 
                           />
                         </ScrollArea>
