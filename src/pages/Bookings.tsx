@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -229,7 +229,9 @@ const Bookings = () => {
             status: res.status?.toLowerCase() || "unknown",
             room_type_id: null,
             rate_type_id: null,
+            rate_type_name: res.rate_type_name,
             rooms: res.rooms,
+            charges: Array.isArray(res.charges) ? res.charges : [],
             special_requests: null,
             voucher: res.reservation_voucher,
             external_reservation_id: res.external_reservation_id,
@@ -611,7 +613,7 @@ const Bookings = () => {
                       const isExpanded = expandedBookingId === booking.id;
                       
                       return (
-                        <>
+                        <React.Fragment key={booking.id}>
                           <TableRow 
                             key={booking.id} 
                             className={hasMultipleRooms ? "cursor-pointer hover:bg-muted/50" : ""}
@@ -742,7 +744,7 @@ const Bookings = () => {
                               </TableCell>
                             </TableRow>
                           )}
-                        </>
+                        </React.Fragment>
                       );
                     })}
                   </TableBody>
