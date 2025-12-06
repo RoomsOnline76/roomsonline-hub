@@ -20,8 +20,10 @@ export function useAuth() {
 
       if (mounted) {
         const roles = data?.map(r => r.role) || [];
-        setIsAdmin(roles.includes("admin"));
-        setIsDev(roles.includes("dev"));
+        const hasDev = roles.includes("dev");
+        // Dev users get admin access + dev access
+        setIsAdmin(roles.includes("admin") || hasDev);
+        setIsDev(hasDev);
         setLoading(false);
       }
     };
