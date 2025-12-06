@@ -109,9 +109,9 @@ const TestBookingBenson = () => {
     { id: crypto.randomUUID(), roomTypeId: "", rateTypeId: "", adults: 2, teens: 0, children: 0, infants: 0 }
   ]);
   
-  const [guestName, setGuestName] = useState("Test Guest");
-  const [guestEmail, setGuestEmail] = useState("test@example.com");
-  const [guestPhone, setGuestPhone] = useState("+27000000000");
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
   const [voucher, setVoucher] = useState("");
   const [notes, setNotes] = useState("");
   
