@@ -554,22 +554,42 @@ export type Database = {
       pms_reservations: {
         Row: {
           arrival_date: string
+          cancellation: Json | null
+          cancellation_date: string | null
+          cancellation_reason: string | null
+          cancellation_user_name: string | null
           charges: Json | null
+          consultant_contact_number: string | null
+          consultant_email: string | null
+          consultant_name: string | null
           contact_email: string | null
           contact_name: string | null
           contact_phone: string | null
+          create_date: string | null
+          create_user_name: string | null
           created_at: string | null
           currency: string | null
           departure_date: string
           external_reservation_id: string
+          guarantee: Json | null
+          guest_nationality: string | null
           guests: Json | null
           id: string
+          is_property_tax_inclusive: boolean | null
+          link_id: string | null
+          number_of_guests: number | null
+          number_of_rooms: number | null
+          originating_agent: Json | null
           payments: Json | null
           property_id: string | null
           rate_type_name: string | null
           raw_data: Json | null
+          reservation_name: string | null
+          reservation_voucher: string | null
+          responsible_client: Json | null
           rooms: Json | null
           status: string | null
+          status_at_time_of_cancellation: string | null
           synced_at: string | null
           system_type: string
           total_amount: number | null
@@ -577,22 +597,42 @@ export type Database = {
         }
         Insert: {
           arrival_date: string
+          cancellation?: Json | null
+          cancellation_date?: string | null
+          cancellation_reason?: string | null
+          cancellation_user_name?: string | null
           charges?: Json | null
+          consultant_contact_number?: string | null
+          consultant_email?: string | null
+          consultant_name?: string | null
           contact_email?: string | null
           contact_name?: string | null
           contact_phone?: string | null
+          create_date?: string | null
+          create_user_name?: string | null
           created_at?: string | null
           currency?: string | null
           departure_date: string
           external_reservation_id: string
+          guarantee?: Json | null
+          guest_nationality?: string | null
           guests?: Json | null
           id?: string
+          is_property_tax_inclusive?: boolean | null
+          link_id?: string | null
+          number_of_guests?: number | null
+          number_of_rooms?: number | null
+          originating_agent?: Json | null
           payments?: Json | null
           property_id?: string | null
           rate_type_name?: string | null
           raw_data?: Json | null
+          reservation_name?: string | null
+          reservation_voucher?: string | null
+          responsible_client?: Json | null
           rooms?: Json | null
           status?: string | null
+          status_at_time_of_cancellation?: string | null
           synced_at?: string | null
           system_type: string
           total_amount?: number | null
@@ -600,22 +640,42 @@ export type Database = {
         }
         Update: {
           arrival_date?: string
+          cancellation?: Json | null
+          cancellation_date?: string | null
+          cancellation_reason?: string | null
+          cancellation_user_name?: string | null
           charges?: Json | null
+          consultant_contact_number?: string | null
+          consultant_email?: string | null
+          consultant_name?: string | null
           contact_email?: string | null
           contact_name?: string | null
           contact_phone?: string | null
+          create_date?: string | null
+          create_user_name?: string | null
           created_at?: string | null
           currency?: string | null
           departure_date?: string
           external_reservation_id?: string
+          guarantee?: Json | null
+          guest_nationality?: string | null
           guests?: Json | null
           id?: string
+          is_property_tax_inclusive?: boolean | null
+          link_id?: string | null
+          number_of_guests?: number | null
+          number_of_rooms?: number | null
+          originating_agent?: Json | null
           payments?: Json | null
           property_id?: string | null
           rate_type_name?: string | null
           raw_data?: Json | null
+          reservation_name?: string | null
+          reservation_voucher?: string | null
+          responsible_client?: Json | null
           rooms?: Json | null
           status?: string | null
+          status_at_time_of_cancellation?: string | null
           synced_at?: string | null
           system_type?: string
           total_amount?: number | null

@@ -650,10 +650,14 @@ serve(async (req) => {
         break;
 
       case "create_reservation":
-        result = await createReservation(creds, propertyCode, params.reservation);
+        result = await createReservation(creds, propertyCode, params.reservation_data);
         
-        // Store the reservation in our database
+        // Store the reservation in our database with full fields
         if (result.id) {
+          const totalAmount = result.charges?.reduce((sum: number, charge: any) => {
+            return sum + (parseFloat(charge.amount) || 0);
+          }, 0) || 0;
+
           await supabase.from("pms_reservations").upsert({
             property_id: property_id,
             system_type: "benson",
@@ -665,10 +669,27 @@ serve(async (req) => {
             contact_email: result.contactEmail,
             contact_phone: result.contactNumber,
             rate_type_name: result.rateTypeName,
+            total_amount: totalAmount,
+            currency: "ZAR",
             rooms: result.reservationRooms || [],
             guests: result.guests || [],
             charges: result.charges || [],
             payments: result.payments || [],
+            reservation_name: result.reservationName || null,
+            reservation_voucher: result.reservationVoucher || null,
+            consultant_name: result.consultantName || null,
+            consultant_email: result.consultantEmail || null,
+            consultant_contact_number: result.consultantContactNumber || null,
+            originating_agent: result.originatingAgent || {},
+            responsible_client: result.responsibleClient || {},
+            guarantee: result.guarantee || {},
+            cancellation: result.cancellation || {},
+            number_of_rooms: result.numberOfRooms || null,
+            number_of_guests: result.numberOfGuests || null,
+            guest_nationality: result.guestNationality || null,
+            create_date: result.createDate || null,
+            create_user_name: result.createUserName || null,
+            is_property_tax_inclusive: result.isPropertyTaxInclusive ?? true,
             raw_data: result,
             synced_at: new Date().toISOString(),
           }, {
@@ -683,13 +704,19 @@ serve(async (req) => {
           propertyCode,
           params.start_date,
           params.end_date,
-          params.statuses || ["PROVISIONAL", "CONFIRMED", "GUARANTEED", "CHECKED-IN"]
+          params.statuses || ["PROVISIONAL", "CONFIRMED", "GUARANTEED", "CHECKED-IN", "CANCELLED"]
         );
         
-        // Sync reservations to our database
+        // Sync reservations to our database with full Benson API fields
         if (Array.isArray(result)) {
+          console.log(`Syncing ${result.length} reservations from Benson`);
           for (const res of result) {
-            await supabase.from("pms_reservations").upsert({
+            // Calculate total amount from charges
+            const totalAmount = res.charges?.reduce((sum: number, charge: any) => {
+              return sum + (parseFloat(charge.amount) || 0);
+            }, 0) || 0;
+
+            const { error: upsertError } = await supabase.from("pms_reservations").upsert({
               property_id: property_id,
               system_type: "benson",
               external_reservation_id: res.id.toString(),
@@ -700,16 +727,44 @@ serve(async (req) => {
               contact_email: res.contactEmail,
               contact_phone: res.contactNumber,
               rate_type_name: res.rateTypeName,
+              total_amount: totalAmount,
+              currency: "ZAR",
               rooms: res.reservationRooms || [],
               guests: res.guests || [],
               charges: res.charges || [],
               payments: res.payments || [],
+              // New fields from Benson API docs
+              reservation_name: res.reservationName || null,
+              reservation_voucher: res.reservationVoucher || null,
+              consultant_name: res.consultantName || null,
+              consultant_email: res.consultantEmail || null,
+              consultant_contact_number: res.consultantContactNumber || null,
+              originating_agent: res.originatingAgent || {},
+              responsible_client: res.responsibleClient || {},
+              guarantee: res.guarantee || {},
+              cancellation: res.cancellation || {},
+              number_of_rooms: res.numberOfRooms || null,
+              number_of_guests: res.numberOfGuests || null,
+              guest_nationality: res.guestNationality || null,
+              link_id: res.linkId || null,
+              create_date: res.createDate || null,
+              create_user_name: res.createUserName || null,
+              cancellation_date: res.cancellationDate || null,
+              cancellation_user_name: res.cancellationUserName || null,
+              cancellation_reason: res.cancellationReason || null,
+              status_at_time_of_cancellation: res.statusAtTimeOfCancellation || null,
+              is_property_tax_inclusive: res.isPropertyTaxInclusive ?? true,
               raw_data: res,
               synced_at: new Date().toISOString(),
             }, {
               onConflict: "property_id,system_type,external_reservation_id"
             });
+            
+            if (upsertError) {
+              console.error(`Error upserting reservation ${res.id}:`, upsertError);
+            }
           }
+          console.log(`Successfully synced ${result.length} reservations`);
         }
         break;
 
