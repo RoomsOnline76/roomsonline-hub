@@ -1046,6 +1046,9 @@ export default function AdminKeys() {
               <Settings className="h-4 w-4 mr-2" />
               Field Mappings
             </Button>
+            <Button variant="outline" onClick={() => navigate("/admin/test-booking-benson")} disabled={!isAnyConfigured}>
+              Test Booking
+            </Button>
           </div>
         </CardContent>
       </Card>
