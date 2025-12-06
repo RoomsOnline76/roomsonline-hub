@@ -254,9 +254,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   useEffect(() => {
     if (selectedProperty) {
       fetchRoomTypes(selectedProperty);
-      setSearchParams({ property: selectedProperty });
+      setSearchParams({ property: selectedProperty }, { replace: true });
     }
-  }, [selectedProperty]);
+  }, [selectedProperty, setSearchParams]);
 
   // Set all room types selected when roomTypes changes
   useEffect(() => {
