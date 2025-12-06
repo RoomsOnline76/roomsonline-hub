@@ -118,43 +118,39 @@ const TestBookingBenson = () => {
     },
   });
 
-  // Fetch room types for selected property
-  const { data: roomTypes = [], isLoading: roomTypesLoading } = useQuery({
-    queryKey: ["benson-room-types", selectedPropertyId],
-    queryFn: async () => {
-      if (!selectedPropertyId) return [];
-      
-      const { data, error } = await supabase
-        .from("pms_room_types_cache")
-        .select("id, external_room_type_id, name, max_guests, min_guests, allow_teens, allow_children, allow_infants")
-        .eq("property_id", selectedPropertyId)
-        .eq("system_type", "benson")
-        .order("name");
-      
-      if (error) throw error;
-      return data as RoomType[];
-    },
-    enabled: !!selectedPropertyId,
-  });
+  // Derive room types from availability data
+  const roomTypes = useMemo(() => {
+    if (!availabilityData?.roomTypes) return [];
+    return availabilityData.roomTypes.map((rt: any) => ({
+      id: String(rt.roomTypeId),
+      external_room_type_id: String(rt.roomTypeId),
+      name: rt.name,
+      max_guests: rt.maxGuests,
+      min_guests: rt.minGuests,
+      allow_teens: rt.allowTeens,
+      allow_children: rt.allowChildren,
+      allow_infants: rt.allowInfants,
+    }));
+  }, [availabilityData]);
 
-  // Fetch rate types for selected property
-  const { data: rateTypes = [], isLoading: rateTypesLoading } = useQuery({
-    queryKey: ["benson-rate-types", selectedPropertyId],
-    queryFn: async () => {
-      if (!selectedPropertyId) return [];
-      
-      const { data, error } = await supabase
-        .from("pms_rate_types_cache")
-        .select("id, external_rate_type_id, name, price_type")
-        .eq("property_id", selectedPropertyId)
-        .eq("system_type", "benson")
-        .order("name");
-      
-      if (error) throw error;
-      return data as RateType[];
-    },
-    enabled: !!selectedPropertyId,
-  });
+  // Derive rate types from availability data (unique across all room types)
+  const rateTypes = useMemo(() => {
+    if (!availabilityData?.roomTypes) return [];
+    const rateMap = new Map<string, RateType>();
+    availabilityData.roomTypes.forEach((rt: any) => {
+      rt.rateTypes?.forEach((rate: any) => {
+        if (!rateMap.has(String(rate.rateTypeId))) {
+          rateMap.set(String(rate.rateTypeId), {
+            id: String(rate.rateTypeId),
+            external_rate_type_id: String(rate.rateTypeId),
+            name: rate.name,
+            price_type: rate.priceType,
+          });
+        }
+      });
+    });
+    return Array.from(rateMap.values());
+  }, [availabilityData]);
 
   // Reset form when property changes
   useEffect(() => {
@@ -578,7 +574,7 @@ const TestBookingBenson = () => {
                         <Select 
                           value={selectedRoomTypeId} 
                           onValueChange={setSelectedRoomTypeId}
-                          disabled={roomTypesLoading || !selectedPropertyId}
+                          disabled={!availabilityData || !selectedPropertyId}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select room type..." />
@@ -600,7 +596,7 @@ const TestBookingBenson = () => {
                         <Select 
                           value={selectedRateTypeId} 
                           onValueChange={setSelectedRateTypeId}
-                          disabled={rateTypesLoading || !selectedPropertyId}
+                          disabled={!availabilityData || !selectedPropertyId}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select rate type..." />
