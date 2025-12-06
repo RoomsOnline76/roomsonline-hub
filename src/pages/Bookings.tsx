@@ -56,6 +56,7 @@ interface Booking {
   status: string;
   room_type_id: string | null;
   rate_type_id: string | null;
+  rate_type_name?: string;
   rooms: any;
   charges?: any[];
   special_requests: string | null;
@@ -723,10 +724,10 @@ const Bookings = () => {
                                             </div>
                                           )}
                                           
-                                          {/* Rate type info if available */}
-                                          {room.rateTypeName && (
+                                          {/* Rate type info - from room or booking level */}
+                                          {(room.rateTypeName || booking.rate_type_name) && (
                                             <p className="text-xs text-muted-foreground mt-2">
-                                              Rate: {room.rateTypeName}
+                                              Rate: {room.rateTypeName || booking.rate_type_name}
                                             </p>
                                           )}
                                         </div>
