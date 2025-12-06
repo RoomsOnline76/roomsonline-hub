@@ -3,6 +3,7 @@ import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PropertySearchDropdown } from "@/components/PropertySearchDropdown";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
@@ -102,7 +103,7 @@ const Dashboard = () => {
   const { data: properties = [] } = useQuery({
     queryKey: ["dashboard-properties", isAdmin, profile?.email],
     queryFn: async () => {
-      let query = supabase.from("properties").select("id, name, owner_email, bedrooms, max_guests");
+      let query = supabase.from("properties").select("id, name, owner_email, owner_name, property_type, bedrooms, max_guests");
       if (!isAdmin && profile?.email) {
         query = query.eq("owner_email", profile.email);
       }
@@ -965,17 +966,13 @@ const Dashboard = () => {
         <div className="flex items-center gap-4 mb-4">
           <div className="flex items-center gap-2">
             <Label className="text-sm font-medium">Property:</Label>
-            <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="All properties" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All properties</SelectItem>
-                {properties.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <PropertySearchDropdown
+              properties={properties}
+              selectedPropertyId={selectedPropertyId}
+              onPropertyChange={setSelectedPropertyId}
+              includeAllOption={true}
+              className="w-[300px]"
+            />
           </div>
         </div>
 
