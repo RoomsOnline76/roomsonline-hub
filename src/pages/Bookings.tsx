@@ -610,24 +610,28 @@ const Bookings = () => {
                     {filteredBookings.map((booking) => {
                       const rooms = booking.rooms && Array.isArray(booking.rooms) ? booking.rooms : [];
                       const hasMultipleRooms = rooms.length > 1;
+                      const hasRooms = rooms.length > 0;
                       const isExpanded = expandedBookingId === booking.id;
                       
                       return (
                         <React.Fragment key={booking.id}>
                           <TableRow 
                             key={booking.id} 
-                            className={hasMultipleRooms ? "cursor-pointer hover:bg-muted/50" : ""}
-                            onClick={() => hasMultipleRooms && setExpandedBookingId(isExpanded ? null : booking.id)}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => setExpandedBookingId(isExpanded ? null : booking.id)}
                           >
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-2">
-                                {hasMultipleRooms && (
-                                  <Plus className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-45" : ""}`} />
-                                )}
+                                <Plus className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-45" : ""}`} />
                                 {booking.property_name}
                                 {hasMultipleRooms && (
                                   <Badge variant="outline" className="ml-1 text-xs">
                                     {rooms.length} rooms
+                                  </Badge>
+                                )}
+                                {!hasMultipleRooms && hasRooms && (
+                                  <Badge variant="outline" className="ml-1 text-xs">
+                                    1 room
                                   </Badge>
                                 )}
                               </div>
