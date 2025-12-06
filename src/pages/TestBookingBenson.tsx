@@ -124,16 +124,25 @@ const TestBookingBenson = () => {
   // Derive room types from availability data
   const roomTypes = useMemo(() => {
     if (!availabilityData?.roomTypes) return [];
-    return availabilityData.roomTypes.map((rt: any) => ({
-      id: String(rt.roomTypeId),
-      external_room_type_id: String(rt.roomTypeId),
-      name: rt.name,
-      max_guests: rt.maxGuests || rt.maxPeople || 10,
-      min_guests: rt.minGuests || 1,
-      allow_teens: rt.allowTeens ?? true,
-      allow_children: rt.allowChildren ?? true,
-      allow_infants: rt.allowInfants ?? true,
-    }));
+    return availabilityData.roomTypes.map((rt: any) => {
+      // Calculate min available units across all dates in the range
+      const availableUnits = rt.rateTypes?.[0]?.rates?.reduce((min: number, rate: any) => {
+        const units = rate.availableUnits ?? rate.available ?? 0;
+        return Math.min(min, units);
+      }, Infinity) ?? 0;
+      
+      return {
+        id: String(rt.roomTypeId),
+        external_room_type_id: String(rt.roomTypeId),
+        name: rt.name,
+        max_guests: rt.maxGuests || rt.maxPeople || 10,
+        min_guests: rt.minGuests || 1,
+        allow_teens: rt.allowTeens ?? true,
+        allow_children: rt.allowChildren ?? true,
+        allow_infants: rt.allowInfants ?? true,
+        available_units: availableUnits === Infinity ? 0 : availableUnits,
+      };
+    });
   }, [availabilityData]);
 
   // Derive rate types from the SELECTED room type only
@@ -724,10 +733,17 @@ const TestBookingBenson = () => {
                           <SelectContent>
                             {roomTypes.map((rt) => (
                               <SelectItem key={rt.id} value={rt.external_room_type_id}>
-                                {rt.name}
-                                <span className="text-muted-foreground text-xs ml-2">
-                                  (ID: {rt.external_room_type_id})
-                                </span>
+                                <div className="flex items-center justify-between w-full gap-2">
+                                  <span>{rt.name}</span>
+                                  <span className={cn(
+                                    "text-xs px-1.5 py-0.5 rounded",
+                                    rt.available_units > 0 
+                                      ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" 
+                                      : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                  )}>
+                                    {rt.available_units} {rt.available_units === 1 ? 'unit' : 'units'}
+                                  </span>
+                                </div>
                               </SelectItem>
                             ))}
                           </SelectContent>
