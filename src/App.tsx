@@ -19,6 +19,7 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminAccessRequests from "./pages/AdminAccessRequests";
 import PropertyForm from "./pages/PropertyForm";
 import BensonConfig from "./pages/BensonConfig";
+import TestBookingBenson from "./pages/TestBookingBenson";
 import PropertyShowcase from "./pages/PropertyShowcase";
 import RoomShowcase from "./pages/RoomShowcase";
 import RoomAvailability from "./pages/RoomAvailability";
@@ -89,6 +90,14 @@ const App = () => (
             element={
               <ProtectedRoute requireAdmin={true}>
                 <BensonConfig />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/test-booking-benson"
+            element={
+              <ProtectedRoute requireDev={true}>
+                <TestBookingBenson />
               </ProtectedRoute>
             }
           />
