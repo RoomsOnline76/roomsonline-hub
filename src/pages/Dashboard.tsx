@@ -114,7 +114,7 @@ const Dashboard = () => {
 
   const propertyIds = useMemo(() => properties.map(p => p.id), [properties]);
 
-  // Fetch current period bookings
+  // Fetch current period bookings (from both internal bookings and PMS reservations)
   const { data: bookings = [], isLoading: bookingsLoading } = useQuery({
     queryKey: ["dashboard-bookings", propertyIds, dateRange],
     queryFn: async () => {
@@ -122,17 +122,40 @@ const Dashboard = () => {
       const fromDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : null;
       const toDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : null;
       
-      let query = supabase.from("bookings").select("*").in("property_id", propertyIds);
-      if (fromDate) query = query.gte("created_at", fromDate);
-      if (toDate) query = query.lte("created_at", toDate + "T23:59:59");
+      // Fetch internal bookings
+      let internalQuery = supabase.from("bookings").select("*").in("property_id", propertyIds);
+      if (fromDate) internalQuery = internalQuery.gte("created_at", fromDate);
+      if (toDate) internalQuery = internalQuery.lte("created_at", toDate + "T23:59:59");
       
-      const { data } = await query;
-      return data || [];
+      // Fetch PMS reservations
+      let pmsQuery = supabase.from("pms_reservations").select("*").in("property_id", propertyIds);
+      if (fromDate) pmsQuery = pmsQuery.gte("created_at", fromDate);
+      if (toDate) pmsQuery = pmsQuery.lte("created_at", toDate + "T23:59:59");
+      
+      const [internalResult, pmsResult] = await Promise.all([internalQuery, pmsQuery]);
+      
+      // Normalize PMS reservations to match booking structure
+      const normalizedPmsBookings = (pmsResult.data || []).map(res => ({
+        id: res.id,
+        property_id: res.property_id,
+        check_in_date: res.arrival_date,
+        check_out_date: res.departure_date,
+        total_price: res.total_amount || 0,
+        status: (res.status || 'pending').toLowerCase(),
+        guest_name: res.contact_name,
+        guest_email: res.contact_email,
+        created_at: res.created_at,
+        source: 'pms',
+      }));
+      
+      const internalBookings = (internalResult.data || []).map(b => ({ ...b, source: 'internal' }));
+      
+      return [...internalBookings, ...normalizedPmsBookings];
     },
     enabled: propertyIds.length > 0 && !!dateRange?.from,
   });
 
-  // Fetch previous year bookings
+  // Fetch previous year bookings (from both internal bookings and PMS reservations)
   const { data: prevYearBookings = [] } = useQuery({
     queryKey: ["dashboard-bookings-prev", propertyIds, prevYearDateRange, comparePrevYear],
     queryFn: async () => {
@@ -140,11 +163,33 @@ const Dashboard = () => {
       const fromDate = format(prevYearDateRange.from, "yyyy-MM-dd");
       const toDate = format(prevYearDateRange.to, "yyyy-MM-dd");
       
-      let query = supabase.from("bookings").select("*").in("property_id", propertyIds);
-      query = query.gte("created_at", fromDate).lte("created_at", toDate + "T23:59:59");
+      // Fetch internal bookings
+      let internalQuery = supabase.from("bookings").select("*").in("property_id", propertyIds);
+      internalQuery = internalQuery.gte("created_at", fromDate).lte("created_at", toDate + "T23:59:59");
       
-      const { data } = await query;
-      return data || [];
+      // Fetch PMS reservations
+      let pmsQuery = supabase.from("pms_reservations").select("*").in("property_id", propertyIds);
+      pmsQuery = pmsQuery.gte("created_at", fromDate).lte("created_at", toDate + "T23:59:59");
+      
+      const [internalResult, pmsResult] = await Promise.all([internalQuery, pmsQuery]);
+      
+      // Normalize PMS reservations
+      const normalizedPmsBookings = (pmsResult.data || []).map(res => ({
+        id: res.id,
+        property_id: res.property_id,
+        check_in_date: res.arrival_date,
+        check_out_date: res.departure_date,
+        total_price: res.total_amount || 0,
+        status: (res.status || 'pending').toLowerCase(),
+        guest_name: res.contact_name,
+        guest_email: res.contact_email,
+        created_at: res.created_at,
+        source: 'pms',
+      }));
+      
+      const internalBookings = (internalResult.data || []).map(b => ({ ...b, source: 'internal' }));
+      
+      return [...internalBookings, ...normalizedPmsBookings];
     },
     enabled: propertyIds.length > 0 && comparePrevYear && !!prevYearDateRange,
   });
