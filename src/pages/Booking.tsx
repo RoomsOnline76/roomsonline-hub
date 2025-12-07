@@ -60,10 +60,12 @@ const Booking = () => {
   const preSelectedRoomTypeId = searchParams.get("roomTypeId");
   const preSelectedRoomTypeName = searchParams.get("roomTypeName");
   const preSelectedRateTypeId = searchParams.get("rateTypeId");
+  const preSelectedRateTypeName = searchParams.get("rateTypeName");
   const preSelectedAdults = parseInt(searchParams.get("adults") || "0");
   const preSelectedTeens = parseInt(searchParams.get("teens") || "0");
   const preSelectedChildren = parseInt(searchParams.get("children") || "0");
   const preSelectedInfants = parseInt(searchParams.get("infants") || "0");
+  const preSelectedTotalCost = searchParams.get("totalCost") ? parseFloat(searchParams.get("totalCost")!) : null;
 
   // Form state
   const [guestName, setGuestName] = useState("");
@@ -169,10 +171,12 @@ const Booking = () => {
     if (property && rooms.length === 0) {
       // Use pre-selected room if available, otherwise use first room type
       if (preSelectedRoomTypeId && preSelectedRoomTypeName) {
+        // Use URL params for guests, default adults to 2 only if not provided
+        const hasPreSelectedGuests = searchParams.has("adults");
         setRooms([{
           roomTypeId: preSelectedRoomTypeId,
           roomTypeName: preSelectedRoomTypeName,
-          numberOfAdults: preSelectedAdults || 2,
+          numberOfAdults: hasPreSelectedGuests ? Math.max(1, preSelectedAdults) : 2,
           numberOfTeens: preSelectedTeens,
           numberOfChildren: preSelectedChildren,
           numberOfInfants: preSelectedInfants,
@@ -195,13 +199,18 @@ const Booking = () => {
     } else if (rateTypes.length > 0 && !selectedRateType) {
       setSelectedRateType(String(rateTypes[0].id));
     }
-  }, [property, roomTypes, rateTypes, initialGuests, preSelectedRoomTypeId, preSelectedRateTypeId]);
+  }, [property, roomTypes, rateTypes, initialGuests, preSelectedRoomTypeId, preSelectedRateTypeId, searchParams]);
 
   // Calculate totals
   const totalGuests = rooms.reduce((sum, room) => 
     sum + room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants, 0
   );
   const nights = checkIn && checkOut ? differenceInDays(parseISO(checkOut), parseISO(checkIn)) : 0;
+
+  // Form validation for required fields
+  const isFormValid = guestName.trim().length >= 2 && 
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail) && 
+    guestPhone.trim().length >= 10;
 
   // Add room
   const addRoom = () => {
@@ -694,7 +703,7 @@ const Booking = () => {
                 className="w-full" 
                 size="lg"
                 onClick={() => createBookingMutation.mutate()}
-                disabled={createBookingMutation.isPending}
+                disabled={createBookingMutation.isPending || !isFormValid}
               >
                 {createBookingMutation.isPending ? (
                   <>
@@ -705,6 +714,11 @@ const Booking = () => {
                   'Confirm Booking'
                 )}
               </Button>
+              {!isFormValid && (
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  Please fill in all required fields above
+                </p>
+              )}
             </div>
           </div>
 
@@ -753,14 +767,27 @@ const Booking = () => {
                   </div>
                 )}
 
+                {preSelectedRateTypeName && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Rate:</span>{" "}
+                    <span className="font-medium">{preSelectedRateTypeName}</span>
+                  </div>
+                )}
+
                 <div className="border-t pt-4">
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Total</span>
-                    <span className="text-xl font-bold">On request</span>
+                    <span className="text-xl font-bold">
+                      {preSelectedTotalCost !== null 
+                        ? `R ${preSelectedTotalCost.toLocaleString()}` 
+                        : 'On request'}
+                    </span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Final price will be confirmed by the property
-                  </p>
+                  {preSelectedTotalCost === null && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Final price will be confirmed by the property
+                    </p>
+                  )}
                 </div>
 
                 {/* Submit Button (Desktop) */}
@@ -769,7 +796,7 @@ const Booking = () => {
                     className="w-full" 
                     size="lg"
                     onClick={() => createBookingMutation.mutate()}
-                    disabled={createBookingMutation.isPending}
+                    disabled={createBookingMutation.isPending || !isFormValid}
                   >
                     {createBookingMutation.isPending ? (
                       <>
@@ -780,6 +807,11 @@ const Booking = () => {
                       'Confirm Booking'
                     )}
                   </Button>
+                  {!isFormValid && (
+                    <p className="text-xs text-muted-foreground mt-2 text-center">
+                      Please fill in all required fields
+                    </p>
+                  )}
                 </div>
 
                 {createBookingMutation.isError && (
