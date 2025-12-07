@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format } from "date-fns";
+import { format, isAfter, isBefore, isSameDay } from "date-fns";
 import { CalendarIcon, MapPin, Users, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
-import { DateRange } from "react-day-picker";
+import { DayPicker, DateRange } from "react-day-picker";
 
 export const SearchForm = () => {
   const navigate = useNavigate();
@@ -17,25 +16,65 @@ export const SearchForm = () => {
   const [showGuestPicker, setShowGuestPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   
-  // Track if we're in the middle of selecting (have start but not end)
-  const [isSelecting, setIsSelecting] = useState(false);
+  // Track hover date for preview "worm" effect
+  const [hoverDate, setHoverDate] = useState<Date | undefined>();
 
   // Handle date range selection
-  const handleDateSelect = (range: DateRange | undefined) => {
-    setDateRange(range);
-    
-    // If we have both from and to dates, close the calendar
-    if (range?.from && range?.to) {
-      setIsSelecting(false);
-      // Small delay to let user see the selection before closing
-      setTimeout(() => {
-        setShowDatePicker(false);
-      }, 150);
-    } else if (range?.from && !range?.to) {
-      // User clicked first date, now selecting end date
-      setIsSelecting(true);
+  const handleDayClick = (day: Date) => {
+    if (!dateRange?.from) {
+      // First click - set start date
+      setDateRange({ from: day, to: undefined });
+      setHoverDate(undefined);
+    } else if (dateRange.from && !dateRange.to) {
+      // Second click - set end date
+      if (isBefore(day, dateRange.from)) {
+        // If clicked before start, reset and use as new start
+        setDateRange({ from: day, to: undefined });
+      } else {
+        // Set end date and close
+        setDateRange({ from: dateRange.from, to: day });
+        setHoverDate(undefined);
+        setTimeout(() => {
+          setShowDatePicker(false);
+        }, 150);
+      }
+    } else {
+      // Both dates set - start new selection
+      setDateRange({ from: day, to: undefined });
+      setHoverDate(undefined);
     }
   };
+
+  const handleDayMouseEnter = (day: Date) => {
+    // Only show preview when we have start but not end
+    if (dateRange?.from && !dateRange?.to) {
+      setHoverDate(day);
+    }
+  };
+
+  const handleDayMouseLeave = () => {
+    // Keep hover date - it will update on next enter
+  };
+
+  // Calculate the preview range for display
+  const getDisplayRange = (): DateRange | undefined => {
+    if (dateRange?.from && dateRange?.to) {
+      return dateRange;
+    }
+    if (dateRange?.from && hoverDate) {
+      // Show preview range while hovering
+      if (isAfter(hoverDate, dateRange.from) || isSameDay(hoverDate, dateRange.from)) {
+        return { from: dateRange.from, to: hoverDate };
+      }
+      return { from: hoverDate, to: dateRange.from };
+    }
+    if (dateRange?.from) {
+      return { from: dateRange.from, to: dateRange.from };
+    }
+    return undefined;
+  };
+
+  const displayRange = getDisplayRange();
 
   const handleSearch = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -57,12 +96,33 @@ export const SearchForm = () => {
   const clearDates = (e: React.MouseEvent) => {
     e.stopPropagation();
     setDateRange(undefined);
+    setHoverDate(undefined);
   };
 
   const formatDateRange = () => {
     if (!dateRange?.from) return "Select dates";
     if (!dateRange?.to) return format(dateRange.from, "d MMM yyyy") + " — ...";
     return `${format(dateRange.from, "d MMM yyyy")} — ${format(dateRange.to, "d MMM yyyy")}`;
+  };
+
+  // Check if a day is in the preview range (for styling)
+  const isInPreviewRange = (day: Date): boolean => {
+    if (!displayRange?.from || !displayRange?.to) return false;
+    return (isAfter(day, displayRange.from) || isSameDay(day, displayRange.from)) && 
+           (isBefore(day, displayRange.to) || isSameDay(day, displayRange.to));
+  };
+
+  const isRangeStart = (day: Date): boolean => {
+    return displayRange?.from ? isSameDay(day, displayRange.from) : false;
+  };
+
+  const isRangeEnd = (day: Date): boolean => {
+    return displayRange?.to ? isSameDay(day, displayRange.to) : false;
+  };
+
+  const isRangeMiddle = (day: Date): boolean => {
+    if (!displayRange?.from || !displayRange?.to) return false;
+    return isAfter(day, displayRange.from) && isBefore(day, displayRange.to);
   };
 
   return (
@@ -113,48 +173,45 @@ export const SearchForm = () => {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0 z-50" align="start" sideOffset={8}>
-                <Calendar
+                <DayPicker
                   mode="range"
-                  selected={dateRange}
-                  onSelect={handleDateSelect}
+                  selected={displayRange}
                   numberOfMonths={2}
-                  disabled={(date) => date < new Date()}
-                  initialFocus
-                  className="pointer-events-auto p-3"
+                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  onDayClick={handleDayClick}
+                  onDayMouseEnter={handleDayMouseEnter}
+                  onDayMouseLeave={handleDayMouseLeave}
+                  modifiers={{
+                    range_start: (day) => isRangeStart(day),
+                    range_end: (day) => isRangeEnd(day),
+                    range_middle: (day) => isRangeMiddle(day),
+                  }}
                   modifiersClassNames={{
                     range_start: "bg-primary text-primary-foreground rounded-l-md rounded-r-none",
                     range_end: "bg-primary text-primary-foreground rounded-r-md rounded-l-none",
-                    range_middle: "bg-primary/20 text-foreground rounded-none",
+                    range_middle: "bg-primary/30 text-foreground rounded-none",
                   }}
+                  className="p-3 pointer-events-auto"
                   classNames={{
                     months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
                     month: "space-y-4",
                     caption: "flex justify-center pt-1 relative items-center",
                     caption_label: "text-sm font-medium",
                     nav: "space-x-1 flex items-center",
-                    nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
+                    nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 inline-flex items-center justify-center",
                     nav_button_previous: "absolute left-1",
                     nav_button_next: "absolute right-1",
                     table: "w-full border-collapse space-y-1",
                     head_row: "flex",
                     head_cell: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
                     row: "flex w-full mt-2",
-                    cell: cn(
-                      "relative p-0 text-center text-sm focus-within:relative focus-within:z-20",
-                      "[&:has([aria-selected])]:bg-primary/20",
-                      "[&:has([aria-selected].day-range-end)]:rounded-r-md",
-                      "[&:has([aria-selected].day-range-start)]:rounded-l-md"
-                    ),
+                    cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20",
                     day: cn(
-                      "h-9 w-9 p-0 font-normal aria-selected:opacity-100 hover:bg-primary/30 rounded-md transition-colors cursor-pointer"
+                      "h-9 w-9 p-0 font-normal hover:bg-primary/20 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center"
                     ),
-                    day_range_start: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground rounded-l-md rounded-r-none",
-                    day_range_end: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground rounded-r-md rounded-l-none",
-                    day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
                     day_today: "bg-accent text-accent-foreground font-semibold",
                     day_outside: "text-muted-foreground opacity-50",
-                    day_disabled: "text-muted-foreground opacity-50 cursor-not-allowed",
-                    day_range_middle: "aria-selected:bg-primary/20 aria-selected:text-foreground rounded-none",
+                    day_disabled: "text-muted-foreground opacity-50 cursor-not-allowed hover:bg-transparent",
                     day_hidden: "invisible",
                   }}
                 />
