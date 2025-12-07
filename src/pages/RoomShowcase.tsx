@@ -425,16 +425,11 @@ export default function RoomShowcase() {
                 <span>Sleeps {room.maxPeople}</span>
               </div>
             )}
-            {room.maxAdults && (
-              <div className="flex items-center gap-2">
-                <UserRound className="h-4 w-4 text-primary" />
-                <span>{room.maxAdults} adult{room.maxAdults > 1 ? 's' : ''}</span>
-              </div>
-            )}
             {room.maxChildren !== undefined && room.maxChildren > 0 && (
               <div className="flex items-center gap-2">
-                <Baby className="h-4 w-4 text-primary" />
-                <span>{room.maxChildren} child{room.maxChildren > 1 ? 'ren' : ''}</span>
+                <span className="text-muted-foreground italic">
+                  {['Adults and children welcome', 'Perfect for families or small groups', 'Great for families', 'Any combination of adults and children'][Math.floor(Math.random() * 4)]}
+                </span>
               </div>
             )}
             {room.roomSize && (
@@ -526,23 +521,6 @@ export default function RoomShowcase() {
                   </CardContent>
                 </Card>
 
-                {/* Occupancy Card */}
-                <Card>
-                  <CardContent className="p-5">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="p-2 bg-primary/10 rounded-lg">
-                        <Users className="h-5 w-5 text-primary" />
-                      </div>
-                      <h3 className="font-semibold">Occupancy</h3>
-                    </div>
-                    <p className="text-muted-foreground">
-                      <strong className="text-foreground">{room.maxAdults || room.maxPeople || 2}</strong> adults
-                      {room.maxChildren !== undefined && room.maxChildren > 0 && (
-                        <> + <strong className="text-foreground">{room.maxChildren}</strong> {room.maxChildren === 1 ? 'child' : 'children'}</>
-                      )}
-                    </p>
-                  </CardContent>
-                </Card>
 
                 {/* Room Size Card */}
                 {room.roomSize && (
