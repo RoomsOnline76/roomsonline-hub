@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Navbar } from "@/components/Navbar";
@@ -42,6 +42,23 @@ const PropertyOverview = () => {
   // Sort state
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [homeIconOpenNewTab, setHomeIconOpenNewTab] = useState(true);
+
+  // Load home icon new tab setting
+  useEffect(() => {
+    const loadHomeIconSetting = async () => {
+      const { data } = await supabase
+        .from("api_keys")
+        .select("key_value")
+        .eq("key_name", "HOME_ICON_OPEN_NEW_TAB")
+        .maybeSingle();
+      
+      if (data?.key_value) {
+        setHomeIconOpenNewTab(data.key_value === "true");
+      }
+    };
+    loadHomeIconSetting();
+  }, []);
 
   const { data: allProperties, isLoading, refetch } = useQuery({
     queryKey: ["properties", user?.id, isAdmin],
@@ -384,7 +401,14 @@ const PropertyOverview = () => {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                onClick={() => window.open(getPropertyUrl(property.slug || property.id), "_blank")}
+                                onClick={() => {
+                                  const url = getPropertyUrl(property.slug || property.id);
+                                  if (homeIconOpenNewTab) {
+                                    window.open(url, "_blank");
+                                  } else {
+                                    navigate(`/property/${property.slug || property.id}`);
+                                  }
+                                }}
                                 title="View Property Showcase"
                               >
                                 <Home className="h-4 w-4" />
