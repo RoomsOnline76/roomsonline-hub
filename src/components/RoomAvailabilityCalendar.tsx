@@ -92,6 +92,11 @@ export default function RoomAvailabilityCalendar({
   const [roomTypeData, setRoomTypeData] = useState<RoomTypeData | null>(null);
   const [loading, setLoading] = useState(true);
   const autoNavTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Calculate total guests and check if at max capacity
+  const totalGuests = guests.adults + guests.teens + guests.children + guests.infants;
+  const maxGuests = roomTypeData?.max_guests || 10;
+  const isAtMaxCapacity = totalGuests >= maxGuests;
 
   useEffect(() => {
     fetchRoomTypeData();
@@ -437,6 +442,7 @@ export default function RoomAvailabilityCalendar({
                         size="icon"
                         className="h-7 w-7"
                         onClick={() => setGuests(g => ({ ...g, adults: g.adults + 1 }))}
+                        disabled={isAtMaxCapacity}
                       >
                         <Plus className="h-3 w-3" />
                       </Button>
@@ -476,6 +482,7 @@ export default function RoomAvailabilityCalendar({
                               size="icon"
                               className="h-7 w-7"
                               onClick={() => setGuests(g => ({ ...g, teens: g.teens + 1 }))}
+                              disabled={isAtMaxCapacity}
                             >
                               <Plus className="h-3 w-3" />
                             </Button>
@@ -513,6 +520,7 @@ export default function RoomAvailabilityCalendar({
                               size="icon"
                               className="h-7 w-7"
                               onClick={() => setGuests(g => ({ ...g, children: g.children + 1 }))}
+                              disabled={isAtMaxCapacity}
                             >
                               <Plus className="h-3 w-3" />
                             </Button>
@@ -550,6 +558,7 @@ export default function RoomAvailabilityCalendar({
                               size="icon"
                               className="h-7 w-7"
                               onClick={() => setGuests(g => ({ ...g, infants: g.infants + 1 }))}
+                              disabled={isAtMaxCapacity}
                             >
                               <Plus className="h-3 w-3" />
                             </Button>
@@ -588,6 +597,7 @@ export default function RoomAvailabilityCalendar({
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => setGuests(g => ({ ...g, children: g.children + 1 }))}
+                            disabled={isAtMaxCapacity}
                           >
                             <Plus className="h-3 w-3" />
                           </Button>
