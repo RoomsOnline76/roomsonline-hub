@@ -4,30 +4,29 @@ import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { CalendarIcon, MapPin, Users, Search } from "lucide-react";
+import { CalendarIcon, MapPin, Users, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { DateRange } from "react-day-picker";
 
 export const SearchForm = () => {
   const navigate = useNavigate();
   const [destination, setDestination] = useState("");
-  const [checkIn, setCheckIn] = useState<Date>();
-  const [checkOut, setCheckOut] = useState<Date>();
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [guests, setGuests] = useState({ adults: 2, children: 0 });
   const [showGuestPicker, setShowGuestPicker] = useState(false);
-  const [showCheckIn, setShowCheckIn] = useState(false);
-  const [showCheckOut, setShowCheckOut] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const handleSearch = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!destination || !checkIn || !checkOut) {
+    if (!destination || !dateRange?.from || !dateRange?.to) {
       return;
     }
     
     const searchParams = new URLSearchParams({
       destination,
-      checkIn: format(checkIn, "yyyy-MM-dd"),
-      checkOut: format(checkOut, "yyyy-MM-dd"),
+      checkIn: format(dateRange.from, "yyyy-MM-dd"),
+      checkOut: format(dateRange.to, "yyyy-MM-dd"),
       adults: guests.adults.toString(),
       children: guests.children.toString(),
     });
@@ -35,12 +34,23 @@ export const SearchForm = () => {
     navigate(`/search?${searchParams.toString()}`);
   };
 
+  const clearDates = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDateRange(undefined);
+  };
+
+  const formatDateRange = () => {
+    if (!dateRange?.from) return "Select dates";
+    if (!dateRange?.to) return format(dateRange.from, "d MMM yyyy") + " — ...";
+    return `${format(dateRange.from, "d MMM yyyy")} — ${format(dateRange.to, "d MMM yyyy")}`;
+  };
+
   return (
     <div className="w-full max-w-4xl mx-auto">
       <form onSubmit={handleSearch} className="bg-card/95 backdrop-blur-md rounded-2xl shadow-[var(--shadow-strong)] border border-border/50 p-4 sm:p-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* Destination */}
-          <div className="sm:col-span-2 lg:col-span-1">
+          <div>
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
               Destination
             </label>
@@ -56,80 +66,81 @@ export const SearchForm = () => {
             </div>
           </div>
 
-          {/* Check-in */}
+          {/* Date Range Picker */}
           <div>
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-              Check-in
+              Dates
             </label>
-            <Popover open={showCheckIn} onOpenChange={setShowCheckIn} modal={false}>
+            <Popover open={showDatePicker} onOpenChange={setShowDatePicker} modal={false}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   className={cn(
-                    "w-full h-12 justify-start text-left font-normal bg-background border-border hover:bg-secondary/50",
-                    !checkIn && "text-muted-foreground"
+                    "w-full h-12 justify-start text-left font-normal bg-background border-border hover:bg-secondary/50 group",
+                    !dateRange?.from && "text-muted-foreground"
                   )}
                 >
                   <CalendarIcon className="mr-2 h-5 w-5 flex-shrink-0 text-muted-foreground" />
-                  <span className="truncate text-base">
-                    {checkIn ? format(checkIn, "MMM d, yyyy") : "Select date"}
+                  <span className="truncate text-sm flex-1">
+                    {formatDateRange()}
                   </span>
+                  {dateRange?.from && (
+                    <X 
+                      className="h-4 w-4 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity" 
+                      onClick={clearDates}
+                    />
+                  )}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0 z-50" align="start" sideOffset={8}>
                 <Calendar
-                  mode="single"
-                  selected={checkIn}
-                  onSelect={(date) => {
-                    setCheckIn(date);
-                    setShowCheckIn(false);
-                  }}
+                  mode="range"
+                  selected={dateRange}
+                  onSelect={setDateRange}
+                  numberOfMonths={2}
                   disabled={(date) => date < new Date()}
                   initialFocus
-                  className="pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {/* Check-out */}
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-              Check-out
-            </label>
-            <Popover open={showCheckOut} onOpenChange={setShowCheckOut} modal={false}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-full h-12 justify-start text-left font-normal bg-background border-border hover:bg-secondary/50",
-                    !checkOut && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-5 w-5 flex-shrink-0 text-muted-foreground" />
-                  <span className="truncate text-base">
-                    {checkOut ? format(checkOut, "MMM d, yyyy") : "Select date"}
-                  </span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 z-50" align="start" sideOffset={8}>
-                <Calendar
-                  mode="single"
-                  selected={checkOut}
-                  onSelect={(date) => {
-                    setCheckOut(date);
-                    setShowCheckOut(false);
+                  className="pointer-events-auto p-3"
+                  classNames={{
+                    months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
+                    month: "space-y-4",
+                    caption: "flex justify-center pt-1 relative items-center",
+                    caption_label: "text-sm font-medium",
+                    nav: "space-x-1 flex items-center",
+                    nav_button: cn(
+                      "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
+                    ),
+                    nav_button_previous: "absolute left-1",
+                    nav_button_next: "absolute right-1",
+                    table: "w-full border-collapse space-y-1",
+                    head_row: "flex",
+                    head_cell: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
+                    row: "flex w-full mt-2",
+                    cell: cn(
+                      "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-primary/20",
+                      "[&:has([aria-selected].day-range-end)]:rounded-r-md",
+                      "[&:has([aria-selected].day-range-start)]:rounded-l-md",
+                      "[&:has([aria-selected].day-outside)]:bg-primary/10"
+                    ),
+                    day: cn(
+                      "h-9 w-9 p-0 font-normal aria-selected:opacity-100 hover:bg-primary/10 rounded-md transition-colors"
+                    ),
+                    day_range_start: "day-range-start bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground rounded-l-md rounded-r-none",
+                    day_range_end: "day-range-end bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground rounded-r-md rounded-l-none",
+                    day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                    day_today: "bg-accent text-accent-foreground",
+                    day_outside: "day-outside text-muted-foreground opacity-50",
+                    day_disabled: "text-muted-foreground opacity-50",
+                    day_range_middle: "aria-selected:bg-primary/20 aria-selected:text-foreground rounded-none",
+                    day_hidden: "invisible",
                   }}
-                  disabled={(date) => date <= (checkIn || new Date())}
-                  initialFocus
-                  className="pointer-events-auto"
                 />
               </PopoverContent>
             </Popover>
           </div>
 
           {/* Guests */}
-          <div className="sm:col-span-2 lg:col-span-1">
+          <div>
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
               Guests
             </label>
@@ -212,7 +223,7 @@ export const SearchForm = () => {
           <Button
             type="submit"
             className="w-full h-12 text-base font-semibold bg-[var(--hero-gradient)] hover:opacity-90 transition-opacity touch-manipulation rounded-xl"
-            disabled={!destination || !checkIn || !checkOut}
+            disabled={!destination || !dateRange?.from || !dateRange?.to}
           >
             <Search className="mr-2 h-5 w-5" />
             Search Properties
