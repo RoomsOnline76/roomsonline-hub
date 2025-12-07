@@ -224,6 +224,11 @@ const Booking = () => {
         if (!urlCheckIn && parsedState.defaultCheckIn) setCheckIn(parsedState.defaultCheckIn);
         if (!urlCheckOut && parsedState.defaultCheckOut) setCheckOut(parsedState.defaultCheckOut);
         
+        // Restore availability and cost data to avoid API calls
+        if (parsedState.availabilityData) setAvailabilityData(parsedState.availabilityData);
+        if (parsedState.costBreakdown) setCostBreakdown(parsedState.costBreakdown);
+        if (parsedState.totalCost) setTotalCost(parsedState.totalCost);
+        
         // Clear the session storage after restoring
         sessionStorage.removeItem(`booking_state_${property.id}`);
       } else if (preSelectedRoomTypeId && preSelectedRoomTypeName) {
@@ -429,7 +434,7 @@ const Booking = () => {
 
   // Add room - navigate back to property page to select another room
   const addRoom = () => {
-    // Save current rooms and form state to sessionStorage
+    // Save current rooms and form state to sessionStorage including availability data
     const bookingState = {
       rooms,
       selectedRateType,
@@ -440,6 +445,9 @@ const Booking = () => {
       specialRequests,
       defaultCheckIn: checkIn,
       defaultCheckOut: checkOut,
+      availabilityData,
+      costBreakdown,
+      totalCost,
     };
     sessionStorage.setItem(`booking_state_${property?.id}`, JSON.stringify(bookingState));
     
