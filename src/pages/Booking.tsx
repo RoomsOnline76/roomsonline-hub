@@ -181,12 +181,41 @@ const Booking = () => {
       }))
   ) || [];
 
-  // Initialize rooms with pre-selected or first room type when property loads
+  // Initialize rooms with pre-selected or restore from session storage
   useEffect(() => {
     if (property && rooms.length === 0) {
-      // Use pre-selected room if available, otherwise use first room type
-      if (preSelectedRoomTypeId && preSelectedRoomTypeName) {
-        // Use URL params for guests, default adults to 2 only if not provided
+      // Check for existing booking state in session storage (multi-room flow)
+      const savedState = sessionStorage.getItem(`booking_state_${property.id}`);
+      
+      if (savedState && preSelectedRoomTypeId) {
+        // We're adding a new room to existing booking
+        const parsedState = JSON.parse(savedState);
+        const existingRooms = parsedState.rooms || [];
+        
+        // Add the new room from URL params
+        const newRoom = {
+          roomTypeId: preSelectedRoomTypeId,
+          roomTypeName: preSelectedRoomTypeName || '',
+          numberOfAdults: Math.max(1, preSelectedAdults),
+          numberOfTeens: preSelectedTeens,
+          numberOfChildren: preSelectedChildren,
+          numberOfInfants: preSelectedInfants,
+        };
+        
+        setRooms([...existingRooms, newRoom]);
+        
+        // Restore form state
+        if (parsedState.guestName) setGuestName(parsedState.guestName);
+        if (parsedState.guestEmail) setGuestEmail(parsedState.guestEmail);
+        if (parsedState.guestPhone) setGuestPhone(parsedState.guestPhone);
+        if (parsedState.voucher) setVoucher(parsedState.voucher);
+        if (parsedState.specialRequests) setSpecialRequests(parsedState.specialRequests);
+        if (parsedState.selectedRateType) setSelectedRateType(parsedState.selectedRateType);
+        
+        // Clear the session storage after restoring
+        sessionStorage.removeItem(`booking_state_${property.id}`);
+      } else if (preSelectedRoomTypeId && preSelectedRoomTypeName) {
+        // New booking with pre-selected room from URL
         const hasPreSelectedGuests = searchParams.has("adults");
         setRooms([{
           roomTypeId: preSelectedRoomTypeId,
@@ -386,19 +415,29 @@ const Booking = () => {
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail) && 
     guestPhone.trim().length >= 10;
 
-  // Add room
+  // Add room - navigate back to property page to select another room
   const addRoom = () => {
-    if (roomTypes.length > 0) {
-      const firstRoom = roomTypes[0];
-      setRooms([...rooms, {
-        roomTypeId: String(firstRoom.id),
-        roomTypeName: firstRoom.name,
-        numberOfAdults: 1,
-        numberOfTeens: 0,
-        numberOfChildren: 0,
-        numberOfInfants: 0,
-      }]);
-    }
+    // Save current rooms and form state to sessionStorage
+    const bookingState = {
+      rooms,
+      selectedRateType,
+      guestName,
+      guestEmail,
+      guestPhone,
+      voucher,
+      specialRequests,
+      defaultCheckIn: checkIn,
+      defaultCheckOut: checkOut,
+    };
+    sessionStorage.setItem(`booking_state_${property?.id}`, JSON.stringify(bookingState));
+    
+    // Navigate to property page with addRoom flag and default dates
+    const params = new URLSearchParams({
+      addRoom: 'true',
+      checkIn: checkIn || '',
+      checkOut: checkOut || '',
+    });
+    navigate(`/property/${id}?${params.toString()}`);
   };
 
   // Remove room

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getNightsBridgeBookingUrl } from "@/lib/config";
 import { Button } from "@/components/ui/button";
@@ -93,6 +93,7 @@ const slugifyRoomName = (name: string) => {
 export default function PropertyShowcase() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [property, setProperty] = useState<Property | null>(null);
   const [availability, setAvailability] = useState<Map<string, AvailabilityData>>(new Map());
   const [nightsBridgeAgentCode, setNightsBridgeAgentCode] = useState<string | null>(null);
@@ -258,7 +259,9 @@ export default function PropertyShowcase() {
   const handleRoomClick = (room: RoomType) => {
     const propertySlug = property?.slug || property?.id;
     const roomSlug = slugifyRoomName(room.name);
-    navigate(`/property/${propertySlug}/room/${roomSlug}`);
+    // Preserve query params (for addRoom flow with dates)
+    const queryString = searchParams.toString();
+    navigate(`/property/${propertySlug}/room/${roomSlug}${queryString ? `?${queryString}` : ''}`);
   };
 
   // Check if this is a NightsBridge property
@@ -324,10 +327,28 @@ export default function PropertyShowcase() {
   const starRating = getStarRating();
   const totalMaxGuests = getTotalMaxGuests();
 
+  const isAddRoomMode = searchParams.get('addRoom') === 'true';
+  const defaultCheckIn = searchParams.get('checkIn');
+  const defaultCheckOut = searchParams.get('checkOut');
+
   return (
     <div className="min-h-screen bg-background">
+      {/* Add Room Banner */}
+      {isAddRoomMode && (
+        <div className="bg-primary text-primary-foreground py-3 px-4 text-center">
+          <p className="text-sm font-medium">
+            Adding another room to your booking
+            {defaultCheckIn && defaultCheckOut && (
+              <span className="text-primary-foreground/80 ml-2">
+                (Default dates: {defaultCheckIn} to {defaultCheckOut})
+              </span>
+            )}
+          </p>
+        </div>
+      )}
+      
       {/* Back Button */}
-      <div className="absolute top-4 left-4 z-20">
+      <div className="absolute top-4 left-4 z-20" style={{ top: isAddRoomMode ? '60px' : '16px' }}>
         {isBookDomain ? (
           <Button 
             variant="secondary" 
