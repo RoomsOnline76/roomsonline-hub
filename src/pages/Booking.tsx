@@ -187,22 +187,26 @@ const Booking = () => {
       // Check for existing booking state in session storage (multi-room flow)
       const savedState = sessionStorage.getItem(`booking_state_${property.id}`);
       
-      if (savedState && preSelectedRoomTypeId) {
-        // We're adding a new room to existing booking
+      if (savedState) {
         const parsedState = JSON.parse(savedState);
         const existingRooms = parsedState.rooms || [];
         
-        // Add the new room from URL params
-        const newRoom = {
-          roomTypeId: preSelectedRoomTypeId,
-          roomTypeName: preSelectedRoomTypeName || '',
-          numberOfAdults: Math.max(1, preSelectedAdults),
-          numberOfTeens: preSelectedTeens,
-          numberOfChildren: preSelectedChildren,
-          numberOfInfants: preSelectedInfants,
-        };
-        
-        setRooms([...existingRooms, newRoom]);
+        if (preSelectedRoomTypeId) {
+          // We're adding a new room to existing booking
+          const newRoom = {
+            roomTypeId: preSelectedRoomTypeId,
+            roomTypeName: preSelectedRoomTypeName || '',
+            numberOfAdults: Math.max(1, preSelectedAdults),
+            numberOfTeens: preSelectedTeens,
+            numberOfChildren: preSelectedChildren,
+            numberOfInfants: preSelectedInfants,
+          };
+          
+          setRooms([...existingRooms, newRoom]);
+        } else {
+          // Returning to booking without adding a new room (e.g., "Check Out Now")
+          setRooms(existingRooms);
+        }
         
         // Restore form state
         if (parsedState.guestName) setGuestName(parsedState.guestName);
