@@ -583,7 +583,7 @@ export default function PropertyShowcase() {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    {(() => {
+                    {bookedRooms.length === 0 && (() => {
                       // Calculate lowest rate across all rooms
                       let lowestOverallRate: number | null = null;
                       roomTypes.forEach((room) => {
