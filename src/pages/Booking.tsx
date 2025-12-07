@@ -45,6 +45,15 @@ interface RoomType {
 interface RateType {
   id: string;
   name: string;
+  priceType?: string;
+}
+
+interface CostLineItem {
+  description: string;
+  nights: number;
+  quantity: number;
+  unitPrice: number;
+  total: number;
 }
 
 const Booking = () => {
@@ -78,6 +87,12 @@ const Booking = () => {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
+  
+  // Cost calculation state
+  const [availabilityData, setAvailabilityData] = useState<any>(null);
+  const [costBreakdown, setCostBreakdown] = useState<CostLineItem[]>([]);
+  const [totalCost, setTotalCost] = useState<number>(0);
+  const [calculatingCost, setCalculatingCost] = useState(false);
 
   // Fetch property by ID or slug
   const { data: property, isLoading } = useQuery({
@@ -206,6 +221,165 @@ const Booking = () => {
     sum + room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants, 0
   );
   const nights = checkIn && checkOut ? differenceInDays(parseISO(checkOut), parseISO(checkIn)) : 0;
+
+  // Calculate cost based on availability data
+  const calculateCost = async () => {
+    if (!property?.id || !checkIn || !checkOut || rooms.length === 0 || !selectedRateType) {
+      return;
+    }
+
+    // Only calculate for Benson properties
+    const isBensonProperty = property.external_system?.toLowerCase() === 'benson';
+    if (!isBensonProperty) {
+      return;
+    }
+
+    setCalculatingCost(true);
+    try {
+      // Fetch availability if not already fetched
+      let availability = availabilityData;
+      if (!availability) {
+        const { data, error } = await supabase.functions.invoke("benson-api", {
+          body: {
+            action: "fetch_availability",
+            property_id: property.id,
+            start_date: checkIn,
+            end_date: checkOut,
+          },
+        });
+
+        if (error) throw error;
+        availability = data;
+        setAvailabilityData(data);
+      }
+
+      const lineItems: CostLineItem[] = [];
+      let runningTotal = 0;
+
+      // Calculate cost for each room
+      for (const room of rooms) {
+        const roomType = availability?.roomTypes?.find(
+          (rt: any) => String(rt.roomTypeId) === room.roomTypeId
+        );
+
+        if (!roomType) continue;
+
+        const rateType = roomType.rateTypes?.find(
+          (rt: any) => String(rt.rateTypeId) === selectedRateType
+        );
+
+        if (!rateType) continue;
+
+        const allRates = rateType.rates || [];
+        const rates = allRates.slice(0, nights);
+        const priceType = (rateType.priceType || 'PER ROOM').toUpperCase();
+        const roomTotalGuests = room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants;
+
+        if (priceType === 'PER ROOM' || priceType === 'PERROOM') {
+          let totalRoomAmount = 0;
+          rates.forEach((rate: any) => {
+            totalRoomAmount += rate.roomAmount || 0;
+          });
+
+          if (totalRoomAmount > 0) {
+            lineItems.push({
+              description: `${room.roomTypeName} (${roomTotalGuests} guests)`,
+              nights: nights,
+              quantity: 1,
+              unitPrice: totalRoomAmount / nights,
+              total: totalRoomAmount,
+            });
+            runningTotal += totalRoomAmount;
+          }
+        } else {
+          // Per person pricing
+          let totalAdultAmount = 0;
+          let totalTeenAmount = 0;
+          let totalChildAmount = 0;
+          let totalInfantAmount = 0;
+
+          rates.forEach((rate: any) => {
+            if (room.numberOfAdults === 1) {
+              totalAdultAmount += rate.adultAmount1 || rate.adultAmount || 0;
+            } else if (room.numberOfAdults === 2) {
+              totalAdultAmount += rate.adultAmount2 || rate.adultAmount || 0;
+            } else if (room.numberOfAdults > 2) {
+              const baseRate = rate.adultAmount2 || rate.adultAmount || 0;
+              const additionalAdultRate = rate.adultAmount1 || rate.adultAmount || 0;
+              totalAdultAmount += baseRate + (additionalAdultRate * (room.numberOfAdults - 2));
+            }
+
+            if (room.numberOfTeens > 0) {
+              totalTeenAmount += (rate.teenAmount || 0) * room.numberOfTeens;
+            }
+            if (room.numberOfChildren > 0) {
+              totalChildAmount += (rate.childAmount || 0) * room.numberOfChildren;
+            }
+            if (room.numberOfInfants > 0) {
+              totalInfantAmount += (rate.infantAmount || 0) * room.numberOfInfants;
+            }
+          });
+
+          if (totalAdultAmount > 0) {
+            lineItems.push({
+              description: `Adult Rate (${room.numberOfAdults} adult${room.numberOfAdults > 1 ? 's' : ''})`,
+              nights: nights,
+              quantity: 1,
+              unitPrice: totalAdultAmount / nights,
+              total: totalAdultAmount,
+            });
+            runningTotal += totalAdultAmount;
+          }
+
+          if (totalTeenAmount > 0) {
+            lineItems.push({
+              description: `Teen Rate (${room.numberOfTeens} teen${room.numberOfTeens > 1 ? 's' : ''})`,
+              nights: nights,
+              quantity: room.numberOfTeens,
+              unitPrice: totalTeenAmount / nights / room.numberOfTeens,
+              total: totalTeenAmount,
+            });
+            runningTotal += totalTeenAmount;
+          }
+
+          if (totalChildAmount > 0) {
+            lineItems.push({
+              description: `Child Rate (${room.numberOfChildren} child${room.numberOfChildren > 1 ? 'ren' : ''})`,
+              nights: nights,
+              quantity: room.numberOfChildren,
+              unitPrice: totalChildAmount / nights / room.numberOfChildren,
+              total: totalChildAmount,
+            });
+            runningTotal += totalChildAmount;
+          }
+
+          if (totalInfantAmount > 0) {
+            lineItems.push({
+              description: `Infant Rate (${room.numberOfInfants} infant${room.numberOfInfants > 1 ? 's' : ''})`,
+              nights: nights,
+              quantity: room.numberOfInfants,
+              unitPrice: totalInfantAmount / nights / room.numberOfInfants,
+              total: totalInfantAmount,
+            });
+            runningTotal += totalInfantAmount;
+          }
+        }
+      }
+
+      setCostBreakdown(lineItems);
+      setTotalCost(runningTotal);
+    } catch (error: any) {
+      console.error("Cost calculation error:", error);
+    }
+    setCalculatingCost(false);
+  };
+
+  // Recalculate cost when relevant data changes
+  useEffect(() => {
+    if (property && rooms.length > 0 && selectedRateType && checkIn && checkOut) {
+      calculateCost();
+    }
+  }, [property?.id, rooms, selectedRateType, checkIn, checkOut]);
 
   // Form validation for required fields
   const isFormValid = guestName.trim().length >= 2 && 
@@ -787,23 +961,50 @@ const Booking = () => {
                   </div>
                 )}
 
-                {preSelectedRateTypeName && (
+                {/* Rate Type */}
+                {selectedRateType && rateTypes.length > 0 && (
                   <div className="text-sm">
                     <span className="text-muted-foreground">Rate:</span>{" "}
-                    <span className="font-medium">{preSelectedRateTypeName}</span>
+                    <span className="font-medium">
+                      {rateTypes.find(rt => String(rt.id) === selectedRateType)?.name || preSelectedRateTypeName || 'Standard'}
+                    </span>
                   </div>
                 )}
 
-                <div className="border-t pt-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Total</span>
-                    <span className="text-xl font-bold">
-                      {preSelectedTotalCost !== null 
-                        ? `R ${preSelectedTotalCost.toLocaleString()}` 
-                        : 'On request'}
-                    </span>
-                  </div>
-                  {preSelectedTotalCost === null && (
+                {/* Cost Breakdown */}
+                <div className="border-t pt-4 space-y-3">
+                  {calculatingCost ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                      <span className="ml-2 text-sm text-muted-foreground">Calculating...</span>
+                    </div>
+                  ) : costBreakdown.length > 0 ? (
+                    <>
+                      {costBreakdown.map((item, idx) => (
+                        <div key={idx} className="flex justify-between text-sm">
+                          <div className="text-muted-foreground">
+                            <p>{item.description}</p>
+                            <p className="text-xs">{item.nights} nights × R{item.unitPrice.toFixed(2)}</p>
+                          </div>
+                          <span className="font-medium">R{item.total.toFixed(2)}</span>
+                        </div>
+                      ))}
+                      <div className="border-t pt-3 flex justify-between items-center">
+                        <span className="font-semibold">Total</span>
+                        <span className="text-xl font-bold">R {totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Total</span>
+                      <span className="text-xl font-bold">
+                        {preSelectedTotalCost !== null 
+                          ? `R ${preSelectedTotalCost.toLocaleString()}` 
+                          : 'On request'}
+                      </span>
+                    </div>
+                  )}
+                  {costBreakdown.length === 0 && preSelectedTotalCost === null && (
                     <p className="text-xs text-muted-foreground mt-1">
                       Final price will be confirmed by the property
                     </p>
