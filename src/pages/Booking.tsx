@@ -517,7 +517,7 @@ const Booking = () => {
                       const roomGuestCount = room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants;
                       return (
                         <p key={index}>
-                          Room {index + 1}: {roomType?.name || 'Select room type'} - {roomGuestCount} Guest{roomGuestCount !== 1 ? 's' : ''}
+                          {roomType?.name || room.roomTypeName || 'Select room type'} - {roomGuestCount} Guest{roomGuestCount !== 1 ? 's' : ''}
                         </p>
                       );
                     })}
