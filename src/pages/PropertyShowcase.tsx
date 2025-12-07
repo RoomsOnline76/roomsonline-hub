@@ -491,112 +491,100 @@ export default function PropertyShowcase() {
 
         {/* Rooms & Rates Section */}
         <section id="rooms-section" className="mb-12 scroll-mt-20">
-          <h2 className="text-2xl font-semibold mb-6">Rooms & Rates</h2>
+          <h2 className="text-2xl font-semibold mb-6 uppercase tracking-wide text-foreground/80">Rooms & Rates</h2>
           
           {roomTypes.length > 0 ? (
-            <div className="grid gap-6">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {roomTypes.map((room) => {
                 const availData = getAvailabilityForRoom(room);
                 const lowestRate = getLowestRateFromAvailability(availData);
                 const availableUnits = availData?.available_units;
+                const roomImage = room.url || (property.images.length > 0 ? property.images[0] : null);
+                const roomBedrooms = 1; // Default to 1 bedroom per room type
                 
                 return (
-                  <Card 
+                  <div 
                     key={room.id} 
-                    className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+                    className="group cursor-pointer"
                     onClick={() => handleRoomClick(room)}
                   >
-                    <div className="md:flex">
-                      {/* Room Image Placeholder */}
-                      <div className="md:w-1/3 h-48 md:h-auto bg-muted flex items-center justify-center">
-                        <Bed className="h-12 w-12 text-muted-foreground/30" />
-                      </div>
+                    {/* Room Image with Badges */}
+                    <div className="relative aspect-[4/3] rounded-lg overflow-hidden mb-3">
+                      {roomImage ? (
+                        <img
+                          src={roomImage}
+                          alt={room.name}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-muted flex items-center justify-center">
+                          <Bed className="h-12 w-12 text-muted-foreground/30" />
+                        </div>
+                      )}
                       
-                      {/* Room Details */}
-                      <div className="flex-1 p-6">
-                        <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-                          <div>
-                            <h3 className="text-xl font-semibold">{room.name}</h3>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {room.maxPeople && (
-                                <Badge variant="outline" className="text-xs">
-                                  <Users className="h-3 w-3 mr-1" />
-                                  Sleeps {room.maxPeople}
-                                </Badge>
-                              )}
-                              {availableUnits !== undefined && (
-                                <Badge variant={availableUnits > 0 ? "secondary" : "destructive"} className="text-xs">
-                                  {availableUnits > 0 ? `${availableUnits} available` : 'Sold out'}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          
-                          <div className="text-right">
-                            {lowestRate !== null ? (
-                              <>
-                                <div className="text-sm text-muted-foreground">From</div>
-                                <div className="text-2xl font-bold text-primary">
-                                  {property.amenities?.currency || 'ZAR'} {lowestRate.toLocaleString()}
-                                </div>
-                                <div className="text-xs text-muted-foreground">per night</div>
-                              </>
-                            ) : (
-                              <div className="text-muted-foreground italic">
-                                Contact for rates
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Rate Types from API */}
-                        {availData?.rates && (
-                          <div className="border-t pt-4 mt-4">
-                            <h4 className="text-sm font-medium mb-3 text-muted-foreground">Rate Options</h4>
-                            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {(Array.isArray(availData.rates) ? availData.rates : [availData.rates])
-                                .filter((rate: any) => rate.room_amount || (rate.adult_amounts && Object.keys(rate.adult_amounts).length > 0))
-                                .slice(0, 3)
-                                .map((rate: any, idx: number) => {
-                                  const rateAmount = rate.room_amount || 
-                                    (rate.adult_amounts ? Math.min(...Object.values(rate.adult_amounts).filter((v): v is number => typeof v === 'number')) : null);
-                                  
-                                  if (!rateAmount) return null;
-                                  
-                                  return (
-                                    <div 
-                                      key={idx}
-                                      className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                                    >
-                                      <div>
-                                        <div className="font-medium text-sm">{rate.rate_type_name}</div>
-                                        <div className="text-xs text-muted-foreground">{rate.price_type}</div>
-                                      </div>
-                                      <div className="font-semibold text-primary">
-                                        {property.amenities?.currency || 'ZAR'} {rateAmount.toLocaleString()}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                            </div>
-                          </div>
+                      {/* Overlay gradient */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      
+                      {/* Badges */}
+                      <div className="absolute top-3 left-3 flex flex-wrap gap-2">
+                        <Badge className="bg-primary text-primary-foreground text-xs font-semibold uppercase tracking-wider shadow-lg">
+                          Instant Book
+                        </Badge>
+                        {availableUnits !== undefined && availableUnits <= 2 && availableUnits > 0 && (
+                          <Badge className="bg-amber-600 text-white text-xs font-semibold uppercase tracking-wider shadow-lg">
+                            Only {availableUnits} left
+                          </Badge>
                         )}
-
-                        <div className="mt-6 flex gap-3">
-                          <Button 
-                            className="bg-primary hover:bg-primary/90"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRoomClick(room);
-                            }}
-                          >
-                            View Room Details
-                            <ArrowRight className="ml-2 h-4 w-4" />
-                          </Button>
-                        </div>
+                        {availableUnits === 0 && (
+                          <Badge variant="destructive" className="text-xs font-semibold uppercase tracking-wider shadow-lg">
+                            Sold Out
+                          </Badge>
+                        )}
                       </div>
                     </div>
-                  </Card>
+                    
+                    {/* Room Info */}
+                    <div className="space-y-1">
+                      {/* Location/Property Type */}
+                      <p className="text-xs text-muted-foreground capitalize">
+                        {property.property_type.replace('_', ' ')} in {property.city}
+                      </p>
+                      
+                      {/* Room Name */}
+                      <h3 className="text-base font-bold text-foreground uppercase tracking-wide group-hover:text-primary transition-colors">
+                        {room.name}
+                      </h3>
+                      
+                      {/* Room Details */}
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        {room.maxPeople && (
+                          <div className="flex items-center gap-1">
+                            <Users className="h-3.5 w-3.5" />
+                            <span>{room.maxPeople} guest{room.maxPeople > 1 ? 's' : ''}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <Bed className="h-3.5 w-3.5" />
+                          <span>{roomBedrooms} bedroom</span>
+                        </div>
+                      </div>
+                      
+                      {/* Pricing */}
+                      <div className="pt-2">
+                        {lowestRate !== null ? (
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-[10px] text-muted-foreground uppercase">From</span>
+                            <span className="text-lg font-bold text-primary">
+                              R{lowestRate.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground uppercase">per night</span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground italic">Contact for rates</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
             </div>
