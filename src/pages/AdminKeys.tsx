@@ -129,7 +129,6 @@ export default function AdminKeys() {
   // Resend-specific state
   const [resendFromEmail, setResendFromEmail] = useState("");
   const [resendToEmail, setResendToEmail] = useState("");
-  const [bookingFromEmail, setBookingFromEmail] = useState("");
   const [editingResend, setEditingResend] = useState(false);
   const [savingResend, setSavingResend] = useState(false);
 
@@ -153,15 +152,13 @@ export default function AdminKeys() {
     const { data } = await supabase
       .from("api_keys")
       .select("*")
-      .in("key_name", ["RESEND_FROM_EMAIL", "RESEND_TO_EMAIL", "BOOKING_FROM_EMAIL"]);
+      .in("key_name", ["RESEND_FROM_EMAIL", "RESEND_TO_EMAIL"]);
 
     if (data) {
       const fromEmail = data.find((k) => k.key_name === "RESEND_FROM_EMAIL");
       const toEmail = data.find((k) => k.key_name === "RESEND_TO_EMAIL");
-      const bookingEmail = data.find((k) => k.key_name === "BOOKING_FROM_EMAIL");
       if (fromEmail?.key_value) setResendFromEmail(fromEmail.key_value);
       if (toEmail?.key_value) setResendToEmail(toEmail.key_value);
-      if (bookingEmail?.key_value) setBookingFromEmail(bookingEmail.key_value);
     }
   };
 
@@ -270,22 +267,10 @@ export default function AdminKeys() {
       { onConflict: "key_name" },
     );
 
-    // Upsert booking from email
-    const { error: bookingError } = await supabase.from("api_keys").upsert(
-      {
-        key_name: "BOOKING_FROM_EMAIL",
-        name: "Booking Confirmation From Email",
-        key_value: bookingFromEmail || "RoomsOnline <dev@roomsonline.co.za>",
-        system_type: "resend",
-        description: "Sender email address for booking confirmation emails to guests",
-      },
-      { onConflict: "key_name" },
-    );
-
-    if (fromError || toError || bookingError) {
+    if (fromError || toError) {
       toast({
         title: "Error saving email config",
-        description: fromError?.message || toError?.message || bookingError?.message,
+        description: fromError?.message || toError?.message,
         variant: "destructive",
       });
     } else {
@@ -699,18 +684,6 @@ export default function AdminKeys() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="booking-from">Booking Confirmation From Email</Label>
-                <Input
-                  id="booking-from"
-                  value={bookingFromEmail}
-                  onChange={(e) => setBookingFromEmail(e.target.value)}
-                  placeholder="RoomsOnline <dev@roomsonline.co.za>"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Sender email for guest booking confirmations. Format: "Name &lt;email@domain.com&gt;"
-                </p>
-              </div>
 
               <div className="flex gap-2">
                 <Button onClick={handleSaveResendConfig} disabled={savingResend}>
@@ -723,18 +696,14 @@ export default function AdminKeys() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                 <div>
-                  <Label className="text-muted-foreground">From Email (Admin)</Label>
+                  <Label className="text-muted-foreground">From Email</Label>
                   <p className="font-medium truncate">{resendFromEmail || "Not set"}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Admin Email</Label>
                   <p className="font-medium truncate">{resendToEmail || "Not set"}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Booking From</Label>
-                  <p className="font-medium truncate">{bookingFromEmail || "dev@roomsonline.co.za"}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">API Key</Label>

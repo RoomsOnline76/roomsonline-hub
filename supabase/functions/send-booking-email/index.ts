@@ -350,14 +350,14 @@ Deno.serve(async (req) => {
 
     const property = booking.property;
 
-    // Get configured from email
-    const { data: fromEmailSetting } = await supabaseClient
+    // Fetch configured from email (same as access request notifications)
+    const { data: emailConfig } = await supabaseClient
       .from('api_keys')
-      .select('key_value')
-      .eq('key_name', 'BOOKING_FROM_EMAIL')
-      .single();
+      .select('key_name, key_value')
+      .eq('key_name', 'RESEND_FROM_EMAIL')
+      .maybeSingle();
 
-    const fromEmail = fromEmailSetting?.key_value || 'RoomsOnline <dev@roomsonline.co.za>';
+    const fromEmail = emailConfig?.key_value || 'RoomsOnline <onboarding@resend.dev>';
 
     // Generate email HTML based on status
     const html = status === 'success'
