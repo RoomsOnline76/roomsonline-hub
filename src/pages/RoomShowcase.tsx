@@ -419,12 +419,6 @@ export default function RoomShowcase() {
       <section className="border-b bg-card">
         <div className="container mx-auto px-4 py-4">
           <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10 text-sm">
-            {room.maxPeople && (
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
-                <span>Sleeps {room.maxPeople}</span>
-              </div>
-            )}
             {room.maxChildren !== undefined && room.maxChildren > 0 && (
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground italic">
