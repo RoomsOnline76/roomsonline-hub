@@ -193,7 +193,8 @@ export default function PropertyShowcase() {
 
   const getRoomTypes = (): RoomType[] => {
     if (!property?.amenities?.room_types) return [];
-    return property.amenities.room_types.filter((rt: RoomType) => rt.selected !== false);
+    // Return all room types - don't filter by selected flag for public showcase
+    return property.amenities.room_types;
   };
 
   const getAvailabilityForRoom = (room: RoomType): AvailabilityData | undefined => {
