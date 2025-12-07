@@ -90,6 +90,13 @@ const slugifyRoomName = (name: string) => {
   return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 };
 
+// Track rooms already added to booking from sessionStorage
+interface BookingRoom {
+  roomTypeId: string;
+  roomTypeName: string;
+  [key: string]: any;
+}
+
 export default function PropertyShowcase() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -99,6 +106,7 @@ export default function PropertyShowcase() {
   const [nightsBridgeAgentCode, setNightsBridgeAgentCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [bookedRooms, setBookedRooms] = useState<BookingRoom[]>([]);
   
   const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
 
@@ -107,6 +115,26 @@ export default function PropertyShowcase() {
       fetchPropertyData();
     }
   }, [id]);
+
+  // Load booked rooms from sessionStorage when in addRoom mode
+  useEffect(() => {
+    const isAddRoomMode = searchParams.get('addRoom') === 'true';
+    if (isAddRoomMode) {
+      const storedData = sessionStorage.getItem('multiRoomBookingState');
+      if (storedData) {
+        try {
+          const parsed = JSON.parse(storedData);
+          if (parsed.rooms && Array.isArray(parsed.rooms)) {
+            setBookedRooms(parsed.rooms);
+          }
+        } catch (e) {
+          console.error('Error parsing booking state:', e);
+        }
+      }
+    } else {
+      setBookedRooms([]);
+    }
+  }, [searchParams]);
 
   const fetchPropertyData = async () => {
     setLoading(true);
@@ -204,6 +232,19 @@ export default function PropertyShowcase() {
   const getAvailabilityForRoom = (room: RoomType): AvailabilityData | undefined => {
     const roomId = room.pmsRoomId || room.id;
     return availability.get(roomId);
+  };
+
+  // Count how many rooms of a specific type are already in the booking
+  const getBookedCountForRoom = (room: RoomType): number => {
+    return bookedRooms.filter(br => br.roomTypeId === room.id).length;
+  };
+
+  // Get remaining availability after accounting for provisionally booked rooms
+  const getRemainingAvailability = (room: RoomType): number | undefined => {
+    const availData = getAvailabilityForRoom(room);
+    if (availData?.available_units === undefined) return undefined;
+    const bookedCount = getBookedCountForRoom(room);
+    return Math.max(0, availData.available_units - bookedCount);
   };
 
   const getLowestRateFromAvailability = (availData: AvailabilityData | undefined): number | null => {
@@ -602,13 +643,19 @@ export default function PropertyShowcase() {
                 const lowestRate = getLowestRateFromAvailability(availData);
                 const availableUnits = availData?.available_units;
                 const roomImage = room.url || (property.images.length > 0 ? property.images[0] : null);
-                
+                const bookedCount = getBookedCountForRoom(room);
+                const remainingUnits = getRemainingAvailability(room);
+                const isFullyBooked = remainingUnits !== undefined && remainingUnits <= 0;
+                const isAddRoomMode = searchParams.get('addRoom') === 'true';
                 
                 return (
                   <div 
                     key={room.id} 
-                    className="group cursor-pointer"
-                    onClick={() => handleRoomClick(room)}
+                    className={cn(
+                      "group",
+                      isFullyBooked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
+                    )}
+                    onClick={() => !isFullyBooked && handleRoomClick(room)}
                   >
                     {/* Room Image with Badges */}
                     <div className="relative aspect-[4/3] rounded-lg overflow-hidden mb-3">
@@ -616,7 +663,10 @@ export default function PropertyShowcase() {
                         <img
                           src={roomImage}
                           alt={room.name}
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          className={cn(
+                            "w-full h-full object-cover transition-transform duration-300",
+                            !isFullyBooked && "group-hover:scale-105"
+                          )}
                         />
                       ) : (
                         <div className="w-full h-full bg-muted flex items-center justify-center">
@@ -625,24 +675,45 @@ export default function PropertyShowcase() {
                       )}
                       
                       {/* Overlay gradient */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className={cn(
+                        "absolute inset-0 bg-gradient-to-t from-black/30 to-transparent transition-opacity",
+                        isFullyBooked ? "opacity-50" : "opacity-0 group-hover:opacity-100"
+                      )} />
                       
                       {/* Badges */}
                       <div className="absolute top-3 left-3 flex flex-wrap gap-2">
-                        <Badge className="bg-primary text-primary-foreground text-xs font-semibold uppercase tracking-wider shadow-lg">
-                          Instant Book
-                        </Badge>
-                        {availableUnits !== undefined && availableUnits <= 2 && availableUnits > 0 && (
-                          <Badge className="bg-amber-600 text-white text-xs font-semibold uppercase tracking-wider shadow-lg">
-                            Only {availableUnits} left
+                        {/* Already added badge */}
+                        {bookedCount > 0 && isAddRoomMode && (
+                          <Badge className="bg-green-600 text-white text-xs font-semibold uppercase tracking-wider shadow-lg">
+                            <Check className="h-3 w-3 mr-1" />
+                            {bookedCount} Added
                           </Badge>
                         )}
-                        {availableUnits === 0 && (
+                        {!isFullyBooked && (
+                          <Badge className="bg-primary text-primary-foreground text-xs font-semibold uppercase tracking-wider shadow-lg">
+                            Instant Book
+                          </Badge>
+                        )}
+                        {remainingUnits !== undefined && remainingUnits <= 2 && remainingUnits > 0 && (
+                          <Badge className="bg-amber-600 text-white text-xs font-semibold uppercase tracking-wider shadow-lg">
+                            Only {remainingUnits} left
+                          </Badge>
+                        )}
+                        {isFullyBooked && (
                           <Badge variant="destructive" className="text-xs font-semibold uppercase tracking-wider shadow-lg">
-                            Sold Out
+                            {bookedCount > 0 ? 'All Reserved' : 'Sold Out'}
                           </Badge>
                         )}
                       </div>
+
+                      {/* Bottom right - units remaining indicator in add room mode */}
+                      {isAddRoomMode && remainingUnits !== undefined && !isFullyBooked && (
+                        <div className="absolute bottom-3 right-3">
+                          <Badge variant="secondary" className="bg-background/90 text-foreground text-xs font-medium shadow-lg">
+                            {remainingUnits} unit{remainingUnits !== 1 ? 's' : ''} available
+                          </Badge>
+                        </div>
+                      )}
                     </div>
                     
                     {/* Room Info */}
@@ -653,7 +724,10 @@ export default function PropertyShowcase() {
                       </p>
                       
                       {/* Room Name */}
-                      <h3 className="text-base font-bold text-foreground uppercase tracking-wide group-hover:text-primary transition-colors">
+                      <h3 className={cn(
+                        "text-base font-bold uppercase tracking-wide transition-colors",
+                        isFullyBooked ? "text-muted-foreground" : "text-foreground group-hover:text-primary"
+                      )}>
                         {room.name}
                       </h3>
                       
