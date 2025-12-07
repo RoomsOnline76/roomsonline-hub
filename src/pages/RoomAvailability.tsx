@@ -17,6 +17,7 @@ interface Property {
   name: string;
   slug: string;
   amenities: any;
+  external_system?: string;
 }
 
 export default function RoomAvailability() {
@@ -106,6 +107,7 @@ export default function RoomAvailability() {
       propertyName={property.name}
       roomName={room.name}
       roomId={roomId}
+      externalSystem={property.external_system}
     />
   );
 }
