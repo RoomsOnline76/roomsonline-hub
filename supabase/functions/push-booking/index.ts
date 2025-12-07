@@ -487,6 +487,41 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Send booking confirmation email after processing
+    const anySuccess = results.some((r: any) => r.success);
+    const firstError = results.find((r: any) => !r.success);
+    
+    try {
+      console.log('Triggering booking confirmation email...');
+      
+      // Use internal fetch to call the send-booking-email function
+      const emailResponse = await fetch(
+        `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-booking-email`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            booking_id,
+            status: anySuccess ? 'success' : 'failed',
+            error_message: firstError?.error || undefined,
+          }),
+        }
+      );
+
+      if (!emailResponse.ok) {
+        const emailError = await emailResponse.text();
+        console.error('Failed to send booking email:', emailError);
+      } else {
+        console.log('Booking email sent successfully');
+      }
+    } catch (emailError) {
+      // Don't fail the whole response if email fails
+      console.error('Error sending booking email:', emailError);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
