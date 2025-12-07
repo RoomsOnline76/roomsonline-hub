@@ -353,13 +353,13 @@ export default function RoomAvailabilityCalendar({
                         "hover:bg-primary hover:text-primary-foreground",
                         "focus:bg-primary focus:text-primary-foreground"
                       ),
-                      day_range_start: "day-range-start bg-primary text-primary-foreground rounded-l-md rounded-r-none",
-                      day_range_end: "day-range-end bg-primary text-primary-foreground rounded-r-md rounded-l-none",
-                      day_selected: "bg-primary text-primary-foreground",
+                      day_range_start: "day-range-start !bg-primary text-primary-foreground rounded-l-md rounded-r-none z-10",
+                      day_range_end: "day-range-end !bg-primary text-primary-foreground rounded-r-md rounded-l-none z-10",
+                      day_selected: "!bg-primary text-primary-foreground z-10",
                       day_today: "ring-2 ring-primary ring-offset-2",
                       day_outside: "text-muted-foreground opacity-50",
                       day_disabled: "text-muted-foreground opacity-50 cursor-not-allowed",
-                      day_range_middle: "bg-primary/20 text-foreground rounded-none",
+                      day_range_middle: "!bg-primary/40 text-foreground rounded-none z-10",
                       day_hidden: "invisible",
                     }}
                   />
