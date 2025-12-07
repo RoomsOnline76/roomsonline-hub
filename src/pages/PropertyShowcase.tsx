@@ -119,8 +119,9 @@ export default function PropertyShowcase() {
   // Load booked rooms from sessionStorage when in addRoom mode
   useEffect(() => {
     const isAddRoomMode = searchParams.get('addRoom') === 'true';
-    if (isAddRoomMode) {
-      const storedData = sessionStorage.getItem('multiRoomBookingState');
+    if (isAddRoomMode && property?.id) {
+      // Try the property-specific booking state key
+      const storedData = sessionStorage.getItem(`booking_state_${property.id}`);
       if (storedData) {
         try {
           const parsed = JSON.parse(storedData);
@@ -134,7 +135,7 @@ export default function PropertyShowcase() {
     } else {
       setBookedRooms([]);
     }
-  }, [searchParams]);
+  }, [searchParams, property?.id]);
 
   const fetchPropertyData = async () => {
     setLoading(true);
