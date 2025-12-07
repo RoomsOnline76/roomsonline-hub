@@ -427,23 +427,16 @@ export default function PropertyShowcase() {
                   </span>
                 </div>
               </div>
-              <Button 
-                size="lg" 
-                onClick={handleBookProperty}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
-              >
-                {isNightsBridgeProperty ? (
-                  <>
-                    Book Now
-                    <ExternalLink className="ml-2 h-4 w-4" />
-                  </>
-                ) : (
-                  <>
-                    View Rooms & Rates
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </>
-                )}
-              </Button>
+              {isNightsBridgeProperty && (
+                <Button 
+                  size="lg" 
+                  onClick={handleBookProperty}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
+                >
+                  Book Now
+                  <ExternalLink className="ml-2 h-4 w-4" />
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -497,17 +490,28 @@ export default function PropertyShowcase() {
               <CardContent className="p-6 md:p-8">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                   <div className="space-y-2">
+                    {/* Star Rating */}
+                    {starRating > 0 && (
+                      <div className="flex items-center gap-1 mb-1">
+                        {Array.from({ length: starRating }).map((_, i) => (
+                          <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        ))}
+                      </div>
+                    )}
                     <h3 className="text-xl md:text-2xl font-bold text-foreground">
                       {property.amenities?.announcements?.[0]?.title || `Book your stay at ${property.name}`}
                     </h3>
-                    <p className="text-muted-foreground max-w-xl">
-                      {property.amenities?.announcements?.[0]?.description || 
-                        (property.description 
-                          ? property.description.slice(0, 150) + (property.description.length > 150 ? '...' : '')
-                          : `Experience ${property.property_type.replace('_', ' ')} accommodation in ${property.city}, ${property.country}. Choose from ${roomTypes.length} room type${roomTypes.length > 1 ? 's' : ''}.`
-                        )
-                      }
-                    </p>
+                    {/* Property Description */}
+                    {property.description && (
+                      <p className="text-muted-foreground max-w-xl">
+                        {property.description.slice(0, 200)}{property.description.length > 200 ? '...' : ''}
+                      </p>
+                    )}
+                    {!property.description && (
+                      <p className="text-muted-foreground max-w-xl">
+                        {`Experience ${property.property_type.replace('_', ' ')} accommodation in ${property.city}, ${property.country}. Choose from ${roomTypes.length} room type${roomTypes.length > 1 ? 's' : ''}.`}
+                      </p>
+                    )}
                     {/* Quick highlights */}
                     <div className="flex flex-wrap gap-3 pt-2">
                       {mealTypes.length > 0 && (
@@ -520,12 +524,6 @@ export default function PropertyShowcase() {
                         <Badge variant="secondary" className="text-xs">
                           <Check className="h-3 w-3 mr-1" />
                           {facilities.length}+ amenities
-                        </Badge>
-                      )}
-                      {starRating > 0 && (
-                        <Badge variant="secondary" className="text-xs">
-                          <Star className="h-3 w-3 mr-1 fill-yellow-400 text-yellow-400" />
-                          {starRating}-star rated
                         </Badge>
                       )}
                     </div>
