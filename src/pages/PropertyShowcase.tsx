@@ -458,12 +458,6 @@ export default function PropertyShowcase() {
                 <span>{roomTypes.length} room type{roomTypes.length > 1 ? 's' : ''}</span>
               </div>
             )}
-            {property.bathrooms && (
-              <div className="flex items-center gap-2">
-                <Bath className="h-4 w-4 text-primary" />
-                <span>{property.bathrooms} bathroom{property.bathrooms > 1 ? 's' : ''}</span>
-              </div>
-            )}
             <Badge variant="secondary" className="capitalize">
               {property.property_type.replace('_', ' ')}
             </Badge>
