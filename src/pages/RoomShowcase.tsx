@@ -680,14 +680,60 @@ export default function RoomShowcase() {
               <CardContent className="p-6">
                 {/* Prominent Rate Display */}
                 {lowestRate && (
-                  <div className="text-center mb-6">
+                  <div className="text-center mb-4">
                     <span className="text-sm text-muted-foreground">From </span>
                     <span className="text-3xl font-bold text-primary">R {lowestRate.toLocaleString()}</span>
                     <span className="text-sm text-muted-foreground"> / night</span>
                   </div>
                 )}
 
-                <Separator className="my-4" />
+                {/* Room Quick Facts */}
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {room.bedConfiguration && (
+                    <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                      <Bed className="h-4 w-4 text-primary shrink-0" />
+                      <span className="text-xs font-medium truncate">
+                        {bedConfigLabels[room.bedConfiguration] || room.bedConfiguration}
+                      </span>
+                    </div>
+                  )}
+                  {room.bathrooms && (
+                    <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                      <Bath className="h-4 w-4 text-primary shrink-0" />
+                      <span className="text-xs font-medium">{room.bathrooms} Bathroom{room.bathrooms > 1 ? 's' : ''}</span>
+                    </div>
+                  )}
+                  {room.roomSize && (
+                    <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                      <Maximize className="h-4 w-4 text-primary shrink-0" />
+                      <span className="text-xs font-medium">{room.roomSize} m²</span>
+                    </div>
+                  )}
+                  {room.maxPeople && (
+                    <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                      <Users className="h-4 w-4 text-primary shrink-0" />
+                      <span className="text-xs font-medium">Sleeps {room.maxPeople}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Facilities & Amenities Preview */}
+                {(facilities.length > 0 || amenities.length > 0) && (
+                  <div className="mb-4">
+                    <div className="flex flex-wrap gap-1.5">
+                      {[...facilities.slice(0, 4), ...amenities.slice(0, 4)].slice(0, 6).map((item, idx) => (
+                        <Badge key={idx} variant="outline" className="text-xs px-2 py-0.5">
+                          {item}
+                        </Badge>
+                      ))}
+                      {(facilities.length + amenities.length) > 6 && (
+                        <Badge variant="secondary" className="text-xs px-2 py-0.5">
+                          +{facilities.length + amenities.length - 6} more
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <Button className="w-full" size="lg" onClick={handleCheckAvailability}>
                   {isNightsBridgeProperty ? (
