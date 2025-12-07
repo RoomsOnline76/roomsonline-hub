@@ -972,7 +972,7 @@ const Booking = () => {
                 )}
 
                 {/* Cost Breakdown */}
-                <div className="border-t pt-4 space-y-3">
+                <div className="border-t pt-4 space-y-4">
                   {calculatingCost ? (
                     <div className="flex items-center justify-center py-4">
                       <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -980,15 +980,34 @@ const Booking = () => {
                     </div>
                   ) : costBreakdown.length > 0 ? (
                     <>
-                      {costBreakdown.map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                          <div className="text-muted-foreground">
-                            <p>{item.description}</p>
-                            <p className="text-xs">{item.nights} nights × R{item.unitPrice.toFixed(2)}</p>
+                      {/* Room Charges from API */}
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Room Charges</p>
+                        {costBreakdown.map((item, idx) => (
+                          <div key={idx} className="flex justify-between text-sm">
+                            <div className="text-muted-foreground">
+                              <p>{item.description}</p>
+                              <p className="text-xs">{item.nights} nights × R{item.unitPrice.toFixed(2)}</p>
+                            </div>
+                            <span className="font-medium">R{item.total.toFixed(2)}</span>
                           </div>
-                          <span className="font-medium">R{item.total.toFixed(2)}</span>
+                        ))}
+                      </div>
+                      
+                      {/* Other Charges (not from API) */}
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Other Charges</p>
+                        <div className="flex justify-between text-sm text-muted-foreground">
+                          <span>Service fee</span>
+                          <span>R0.00</span>
                         </div>
-                      ))}
+                        <div className="flex justify-between text-sm text-muted-foreground">
+                          <span>Tourism levy</span>
+                          <span>Included</span>
+                        </div>
+                      </div>
+                      
+                      {/* Total */}
                       <div className="border-t pt-3 flex justify-between items-center">
                         <span className="font-semibold">Total</span>
                         <span className="text-xl font-bold">R {totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
