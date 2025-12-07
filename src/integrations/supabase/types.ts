@@ -1228,6 +1228,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_property_active: { Args: { prop_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "user" | "dev"
