@@ -537,9 +537,8 @@ export default function RoomShowcase() {
                     </div>
                     <div className="space-y-1 text-muted-foreground">
                       <p>Maximum guests: <strong className="text-foreground">{room.maxPeople || 2}</strong></p>
-                      <p>Adults: <strong className="text-foreground">{room.maxAdults || room.maxPeople || 2}</strong></p>
                       {room.maxChildren !== undefined && room.maxChildren > 0 && (
-                        <p>Children allowed: <strong className="text-foreground">{room.maxChildren}</strong></p>
+                        <p className="text-primary font-medium">Children allowed</p>
                       )}
                     </div>
                   </CardContent>
