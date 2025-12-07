@@ -374,22 +374,8 @@ export default function PropertyShowcase() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Add Room Banner */}
-      {isAddRoomMode && (
-        <div className="bg-primary text-primary-foreground py-3 px-4 text-center">
-          <p className="text-sm font-medium">
-            Adding another room to your booking
-            {defaultCheckIn && defaultCheckOut && (
-              <span className="text-primary-foreground/80 ml-2">
-                (Default dates: {defaultCheckIn} to {defaultCheckOut})
-              </span>
-            )}
-          </p>
-        </div>
-      )}
-      
       {/* Back Button */}
-      <div className="absolute top-4 left-4 z-20" style={{ top: isAddRoomMode ? '60px' : '16px' }}>
+      <div className="absolute top-4 left-4 z-20">
         {isBookDomain ? (
           <Button 
             variant="secondary" 
@@ -635,6 +621,20 @@ export default function PropertyShowcase() {
         {/* Rooms Section */}
         <section id="rooms-section" className="mb-12 scroll-mt-20">
           <h2 className="text-2xl font-semibold mb-6 uppercase tracking-wide text-foreground/80">Rooms</h2>
+          
+          {/* Add Room Banner */}
+          {isAddRoomMode && (
+            <div className="bg-primary/10 border border-primary/20 rounded-lg py-3 px-4 mb-6">
+              <p className="text-sm font-medium text-center">
+                Adding another room to your booking
+                {defaultCheckIn && defaultCheckOut && (
+                  <span className="text-muted-foreground ml-2">
+                    (Default dates: {defaultCheckIn} to {defaultCheckOut})
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
           
           {roomTypes.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
