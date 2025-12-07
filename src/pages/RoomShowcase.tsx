@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { getPropertyUrl } from "@/lib/config";
+import { getPropertyUrl, getNightsBridgeBookingUrl } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,7 +28,8 @@ import {
   Sparkles,
   ShowerHead,
   Sofa,
-  Mountain
+  Mountain,
+  ExternalLink
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -65,6 +66,8 @@ interface Property {
   city: string;
   country: string;
   amenities: any;
+  external_system: string | null;
+  external_id: string | null;
 }
 
 interface RateData {
@@ -112,6 +115,7 @@ export default function RoomShowcase() {
   const [room, setRoom] = useState<RoomType | null>(null);
   const [rates, setRates] = useState<RateData[]>([]);
   const [availableUnits, setAvailableUnits] = useState<number | null>(null);
+  const [nightsBridgeAgentCode, setNightsBridgeAgentCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
@@ -186,6 +190,19 @@ export default function RoomShowcase() {
           setAvailableUnits(availData[0].available_units);
         }
       }
+
+      // Fetch NightsBridge agent code if this is a NightsBridge property
+      if (propertyData.external_system === "nightsbridge") {
+        const { data: nbCredentials } = await supabase
+          .from("pms_credentials")
+          .select("agent_code")
+          .eq("system_type", "nightsbridge")
+          .maybeSingle();
+        
+        if (nbCredentials?.agent_code) {
+          setNightsBridgeAgentCode(nbCredentials.agent_code);
+        }
+      }
     } catch (error) {
       console.error("Error fetching room:", error);
     } finally {
@@ -209,7 +226,29 @@ export default function RoomShowcase() {
     }
   };
 
+  // Check if this is a NightsBridge property
+  const isNightsBridgeProperty = property?.external_system === "nightsbridge";
+  
+  // Get NightsBridge BBID from property
+  const getNightsBridgeBBID = (): string | null => {
+    if (!property) return null;
+    // Check external_id first (primary location when external_system is nightsbridge)
+    if (property.external_id) return property.external_id;
+    // Fallback to amenities.external_ids.nightsbridge_bb_id
+    return property.amenities?.external_ids?.nightsbridge_bb_id || null;
+  };
+
   const handleCheckAvailability = () => {
+    // For NightsBridge properties, redirect to NightsBridge booking
+    if (isNightsBridgeProperty) {
+      const bbid = getNightsBridgeBBID();
+      if (bbid && nightsBridgeAgentCode) {
+        const bookingUrl = getNightsBridgeBookingUrl(bbid, nightsBridgeAgentCode);
+        window.open(bookingUrl, '_blank');
+        return;
+      }
+    }
+    // Default: navigate to availability calendar
     if (property && room) {
       const roomSlugName = slugifyRoomName(room.name);
       navigate(`/property/${property.slug || property.id}/room/${roomSlugName}/availability`);
@@ -675,8 +714,17 @@ export default function RoomShowcase() {
                 <Separator className="my-6" />
 
                 <Button className="w-full" size="lg" onClick={handleCheckAvailability}>
-                  <Calendar className="mr-2 h-4 w-4" />
-                  Check Availability
+                  {isNightsBridgeProperty ? (
+                    <>
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Book Now
+                    </>
+                  ) : (
+                    <>
+                      <Calendar className="mr-2 h-4 w-4" />
+                      Check Availability
+                    </>
+                  )}
                 </Button>
                 
                 <p className="text-xs text-center text-muted-foreground mt-3">

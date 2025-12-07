@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { getNightsBridgeBookingUrl } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +25,8 @@ import {
   Check,
   Clock,
   Calendar,
-  ArrowRight
+  ArrowRight,
+  ExternalLink
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +48,7 @@ interface Property {
   images: string[];
   is_active: boolean;
   external_system: string | null;
+  external_id: string | null;
   benson_property_code: string | null;
   slug: string | null;
 }
@@ -89,6 +92,7 @@ export default function PropertyShowcase() {
   const navigate = useNavigate();
   const [property, setProperty] = useState<Property | null>(null);
   const [availability, setAvailability] = useState<Map<string, AvailabilityData>>(new Map());
+  const [nightsBridgeAgentCode, setNightsBridgeAgentCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
@@ -146,6 +150,19 @@ export default function PropertyShowcase() {
           availMap.set(item.external_room_type_id, item);
         });
         setAvailability(availMap);
+      }
+
+      // Fetch NightsBridge agent code if this is a NightsBridge property
+      if (propertyData.external_system === "nightsbridge") {
+        const { data: nbCredentials } = await supabase
+          .from("pms_credentials")
+          .select("agent_code")
+          .eq("system_type", "nightsbridge")
+          .maybeSingle();
+        
+        if (nbCredentials?.agent_code) {
+          setNightsBridgeAgentCode(nbCredentials.agent_code);
+        }
       }
     } catch (error) {
       console.error("Error fetching property:", error);
@@ -238,6 +255,32 @@ export default function PropertyShowcase() {
     const propertySlug = property?.slug || property?.id;
     const roomSlug = slugifyRoomName(room.name);
     navigate(`/property/${propertySlug}/room/${roomSlug}`);
+  };
+
+  // Check if this is a NightsBridge property
+  const isNightsBridgeProperty = property?.external_system === "nightsbridge";
+  
+  // Get NightsBridge BBID from property
+  const getNightsBridgeBBID = (): string | null => {
+    if (!property) return null;
+    // Check external_id first (primary location when external_system is nightsbridge)
+    if (property.external_id) return property.external_id;
+    // Fallback to amenities.external_ids.nightsbridge_bb_id
+    return property.amenities?.external_ids?.nightsbridge_bb_id || null;
+  };
+
+  // Handle booking - redirect to NightsBridge for NB properties
+  const handleBookProperty = () => {
+    if (isNightsBridgeProperty) {
+      const bbid = getNightsBridgeBBID();
+      if (bbid && nightsBridgeAgentCode) {
+        const bookingUrl = getNightsBridgeBookingUrl(bbid, nightsBridgeAgentCode);
+        window.open(bookingUrl, '_blank');
+        return;
+      }
+    }
+    // Default: scroll to rooms section
+    scrollToRooms();
   };
 
   if (loading) {
@@ -385,11 +428,20 @@ export default function PropertyShowcase() {
               </div>
               <Button 
                 size="lg" 
-                onClick={scrollToRooms}
+                onClick={handleBookProperty}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
               >
-                View Rooms & Rates
-                <ArrowRight className="ml-2 h-4 w-4" />
+                {isNightsBridgeProperty ? (
+                  <>
+                    Book Now
+                    <ExternalLink className="ml-2 h-4 w-4" />
+                  </>
+                ) : (
+                  <>
+                    View Rooms & Rates
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -692,11 +744,20 @@ export default function PropertyShowcase() {
             </p>
             <Button 
               size="lg" 
-              onClick={scrollToRooms}
+              onClick={handleBookProperty}
               className="bg-primary hover:bg-primary/90"
             >
-              View Rooms & Rates
-              <ArrowRight className="ml-2 h-4 w-4" />
+              {isNightsBridgeProperty ? (
+                <>
+                  Book Now
+                  <ExternalLink className="ml-2 h-4 w-4" />
+                </>
+              ) : (
+                <>
+                  View Rooms & Rates
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              )}
             </Button>
           </Card>
         </section>
