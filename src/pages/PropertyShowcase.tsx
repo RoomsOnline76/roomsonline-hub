@@ -63,6 +63,9 @@ interface RoomType {
   maxChildren?: number;
   description?: string;
   pmsRoomId?: string;
+  bathrooms?: number;
+  bedConfiguration?: string;
+  roomSize?: number;
 }
 
 interface AvailabilityData {
@@ -578,7 +581,7 @@ export default function PropertyShowcase() {
                 const lowestRate = getLowestRateFromAvailability(availData);
                 const availableUnits = availData?.available_units;
                 const roomImage = room.url || (property.images.length > 0 ? property.images[0] : null);
-                const roomBedrooms = 1; // Default to 1 bedroom per room type
+                
                 
                 return (
                   <div 
@@ -641,10 +644,17 @@ export default function PropertyShowcase() {
                             <span>{room.maxPeople} guest{room.maxPeople > 1 ? 's' : ''}</span>
                           </div>
                         )}
-                        <div className="flex items-center gap-1">
-                          <Bed className="h-3.5 w-3.5" />
-                          <span>{roomBedrooms} bedroom</span>
-                        </div>
+                        {room.bathrooms && (
+                          <div className="flex items-center gap-1">
+                            <Bath className="h-3.5 w-3.5" />
+                            <span>{room.bathrooms} bath{room.bathrooms > 1 ? 's' : ''}</span>
+                          </div>
+                        )}
+                        {room.roomSize && (
+                          <div className="flex items-center gap-1">
+                            <span>{room.roomSize} m²</span>
+                          </div>
+                        )}
                       </div>
                       
                       {/* Pricing */}
