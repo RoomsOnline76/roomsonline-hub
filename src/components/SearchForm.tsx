@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format, isAfter, isBefore, isSameDay } from "date-fns";
+import { format, isAfter, isBefore, isSameDay, addMonths, subMonths, endOfMonth, startOfMonth } from "date-fns";
 import { CalendarIcon, MapPin, Users, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -18,6 +18,51 @@ export const SearchForm = () => {
   
   // Track hover date for preview "worm" effect
   const [hoverDate, setHoverDate] = useState<Date | undefined>();
+  
+  // Track displayed month for auto-navigation
+  const [displayedMonth, setDisplayedMonth] = useState<Date>(new Date());
+  const autoNavTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-navigate to next/previous month when hovering near edges
+  const handleDayMouseEnterWithNav = (day: Date) => {
+    if (dateRange?.from && !dateRange?.to) {
+      setHoverDate(day);
+      
+      // Clear any pending navigation
+      if (autoNavTimeoutRef.current) {
+        clearTimeout(autoNavTimeoutRef.current);
+      }
+      
+      const monthEnd = endOfMonth(displayedMonth);
+      const monthStart = startOfMonth(displayedMonth);
+      
+      // If hovering on last row of month, auto-navigate to next month after delay
+      if (day >= subMonths(monthEnd, 0) && day <= monthEnd) {
+        const daysFromEnd = Math.floor((monthEnd.getTime() - day.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysFromEnd <= 6) {
+          autoNavTimeoutRef.current = setTimeout(() => {
+            setDisplayedMonth(addMonths(displayedMonth, 1));
+          }, 400);
+        }
+      }
+      
+      // If hovering on first row of month, auto-navigate to previous month
+      if (day >= monthStart && day <= addMonths(monthStart, 0)) {
+        const daysFromStart = Math.floor((day.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysFromStart <= 6 && monthStart > new Date()) {
+          autoNavTimeoutRef.current = setTimeout(() => {
+            setDisplayedMonth(subMonths(displayedMonth, 1));
+          }, 400);
+        }
+      }
+    }
+  };
+
+  const handleDayMouseLeaveWithNav = () => {
+    if (autoNavTimeoutRef.current) {
+      clearTimeout(autoNavTimeoutRef.current);
+    }
+  };
 
   // Handle date range selection
   const handleDayClick = (day: Date) => {
@@ -40,13 +85,6 @@ export const SearchForm = () => {
     }
   };
 
-  const handleDayMouseEnter = (day: Date) => {
-    if (dateRange?.from && !dateRange?.to) {
-      setHoverDate(day);
-    }
-  };
-
-  const handleDayMouseLeave = () => {};
 
   const getDisplayRange = (): DateRange | undefined => {
     if (dateRange?.from && dateRange?.to) {
@@ -163,11 +201,13 @@ export const SearchForm = () => {
                 <DayPicker
                   mode="range"
                   selected={displayRange}
+                  month={displayedMonth}
+                  onMonthChange={setDisplayedMonth}
                   numberOfMonths={1}
                   disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                   onDayClick={handleDayClick}
-                  onDayMouseEnter={handleDayMouseEnter}
-                  onDayMouseLeave={handleDayMouseLeave}
+                  onDayMouseEnter={handleDayMouseEnterWithNav}
+                  onDayMouseLeave={handleDayMouseLeaveWithNav}
                   modifiers={{
                     range_start: (day) => isRangeStart(day),
                     range_end: (day) => isRangeEnd(day),
