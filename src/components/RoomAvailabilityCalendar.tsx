@@ -30,6 +30,13 @@ interface AvailabilityData {
   restrictions?: any;
 }
 
+interface RoomTypeData {
+  allow_children: boolean;
+  child_min_age?: number;
+  child_max_age?: number;
+  max_guests?: number;
+}
+
 interface RoomAvailabilityCalendarProps {
   propertyId: string;
   propertySlug: string;
@@ -73,12 +80,33 @@ export default function RoomAvailabilityCalendar({
   });
   
   const [availability, setAvailability] = useState<Map<string, AvailabilityData>>(new Map());
+  const [roomTypeData, setRoomTypeData] = useState<RoomTypeData | null>(null);
   const [loading, setLoading] = useState(true);
   const autoNavTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    fetchRoomTypeData();
+  }, [propertyId, roomId]);
+
+  useEffect(() => {
     fetchAvailability();
   }, [displayedMonth, propertyId, roomId]);
+
+  const fetchRoomTypeData = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("pms_room_types_cache")
+        .select("allow_children, child_min_age, child_max_age, max_guests")
+        .eq("property_id", propertyId)
+        .eq("external_room_type_id", roomId)
+        .single();
+
+      if (error) throw error;
+      setRoomTypeData(data);
+    } catch (error) {
+      console.error("Error fetching room type data:", error);
+    }
+  };
 
   const fetchAvailability = async () => {
     setLoading(true);
@@ -327,7 +355,7 @@ export default function RoomAvailabilityCalendar({
                 <h3 className="font-semibold mb-4">Booking Summary</h3>
                 
                 {/* Guests */}
-                <div className="mb-6">
+                <div className="mb-6 space-y-2">
                   <p className="text-sm text-muted-foreground mb-2">Guests</p>
                   <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                     <div className="flex items-center gap-2">
@@ -355,6 +383,43 @@ export default function RoomAvailabilityCalendar({
                       </Button>
                     </div>
                   </div>
+                  
+                  {/* Children - only show if allowed */}
+                  {roomTypeData?.allow_children && (
+                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <span className="text-sm font-medium">Children</span>
+                          {roomTypeData.child_min_age != null && roomTypeData.child_max_age != null && (
+                            <p className="text-xs text-muted-foreground">
+                              Ages {roomTypeData.child_min_age}–{roomTypeData.child_max_age}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => setGuests(g => ({ ...g, children: Math.max(0, g.children - 1) }))}
+                          disabled={guests.children <= 0}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="w-8 text-center font-medium">{guests.children}</span>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => setGuests(g => ({ ...g, children: g.children + 1 }))}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Selected Dates Summary */}
