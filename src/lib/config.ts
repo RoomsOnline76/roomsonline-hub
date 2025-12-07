@@ -15,3 +15,22 @@ export const getRoomUrl = (propertySlugOrId: string, roomId: string) =>
 
 // Helper to generate booking URL
 export const getBookingUrl = (slugOrId: string) => `${PUBLIC_DOMAIN}/booking/${slugOrId}`;
+
+// NightsBridge booking URL generator
+// Format: https://nightsbridge.co.za/bridge/book?bbid=######&source=AGENT_CODE&checkin=YYYY-MM-DD&checkout=YYYY-MM-DD
+export const getNightsBridgeBookingUrl = (
+  bbid: string,
+  agentCode: string,
+  checkIn?: string,
+  checkOut?: string
+) => {
+  const params = new URLSearchParams({
+    bbid,
+    source: agentCode,
+  });
+  
+  if (checkIn) params.append('checkin', checkIn);
+  if (checkOut) params.append('checkout', checkOut);
+  
+  return `https://nightsbridge.co.za/bridge/book?${params.toString()}`;
+};

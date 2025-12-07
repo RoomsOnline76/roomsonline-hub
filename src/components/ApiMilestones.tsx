@@ -78,17 +78,14 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     liveMonitor: false,
   },
   nightsbridge: {
-    // ❌ Bearer token auth structure defined but needs dedicated edge function
+    // NightsBridge integration uses URL redirect - no API access until 50 properties
+    // Booking redirect: https://nightsbridge.co.za/bridge/book?bbid=######&source=AGENT_CODE&checkin=YYYY-MM-DD&checkout=YYYY-MM-DD
     auth: false,
-    // ❌ No dedicated health check implementation
     healthCheck: false,
-    // ❌ Structure in sync-rates-availability but not fully implemented
     pullAvailability: false,
-    // ❌ Sync function exists but uses different credential approach
     syncIn: false,
-    // ❌ Structure in push-booking but incomplete
-    pushBooking: false,
-    // ❌ Not implemented
+    // ✅ URL redirect booking implemented - redirects to NightsBridge booking page
+    pushBooking: true,
     liveMonitor: false,
   },
   checkfront: {

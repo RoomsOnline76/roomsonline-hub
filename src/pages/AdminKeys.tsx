@@ -1077,6 +1077,9 @@ export default function AdminKeys() {
                 <CardDescription className="mt-1">
                   Property Management System integration for South African properties
                 </CardDescription>
+                <div className="mt-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded-md inline-block">
+                  ⚠️ No API access until 50 properties - booking via URL redirect only
+                </div>
               </div>
             </div>
             <div>
