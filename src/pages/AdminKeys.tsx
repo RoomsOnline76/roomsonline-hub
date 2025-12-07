@@ -132,6 +132,10 @@ export default function AdminKeys() {
   const [editingResend, setEditingResend] = useState(false);
   const [savingResend, setSavingResend] = useState(false);
 
+  // Global settings state
+  const [bookOpenNewTab, setBookOpenNewTab] = useState(true);
+  const [savingBookOpenNewTab, setSavingBookOpenNewTab] = useState(false);
+
   useEffect(() => {
     fetchApiKeys();
     fetchBensonCredentials();
@@ -139,6 +143,7 @@ export default function AdminKeys() {
     fetchNightsbridgeCredentials();
     fetchCheckfrontCredentials();
     fetchResendConfig();
+    fetchGlobalSettings();
   }, []);
 
   const fetchResendConfig = async () => {
@@ -153,6 +158,48 @@ export default function AdminKeys() {
       if (fromEmail?.key_value) setResendFromEmail(fromEmail.key_value);
       if (toEmail?.key_value) setResendToEmail(toEmail.key_value);
     }
+  };
+
+  const fetchGlobalSettings = async () => {
+    const { data } = await supabase
+      .from("api_keys")
+      .select("*")
+      .eq("key_name", "BOOK_OPEN_NEW_TAB")
+      .maybeSingle();
+
+    if (data?.key_value) {
+      setBookOpenNewTab(data.key_value === "true");
+    }
+  };
+
+  const handleSaveBookOpenNewTab = async (newValue: boolean) => {
+    setSavingBookOpenNewTab(true);
+
+    const { error } = await supabase.from("api_keys").upsert(
+      {
+        key_name: "BOOK_OPEN_NEW_TAB",
+        name: "Book Button Opens New Tab",
+        key_value: String(newValue),
+        system_type: "global",
+        description: "Whether the Book button in the navbar opens in a new tab",
+      },
+      { onConflict: "key_name" },
+    );
+
+    if (error) {
+      toast({
+        title: "Error saving setting",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      setBookOpenNewTab(newValue);
+      toast({
+        title: "Setting updated",
+        description: `Book button will now open in ${newValue ? "a new tab" : "the same tab"}`,
+      });
+    }
+    setSavingBookOpenNewTab(false);
   };
 
   const handleSaveResendConfig = async () => {
@@ -1444,6 +1491,42 @@ export default function AdminKeys() {
                 {completedCount} / {requiredCount} Keys Configured
               </Badge>
             </div>
+          </div>
+
+          {/* Global Settings Section */}
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">Global Settings</h2>
+            <Card>
+              <CardHeader>
+                <div className="flex items-start gap-3">
+                  <div className="mt-1">
+                    <Settings className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle>Navigation Settings</CardTitle>
+                    <CardDescription className="mt-1">
+                      Configure global navigation behavior for the application
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="book-new-tab">Open Book page in new tab</Label>
+                    <p className="text-sm text-muted-foreground">
+                      When enabled, clicking the "Book" button in the navbar opens the booking page in a new browser tab
+                    </p>
+                  </div>
+                  <Switch
+                    id="book-new-tab"
+                    checked={bookOpenNewTab}
+                    onCheckedChange={handleSaveBookOpenNewTab}
+                    disabled={savingBookOpenNewTab}
+                  />
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* PMS Systems Section */}
