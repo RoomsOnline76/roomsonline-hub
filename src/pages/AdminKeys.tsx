@@ -135,6 +135,8 @@ export default function AdminKeys() {
   // Global settings state
   const [bookOpenNewTab, setBookOpenNewTab] = useState(true);
   const [savingBookOpenNewTab, setSavingBookOpenNewTab] = useState(false);
+  const [homeIconOpenNewTab, setHomeIconOpenNewTab] = useState(true);
+  const [savingHomeIconOpenNewTab, setSavingHomeIconOpenNewTab] = useState(false);
 
   useEffect(() => {
     fetchApiKeys();
@@ -164,11 +166,17 @@ export default function AdminKeys() {
     const { data } = await supabase
       .from("api_keys")
       .select("*")
-      .eq("key_name", "BOOK_OPEN_NEW_TAB")
-      .maybeSingle();
+      .in("key_name", ["BOOK_OPEN_NEW_TAB", "HOME_ICON_OPEN_NEW_TAB"]);
 
-    if (data?.key_value) {
-      setBookOpenNewTab(data.key_value === "true");
+    if (data) {
+      const bookSetting = data.find((k) => k.key_name === "BOOK_OPEN_NEW_TAB");
+      const homeSetting = data.find((k) => k.key_name === "HOME_ICON_OPEN_NEW_TAB");
+      if (bookSetting?.key_value) {
+        setBookOpenNewTab(bookSetting.key_value === "true");
+      }
+      if (homeSetting?.key_value) {
+        setHomeIconOpenNewTab(homeSetting.key_value === "true");
+      }
     }
   };
 
@@ -200,6 +208,36 @@ export default function AdminKeys() {
       });
     }
     setSavingBookOpenNewTab(false);
+  };
+
+  const handleSaveHomeIconOpenNewTab = async (newValue: boolean) => {
+    setSavingHomeIconOpenNewTab(true);
+
+    const { error } = await supabase.from("api_keys").upsert(
+      {
+        key_name: "HOME_ICON_OPEN_NEW_TAB",
+        name: "Home Icon Opens New Tab",
+        key_value: String(newValue),
+        system_type: "global",
+        description: "Whether the Home icon in property edit opens in a new tab",
+      },
+      { onConflict: "key_name" },
+    );
+
+    if (error) {
+      toast({
+        title: "Error saving setting",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      setHomeIconOpenNewTab(newValue);
+      toast({
+        title: "Setting updated",
+        description: `Home icon will now open in ${newValue ? "a new tab" : "the same tab"}`,
+      });
+    }
+    setSavingHomeIconOpenNewTab(false);
   };
 
   const handleSaveResendConfig = async () => {
@@ -1510,7 +1548,7 @@ export default function AdminKeys() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label htmlFor="book-new-tab">Open Book page in new tab</Label>
@@ -1523,6 +1561,20 @@ export default function AdminKeys() {
                     checked={bookOpenNewTab}
                     onCheckedChange={handleSaveBookOpenNewTab}
                     disabled={savingBookOpenNewTab}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="home-icon-new-tab">Open Home icon in new tab</Label>
+                    <p className="text-sm text-muted-foreground">
+                      When enabled, clicking the Home icon in property edit pages opens in a new browser tab
+                    </p>
+                  </div>
+                  <Switch
+                    id="home-icon-new-tab"
+                    checked={homeIconOpenNewTab}
+                    onCheckedChange={handleSaveHomeIconOpenNewTab}
+                    disabled={savingHomeIconOpenNewTab}
                   />
                 </div>
               </CardContent>
