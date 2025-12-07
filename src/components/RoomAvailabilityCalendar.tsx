@@ -324,10 +324,12 @@ export default function RoomAvailabilityCalendar({
                     modifiers={{
                       available: (date) => !isBefore(date, startOfDay(new Date())) && isDateAvailable(date),
                       unavailable: (date) => !isBefore(date, startOfDay(new Date())) && availability.has(format(date, "yyyy-MM-dd")) && !isDateAvailable(date),
+                      nodata: (date) => !isBefore(date, startOfDay(new Date())) && !availability.has(format(date, "yyyy-MM-dd")),
                     }}
                     modifiersStyles={{
                       available: { backgroundColor: 'hsl(142 76% 36% / 0.15)' },
                       unavailable: { backgroundColor: 'hsl(0 84% 60% / 0.2)', color: 'hsl(var(--muted-foreground))', textDecoration: 'line-through' },
+                      nodata: { backgroundColor: 'hsl(0 84% 60% / 0.2)', color: 'hsl(var(--muted-foreground))', textDecoration: 'line-through' },
                     }}
                     className="pointer-events-auto"
                     classNames={{
@@ -371,7 +373,7 @@ export default function RoomAvailabilityCalendar({
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded bg-destructive/20 border border-destructive/30" />
-                    <span>Unavailable</span>
+                    <span>Unavailable / No Data</span>
                   </div>
                 </div>
               </CardContent>
