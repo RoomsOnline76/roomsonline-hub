@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getPropertyUrl, getNightsBridgeBookingUrl } from "@/lib/config";
 import { Button } from "@/components/ui/button";
@@ -258,10 +258,13 @@ export default function RoomShowcase() {
         return;
       }
     }
-    // Default: navigate to availability calendar
+    // Default: navigate to availability calendar with search params
     if (property && room) {
       const roomSlugName = slugifyRoomName(room.name);
-      navigate(`/property/${property.slug || property.id}/room/${roomSlugName}/availability`);
+      // Preserve search params (checkIn, checkOut, guests) if they exist
+      const params = new URLSearchParams(window.location.search);
+      const queryString = params.toString();
+      navigate(`/property/${property.slug || property.id}/room/${roomSlugName}/availability${queryString ? `?${queryString}` : ''}`);
     }
   };
 
