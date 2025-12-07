@@ -61,8 +61,8 @@ const Booking = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
-  const checkIn = searchParams.get("checkIn");
-  const checkOut = searchParams.get("checkOut");
+  const urlCheckIn = searchParams.get("checkIn");
+  const urlCheckOut = searchParams.get("checkOut");
   const initialGuests = parseInt(searchParams.get("guests") || "2");
   
   // Pre-selected values from URL (from staging booking flow)
@@ -87,6 +87,10 @@ const Booking = () => {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
+  
+  // Date state - can be restored from sessionStorage
+  const [checkIn, setCheckIn] = useState<string | null>(urlCheckIn);
+  const [checkOut, setCheckOut] = useState<string | null>(urlCheckOut);
   
   // Cost calculation state
   const [availabilityData, setAvailabilityData] = useState<any>(null);
@@ -215,6 +219,10 @@ const Booking = () => {
         if (parsedState.voucher) setVoucher(parsedState.voucher);
         if (parsedState.specialRequests) setSpecialRequests(parsedState.specialRequests);
         if (parsedState.selectedRateType) setSelectedRateType(parsedState.selectedRateType);
+        
+        // Restore dates if not provided in URL
+        if (!urlCheckIn && parsedState.defaultCheckIn) setCheckIn(parsedState.defaultCheckIn);
+        if (!urlCheckOut && parsedState.defaultCheckOut) setCheckOut(parsedState.defaultCheckOut);
         
         // Clear the session storage after restoring
         sessionStorage.removeItem(`booking_state_${property.id}`);
