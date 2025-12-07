@@ -3,9 +3,9 @@ import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Shield, Zap, HeadphonesIcon, Bed, ArrowLeft, BadgeCheck, MapPinned, Lock } from "lucide-react";
+import { Shield, Zap, HeadphonesIcon, Bed, BadgeCheck, MapPinned, Lock } from "lucide-react";
 import heroImage from "@/assets/hero-hotel.jpg";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
@@ -34,7 +34,6 @@ const INITIAL_ENABLED_TYPES: Record<string, boolean> = {
 };
 
 const Home = () => {
-  const navigate = useNavigate();
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
 
   const toggleType = (key: string) => {
@@ -66,20 +65,6 @@ const Home = () => {
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
-      {/* Back Button - Fixed at top for mobile */}
-      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border/50">
-        <div className="container mx-auto px-3 py-2">
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground -ml-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="text-sm">Back</span>
-          </Button>
-        </div>
-      </div>
 
       {/* Hero Section - Compact for mobile */}
       <section className="relative flex-shrink-0">
