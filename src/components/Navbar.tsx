@@ -121,12 +121,15 @@ export const Navbar = () => {
 
           <div className="flex items-center gap-4">
             {!isBookPage && (
-              <Button 
-                variant="ghost" 
-                onClick={() => navigate('/book')}
+              <a 
+                href="https://book.sleepinafrica.roomsonline.co.za" 
+                target="_blank" 
+                rel="noopener noreferrer"
               >
-                Book
-              </Button>
+                <Button variant="ghost">
+                  Book
+                </Button>
+              </a>
             )}
             {user && !isBookPage && (
               <>
