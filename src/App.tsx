@@ -41,7 +41,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={
             window.location.hostname === 'book.sleepinafrica.roomsonline.co.za' 
-              ? <StagingBook /> 
+              ? <Home /> 
               : <Navigate to="/dashboard/reports" replace />
           } />
           <Route path="/book" element={<Home />} />
