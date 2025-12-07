@@ -145,35 +145,63 @@ export default function RoomAvailabilityCalendar({
     navigate(`/property/${propertySlug}/room/${slugifyRoomName(roomName)}`);
   };
 
+  // Check if all dates in a range are available
+  const isRangeAvailable = (start: Date, end: Date): boolean => {
+    const days = eachDayOfInterval({ start, end });
+    return days.every(day => isDateAvailable(day));
+  };
+
   // Handle date range selection
   const handleDayClick = (day: Date) => {
     if (isBefore(day, startOfDay(new Date()))) return; // Can't select past dates
     
     // If both dates already selected, reset and start fresh
     if (dateRange?.from && dateRange?.to) {
+      // Only allow starting on available dates
+      if (!isDateAvailable(day)) {
+        setHoverDate(undefined);
+        setDateRange(undefined);
+        return;
+      }
       setHoverDate(undefined);
       setDateRange({ from: day, to: undefined });
       return;
     }
     
-    // If no start date, set it
+    // If no start date, set it (must be available)
     if (!dateRange?.from) {
+      if (!isDateAvailable(day)) return;
       setDateRange({ from: day, to: undefined });
       return;
     }
     
-    // Second click - lock the range (handle forward or backward selection)
-    if (isBefore(day, dateRange.from)) {
-      // User selected backwards - swap dates
-      setDateRange({ from: day, to: dateRange.from });
-    } else {
-      setDateRange({ from: dateRange.from, to: day });
+    // Second click - lock the range if all dates are available
+    const rangeStart = isBefore(day, dateRange.from) ? day : dateRange.from;
+    const rangeEnd = isBefore(day, dateRange.from) ? dateRange.from : day;
+    
+    if (!isRangeAvailable(rangeStart, rangeEnd)) {
+      // Reset if range includes unavailable dates
+      setHoverDate(undefined);
+      setDateRange({ from: day, to: undefined });
+      return;
     }
+    
+    setDateRange({ from: rangeStart, to: rangeEnd });
     setHoverDate(undefined);
   };
 
   const handleDayMouseEnter = (day: Date) => {
     if (dateRange?.from && !dateRange?.to) {
+      // Check if worm would go outside available dates - if so, reset
+      const rangeStart = isBefore(day, dateRange.from) ? day : dateRange.from;
+      const rangeEnd = isBefore(day, dateRange.from) ? dateRange.from : day;
+      
+      if (!isRangeAvailable(rangeStart, rangeEnd)) {
+        // Reset to just the first date
+        setHoverDate(undefined);
+        setDateRange({ from: dateRange.from, to: undefined });
+        return;
+      }
       setHoverDate(day);
     }
   };
