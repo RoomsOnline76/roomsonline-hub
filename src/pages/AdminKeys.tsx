@@ -114,6 +114,7 @@ export default function AdminKeys() {
   const [nightsbridgeEnvironment, setNightsbridgeEnvironment] = useState<"staging" | "production">("staging");
   const [editingNightsbridge, setEditingNightsbridge] = useState(false);
   const [savingNightsbridge, setSavingNightsbridge] = useState(false);
+  const [togglingNightsbridge, setTogglingNightsbridge] = useState(false);
 
   // Checkfront-specific state (supports Token and OAuth2 auth)
   const [checkfrontCredentials, setCheckfrontCredentials] = useState<PMSCredentials | null>(null);
@@ -125,6 +126,10 @@ export default function AdminKeys() {
   const [checkfrontEnvironment, setCheckfrontEnvironment] = useState<"staging" | "production">("staging");
   const [editingCheckfront, setEditingCheckfront] = useState(false);
   const [savingCheckfront, setSavingCheckfront] = useState(false);
+  const [togglingCheckfront, setTogglingCheckfront] = useState(false);
+
+  // Benson toggle state
+  const [togglingBenson, setTogglingBenson] = useState(false);
 
   // Resend-specific state
   const [resendFromEmail, setResendFromEmail] = useState("");
@@ -586,6 +591,50 @@ export default function AdminKeys() {
     setSavingCheckfront(false);
   };
 
+  // Toggle handlers for PMS credentials
+  const handleToggleBenson = async (enabled: boolean) => {
+    setTogglingBenson(true);
+    // Update both staging and production credentials
+    if (bensonStagingCredentials) {
+      await supabase.from("pms_credentials").update({ is_active: enabled }).eq("id", bensonStagingCredentials.id);
+    }
+    if (bensonProductionCredentials) {
+      await supabase.from("pms_credentials").update({ is_active: enabled }).eq("id", bensonProductionCredentials.id);
+    }
+    toast({
+      title: enabled ? "Benson enabled" : "Benson disabled",
+      description: `Benson PMS integration is now ${enabled ? "active" : "inactive"}`,
+    });
+    fetchBensonCredentials();
+    setTogglingBenson(false);
+  };
+
+  const handleToggleNightsbridge = async (enabled: boolean) => {
+    setTogglingNightsbridge(true);
+    if (nightsbridgeCredentials) {
+      await supabase.from("pms_credentials").update({ is_active: enabled }).eq("id", nightsbridgeCredentials.id);
+    }
+    toast({
+      title: enabled ? "NightsBridge enabled" : "NightsBridge disabled",
+      description: `NightsBridge integration is now ${enabled ? "active" : "inactive"}`,
+    });
+    fetchNightsbridgeCredentials();
+    setTogglingNightsbridge(false);
+  };
+
+  const handleToggleCheckfront = async (enabled: boolean) => {
+    setTogglingCheckfront(true);
+    if (checkfrontCredentials) {
+      await supabase.from("pms_credentials").update({ is_active: enabled }).eq("id", checkfrontCredentials.id);
+    }
+    toast({
+      title: enabled ? "Checkfront enabled" : "Checkfront disabled",
+      description: `Checkfront integration is now ${enabled ? "active" : "inactive"}`,
+    });
+    fetchCheckfrontCredentials();
+    setTogglingCheckfront(false);
+  };
+
   const isPlaceholder = (value: string | null) => {
     return !value || value.startsWith("placeholder_key_");
   };
@@ -1024,8 +1073,10 @@ export default function AdminKeys() {
       </div>
     );
 
+    const isBensonActive = bensonStagingCredentials?.is_active || bensonProductionCredentials?.is_active;
+
     return (
-      <Card>
+      <Card className={!isBensonActive ? "opacity-60" : ""}>
         <CardHeader>
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-3">
@@ -1044,7 +1095,17 @@ export default function AdminKeys() {
                 </CardDescription>
               </div>
             </div>
-            <div>
+            <div className="flex items-center gap-3">
+              {isAnyConfigured && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={isBensonActive}
+                    onCheckedChange={handleToggleBenson}
+                    disabled={togglingBenson || !isAnyConfigured}
+                  />
+                  <span className="text-xs text-muted-foreground">{isBensonActive ? "On" : "Off"}</span>
+                </div>
+              )}
               {isAnyConfigured ? (
                 <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="h-3 w-3" />
@@ -1154,7 +1215,7 @@ export default function AdminKeys() {
     const isConfigured = nightsbridgeCredentials?.api_key && nightsbridgeCredentials?.agent_code;
 
     return (
-      <Card>
+      <Card className={!nightsbridgeCredentials?.is_active ? "opacity-60" : ""}>
         <CardHeader>
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-3">
@@ -1176,7 +1237,17 @@ export default function AdminKeys() {
                 </div>
               </div>
             </div>
-            <div>
+            <div className="flex items-center gap-3">
+              {isConfigured && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={nightsbridgeCredentials?.is_active ?? false}
+                    onCheckedChange={handleToggleNightsbridge}
+                    disabled={togglingNightsbridge || !isConfigured}
+                  />
+                  <span className="text-xs text-muted-foreground">{nightsbridgeCredentials?.is_active ? "On" : "Off"}</span>
+                </div>
+              )}
               {isConfigured ? (
                 <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="h-3 w-3" />
@@ -1311,7 +1382,7 @@ export default function AdminKeys() {
     const isConfigured = isTokenConfigured || isOAuthConfigured;
 
     return (
-      <Card>
+      <Card className={!checkfrontCredentials?.is_active ? "opacity-60" : ""}>
         <CardHeader>
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-3">
@@ -1330,7 +1401,17 @@ export default function AdminKeys() {
                 </CardDescription>
               </div>
             </div>
-            <div>
+            <div className="flex items-center gap-3">
+              {isConfigured && (
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={checkfrontCredentials?.is_active ?? false}
+                    onCheckedChange={handleToggleCheckfront}
+                    disabled={togglingCheckfront || !isConfigured}
+                  />
+                  <span className="text-xs text-muted-foreground">{checkfrontCredentials?.is_active ? "On" : "Off"}</span>
+                </div>
+              )}
               {isConfigured ? (
                 <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="h-3 w-3" />
