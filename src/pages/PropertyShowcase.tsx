@@ -274,6 +274,46 @@ export default function PropertyShowcase() {
     return lowestRate;
   };
 
+  // Fallback: get lowest rate from pms_rates stored in room type amenities
+  const getLowestRateFromRoomPmsRates = (room: RoomType): number | null => {
+    const roomData = property?.amenities?.room_types?.find((rt: any) => rt.id === room.id || rt.pmsRoomId === room.pmsRoomId);
+    if (!roomData?.pms_rates || !Array.isArray(roomData.pms_rates)) return null;
+    
+    let lowestRate: number | null = null;
+    
+    roomData.pms_rates.forEach((rate: any) => {
+      // Check roomAmount for PER ROOM rates
+      if (rate.roomAmount && typeof rate.roomAmount === 'number') {
+        if (lowestRate === null || rate.roomAmount < lowestRate) {
+          lowestRate = rate.roomAmount;
+        }
+      }
+      // Check adult amounts for PER PERSON rates
+      if (rate.adultAmount1 && typeof rate.adultAmount1 === 'number') {
+        if (lowestRate === null || rate.adultAmount1 < lowestRate) {
+          lowestRate = rate.adultAmount1;
+        }
+      }
+      if (rate.adultAmount2 && typeof rate.adultAmount2 === 'number') {
+        if (lowestRate === null || rate.adultAmount2 < lowestRate) {
+          lowestRate = rate.adultAmount2;
+        }
+      }
+    });
+    
+    return lowestRate;
+  };
+
+  // Combined function: try availability cache first, then fall back to pms_rates
+  const getLowestRateForRoom = (room: RoomType): number | null => {
+    const availData = getAvailabilityForRoom(room);
+    const rateFromCache = getLowestRateFromAvailability(availData);
+    if (rateFromCache !== null) return rateFromCache;
+    
+    // Fallback to pms_rates stored in room type
+    return getLowestRateFromRoomPmsRates(room);
+  };
+
   const getMealTypes = (): string[] => {
     return property?.amenities?.meal_types || [];
   };
@@ -587,8 +627,7 @@ export default function PropertyShowcase() {
                       // Calculate lowest rate across all rooms
                       let lowestOverallRate: number | null = null;
                       roomTypes.forEach((room) => {
-                        const availData = getAvailabilityForRoom(room);
-                        const rate = getLowestRateFromAvailability(availData);
+                        const rate = getLowestRateForRoom(room);
                         if (rate !== null && (lowestOverallRate === null || rate < lowestOverallRate)) {
                           lowestOverallRate = rate;
                         }
@@ -654,7 +693,7 @@ export default function PropertyShowcase() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {roomTypes.map((room) => {
                 const availData = getAvailabilityForRoom(room);
-                const lowestRate = getLowestRateFromAvailability(availData);
+                const lowestRate = getLowestRateForRoom(room);
                 const availableUnits = availData?.available_units;
                 const roomImage = room.url || (property.images.length > 0 ? property.images[0] : null);
                 const bookedCount = getBookedCountForRoom(room);
