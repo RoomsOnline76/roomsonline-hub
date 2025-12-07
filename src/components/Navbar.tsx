@@ -25,6 +25,7 @@ export const Navbar = () => {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [apiHealthStatus, setApiHealthStatus] = useState<{ healthy: number; unhealthy: number }>({ healthy: 0, unhealthy: 0 });
+  const [bookOpenNewTab, setBookOpenNewTab] = useState(true);
   
   const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
   const isBookPage = isBookDomain || location.pathname === "/book" || location.pathname.startsWith("/book/");
@@ -38,6 +39,7 @@ export const Navbar = () => {
     if (user) {
       loadProfile();
     }
+    loadBookOpenNewTabSetting();
   }, [user]);
 
   useEffect(() => {
@@ -46,6 +48,18 @@ export const Navbar = () => {
       checkApiHealth();
     }
   }, [isAdmin]);
+
+  const loadBookOpenNewTabSetting = async () => {
+    const { data } = await supabase
+      .from("api_keys")
+      .select("key_value")
+      .eq("key_name", "BOOK_OPEN_NEW_TAB")
+      .maybeSingle();
+    
+    if (data?.key_value) {
+      setBookOpenNewTab(data.key_value === "true");
+    }
+  };
 
   // Check health of commissioned APIs based on milestone completion
   // An API is considered "healthy" if it has completed all 7 milestones
@@ -121,15 +135,21 @@ export const Navbar = () => {
 
           <div className="flex items-center gap-4">
             {!isBookPage && (
-              <a 
-                href="https://book.sleepinafrica.roomsonline.co.za" 
-                target="_blank" 
-                rel="noopener noreferrer"
-              >
-                <Button variant="ghost">
+              bookOpenNewTab ? (
+                <a 
+                  href="https://book.sleepinafrica.roomsonline.co.za" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <Button variant="ghost">
+                    Book
+                  </Button>
+                </a>
+              ) : (
+                <Button variant="ghost" onClick={() => navigate('/book')}>
                   Book
                 </Button>
-              </a>
+              )
             )}
             {user && !isBookPage && (
               <>
