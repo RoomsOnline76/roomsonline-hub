@@ -314,7 +314,13 @@ export default function RoomAvailabilityCalendar({
       const params = new URLSearchParams({
         checkIn: format(dateRange.from, 'yyyy-MM-dd'),
         checkOut: format(dateRange.to, 'yyyy-MM-dd'),
-        guests: String(guests.adults + guests.children)
+        guests: String(totalGuests),
+        roomTypeId: roomId,
+        roomTypeName: roomName,
+        adults: String(guests.adults),
+        teens: String(guests.teens),
+        children: String(guests.children),
+        infants: String(guests.infants),
       });
       navigate(`/booking/${propertySlug}?${params.toString()}`);
     }
