@@ -70,23 +70,22 @@ const Results = () => {
   const children = searchParams.get("children");
   
   const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
+  const backPath = isBookDomain ? "/" : "/book";
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
 
       <div className="container mx-auto px-4 py-8">
-        {/* Back to Search - only on book domain */}
-        {isBookDomain && (
-          <div className="mb-6">
-            <Link to="/">
-              <Button variant="outline" size="sm" className="gap-2">
-                <ChevronLeft className="h-4 w-4" />
-                Back to Search
-              </Button>
-            </Link>
-          </div>
-        )}
+        {/* Back to Search */}
+        <div className="mb-6">
+          <Link to={backPath}>
+            <Button variant="outline" size="sm" className="gap-2">
+              <ChevronLeft className="h-4 w-4" />
+              Back to Search
+            </Button>
+          </Link>
+        </div>
 
         {/* Search Summary */}
         <div className="mb-8">
