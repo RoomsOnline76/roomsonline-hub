@@ -121,9 +121,18 @@ Deno.serve(async (req) => {
         }
 
         const authHeader = getBensonAuthHeader(username, password);
-        const baseUrl = base_url || (activeEnv === 'production' 
-          ? 'https://api.bensonsoftware.com' 
-          : 'https://staging-api.bensonsoftware.com');
+        
+        // Use base_url as-is if provided (it should include /api/v3/integrations path)
+        // Otherwise construct the full URL
+        let apiBaseUrl: string;
+        if (base_url) {
+          // Remove trailing slash if present
+          apiBaseUrl = base_url.replace(/\/$/, '');
+        } else {
+          apiBaseUrl = activeEnv === 'production' 
+            ? 'https://api.bensonsoftware.com/api/v3/integrations' 
+            : 'https://staging-api.bensonsoftware.com/api/v3/integrations';
+        }
 
         // Build rooms array from booking data
         const rooms = booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0
@@ -157,7 +166,7 @@ Deno.serve(async (req) => {
 
         console.log('Benson reservation payload:', JSON.stringify(reservationPayload, null, 2));
 
-        const url = `${baseUrl}/api/v3/integrations/${propertyCode}/reservations`;
+        const url = `${apiBaseUrl}/${propertyCode}/reservations`;
         console.log('Posting to Benson URL:', url);
 
         const response = await fetch(url, {
