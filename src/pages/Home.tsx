@@ -2,9 +2,10 @@ import { useState } from "react";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { Card, CardContent } from "@/components/ui/card";
-import { Shield, Zap, Globe, HeadphonesIcon, MapPin, Star, Bed } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Shield, Zap, Globe, HeadphonesIcon, MapPin, Star, Bed, ArrowLeft } from "lucide-react";
 import heroImage from "@/assets/hero-hotel.jpg";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
@@ -33,6 +34,7 @@ const INITIAL_ENABLED_TYPES: Record<string, boolean> = {
 };
 
 const Home = () => {
+  const navigate = useNavigate();
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
 
   const toggleType = (key: string) => {
@@ -64,6 +66,18 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {/* Back Button */}
+      <div className="container mx-auto px-4 pt-4">
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </Button>
+      </div>
+
       {/* Hero Section - Mobile optimized */}
       <section className="relative flex-shrink-0">
         <div
