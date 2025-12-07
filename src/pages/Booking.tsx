@@ -537,7 +537,7 @@ const Booking = () => {
 
       const bookingData = {
         property_id: property!.id,
-        user_id: user?.id || '00000000-0000-0000-0000-000000000000', // Anonymous user placeholder
+        user_id: user?.id || null, // Null for anonymous/guest bookings
         check_in_date: checkIn,
         check_out_date: checkOut,
         guest_name: guestName,

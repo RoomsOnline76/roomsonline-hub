@@ -156,7 +156,7 @@ export type Database = {
           teens: number | null
           total_price: number
           updated_at: string | null
-          user_id: string
+          user_id: string | null
           voucher: string | null
         }
         Insert: {
@@ -181,7 +181,7 @@ export type Database = {
           teens?: number | null
           total_price: number
           updated_at?: string | null
-          user_id: string
+          user_id?: string | null
           voucher?: string | null
         }
         Update: {
@@ -206,7 +206,7 @@ export type Database = {
           teens?: number | null
           total_price?: number
           updated_at?: string | null
-          user_id?: string
+          user_id?: string | null
           voucher?: string | null
         }
         Relationships: [
@@ -222,13 +222,6 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "public_properties"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bookings_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
