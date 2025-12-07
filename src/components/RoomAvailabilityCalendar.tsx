@@ -117,24 +117,13 @@ export default function RoomAvailabilityCalendar({
     navigate(`/property/${propertySlug}/room/${slugifyRoomName(roomName)}`);
   };
 
-  // Handle date range selection with worm effect
+  // Handle date range selection - always reset on click
   const handleDayClick = (day: Date) => {
     if (isBefore(day, startOfDay(new Date()))) return; // Can't select past dates
     
-    if (!dateRange?.from) {
-      setDateRange({ from: day, to: undefined });
-      setHoverDate(undefined);
-    } else if (dateRange.from && !dateRange.to) {
-      if (isBefore(day, dateRange.from)) {
-        setDateRange({ from: day, to: undefined });
-      } else {
-        setDateRange({ from: dateRange.from, to: day });
-        setHoverDate(undefined);
-      }
-    } else {
-      setDateRange({ from: day, to: undefined });
-      setHoverDate(undefined);
-    }
+    // Always start fresh: clear worm, set new start date, blank end date
+    setHoverDate(undefined);
+    setDateRange({ from: day, to: undefined });
   };
 
   const handleDayMouseEnter = (day: Date) => {
