@@ -58,7 +58,9 @@ export default function RoomAvailability() {
       const amenitiesData = propertyData.amenities as any;
       const roomTypes = amenitiesData?.room_types || [];
       const foundRoom = roomTypes.find((r: RoomType) => 
-        slugifyRoomName(r.name) === roomSlug || r.id === roomSlug
+        slugifyRoomName(r.name) === roomSlug || 
+        String(r.id) === roomSlug || 
+        String(r.pmsRoomId) === roomSlug
       );
       
       if (foundRoom) {
@@ -97,8 +99,8 @@ export default function RoomAvailability() {
     );
   }
 
-  // Get the room ID - prioritize pmsRoomId, fallback to id
-  const roomId = room.pmsRoomId || room.id;
+  // Get the room ID - prioritize pmsRoomId, fallback to id - ensure string format
+  const roomId = String(room.pmsRoomId || room.id);
 
   return (
     <RoomAvailabilityCalendar
