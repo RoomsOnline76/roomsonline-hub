@@ -200,11 +200,17 @@ const StagingBook = () => {
       roomTypeId: selectedRoom.roomTypeId,
       roomTypeName: selectedRoom.roomTypeName,
       rateTypeId: selectedRateTypeId,
+      rateTypeName: selectedRate?.rateTypeName || '',
       adults: String(adults),
       teens: String(teens),
       children: String(children),
       infants: String(infants),
     });
+    
+    // Add total cost if available
+    if (totalCost !== null) {
+      params.set('totalCost', String(totalCost));
+    }
     
     navigate(`/booking/${property?.slug || STAGING_PROPERTY_ID}?${params.toString()}`);
   };
