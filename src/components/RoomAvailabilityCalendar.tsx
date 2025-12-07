@@ -99,12 +99,20 @@ export default function RoomAvailabilityCalendar({
         .select("allow_children, child_min_age, child_max_age, max_guests")
         .eq("property_id", propertyId)
         .eq("external_room_type_id", roomId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
-      setRoomTypeData(data);
+      
+      // If no cache data, default to allowing children
+      if (data) {
+        setRoomTypeData(data);
+      } else {
+        setRoomTypeData({ allow_children: true, max_guests: 10 });
+      }
     } catch (error) {
       console.error("Error fetching room type data:", error);
+      // Default to allowing children on error
+      setRoomTypeData({ allow_children: true, max_guests: 10 });
     }
   };
 
