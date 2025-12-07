@@ -535,7 +535,7 @@ const Booking = () => {
                   return (
                     <div key={index} className="border rounded-lg p-4 space-y-4">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-medium">Room {index + 1}</h4>
+                        <h4 className="font-medium">{roomType?.name || room.roomTypeName || `Room ${index + 1}`}</h4>
                         {rooms.length > 1 && (
                           <Button 
                             variant="ghost" 
