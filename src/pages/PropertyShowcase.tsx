@@ -317,7 +317,7 @@ export default function PropertyShowcase() {
     return property.amenities?.external_ids?.nightsbridge_bb_id || null;
   };
 
-  // Handle booking - redirect to NightsBridge for NB properties
+  // Handle booking - redirect to NightsBridge for NB properties, or go to checkout if rooms added
   const handleBookProperty = () => {
     if (isNightsBridgeProperty) {
       const bbid = getNightsBridgeBBID();
@@ -327,6 +327,14 @@ export default function PropertyShowcase() {
         return;
       }
     }
+    
+    // If rooms already added, go to booking page
+    if (bookedRooms.length > 0) {
+      const propertySlug = property?.slug || property?.id;
+      navigate(`/booking/${propertySlug}`);
+      return;
+    }
+    
     // Default: scroll to rooms section
     scrollToRooms();
   };
@@ -603,6 +611,11 @@ export default function PropertyShowcase() {
                         <>
                           Book Now
                           <ExternalLink className="ml-2 h-4 w-4" />
+                        </>
+                      ) : bookedRooms.length > 0 ? (
+                        <>
+                          <Check className="mr-2 h-4 w-4" />
+                          Check Out Now
                         </>
                       ) : (
                         <>
@@ -922,6 +935,11 @@ export default function PropertyShowcase() {
                 <>
                   Book Now
                   <ExternalLink className="ml-2 h-4 w-4" />
+                </>
+              ) : bookedRooms.length > 0 ? (
+                <>
+                  <Check className="mr-2 h-4 w-4" />
+                  Check Out Now
                 </>
               ) : (
                 <>
