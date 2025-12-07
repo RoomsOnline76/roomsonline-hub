@@ -302,10 +302,14 @@ export default function RoomAvailabilityCalendar({
     const availData = availability.get(dateStr);
     if (!availData?.rates) return null;
     
-    // Try to get room amount first
-    if (availData.rates.room_amount) return availData.rates.room_amount;
-    if (availData.rates.adult_amounts?.adultAmount1) return availData.rates.adult_amounts.adultAmount1;
-    if (availData.rates.adult_amounts?.adultAmount2) return availData.rates.adult_amounts.adultAmount2;
+    // rates can be an array or object - handle both
+    const ratesArray = Array.isArray(availData.rates) ? availData.rates : [availData.rates];
+    
+    for (const rate of ratesArray) {
+      if (rate.room_amount) return rate.room_amount;
+      if (rate.adult_amounts?.adultAmount1) return rate.adult_amounts.adultAmount1;
+      if (rate.adult_amounts?.adultAmount2) return rate.adult_amounts.adultAmount2;
+    }
     return null;
   };
 
