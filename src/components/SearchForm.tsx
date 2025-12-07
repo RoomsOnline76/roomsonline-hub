@@ -22,16 +22,12 @@ export const SearchForm = () => {
   // Handle date range selection
   const handleDayClick = (day: Date) => {
     if (!dateRange?.from) {
-      // First click - set start date
       setDateRange({ from: day, to: undefined });
       setHoverDate(undefined);
     } else if (dateRange.from && !dateRange.to) {
-      // Second click - set end date
       if (isBefore(day, dateRange.from)) {
-        // If clicked before start, reset and use as new start
         setDateRange({ from: day, to: undefined });
       } else {
-        // Set end date and close
         setDateRange({ from: dateRange.from, to: day });
         setHoverDate(undefined);
         setTimeout(() => {
@@ -39,30 +35,24 @@ export const SearchForm = () => {
         }, 150);
       }
     } else {
-      // Both dates set - start new selection
       setDateRange({ from: day, to: undefined });
       setHoverDate(undefined);
     }
   };
 
   const handleDayMouseEnter = (day: Date) => {
-    // Only show preview when we have start but not end
     if (dateRange?.from && !dateRange?.to) {
       setHoverDate(day);
     }
   };
 
-  const handleDayMouseLeave = () => {
-    // Keep hover date - it will update on next enter
-  };
+  const handleDayMouseLeave = () => {};
 
-  // Calculate the preview range for display
   const getDisplayRange = (): DateRange | undefined => {
     if (dateRange?.from && dateRange?.to) {
       return dateRange;
     }
     if (dateRange?.from && hoverDate) {
-      // Show preview range while hovering
       if (isAfter(hoverDate, dateRange.from) || isSameDay(hoverDate, dateRange.from)) {
         return { from: dateRange.from, to: hoverDate };
       }
@@ -101,15 +91,8 @@ export const SearchForm = () => {
 
   const formatDateRange = () => {
     if (!dateRange?.from) return "Select dates";
-    if (!dateRange?.to) return format(dateRange.from, "d MMM yyyy") + " — ...";
-    return `${format(dateRange.from, "d MMM yyyy")} — ${format(dateRange.to, "d MMM yyyy")}`;
-  };
-
-  // Check if a day is in the preview range (for styling)
-  const isInPreviewRange = (day: Date): boolean => {
-    if (!displayRange?.from || !displayRange?.to) return false;
-    return (isAfter(day, displayRange.from) || isSameDay(day, displayRange.from)) && 
-           (isBefore(day, displayRange.to) || isSameDay(day, displayRange.to));
+    if (!dateRange?.to) return format(dateRange.from, "d MMM") + " — ...";
+    return `${format(dateRange.from, "d MMM")} — ${format(dateRange.to, "d MMM")}`;
   };
 
   const isRangeStart = (day: Date): boolean => {
@@ -127,56 +110,60 @@ export const SearchForm = () => {
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-      <form onSubmit={handleSearch} className="bg-card/95 backdrop-blur-md rounded-2xl shadow-[var(--shadow-strong)] border border-border/50 p-4 sm:p-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <form onSubmit={handleSearch} className="bg-card/95 backdrop-blur-md rounded-xl sm:rounded-2xl shadow-lg border border-border/50 p-3 sm:p-5">
+        <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-3 sm:gap-3">
           {/* Destination */}
           <div>
-            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-              Destination
+            <label className="block text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+              Where to
             </label>
             <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Where to?"
+                placeholder="City or region"
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
-                className="pl-10 h-12 text-base bg-background border-border focus:border-primary"
+                className="pl-8 h-10 sm:h-11 text-sm bg-background border-border focus:border-primary"
               />
             </div>
           </div>
 
           {/* Date Range Picker */}
           <div>
-            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+            <label className="block text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
               Dates
             </label>
-            <Popover open={showDatePicker} onOpenChange={setShowDatePicker} modal={false}>
+            <Popover open={showDatePicker} onOpenChange={setShowDatePicker} modal={true}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   className={cn(
-                    "w-full h-12 justify-start text-left font-normal bg-background border-border hover:bg-secondary/50 group",
+                    "w-full h-10 sm:h-11 justify-start text-left font-normal bg-background border-border hover:bg-secondary/50 group",
                     !dateRange?.from && "text-muted-foreground"
                   )}
                 >
-                  <CalendarIcon className="mr-2 h-5 w-5 flex-shrink-0 text-muted-foreground" />
+                  <CalendarIcon className="mr-2 h-4 w-4 flex-shrink-0 text-muted-foreground" />
                   <span className="truncate text-sm flex-1">
                     {formatDateRange()}
                   </span>
                   {dateRange?.from && (
                     <X 
-                      className="h-4 w-4 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity" 
+                      className="h-4 w-4 text-muted-foreground hover:text-foreground" 
                       onClick={clearDates}
                     />
                   )}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 z-50" align="start" sideOffset={8}>
+              <PopoverContent 
+                className="w-auto p-0 z-50 bg-background border border-border shadow-xl" 
+                align="center" 
+                sideOffset={8}
+              >
                 <DayPicker
                   mode="range"
                   selected={displayRange}
-                  numberOfMonths={2}
+                  numberOfMonths={1}
                   disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                   onDayClick={handleDayClick}
                   onDayMouseEnter={handleDayMouseEnter}
@@ -193,21 +180,21 @@ export const SearchForm = () => {
                   }}
                   className="p-3 pointer-events-auto"
                   classNames={{
-                    months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
-                    month: "space-y-4",
+                    months: "flex flex-col",
+                    month: "space-y-3",
                     caption: "flex justify-center pt-1 relative items-center",
                     caption_label: "text-sm font-medium",
                     nav: "space-x-1 flex items-center",
                     nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 inline-flex items-center justify-center",
                     nav_button_previous: "absolute left-1",
                     nav_button_next: "absolute right-1",
-                    table: "w-full border-collapse space-y-1",
+                    table: "w-full border-collapse",
                     head_row: "flex",
-                    head_cell: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
-                    row: "flex w-full mt-2",
+                    head_cell: "text-muted-foreground rounded-md w-8 font-normal text-[11px]",
+                    row: "flex w-full mt-1",
                     cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20",
                     day: cn(
-                      "h-9 w-9 p-0 font-normal hover:bg-primary/20 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center"
+                      "h-8 w-8 p-0 font-normal hover:bg-primary/20 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center text-sm"
                     ),
                     day_today: "bg-accent text-accent-foreground font-semibold",
                     day_outside: "text-muted-foreground opacity-50",
@@ -221,43 +208,43 @@ export const SearchForm = () => {
 
           {/* Guests */}
           <div>
-            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+            <label className="block text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
               Guests
             </label>
-            <Popover open={showGuestPicker} onOpenChange={setShowGuestPicker} modal={false}>
+            <Popover open={showGuestPicker} onOpenChange={setShowGuestPicker} modal={true}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className="w-full h-12 justify-start text-left font-normal bg-background border-border hover:bg-secondary/50"
+                  className="w-full h-10 sm:h-11 justify-start text-left font-normal bg-background border-border hover:bg-secondary/50"
                 >
-                  <Users className="mr-2 h-5 w-5 text-muted-foreground" />
-                  <span className="text-base">
+                  <Users className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">
                     {guests.adults + guests.children} Guest{guests.adults + guests.children !== 1 ? 's' : ''}
                   </span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-72 sm:w-80 p-4 z-50" align="start" sideOffset={8}>
-                <div className="space-y-4">
+              <PopoverContent className="w-64 p-3 z-50 bg-background border border-border shadow-xl" align="center" sideOffset={8}>
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium">Adults</p>
-                      <p className="text-sm text-muted-foreground">Ages 13+</p>
+                      <p className="text-sm font-medium">Adults</p>
+                      <p className="text-xs text-muted-foreground">Ages 13+</p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-9 w-9 rounded-full touch-manipulation"
+                        className="h-8 w-8 rounded-full touch-manipulation"
                         onClick={() => setGuests(g => ({ ...g, adults: Math.max(1, g.adults - 1) }))}
                         disabled={guests.adults <= 1}
                       >
                         −
                       </Button>
-                      <span className="w-8 text-center font-medium">{guests.adults}</span>
+                      <span className="w-6 text-center text-sm font-medium">{guests.adults}</span>
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-9 w-9 rounded-full touch-manipulation"
+                        className="h-8 w-8 rounded-full touch-manipulation"
                         onClick={() => setGuests(g => ({ ...g, adults: Math.min(10, g.adults + 1) }))}
                         disabled={guests.adults >= 10}
                       >
@@ -267,24 +254,24 @@ export const SearchForm = () => {
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium">Children</p>
-                      <p className="text-sm text-muted-foreground">Ages 0-12</p>
+                      <p className="text-sm font-medium">Children</p>
+                      <p className="text-xs text-muted-foreground">Ages 0-12</p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-9 w-9 rounded-full touch-manipulation"
+                        className="h-8 w-8 rounded-full touch-manipulation"
                         onClick={() => setGuests(g => ({ ...g, children: Math.max(0, g.children - 1) }))}
                         disabled={guests.children <= 0}
                       >
                         −
                       </Button>
-                      <span className="w-8 text-center font-medium">{guests.children}</span>
+                      <span className="w-6 text-center text-sm font-medium">{guests.children}</span>
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-9 w-9 rounded-full touch-manipulation"
+                        className="h-8 w-8 rounded-full touch-manipulation"
                         onClick={() => setGuests(g => ({ ...g, children: Math.min(10, g.children + 1) }))}
                         disabled={guests.children >= 10}
                       >
@@ -299,14 +286,14 @@ export const SearchForm = () => {
         </div>
 
         {/* Search Button */}
-        <div className="mt-5 relative z-10">
+        <div className="mt-3 sm:mt-4">
           <Button
             type="submit"
-            className="w-full h-12 text-base font-semibold bg-[var(--hero-gradient)] hover:opacity-90 transition-opacity touch-manipulation rounded-xl"
+            className="w-full h-10 sm:h-11 text-sm font-semibold bg-[var(--hero-gradient)] hover:opacity-90 transition-opacity touch-manipulation rounded-lg"
             disabled={!destination || !dateRange?.from || !dateRange?.to}
           >
-            <Search className="mr-2 h-5 w-5" />
-            Search Properties
+            <Search className="mr-2 h-4 w-4" />
+            Search
           </Button>
         </div>
       </form>
