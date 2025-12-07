@@ -529,8 +529,8 @@ const Booking = () => {
         throw new Error("At least one room is required");
       }
 
-      // Calculate total (placeholder - would come from rate calculation)
-      const totalPrice = 0; // Will be calculated based on rates
+      // Use calculated total cost or pre-selected total
+      const totalPrice = totalCost || preSelectedTotalCost || 0;
 
       // Get current user or create anonymous booking
       const { data: { user } } = await supabase.auth.getUser();
