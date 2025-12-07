@@ -108,29 +108,59 @@ export default function RoomAvailabilityCalendar({
 
   const fetchRoomTypeData = async () => {
     try {
-      const { data, error } = await supabase
+      // First try pms_room_types_cache
+      const { data: cacheData } = await supabase
         .from("pms_room_types_cache")
         .select("allow_children, child_min_age, child_max_age, allow_teens, teen_min_age, teen_max_age, allow_infants, infant_min_age, infant_max_age, max_guests")
         .eq("property_id", propertyId)
         .eq("external_room_type_id", roomId)
         .maybeSingle();
 
-      if (error) throw error;
-      
-      // If no cache data, default to allowing all guest types
-      if (data) {
-        setRoomTypeData(data);
-      } else {
-        setRoomTypeData({ 
-          allow_children: true, 
-          allow_teens: true, 
-          allow_infants: true, 
-          max_guests: 10 
-        });
+      if (cacheData) {
+        setRoomTypeData(cacheData);
+        return;
       }
+
+      // Fallback: get room data from property amenities
+      const { data: propertyData } = await supabase
+        .from("public_properties")
+        .select("amenities")
+        .eq("id", propertyId)
+        .single();
+
+      if (propertyData?.amenities) {
+        const amenities = propertyData.amenities as any;
+        const roomTypes = amenities?.room_types || [];
+        const room = roomTypes.find((r: any) => 
+          String(r.pmsRoomId) === String(roomId) || String(r.id) === String(roomId)
+        );
+        
+        if (room) {
+          setRoomTypeData({
+            allow_children: room.allowChildren ?? true,
+            allow_teens: room.allowTeens ?? true,
+            allow_infants: room.allowInfants ?? true,
+            child_min_age: room.childMinAge,
+            child_max_age: room.childMaxAge,
+            teen_min_age: room.teenMinAge,
+            teen_max_age: room.teenMaxAge,
+            infant_min_age: room.infantMinAge,
+            infant_max_age: room.infantMaxAge,
+            max_guests: room.maxPeople || room.maxGuests || 10
+          });
+          return;
+        }
+      }
+
+      // Final fallback
+      setRoomTypeData({ 
+        allow_children: true, 
+        allow_teens: true, 
+        allow_infants: true, 
+        max_guests: 10 
+      });
     } catch (error) {
       console.error("Error fetching room type data:", error);
-      // Default to allowing all guest types on error
       setRoomTypeData({ 
         allow_children: true, 
         allow_teens: true, 
