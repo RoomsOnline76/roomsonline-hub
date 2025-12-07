@@ -149,6 +149,7 @@ export default function PropertyForm() {
   const [isDirty, setIsDirty] = useState(false);
   const [propertySlug, setPropertySlug] = useState<string>("");
   const [propertyId, setPropertyId] = useState<string | null>(null); // Actual UUID for DB operations
+  const [homeIconOpenNewTab, setHomeIconOpenNewTab] = useState(true);
 
   // Warn user before leaving with unsaved changes
   useEffect(() => {
@@ -193,6 +194,22 @@ export default function PropertyForm() {
       setOwnersLoaded(true);
     };
     loadOwners();
+  }, []);
+
+  // Load home icon new tab setting
+  useEffect(() => {
+    const loadHomeIconSetting = async () => {
+      const { data } = await supabase
+        .from("api_keys")
+        .select("key_value")
+        .eq("key_name", "HOME_ICON_OPEN_NEW_TAB")
+        .maybeSingle();
+      
+      if (data?.key_value) {
+        setHomeIconOpenNewTab(data.key_value === "true");
+      }
+    };
+    loadHomeIconSetting();
   }, []);
 
   // Offerings
@@ -5714,7 +5731,12 @@ export default function PropertyForm() {
                           className="h-6 w-6 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
-                            window.open(getRoomUrl(propertySlug || id || "", room.id), "_blank");
+                            const url = getRoomUrl(propertySlug || id || "", room.id);
+                            if (homeIconOpenNewTab) {
+                              window.open(url, "_blank");
+                            } else {
+                              navigate(`/property/${propertySlug || id}/room/${room.id}`);
+                            }
                           }}
                           title="View room page"
                         >
