@@ -490,6 +490,91 @@ export default function PropertyShowcase() {
           </section>
         )}
 
+        {/* Dynamic Call to Action */}
+        {roomTypes.length > 0 && (
+          <section className="mb-12">
+            <Card className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-primary/20 overflow-hidden">
+              <CardContent className="p-6 md:p-8">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                  <div className="space-y-2">
+                    <h3 className="text-xl md:text-2xl font-bold text-foreground">
+                      {property.amenities?.announcements?.[0]?.title || `Book your stay at ${property.name}`}
+                    </h3>
+                    <p className="text-muted-foreground max-w-xl">
+                      {property.amenities?.announcements?.[0]?.description || 
+                        (property.description 
+                          ? property.description.slice(0, 150) + (property.description.length > 150 ? '...' : '')
+                          : `Experience ${property.property_type.replace('_', ' ')} accommodation in ${property.city}, ${property.country}. Choose from ${roomTypes.length} room type${roomTypes.length > 1 ? 's' : ''}.`
+                        )
+                      }
+                    </p>
+                    {/* Quick highlights */}
+                    <div className="flex flex-wrap gap-3 pt-2">
+                      {mealTypes.length > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          <Coffee className="h-3 w-3 mr-1" />
+                          {mealTypes[0]} included
+                        </Badge>
+                      )}
+                      {facilities.length > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          <Check className="h-3 w-3 mr-1" />
+                          {facilities.length}+ amenities
+                        </Badge>
+                      )}
+                      {starRating > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          <Star className="h-3 w-3 mr-1 fill-yellow-400 text-yellow-400" />
+                          {starRating}-star rated
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    {(() => {
+                      // Calculate lowest rate across all rooms
+                      let lowestOverallRate: number | null = null;
+                      roomTypes.forEach((room) => {
+                        const availData = getAvailabilityForRoom(room);
+                        const rate = getLowestRateFromAvailability(availData);
+                        if (rate !== null && (lowestOverallRate === null || rate < lowestOverallRate)) {
+                          lowestOverallRate = rate;
+                        }
+                      });
+                      return lowestOverallRate !== null ? (
+                        <div className="text-right">
+                          <span className="text-xs text-muted-foreground uppercase">From</span>
+                          <div className="text-2xl md:text-3xl font-bold text-primary">
+                            R{lowestOverallRate.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                          <span className="text-xs text-muted-foreground">per night</span>
+                        </div>
+                      ) : null;
+                    })()}
+                    <Button 
+                      size="lg" 
+                      onClick={handleBookProperty}
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
+                    >
+                      {isNightsBridgeProperty ? (
+                        <>
+                          Book Now
+                          <ExternalLink className="ml-2 h-4 w-4" />
+                        </>
+                      ) : (
+                        <>
+                          View Available Rooms
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
         {/* Rooms Section */}
         <section id="rooms-section" className="mb-12 scroll-mt-20">
           <h2 className="text-2xl font-semibold mb-6 uppercase tracking-wide text-foreground/80">Rooms</h2>
