@@ -443,12 +443,15 @@ const Booking = () => {
     };
     sessionStorage.setItem(`booking_state_${property?.id}`, JSON.stringify(bookingState));
     
-    // Navigate to property page with addRoom flag and default dates
+    // Navigate to property page with addRoom flag, default dates, and rate type
     const params = new URLSearchParams({
       addRoom: 'true',
       checkIn: checkIn || '',
       checkOut: checkOut || '',
     });
+    if (selectedRateType) {
+      params.set('rateTypeId', selectedRateType);
+    }
     navigate(`/property/${id}?${params.toString()}`);
   };
 
