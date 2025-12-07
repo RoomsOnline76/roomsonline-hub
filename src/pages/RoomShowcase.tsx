@@ -429,15 +429,6 @@ export default function RoomShowcase() {
                     {room.rateType}
                   </Badge>
                 )}
-                {lowestRate !== null && (
-                  <>
-                    <div className="text-sm text-muted-foreground">From</div>
-                    <div className="text-3xl font-bold text-primary">
-                      {property.amenities?.currency || 'ZAR'} {lowestRate.toLocaleString()}
-                    </div>
-                    <div className="text-xs text-muted-foreground">per night</div>
-                  </>
-                )}
               </div>
             </div>
           </div>
@@ -494,18 +485,9 @@ export default function RoomShowcase() {
                 <h2 className="text-2xl font-bold mb-4">{room.name}</h2>
                 
                 {room.description && (
-                  <p className="text-muted-foreground leading-relaxed mb-4 italic">
+                  <p className="text-muted-foreground leading-relaxed mb-6 italic">
                     {room.description}
                   </p>
-                )}
-
-                {/* Rate Display */}
-                {lowestRate && (
-                  <div className="mb-6">
-                    <span className="text-sm text-muted-foreground">From </span>
-                    <span className="text-2xl font-bold text-primary">R {lowestRate.toLocaleString()}</span>
-                    <span className="text-sm text-muted-foreground"> / night</span>
-                  </div>
                 )}
 
                 {/* Key Info */}
@@ -696,32 +678,16 @@ export default function RoomShowcase() {
             {/* Rates Card */}
             <Card className="sticky top-4">
               <CardContent className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Rates</h3>
-                
-                {rates.length > 0 ? (
-                  <div className="space-y-3">
-                    {rates.map((rate, idx) => (
-                      <div 
-                        key={idx}
-                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                      >
-                        <div>
-                          <div className="font-medium text-sm">{rate.rate_type}</div>
-                          {rate.meal_type && (
-                            <div className="text-xs text-muted-foreground">{rate.meal_type}</div>
-                          )}
-                        </div>
-                        <div className="font-semibold text-primary">
-                          {rate.currency} {rate.amount.toLocaleString()}
-                        </div>
-                      </div>
-                    ))}
+                {/* Prominent Rate Display */}
+                {lowestRate && (
+                  <div className="text-center mb-6">
+                    <span className="text-sm text-muted-foreground">From </span>
+                    <span className="text-3xl font-bold text-primary">R {lowestRate.toLocaleString()}</span>
+                    <span className="text-sm text-muted-foreground"> / night</span>
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No rates currently available</p>
                 )}
 
-                <Separator className="my-6" />
+                <Separator className="my-4" />
 
                 <Button className="w-full" size="lg" onClick={handleCheckAvailability}>
                   {isNightsBridgeProperty ? (
