@@ -34,6 +34,12 @@ interface RoomTypeData {
   allow_children: boolean;
   child_min_age?: number;
   child_max_age?: number;
+  allow_teens?: boolean;
+  teen_min_age?: number;
+  teen_max_age?: number;
+  allow_infants?: boolean;
+  infant_min_age?: number;
+  infant_max_age?: number;
   max_guests?: number;
 }
 
@@ -43,6 +49,7 @@ interface RoomAvailabilityCalendarProps {
   propertyName: string;
   roomName: string;
   roomId: string;
+  externalSystem?: string;
 }
 
 export default function RoomAvailabilityCalendar({
@@ -51,6 +58,7 @@ export default function RoomAvailabilityCalendar({
   propertyName,
   roomName,
   roomId,
+  externalSystem,
 }: RoomAvailabilityCalendarProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -70,7 +78,8 @@ export default function RoomAvailabilityCalendar({
     return undefined;
   });
   
-  const [guests, setGuests] = useState({ adults: initialGuests, children: 0 });
+  const [guests, setGuests] = useState({ adults: initialGuests, children: 0, teens: 0, infants: 0 });
+  const isBensonProperty = externalSystem?.toLowerCase() === 'benson';
   const [hoverDate, setHoverDate] = useState<Date | undefined>();
   const [displayedMonth, setDisplayedMonth] = useState<Date>(() => {
     if (initialCheckIn) {
@@ -96,23 +105,33 @@ export default function RoomAvailabilityCalendar({
     try {
       const { data, error } = await supabase
         .from("pms_room_types_cache")
-        .select("allow_children, child_min_age, child_max_age, max_guests")
+        .select("allow_children, child_min_age, child_max_age, allow_teens, teen_min_age, teen_max_age, allow_infants, infant_min_age, infant_max_age, max_guests")
         .eq("property_id", propertyId)
         .eq("external_room_type_id", roomId)
         .maybeSingle();
 
       if (error) throw error;
       
-      // If no cache data, default to allowing children
+      // If no cache data, default to allowing all guest types
       if (data) {
         setRoomTypeData(data);
       } else {
-        setRoomTypeData({ allow_children: true, max_guests: 10 });
+        setRoomTypeData({ 
+          allow_children: true, 
+          allow_teens: true, 
+          allow_infants: true, 
+          max_guests: 10 
+        });
       }
     } catch (error) {
       console.error("Error fetching room type data:", error);
-      // Default to allowing children on error
-      setRoomTypeData({ allow_children: true, max_guests: 10 });
+      // Default to allowing all guest types on error
+      setRoomTypeData({ 
+        allow_children: true, 
+        allow_teens: true, 
+        allow_infants: true, 
+        max_guests: 10 
+      });
     }
   };
 
@@ -424,41 +443,157 @@ export default function RoomAvailabilityCalendar({
                     </div>
                   </div>
                   
-                  {/* Children - only show if allowed */}
-                  {roomTypeData?.allow_children && (
-                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <span className="text-sm font-medium">Children</span>
-                          {roomTypeData.child_min_age != null && roomTypeData.child_max_age != null && (
-                            <p className="text-xs text-muted-foreground">
-                              Ages {roomTypeData.child_min_age}–{roomTypeData.child_max_age}
-                            </p>
-                          )}
+                  {/* For Benson properties: show Teen/Child/Infant separately */}
+                  {isBensonProperty ? (
+                    <>
+                      {/* Teens */}
+                      {roomTypeData?.allow_teens && (
+                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <span className="text-sm font-medium">Teens</span>
+                              {roomTypeData.teen_min_age != null && roomTypeData.teen_max_age != null && (
+                                <p className="text-xs text-muted-foreground">
+                                  Ages {roomTypeData.teen_min_age}–{roomTypeData.teen_max_age}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => setGuests(g => ({ ...g, teens: Math.max(0, g.teens - 1) }))}
+                              disabled={guests.teens <= 0}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="w-8 text-center font-medium">{guests.teens}</span>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => setGuests(g => ({ ...g, teens: g.teens + 1 }))}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Children */}
+                      {roomTypeData?.allow_children && (
+                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <span className="text-sm font-medium">Children</span>
+                              {roomTypeData.child_min_age != null && roomTypeData.child_max_age != null && (
+                                <p className="text-xs text-muted-foreground">
+                                  Ages {roomTypeData.child_min_age}–{roomTypeData.child_max_age}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => setGuests(g => ({ ...g, children: Math.max(0, g.children - 1) }))}
+                              disabled={guests.children <= 0}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="w-8 text-center font-medium">{guests.children}</span>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => setGuests(g => ({ ...g, children: g.children + 1 }))}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Infants */}
+                      {roomTypeData?.allow_infants && (
+                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <span className="text-sm font-medium">Infants</span>
+                              {roomTypeData.infant_min_age != null && roomTypeData.infant_max_age != null && (
+                                <p className="text-xs text-muted-foreground">
+                                  Ages {roomTypeData.infant_min_age}–{roomTypeData.infant_max_age}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => setGuests(g => ({ ...g, infants: Math.max(0, g.infants - 1) }))}
+                              disabled={guests.infants <= 0}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="w-8 text-center font-medium">{guests.infants}</span>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => setGuests(g => ({ ...g, infants: g.infants + 1 }))}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    /* For non-Benson properties: show simple Children selector */
+                    roomTypeData?.allow_children && (
+                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <span className="text-sm font-medium">Children</span>
+                            {roomTypeData.child_min_age != null && roomTypeData.child_max_age != null && (
+                              <p className="text-xs text-muted-foreground">
+                                Ages {roomTypeData.child_min_age}–{roomTypeData.child_max_age}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setGuests(g => ({ ...g, children: Math.max(0, g.children - 1) }))}
+                            disabled={guests.children <= 0}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="w-8 text-center font-medium">{guests.children}</span>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setGuests(g => ({ ...g, children: g.children + 1 }))}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => setGuests(g => ({ ...g, children: Math.max(0, g.children - 1) }))}
-                          disabled={guests.children <= 0}
-                        >
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <span className="w-8 text-center font-medium">{guests.children}</span>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => setGuests(g => ({ ...g, children: g.children + 1 }))}
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
+                    )
                   )}
                 </div>
 
