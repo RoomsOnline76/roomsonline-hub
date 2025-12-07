@@ -87,6 +87,7 @@ const Booking = () => {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
+  const [externalReservationId, setExternalReservationId] = useState<string | null>(null);
   
   // Date state - can be restored from sessionStorage
   const [checkIn, setCheckIn] = useState<string | null>(urlCheckIn);
@@ -577,12 +578,18 @@ const Booking = () => {
 
       if (error) throw error;
 
+      let externalRefId: string | null = null;
+
       // Push to external system if configured (which also sends email)
       if (property?.external_system) {
         try {
-          await supabase.functions.invoke('push-booking', {
+          const pushResponse = await supabase.functions.invoke('push-booking', {
             body: { booking_id: data.id },
           });
+          // Extract external reservation ID from push response
+          if (pushResponse.data?.results?.benson?.external_booking_id) {
+            externalRefId = pushResponse.data.results.benson.external_booking_id;
+          }
         } catch (pushError) {
           console.error('Failed to push booking to external system:', pushError);
           // Don't fail the booking, just log the error
@@ -602,10 +609,11 @@ const Booking = () => {
         }
       }
 
-      return data;
+      return { ...data, externalReservationId: externalRefId };
     },
     onSuccess: (data) => {
       setBookingId(data.id);
+      setExternalReservationId(data.externalReservationId || null);
       setBookingSuccess(true);
       toast.success("Booking request submitted successfully!");
     },
@@ -658,7 +666,7 @@ const Booking = () => {
                 You will receive a confirmation email at {guestEmail} shortly.
               </p>
               <div className="space-y-2 text-sm text-left bg-muted/50 rounded-lg p-4 mb-6">
-                <p><strong>Booking Reference:</strong> {bookingId?.slice(0, 8).toUpperCase()}</p>
+                <p><strong>Booking Reference:</strong> {externalReservationId || bookingId?.slice(0, 8).toUpperCase()}</p>
                 <p><strong>Check-in:</strong> {checkIn && format(parseISO(checkIn), "MMM d, yyyy")}</p>
                 <p><strong>Check-out:</strong> {checkOut && format(parseISO(checkOut), "MMM d, yyyy")}</p>
                 <p><strong>Guests:</strong> {totalGuests}</p>
