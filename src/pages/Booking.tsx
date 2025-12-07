@@ -509,7 +509,12 @@ const Booking = () => {
             {/* Room Selection */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Rooms & Guests</CardTitle>
+                <div>
+                  <CardTitle>Rooms & Guests</CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {rooms.length} room{rooms.length !== 1 ? 's' : ''} · {totalGuests} guest{totalGuests !== 1 ? 's' : ''}
+                  </p>
+                </div>
                 <Button variant="outline" size="sm" onClick={addRoom}>
                   <Plus className="h-4 w-4 mr-1" />
                   Add Room
