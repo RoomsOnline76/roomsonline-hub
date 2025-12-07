@@ -401,24 +401,24 @@ export default function RoomShowcase() {
         )}
 
         {/* Back Button */}
-        <a 
-          href={getPropertyUrl(property.slug || property.id)}
+        <Link 
+          to={`/property/${property.slug || property.id}`}
           className="absolute top-4 left-4 bg-background/80 hover:bg-background p-2 rounded-full shadow-lg transition-all"
         >
           <ArrowLeft className="h-5 w-5" />
-        </a>
+        </Link>
 
         {/* Hero Content Overlay */}
         <div className="absolute bottom-0 left-0 right-0 p-6 md:p-10">
           <div className="container mx-auto">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <a 
-                  href={getPropertyUrl(property.slug || property.id)}
+                <Link 
+                  to={`/property/${property.slug || property.id}`}
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors mb-1 inline-block"
                 >
                   ← {property.name}
-                </a>
+                </Link>
                 <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground">
                   {room.name}
                 </h1>
