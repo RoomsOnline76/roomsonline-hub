@@ -511,9 +511,17 @@ const Booking = () => {
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>Rooms & Guests</CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {rooms.length} room{rooms.length !== 1 ? 's' : ''} · {totalGuests} guest{totalGuests !== 1 ? 's' : ''}
-                  </p>
+                  <div className="text-sm text-muted-foreground mt-1 space-y-0.5">
+                    {rooms.map((room, index) => {
+                      const roomType = roomTypes.find(rt => String(rt.id) === room.roomTypeId);
+                      const roomGuestCount = room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants;
+                      return (
+                        <p key={index}>
+                          Room {index + 1}: {roomType?.name || 'Select room type'} - {roomGuestCount} Guest{roomGuestCount !== 1 ? 's' : ''}
+                        </p>
+                      );
+                    })}
+                  </div>
                 </div>
                 <Button variant="outline" size="sm" onClick={addRoom}>
                   <Plus className="h-4 w-4 mr-1" />
