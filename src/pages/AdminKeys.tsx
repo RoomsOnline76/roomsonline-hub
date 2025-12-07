@@ -70,6 +70,7 @@ interface PMSCredentials {
   property_name: string | null;
   base_url: string | null;
   is_active: boolean;
+  refresh_interval_minutes: number | null;
 }
 
 export default function AdminKeys() {
@@ -130,6 +131,12 @@ export default function AdminKeys() {
 
   // Benson toggle state
   const [togglingBenson, setTogglingBenson] = useState(false);
+
+  // Refresh interval states
+  const [bensonRefreshInterval, setBensonRefreshInterval] = useState<number>(60);
+  const [nightsbridgeRefreshInterval, setNightsbridgeRefreshInterval] = useState<number>(60);
+  const [checkfrontRefreshInterval, setCheckfrontRefreshInterval] = useState<number>(60);
+  const [savingRefreshInterval, setSavingRefreshInterval] = useState<string | null>(null);
 
   // Resend-specific state
   const [resendFromEmail, setResendFromEmail] = useState("");
@@ -317,6 +324,11 @@ export default function AdminKeys() {
       const production = data.find((d) => d.environment === "production");
       setBensonStagingCredentials(staging || null);
       setBensonProductionCredentials(production || null);
+      // Use refresh interval from staging or production credentials
+      const activeCredential = staging || production;
+      if (activeCredential?.refresh_interval_minutes) {
+        setBensonRefreshInterval(activeCredential.refresh_interval_minutes);
+      }
     }
   };
 
@@ -372,6 +384,9 @@ export default function AdminKeys() {
     if (!error && data) {
       setNightsbridgeCredentials(data);
       setNightsbridgeEnvironment(data.environment as "staging" | "production");
+      if (data.refresh_interval_minutes) {
+        setNightsbridgeRefreshInterval(data.refresh_interval_minutes);
+      }
     }
   };
 
@@ -385,6 +400,9 @@ export default function AdminKeys() {
     if (!error && data) {
       setCheckfrontCredentials(data);
       setCheckfrontEnvironment(data.environment as "staging" | "production");
+      if (data.refresh_interval_minutes) {
+        setCheckfrontRefreshInterval(data.refresh_interval_minutes);
+      }
       // Determine auth method based on what's configured
       if (data.api_key || data.agent_code) {
         setCheckfrontAuthMethod("token");
@@ -633,6 +651,55 @@ export default function AdminKeys() {
     });
     fetchCheckfrontCredentials();
     setTogglingCheckfront(false);
+  };
+
+  // Handler for saving refresh intervals
+  const handleSaveRefreshInterval = async (systemType: string, intervalMinutes: number) => {
+    setSavingRefreshInterval(systemType);
+    
+    // Get the credential IDs to update
+    let credentialIds: string[] = [];
+    if (systemType === "benson") {
+      if (bensonStagingCredentials) credentialIds.push(bensonStagingCredentials.id);
+      if (bensonProductionCredentials) credentialIds.push(bensonProductionCredentials.id);
+    } else if (systemType === "nightsbridge" && nightsbridgeCredentials) {
+      credentialIds.push(nightsbridgeCredentials.id);
+    } else if (systemType === "checkfront" && checkfrontCredentials) {
+      credentialIds.push(checkfrontCredentials.id);
+    }
+
+    if (credentialIds.length === 0) {
+      toast({
+        title: "No credentials found",
+        description: "Please configure credentials first before setting refresh interval",
+        variant: "destructive",
+      });
+      setSavingRefreshInterval(null);
+      return;
+    }
+
+    for (const id of credentialIds) {
+      const { error } = await supabase
+        .from("pms_credentials")
+        .update({ refresh_interval_minutes: intervalMinutes })
+        .eq("id", id);
+
+      if (error) {
+        toast({
+          title: "Error saving refresh interval",
+          description: error.message,
+          variant: "destructive",
+        });
+        setSavingRefreshInterval(null);
+        return;
+      }
+    }
+
+    toast({
+      title: "Refresh interval saved",
+      description: `${systemType.charAt(0).toUpperCase() + systemType.slice(1)} data will refresh every ${intervalMinutes} minute${intervalMinutes !== 1 ? 's' : ''}`,
+    });
+    setSavingRefreshInterval(null);
   };
 
   const isPlaceholder = (value: string | null) => {
@@ -1190,6 +1257,31 @@ export default function AdminKeys() {
             setBensonProductionUrl,
           )}
 
+          {/* Refresh Interval Setting */}
+          <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
+            <div className="space-y-1">
+              <Label className="text-sm font-medium">Data Refresh Interval</Label>
+              <p className="text-xs text-muted-foreground">Auto-refresh API data when older than this (minutes)</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={1}
+                max={1440}
+                value={bensonRefreshInterval}
+                onChange={(e) => setBensonRefreshInterval(parseInt(e.target.value) || 60)}
+                className="w-20 text-center"
+              />
+              <Button
+                size="sm"
+                onClick={() => handleSaveRefreshInterval("benson", bensonRefreshInterval)}
+                disabled={savingRefreshInterval === "benson" || !isAnyConfigured}
+              >
+                {savingRefreshInterval === "benson" ? "..." : "Save"}
+              </Button>
+            </div>
+          </div>
+
           <ApiMilestones systemType="benson" className="pt-4 border-t" />
 
           <div className="flex gap-2 pt-2">
@@ -1345,6 +1437,31 @@ export default function AdminKeys() {
                 <div>
                   <Label className="text-muted-foreground">Status</Label>
                   <p className="font-medium">{nightsbridgeCredentials?.is_active ? "Active" : "Inactive"}</p>
+                </div>
+              </div>
+
+              {/* Refresh Interval Setting */}
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">Data Refresh Interval</Label>
+                  <p className="text-xs text-muted-foreground">Auto-refresh API data when older than this (minutes)</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={1440}
+                    value={nightsbridgeRefreshInterval}
+                    onChange={(e) => setNightsbridgeRefreshInterval(parseInt(e.target.value) || 60)}
+                    className="w-20 text-center"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => handleSaveRefreshInterval("nightsbridge", nightsbridgeRefreshInterval)}
+                    disabled={savingRefreshInterval === "nightsbridge" || !isConfigured}
+                  >
+                    {savingRefreshInterval === "nightsbridge" ? "..." : "Save"}
+                  </Button>
                 </div>
               </div>
 
@@ -1557,6 +1674,31 @@ export default function AdminKeys() {
                 <div>
                   <Label className="text-muted-foreground">Status</Label>
                   <p className="font-medium">{checkfrontCredentials?.is_active ? "Active" : "Inactive"}</p>
+                </div>
+              </div>
+
+              {/* Refresh Interval Setting */}
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">Data Refresh Interval</Label>
+                  <p className="text-xs text-muted-foreground">Auto-refresh API data when older than this (minutes)</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={1440}
+                    value={checkfrontRefreshInterval}
+                    onChange={(e) => setCheckfrontRefreshInterval(parseInt(e.target.value) || 60)}
+                    className="w-20 text-center"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => handleSaveRefreshInterval("checkfront", checkfrontRefreshInterval)}
+                    disabled={savingRefreshInterval === "checkfront" || !isConfigured}
+                  >
+                    {savingRefreshInterval === "checkfront" ? "..." : "Save"}
+                  </Button>
                 </div>
               </div>
 

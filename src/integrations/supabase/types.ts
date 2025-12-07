@@ -386,6 +386,7 @@ export type Database = {
           password: string | null
           property_code: string | null
           property_name: string | null
+          refresh_interval_minutes: number | null
           system_type: string
           updated_at: string | null
           username: string | null
@@ -401,6 +402,7 @@ export type Database = {
           password?: string | null
           property_code?: string | null
           property_name?: string | null
+          refresh_interval_minutes?: number | null
           system_type: string
           updated_at?: string | null
           username?: string | null
@@ -416,6 +418,7 @@ export type Database = {
           password?: string | null
           property_code?: string | null
           property_name?: string | null
+          refresh_interval_minutes?: number | null
           system_type?: string
           updated_at?: string | null
           username?: string | null
