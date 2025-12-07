@@ -3,7 +3,7 @@ import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Shield, Zap, Globe, HeadphonesIcon, MapPin, Star, Bed, ArrowLeft } from "lucide-react";
+import { Shield, Zap, HeadphonesIcon, Bed, ArrowLeft, BadgeCheck, MapPinned, Lock } from "lucide-react";
 import heroImage from "@/assets/hero-hotel.jpg";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -53,9 +53,9 @@ const Home = () => {
       description: "Immediate confirmations",
     },
     {
-      icon: Globe,
-      title: "Multi-Platform",
-      description: "Multiple booking systems",
+      icon: BadgeCheck,
+      title: "Verified Stays",
+      description: "Hand-picked properties",
     },
     {
       icon: HeadphonesIcon,
@@ -183,25 +183,43 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Stats Section - Compact */}
+      {/* Trust Section */}
       <section className="py-6 sm:py-12 bg-background">
         <div className="container mx-auto px-3 sm:px-4">
-          <div className="grid grid-cols-4 gap-2 sm:gap-6">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             {[
-              { number: "36+", label: "Properties", icon: Bed },
-              { number: "50K+", label: "Guests", icon: Star },
-              { number: "100+", label: "Locations", icon: MapPin },
-              { number: "24/7", label: "Support", icon: HeadphonesIcon },
-            ].map((stat, index) => (
-              <div key={index} className="text-center">
-                <div className="inline-flex items-center justify-center h-8 w-8 sm:h-12 sm:w-12 rounded-full bg-primary/10 mb-1.5 sm:mb-3">
-                  <stat.icon className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-primary" />
+              { 
+                icon: BadgeCheck, 
+                title: "Hand-Picked Stays", 
+                description: "Only verified properties — no surprises on arrival." 
+              },
+              { 
+                icon: Zap, 
+                title: "Lightning-Fast Support", 
+                description: "Average reply time under 5 minutes." 
+              },
+              { 
+                icon: Lock, 
+                title: "Secure Bookings", 
+                description: "Safe payments + instant confirmations." 
+              },
+              { 
+                icon: MapPinned, 
+                title: "Local Experts", 
+                description: "We know the owners, the towns, the tips… all of it." 
+              },
+            ].map((item, index) => (
+              <div key={index} className="flex gap-2.5 sm:gap-3 p-3 sm:p-4 rounded-lg bg-secondary/30 border border-border/50">
+                <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <item.icon className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                 </div>
-                <div className="text-base sm:text-2xl md:text-3xl font-bold text-foreground">
-                  {stat.number}
-                </div>
-                <div className="text-[10px] sm:text-xs md:text-sm text-muted-foreground">
-                  {stat.label}
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-xs sm:text-sm text-foreground leading-tight mb-0.5">
+                    {item.title}
+                  </h3>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed">
+                    {item.description}
+                  </p>
                 </div>
               </div>
             ))}
