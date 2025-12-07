@@ -33,6 +33,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+interface PmsRate {
+  date: string;
+  rateTypeId: number;
+  rateTypeName: string;
+  roomAmount?: number | null;
+  adultAmount1?: number | null;
+  adultAmount2?: number | null;
+}
+
 interface RoomType {
   id: string;
   name: string;
@@ -56,6 +65,7 @@ interface RoomType {
   pmsRoomType?: string;
   pmsRoomId?: string;
   mealTypes?: string[];
+  pms_rates?: PmsRate[];
 }
 
 interface Property {
@@ -289,7 +299,26 @@ export default function RoomShowcase() {
   const images = room.images || [];
   const facilities = room.facilities || [];
   const amenities = room.amenities || [];
-  const lowestRate = rates.length > 0 ? Math.min(...rates.map(r => r.amount)) : null;
+  // Calculate lowest rate from pms_rates (amenities) first, fallback to property_rates
+  const getLowestRate = (): number | null => {
+    // First check pms_rates from room data
+    if (room.pms_rates && room.pms_rates.length > 0) {
+      const validRates = room.pms_rates
+        .filter(r => r.roomAmount != null || r.adultAmount1 != null || r.adultAmount2 != null)
+        .map(r => r.roomAmount || r.adultAmount1 || r.adultAmount2)
+        .filter((amt): amt is number => amt != null && amt > 0);
+      
+      if (validRates.length > 0) {
+        return Math.min(...validRates);
+      }
+    }
+    // Fallback to property_rates table
+    if (rates.length > 0) {
+      return Math.min(...rates.map(r => r.amount));
+    }
+    return null;
+  };
+  const lowestRate = getLowestRate();
   
   // Get room-specific meal types, not property-wide
   const roomMealTypes = room.mealTypes || [];
@@ -465,9 +494,18 @@ export default function RoomShowcase() {
                 <h2 className="text-2xl font-bold mb-4">{room.name}</h2>
                 
                 {room.description && (
-                  <p className="text-muted-foreground leading-relaxed mb-6 italic">
+                  <p className="text-muted-foreground leading-relaxed mb-4 italic">
                     {room.description}
                   </p>
+                )}
+
+                {/* Rate Display */}
+                {lowestRate && (
+                  <div className="mb-6">
+                    <span className="text-sm text-muted-foreground">From </span>
+                    <span className="text-2xl font-bold text-primary">R {lowestRate.toLocaleString()}</span>
+                    <span className="text-sm text-muted-foreground"> / night</span>
+                  </div>
                 )}
 
                 {/* Key Info */}
