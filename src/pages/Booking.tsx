@@ -532,8 +532,19 @@ const Booking = () => {
       // Use calculated total cost or pre-selected total
       const totalPrice = totalCost || preSelectedTotalCost || 0;
 
-      // Get current user or create anonymous booking
-      const { data: { user } } = await supabase.auth.getUser();
+      // Get current user or sign in anonymously for guest bookings
+      let { data: { user } } = await supabase.auth.getUser();
+      
+      // If no user, sign in anonymously to satisfy RLS
+      if (!user) {
+        const { data: anonData, error: anonError } = await supabase.auth.signInAnonymously();
+        if (anonError) {
+          console.error('Anonymous sign-in failed:', anonError);
+          // Continue without user - will rely on RLS policy
+        } else {
+          user = anonData.user;
+        }
+      }
 
       const bookingData = {
         property_id: property!.id,
