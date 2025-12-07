@@ -83,25 +83,25 @@ export default function AdminKeys() {
   // Benson-specific state - separate for staging and production
   const [bensonStagingCredentials, setBensonStagingCredentials] = useState<PMSCredentials | null>(null);
   const [bensonProductionCredentials, setBensonProductionCredentials] = useState<PMSCredentials | null>(null);
-  
+
   // Active environment toggle
   const [bensonActiveEnvironment, setBensonActiveEnvironment] = useState<"staging" | "production">("staging");
   const [savingBensonActiveEnv, setSavingBensonActiveEnv] = useState(false);
-  
+
   // Staging form state
   const [bensonStagingUsername, setBensonStagingUsername] = useState("");
   const [bensonStagingPassword, setBensonStagingPassword] = useState("");
   const [bensonStagingPropertyCode, setBensonStagingPropertyCode] = useState("");
   const [bensonStagingPropertyName, setBensonStagingPropertyName] = useState("");
   const [bensonStagingUrl, setBensonStagingUrl] = useState("");
-  
+
   // Production form state
   const [bensonProductionUsername, setBensonProductionUsername] = useState("");
   const [bensonProductionPassword, setBensonProductionPassword] = useState("");
   const [bensonProductionPropertyCode, setBensonProductionPropertyCode] = useState("");
   const [bensonProductionPropertyName, setBensonProductionPropertyName] = useState("");
   const [bensonProductionUrl, setBensonProductionUrl] = useState("");
-  
+
   const [editingBensonStaging, setEditingBensonStaging] = useState(false);
   const [editingBensonProduction, setEditingBensonProduction] = useState(false);
   const [savingBensonStaging, setSavingBensonStaging] = useState(false);
@@ -159,26 +159,28 @@ export default function AdminKeys() {
     setSavingResend(true);
 
     // Upsert from email
-    const { error: fromError } = await supabase
-      .from("api_keys")
-      .upsert({
+    const { error: fromError } = await supabase.from("api_keys").upsert(
+      {
         key_name: "RESEND_FROM_EMAIL",
         name: "Resend From Email",
         key_value: resendFromEmail,
         system_type: "resend",
         description: "Sender email address for Resend notifications",
-      }, { onConflict: "key_name" });
+      },
+      { onConflict: "key_name" },
+    );
 
     // Upsert to email
-    const { error: toError } = await supabase
-      .from("api_keys")
-      .upsert({
+    const { error: toError } = await supabase.from("api_keys").upsert(
+      {
         key_name: "RESEND_TO_EMAIL",
         name: "Resend To Email",
         key_value: resendToEmail,
         system_type: "resend",
         description: "Recipient email address for admin notifications",
-      }, { onConflict: "key_name" });
+      },
+      { onConflict: "key_name" },
+    );
 
     if (fromError || toError) {
       toast({
@@ -218,14 +220,11 @@ export default function AdminKeys() {
   };
 
   const fetchBensonCredentials = async () => {
-    const { data, error } = await supabase
-      .from("pms_credentials")
-      .select("*")
-      .eq("system_type", "benson");
+    const { data, error } = await supabase.from("pms_credentials").select("*").eq("system_type", "benson");
 
     if (!error && data) {
-      const staging = data.find(d => d.environment === "staging");
-      const production = data.find(d => d.environment === "production");
+      const staging = data.find((d) => d.environment === "staging");
+      const production = data.find((d) => d.environment === "production");
       setBensonStagingCredentials(staging || null);
       setBensonProductionCredentials(production || null);
     }
@@ -245,16 +244,17 @@ export default function AdminKeys() {
 
   const handleSaveBensonActiveEnvironment = async (newEnv: "staging" | "production") => {
     setSavingBensonActiveEnv(true);
-    
-    const { error } = await supabase
-      .from("api_keys")
-      .upsert({
+
+    const { error } = await supabase.from("api_keys").upsert(
+      {
         key_name: "BENSON_ACTIVE_ENVIRONMENT",
         name: "Benson Active Environment",
         key_value: newEnv,
         system_type: "benson",
         description: "Which Benson environment to use for API calls",
-      }, { onConflict: "key_name" });
+      },
+      { onConflict: "key_name" },
+    );
 
     if (error) {
       toast({
@@ -460,19 +460,14 @@ export default function AdminKeys() {
       system_type: "checkfront",
       environment: checkfrontEnvironment,
       // Token auth uses api_key and agent_code (repurposed as secret)
-      api_key: checkfrontAuthMethod === "token" 
-        ? (checkfrontApiKey || checkfrontCredentials?.api_key || null) 
-        : null,
-      agent_code: checkfrontAuthMethod === "token" 
-        ? (checkfrontApiSecret || checkfrontCredentials?.agent_code || null) 
-        : null,
+      api_key: checkfrontAuthMethod === "token" ? checkfrontApiKey || checkfrontCredentials?.api_key || null : null,
+      agent_code:
+        checkfrontAuthMethod === "token" ? checkfrontApiSecret || checkfrontCredentials?.agent_code || null : null,
       // OAuth2 uses username/password
-      username: checkfrontAuthMethod === "oauth2" 
-        ? (checkfrontUsername || checkfrontCredentials?.username || null) 
-        : null,
-      password: checkfrontAuthMethod === "oauth2" 
-        ? (checkfrontPassword || checkfrontCredentials?.password || null) 
-        : null,
+      username:
+        checkfrontAuthMethod === "oauth2" ? checkfrontUsername || checkfrontCredentials?.username || null : null,
+      password:
+        checkfrontAuthMethod === "oauth2" ? checkfrontPassword || checkfrontCredentials?.password || null : null,
       is_active: true,
     };
 
@@ -516,13 +511,22 @@ export default function AdminKeys() {
   // Group API keys: PMS systems vs Additional Services (Google Maps, SendGrid, Resend, etc.)
   const additionalServiceTypes = ["google", "sendgrid", "resend"];
   const pmsKeys = apiKeys
-    .filter((k) => k.system_type && !additionalServiceTypes.includes(k.system_type) && k.system_type !== "benson" && k.system_type !== "nightsbridge" && k.system_type !== "checkfront")
+    .filter(
+      (k) =>
+        k.system_type &&
+        !additionalServiceTypes.includes(k.system_type) &&
+        k.system_type !== "benson" &&
+        k.system_type !== "nightsbridge" &&
+        k.system_type !== "checkfront",
+    )
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
   // Filter out Resend email config keys from additionalKeys since we handle them in custom card
   const resendEmailKeys = ["RESEND_FROM_EMAIL", "RESEND_TO_EMAIL"];
   const additionalKeys = apiKeys
-    .filter((k) => k.system_type && additionalServiceTypes.includes(k.system_type) && !resendEmailKeys.includes(k.key_name))
+    .filter(
+      (k) => k.system_type && additionalServiceTypes.includes(k.system_type) && !resendEmailKeys.includes(k.key_name),
+    )
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
   // Check if Resend API key is configured
@@ -591,9 +595,7 @@ export default function AdminKeys() {
                     onChange={(e) => setResendToEmail(e.target.value)}
                     placeholder="admin@yourdomain.com"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Where access request notifications will be sent
-                  </p>
+                  <p className="text-xs text-muted-foreground">Where access request notifications will be sent</p>
                 </div>
               </div>
 
@@ -601,10 +603,7 @@ export default function AdminKeys() {
                 <Button onClick={handleSaveResendConfig} disabled={savingResend}>
                   {savingResend ? "Saving..." : "Save"}
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setEditingResend(false)}
-                >
+                <Button variant="outline" onClick={() => setEditingResend(false)}>
                   Cancel
                 </Button>
               </div>
@@ -622,7 +621,9 @@ export default function AdminKeys() {
                 </div>
                 <div>
                   <Label className="text-muted-foreground">API Key</Label>
-                  <p className={`font-medium ${isResendConfigured ? "text-green-600" : ""}`}>{isResendConfigured ? "Configured" : "Not set"}</p>
+                  <p className={`font-medium ${isResendConfigured ? "text-green-600" : ""}`}>
+                    {isResendConfigured ? "Configured" : "Not set"}
+                  </p>
                 </div>
               </div>
 
@@ -753,11 +754,11 @@ export default function AdminKeys() {
                   )}
                 </div>
               </div>
-              
+
               {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
                 <ApiMilestones systemType={apiKey.system_type} className="pt-4 border-t" />
               )}
-              
+
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -769,12 +770,14 @@ export default function AdminKeys() {
                   {isPlaceholderValue ? "Configure" : "Update"}
                 </Button>
                 {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
-                  <Button 
-                    variant="default" 
-                    onClick={() => toast({
-                      title: "Coming Soon",
-                      description: `${apiKey.name} field mappings configuration is under development`,
-                    })}
+                  <Button
+                    variant="default"
+                    onClick={() =>
+                      toast({
+                        title: "Coming Soon",
+                        description: `${apiKey.name} field mappings configuration is under development`,
+                      })
+                    }
                     disabled={isPlaceholderValue}
                   >
                     <Settings className="h-4 w-4 mr-2" />
@@ -812,7 +815,7 @@ export default function AdminKeys() {
       propertyName: string,
       setPropertyName: (v: string) => void,
       url: string,
-      setUrl: (v: string) => void
+      setUrl: (v: string) => void,
     ) => (
       <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
         <div className="flex items-center justify-between">
@@ -959,8 +962,11 @@ export default function AdminKeys() {
               {isAnyConfigured ? (
                 <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="h-3 w-3" />
-                  {isStagingConfigured && isProductionConfigured ? "Both Configured" : 
-                   isStagingConfigured ? "Staging Only" : "Production Only"}
+                  {isStagingConfigured && isProductionConfigured
+                    ? "Both Configured"
+                    : isStagingConfigured
+                      ? "Staging Only"
+                      : "Production Only"}
                 </Badge>
               ) : (
                 <Badge variant="destructive" className="flex items-center gap-1">
@@ -976,9 +982,7 @@ export default function AdminKeys() {
           <div className="flex items-center justify-between p-4 rounded-lg border bg-primary/5 border-primary/20">
             <div className="space-y-1">
               <Label className="text-sm font-medium">Active Environment</Label>
-              <p className="text-xs text-muted-foreground">
-                API calls will use {bensonActiveEnvironment} credentials
-              </p>
+              <p className="text-xs text-muted-foreground">API calls will use {bensonActiveEnvironment} credentials</p>
             </div>
             <div className="flex items-center gap-2">
               <span
@@ -1016,7 +1020,7 @@ export default function AdminKeys() {
             bensonStagingPropertyName,
             setBensonStagingPropertyName,
             bensonStagingUrl,
-            setBensonStagingUrl
+            setBensonStagingUrl,
           )}
 
           {renderEnvironmentSection(
@@ -1036,7 +1040,7 @@ export default function AdminKeys() {
             bensonProductionPropertyName,
             setBensonProductionPropertyName,
             bensonProductionUrl,
-            setBensonProductionUrl
+            setBensonProductionUrl,
           )}
 
           <ApiMilestones systemType="benson" className="pt-4 border-t" />
@@ -1046,7 +1050,11 @@ export default function AdminKeys() {
               <Settings className="h-4 w-4 mr-2" />
               Field Mappings
             </Button>
-            <Button variant="outline" onClick={() => navigate("/admin/test-booking-benson")} disabled={!isAnyConfigured}>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/admin/test-booking-benson")}
+              disabled={!isAnyConfigured}
+            >
               Test Booking
             </Button>
           </div>
@@ -1078,7 +1086,7 @@ export default function AdminKeys() {
                   Property Management System integration for South African properties
                 </CardDescription>
                 <div className="mt-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded-md inline-block">
-                  ⚠️ No API access until 50 properties - booking via URL redirect only
+                  ⚠️ No API access until 50 properties - booking via URL redirect only using AGENT CODE
                 </div>
               </div>
             </div>
@@ -1163,11 +1171,15 @@ export default function AdminKeys() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
                   <Label className="text-muted-foreground">API Key</Label>
-                  <p className={`font-medium ${nightsbridgeCredentials?.api_key ? "text-green-600" : ""}`}>{nightsbridgeCredentials?.api_key ? "Configured" : "Not set"}</p>
+                  <p className={`font-medium ${nightsbridgeCredentials?.api_key ? "text-green-600" : ""}`}>
+                    {nightsbridgeCredentials?.api_key ? "Configured" : "Not set"}
+                  </p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Agent Code</Label>
-                  <p className={`font-medium ${nightsbridgeCredentials?.agent_code ? "text-green-600" : ""}`}>{nightsbridgeCredentials?.agent_code ? "Configured" : "Not set"}</p>
+                  <p className={`font-medium ${nightsbridgeCredentials?.agent_code ? "text-green-600" : ""}`}>
+                    {nightsbridgeCredentials?.agent_code ? "Configured" : "Not set"}
+                  </p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Environment</Label>
@@ -1185,12 +1197,14 @@ export default function AdminKeys() {
                 <Button variant="outline" onClick={() => setEditingNightsbridge(true)}>
                   {isConfigured ? "Update Credentials" : "Configure"}
                 </Button>
-                <Button 
-                  variant="default" 
-                  onClick={() => toast({
-                    title: "Coming Soon",
-                    description: "NightsBridge field mappings configuration is under development",
-                  })}
+                <Button
+                  variant="default"
+                  onClick={() =>
+                    toast({
+                      title: "Coming Soon",
+                      description: "NightsBridge field mappings configuration is under development",
+                    })
+                  }
                   disabled={!isConfigured}
                 >
                   <Settings className="h-4 w-4 mr-2" />
@@ -1364,9 +1378,7 @@ export default function AdminKeys() {
                   </p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">
-                    {isTokenConfigured ? "API Key" : "Username"}
-                  </Label>
+                  <Label className="text-muted-foreground">{isTokenConfigured ? "API Key" : "Username"}</Label>
                   <p className={`font-medium ${isConfigured ? "text-green-600" : ""}`}>
                     {isConfigured ? "Configured" : "Not set"}
                   </p>
@@ -1387,12 +1399,14 @@ export default function AdminKeys() {
                 <Button variant="outline" onClick={() => setEditingCheckfront(true)}>
                   {isConfigured ? "Update Credentials" : "Configure"}
                 </Button>
-                <Button 
-                  variant="default" 
-                  onClick={() => toast({
-                    title: "Coming Soon",
-                    description: "Checkfront field mappings configuration is under development",
-                  })}
+                <Button
+                  variant="default"
+                  onClick={() =>
+                    toast({
+                      title: "Coming Soon",
+                      description: "Checkfront field mappings configuration is under development",
+                    })
+                  }
                   disabled={!isConfigured}
                 >
                   <Settings className="h-4 w-4 mr-2" />
@@ -1455,7 +1469,7 @@ export default function AdminKeys() {
             <h2 className="text-xl font-semibold mb-4">Additional Services</h2>
             <div className="space-y-4">
               {renderResendCard()}
-              {additionalKeys.filter(k => k.key_name !== "RESEND_API_KEY").map(renderKeyCard)}
+              {additionalKeys.filter((k) => k.key_name !== "RESEND_API_KEY").map(renderKeyCard)}
             </div>
           </div>
         </div>
