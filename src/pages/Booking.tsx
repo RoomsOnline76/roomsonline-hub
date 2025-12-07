@@ -566,7 +566,7 @@ const Booking = () => {
 
       if (error) throw error;
 
-      // Push to external system if configured
+      // Push to external system if configured (which also sends email)
       if (property?.external_system) {
         try {
           await supabase.functions.invoke('push-booking', {
@@ -574,6 +574,19 @@ const Booking = () => {
           });
         } catch (pushError) {
           console.error('Failed to push booking to external system:', pushError);
+          // Don't fail the booking, just log the error
+        }
+      } else {
+        // For non-PMS properties, send confirmation email directly
+        try {
+          await supabase.functions.invoke('send-booking-email', {
+            body: { 
+              booking_id: data.id,
+              status: 'success'
+            },
+          });
+        } catch (emailError) {
+          console.error('Failed to send booking confirmation email:', emailError);
           // Don't fail the booking, just log the error
         }
       }
