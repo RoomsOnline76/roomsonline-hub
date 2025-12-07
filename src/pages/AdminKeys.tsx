@@ -139,6 +139,7 @@ export default function AdminKeys() {
   const [savingRefreshInterval, setSavingRefreshInterval] = useState<string | null>(null);
 
   // Resend-specific state
+  const [resendFromEmail, setResendFromEmail] = useState("");
   const [resendToEmail, setResendToEmail] = useState("");
   const [editingResend, setEditingResend] = useState(false);
   const [savingResend, setSavingResend] = useState(false);
@@ -163,10 +164,12 @@ export default function AdminKeys() {
     const { data } = await supabase
       .from("api_keys")
       .select("*")
-      .eq("key_name", "RESEND_TO_EMAIL");
+      .in("key_name", ["RESEND_FROM_EMAIL", "RESEND_TO_EMAIL"]);
 
     if (data) {
+      const fromEmail = data.find((k) => k.key_name === "RESEND_FROM_EMAIL");
       const toEmail = data.find((k) => k.key_name === "RESEND_TO_EMAIL");
+      if (fromEmail?.key_value) setResendFromEmail(fromEmail.key_value);
       if (toEmail?.key_value) setResendToEmail(toEmail.key_value);
     }
   };
@@ -252,8 +255,20 @@ export default function AdminKeys() {
   const handleSaveResendConfig = async () => {
     setSavingResend(true);
 
+    // Upsert from email
+    const { error: fromError } = await supabase.from("api_keys").upsert(
+      {
+        key_name: "RESEND_FROM_EMAIL",
+        name: "Resend From Email",
+        key_value: resendFromEmail,
+        system_type: "resend",
+        description: "Sender email address for Resend notifications",
+      },
+      { onConflict: "key_name" },
+    );
+
     // Upsert to email
-    const { error } = await supabase.from("api_keys").upsert(
+    const { error: toError } = await supabase.from("api_keys").upsert(
       {
         key_name: "RESEND_TO_EMAIL",
         name: "Resend To Email",
@@ -264,10 +279,10 @@ export default function AdminKeys() {
       { onConflict: "key_name" },
     );
 
-    if (error) {
+    if (fromError || toError) {
       toast({
         title: "Error saving email config",
-        description: error.message,
+        description: fromError?.message || toError?.message,
         variant: "destructive",
       });
     } else {
@@ -758,17 +773,33 @@ export default function AdminKeys() {
         <CardContent>
           {editingResend ? (
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="resend-to">Admin Notification Email</Label>
-                <Input
-                  id="resend-to"
-                  type="email"
-                  value={resendToEmail}
-                  onChange={(e) => setResendToEmail(e.target.value)}
-                  placeholder="admin@yourdomain.com"
-                />
-                <p className="text-xs text-muted-foreground">Where access request notifications will be sent</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="resend-from">From Email (Admin)</Label>
+                  <Input
+                    id="resend-from"
+                    type="email"
+                    value={resendFromEmail}
+                    onChange={(e) => setResendFromEmail(e.target.value)}
+                    placeholder="noreply@yourdomain.com"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Use onboarding@resend.dev for testing or verify your domain
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="resend-to">Admin Notification Email</Label>
+                  <Input
+                    id="resend-to"
+                    type="email"
+                    value={resendToEmail}
+                    onChange={(e) => setResendToEmail(e.target.value)}
+                    placeholder="admin@yourdomain.com"
+                  />
+                  <p className="text-xs text-muted-foreground">Where access request notifications will be sent</p>
+                </div>
               </div>
+
 
               <div className="flex gap-2">
                 <Button onClick={handleSaveResendConfig} disabled={savingResend}>
@@ -781,7 +812,11 @@ export default function AdminKeys() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <Label className="text-muted-foreground">From Email</Label>
+                  <p className="font-medium truncate">{resendFromEmail || "Not set"}</p>
+                </div>
                 <div>
                   <Label className="text-muted-foreground">Admin Email</Label>
                   <p className="font-medium truncate">{resendToEmail || "Not set"}</p>
@@ -822,7 +857,7 @@ export default function AdminKeys() {
               ) : (
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setEditingResend(true)}>
-                    {resendToEmail ? "Update Email Settings" : "Configure Emails"}
+                    {resendFromEmail || resendToEmail ? "Update Email Settings" : "Configure Emails"}
                   </Button>
                   {resendApiKey && (
                     <Button
