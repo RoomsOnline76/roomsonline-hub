@@ -472,11 +472,6 @@ export default function RoomShowcase() {
 
                 {/* Key Info */}
                 <div className="space-y-3">
-                  {/* Occupancy */}
-                  <div className="flex items-center gap-3">
-                    <Users className="h-5 w-5 text-primary" />
-                    <span className="font-medium">{buildOccupancyString()}</span>
-                  </div>
 
                   {/* Stay Requirements - only show if minStay > 1, hide maxStay if 0 or unavailable */}
                   {(room.minStay && room.minStay > 1) && (
