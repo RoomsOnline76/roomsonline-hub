@@ -325,17 +325,18 @@ export const SearchForm = () => {
           </div>
         </div>
 
-        {/* Search Button */}
-        <div className="mt-3 sm:mt-4">
-          <Button
-            type="submit"
-            className="w-full h-10 sm:h-11 text-sm font-semibold bg-[var(--hero-gradient)] hover:opacity-90 transition-opacity touch-manipulation rounded-lg"
-            disabled={!destination || !dateRange?.from || !dateRange?.to}
-          >
-            <Search className="mr-2 h-4 w-4" />
-            Search
-          </Button>
-        </div>
+        {/* Search Button - only visible when destination and dates are complete */}
+        {destination && dateRange?.from && dateRange?.to && (
+          <div className="mt-3 sm:mt-4">
+            <Button
+              type="submit"
+              className="w-full h-10 sm:h-11 text-sm font-semibold bg-[var(--hero-gradient)] hover:opacity-90 transition-opacity touch-manipulation rounded-lg"
+            >
+              <Search className="mr-2 h-4 w-4" />
+              Search
+            </Button>
+          </div>
+        )}
       </form>
     </div>
   );
