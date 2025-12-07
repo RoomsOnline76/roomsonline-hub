@@ -1,5 +1,8 @@
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const TermsOfService = () => {
   return (
@@ -7,6 +10,13 @@ const TermsOfService = () => {
       <Navbar />
       
       <div className="container mx-auto px-4 py-12 max-w-4xl">
+        <Link to="/book">
+          <Button variant="ghost" className="mb-6 flex items-center gap-2 text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" />
+            Back to Home
+          </Button>
+        </Link>
+        
         <h1 className="text-4xl font-bold text-foreground mb-8">Terms of Service</h1>
         
         <Card className="mb-8">
