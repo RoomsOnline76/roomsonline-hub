@@ -489,9 +489,9 @@ export default function PropertyShowcase() {
           </section>
         )}
 
-        {/* Rooms & Rates Section */}
+        {/* Rooms Section */}
         <section id="rooms-section" className="mb-12 scroll-mt-20">
-          <h2 className="text-2xl font-semibold mb-6 uppercase tracking-wide text-foreground/80">Rooms & Rates</h2>
+          <h2 className="text-2xl font-semibold mb-6 uppercase tracking-wide text-foreground/80">Rooms</h2>
           
           {roomTypes.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
