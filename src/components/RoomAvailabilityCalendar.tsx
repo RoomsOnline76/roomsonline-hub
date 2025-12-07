@@ -294,9 +294,11 @@ export default function RoomAvailabilityCalendar({
                     numberOfMonths={2}
                     disabled={(date) => isBefore(date, startOfDay(new Date()))}
                     modifiers={{
+                      available: (date) => isDateAvailable(date),
                       unavailable: (date) => !isBefore(date, startOfDay(new Date())) && !isDateAvailable(date) && availability.has(format(date, "yyyy-MM-dd")),
                     }}
                     modifiersStyles={{
+                      available: { backgroundColor: 'hsl(142 76% 36% / 0.15)' },
                       unavailable: { backgroundColor: 'hsl(var(--destructive) / 0.1)', color: 'hsl(var(--muted-foreground))' },
                     }}
                     className="pointer-events-auto"
@@ -336,7 +338,7 @@ export default function RoomAvailabilityCalendar({
                 {/* Legend */}
                 <div className="flex gap-6 mt-6 justify-center text-xs">
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded bg-primary/20 border border-primary/30" />
+                    <div className="w-3 h-3 rounded bg-green-500/20 border border-green-500/30" />
                     <span>Available</span>
                   </div>
                   <div className="flex items-center gap-2">
