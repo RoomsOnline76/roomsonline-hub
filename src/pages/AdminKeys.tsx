@@ -1595,36 +1595,15 @@ export default function AdminKeys() {
     const isConfigured = isTokenConfigured || isOAuthConfigured;
 
     return (
-      <Card className={!checkfrontCredentials?.is_active ? "opacity-60" : ""}>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3">
-              <div className="mt-1">
-                <CheckCircle className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  Checkfront
-                  <Badge variant="outline" className="ml-2">
-                    Token / OAuth2
-                  </Badge>
-                </CardTitle>
-                <CardDescription className="mt-1">
-                  Online booking software with dual authentication support
-                </CardDescription>
-              </div>
-            </div>
+      <AccordionItem value="checkfront" className={!checkfrontCredentials?.is_active ? "opacity-60" : ""}>
+        <AccordionTrigger className="hover:no-underline px-4 py-3 bg-card rounded-lg border">
+          <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
-              {isConfigured && (
-                <div className="flex items-center gap-2">
-                  <Switch
-                    checked={checkfrontCredentials?.is_active ?? false}
-                    onCheckedChange={handleToggleCheckfront}
-                    disabled={togglingCheckfront || !isConfigured}
-                  />
-                  <span className="text-xs text-muted-foreground">{checkfrontCredentials?.is_active ? "On" : "Off"}</span>
-                </div>
-              )}
+              <CheckCircle className="h-5 w-5 text-primary" />
+              <span className="font-semibold">Checkfront</span>
+              <Badge variant="outline" className="text-xs">Token / OAuth2</Badge>
+            </div>
+            <div className="flex items-center gap-2">
               {isConfigured ? (
                 <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="h-3 w-3" />
@@ -1638,190 +1617,209 @@ export default function AdminKeys() {
               )}
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          {editingCheckfront ? (
-            <div className="space-y-4">
-              {/* Auth Method Toggle */}
-              <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg">
-                <Label className="text-sm font-medium">Authentication Method:</Label>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant={checkfrontAuthMethod === "token" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setCheckfrontAuthMethod("token")}
-                  >
-                    Token (API Key/Secret)
-                  </Button>
-                  <Button
-                    variant={checkfrontAuthMethod === "oauth2" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setCheckfrontAuthMethod("oauth2")}
-                  >
-                    OAuth2 (Username/Password)
-                  </Button>
-                </div>
-              </div>
-
-              {checkfrontAuthMethod === "token" ? (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="checkfront-apikey">API Key</Label>
-                    <Input
-                      id="checkfront-apikey"
-                      type="password"
-                      value={checkfrontApiKey}
-                      onChange={(e) => setCheckfrontApiKey(e.target.value)}
-                      placeholder={checkfrontCredentials?.api_key ? "••••••••" : "Enter API key"}
+        </AccordionTrigger>
+        <AccordionContent className="px-4 pt-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardDescription>Online booking software with dual authentication support</CardDescription>
+                {isConfigured && (
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={checkfrontCredentials?.is_active ?? false}
+                      onCheckedChange={handleToggleCheckfront}
+                      disabled={togglingCheckfront || !isConfigured}
                     />
+                    <span className="text-xs text-muted-foreground">{checkfrontCredentials?.is_active ? "On" : "Off"}</span>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="checkfront-secret">API Secret</Label>
-                    <Input
-                      id="checkfront-secret"
-                      type="password"
-                      value={checkfrontApiSecret}
-                      onChange={(e) => setCheckfrontApiSecret(e.target.value)}
-                      placeholder={checkfrontCredentials?.agent_code ? "••••••••" : "Enter API secret"}
-                    />
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {editingCheckfront ? (
+                <div className="space-y-4">
+                  {/* Auth Method Toggle */}
+                  <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg">
+                    <Label className="text-sm font-medium">Authentication Method:</Label>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant={checkfrontAuthMethod === "token" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCheckfrontAuthMethod("token")}
+                      >
+                        Token (API Key/Secret)
+                      </Button>
+                      <Button
+                        variant={checkfrontAuthMethod === "oauth2" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCheckfrontAuthMethod("oauth2")}
+                      >
+                        OAuth2 (Username/Password)
+                      </Button>
+                    </div>
+                  </div>
+
+                  {checkfrontAuthMethod === "token" ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="checkfront-apikey">API Key</Label>
+                        <Input
+                          id="checkfront-apikey"
+                          type="password"
+                          value={checkfrontApiKey}
+                          onChange={(e) => setCheckfrontApiKey(e.target.value)}
+                          placeholder={checkfrontCredentials?.api_key ? "••••••••" : "Enter API key"}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="checkfront-secret">API Secret</Label>
+                        <Input
+                          id="checkfront-secret"
+                          type="password"
+                          value={checkfrontApiSecret}
+                          onChange={(e) => setCheckfrontApiSecret(e.target.value)}
+                          placeholder={checkfrontCredentials?.agent_code ? "••••••••" : "Enter API secret"}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="checkfront-username">Username</Label>
+                        <Input
+                          id="checkfront-username"
+                          value={checkfrontUsername}
+                          onChange={(e) => setCheckfrontUsername(e.target.value)}
+                          placeholder={checkfrontCredentials?.username ? "••••••••" : "Enter username"}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="checkfront-password">Password</Label>
+                        <Input
+                          id="checkfront-password"
+                          type="password"
+                          value={checkfrontPassword}
+                          onChange={(e) => setCheckfrontPassword(e.target.value)}
+                          placeholder={checkfrontCredentials?.password ? "••••••••" : "Enter password"}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-4">
+                    <Label className="text-sm">Environment:</Label>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-sm ${checkfrontEnvironment === "staging" ? "font-medium" : "text-muted-foreground"}`}
+                      >
+                        Staging
+                      </span>
+                      <Switch
+                        checked={checkfrontEnvironment === "production"}
+                        onCheckedChange={(checked) => setCheckfrontEnvironment(checked ? "production" : "staging")}
+                      />
+                      <span
+                        className={`text-sm ${checkfrontEnvironment === "production" ? "font-medium" : "text-muted-foreground"}`}
+                      >
+                        Production
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button onClick={handleSaveCheckfrontCredentials} disabled={savingCheckfront}>
+                      {savingCheckfront ? "Saving..." : "Save"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setEditingCheckfront(false);
+                        setCheckfrontApiKey("");
+                        setCheckfrontApiSecret("");
+                        setCheckfrontUsername("");
+                        setCheckfrontPassword("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="checkfront-username">Username</Label>
-                    <Input
-                      id="checkfront-username"
-                      value={checkfrontUsername}
-                      onChange={(e) => setCheckfrontUsername(e.target.value)}
-                      placeholder={checkfrontCredentials?.username ? "••••••••" : "Enter username"}
-                    />
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <Label className="text-muted-foreground">Auth Method</Label>
+                      <p className="font-medium">
+                        {isTokenConfigured ? "Token" : isOAuthConfigured ? "OAuth2" : "Not set"}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">{isTokenConfigured ? "API Key" : "Username"}</Label>
+                      <p className={`font-medium ${isConfigured ? "text-green-600" : ""}`}>
+                        {isConfigured ? "Configured" : "Not set"}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Environment</Label>
+                      <p className="font-medium capitalize">{checkfrontCredentials?.environment || "Staging"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Status</Label>
+                      <p className="font-medium">{checkfrontCredentials?.is_active ? "Active" : "Inactive"}</p>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="checkfront-password">Password</Label>
-                    <Input
-                      id="checkfront-password"
-                      type="password"
-                      value={checkfrontPassword}
-                      onChange={(e) => setCheckfrontPassword(e.target.value)}
-                      placeholder={checkfrontCredentials?.password ? "••••••••" : "Enter password"}
-                    />
+
+                  {/* Refresh Interval Setting */}
+                  <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
+                    <div className="space-y-1">
+                      <Label className="text-sm font-medium">Data Refresh Interval</Label>
+                      <p className="text-xs text-muted-foreground">Auto-refresh API data when older than this (minutes)</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={1440}
+                        value={checkfrontRefreshInterval}
+                        onChange={(e) => setCheckfrontRefreshInterval(parseInt(e.target.value) || 60)}
+                        className="w-20 text-center"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => handleSaveRefreshInterval("checkfront", checkfrontRefreshInterval)}
+                        disabled={savingRefreshInterval === "checkfront" || !isConfigured}
+                      >
+                        {savingRefreshInterval === "checkfront" ? "..." : "Save"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <ApiMilestones systemType="checkfront" className="pt-4 border-t" />
+
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setEditingCheckfront(true)}>
+                      {isConfigured ? "Update Credentials" : "Configure"}
+                    </Button>
+                    <Button
+                      variant="default"
+                      onClick={() =>
+                        toast({
+                          title: "Coming Soon",
+                          description: "Checkfront field mappings configuration is under development",
+                        })
+                      }
+                      disabled={!isConfigured}
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      Field Mappings
+                    </Button>
                   </div>
                 </div>
               )}
-
-              <div className="flex items-center gap-4">
-                <Label className="text-sm">Environment:</Label>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-sm ${checkfrontEnvironment === "staging" ? "font-medium" : "text-muted-foreground"}`}
-                  >
-                    Staging
-                  </span>
-                  <Switch
-                    checked={checkfrontEnvironment === "production"}
-                    onCheckedChange={(checked) => setCheckfrontEnvironment(checked ? "production" : "staging")}
-                  />
-                  <span
-                    className={`text-sm ${checkfrontEnvironment === "production" ? "font-medium" : "text-muted-foreground"}`}
-                  >
-                    Production
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button onClick={handleSaveCheckfrontCredentials} disabled={savingCheckfront}>
-                  {savingCheckfront ? "Saving..." : "Save"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setEditingCheckfront(false);
-                    setCheckfrontApiKey("");
-                    setCheckfrontApiSecret("");
-                    setCheckfrontUsername("");
-                    setCheckfrontPassword("");
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <Label className="text-muted-foreground">Auth Method</Label>
-                  <p className="font-medium">
-                    {isTokenConfigured ? "Token" : isOAuthConfigured ? "OAuth2" : "Not set"}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">{isTokenConfigured ? "API Key" : "Username"}</Label>
-                  <p className={`font-medium ${isConfigured ? "text-green-600" : ""}`}>
-                    {isConfigured ? "Configured" : "Not set"}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Environment</Label>
-                  <p className="font-medium capitalize">{checkfrontCredentials?.environment || "Staging"}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Status</Label>
-                  <p className="font-medium">{checkfrontCredentials?.is_active ? "Active" : "Inactive"}</p>
-                </div>
-              </div>
-
-              {/* Refresh Interval Setting */}
-              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
-                <div className="space-y-1">
-                  <Label className="text-sm font-medium">Data Refresh Interval</Label>
-                  <p className="text-xs text-muted-foreground">Auto-refresh API data when older than this (minutes)</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min={1}
-                    max={1440}
-                    value={checkfrontRefreshInterval}
-                    onChange={(e) => setCheckfrontRefreshInterval(parseInt(e.target.value) || 60)}
-                    className="w-20 text-center"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => handleSaveRefreshInterval("checkfront", checkfrontRefreshInterval)}
-                    disabled={savingRefreshInterval === "checkfront" || !isConfigured}
-                  >
-                    {savingRefreshInterval === "checkfront" ? "..." : "Save"}
-                  </Button>
-                </div>
-              </div>
-
-              <ApiMilestones systemType="checkfront" className="pt-4 border-t" />
-
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setEditingCheckfront(true)}>
-                  {isConfigured ? "Update Credentials" : "Configure"}
-                </Button>
-                <Button
-                  variant="default"
-                  onClick={() =>
-                    toast({
-                      title: "Coming Soon",
-                      description: "Checkfront field mappings configuration is under development",
-                    })
-                  }
-                  disabled={!isConfigured}
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Field Mappings
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </AccordionContent>
+      </AccordionItem>
     );
   };
 
