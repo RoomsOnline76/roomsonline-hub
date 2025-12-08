@@ -32,6 +32,9 @@ interface RoomBooking {
   numberOfTeens: number;
   numberOfChildren: number;
   numberOfInfants: number;
+  // Per-room date overrides (optional - uses default dates if not set)
+  checkIn?: string;
+  checkOut?: string;
 }
 
 interface RoomType {
@@ -199,19 +202,31 @@ const Booking = () => {
         
         if (preSelectedRoomTypeId) {
           // We're adding a new room to existing booking
-          const newRoom = {
+          // Use URL dates for this specific room (they may differ from default dates)
+          const newRoom: RoomBooking = {
             roomTypeId: preSelectedRoomTypeId,
             roomTypeName: preSelectedRoomTypeName || '',
             numberOfAdults: Math.max(1, preSelectedAdults),
             numberOfTeens: preSelectedTeens,
             numberOfChildren: preSelectedChildren,
             numberOfInfants: preSelectedInfants,
+            // Store this room's dates if they differ from the saved default dates
+            checkIn: urlCheckIn || parsedState.defaultCheckIn,
+            checkOut: urlCheckOut || parsedState.defaultCheckOut,
           };
           
           setRooms([...existingRooms, newRoom]);
+          
+          // Restore default dates from saved state (not URL params for new room)
+          if (parsedState.defaultCheckIn) setCheckIn(parsedState.defaultCheckIn);
+          if (parsedState.defaultCheckOut) setCheckOut(parsedState.defaultCheckOut);
         } else {
           // Returning to booking without adding a new room (e.g., "Check Out Now")
           setRooms(existingRooms);
+          
+          // Restore dates from saved state
+          if (parsedState.defaultCheckIn) setCheckIn(parsedState.defaultCheckIn);
+          if (parsedState.defaultCheckOut) setCheckOut(parsedState.defaultCheckOut);
         }
         
         // Restore form state
@@ -221,10 +236,6 @@ const Booking = () => {
         if (parsedState.voucher) setVoucher(parsedState.voucher);
         if (parsedState.specialRequests) setSpecialRequests(parsedState.specialRequests);
         if (parsedState.selectedRateType) setSelectedRateType(parsedState.selectedRateType);
-        
-        // Restore dates if not provided in URL
-        if (!urlCheckIn && parsedState.defaultCheckIn) setCheckIn(parsedState.defaultCheckIn);
-        if (!urlCheckOut && parsedState.defaultCheckOut) setCheckOut(parsedState.defaultCheckOut);
         
         // Restore availability and cost data to avoid API calls
         if (parsedState.availabilityData) setAvailabilityData(parsedState.availabilityData);
@@ -243,6 +254,9 @@ const Booking = () => {
           numberOfTeens: preSelectedTeens,
           numberOfChildren: preSelectedChildren,
           numberOfInfants: preSelectedInfants,
+          // Store dates for first room
+          checkIn: urlCheckIn || undefined,
+          checkOut: urlCheckOut || undefined,
         }]);
       } else if (roomTypes.length > 0) {
         const firstRoom = roomTypes[0];
@@ -253,6 +267,8 @@ const Booking = () => {
           numberOfTeens: 0,
           numberOfChildren: 0,
           numberOfInfants: 0,
+          checkIn: urlCheckIn || undefined,
+          checkOut: urlCheckOut || undefined,
         }]);
       }
     }
@@ -436,9 +452,16 @@ const Booking = () => {
 
   // Add room - navigate back to property page to select another room
   const addRoom = () => {
+    // Ensure all existing rooms have their dates saved (use their custom dates or fall back to default)
+    const roomsWithDates = rooms.map(room => ({
+      ...room,
+      checkIn: room.checkIn || checkIn || undefined,
+      checkOut: room.checkOut || checkOut || undefined,
+    }));
+    
     // Save current rooms and form state to sessionStorage including availability data
     const bookingState = {
-      rooms,
+      rooms: roomsWithDates,
       selectedRateType,
       guestName,
       guestEmail,
@@ -834,14 +857,20 @@ const Booking = () => {
                   return (
                     <div key={index} className="border rounded-lg p-4 space-y-4">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-medium">
-                          {roomType?.name || room.roomTypeName || `Room ${index + 1}`}
-                          {checkIn && checkOut && (
-                            <span className="text-muted-foreground font-normal ml-2">
-                              ({format(parseISO(checkIn), "d MMM")} - {format(parseISO(checkOut), "d MMM yyyy")})
+                        <div>
+                          <h4 className="font-medium">
+                            {roomType?.name || room.roomTypeName || `Room ${index + 1}`}
+                          </h4>
+                          {/* Show per-room dates or fallback to default dates */}
+                          {(room.checkIn || checkIn) && (room.checkOut || checkOut) && (
+                            <span className="text-sm text-muted-foreground">
+                              {format(parseISO(room.checkIn || checkIn!), "d MMM")} - {format(parseISO(room.checkOut || checkOut!), "d MMM yyyy")}
+                              {room.checkIn && room.checkOut && (room.checkIn !== checkIn || room.checkOut !== checkOut) && (
+                                <span className="text-xs ml-2 text-primary">(custom dates)</span>
+                              )}
                             </span>
                           )}
-                        </h4>
+                        </div>
                         {rooms.length > 1 && (
                           <Button 
                             variant="ghost" 
@@ -1074,15 +1103,27 @@ const Booking = () => {
                 {rooms.length > 0 && (
                   <div className="space-y-1 text-sm">
                     <p className="font-medium">{rooms.length} Room{rooms.length !== 1 ? 's' : ''}</p>
-                    {rooms.map((room, i) => (
-                      <p key={i} className="text-muted-foreground text-xs">
-                        Room {i + 1}: {room.roomTypeName || 'Standard'} 
-                        ({room.numberOfAdults}A
-                        {room.numberOfTeens > 0 && `, ${room.numberOfTeens}T`}
-                        {room.numberOfChildren > 0 && `, ${room.numberOfChildren}C`}
-                        {room.numberOfInfants > 0 && `, ${room.numberOfInfants}I`})
-                      </p>
-                    ))}
+                    {rooms.map((room, i) => {
+                      const roomCheckIn = room.checkIn || checkIn;
+                      const roomCheckOut = room.checkOut || checkOut;
+                      const hasCustomDates = room.checkIn && room.checkOut && (room.checkIn !== checkIn || room.checkOut !== checkOut);
+                      return (
+                        <div key={i} className="text-muted-foreground text-xs">
+                          <p>
+                            Room {i + 1}: {room.roomTypeName || 'Standard'} 
+                            ({room.numberOfAdults}A
+                            {room.numberOfTeens > 0 && `, ${room.numberOfTeens}T`}
+                            {room.numberOfChildren > 0 && `, ${room.numberOfChildren}C`}
+                            {room.numberOfInfants > 0 && `, ${room.numberOfInfants}I`})
+                          </p>
+                          {hasCustomDates && roomCheckIn && roomCheckOut && (
+                            <p className="text-primary text-[10px]">
+                              {format(parseISO(roomCheckIn), "d MMM")} - {format(parseISO(roomCheckOut), "d MMM")}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
