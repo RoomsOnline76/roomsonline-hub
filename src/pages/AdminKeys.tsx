@@ -1000,26 +1000,63 @@ export default function AdminKeys() {
     const isPlaceholderValue = isPlaceholder(apiKey.key_value);
     const isEditing = editingKey === apiKey.id;
     const IconComponent = getPMSIcon(apiKey.system_type);
+    const isConfigured = !isPlaceholderValue;
+    
+    // Get auth type label based on system type
+    const getAuthTypeLabel = (systemType: string | null) => {
+      switch (systemType) {
+        case "semper":
+          return "API Key";
+        case "siteminder":
+          return "API Key";
+        default:
+          return null;
+      }
+    };
+    const authTypeLabel = getAuthTypeLabel(apiKey.system_type);
 
     return (
-      <AccordionItem key={apiKey.id} value={apiKey.id} className="border rounded-lg px-4">
+      <AccordionItem 
+        key={apiKey.id} 
+        value={apiKey.id} 
+        className={`border rounded-lg px-4 ${!isConfigured ? "opacity-60" : ""}`}
+      >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
               <IconComponent className="h-5 w-5 text-primary" />
               <span className="font-semibold">{apiKey.name}</span>
+              {authTypeLabel && (
+                <Badge variant="outline" className="text-xs">{authTypeLabel}</Badge>
+              )}
             </div>
-            {isPlaceholderValue ? (
-              <Badge variant="destructive" className="flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" />
-                Not Configured
-              </Badge>
-            ) : (
-              <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
-                <CheckCircle2 className="h-3 w-3" />
-                Configured
-              </Badge>
-            )}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
+                <Switch
+                  checked={isConfigured}
+                  disabled={!isConfigured}
+                  className={!isConfigured ? "opacity-50" : ""}
+                  onCheckedChange={() => {
+                    toast({
+                      title: "Coming Soon",
+                      description: `${apiKey.name} enable/disable feature is under development`,
+                    });
+                  }}
+                />
+                <span className="text-xs text-muted-foreground">{isConfigured ? "On" : "Off"}</span>
+              </div>
+              {isPlaceholderValue ? (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Not Configured
+                </Badge>
+              ) : (
+                <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Configured
+                </Badge>
+              )}
+            </div>
           </div>
         </AccordionTrigger>
         <AccordionContent>
@@ -1257,18 +1294,18 @@ export default function AdminKeys() {
             <div className="flex items-center gap-3">
               <Briefcase className="h-5 w-5 text-primary" />
               <span className="font-semibold">Benson PMS</span>
+              <Badge variant="outline" className="text-xs">Basic Auth</Badge>
             </div>
             <div className="flex items-center gap-2">
-              {isAnyConfigured && (
-                <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
-                  <Switch
-                    checked={isBensonActive}
-                    onCheckedChange={handleToggleBenson}
-                    disabled={togglingBenson || !isAnyConfigured}
-                  />
-                  <span className="text-xs text-muted-foreground">{isBensonActive ? "On" : "Off"}</span>
-                </div>
-              )}
+              <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
+                <Switch
+                  checked={isBensonActive}
+                  onCheckedChange={handleToggleBenson}
+                  disabled={togglingBenson || !isAnyConfigured}
+                  className={!isAnyConfigured ? "opacity-50" : ""}
+                />
+                <span className="text-xs text-muted-foreground">{isBensonActive ? "On" : "Off"}</span>
+              </div>
               {isAnyConfigured ? (
                 <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="h-3 w-3" />
@@ -1406,7 +1443,8 @@ export default function AdminKeys() {
 
   // NightsBridge-specific card with API Key and Agent Code
   const renderNightsbridgeCard = () => {
-    const isConfigured = nightsbridgeCredentials?.api_key && nightsbridgeCredentials?.agent_code;
+    // NightsBridge is configured if agent_code exists (API key is optional until 50 properties)
+    const isConfigured = !!nightsbridgeCredentials?.agent_code;
 
     return (
       <AccordionItem value="nightsbridge" className={`border rounded-lg px-4 ${!nightsbridgeCredentials?.is_active ? "opacity-60" : ""}`}>
@@ -1415,18 +1453,18 @@ export default function AdminKeys() {
             <div className="flex items-center gap-3">
               <BedDouble className="h-5 w-5 text-primary" />
               <span className="font-semibold">NightsBridge</span>
+              <Badge variant="outline" className="text-xs">API Key</Badge>
             </div>
             <div className="flex items-center gap-2">
-              {isConfigured && (
-                <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
-                  <Switch
-                    checked={nightsbridgeCredentials?.is_active ?? false}
-                    onCheckedChange={handleToggleNightsbridge}
-                    disabled={togglingNightsbridge || !isConfigured}
-                  />
-                  <span className="text-xs text-muted-foreground">{nightsbridgeCredentials?.is_active ? "On" : "Off"}</span>
-                </div>
-              )}
+              <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
+                <Switch
+                  checked={nightsbridgeCredentials?.is_active ?? false}
+                  onCheckedChange={handleToggleNightsbridge}
+                  disabled={togglingNightsbridge || !isConfigured}
+                  className={!isConfigured ? "opacity-50" : ""}
+                />
+                <span className="text-xs text-muted-foreground">{nightsbridgeCredentials?.is_active ? "On" : "Off"}</span>
+              </div>
               {isConfigured ? (
                 <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="h-3 w-3" />
@@ -1604,6 +1642,15 @@ export default function AdminKeys() {
               <Badge variant="outline" className="text-xs">Token / OAuth2</Badge>
             </div>
             <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
+                <Switch
+                  checked={checkfrontCredentials?.is_active ?? false}
+                  onCheckedChange={handleToggleCheckfront}
+                  disabled={togglingCheckfront || !isConfigured}
+                  className={!isConfigured ? "opacity-50" : ""}
+                />
+                <span className="text-xs text-muted-foreground">{checkfrontCredentials?.is_active ? "On" : "Off"}</span>
+              </div>
               {isConfigured ? (
                 <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="h-3 w-3" />
@@ -1621,19 +1668,7 @@ export default function AdminKeys() {
         <AccordionContent className="px-4 pt-4">
           <Card>
             <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardDescription>Online booking software with dual authentication support</CardDescription>
-                {isConfigured && (
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={checkfrontCredentials?.is_active ?? false}
-                      onCheckedChange={handleToggleCheckfront}
-                      disabled={togglingCheckfront || !isConfigured}
-                    />
-                    <span className="text-xs text-muted-foreground">{checkfrontCredentials?.is_active ? "On" : "Off"}</span>
-                  </div>
-                )}
-              </div>
+              <CardDescription>Online booking software with dual authentication support</CardDescription>
             </CardHeader>
             <CardContent>
               {editingCheckfront ? (
