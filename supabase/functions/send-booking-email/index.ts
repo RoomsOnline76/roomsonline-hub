@@ -364,9 +364,10 @@ Deno.serve(async (req) => {
       ? generateSuccessEmail(booking, property)
       : generateFailureEmail(booking, property, error_message);
 
+    const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
     const subject = status === 'success'
-      ? `Booking Confirmed - ${property.name}`
-      : `Booking Issue - ${property.name}`;
+      ? `Booking Confirmed #${bookingRef} - ${property.name}`
+      : `Booking Issue #${bookingRef} - ${property.name}`;
 
     console.log(`Sending email to ${booking.guest_email} from ${fromEmail}`);
 
