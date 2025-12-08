@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
@@ -788,146 +789,136 @@ export default function AdminKeys() {
 
   const renderResendCard = () => {
     return (
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3">
-              <div className="mt-1">
-                <Mail className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  Resend Email Service
-                  <Badge variant="outline" className="ml-2">
-                    Email Delivery
-                  </Badge>
-                </CardTitle>
-                <CardDescription className="mt-1">
-                  Configure email sender and recipient addresses for notifications
-                </CardDescription>
-              </div>
+      <AccordionItem value="resend" className="border rounded-lg px-4">
+        <AccordionTrigger className="hover:no-underline">
+          <div className="flex items-center justify-between w-full pr-4">
+            <div className="flex items-center gap-3">
+              <Mail className="h-5 w-5 text-primary" />
+              <span className="font-semibold">Resend Email Service</span>
             </div>
-            <div>
-              {isResendConfigured ? (
-                <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Configured
-                </Badge>
-              ) : (
-                <Badge variant="destructive" className="flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" />
-                  Not Configured
-                </Badge>
-              )}
-            </div>
+            {isResendConfigured ? (
+              <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
+                <CheckCircle2 className="h-3 w-3" />
+                Configured
+              </Badge>
+            ) : (
+              <Badge variant="destructive" className="flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                Not Configured
+              </Badge>
+            )}
           </div>
-        </CardHeader>
-        <CardContent>
-          {editingResend ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="resend-from">From Email (Admin)</Label>
-                  <Input
-                    id="resend-from"
-                    type="email"
-                    value={resendFromEmail}
-                    onChange={(e) => setResendFromEmail(e.target.value)}
-                    placeholder="noreply@yourdomain.com"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Use onboarding@resend.dev for testing or verify your domain
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="resend-to">Admin Notification Email</Label>
-                  <Input
-                    id="resend-to"
-                    type="email"
-                    value={resendToEmail}
-                    onChange={(e) => setResendToEmail(e.target.value)}
-                    placeholder="admin@yourdomain.com"
-                  />
-                  <p className="text-xs text-muted-foreground">Where access request notifications will be sent</p>
-                </div>
-              </div>
-
-
-              <div className="flex gap-2">
-                <Button onClick={handleSaveResendConfig} disabled={savingResend}>
-                  {savingResend ? "Saving..." : "Save"}
-                </Button>
-                <Button variant="outline" onClick={() => setEditingResend(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <Label className="text-muted-foreground">From Email</Label>
-                  <p className="font-medium truncate">{resendFromEmail || "Not set"}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Admin Email</Label>
-                  <p className="font-medium truncate">{resendToEmail || "Not set"}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">API Key</Label>
-                  <p className={`font-medium ${isResendConfigured ? "text-green-600" : ""}`}>
-                    {isResendConfigured ? "Configured" : "Not set"}
-                  </p>
-                </div>
-              </div>
-
-              {editingKey === resendApiKey?.id ? (
-                <div className="space-y-3 mt-4 pt-4 border-t">
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="pt-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              Configure email sender and recipient addresses for notifications
+            </p>
+            {editingResend ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="resend-api-key">API Key Value</Label>
+                    <Label htmlFor="resend-from">From Email (Admin)</Label>
                     <Input
-                      id="resend-api-key"
-                      type="password"
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      placeholder="Enter Resend API key"
+                      id="resend-from"
+                      type="email"
+                      value={resendFromEmail}
+                      onChange={(e) => setResendFromEmail(e.target.value)}
+                      placeholder="noreply@yourdomain.com"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Use onboarding@resend.dev for testing or verify your domain
+                    </p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button onClick={() => handleUpdateKey(resendApiKey.id)}>Save</Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setEditingKey(null);
-                        setEditValue("");
-                      }}
-                    >
-                      Cancel
-                    </Button>
+                  <div className="space-y-2">
+                    <Label htmlFor="resend-to">Admin Notification Email</Label>
+                    <Input
+                      id="resend-to"
+                      type="email"
+                      value={resendToEmail}
+                      onChange={(e) => setResendToEmail(e.target.value)}
+                      placeholder="admin@yourdomain.com"
+                    />
+                    <p className="text-xs text-muted-foreground">Where access request notifications will be sent</p>
                   </div>
                 </div>
-              ) : (
+
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setEditingResend(true)}>
-                    {resendFromEmail || resendToEmail ? "Update Email Settings" : "Configure Emails"}
+                  <Button onClick={handleSaveResendConfig} disabled={savingResend}>
+                    {savingResend ? "Saving..." : "Save"}
                   </Button>
-                  {resendApiKey && (
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setEditingKey(resendApiKey.id);
-                        setEditValue(resendApiKey.key_value || "");
-                      }}
-                    >
-                      {isResendConfigured ? "Update API Key" : "Configure API Key"}
-                    </Button>
-                  )}
+                  <Button variant="outline" onClick={() => setEditingResend(false)}>
+                    Cancel
+                  </Button>
                 </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <Label className="text-muted-foreground">From Email</Label>
+                    <p className="font-medium truncate">{resendFromEmail || "Not set"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Admin Email</Label>
+                    <p className="font-medium truncate">{resendToEmail || "Not set"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">API Key</Label>
+                    <p className={`font-medium ${isResendConfigured ? "text-green-600" : ""}`}>
+                      {isResendConfigured ? "Configured" : "Not set"}
+                    </p>
+                  </div>
+                </div>
+
+                {editingKey === resendApiKey?.id ? (
+                  <div className="space-y-3 mt-4 pt-4 border-t">
+                    <div className="space-y-2">
+                      <Label htmlFor="resend-api-key">API Key Value</Label>
+                      <Input
+                        id="resend-api-key"
+                        type="password"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        placeholder="Enter Resend API key"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={() => handleUpdateKey(resendApiKey.id)}>Save</Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setEditingKey(null);
+                          setEditValue("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setEditingResend(true)}>
+                      {resendFromEmail || resendToEmail ? "Update Email Settings" : "Configure Emails"}
+                    </Button>
+                    {resendApiKey && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setEditingKey(resendApiKey.id);
+                          setEditValue(resendApiKey.key_value || "");
+                        }}
+                      >
+                        {isResendConfigured ? "Update API Key" : "Configure API Key"}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
     );
   };
 
@@ -935,82 +926,73 @@ export default function AdminKeys() {
     const isConfigured = !!tripadvisorApiKey && !isPlaceholder(tripadvisorApiKey);
 
     return (
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3">
-              <div className="mt-1">
-                <Star className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  TripAdvisor
-                  <Badge variant="outline" className="ml-2">
-                    Reviews & Ratings
-                  </Badge>
-                </CardTitle>
-                <CardDescription className="mt-1">
-                  Display TripAdvisor reviews and ratings on property pages
-                </CardDescription>
-              </div>
+      <AccordionItem value="tripadvisor" className="border rounded-lg px-4">
+        <AccordionTrigger className="hover:no-underline">
+          <div className="flex items-center justify-between w-full pr-4">
+            <div className="flex items-center gap-3">
+              <Star className="h-5 w-5 text-primary" />
+              <span className="font-semibold">TripAdvisor</span>
             </div>
-            <div>
-              {isConfigured ? (
-                <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Configured
-                </Badge>
-              ) : (
-                <Badge variant="destructive" className="flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" />
-                  Not Configured
-                </Badge>
-              )}
-            </div>
+            {isConfigured ? (
+              <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
+                <CheckCircle2 className="h-3 w-3" />
+                Configured
+              </Badge>
+            ) : (
+              <Badge variant="destructive" className="flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                Not Configured
+              </Badge>
+            )}
           </div>
-        </CardHeader>
-        <CardContent>
-          {editingTripadvisor ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="tripadvisor-api-key">API Key</Label>
-                <Input
-                  id="tripadvisor-api-key"
-                  type="password"
-                  value={tripadvisorApiKey}
-                  onChange={(e) => setTripadvisorApiKey(e.target.value)}
-                  placeholder="Enter TripAdvisor API key"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Get your API key from TripAdvisor Content API
-                </p>
-              </div>
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="pt-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              Display TripAdvisor reviews and ratings on property pages
+            </p>
+            {editingTripadvisor ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tripadvisor-api-key">API Key</Label>
+                  <Input
+                    id="tripadvisor-api-key"
+                    type="password"
+                    value={tripadvisorApiKey}
+                    onChange={(e) => setTripadvisorApiKey(e.target.value)}
+                    placeholder="Enter TripAdvisor API key"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Get your API key from TripAdvisor Content API
+                  </p>
+                </div>
 
-              <div className="flex gap-2">
-                <Button onClick={handleSaveTripadvisorConfig} disabled={savingTripadvisor}>
-                  {savingTripadvisor ? "Saving..." : "Save"}
-                </Button>
-                <Button variant="outline" onClick={() => setEditingTripadvisor(false)}>
-                  Cancel
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveTripadvisorConfig} disabled={savingTripadvisor}>
+                    {savingTripadvisor ? "Saving..." : "Save"}
+                  </Button>
+                  <Button variant="outline" onClick={() => setEditingTripadvisor(false)}>
+                    Cancel
+                  </Button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="text-sm">
-                <Label className="text-muted-foreground">API Key</Label>
-                <p className={`font-medium ${isConfigured ? "text-green-600" : ""}`}>
-                  {isConfigured ? "Configured" : "Not set"}
-                </p>
-              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="text-sm">
+                  <Label className="text-muted-foreground">API Key</Label>
+                  <p className={`font-medium ${isConfigured ? "text-green-600" : ""}`}>
+                    {isConfigured ? "Configured" : "Not set"}
+                  </p>
+                </div>
 
-              <Button variant="outline" onClick={() => setEditingTripadvisor(true)}>
-                {isConfigured ? "Update API Key" : "Configure"}
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <Button variant="outline" onClick={() => setEditingTripadvisor(true)}>
+                  {isConfigured ? "Update API Key" : "Configure"}
+                </Button>
+              </div>
+            )}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
     );
   };
 
@@ -1020,112 +1002,103 @@ export default function AdminKeys() {
     const IconComponent = getPMSIcon(apiKey.system_type);
 
     return (
-      <Card key={apiKey.id}>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3">
-              <div className="mt-1">
-                <IconComponent className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  {apiKey.name}
-                  {apiKey.is_required && (
-                    <Badge variant="outline" className="ml-2">
-                      Required
-                    </Badge>
-                  )}
-                </CardTitle>
-                <CardDescription className="mt-1">{apiKey.description}</CardDescription>
-              </div>
+      <AccordionItem key={apiKey.id} value={apiKey.id} className="border rounded-lg px-4">
+        <AccordionTrigger className="hover:no-underline">
+          <div className="flex items-center justify-between w-full pr-4">
+            <div className="flex items-center gap-3">
+              <IconComponent className="h-5 w-5 text-primary" />
+              <span className="font-semibold">{apiKey.name}</span>
             </div>
-            <div>
-              {isPlaceholderValue ? (
-                <Badge variant="destructive" className="flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" />
-                  Not Configured
-                </Badge>
-              ) : (
-                <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Configured
-                </Badge>
-              )}
-            </div>
+            {isPlaceholderValue ? (
+              <Badge variant="destructive" className="flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                Not Configured
+              </Badge>
+            ) : (
+              <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
+                <CheckCircle2 className="h-3 w-3" />
+                Configured
+              </Badge>
+            )}
           </div>
-        </CardHeader>
-        <CardContent>
-          {isEditing ? (
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor={`key-${apiKey.id}`}>API Key Value</Label>
-                <Input
-                  id={`key-${apiKey.id}`}
-                  type="password"
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  placeholder="Enter API key"
-                />
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="pt-4">
+            {apiKey.description && (
+              <p className="text-sm text-muted-foreground mb-4">{apiKey.description}</p>
+            )}
+            {isEditing ? (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor={`key-${apiKey.id}`}>API Key Value</Label>
+                  <Input
+                    id={`key-${apiKey.id}`}
+                    type="password"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    placeholder="Enter API key"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={() => handleUpdateKey(apiKey.id)}>Save</Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingKey(null);
+                      setEditValue("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button onClick={() => handleUpdateKey(apiKey.id)}>Save</Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setEditingKey(null);
-                    setEditValue("");
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="font-mono text-sm text-muted-foreground">
-                  {isPlaceholderValue ? (
-                    <span className="italic">No key configured - using placeholder</span>
-                  ) : (
-                    <span>••••••••••••••••</span>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="font-mono text-sm text-muted-foreground">
+                    {isPlaceholderValue ? (
+                      <span className="italic">No key configured - using placeholder</span>
+                    ) : (
+                      <span>••••••••••••••••</span>
+                    )}
+                  </div>
+                </div>
+
+                {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
+                  <ApiMilestones systemType={apiKey.system_type} className="pt-4 border-t" />
+                )}
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingKey(apiKey.id);
+                      setEditValue(apiKey.key_value || "");
+                    }}
+                  >
+                    {isPlaceholderValue ? "Configure" : "Update"}
+                  </Button>
+                  {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
+                    <Button
+                      variant="default"
+                      onClick={() =>
+                        toast({
+                          title: "Coming Soon",
+                          description: `${apiKey.name} field mappings configuration is under development`,
+                        })
+                      }
+                      disabled={isPlaceholderValue}
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      Field Mappings
+                    </Button>
                   )}
                 </div>
               </div>
-
-              {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
-                <ApiMilestones systemType={apiKey.system_type} className="pt-4 border-t" />
-              )}
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setEditingKey(apiKey.id);
-                    setEditValue(apiKey.key_value || "");
-                  }}
-                >
-                  {isPlaceholderValue ? "Configure" : "Update"}
-                </Button>
-                {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
-                  <Button
-                    variant="default"
-                    onClick={() =>
-                      toast({
-                        title: "Coming Soon",
-                        description: `${apiKey.name} field mappings configuration is under development`,
-                      })
-                    }
-                    disabled={isPlaceholderValue}
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
-                    Field Mappings
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
     );
   };
 
@@ -1278,28 +1251,16 @@ export default function AdminKeys() {
     const isBensonActive = bensonStagingCredentials?.is_active || bensonProductionCredentials?.is_active;
 
     return (
-      <Card className={!isBensonActive ? "opacity-60" : ""}>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3">
-              <div className="mt-1">
-                <Briefcase className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  Benson PMS
-                  <Badge variant="outline" className="ml-2">
-                    HTTP Basic Auth
-                  </Badge>
-                </CardTitle>
-                <CardDescription className="mt-1">
-                  Property Management System integration using username/password authentication
-                </CardDescription>
-              </div>
-            </div>
+      <AccordionItem value="benson" className={`border rounded-lg px-4 ${!isBensonActive ? "opacity-60" : ""}`}>
+        <AccordionTrigger className="hover:no-underline">
+          <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
+              <Briefcase className="h-5 w-5 text-primary" />
+              <span className="font-semibold">Benson PMS</span>
+            </div>
+            <div className="flex items-center gap-2">
               {isAnyConfigured && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={isBensonActive}
                     onCheckedChange={handleToggleBenson}
@@ -1312,10 +1273,10 @@ export default function AdminKeys() {
                 <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="h-3 w-3" />
                   {isStagingConfigured && isProductionConfigured
-                    ? "Both Configured"
+                    ? "Both"
                     : isStagingConfigured
-                      ? "Staging Only"
-                      : "Production Only"}
+                      ? "Staging"
+                      : "Production"}
                 </Badge>
               ) : (
                 <Badge variant="destructive" className="flex items-center gap-1">
@@ -1325,115 +1286,121 @@ export default function AdminKeys() {
               )}
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Active Environment Toggle */}
-          <div className="flex items-center justify-between p-4 rounded-lg border bg-primary/5 border-primary/20">
-            <div className="space-y-1">
-              <Label className="text-sm font-medium">Active Environment</Label>
-              <p className="text-xs text-muted-foreground">API calls will use {bensonActiveEnvironment} credentials</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span
-                className={`text-sm ${bensonActiveEnvironment === "staging" ? "font-semibold text-primary" : "text-muted-foreground"}`}
-              >
-                Staging
-              </span>
-              <Switch
-                checked={bensonActiveEnvironment === "production"}
-                onCheckedChange={(checked) => handleSaveBensonActiveEnvironment(checked ? "production" : "staging")}
-                disabled={savingBensonActiveEnv}
-              />
-              <span
-                className={`text-sm ${bensonActiveEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}
-              >
-                Production
-              </span>
-            </div>
-          </div>
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="pt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Property Management System integration using username/password authentication
+            </p>
 
-          {renderEnvironmentSection(
-            "staging",
-            bensonStagingCredentials,
-            !!isStagingConfigured,
-            editingBensonStaging,
-            setEditingBensonStaging,
-            savingBensonStaging,
-            handleSaveBensonStagingCredentials,
-            bensonStagingUsername,
-            setBensonStagingUsername,
-            bensonStagingPassword,
-            setBensonStagingPassword,
-            bensonStagingPropertyCode,
-            setBensonStagingPropertyCode,
-            bensonStagingPropertyName,
-            setBensonStagingPropertyName,
-            bensonStagingUrl,
-            setBensonStagingUrl,
-          )}
-
-          {renderEnvironmentSection(
-            "production",
-            bensonProductionCredentials,
-            !!isProductionConfigured,
-            editingBensonProduction,
-            setEditingBensonProduction,
-            savingBensonProduction,
-            handleSaveBensonProductionCredentials,
-            bensonProductionUsername,
-            setBensonProductionUsername,
-            bensonProductionPassword,
-            setBensonProductionPassword,
-            bensonProductionPropertyCode,
-            setBensonProductionPropertyCode,
-            bensonProductionPropertyName,
-            setBensonProductionPropertyName,
-            bensonProductionUrl,
-            setBensonProductionUrl,
-          )}
-
-          {/* Refresh Interval Setting */}
-          <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
-            <div className="space-y-1">
-              <Label className="text-sm font-medium">Data Refresh Interval</Label>
-              <p className="text-xs text-muted-foreground">Auto-refresh API data when older than this (minutes)</p>
+            {/* Active Environment Toggle */}
+            <div className="flex items-center justify-between p-4 rounded-lg border bg-primary/5 border-primary/20">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">Active Environment</Label>
+                <p className="text-xs text-muted-foreground">API calls will use {bensonActiveEnvironment} credentials</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`text-sm ${bensonActiveEnvironment === "staging" ? "font-semibold text-primary" : "text-muted-foreground"}`}
+                >
+                  Staging
+                </span>
+                <Switch
+                  checked={bensonActiveEnvironment === "production"}
+                  onCheckedChange={(checked) => handleSaveBensonActiveEnvironment(checked ? "production" : "staging")}
+                  disabled={savingBensonActiveEnv}
+                />
+                <span
+                  className={`text-sm ${bensonActiveEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}
+                >
+                  Production
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min={1}
-                max={1440}
-                value={bensonRefreshInterval}
-                onChange={(e) => setBensonRefreshInterval(parseInt(e.target.value) || 60)}
-                className="w-20 text-center"
-              />
+
+            {renderEnvironmentSection(
+              "staging",
+              bensonStagingCredentials,
+              !!isStagingConfigured,
+              editingBensonStaging,
+              setEditingBensonStaging,
+              savingBensonStaging,
+              handleSaveBensonStagingCredentials,
+              bensonStagingUsername,
+              setBensonStagingUsername,
+              bensonStagingPassword,
+              setBensonStagingPassword,
+              bensonStagingPropertyCode,
+              setBensonStagingPropertyCode,
+              bensonStagingPropertyName,
+              setBensonStagingPropertyName,
+              bensonStagingUrl,
+              setBensonStagingUrl,
+            )}
+
+            {renderEnvironmentSection(
+              "production",
+              bensonProductionCredentials,
+              !!isProductionConfigured,
+              editingBensonProduction,
+              setEditingBensonProduction,
+              savingBensonProduction,
+              handleSaveBensonProductionCredentials,
+              bensonProductionUsername,
+              setBensonProductionUsername,
+              bensonProductionPassword,
+              setBensonProductionPassword,
+              bensonProductionPropertyCode,
+              setBensonProductionPropertyCode,
+              bensonProductionPropertyName,
+              setBensonProductionPropertyName,
+              bensonProductionUrl,
+              setBensonProductionUrl,
+            )}
+
+            {/* Refresh Interval Setting */}
+            <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">Data Refresh Interval</Label>
+                <p className="text-xs text-muted-foreground">Auto-refresh API data when older than this (minutes)</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={1440}
+                  value={bensonRefreshInterval}
+                  onChange={(e) => setBensonRefreshInterval(parseInt(e.target.value) || 60)}
+                  className="w-20 text-center"
+                />
+                <Button
+                  size="sm"
+                  onClick={() => handleSaveRefreshInterval("benson", bensonRefreshInterval)}
+                  disabled={savingRefreshInterval === "benson" || !isAnyConfigured}
+                >
+                  {savingRefreshInterval === "benson" ? "..." : "Save"}
+                </Button>
+              </div>
+            </div>
+
+            <ApiMilestones systemType="benson" className="pt-4 border-t" />
+
+            <div className="flex gap-2 pt-2">
+              <Button variant="default" onClick={() => navigate("/admin/benson-config")} disabled={!isAnyConfigured}>
+                <Settings className="h-4 w-4 mr-2" />
+                Field Mappings
+              </Button>
               <Button
-                size="sm"
-                onClick={() => handleSaveRefreshInterval("benson", bensonRefreshInterval)}
-                disabled={savingRefreshInterval === "benson" || !isAnyConfigured}
+                variant="outline"
+                onClick={() => navigate("/admin/test-booking-benson")}
+                disabled={!isAnyConfigured}
               >
-                {savingRefreshInterval === "benson" ? "..." : "Save"}
+                Test Booking
               </Button>
             </div>
           </div>
-
-          <ApiMilestones systemType="benson" className="pt-4 border-t" />
-
-          <div className="flex gap-2 pt-2">
-            <Button variant="default" onClick={() => navigate("/admin/benson-config")} disabled={!isAnyConfigured}>
-              <Settings className="h-4 w-4 mr-2" />
-              Field Mappings
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => navigate("/admin/test-booking-benson")}
-              disabled={!isAnyConfigured}
-            >
-              Test Booking
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        </AccordionContent>
+      </AccordionItem>
     );
   };
 
@@ -1442,31 +1409,16 @@ export default function AdminKeys() {
     const isConfigured = nightsbridgeCredentials?.api_key && nightsbridgeCredentials?.agent_code;
 
     return (
-      <Card className={!nightsbridgeCredentials?.is_active ? "opacity-60" : ""}>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3">
-              <div className="mt-1">
-                <BedDouble className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  NightsBridge
-                  <Badge variant="outline" className="ml-2">
-                    API Key + Agent Code
-                  </Badge>
-                </CardTitle>
-                <CardDescription className="mt-1">
-                  Property Management System integration for South African properties
-                </CardDescription>
-                <div className="mt-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded-md inline-block">
-                  ⚠️ No API access until 50 properties - booking via URL redirect only using AGENT CODE
-                </div>
-              </div>
-            </div>
+      <AccordionItem value="nightsbridge" className={`border rounded-lg px-4 ${!nightsbridgeCredentials?.is_active ? "opacity-60" : ""}`}>
+        <AccordionTrigger className="hover:no-underline">
+          <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
+              <BedDouble className="h-5 w-5 text-primary" />
+              <span className="font-semibold">NightsBridge</span>
+            </div>
+            <div className="flex items-center gap-2">
               {isConfigured && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={nightsbridgeCredentials?.is_active ?? false}
                     onCheckedChange={handleToggleNightsbridge}
@@ -1488,142 +1440,151 @@ export default function AdminKeys() {
               )}
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          {editingNightsbridge ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="nightsbridge-apikey">API Key</Label>
-                  <Input
-                    id="nightsbridge-apikey"
-                    type="password"
-                    value={nightsbridgeApiKey}
-                    onChange={(e) => setNightsbridgeApiKey(e.target.value)}
-                    placeholder={nightsbridgeCredentials?.api_key ? "••••••••" : "Enter API key"}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="nightsbridge-agentcode">Agent Code</Label>
-                  <Input
-                    id="nightsbridge-agentcode"
-                    value={nightsbridgeAgentCode}
-                    onChange={(e) => setNightsbridgeAgentCode(e.target.value)}
-                    placeholder={nightsbridgeCredentials?.agent_code ? "••••••••" : "Enter agent code"}
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <Label className="text-sm">Environment:</Label>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-sm ${nightsbridgeEnvironment === "staging" ? "font-medium" : "text-muted-foreground"}`}
-                  >
-                    Staging
-                  </span>
-                  <Switch
-                    checked={nightsbridgeEnvironment === "production"}
-                    onCheckedChange={(checked) => setNightsbridgeEnvironment(checked ? "production" : "staging")}
-                  />
-                  <span
-                    className={`text-sm ${nightsbridgeEnvironment === "production" ? "font-medium" : "text-muted-foreground"}`}
-                  >
-                    Production
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button onClick={handleSaveNightsbridgeCredentials} disabled={savingNightsbridge}>
-                  {savingNightsbridge ? "Saving..." : "Save"}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setEditingNightsbridge(false);
-                    setNightsbridgeApiKey("");
-                    setNightsbridgeAgentCode("");
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="pt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Property Management System integration for South African properties
+            </p>
+            <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded-md inline-block">
+              ⚠️ No API access until 50 properties - booking via URL redirect only using AGENT CODE
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <Label className="text-muted-foreground">API Key</Label>
-                  <p className={`font-medium ${nightsbridgeCredentials?.api_key ? "text-green-600" : ""}`}>
-                    {nightsbridgeCredentials?.api_key ? "Configured" : "Not set"}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Agent Code</Label>
-                  <p className={`font-medium ${nightsbridgeCredentials?.agent_code ? "text-green-600" : ""}`}>
-                    {nightsbridgeCredentials?.agent_code ? "Configured" : "Not set"}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Environment</Label>
-                  <p className="font-medium capitalize">{nightsbridgeCredentials?.environment || "Staging"}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Status</Label>
-                  <p className="font-medium">{nightsbridgeCredentials?.is_active ? "Active" : "Inactive"}</p>
-                </div>
-              </div>
 
-              {/* Refresh Interval Setting */}
-              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
-                <div className="space-y-1">
-                  <Label className="text-sm font-medium">Data Refresh Interval</Label>
-                  <p className="text-xs text-muted-foreground">Auto-refresh API data when older than this (minutes)</p>
+            {editingNightsbridge ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="nightsbridge-apikey">API Key</Label>
+                    <Input
+                      id="nightsbridge-apikey"
+                      type="password"
+                      value={nightsbridgeApiKey}
+                      onChange={(e) => setNightsbridgeApiKey(e.target.value)}
+                      placeholder={nightsbridgeCredentials?.api_key ? "••••••••" : "Enter API key"}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nightsbridge-agentcode">Agent Code</Label>
+                    <Input
+                      id="nightsbridge-agentcode"
+                      value={nightsbridgeAgentCode}
+                      onChange={(e) => setNightsbridgeAgentCode(e.target.value)}
+                      placeholder={nightsbridgeCredentials?.agent_code ? "••••••••" : "Enter agent code"}
+                    />
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min={1}
-                    max={1440}
-                    value={nightsbridgeRefreshInterval}
-                    onChange={(e) => setNightsbridgeRefreshInterval(parseInt(e.target.value) || 60)}
-                    className="w-20 text-center"
-                  />
+
+                <div className="flex items-center gap-4">
+                  <Label className="text-sm">Environment:</Label>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-sm ${nightsbridgeEnvironment === "staging" ? "font-medium" : "text-muted-foreground"}`}
+                    >
+                      Staging
+                    </span>
+                    <Switch
+                      checked={nightsbridgeEnvironment === "production"}
+                      onCheckedChange={(checked) => setNightsbridgeEnvironment(checked ? "production" : "staging")}
+                    />
+                    <span
+                      className={`text-sm ${nightsbridgeEnvironment === "production" ? "font-medium" : "text-muted-foreground"}`}
+                    >
+                      Production
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveNightsbridgeCredentials} disabled={savingNightsbridge}>
+                    {savingNightsbridge ? "Saving..." : "Save"}
+                  </Button>
                   <Button
-                    size="sm"
-                    onClick={() => handleSaveRefreshInterval("nightsbridge", nightsbridgeRefreshInterval)}
-                    disabled={savingRefreshInterval === "nightsbridge" || !isConfigured}
+                    variant="outline"
+                    onClick={() => {
+                      setEditingNightsbridge(false);
+                      setNightsbridgeApiKey("");
+                      setNightsbridgeAgentCode("");
+                    }}
                   >
-                    {savingRefreshInterval === "nightsbridge" ? "..." : "Save"}
+                    Cancel
                   </Button>
                 </div>
               </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <Label className="text-muted-foreground">API Key</Label>
+                    <p className={`font-medium ${nightsbridgeCredentials?.api_key ? "text-green-600" : ""}`}>
+                      {nightsbridgeCredentials?.api_key ? "Configured" : "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Agent Code</Label>
+                    <p className={`font-medium ${nightsbridgeCredentials?.agent_code ? "text-green-600" : ""}`}>
+                      {nightsbridgeCredentials?.agent_code ? "Configured" : "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Environment</Label>
+                    <p className="font-medium capitalize">{nightsbridgeCredentials?.environment || "Staging"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Status</Label>
+                    <p className="font-medium">{nightsbridgeCredentials?.is_active ? "Active" : "Inactive"}</p>
+                  </div>
+                </div>
 
-              <ApiMilestones systemType="nightsbridge" className="pt-4 border-t" />
+                {/* Refresh Interval Setting */}
+                <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium">Data Refresh Interval</Label>
+                    <p className="text-xs text-muted-foreground">Auto-refresh API data when older than this (minutes)</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={1440}
+                      value={nightsbridgeRefreshInterval}
+                      onChange={(e) => setNightsbridgeRefreshInterval(parseInt(e.target.value) || 60)}
+                      className="w-20 text-center"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => handleSaveRefreshInterval("nightsbridge", nightsbridgeRefreshInterval)}
+                      disabled={savingRefreshInterval === "nightsbridge" || !isConfigured}
+                    >
+                      {savingRefreshInterval === "nightsbridge" ? "..." : "Save"}
+                    </Button>
+                  </div>
+                </div>
 
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setEditingNightsbridge(true)}>
-                  {isConfigured ? "Update Credentials" : "Configure"}
-                </Button>
-                <Button
-                  variant="default"
-                  onClick={() =>
-                    toast({
-                      title: "Coming Soon",
-                      description: "NightsBridge field mappings configuration is under development",
-                    })
-                  }
-                  disabled={!isConfigured}
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Field Mappings
-                </Button>
+                <ApiMilestones systemType="nightsbridge" className="pt-4 border-t" />
+
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setEditingNightsbridge(true)}>
+                    {isConfigured ? "Update Credentials" : "Configure"}
+                  </Button>
+                  <Button
+                    variant="default"
+                    onClick={() =>
+                      toast({
+                        title: "Coming Soon",
+                        description: "NightsBridge field mappings configuration is under development",
+                      })
+                    }
+                    disabled={!isConfigured}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Field Mappings
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
     );
   };
 
@@ -1943,25 +1904,18 @@ export default function AdminKeys() {
           {/* PMS Systems Section */}
           <div className="mb-8">
             <h2 className="text-xl font-semibold mb-4">Property Management Systems</h2>
-            <div className="space-y-4">
-              {/* Benson Card - Special handling */}
+            <Accordion type="multiple" className="space-y-4">
               {renderBensonCard()}
-
-              {/* NightsBridge Card - Special handling */}
               {renderNightsbridgeCard()}
-
-              {/* Checkfront Card - Special handling */}
               {renderCheckfrontCard()}
-
-              {/* Other PMS Keys */}
               {pmsKeys.map(renderKeyCard)}
-            </div>
+            </Accordion>
           </div>
 
           {/* Additional Services Section */}
           <div>
             <h2 className="text-xl font-semibold mb-4">Additional Services</h2>
-            <div className="space-y-4">
+            <Accordion type="multiple" className="space-y-4">
               {renderResendCard()}
               {renderTripadvisorCard()}
               {additionalKeys
@@ -1972,7 +1926,7 @@ export default function AdminKeys() {
                   k.key_name !== "HOME_ICON_OPEN_NEW_TAB"
                 )
                 .map(renderKeyCard)}
-            </div>
+            </Accordion>
           </div>
         </div>
       </div>
