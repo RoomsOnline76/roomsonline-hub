@@ -32,6 +32,7 @@ import {
   ExternalLink
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 
 interface PmsRate {
   date: string;
@@ -128,6 +129,8 @@ export default function RoomShowcase() {
   const [nightsBridgeAgentCode, setNightsBridgeAgentCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showLeavingModal, setShowLeavingModal] = useState(false);
+  const [externalBookingUrl, setExternalBookingUrl] = useState("");
 
   // Helper to create slug from room name
   const slugifyRoomName = (name: string) => {
@@ -252,12 +255,13 @@ export default function RoomShowcase() {
   };
 
   const handleCheckAvailability = () => {
-    // For NightsBridge properties, redirect to NightsBridge booking
+    // For NightsBridge properties, show modal then redirect to NightsBridge booking
     if (isNightsBridgeProperty) {
       const bbid = getNightsBridgeBBID();
       if (bbid && nightsBridgeAgentCode) {
         const bookingUrl = getNightsBridgeBookingUrl(bbid, nightsBridgeAgentCode);
-        window.open(bookingUrl, '_blank');
+        setExternalBookingUrl(bookingUrl);
+        setShowLeavingModal(true);
         return;
       }
     }
@@ -808,6 +812,14 @@ export default function RoomShowcase() {
           </section>
         )}
       </div>
+
+      {/* Leaving RoomsOnline Modal for NightsBridge */}
+      <LeavingRoomsOnlineModal
+        open={showLeavingModal}
+        onOpenChange={setShowLeavingModal}
+        externalUrl={externalBookingUrl}
+        propertyName={property.name}
+      />
     </div>
   );
 }
