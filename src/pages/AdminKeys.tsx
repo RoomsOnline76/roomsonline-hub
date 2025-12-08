@@ -763,15 +763,14 @@ export default function AdminKeys() {
   const completedCount = apiKeys.filter((k) => k.is_required && !isPlaceholder(k.key_value)).length;
 
   // Group API keys: PMS systems vs Additional Services (Google Maps, SendGrid, Resend, etc.)
-  const additionalServiceTypes = ["google", "sendgrid", "resend"];
+  const additionalServiceTypes = ["google", "sendgrid", "resend", "tripadvisor", "global"];
+  // Only show Semper and SiteMinder in the generic PMS cards (Benson, NightsBridge, Checkfront have custom cards)
+  const allowedPmsTypes = ["semper", "siteminder"];
   const pmsKeys = apiKeys
     .filter(
       (k) =>
         k.system_type &&
-        !additionalServiceTypes.includes(k.system_type) &&
-        k.system_type !== "benson" &&
-        k.system_type !== "nightsbridge" &&
-        k.system_type !== "checkfront",
+        allowedPmsTypes.includes(k.system_type),
     )
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
