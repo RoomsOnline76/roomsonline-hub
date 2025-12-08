@@ -985,6 +985,32 @@ export default function AdminKeys() {
                   </p>
                 </div>
 
+                {/* Domain URL for TripAdvisor API restriction */}
+                <div className="p-3 rounded-lg border bg-muted/50 space-y-2">
+                  <Label className="text-sm font-medium">Domain URL (for API restrictions)</Label>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 px-3 py-2 bg-background rounded border text-sm font-mono">
+                      qmprswbgkpzcvexmmcbf.supabase.co
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText("qmprswbgkpzcvexmmcbf.supabase.co");
+                        toast({
+                          title: "Copied",
+                          description: "Domain URL copied to clipboard",
+                        });
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Add this domain to your TripAdvisor API key allowed domains
+                  </p>
+                </div>
+
                 <Button variant="outline" onClick={() => setEditingTripadvisor(true)}>
                   {isConfigured ? "Update API Key" : "Configure"}
                 </Button>
