@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getPropertyUrl, getNightsBridgeBookingUrl } from "@/lib/config";
+import { formatBedConfiguration, hasBedConfiguration } from "@/lib/bedConfig";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -49,7 +50,7 @@ interface RoomType {
   url?: string;
   description?: string;
   numRooms?: number;
-  bedConfiguration?: string;
+  bedConfiguration?: string | { type: string; count: number }[];
   roomSize?: number;
   bathrooms?: number;
   maxPeople?: number;
@@ -110,14 +111,7 @@ const facilityIcons: Record<string, any> = {
   view: Mountain,
 };
 
-const bedConfigLabels: Record<string, string> = {
-  "king-twin": "King / Twin Configuration",
-  king: "King Size Bed",
-  twin: "Twin Beds",
-  queen: "Queen Size Bed",
-  double: "Double Bed",
-  single: "Single Bed",
-};
+// Bed config labels are now handled by the bedConfig utility
 
 export default function RoomShowcase() {
   const navigate = useNavigate();
@@ -471,10 +465,10 @@ export default function RoomShowcase() {
                 <span>{room.bathrooms} bath</span>
               </div>
             )}
-            {room.bedConfiguration && (
+            {hasBedConfiguration(room.bedConfiguration) && (
               <Badge variant="secondary" className="capitalize text-[10px] sm:text-xs">
                 <Bed className="h-3 w-3 mr-1" />
-                {bedConfigLabels[room.bedConfiguration] || room.bedConfiguration}
+                {formatBedConfiguration(room.bedConfiguration)}
               </Badge>
             )}
           </div>
@@ -536,9 +530,7 @@ export default function RoomShowcase() {
                       <h3 className="font-semibold">Bed Configuration</h3>
                     </div>
                     <p className="text-muted-foreground">
-                      {room.bedConfiguration 
-                        ? bedConfigLabels[room.bedConfiguration] || room.bedConfiguration
-                        : 'Not specified'}
+                      {formatBedConfiguration(room.bedConfiguration)}
                     </p>
                   </CardContent>
                 </Card>
@@ -696,11 +688,11 @@ export default function RoomShowcase() {
 
                 {/* Room Quick Facts */}
                 <div className="grid grid-cols-2 gap-3 mb-4">
-                  {room.bedConfiguration && (
+                  {hasBedConfiguration(room.bedConfiguration) && (
                     <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
                       <Bed className="h-4 w-4 text-primary shrink-0" />
                       <span className="text-xs font-medium truncate">
-                        {bedConfigLabels[room.bedConfiguration] || room.bedConfiguration}
+                        {formatBedConfiguration(room.bedConfiguration)}
                       </span>
                     </div>
                   )}

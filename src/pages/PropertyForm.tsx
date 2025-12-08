@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { getRoomUrl } from "@/lib/config";
+import { parseBedConfiguration, BED_TYPES, BedEntry } from "@/lib/bedConfig";
 import {
   Home,
   Building2,
@@ -767,7 +768,7 @@ export default function PropertyForm() {
       pmsRoomId: "",
       description: "",
       extraPersonPolicy: "",
-      bedConfiguration: "king-twin",
+      bedConfiguration: [] as BedEntry[],
       roomSize: 0,
       bathrooms: 1,
       maxPeople: 2,
@@ -797,7 +798,7 @@ export default function PropertyForm() {
       pmsRoomId: "",
       description: "",
       extraPersonPolicy: "",
-      bedConfiguration: "king-twin",
+      bedConfiguration: [] as BedEntry[],
       roomSize: 0,
       bathrooms: 1,
       maxPeople: 2,
@@ -5942,26 +5943,98 @@ export default function PropertyForm() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label>Bed Configuration</Label>
-                          <Select
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.bedConfiguration || "king-twin"}
-                            onValueChange={(value) => updateRoomTypeField(selectedRoomType, "bedConfiguration", value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="king-twin">King/Twin</SelectItem>
-                              <SelectItem value="king">King</SelectItem>
-                              <SelectItem value="twin">Twin</SelectItem>
-                              <SelectItem value="queen">Queen</SelectItem>
-                              <SelectItem value="double">Double</SelectItem>
-                              <SelectItem value="single">Single</SelectItem>
-                            </SelectContent>
-                          </Select>
+                      {/* Bed Configuration Section */}
+                      <div className="space-y-3">
+                        <Label>Bed Configuration</Label>
+                        <div className="border rounded-lg p-4 space-y-3">
+                          {(() => {
+                            const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
+                            const bedConfig = parseBedConfiguration(currentRoom?.bedConfiguration);
+                            
+                            return (
+                              <>
+                                {bedConfig.map((bed, index) => (
+                                  <div key={index} className="flex items-center gap-3">
+                                    <Select
+                                      value={bed.type}
+                                      onValueChange={(value) => {
+                                        const newConfig = [...bedConfig];
+                                        newConfig[index] = { ...bed, type: value };
+                                        updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
+                                      }}
+                                    >
+                                      <SelectTrigger className="w-[160px]">
+                                        <SelectValue placeholder="Select bed type" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {BED_TYPES.map((bt) => (
+                                          <SelectItem key={bt.value} value={bt.value}>{bt.label}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() => {
+                                          const newConfig = [...bedConfig];
+                                          newConfig[index] = { ...bed, count: Math.max(1, bed.count - 1) };
+                                          updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
+                                        }}
+                                        disabled={bed.count <= 1}
+                                      >
+                                        <Minus className="h-4 w-4" />
+                                      </Button>
+                                      <span className="w-8 text-center font-medium">{bed.count}</span>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() => {
+                                          const newConfig = [...bedConfig];
+                                          newConfig[index] = { ...bed, count: bed.count + 1 };
+                                          updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
+                                        }}
+                                      >
+                                        <Plus className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-destructive hover:text-destructive"
+                                      onClick={() => {
+                                        const newConfig = bedConfig.filter((_, i) => i !== index);
+                                        updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
+                                      }}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                ))}
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newConfig = [...bedConfig, { type: "king", count: 1 }];
+                                    updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
+                                  }}
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Add Bed
+                                </Button>
+                              </>
+                            );
+                          })()}
                         </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label>Room Size (m²)*</Label>
                           <Input
