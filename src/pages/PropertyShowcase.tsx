@@ -499,7 +499,7 @@ export default function PropertyShowcase() {
                 </button>
                 
                 {/* Image Indicators */}
-                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex gap-2">
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
                   {property.images.map((_, idx) => (
                     <button
                       key={idx}
