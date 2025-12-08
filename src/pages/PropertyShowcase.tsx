@@ -349,6 +349,9 @@ export default function PropertyShowcase() {
   // Check if this is a NightsBridge property
   const isNightsBridgeProperty = property?.external_system === "nightsbridge";
   
+  // Check if this is a Benson property (supports direct booking)
+  const isBensonProperty = property?.external_system?.toLowerCase() === "benson";
+  
   // Get NightsBridge BBID from property
   const getNightsBridgeBBID = (): string | null => {
     if (!property) return null;
@@ -358,8 +361,9 @@ export default function PropertyShowcase() {
     return property.amenities?.external_ids?.nightsbridge_bb_id || null;
   };
 
-  // Handle booking - redirect to NightsBridge for NB properties, or go to checkout if rooms added
+  // Handle booking - redirect to NightsBridge for NB properties, Benson flow for Benson, contact for others
   const handleBookProperty = () => {
+    // NightsBridge: redirect to external booking
     if (isNightsBridgeProperty) {
       const bbid = getNightsBridgeBBID();
       if (bbid && nightsBridgeAgentCode) {
@@ -369,14 +373,20 @@ export default function PropertyShowcase() {
       }
     }
     
-    // If rooms already added, go to booking page
-    if (bookedRooms.length > 0) {
-      const propertySlug = property?.slug || property?.id;
-      navigate(`/booking/${propertySlug}`);
+    // Benson properties: use internal booking flow
+    if (isBensonProperty) {
+      // If rooms already added, go to booking page
+      if (bookedRooms.length > 0) {
+        const propertySlug = property?.slug || property?.id;
+        navigate(`/booking/${propertySlug}`);
+        return;
+      }
+      // Default: scroll to rooms section to select a room
+      scrollToRooms();
       return;
     }
     
-    // Default: scroll to rooms section
+    // Non-PMS properties: scroll to rooms section (contact for booking)
     scrollToRooms();
   };
 
@@ -652,14 +662,19 @@ export default function PropertyShowcase() {
                           Book Now
                           <ExternalLink className="ml-2 h-4 w-4" />
                         </>
-                      ) : bookedRooms.length > 0 ? (
+                      ) : isBensonProperty && bookedRooms.length > 0 ? (
                         <>
                           <Check className="mr-2 h-4 w-4" />
                           Check Out Now
                         </>
-                      ) : (
+                      ) : isBensonProperty ? (
                         <>
                           View Available Rooms
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </>
+                      ) : (
+                        <>
+                          View Rooms
                           <ArrowRight className="ml-2 h-4 w-4" />
                         </>
                       )}

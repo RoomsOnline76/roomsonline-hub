@@ -239,6 +239,9 @@ export default function RoomShowcase() {
   // Check if this is a NightsBridge property
   const isNightsBridgeProperty = property?.external_system === "nightsbridge";
   
+  // Check if this is a Benson property (supports direct booking)
+  const isBensonProperty = property?.external_system?.toLowerCase() === "benson";
+  
   // Get NightsBridge BBID from property
   const getNightsBridgeBBID = (): string | null => {
     if (!property) return null;
@@ -258,13 +261,19 @@ export default function RoomShowcase() {
         return;
       }
     }
-    // Default: navigate to availability calendar with search params
-    if (property && room) {
+    
+    // For Benson properties: navigate to availability calendar
+    if (isBensonProperty && property && room) {
       const roomSlugName = slugifyRoomName(room.name);
-      // Preserve search params (checkIn, checkOut, guests) if they exist
       const params = new URLSearchParams(window.location.search);
       const queryString = params.toString();
       navigate(`/property/${property.slug || property.id}/room/${roomSlugName}/availability${queryString ? `?${queryString}` : ''}`);
+      return;
+    }
+    
+    // For non-PMS properties: just go back to property page
+    if (property) {
+      navigate(`/property/${property.slug || property.id}`);
     }
   };
 
@@ -735,10 +744,15 @@ export default function RoomShowcase() {
                       <ExternalLink className="mr-2 h-4 w-4" />
                       Book Now
                     </>
-                  ) : (
+                  ) : isBensonProperty ? (
                     <>
                       <Calendar className="mr-2 h-4 w-4" />
                       Check Availability
+                    </>
+                  ) : (
+                    <>
+                      <ArrowLeft className="mr-2 h-4 w-4" />
+                      View Property
                     </>
                   )}
                 </Button>

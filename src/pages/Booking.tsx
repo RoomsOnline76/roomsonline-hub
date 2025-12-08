@@ -652,6 +652,34 @@ const Booking = () => {
     );
   }
 
+  // Check if this is a Benson property - the booking flow is specific to Benson PMS
+  const isBensonProperty = property.external_system?.toLowerCase() === 'benson';
+  
+  // For non-Benson properties, show a message and redirect to property page
+  if (!isBensonProperty) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="container mx-auto px-4 py-16 text-center">
+          <AlertCircle className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+          <h1 className="text-2xl font-bold mb-4">Online Booking Not Available</h1>
+          <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+            Online booking is not currently available for this property. 
+            Please contact the property directly for reservations.
+          </p>
+          <div className="flex gap-4 justify-center">
+            <Button asChild variant="outline">
+              <Link to={`/property/${property.slug || property.id}`}>View Property</Link>
+            </Button>
+            <Button asChild>
+              <Link to="/">Return to Home</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Success state
   if (bookingSuccess) {
     return (
