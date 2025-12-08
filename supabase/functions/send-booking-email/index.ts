@@ -64,7 +64,7 @@ function generateSuccessEmail(booking: any, property: any): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Booking Confirmation</title>
+  <title>Reservation Confirmation</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5;">
   <table role="presentation" style="width: 100%; border-collapse: collapse;">
@@ -76,16 +76,16 @@ function generateSuccessEmail(booking: any, property: any): string {
           <tr>
             <td style="padding: 40px 40px 20px; text-align: center; background-color: #ffffff; border-radius: 8px 8px 0 0;">
               <div style="font-size: 32px; color: #22c55e; margin-bottom: 10px;">✓</div>
-              <h1 style="margin: 0; font-size: 24px; color: #333; font-weight: 600;">Booking Confirmed!</h1>
+              <h1 style="margin: 0; font-size: 24px; color: #333; font-weight: 600;">Reservation Confirmed!</h1>
               <p style="margin: 10px 0 0; color: #666; font-size: 14px;">Thank you for your reservation</p>
             </td>
           </tr>
 
-          <!-- Booking Reference -->
+          <!-- Reservation Reference -->
           <tr>
             <td style="padding: 0 40px;">
               <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 20px;">
-                <p style="margin: 0 0 5px; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Booking Reference</p>
+                <p style="margin: 0 0 5px; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Reservation Reference</p>
                 <p style="margin: 0; color: #333; font-size: 20px; font-weight: 600; font-family: monospace;">${booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase()}</p>
               </div>
             </td>
@@ -159,7 +159,7 @@ function generateSuccessEmail(booking: any, property: any): string {
 
           <!-- Total -->
           <tr>
-            <td style="padding: 0 40px 30px;">
+            <td style="padding: 0 40px 20px;">
               <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px;">
                 <table role="presentation" style="width: 100%; border-collapse: collapse;">
                   <tr>
@@ -167,6 +167,17 @@ function generateSuccessEmail(booking: any, property: any): string {
                     <td style="color: #e91e8c; font-size: 24px; font-weight: 700; text-align: right;">${formatCurrency(booking.total_price)}</td>
                   </tr>
                 </table>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Payment Notice -->
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px;">
+                <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.5;">
+                  <strong>Payment Note:</strong> This reservation has not yet been paid. An invoice with deposit and settlement amounts will be issued by the property in due course.
+                </p>
               </div>
             </td>
           </tr>
@@ -364,8 +375,8 @@ Deno.serve(async (req) => {
 
     const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
     const subject = status === 'success'
-      ? `Booking Confirmed #${bookingRef} - ${property.name}`
-      : `Booking Issue #${bookingRef} - ${property.name}`;
+      ? `Reservation Confirmed #${bookingRef} - ${property.name}`
+      : `Reservation Issue #${bookingRef} - ${property.name}`;
 
     console.log(`Sending email to ${booking.guest_email} from ${fromEmail}`);
 
