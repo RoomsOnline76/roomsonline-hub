@@ -278,7 +278,9 @@ export default function PropertyForm() {
     siteminder_id?: string | null;
     checkfront_id?: string | null;
     benson_id?: string | null;
+    tripadvisor_id?: string | null;
   }>({});
+  const [tripadvisorId, setTripadvisorId] = useState<string>("");
   const [existingBensonPropertyCode, setExistingBensonPropertyCode] = useState<string | null>(null);
 
   // Sync room/rate types from PMS (Benson)
@@ -1651,6 +1653,11 @@ export default function PropertyForm() {
           // Store existing external IDs to preserve when PMS changes
           setExistingExternalIds(amenities?.external_ids || {});
           setExistingBensonPropertyCode(data.benson_property_code || null);
+          
+          // Load TripAdvisor ID
+          if (amenities?.external_ids?.tripadvisor_id) {
+            setTripadvisorId(amenities.external_ids.tripadvisor_id);
+          }
 
           // Set property slug for room URLs
           if (data.slug) {
@@ -2005,6 +2012,7 @@ export default function PropertyForm() {
             siteminder_id: selectedPMS === "siteminder" ? formData.bb_id : existingExternalIds.siteminder_id,
             checkfront_id: selectedPMS === "checkfront" ? formData.bb_id : existingExternalIds.checkfront_id,
             benson_id: selectedPMS === "benson" ? formData.bb_id : existingExternalIds.benson_id,
+            tripadvisor_id: tripadvisorId || existingExternalIds.tripadvisor_id,
           },
           room_types: roomTypes,
           meal_types: selectedMealTypes,
@@ -2394,6 +2402,20 @@ export default function PropertyForm() {
                           Last synced: {lastPmsSync.toLocaleString()}
                         </span>
                       )}
+
+                      {/* TripAdvisor ID - always visible */}
+                      <div className="space-y-2 min-w-[150px]">
+                        <Label htmlFor="tripadvisor_id">TripAdvisor ID</Label>
+                        <Input
+                          id="tripadvisor_id"
+                          value={tripadvisorId}
+                          onChange={(e) => {
+                            setTripadvisorId(e.target.value);
+                            setIsDirty(true);
+                          }}
+                          placeholder="e.g. 123456"
+                        />
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
