@@ -369,12 +369,23 @@ export default function PropertyShowcase() {
     // NightsBridge: show leaving modal before redirect
     if (isNightsBridgeProperty) {
       const bbid = getNightsBridgeBBID();
+      console.log('NightsBridge booking check:', { bbid, nightsBridgeAgentCode, externalId: property?.external_id });
+      
       if (bbid && nightsBridgeAgentCode) {
         const bookingUrl = getNightsBridgeBookingUrl(bbid, nightsBridgeAgentCode);
         setExternalBookingUrl(bookingUrl);
         setShowLeavingModal(true);
         return;
       }
+      
+      // NightsBridge property but missing configuration - log warning
+      if (!bbid) {
+        console.warn('NightsBridge property missing BBID (external_id):', property?.name);
+      }
+      if (!nightsBridgeAgentCode) {
+        console.warn('NightsBridge agent code not configured');
+      }
+      // Fall through to scroll to rooms as fallback
     }
     
     // Benson properties: use internal booking flow
