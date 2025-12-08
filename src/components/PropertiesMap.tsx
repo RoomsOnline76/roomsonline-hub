@@ -25,6 +25,7 @@ interface Property {
   country: string;
   price_per_night: number;
   property_type: string;
+  images: string[] | null;
 }
 
 interface PropertiesMapProps {
@@ -49,12 +50,17 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
     const fetchProperties = async () => {
       const { data, error } = await supabase
         .from("public_properties")
-        .select("id, name, slug, latitude, longitude, city, country, price_per_night, property_type")
+        .select("id, name, slug, latitude, longitude, city, country, price_per_night, property_type, images")
         .not("latitude", "is", null)
         .not("longitude", "is", null);
 
       if (!error && data) {
-        setProperties(data);
+        // Parse images if needed
+        const parsedData = data.map(p => ({
+          ...p,
+          images: Array.isArray(p.images) ? (p.images as string[]) : null
+        }));
+        setProperties(parsedData);
       }
     };
 
@@ -252,9 +258,15 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
         }
       });
 
+      const mainImage = property.images?.[0];
+      const imageHtml = mainImage 
+        ? `<img src="${mainImage}" alt="${property.name}" style="width: 100%; height: 100px; object-fit: cover; border-radius: 6px; margin-bottom: 8px;" />`
+        : '';
+
       const infoWindow = new window.google.maps.InfoWindow({
         content: `
-          <div style="padding: 8px; max-width: 200px;">
+          <div style="padding: 8px; max-width: 220px;">
+            ${imageHtml}
             <h3 style="font-weight: 600; margin-bottom: 4px; color: #111;">${property.name}</h3>
             <p style="font-size: 12px; color: #666; margin-bottom: 8px;">${property.city}, ${property.country}</p>
             <a href="${getPropertyUrl(property.slug || property.id)}" 
