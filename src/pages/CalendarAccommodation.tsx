@@ -1403,34 +1403,34 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
               </Button>
 
               <div className="ml-auto flex gap-2">
-                <Button variant="default">Save</Button>
+                <Button variant="default" disabled className="opacity-50 cursor-not-allowed">Save</Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="default" className="gap-2">
+                    <Button variant="default" disabled className="gap-2 opacity-50 cursor-not-allowed">
                       Rules/Bulk Updates
                       <ChevronDown className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48 bg-popover">
-                    <DropdownMenuItem onClick={() => setBulkRateOpen(true)}>
+                    <DropdownMenuItem onClick={() => setBulkRateOpen(true)} disabled>
                       Bulk Rate
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setBulkAvailabilityOpen(true)}>
+                    <DropdownMenuItem onClick={() => setBulkAvailabilityOpen(true)} disabled>
                       Bulk Availability
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setStopSellOpen(true)}>
+                    <DropdownMenuItem onClick={() => setStopSellOpen(true)} disabled>
                       Stop Sell
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setMinStayOpen(true)}>
+                    <DropdownMenuItem onClick={() => setMinStayOpen(true)} disabled>
                       Minimum Stay
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setMaxStayOpen(true)}>
+                    <DropdownMenuItem onClick={() => setMaxStayOpen(true)} disabled>
                       Maximum Stay
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setLeadDaysAdvanceOpen(true)}>
+                    <DropdownMenuItem onClick={() => setLeadDaysAdvanceOpen(true)} disabled>
                       Lead Days Advance
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setLeadDaysPostOpen(true)}>
+                    <DropdownMenuItem onClick={() => setLeadDaysPostOpen(true)} disabled>
                       Lead Days Post
                     </DropdownMenuItem>
                   </DropdownMenuContent>
