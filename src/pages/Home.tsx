@@ -2,7 +2,7 @@ import { useState } from "react";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { Button } from "@/components/ui/button";
-import { Shield, Zap, HeadphonesIcon, Bed, BadgeCheck, MapPinned, Lock } from "lucide-react";
+import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock } from "lucide-react";
 import heroImage from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
 
@@ -175,12 +175,7 @@ const Home = () => {
         <div className="container mx-auto px-3 sm:px-4">
           <div className="flex flex-col items-center gap-3 sm:gap-4">
             {/* Brand */}
-            <div className="flex items-center justify-center gap-2">
-              <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-md bg-[var(--hero-gradient)] flex items-center justify-center flex-shrink-0">
-                <Bed className="h-3 w-3 sm:h-4 sm:w-4 text-primary-foreground" />
-              </div>
-              <span className="text-sm sm:text-base font-semibold text-foreground">RoomsOnline</span>
-            </div>
+            <span className="text-sm sm:text-base font-semibold text-foreground">RoomsOnline</span>
 
             {/* Links */}
             <div className="flex gap-4 sm:gap-6">
