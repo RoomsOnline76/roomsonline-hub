@@ -3,7 +3,7 @@ import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Shield, Zap, HeadphonesIcon, Bed, BadgeCheck, MapPinned, Lock } from "lucide-react";
+import { Shield, Zap, HeadphonesIcon, Bed, BadgeCheck } from "lucide-react";
 import heroImage from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
 
@@ -152,51 +152,6 @@ const Home = () => {
                   <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed">{feature.description}</p>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Trust Section */}
-      <section className="py-6 sm:py-12 bg-background">
-        <div className="container mx-auto px-3 sm:px-4">
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            {[
-              {
-                icon: BadgeCheck,
-                title: "Hand-Picked Stays",
-                description: "Only verified properties — no surprises on arrival.",
-              },
-              {
-                icon: Zap,
-                title: "Lightning-Fast Support",
-                description: "Average reply time under 5 minutes.",
-              },
-              {
-                icon: Lock,
-                title: "Secure Bookings",
-                description: "Safe payments + instant confirmations.",
-              },
-              {
-                icon: MapPinned,
-                title: "Local Experts",
-                description: "We know the owners, the towns, the tips… all of it.",
-              },
-            ].map((item, index) => (
-              <div
-                key={index}
-                className="flex gap-2.5 sm:gap-3 p-3 sm:p-4 rounded-lg bg-secondary/30 border border-border/50"
-              >
-                <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <item.icon className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-semibold text-xs sm:text-sm text-foreground leading-tight mb-0.5">
-                    {item.title}
-                  </h3>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed">{item.description}</p>
-                </div>
-              </div>
             ))}
           </div>
         </div>
