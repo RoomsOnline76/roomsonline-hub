@@ -19,9 +19,7 @@ const PROPERTY_TYPES = [
 ];
 
 // Create color map for the map component
-const TYPE_COLORS: Record<string, string> = PROPERTY_TYPES.reduce(
-  (acc, t) => ({ ...acc, [t.key]: t.hex }), {}
-);
+const TYPE_COLORS: Record<string, string> = PROPERTY_TYPES.reduce((acc, t) => ({ ...acc, [t.key]: t.hex }), {});
 
 const INITIAL_ENABLED_TYPES: Record<string, boolean> = {
   hotel: true,
@@ -65,7 +63,6 @@ const Home = () => {
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
-
       {/* Hero Section - Compact for mobile */}
       <section className="relative flex-shrink-0">
         <div
@@ -85,7 +82,7 @@ const Home = () => {
               Book Your Perfect Stay
             </h1>
             <p className="text-sm sm:text-base md:text-lg text-muted-foreground max-w-md mx-auto px-2">
-              Discover destinations across Africa
+              Discover and Explore our curated premium destination portfolio
             </p>
           </div>
 
@@ -97,14 +94,10 @@ const Home = () => {
       <section className="py-6 sm:py-10 bg-background">
         <div className="container mx-auto px-3 sm:px-4">
           <div className="text-center mb-4 sm:mb-6">
-            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-1">
-              Explore Properties
-            </h2>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Tap a pin to view details
-            </p>
+            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-1">Explore Properties</h2>
+            <p className="text-xs sm:text-sm text-muted-foreground">Tap a pin to view details</p>
           </div>
-          
+
           {/* Property Type Toggles - Horizontal scroll on mobile */}
           <div className="overflow-x-auto pb-2 -mx-3 px-3 sm:mx-0 sm:px-0 sm:overflow-visible scrollbar-hide">
             <div className="flex sm:flex-wrap sm:justify-center gap-2 mb-3 sm:mb-5 min-w-max sm:min-w-0">
@@ -113,9 +106,7 @@ const Home = () => {
                   key={type.key}
                   onClick={() => toggleType(type.key)}
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border transition-all touch-manipulation active:scale-95 ${
-                    enabledTypes[type.key]
-                      ? "border-primary/30 bg-primary/5"
-                      : "border-border bg-background"
+                    enabledTypes[type.key] ? "border-primary/30 bg-primary/5" : "border-border bg-background"
                   }`}
                 >
                   <span
@@ -123,9 +114,11 @@ const Home = () => {
                       enabledTypes[type.key] ? type.color : "bg-muted-foreground/30"
                     }`}
                   />
-                  <span className={`text-xs font-medium whitespace-nowrap transition-colors ${
-                    enabledTypes[type.key] ? "text-foreground" : "text-muted-foreground"
-                  }`}>
+                  <span
+                    className={`text-xs font-medium whitespace-nowrap transition-colors ${
+                      enabledTypes[type.key] ? "text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
                     {type.label}
                   </span>
                 </button>
@@ -143,9 +136,7 @@ const Home = () => {
       <section className="py-6 sm:py-12 bg-secondary/30">
         <div className="container mx-auto px-3 sm:px-4">
           <div className="text-center mb-4 sm:mb-8">
-            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-1 sm:mb-2">
-              Why RoomsOnline
-            </h2>
+            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-1 sm:mb-2">Why RoomsOnline</h2>
           </div>
 
           <div className="grid grid-cols-2 gap-2 sm:gap-4">
@@ -158,9 +149,7 @@ const Home = () => {
                   <h3 className="font-semibold text-xs sm:text-sm md:text-base mb-0.5 sm:mb-1 text-foreground leading-tight">
                     {feature.title}
                   </h3>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed">
-                    {feature.description}
-                  </p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed">{feature.description}</p>
                 </CardContent>
               </Card>
             ))}
@@ -173,28 +162,31 @@ const Home = () => {
         <div className="container mx-auto px-3 sm:px-4">
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             {[
-              { 
-                icon: BadgeCheck, 
-                title: "Hand-Picked Stays", 
-                description: "Only verified properties — no surprises on arrival." 
+              {
+                icon: BadgeCheck,
+                title: "Hand-Picked Stays",
+                description: "Only verified properties — no surprises on arrival.",
               },
-              { 
-                icon: Zap, 
-                title: "Lightning-Fast Support", 
-                description: "Average reply time under 5 minutes." 
+              {
+                icon: Zap,
+                title: "Lightning-Fast Support",
+                description: "Average reply time under 5 minutes.",
               },
-              { 
-                icon: Lock, 
-                title: "Secure Bookings", 
-                description: "Safe payments + instant confirmations." 
+              {
+                icon: Lock,
+                title: "Secure Bookings",
+                description: "Safe payments + instant confirmations.",
               },
-              { 
-                icon: MapPinned, 
-                title: "Local Experts", 
-                description: "We know the owners, the towns, the tips… all of it." 
+              {
+                icon: MapPinned,
+                title: "Local Experts",
+                description: "We know the owners, the towns, the tips… all of it.",
               },
             ].map((item, index) => (
-              <div key={index} className="flex gap-2.5 sm:gap-3 p-3 sm:p-4 rounded-lg bg-secondary/30 border border-border/50">
+              <div
+                key={index}
+                className="flex gap-2.5 sm:gap-3 p-3 sm:p-4 rounded-lg bg-secondary/30 border border-border/50"
+              >
                 <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <item.icon className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                 </div>
@@ -202,9 +194,7 @@ const Home = () => {
                   <h3 className="font-semibold text-xs sm:text-sm text-foreground leading-tight mb-0.5">
                     {item.title}
                   </h3>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed">
-                    {item.description}
-                  </p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed">{item.description}</p>
                 </div>
               </div>
             ))}
@@ -223,23 +213,23 @@ const Home = () => {
               </div>
               <span className="text-sm sm:text-base font-semibold text-foreground">RoomsOnline</span>
             </div>
-            
+
             {/* Links */}
             <div className="flex gap-4 sm:gap-6">
-              <Link 
-                to="/privacy-policy" 
+              <Link
+                to="/privacy-policy"
                 className="text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors"
               >
                 Privacy
               </Link>
-              <Link 
-                to="/terms-of-service" 
+              <Link
+                to="/terms-of-service"
                 className="text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors"
               >
                 Terms
               </Link>
             </div>
-            
+
             {/* Copyright */}
             <p className="text-[10px] sm:text-xs text-muted-foreground text-center">
               © {new Date().getFullYear()} RoomsOnline
