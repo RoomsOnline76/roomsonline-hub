@@ -172,9 +172,12 @@ const Booking = () => {
   const amenities = property?.amenities as Record<string, any> | null;
   
   // Map cached data to expected format - normalize field names from either source
-  const roomTypes: RoomType[] = (amenities?.rooms?.length > 0 
-    ? amenities.rooms.map((r: any) => ({
-        id: r.id,
+  // Check both amenities.rooms and amenities.room_types (different sources use different keys)
+  const amenityRooms = amenities?.rooms || amenities?.room_types || [];
+  
+  const roomTypes: RoomType[] = (amenityRooms.length > 0 
+    ? amenityRooms.map((r: any) => ({
+        id: String(r.pmsRoomId || r.id), // Prefer pmsRoomId for matching
         name: r.name,
         maxGuests: r.maxGuests || r.maxPeople || r.max_guests,
         maxPeople: r.maxPeople || r.maxGuests || r.max_guests,
