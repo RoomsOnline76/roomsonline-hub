@@ -189,7 +189,6 @@ function generateSuccessEmail(booking: any, property: any): string {
                 RoomOnline on behalf of <strong>${property.name}</strong>
               </p>
               <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
-              <p style="margin: 15px 0 0; color: #e91e8c; font-size: 11px; letter-spacing: 2px; text-transform: uppercase;">Strategize. Optimize. Maximize</p>
             </td>
           </tr>
           
@@ -286,7 +285,6 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
                 RoomOnline on behalf of <strong>${property.name}</strong>
               </p>
               <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
-              <p style="margin: 15px 0 0; color: #e91e8c; font-size: 11px; letter-spacing: 2px; text-transform: uppercase;">Strategize. Optimize. Maximize</p>
             </td>
           </tr>
           
