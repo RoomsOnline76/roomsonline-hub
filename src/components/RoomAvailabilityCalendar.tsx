@@ -419,19 +419,26 @@ export default function RoomAvailabilityCalendar({
                       head_row: "flex",
                       head_cell: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem] flex-1 text-center",
                       row: "flex w-full mt-1",
-                      cell: "flex-1 text-center text-sm p-0 relative focus-within:relative focus-within:z-20",
+                      cell: cn(
+                        "flex-1 text-center text-sm p-0 relative focus-within:relative focus-within:z-20",
+                        "[&:has([aria-selected].day-range-end)]:rounded-r-md",
+                        "[&:has([aria-selected])]:bg-primary/40",
+                        "first:[&:has([aria-selected])]:rounded-l-md",
+                        "last:[&:has([aria-selected])]:rounded-r-md"
+                      ),
                       day: cn(
                         "h-9 w-9 p-0 font-normal mx-auto rounded-md transition-colors",
                         "hover:bg-primary hover:text-primary-foreground",
-                        "focus:bg-primary focus:text-primary-foreground"
+                        "focus:bg-primary focus:text-primary-foreground",
+                        "aria-selected:opacity-100"
                       ),
                       day_range_start: "day-range-start !bg-primary text-primary-foreground rounded-l-md rounded-r-none z-10",
                       day_range_end: "day-range-end !bg-primary text-primary-foreground rounded-r-md rounded-l-none z-10",
                       day_selected: "!bg-primary text-primary-foreground z-10",
                       day_today: "ring-2 ring-primary ring-offset-2",
-                      day_outside: "text-muted-foreground opacity-50",
+                      day_outside: "day-outside text-muted-foreground opacity-50 aria-selected:bg-primary/40 aria-selected:text-muted-foreground",
                       day_disabled: "text-muted-foreground opacity-50 cursor-not-allowed",
-                      day_range_middle: "!bg-primary/40 text-foreground rounded-none z-10",
+                      day_range_middle: "day-range-middle aria-selected:bg-primary/40 aria-selected:text-foreground rounded-none",
                       day_hidden: "invisible",
                     }}
                   />
