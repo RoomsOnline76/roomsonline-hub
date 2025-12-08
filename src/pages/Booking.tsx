@@ -633,7 +633,7 @@ const Booking = () => {
 
       if (error) throw error;
 
-      let externalRefId: string | null = null;
+      let externalRefIds: string[] = [];
 
       // Push to external system if configured (which also sends email)
       if (property?.external_system) {
@@ -641,11 +641,14 @@ const Booking = () => {
           const pushResponse = await supabase.functions.invoke('push-booking', {
             body: { booking_id: data.id },
           });
-          // Extract external reservation ID from push response
-          // Results is an array of { system, success, external_booking_id }
-          const bensonResult = pushResponse.data?.results?.find((r: any) => r.system === 'benson' && r.success);
-          if (bensonResult?.external_booking_id) {
-            externalRefId = String(bensonResult.external_booking_id);
+          // Extract all external reservation IDs from push response
+          // For multi-room bookings with different dates, there may be multiple reservation IDs
+          if (pushResponse.data?.external_reservation_ids && Array.isArray(pushResponse.data.external_reservation_ids)) {
+            externalRefIds = pushResponse.data.external_reservation_ids.map((id: any) => String(id));
+          } else {
+            // Fallback: check individual results
+            const successfulResults = pushResponse.data?.results?.filter((r: any) => r.success && r.external_booking_id) || [];
+            externalRefIds = successfulResults.map((r: any) => String(r.external_booking_id));
           }
         } catch (pushError) {
           console.error('Failed to push booking to external system:', pushError);
@@ -666,7 +669,9 @@ const Booking = () => {
         }
       }
 
-      return { ...data, externalReservationId: externalRefId };
+      // Return comma-separated IDs or null
+      const combinedExternalId = externalRefIds.length > 0 ? externalRefIds.join(', ') : null;
+      return { ...data, externalReservationId: combinedExternalId };
     },
     onSuccess: (data) => {
       setBookingId(data.id);
