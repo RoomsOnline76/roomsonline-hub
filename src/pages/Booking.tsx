@@ -627,8 +627,10 @@ const Booking = () => {
             body: { booking_id: data.id },
           });
           // Extract external reservation ID from push response
-          if (pushResponse.data?.results?.benson?.external_booking_id) {
-            externalRefId = pushResponse.data.results.benson.external_booking_id;
+          // Results is an array of { system, success, external_booking_id }
+          const bensonResult = pushResponse.data?.results?.find((r: any) => r.system === 'benson' && r.success);
+          if (bensonResult?.external_booking_id) {
+            externalRefId = String(bensonResult.external_booking_id);
           }
         } catch (pushError) {
           console.error('Failed to push booking to external system:', pushError);
