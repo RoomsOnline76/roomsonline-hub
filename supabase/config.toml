@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.send-booking-email]
 verify_jwt = true
+
+[functions.tripadvisor-api]
+verify_jwt = false

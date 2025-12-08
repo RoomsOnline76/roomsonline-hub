@@ -1,0 +1,92 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+const TRIPADVISOR_BASE_URL = 'https://api.content.tripadvisor.com/api/v1';
+
+interface TripAdvisorRequest {
+  action: 'get_location_details' | 'get_location_reviews';
+  locationId: string;
+  language?: string;
+  limit?: number;
+}
+
+serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const apiKey = Deno.env.get('TRIPADVISOR_API_KEY');
+    if (!apiKey) {
+      console.error('TRIPADVISOR_API_KEY not configured');
+      return new Response(
+        JSON.stringify({ error: 'TripAdvisor API key not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { action, locationId, language = 'en', limit = 5 }: TripAdvisorRequest = await req.json();
+    console.log(`TripAdvisor API request: action=${action}, locationId=${locationId}`);
+
+    if (!locationId) {
+      return new Response(
+        JSON.stringify({ error: 'locationId is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    let url: string;
+    
+    switch (action) {
+      case 'get_location_details':
+        url = `${TRIPADVISOR_BASE_URL}/location/${locationId}/details?key=${apiKey}&language=${language}`;
+        break;
+      case 'get_location_reviews':
+        url = `${TRIPADVISOR_BASE_URL}/location/${locationId}/reviews?key=${apiKey}&language=${language}&limit=${limit}`;
+        break;
+      default:
+        return new Response(
+          JSON.stringify({ error: 'Invalid action' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+    }
+
+    console.log(`Fetching from TripAdvisor: ${action}`);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`TripAdvisor API error: ${response.status} - ${errorText}`);
+      return new Response(
+        JSON.stringify({ error: `TripAdvisor API error: ${response.status}`, details: errorText }),
+        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const data = await response.json();
+    console.log(`TripAdvisor API success: ${action}`);
+    
+    return new Response(
+      JSON.stringify(data),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('TripAdvisor API function error:', error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
