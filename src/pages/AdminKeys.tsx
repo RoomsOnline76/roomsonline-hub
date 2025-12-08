@@ -23,6 +23,7 @@ import {
   Mail,
   LucideIcon,
   Settings,
+  Star,
 } from "lucide-react";
 
 // Map PMS system types to icons
@@ -43,6 +44,8 @@ const getPMSIcon = (systemType: string | null): LucideIcon => {
     case "sendgrid":
     case "resend":
       return Mail;
+    case "tripadvisor":
+      return Star;
     default:
       return Key;
   }
@@ -144,6 +147,12 @@ export default function AdminKeys() {
   const [editingResend, setEditingResend] = useState(false);
   const [savingResend, setSavingResend] = useState(false);
 
+  // TripAdvisor-specific state
+  const [tripadvisorApiKey, setTripadvisorApiKey] = useState("");
+  const [tripadvisorLocationId, setTripadvisorLocationId] = useState("");
+  const [editingTripadvisor, setEditingTripadvisor] = useState(false);
+  const [savingTripadvisor, setSavingTripadvisor] = useState(false);
+
   // Global settings state
   const [bookOpenNewTab, setBookOpenNewTab] = useState(true);
   const [savingBookOpenNewTab, setSavingBookOpenNewTab] = useState(false);
@@ -157,6 +166,7 @@ export default function AdminKeys() {
     fetchNightsbridgeCredentials();
     fetchCheckfrontCredentials();
     fetchResendConfig();
+    fetchTripadvisorConfig();
     fetchGlobalSettings();
   }, []);
 
@@ -172,6 +182,64 @@ export default function AdminKeys() {
       if (fromEmail?.key_value) setResendFromEmail(fromEmail.key_value);
       if (toEmail?.key_value) setResendToEmail(toEmail.key_value);
     }
+  };
+
+  const fetchTripadvisorConfig = async () => {
+    const { data } = await supabase
+      .from("api_keys")
+      .select("*")
+      .in("key_name", ["TRIPADVISOR_API_KEY", "TRIPADVISOR_LOCATION_ID"]);
+
+    if (data) {
+      const apiKey = data.find((k) => k.key_name === "TRIPADVISOR_API_KEY");
+      const locationId = data.find((k) => k.key_name === "TRIPADVISOR_LOCATION_ID");
+      if (apiKey?.key_value) setTripadvisorApiKey(apiKey.key_value);
+      if (locationId?.key_value) setTripadvisorLocationId(locationId.key_value);
+    }
+  };
+
+  const handleSaveTripadvisorConfig = async () => {
+    setSavingTripadvisor(true);
+
+    // Upsert API key
+    const { error: keyError } = await supabase.from("api_keys").upsert(
+      {
+        key_name: "TRIPADVISOR_API_KEY",
+        name: "TripAdvisor API Key",
+        key_value: tripadvisorApiKey,
+        system_type: "tripadvisor",
+        description: "API key for TripAdvisor Content API",
+      },
+      { onConflict: "key_name" },
+    );
+
+    // Upsert location ID
+    const { error: locationError } = await supabase.from("api_keys").upsert(
+      {
+        key_name: "TRIPADVISOR_LOCATION_ID",
+        name: "TripAdvisor Location ID",
+        key_value: tripadvisorLocationId,
+        system_type: "tripadvisor",
+        description: "Default location ID for TripAdvisor reviews",
+      },
+      { onConflict: "key_name" },
+    );
+
+    if (keyError || locationError) {
+      toast({
+        title: "Error saving TripAdvisor config",
+        description: keyError?.message || locationError?.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "TripAdvisor configuration saved",
+        description: "TripAdvisor settings have been updated",
+      });
+      setEditingTripadvisor(false);
+      fetchApiKeys();
+    }
+    setSavingTripadvisor(false);
   };
 
   const fetchGlobalSettings = async () => {
@@ -872,6 +940,111 @@ export default function AdminKeys() {
                   )}
                 </div>
               )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const renderTripadvisorCard = () => {
+    const isConfigured = !!tripadvisorApiKey && !isPlaceholder(tripadvisorApiKey);
+
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                <Star className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  TripAdvisor
+                  <Badge variant="outline" className="ml-2">
+                    Reviews & Ratings
+                  </Badge>
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Display TripAdvisor reviews and ratings on property pages
+                </CardDescription>
+              </div>
+            </div>
+            <div>
+              {isConfigured ? (
+                <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Configured
+                </Badge>
+              ) : (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Not Configured
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {editingTripadvisor ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tripadvisor-api-key">API Key</Label>
+                  <Input
+                    id="tripadvisor-api-key"
+                    type="password"
+                    value={tripadvisorApiKey}
+                    onChange={(e) => setTripadvisorApiKey(e.target.value)}
+                    placeholder="Enter TripAdvisor API key"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Get your API key from TripAdvisor Content API
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tripadvisor-location">Default Location ID</Label>
+                  <Input
+                    id="tripadvisor-location"
+                    value={tripadvisorLocationId}
+                    onChange={(e) => setTripadvisorLocationId(e.target.value)}
+                    placeholder="e.g., 123456"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Optional: Default location for review lookups
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={handleSaveTripadvisorConfig} disabled={savingTripadvisor}>
+                  {savingTripadvisor ? "Saving..." : "Save"}
+                </Button>
+                <Button variant="outline" onClick={() => setEditingTripadvisor(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <Label className="text-muted-foreground">API Key</Label>
+                  <p className={`font-medium ${isConfigured ? "text-green-600" : ""}`}>
+                    {isConfigured ? "Configured" : "Not set"}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Location ID</Label>
+                  <p className="font-medium">{tripadvisorLocationId || "Not set"}</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setEditingTripadvisor(true)}>
+                  {isConfigured ? "Update Configuration" : "Configure"}
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
@@ -1828,7 +2001,13 @@ export default function AdminKeys() {
             <h2 className="text-xl font-semibold mb-4">Additional Services</h2>
             <div className="space-y-4">
               {renderResendCard()}
-              {additionalKeys.filter((k) => k.key_name !== "RESEND_API_KEY").map(renderKeyCard)}
+              {renderTripadvisorCard()}
+              {additionalKeys
+                .filter((k) => 
+                  k.key_name !== "RESEND_API_KEY" && 
+                  !k.key_name.startsWith("TRIPADVISOR_")
+                )
+                .map(renderKeyCard)}
             </div>
           </div>
         </div>
