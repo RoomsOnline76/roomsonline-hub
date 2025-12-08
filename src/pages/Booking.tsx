@@ -721,6 +721,9 @@ const Booking = () => {
 
   // Success state
   if (bookingSuccess) {
+    // Check if there are per-room custom dates
+    const hasMultipleRoomDates = rooms.some(room => room.checkIn && room.checkOut && (room.checkIn !== checkIn || room.checkOut !== checkOut));
+    
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
@@ -735,9 +738,38 @@ const Booking = () => {
               </p>
               <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-left bg-muted/50 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
                 <p><strong>Reference:</strong> {externalReservationId || bookingId?.slice(0, 8).toUpperCase()}</p>
-                <p><strong>Check-in:</strong> {checkIn && format(parseISO(checkIn), "MMM d, yyyy")}</p>
-                <p><strong>Check-out:</strong> {checkOut && format(parseISO(checkOut), "MMM d, yyyy")}</p>
-                <p><strong>Guests:</strong> {totalGuests}</p>
+                
+                {/* Show per-room itinerary if rooms have different dates */}
+                {rooms.length > 0 && (hasMultipleRoomDates || rooms.length > 1) ? (
+                  <div className="space-y-2 mt-2">
+                    <p className="font-semibold">Itinerary:</p>
+                    {rooms.map((room, index) => {
+                      const roomCheckIn = room.checkIn || checkIn;
+                      const roomCheckOut = room.checkOut || checkOut;
+                      const roomGuests = room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants;
+                      return (
+                        <div key={index} className="pl-2 border-l-2 border-primary/30 ml-1">
+                          <p className="font-medium">Room {index + 1}: {room.roomTypeName}</p>
+                          <p className="text-muted-foreground">
+                            {roomCheckIn && format(parseISO(roomCheckIn), "MMM d, yyyy")} – {roomCheckOut && format(parseISO(roomCheckOut), "MMM d, yyyy")}
+                          </p>
+                          <p className="text-muted-foreground">
+                            {room.numberOfAdults} Adult{room.numberOfAdults !== 1 ? 's' : ''}
+                            {room.numberOfTeens > 0 && `, ${room.numberOfTeens} Teen${room.numberOfTeens !== 1 ? 's' : ''}`}
+                            {room.numberOfChildren > 0 && `, ${room.numberOfChildren} Child${room.numberOfChildren !== 1 ? 'ren' : ''}`}
+                            {room.numberOfInfants > 0 && `, ${room.numberOfInfants} Infant${room.numberOfInfants !== 1 ? 's' : ''}`}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <>
+                    <p><strong>Check-in:</strong> {checkIn && format(parseISO(checkIn), "MMM d, yyyy")}</p>
+                    <p><strong>Check-out:</strong> {checkOut && format(parseISO(checkOut), "MMM d, yyyy")}</p>
+                    <p><strong>Guests:</strong> {totalGuests}</p>
+                  </>
+                )}
               </div>
               <Button onClick={() => navigate("/")} size="sm" className="w-full sm:w-auto">
                 Return to Home

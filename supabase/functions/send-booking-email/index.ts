@@ -43,20 +43,62 @@ function generateSuccessEmail(booking: any, property: any): string {
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
   const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
   
-  // Build rooms summary if multi-room
-  let roomsSummary = '';
-  if (booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0) {
-    roomsSummary = booking.rooms.map((room: any, index: number) => `
-      <tr>
-        <td style="padding: 8px 0; border-bottom: 1px solid #eee;">
-          <strong>Room ${index + 1}:</strong> ${room.roomTypeName || 'Standard Room'}
-        </td>
-        <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right;">
-          ${room.numberOfAdults || 1} Adult${(room.numberOfAdults || 1) > 1 ? 's' : ''}${room.numberOfTeens ? `, ${room.numberOfTeens} Teen${room.numberOfTeens > 1 ? 's' : ''}` : ''}${room.numberOfChildren ? `, ${room.numberOfChildren} Child${room.numberOfChildren > 1 ? 'ren' : ''}` : ''}${room.numberOfInfants ? `, ${room.numberOfInfants} Infant${room.numberOfInfants > 1 ? 's' : ''}` : ''}
-        </td>
-      </tr>
-    `).join('');
+  // Build detailed rooms itinerary if multi-room with potential different dates
+  let roomsItinerary = '';
+  const hasRooms = booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0;
+  
+  if (hasRooms) {
+    roomsItinerary = booking.rooms.map((room: any, index: number) => {
+      const roomCheckIn = room.checkIn || booking.check_in_date;
+      const roomCheckOut = room.checkOut || booking.check_out_date;
+      const roomNights = calculateNights(roomCheckIn, roomCheckOut);
+      const guestSummary = [
+        `${room.numberOfAdults || 1} Adult${(room.numberOfAdults || 1) > 1 ? 's' : ''}`,
+        room.numberOfTeens ? `${room.numberOfTeens} Teen${room.numberOfTeens > 1 ? 's' : ''}` : '',
+        room.numberOfChildren ? `${room.numberOfChildren} Child${room.numberOfChildren > 1 ? 'ren' : ''}` : '',
+        room.numberOfInfants ? `${room.numberOfInfants} Infant${room.numberOfInfants > 1 ? 's' : ''}` : ''
+      ].filter(Boolean).join(', ');
+      
+      return `
+        <tr>
+          <td colspan="2" style="padding: 12px 0; border-bottom: 1px solid #eee;">
+            <div style="background-color: #f8f9fa; border-radius: 6px; padding: 12px; border-left: 3px solid #e91e8c;">
+              <p style="margin: 0 0 6px; font-weight: 600; color: #333;">Room ${index + 1}: ${room.roomTypeName || 'Standard Room'}</p>
+              <p style="margin: 0 0 4px; color: #666; font-size: 13px;">
+                <strong>Dates:</strong> ${formatDate(roomCheckIn)} – ${formatDate(roomCheckOut)} (${roomNights} night${roomNights > 1 ? 's' : ''})
+              </p>
+              <p style="margin: 0; color: #666; font-size: 13px;">
+                <strong>Guests:</strong> ${guestSummary}
+              </p>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
   }
+
+  // Simple stay section for single room without custom dates
+  const simpleStaySection = `
+    <tr>
+      <td style="padding: 8px 0; color: #666;">Check-in</td>
+      <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">${formatDate(booking.check_in_date)}</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px 0; color: #666;">Check-out</td>
+      <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">${formatDate(booking.check_out_date)}</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px 0; color: #666;">Duration</td>
+      <td style="padding: 8px 0; color: #333; text-align: right;">${nights} night${nights > 1 ? 's' : ''}</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px 0; color: #666;">Guests</td>
+      <td style="padding: 8px 0; color: #333; text-align: right;">${totalGuests} guest${totalGuests > 1 ? 's' : ''}</td>
+    </tr>
+  `;
+
+  // Choose between detailed itinerary or simple display
+  const stayContent = hasRooms && booking.rooms.length > 0 ? roomsItinerary : simpleStaySection;
 
   return `
 <!DOCTYPE html>
@@ -108,28 +150,12 @@ function generateSuccessEmail(booking: any, property: any): string {
             </td>
           </tr>
 
-          <!-- Stay Details -->
+          <!-- Stay Details / Itinerary -->
           <tr>
             <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">Stay Details</h2>
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">${hasRooms && booking.rooms.length > 1 ? 'Itinerary' : 'Stay Details'}</h2>
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
-                <tr>
-                  <td style="padding: 8px 0; color: #666;">Check-in</td>
-                  <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">${formatDate(booking.check_in_date)}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px 0; color: #666;">Check-out</td>
-                  <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">${formatDate(booking.check_out_date)}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px 0; color: #666;">Duration</td>
-                  <td style="padding: 8px 0; color: #333; text-align: right;">${nights} night${nights > 1 ? 's' : ''}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px 0; color: #666;">Guests</td>
-                  <td style="padding: 8px 0; color: #333; text-align: right;">${totalGuests} guest${totalGuests > 1 ? 's' : ''}</td>
-                </tr>
-                ${roomsSummary}
+                ${stayContent}
               </table>
             </td>
           </tr>
