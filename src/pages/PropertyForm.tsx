@@ -2405,7 +2405,19 @@ export default function PropertyForm() {
 
                       {/* TripAdvisor ID - always visible */}
                       <div className="space-y-2 min-w-[150px]">
-                        <Label htmlFor="tripadvisor_id">TripAdvisor ID</Label>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Label htmlFor="tripadvisor_id" className="cursor-help flex items-center gap-1">
+                                TripAdvisor ID
+                                <Info className="h-3 w-3 text-muted-foreground" />
+                              </Label>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Check the TripAdvisor URL of the property's listing (it's the number after "d/")</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         <Input
                           id="tripadvisor_id"
                           value={tripadvisorId}
