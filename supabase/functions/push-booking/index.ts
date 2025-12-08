@@ -22,6 +22,28 @@ function getBensonAuthHeader(username: string, password: string): string {
   return `Basic ${btoa(binary)}`;
 }
 
+// Helper to group rooms by date range
+function groupRoomsByDateRange(rooms: any[], defaultCheckIn: string, defaultCheckOut: string) {
+  const groups: Map<string, any[]> = new Map();
+  
+  for (const room of rooms) {
+    const checkIn = room.checkIn || defaultCheckIn;
+    const checkOut = room.checkOut || defaultCheckOut;
+    const key = `${checkIn}|${checkOut}`;
+    
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key)!.push({
+      ...room,
+      checkIn,
+      checkOut,
+    });
+  }
+  
+  return groups;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -80,7 +102,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    const results = [];
+    const results: any[] = [];
+    const externalReservationIds: string[] = [];
 
     // Push to Benson
     if (externalSystem === 'benson') {
@@ -126,7 +149,6 @@ Deno.serve(async (req) => {
         // Otherwise construct the full URL
         let apiBaseUrl: string;
         if (base_url) {
-          // Remove trailing slash if present
           apiBaseUrl = base_url.replace(/\/$/, '');
         } else {
           apiBaseUrl = activeEnv === 'production' 
@@ -134,100 +156,117 @@ Deno.serve(async (req) => {
             : 'https://staging-api.bensonsoftware.com/api/v3/integrations';
         }
 
-        // Check if any room has custom dates different from main booking dates
-        const hasAnyCustomDates = booking.rooms && Array.isArray(booking.rooms) && booking.rooms.some((room: any) => 
-          (room.checkIn && room.checkIn !== booking.check_in_date) || 
-          (room.checkOut && room.checkOut !== booking.check_out_date)
-        );
-
-        // Build rooms array from booking data with per-room dates
-        // When ANY room has custom dates, ALL rooms must include their dates explicitly
-        const rooms = booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0
-          ? booking.rooms.map((room: any) => {
-              const roomData: any = {
-                roomTypeId: parseInt(room.roomTypeId) || 0,
-                numberOfAdults: room.numberOfAdults || 1,
-                numberOfTeens: room.numberOfTeens || 0,
-                numberOfChildren: room.numberOfChildren || 0,
-                numberOfInfants: room.numberOfInfants || 0,
-              };
-              // If any room has custom dates, include dates for ALL rooms
-              if (hasAnyCustomDates) {
-                roomData.arrivalDate = room.checkIn || booking.check_in_date;
-                roomData.departureDate = room.checkOut || booking.check_out_date;
-              }
-              return roomData;
-            })
+        // Get rooms array or create single room from legacy fields
+        const bookingRooms = booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0
+          ? booking.rooms
           : [{
-              roomTypeId: parseInt(booking.room_type_id) || 0,
+              roomTypeId: booking.room_type_id,
               numberOfAdults: booking.adults || 1,
               numberOfTeens: booking.teens || 0,
               numberOfChildren: booking.children || 0,
               numberOfInfants: booking.infants || 0,
+              checkIn: booking.check_in_date,
+              checkOut: booking.check_out_date,
             }];
 
-        // Determine earliest arrival and latest departure from all rooms
-        let earliestArrival = booking.check_in_date;
-        let latestDeparture = booking.check_out_date;
+        // Group rooms by date range
+        const roomGroups = groupRoomsByDateRange(bookingRooms, booking.check_in_date, booking.check_out_date);
         
-        if (booking.rooms && Array.isArray(booking.rooms)) {
-          booking.rooms.forEach((room: any) => {
-            const roomCheckIn = room.checkIn || booking.check_in_date;
-            const roomCheckOut = room.checkOut || booking.check_out_date;
-            if (roomCheckIn < earliestArrival) earliestArrival = roomCheckIn;
-            if (roomCheckOut > latestDeparture) latestDeparture = roomCheckOut;
+        console.log(`Booking has ${roomGroups.size} date range group(s)`);
+
+        // If all rooms have same dates, single API call
+        // If different dates, separate API calls for each date range group
+        for (const [dateKey, groupRooms] of roomGroups) {
+          const [arrivalDate, departureDate] = dateKey.split('|');
+          
+          console.log(`Processing group: ${arrivalDate} to ${departureDate} with ${groupRooms.length} room(s)`);
+
+          // Build rooms array for this group (no per-room dates needed since they're all the same)
+          const rooms = groupRooms.map((room: any) => ({
+            roomTypeId: parseInt(room.roomTypeId) || 0,
+            numberOfAdults: room.numberOfAdults || 1,
+            numberOfTeens: room.numberOfTeens || 0,
+            numberOfChildren: room.numberOfChildren || 0,
+            numberOfInfants: room.numberOfInfants || 0,
+          }));
+
+          // Build Benson reservation payload
+          const reservationPayload = {
+            arrivalDate,
+            departureDate,
+            rateTypeId: parseInt(booking.rate_type_id) || 0,
+            contactName: booking.guest_name,
+            contactNumber: booking.guest_phone || '+0000000000',
+            contactEmail: booking.guest_email,
+            voucher: booking.voucher || '',
+            note: booking.special_requests || '',
+            rooms,
+          };
+
+          console.log('Benson reservation payload:', JSON.stringify(reservationPayload, null, 2));
+
+          const url = `${apiBaseUrl}/${propertyCode}/reservations`;
+          console.log('Posting to Benson URL:', url);
+
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Authorization': authHeader,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(reservationPayload),
+          });
+
+          const responseText = await response.text();
+          console.log('Benson response status:', response.status);
+          console.log('Benson response:', responseText);
+
+          if (!response.ok) {
+            throw new Error(`Benson API error: ${response.status} - ${responseText}`);
+          }
+
+          let result;
+          try {
+            result = JSON.parse(responseText);
+          } catch {
+            result = { raw: responseText };
+          }
+
+          const externalBookingId = result.id || result.reservationId || result.reservationNumber;
+          
+          if (externalBookingId) {
+            externalReservationIds.push(String(externalBookingId));
+          }
+
+          // Log success for this group
+          await supabaseClient.from('sync_logs').insert({
+            booking_id,
+            property_id: property.id,
+            external_system: 'benson',
+            sync_type: 'booking_push',
+            status: 'success',
+            message: `Booking pushed successfully to Benson (${arrivalDate} to ${departureDate})`,
+            request_data: reservationPayload,
+            response_data: result,
+          });
+
+          results.push({
+            system: 'benson',
+            success: true,
+            external_booking_id: externalBookingId,
+            dates: { arrivalDate, departureDate },
+            rooms: groupRooms.length,
           });
         }
 
-        // Build Benson reservation payload
-        const reservationPayload = {
-          arrivalDate: earliestArrival,
-          departureDate: latestDeparture,
-          rateTypeId: parseInt(booking.rate_type_id) || 0,
-          contactName: booking.guest_name,
-          contactNumber: booking.guest_phone || '+0000000000',
-          contactEmail: booking.guest_email,
-          voucher: booking.voucher || '',
-          note: booking.special_requests || '',
-          rooms: rooms,
-        };
+        // Combine all external reservation IDs
+        const combinedExternalId = externalReservationIds.join(', ');
 
-        console.log('Benson reservation payload:', JSON.stringify(reservationPayload, null, 2));
-
-        const url = `${apiBaseUrl}/${propertyCode}/reservations`;
-        console.log('Posting to Benson URL:', url);
-
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Authorization': authHeader,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(reservationPayload),
-        });
-
-        const responseText = await response.text();
-        console.log('Benson response status:', response.status);
-        console.log('Benson response:', responseText);
-
-        if (!response.ok) {
-          throw new Error(`Benson API error: ${response.status} - ${responseText}`);
-        }
-
-        let result;
-        try {
-          result = JSON.parse(responseText);
-        } catch {
-          result = { raw: responseText };
-        }
-
-        const externalBookingId = result.id || result.reservationId || result.reservationNumber;
-
-        // Update booking with external reservation ID
-        if (externalBookingId) {
+        // Update booking with external reservation ID(s)
+        if (combinedExternalId) {
           await supabaseClient
             .from('bookings')
-            .update({ external_reservation_id: String(externalBookingId) })
+            .update({ external_reservation_id: combinedExternalId })
             .eq('id', booking_id);
         }
 
@@ -235,31 +274,13 @@ Deno.serve(async (req) => {
         await supabaseClient.from('booking_sync_status').upsert({
           booking_id,
           external_system: 'benson',
-          external_booking_id: externalBookingId ? String(externalBookingId) : null,
+          external_booking_id: combinedExternalId || null,
           sync_status: 'synced',
           sync_attempts: 1,
           last_sync_at: new Date().toISOString(),
           error_message: null,
         }, {
           onConflict: 'booking_id,external_system',
-        });
-
-        // Log success
-        await supabaseClient.from('sync_logs').insert({
-          booking_id,
-          property_id: property.id,
-          external_system: 'benson',
-          sync_type: 'booking_push',
-          status: 'success',
-          message: `Booking pushed successfully to Benson`,
-          request_data: reservationPayload,
-          response_data: result,
-        });
-
-        results.push({
-          system: 'benson',
-          success: true,
-          external_booking_id: externalBookingId,
         });
 
       } catch (error) {
@@ -528,6 +549,11 @@ Deno.serve(async (req) => {
     const anySuccess = results.some((r: any) => r.success);
     const firstError = results.find((r: any) => !r.success);
     
+    // Collect all external reservation IDs from successful results
+    const allExternalIds = results
+      .filter((r: any) => r.success && r.external_booking_id)
+      .map((r: any) => r.external_booking_id);
+    
     try {
       console.log('Triggering booking confirmation email...');
       
@@ -544,6 +570,7 @@ Deno.serve(async (req) => {
             booking_id,
             status: anySuccess ? 'success' : 'failed',
             error_message: firstError?.error || undefined,
+            external_reservation_ids: allExternalIds,
           }),
         }
       );
@@ -563,6 +590,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         results,
+        external_reservation_ids: externalReservationIds,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
