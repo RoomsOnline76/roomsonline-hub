@@ -866,10 +866,18 @@ export default function PropertyForm() {
     setIsDirty(true);
   };
 
+  // Helper to ensure a value is an array (handles JSON object vs array edge cases)
+  const ensureArray = (value: any): string[] => {
+    if (Array.isArray(value)) return value;
+    if (!value || typeof value !== 'object') return [];
+    return [];
+  };
+
   // Helper to check if a room field is synced from PMS
   const isRoomFieldPmsSynced = (roomId: string, fieldName: string): boolean => {
     const room = roomTypes.find((r) => r.id === roomId);
-    return room?.pms_synced_fields?.includes(fieldName) || false;
+    const syncedFields = ensureArray(room?.pms_synced_fields);
+    return syncedFields.includes(fieldName);
   };
 
   // Helper to get PMS field styling for room fields
@@ -6450,12 +6458,12 @@ export default function PropertyForm() {
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`facility-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(
                                   item,
                                 )}
                                 onCheckedChange={(checked) => {
                                   const currentFacilities =
-                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                    ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
                                   const newFacilities = checked
                                     ? [...currentFacilities, item]
                                     : currentFacilities.filter((f: string) => f !== item);
@@ -6476,12 +6484,12 @@ export default function PropertyForm() {
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`facility-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(
                                   item,
                                 )}
                                 onCheckedChange={(checked) => {
                                   const currentFacilities =
-                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                    ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
                                   const newFacilities = checked
                                     ? [...currentFacilities, item]
                                     : currentFacilities.filter((f: string) => f !== item);
@@ -6502,12 +6510,12 @@ export default function PropertyForm() {
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`facility-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(
                                   item,
                                 )}
                                 onCheckedChange={(checked) => {
                                   const currentFacilities =
-                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                    ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
                                   const newFacilities = checked
                                     ? [...currentFacilities, item]
                                     : currentFacilities.filter((f: string) => f !== item);
@@ -6528,12 +6536,12 @@ export default function PropertyForm() {
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`facility-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(
                                   item,
                                 )}
                                 onCheckedChange={(checked) => {
                                   const currentFacilities =
-                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                    ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
                                   const newFacilities = checked
                                     ? [...currentFacilities, item]
                                     : currentFacilities.filter((f: string) => f !== item);
@@ -6554,12 +6562,12 @@ export default function PropertyForm() {
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`facility-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(
                                   item,
                                 )}
                                 onCheckedChange={(checked) => {
                                   const currentFacilities =
-                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                    ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
                                   const newFacilities = checked
                                     ? [...currentFacilities, item]
                                     : currentFacilities.filter((f: string) => f !== item);
@@ -6580,12 +6588,12 @@ export default function PropertyForm() {
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`facility-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.facilities || []).includes(
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(
                                   item,
                                 )}
                                 onCheckedChange={(checked) => {
                                   const currentFacilities =
-                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities || [];
+                                    ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
                                   const newFacilities = checked
                                     ? [...currentFacilities, item]
                                     : currentFacilities.filter((f: string) => f !== item);
@@ -6617,12 +6625,12 @@ export default function PropertyForm() {
                               <div key={item} className="flex items-center gap-2">
                                 <Checkbox
                                   id={`amenity-${item}`}
-                                  checked={(roomTypes.find((r) => r.id === selectedRoomType)?.amenities || []).includes(
+                                  checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(
                                     item,
                                   )}
                                   onCheckedChange={(checked) => {
                                     const currentAmenities =
-                                      roomTypes.find((r) => r.id === selectedRoomType)?.amenities || [];
+                                      ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
                                     const newAmenities = checked
                                       ? [...currentAmenities, item]
                                       : currentAmenities.filter((a: string) => a !== item);
@@ -6643,12 +6651,12 @@ export default function PropertyForm() {
                               <div key={item} className="flex items-center gap-2">
                                 <Checkbox
                                   id={`amenity-${item}`}
-                                  checked={(roomTypes.find((r) => r.id === selectedRoomType)?.amenities || []).includes(
+                                  checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(
                                     item,
                                   )}
                                   onCheckedChange={(checked) => {
                                     const currentAmenities =
-                                      roomTypes.find((r) => r.id === selectedRoomType)?.amenities || [];
+                                      ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
                                     const newAmenities = checked
                                       ? [...currentAmenities, item]
                                       : currentAmenities.filter((a: string) => a !== item);
@@ -6668,12 +6676,12 @@ export default function PropertyForm() {
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`amenity-${item}`}
-                                checked={(roomTypes.find((r) => r.id === selectedRoomType)?.amenities || []).includes(
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(
                                   item,
                                 )}
                                 onCheckedChange={(checked) => {
                                   const currentAmenities =
-                                    roomTypes.find((r) => r.id === selectedRoomType)?.amenities || [];
+                                    ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
                                   const newAmenities = checked
                                     ? [...currentAmenities, item]
                                     : currentAmenities.filter((a: string) => a !== item);
