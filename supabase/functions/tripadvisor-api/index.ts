@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,9 +22,29 @@ serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get('TRIPADVISOR_API_KEY');
+    // Initialize Supabase client to fetch API key from database
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Fetch TripAdvisor API key from api_keys table
+    const { data: apiKeyData, error: apiKeyError } = await supabase
+      .from('api_keys')
+      .select('key_value')
+      .eq('key_name', 'TRIPADVISOR_API_KEY')
+      .maybeSingle();
+
+    if (apiKeyError) {
+      console.error('Error fetching TripAdvisor API key:', apiKeyError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to retrieve TripAdvisor API key' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const apiKey = apiKeyData?.key_value;
     if (!apiKey) {
-      console.error('TRIPADVISOR_API_KEY not configured');
+      console.error('TRIPADVISOR_API_KEY not configured in database');
       return new Response(
         JSON.stringify({ error: 'TripAdvisor API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
