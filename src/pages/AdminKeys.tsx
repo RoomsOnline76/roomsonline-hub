@@ -1453,7 +1453,7 @@ export default function AdminKeys() {
             <div className="flex items-center gap-3">
               <BedDouble className="h-5 w-5 text-primary" />
               <span className="font-semibold">NightsBridge</span>
-              <Badge variant="outline" className="text-xs">API Key</Badge>
+              <Badge variant="outline" className="text-xs">Agent Code</Badge>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
