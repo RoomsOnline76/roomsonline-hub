@@ -351,8 +351,8 @@ export default function RoomShowcase() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero Section with Image Gallery */}
-      <section className="relative h-[50vh] min-h-[350px] max-h-[500px] bg-muted overflow-hidden">
+      {/* Hero Section with Image Gallery - shorter on mobile */}
+      <section className="relative h-[40vh] sm:h-[45vh] md:h-[50vh] min-h-[250px] sm:min-h-[300px] max-h-[500px] bg-muted overflow-hidden">
         {images.length > 0 ? (
           <>
             <img
@@ -366,26 +366,26 @@ export default function RoomShowcase() {
               <>
                 <button
                   onClick={prevImage}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background p-2 rounded-full shadow-lg transition-all"
+                  className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background p-1.5 sm:p-2 rounded-full shadow-lg transition-all"
                 >
-                  <ChevronLeft className="h-6 w-6" />
+                  <ChevronLeft className="h-4 w-4 sm:h-6 sm:w-6" />
                 </button>
                 <button
                   onClick={nextImage}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background p-2 rounded-full shadow-lg transition-all"
+                  className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background p-1.5 sm:p-2 rounded-full shadow-lg transition-all"
                 >
-                  <ChevronRight className="h-6 w-6" />
+                  <ChevronRight className="h-4 w-4 sm:h-6 sm:w-6" />
                 </button>
                 
-                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex gap-2">
-                  {images.map((_, idx) => (
+                <div className="absolute bottom-16 sm:bottom-20 left-1/2 -translate-x-1/2 flex gap-1.5 sm:gap-2">
+                  {images.slice(0, 8).map((_, idx) => (
                     <button
                       key={idx}
                       onClick={() => setCurrentImageIndex(idx)}
                       className={cn(
-                        "w-2 h-2 rounded-full transition-all",
+                        "w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full transition-all",
                         idx === currentImageIndex 
-                          ? "bg-primary w-6" 
+                          ? "bg-primary w-4 sm:w-6" 
                           : "bg-background/60 hover:bg-background"
                       )}
                     />
@@ -397,8 +397,8 @@ export default function RoomShowcase() {
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-muted">
             <div className="text-center text-muted-foreground">
-              <Bed className="h-20 w-20 mx-auto mb-4 opacity-30" />
-              <p>No images available</p>
+              <Bed className="h-12 w-12 sm:h-20 sm:w-20 mx-auto mb-3 sm:mb-4 opacity-30" />
+              <p className="text-xs sm:text-base">No images available</p>
             </div>
           </div>
         )}
@@ -406,33 +406,31 @@ export default function RoomShowcase() {
         {/* Back Button */}
         <Link 
           to={`/property/${property.slug || property.id}`}
-          className="absolute top-4 left-4 bg-background/80 hover:bg-background p-2 rounded-full shadow-lg transition-all"
+          className="absolute top-3 left-3 sm:top-4 sm:left-4 bg-background/80 hover:bg-background p-1.5 sm:p-2 rounded-full shadow-lg transition-all"
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
         </Link>
 
         {/* Hero Content Overlay */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 md:p-10">
+        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 md:p-10">
           <div className="container mx-auto">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
+            <div className="flex flex-wrap items-end justify-between gap-3 sm:gap-4">
+              <div className="w-full sm:w-auto">
                 <Link 
                   to={`/property/${property.slug || property.id}`}
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors mb-1 inline-block"
+                  className="text-[10px] sm:text-sm text-muted-foreground hover:text-foreground transition-colors mb-1 inline-block"
                 >
                   ← {property.name}
                 </Link>
-                <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground">
+                <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-foreground">
                   {room.name}
                 </h1>
               </div>
-              <div className="text-right">
-                {room.rateType && (
-                  <Badge variant="secondary" className="mb-2">
-                    {room.rateType}
-                  </Badge>
-                )}
-              </div>
+              {room.rateType && (
+                <Badge variant="secondary" className="text-[10px] sm:text-xs">
+                  {room.rateType}
+                </Badge>
+              )}
             </div>
           </div>
         </div>
@@ -440,35 +438,28 @@ export default function RoomShowcase() {
 
       {/* Quick Info Bar */}
       <section className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10 text-sm">
+        <div className="container mx-auto px-3 sm:px-4 py-2.5 sm:py-4">
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 md:gap-10 text-xs sm:text-sm">
             {room.maxPeople && (
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
                 <span>Sleeps {room.maxPeople}</span>
               </div>
             )}
-            {room.maxChildren !== undefined && room.maxChildren > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground italic">
-                  {['Adults and children welcome', 'Perfect for families or small groups', 'Great for families', 'Any combination of adults and children'][Math.floor(Math.random() * 4)]}
-                </span>
-              </div>
-            )}
             {room.roomSize && (
-              <div className="flex items-center gap-2">
-                <Maximize className="h-4 w-4 text-primary" />
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Maximize className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
                 <span>{room.roomSize} m²</span>
               </div>
             )}
             {room.bathrooms && (
-              <div className="flex items-center gap-2">
-                <Bath className="h-4 w-4 text-primary" />
-                <span>{room.bathrooms} bathroom{room.bathrooms > 1 ? 's' : ''}</span>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Bath className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
+                <span>{room.bathrooms} bath</span>
               </div>
             )}
             {room.bedConfiguration && (
-              <Badge variant="secondary" className="capitalize">
+              <Badge variant="secondary" className="capitalize text-[10px] sm:text-xs">
                 <Bed className="h-3 w-3 mr-1" />
                 {bedConfigLabels[room.bedConfiguration] || room.bedConfiguration}
               </Badge>
@@ -478,23 +469,23 @@ export default function RoomShowcase() {
       </section>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-10">
-        <div className="grid lg:grid-cols-3 gap-8">
+      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-10">
+        <div className="grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {/* Left Column - Details */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-8">
             {/* Room Summary Card */}
             <Card className="overflow-hidden border-l-4 border-l-primary">
-              <CardContent className="p-6">
-                <h2 className="text-2xl font-bold mb-4">{room.name}</h2>
+              <CardContent className="p-4 sm:p-6">
+                <h2 className="text-lg sm:text-xl md:text-2xl font-bold mb-3 sm:mb-4">{room.name}</h2>
                 
                 {room.description && (
-                  <p className="text-muted-foreground leading-relaxed mb-6 italic">
+                  <p className="text-sm sm:text-base text-muted-foreground leading-relaxed mb-4 sm:mb-6 italic">
                     {room.description}
                   </p>
                 )}
 
                 {/* Key Info */}
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
 
                   {/* Stay Requirements - only show if minStay > 1, hide maxStay if 0 or unavailable */}
                   {(room.minStay && room.minStay > 1) && (

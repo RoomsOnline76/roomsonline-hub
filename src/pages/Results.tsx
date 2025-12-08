@@ -76,34 +76,34 @@ const Results = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {/* Back to Search */}
-        <div className="mb-6">
+        <div className="mb-4 sm:mb-6">
           <Link to={backPath}>
-            <Button variant="outline" size="sm" className="gap-2">
-              <ChevronLeft className="h-4 w-4" />
-              Back to Search
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs sm:text-sm">
+              <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Back
             </Button>
           </Link>
         </div>
 
         {/* Search Summary */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Available Properties in {destination}
+        <div className="mb-4 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground mb-1.5 sm:mb-2">
+            {destination ? `Properties in ${destination}` : 'Available Properties'}
           </h1>
-          <div className="flex flex-wrap gap-4 text-muted-foreground">
+          <div className="flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
             {checkIn && checkOut && (
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
+              <div className="flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 <span>
-                  {format(new Date(checkIn), "MMM dd")} - {format(new Date(checkOut), "MMM dd, yyyy")}
+                  {format(new Date(checkIn), "MMM dd")} - {format(new Date(checkOut), "MMM dd")}
                 </span>
               </div>
             )}
             {(adults || children) && (
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
+              <div className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 <span>
                   {adults} Adult{Number(adults) > 1 ? 's' : ''}
                   {Number(children) > 0 && `, ${children} Child${Number(children) > 1 ? 'ren' : ''}`}
@@ -113,51 +113,51 @@ const Results = () => {
           </div>
         </div>
 
-        {/* Results Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Results Grid - single column on mobile */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
           {properties.map((property) => (
             <Card key={property.id} className="overflow-hidden hover:shadow-[var(--shadow-medium)] transition-all">
-              <div className="relative h-48 overflow-hidden">
+              <div className="relative h-36 sm:h-44 md:h-48 overflow-hidden">
                 <img
                   src={property.image}
                   alt={property.name}
                   className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                 />
-                <Badge className="absolute top-3 right-3 bg-primary text-primary-foreground">
+                <Badge className="absolute top-2 right-2 sm:top-3 sm:right-3 bg-primary text-primary-foreground text-[10px] sm:text-xs">
                   {property.system}
                 </Badge>
               </div>
               
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-lg text-foreground line-clamp-1">
+              <CardContent className="p-3 sm:p-4 md:p-5">
+                <div className="flex items-start justify-between mb-1.5 sm:mb-2 gap-2">
+                  <h3 className="font-semibold text-sm sm:text-base md:text-lg text-foreground line-clamp-1">
                     {property.name}
                   </h3>
-                  <div className="flex items-center gap-1 text-sm">
-                    <Star className="h-4 w-4 fill-primary text-primary" />
+                  <div className="flex items-center gap-0.5 text-xs sm:text-sm shrink-0">
+                    <Star className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-primary text-primary" />
                     <span className="font-medium">{property.rating}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1 text-muted-foreground text-sm mb-3">
-                  <MapPin className="h-4 w-4" />
+                <div className="flex items-center gap-1 text-muted-foreground text-xs sm:text-sm mb-2 sm:mb-3">
+                  <MapPin className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
                   <span className="line-clamp-1">{property.location}</span>
                 </div>
 
-                <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
-                  <span>{property.bedrooms} Bedrooms</span>
+                <div className="flex items-center gap-2 sm:gap-4 text-[10px] sm:text-xs text-muted-foreground mb-3 sm:mb-4">
+                  <span>{property.bedrooms} Bed</span>
                   <span>•</span>
-                  <span>Up to {property.maxGuests} Guests</span>
+                  <span>{property.maxGuests} Guests</span>
                 </div>
 
-                <div className="flex items-center justify-between pt-4 border-t border-border">
+                <div className="flex items-center justify-between pt-3 sm:pt-4 border-t border-border">
                   <div>
-                    <div className="text-2xl font-bold text-foreground">
+                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-foreground">
                       R{property.price}
                     </div>
-                    <div className="text-xs text-muted-foreground">per night</div>
+                    <div className="text-[10px] sm:text-xs text-muted-foreground">per night</div>
                   </div>
-                  <Button className="bg-[var(--hero-gradient)] hover:opacity-90">
+                  <Button size="sm" className="bg-[var(--hero-gradient)] hover:opacity-90 text-xs sm:text-sm h-8 sm:h-9 px-3 sm:px-4">
                     Book Now
                   </Button>
                 </div>
@@ -168,9 +168,10 @@ const Results = () => {
 
         {/* No Results */}
         {properties.length === 0 && (
-          <div className="text-center py-20">
-            <p className="text-xl text-muted-foreground">
-              No properties found for your search criteria.
+          <div className="text-center py-12 sm:py-20">
+            <Search className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3 sm:mb-4" />
+            <p className="text-base sm:text-xl text-muted-foreground">
+              No properties found for your search.
             </p>
           </div>
         )}
