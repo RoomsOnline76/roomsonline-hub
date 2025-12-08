@@ -254,16 +254,7 @@ export default function RoomAvailabilityCalendar({
 
   const handleDayMouseEnter = (day: Date) => {
     if (dateRange?.from && !dateRange?.to) {
-      // Check if worm would go outside available dates - if so, reset
-      const rangeStart = isBefore(day, dateRange.from) ? day : dateRange.from;
-      const rangeEnd = isBefore(day, dateRange.from) ? dateRange.from : day;
-      
-      if (!isRangeAvailable(rangeStart, rangeEnd)) {
-        // Reset to just the first date
-        setHoverDate(undefined);
-        setDateRange({ from: dateRange.from, to: undefined });
-        return;
-      }
+      // Allow worm to extend for preview - availability check happens on click
       setHoverDate(day);
     }
   };
