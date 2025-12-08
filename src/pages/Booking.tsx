@@ -41,9 +41,11 @@ interface RoomType {
   id: string;
   name: string;
   maxGuests?: number;
+  maxPeople?: number; // Alternative field name from amenities
   allowTeens?: boolean;
   allowChildren?: boolean;
   allowInfants?: boolean;
+  minGuests?: number;
 }
 
 interface RateType {
@@ -169,16 +171,27 @@ const Booking = () => {
   // Extract room types and rate types - prefer amenities, fallback to cached tables
   const amenities = property?.amenities as Record<string, any> | null;
   
-  // Map cached data to expected format
+  // Map cached data to expected format - normalize field names from either source
   const roomTypes: RoomType[] = (amenities?.rooms?.length > 0 
-    ? amenities.rooms 
+    ? amenities.rooms.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        maxGuests: r.maxGuests || r.maxPeople || r.max_guests,
+        maxPeople: r.maxPeople || r.maxGuests || r.max_guests,
+        allowTeens: r.allowTeens ?? r.allow_teens ?? true,
+        allowChildren: r.allowChildren ?? r.allow_children ?? true,
+        allowInfants: r.allowInfants ?? r.allow_infants ?? true,
+        minGuests: r.minGuests || r.min_guests,
+      }))
     : cachedRoomTypes?.map(rt => ({
         id: rt.external_room_type_id,
         name: rt.name,
         maxGuests: rt.max_guests,
-        allowTeens: rt.allow_teens,
-        allowChildren: rt.allow_children,
-        allowInfants: rt.allow_infants,
+        maxPeople: rt.max_guests,
+        allowTeens: rt.allow_teens ?? true,
+        allowChildren: rt.allow_children ?? true,
+        allowInfants: rt.allow_infants ?? true,
+        minGuests: rt.min_guests,
       }))
   ) || [];
   
@@ -905,108 +918,132 @@ const Booking = () => {
                         </div>
                       )}
 
-                      {/* Guest Counts - All required by Benson API */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        {/* Adults (required, min 1) */}
-                        <div className="space-y-2">
-                          <Label className="text-sm">Adults *</Label>
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              className="h-8 w-8"
-                              onClick={() => adjustGuestCount(index, 'numberOfAdults', -1)}
-                              disabled={room.numberOfAdults <= 1}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <span className="w-8 text-center font-medium">{room.numberOfAdults}</span>
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              className="h-8 w-8"
-                              onClick={() => adjustGuestCount(index, 'numberOfAdults', 1)}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
+                      {/* Guest Counts - Respect room rules */}
+                      {(() => {
+                        // Get room type constraints
+                        const maxGuestsForRoom = roomType?.maxGuests || roomType?.maxPeople || 10;
+                        const allowTeens = roomType?.allowTeens !== false; // Default true if undefined
+                        const allowChildren = roomType?.allowChildren !== false;
+                        const allowInfants = roomType?.allowInfants !== false;
+                        
+                        // Calculate current total for this room
+                        const currentRoomTotal = room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants;
+                        const isAtMaxCapacity = currentRoomTotal >= maxGuestsForRoom;
+                        
+                        return (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            {/* Adults (required, min 1) */}
+                            <div className="space-y-2">
+                              <Label className="text-sm">Adults *</Label>
+                              <div className="flex items-center gap-2">
+                                <Button 
+                                  variant="outline" 
+                                  size="icon" 
+                                  className="h-8 w-8"
+                                  onClick={() => adjustGuestCount(index, 'numberOfAdults', -1)}
+                                  disabled={room.numberOfAdults <= 1}
+                                >
+                                  <Minus className="h-4 w-4" />
+                                </Button>
+                                <span className="w-8 text-center font-medium">{room.numberOfAdults}</span>
+                                <Button 
+                                  variant="outline" 
+                                  size="icon" 
+                                  className="h-8 w-8"
+                                  onClick={() => adjustGuestCount(index, 'numberOfAdults', 1)}
+                                  disabled={isAtMaxCapacity}
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
 
-                        {/* Teens (required) */}
-                        <div className="space-y-2">
-                          <Label className="text-sm">Teens *</Label>
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              className="h-8 w-8"
-                              onClick={() => adjustGuestCount(index, 'numberOfTeens', -1)}
-                              disabled={room.numberOfTeens <= 0}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <span className="w-8 text-center font-medium">{room.numberOfTeens}</span>
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              className="h-8 w-8"
-                              onClick={() => adjustGuestCount(index, 'numberOfTeens', 1)}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
+                            {/* Teens - only show if allowed */}
+                            {allowTeens && (
+                              <div className="space-y-2">
+                                <Label className="text-sm">Teens</Label>
+                                <div className="flex items-center gap-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    className="h-8 w-8"
+                                    onClick={() => adjustGuestCount(index, 'numberOfTeens', -1)}
+                                    disabled={room.numberOfTeens <= 0}
+                                  >
+                                    <Minus className="h-4 w-4" />
+                                  </Button>
+                                  <span className="w-8 text-center font-medium">{room.numberOfTeens}</span>
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    className="h-8 w-8"
+                                    onClick={() => adjustGuestCount(index, 'numberOfTeens', 1)}
+                                    disabled={isAtMaxCapacity}
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
 
-                        {/* Children (required) */}
-                        <div className="space-y-2">
-                          <Label className="text-sm">Children *</Label>
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              className="h-8 w-8"
-                              onClick={() => adjustGuestCount(index, 'numberOfChildren', -1)}
-                              disabled={room.numberOfChildren <= 0}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <span className="w-8 text-center font-medium">{room.numberOfChildren}</span>
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              className="h-8 w-8"
-                              onClick={() => adjustGuestCount(index, 'numberOfChildren', 1)}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
+                            {/* Children - only show if allowed */}
+                            {allowChildren && (
+                              <div className="space-y-2">
+                                <Label className="text-sm">Children</Label>
+                                <div className="flex items-center gap-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    className="h-8 w-8"
+                                    onClick={() => adjustGuestCount(index, 'numberOfChildren', -1)}
+                                    disabled={room.numberOfChildren <= 0}
+                                  >
+                                    <Minus className="h-4 w-4" />
+                                  </Button>
+                                  <span className="w-8 text-center font-medium">{room.numberOfChildren}</span>
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    className="h-8 w-8"
+                                    onClick={() => adjustGuestCount(index, 'numberOfChildren', 1)}
+                                    disabled={isAtMaxCapacity}
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
 
-                        {/* Infants (required) */}
-                        <div className="space-y-2">
-                          <Label className="text-sm">Infants *</Label>
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              className="h-8 w-8"
-                              onClick={() => adjustGuestCount(index, 'numberOfInfants', -1)}
-                              disabled={room.numberOfInfants <= 0}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <span className="w-8 text-center font-medium">{room.numberOfInfants}</span>
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
-                              className="h-8 w-8"
-                              onClick={() => adjustGuestCount(index, 'numberOfInfants', 1)}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
+                            {/* Infants - only show if allowed */}
+                            {allowInfants && (
+                              <div className="space-y-2">
+                                <Label className="text-sm">Infants</Label>
+                                <div className="flex items-center gap-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    className="h-8 w-8"
+                                    onClick={() => adjustGuestCount(index, 'numberOfInfants', -1)}
+                                    disabled={room.numberOfInfants <= 0}
+                                  >
+                                    <Minus className="h-4 w-4" />
+                                  </Button>
+                                  <span className="w-8 text-center font-medium">{room.numberOfInfants}</span>
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    className="h-8 w-8"
+                                    onClick={() => adjustGuestCount(index, 'numberOfInfants', 1)}
+                                    disabled={isAtMaxCapacity}
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
