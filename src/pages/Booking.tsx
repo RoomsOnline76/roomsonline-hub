@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar, Users, ArrowLeft, Minus, Plus, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { getPropertyUrl } from "@/lib/config";
+import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -656,22 +657,24 @@ const Booking = () => {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="container mx-auto px-4 py-16">
+        <div className="container mx-auto px-3 sm:px-4 py-8 sm:py-16">
           <Card className="max-w-lg mx-auto text-center">
-            <CardContent className="pt-8 pb-8">
-              <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold mb-2">Booking Request Submitted!</h2>
-              <p className="text-muted-foreground mb-6">
-                Your booking request for {property.name} has been submitted. 
-                You will receive a confirmation email at {guestEmail} shortly.
+            <CardContent className="pt-6 pb-6 sm:pt-8 sm:pb-8 px-4 sm:px-6">
+              <CheckCircle className="h-12 w-12 sm:h-16 sm:w-16 text-green-500 mx-auto mb-3 sm:mb-4" />
+              <h2 className="text-xl sm:text-2xl font-bold mb-2">Reservation Submitted!</h2>
+              <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6">
+                Your reservation for {property.name} has been submitted. 
+                A confirmation email will be sent to {guestEmail}.
               </p>
-              <div className="space-y-2 text-sm text-left bg-muted/50 rounded-lg p-4 mb-6">
-                <p><strong>Booking Reference:</strong> {externalReservationId || bookingId?.slice(0, 8).toUpperCase()}</p>
+              <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-left bg-muted/50 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+                <p><strong>Reference:</strong> {externalReservationId || bookingId?.slice(0, 8).toUpperCase()}</p>
                 <p><strong>Check-in:</strong> {checkIn && format(parseISO(checkIn), "MMM d, yyyy")}</p>
                 <p><strong>Check-out:</strong> {checkOut && format(parseISO(checkOut), "MMM d, yyyy")}</p>
                 <p><strong>Guests:</strong> {totalGuests}</p>
               </div>
-              <Button onClick={() => navigate("/")}>Return to Home</Button>
+              <Button onClick={() => navigate("/")} size="sm" className="w-full sm:w-auto">
+                Return to Home
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -683,69 +686,69 @@ const Booking = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {/* Back Link */}
         <a 
           href={`${getPropertyUrl(property.slug || property.id)}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
-          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6"
+          className="inline-flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground hover:text-foreground mb-4 sm:mb-6"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           Back to property
         </a>
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {/* Booking Form */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
             {/* Guest Details */}
             <Card>
-              <CardHeader>
-                <CardTitle>Guest Details</CardTitle>
+              <CardHeader className="pb-3 sm:pb-6">
+                <CardTitle className="text-base sm:text-lg">Guest Details</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="guest_name">Full Name *</Label>
+              <CardContent className="space-y-3 sm:space-y-4">
+                <div className="grid gap-3 sm:gap-4">
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label htmlFor="guest_name" className="text-xs sm:text-sm">Full Name *</Label>
                     <Input
                       id="guest_name"
                       value={guestName}
                       onChange={(e) => setGuestName(e.target.value)}
                       placeholder="John Smith"
-                      className={formErrors.guest_name ? "border-destructive" : ""}
+                      className={cn("h-9 sm:h-10 text-sm", formErrors.guest_name && "border-destructive")}
                     />
                     {formErrors.guest_name && (
-                      <p className="text-sm text-destructive">{formErrors.guest_name}</p>
+                      <p className="text-xs text-destructive">{formErrors.guest_name}</p>
                     )}
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="guest_email">Email Address *</Label>
+                  <div className="space-y-1.5 sm:space-y-2">
+                    <Label htmlFor="guest_email" className="text-xs sm:text-sm">Email Address *</Label>
                     <Input
                       id="guest_email"
                       type="email"
                       value={guestEmail}
                       onChange={(e) => setGuestEmail(e.target.value)}
                       placeholder="john@example.com"
-                      className={formErrors.guest_email ? "border-destructive" : ""}
+                      className={cn("h-9 sm:h-10 text-sm", formErrors.guest_email && "border-destructive")}
                     />
                     {formErrors.guest_email && (
-                      <p className="text-sm text-destructive">{formErrors.guest_email}</p>
+                      <p className="text-xs text-destructive">{formErrors.guest_email}</p>
                     )}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="guest_phone">Phone Number *</Label>
+                <div className="space-y-1.5 sm:space-y-2">
+                  <Label htmlFor="guest_phone" className="text-xs sm:text-sm">Phone Number *</Label>
                   <Input
                     id="guest_phone"
                     type="tel"
                     value={guestPhone}
                     onChange={(e) => setGuestPhone(e.target.value)}
                     placeholder="+27 12 345 6789"
-                    className={formErrors.guest_phone ? "border-destructive" : ""}
+                    className={cn("h-9 sm:h-10 text-sm", formErrors.guest_phone && "border-destructive")}
                   />
                   {formErrors.guest_phone && (
-                    <p className="text-sm text-destructive">{formErrors.guest_phone}</p>
+                    <p className="text-xs text-destructive">{formErrors.guest_phone}</p>
                   )}
-                  <p className="text-xs text-muted-foreground">
-                    Include country code (e.g., +27 for South Africa)
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
+                    Include country code (e.g., +27)
                   </p>
                 </div>
               </CardContent>

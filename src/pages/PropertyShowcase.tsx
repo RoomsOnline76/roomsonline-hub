@@ -500,27 +500,27 @@ export default function PropertyShowcase() {
         )}
 
         {/* Hero Content Overlay */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 md:p-10">
+        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 md:p-10">
           <div className="container mx-auto">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
+            <div className="flex flex-wrap items-end justify-between gap-3 sm:gap-4">
+              <div className="w-full sm:w-auto">
                 {starRating > 0 && (
-                  <div className="flex items-center gap-1 mb-2">
+                  <div className="flex items-center gap-0.5 sm:gap-1 mb-1.5 sm:mb-2">
                     {Array.from({ length: starRating }).map((_, i) => (
-                      <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                      <Star key={i} className="h-4 w-4 sm:h-5 sm:w-5 fill-yellow-400 text-yellow-400" />
                     ))}
                   </div>
                 )}
-                <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-2">
+                <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-foreground mb-1.5 sm:mb-2">
                   {property.name}
                 </h1>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <MapPin className="h-4 w-4" />
-                  <span>
+                <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
+                  <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                  <span className="line-clamp-1">
                     {property.address && property.city ? (
-                      `${property.address}, ${property.city}, ${property.country}`
+                      `${property.city}, ${property.country}`
                     ) : property.latitude && property.longitude ? (
-                      `GPS: ${property.latitude.toFixed(6)}, ${property.longitude.toFixed(6)}`
+                      `GPS: ${property.latitude.toFixed(4)}, ${property.longitude.toFixed(4)}`
                     ) : (
                       property.country || 'Location not available'
                     )}
@@ -529,12 +529,12 @@ export default function PropertyShowcase() {
               </div>
               {isNightsBridgeProperty && (
                 <Button 
-                  size="lg" 
+                  size="sm"
                   onClick={handleBookProperty}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg text-xs sm:text-sm h-8 sm:h-9"
                 >
                   Book Now
-                  <ExternalLink className="ml-2 h-4 w-4" />
+                  <ExternalLink className="ml-1.5 h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </Button>
               )}
             </div>
@@ -544,21 +544,21 @@ export default function PropertyShowcase() {
 
       {/* Quick Info Bar */}
       <section className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-wrap items-center justify-center gap-6 md:gap-10 text-sm">
+        <div className="container mx-auto px-3 sm:px-4 py-2.5 sm:py-4">
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 md:gap-10 text-xs sm:text-sm">
             {totalMaxGuests > 0 && (
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
-                <span>Up to {totalMaxGuests} guests</span>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
+                <span>{totalMaxGuests} guests</span>
               </div>
             )}
             {roomTypes.length > 0 && (
-              <div className="flex items-center gap-2">
-                <Bed className="h-4 w-4 text-primary" />
-                <span>{roomTypes.length} room type{roomTypes.length > 1 ? 's' : ''}</span>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Bed className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
+                <span>{roomTypes.length} room{roomTypes.length > 1 ? 's' : ''}</span>
               </div>
             )}
-            <Badge variant="secondary" className="capitalize">
+            <Badge variant="secondary" className="capitalize text-[10px] sm:text-xs">
               {property.property_type.replace('_', ' ')}
             </Badge>
           </div>
@@ -566,12 +566,12 @@ export default function PropertyShowcase() {
       </section>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-10">
+      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-10">
         {/* Description */}
         {property.description && (
-          <section className="mb-12">
-            <h2 className="text-2xl font-semibold mb-4">About this property</h2>
-            <p className="text-muted-foreground leading-relaxed max-w-3xl">
+          <section className="mb-6 sm:mb-12">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-semibold mb-2 sm:mb-4">About this property</h2>
+            <p className="text-sm sm:text-base text-muted-foreground leading-relaxed max-w-3xl">
               {property.description}
             </p>
           </section>
