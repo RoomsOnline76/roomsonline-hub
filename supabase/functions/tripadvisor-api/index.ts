@@ -79,11 +79,14 @@ serve(async (req) => {
 
     console.log(`Fetching from TripAdvisor: ${action}, URL: ${url.replace(apiKey, '***')}`);
     
+    // Get origin from request for Referer header
+    const origin = req.headers.get('origin') || 'https://book.sleepinafrica.roomsonline.co.za';
+    
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'accept': 'application/json',
-        'Referer': 'https://book.sleepinafrica.roomsonline.co.za',
+        'Referer': origin,
       },
     });
 
