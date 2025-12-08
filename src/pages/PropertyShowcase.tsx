@@ -726,7 +726,8 @@ export default function PropertyShowcase() {
                 const availData = getAvailabilityForRoom(room);
                 const lowestRate = getLowestRateForRoom(room);
                 const availableUnits = availData?.available_units;
-                const roomImage = room.url || (property.images.length > 0 ? property.images[0] : null);
+                const roomImages = (room as any).images || [];
+                const roomImage = roomImages[0] || room.url || (property.images.length > 0 ? property.images[0] : null);
                 const bookedCount = getBookedCountForRoom(room);
                 const remainingUnits = getRemainingAvailability(room);
                 const isFullyBooked = remainingUnits !== undefined && remainingUnits <= 0;
