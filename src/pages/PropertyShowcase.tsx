@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 import { 
   Star, 
   MapPin, 
@@ -107,6 +108,8 @@ export default function PropertyShowcase() {
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [bookedRooms, setBookedRooms] = useState<BookingRoom[]>([]);
+  const [showLeavingModal, setShowLeavingModal] = useState(false);
+  const [externalBookingUrl, setExternalBookingUrl] = useState<string>("");
   
   const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
 
@@ -361,14 +364,15 @@ export default function PropertyShowcase() {
     return property.amenities?.external_ids?.nightsbridge_bb_id || null;
   };
 
-  // Handle booking - redirect to NightsBridge for NB properties, Benson flow for Benson, contact for others
+  // Handle booking - show modal for NightsBridge, Benson flow for Benson, contact for others
   const handleBookProperty = () => {
-    // NightsBridge: redirect to external booking
+    // NightsBridge: show leaving modal before redirect
     if (isNightsBridgeProperty) {
       const bbid = getNightsBridgeBBID();
       if (bbid && nightsBridgeAgentCode) {
         const bookingUrl = getNightsBridgeBookingUrl(bbid, nightsBridgeAgentCode);
-        window.open(bookingUrl, '_blank');
+        setExternalBookingUrl(bookingUrl);
+        setShowLeavingModal(true);
         return;
       }
     }
@@ -1013,6 +1017,14 @@ export default function PropertyShowcase() {
           <p>© {new Date().getFullYear()} RoomsOnline. All rights reserved.</p>
         </div>
       </footer>
+
+      {/* NightsBridge Leaving Modal */}
+      <LeavingRoomsOnlineModal
+        open={showLeavingModal}
+        onOpenChange={setShowLeavingModal}
+        externalUrl={externalBookingUrl}
+        propertyName={property?.name}
+      />
     </div>
   );
 }
