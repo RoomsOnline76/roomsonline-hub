@@ -1114,6 +1114,12 @@ export type Database = {
       }
     }
     Views: {
+      public_nightsbridge_config: {
+        Row: {
+          agent_code: string | null
+        }
+        Relationships: []
+      }
       public_properties: {
         Row: {
           address: string | null

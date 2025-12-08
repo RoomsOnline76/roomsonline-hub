@@ -190,14 +190,14 @@ export default function PropertyShowcase() {
 
       // Fetch NightsBridge agent code if this is a NightsBridge property
       if (propertyData.external_system === "nightsbridge") {
-        const { data: nbCredentials } = await supabase
-          .from("pms_credentials")
+        // Use public view that doesn't require authentication
+        const { data: nbConfig } = await supabase
+          .from("public_nightsbridge_config")
           .select("agent_code")
-          .eq("system_type", "nightsbridge")
           .maybeSingle();
         
-        if (nbCredentials?.agent_code) {
-          setNightsBridgeAgentCode(nbCredentials.agent_code);
+        if (nbConfig?.agent_code) {
+          setNightsBridgeAgentCode(nbConfig.agent_code);
         }
       }
     } catch (error) {
