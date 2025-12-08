@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
+import TripAdvisorReviews from "@/components/TripAdvisorReviews";
 import { 
   Star, 
   MapPin, 
@@ -884,6 +885,9 @@ export default function PropertyShowcase() {
             </div>
           </section>
         )}
+
+        {/* TripAdvisor Reviews */}
+        <TripAdvisorReviews tripadvisorId={property.amenities?.external_ids?.tripadvisor_id} />
 
         {/* House Rules */}
         {Object.keys(houseRules).length > 0 && (
