@@ -203,7 +203,7 @@ export const SearchForm = () => {
                   selected={displayRange}
                   month={displayedMonth}
                   onMonthChange={setDisplayedMonth}
-                  numberOfMonths={1}
+                  numberOfMonths={2}
                   disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                   onDayClick={handleDayClick}
                   onDayMouseEnter={handleDayMouseEnterWithNav}
@@ -220,7 +220,7 @@ export const SearchForm = () => {
                   }}
                   className="p-3 pointer-events-auto"
                   classNames={{
-                    months: "flex flex-col",
+                    months: "flex flex-col sm:flex-row gap-4",
                     month: "space-y-3",
                     caption: "flex justify-center pt-1 relative items-center",
                     caption_label: "text-sm font-medium",
