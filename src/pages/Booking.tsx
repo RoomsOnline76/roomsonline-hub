@@ -338,6 +338,13 @@ const Booking = () => {
 
       // Calculate cost for each room
       for (const room of rooms) {
+        // Use room's custom dates or fall back to main booking dates
+        const roomCheckIn = room.checkIn || checkIn;
+        const roomCheckOut = room.checkOut || checkOut;
+        const roomNights = roomCheckIn && roomCheckOut 
+          ? Math.ceil((new Date(roomCheckOut).getTime() - new Date(roomCheckIn).getTime()) / (1000 * 60 * 60 * 24))
+          : nights;
+
         const roomType = availability?.roomTypes?.find(
           (rt: any) => String(rt.roomTypeId) === room.roomTypeId
         );
@@ -351,7 +358,15 @@ const Booking = () => {
         if (!rateType) continue;
 
         const allRates = rateType.rates || [];
-        const rates = allRates.slice(0, nights);
+        
+        // Filter rates to only include dates within the room's date range
+        const rates = allRates.filter((rate: any) => {
+          if (!rate.date) return false;
+          const rateDate = rate.date;
+          // Include rate if it's >= checkIn and < checkOut (nights, not including checkout date)
+          return rateDate >= roomCheckIn && rateDate < roomCheckOut;
+        });
+        
         const priceType = (rateType.priceType || 'PER ROOM').toUpperCase();
         const roomTotalGuests = room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants;
 
@@ -364,15 +379,15 @@ const Booking = () => {
           if (totalRoomAmount > 0) {
             lineItems.push({
               description: `${room.roomTypeName} (${roomTotalGuests} guests)`,
-              nights: nights,
+              nights: roomNights,
               quantity: 1,
-              unitPrice: totalRoomAmount / nights,
+              unitPrice: totalRoomAmount / roomNights,
               total: totalRoomAmount,
             });
             runningTotal += totalRoomAmount;
           }
         } else {
-          // Per person pricing
+          // Per person pricing - sum rates for each date in range
           let totalAdultAmount = 0;
           let totalTeenAmount = 0;
           let totalChildAmount = 0;
@@ -402,10 +417,10 @@ const Booking = () => {
 
           if (totalAdultAmount > 0) {
             lineItems.push({
-              description: `Adult Rate (${room.numberOfAdults} adult${room.numberOfAdults > 1 ? 's' : ''})`,
-              nights: nights,
+              description: `${room.roomTypeName} - Adult Rate (${room.numberOfAdults} adult${room.numberOfAdults > 1 ? 's' : ''})`,
+              nights: roomNights,
               quantity: 1,
-              unitPrice: totalAdultAmount / nights,
+              unitPrice: totalAdultAmount / roomNights,
               total: totalAdultAmount,
             });
             runningTotal += totalAdultAmount;
@@ -413,10 +428,10 @@ const Booking = () => {
 
           if (totalTeenAmount > 0) {
             lineItems.push({
-              description: `Teen Rate (${room.numberOfTeens} teen${room.numberOfTeens > 1 ? 's' : ''})`,
-              nights: nights,
+              description: `${room.roomTypeName} - Teen Rate (${room.numberOfTeens} teen${room.numberOfTeens > 1 ? 's' : ''})`,
+              nights: roomNights,
               quantity: room.numberOfTeens,
-              unitPrice: totalTeenAmount / nights / room.numberOfTeens,
+              unitPrice: totalTeenAmount / roomNights / room.numberOfTeens,
               total: totalTeenAmount,
             });
             runningTotal += totalTeenAmount;
@@ -424,10 +439,10 @@ const Booking = () => {
 
           if (totalChildAmount > 0) {
             lineItems.push({
-              description: `Child Rate (${room.numberOfChildren} child${room.numberOfChildren > 1 ? 'ren' : ''})`,
-              nights: nights,
+              description: `${room.roomTypeName} - Child Rate (${room.numberOfChildren} child${room.numberOfChildren > 1 ? 'ren' : ''})`,
+              nights: roomNights,
               quantity: room.numberOfChildren,
-              unitPrice: totalChildAmount / nights / room.numberOfChildren,
+              unitPrice: totalChildAmount / roomNights / room.numberOfChildren,
               total: totalChildAmount,
             });
             runningTotal += totalChildAmount;
@@ -435,10 +450,10 @@ const Booking = () => {
 
           if (totalInfantAmount > 0) {
             lineItems.push({
-              description: `Infant Rate (${room.numberOfInfants} infant${room.numberOfInfants > 1 ? 's' : ''})`,
-              nights: nights,
+              description: `${room.roomTypeName} - Infant Rate (${room.numberOfInfants} infant${room.numberOfInfants > 1 ? 's' : ''})`,
+              nights: roomNights,
               quantity: room.numberOfInfants,
-              unitPrice: totalInfantAmount / nights / room.numberOfInfants,
+              unitPrice: totalInfantAmount / roomNights / room.numberOfInfants,
               total: totalInfantAmount,
             });
             runningTotal += totalInfantAmount;
