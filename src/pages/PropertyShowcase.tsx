@@ -66,7 +66,7 @@ interface RoomType {
   description?: string;
   pmsRoomId?: string;
   bathrooms?: number;
-  bedConfiguration?: string;
+  bedConfiguration?: string | { type: string; count: number }[];
   roomSize?: number;
 }
 
