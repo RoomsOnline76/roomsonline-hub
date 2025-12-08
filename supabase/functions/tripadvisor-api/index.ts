@@ -65,10 +65,10 @@ serve(async (req) => {
     
     switch (action) {
       case 'get_location_details':
-        url = `${TRIPADVISOR_BASE_URL}/location/${locationId}/details?key=${apiKey}&language=${language}`;
+        url = `${TRIPADVISOR_BASE_URL}/location/${locationId}/details?language=${language}&currency=USD&key=${apiKey}`;
         break;
       case 'get_location_reviews':
-        url = `${TRIPADVISOR_BASE_URL}/location/${locationId}/reviews?key=${apiKey}&language=${language}&limit=${limit}`;
+        url = `${TRIPADVISOR_BASE_URL}/location/${locationId}/reviews?language=${language}&limit=${limit}&key=${apiKey}`;
         break;
       default:
         return new Response(
@@ -77,12 +77,13 @@ serve(async (req) => {
         );
     }
 
-    console.log(`Fetching from TripAdvisor: ${action}`);
+    console.log(`Fetching from TripAdvisor: ${action}, URL: ${url.replace(apiKey, '***')}`);
     
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'Accept': 'application/json',
+        'accept': 'application/json',
+        'Referer': 'https://book.sleepinafrica.roomsonline.co.za',
       },
     });
 
