@@ -349,7 +349,7 @@ const PropertyOverview = () => {
                             {getSortIcon("total_bookings")}
                           </div>
                         </TableHead>
-                        <TableHead>STATUS</TableHead>
+                        <TableHead>EXTERNAL ID</TableHead>
                         <TableHead className="text-right">ACTION</TableHead>
                       </TableRow>
                       {/* Search row */}
@@ -459,12 +459,17 @@ const PropertyOverview = () => {
                           </TableCell>
                           <TableCell>{property.total_bookings || 0}</TableCell>
                           <TableCell>
-                            <Badge 
-                              variant="default"
-                              className="bg-green-100 text-green-800 hover:bg-green-100"
-                            >
-                              Active
-                            </Badge>
+                            {(() => {
+                              const externalId = property.external_id || 
+                                property.benson_property_code || 
+                                property.checkfront_property_code || 
+                                property.siteminder_property_code;
+                              return externalId ? (
+                                <span className="font-mono text-sm">{externalId}</span>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">—</span>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button
