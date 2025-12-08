@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type SortDirection = "asc" | "desc" | null;
-type SortColumn = "name" | "external_system" | "owner_name" | "owner_email" | "total_bookings" | null;
+type SortColumn = "name" | "external_system" | "owner_name" | "property_type" | "total_bookings" | null;
 
 const PropertyOverview = () => {
   const navigate = useNavigate();
@@ -37,7 +37,7 @@ const PropertyOverview = () => {
   const [searchName, setSearchName] = useState("");
   const [searchPms, setSearchPms] = useState("");
   const [searchOwnerName, setSearchOwnerName] = useState("");
-  const [searchOwnerEmail, setSearchOwnerEmail] = useState("");
+  const [searchPropertyType, setSearchPropertyType] = useState("");
 
   // Sort state
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
@@ -155,9 +155,9 @@ const PropertyOverview = () => {
         p.owner_name?.toLowerCase().includes(searchOwnerName.toLowerCase())
       );
     }
-    if (searchOwnerEmail) {
+    if (searchPropertyType) {
       filtered = filtered.filter(p => 
-        p.owner_email?.toLowerCase().includes(searchOwnerEmail.toLowerCase())
+        p.property_type?.toLowerCase().includes(searchPropertyType.toLowerCase())
       );
     }
 
@@ -184,7 +184,7 @@ const PropertyOverview = () => {
     }
 
     return filtered;
-  }, [allProperties, searchName, searchPms, searchOwnerName, searchOwnerEmail, sortColumn, sortDirection]);
+  }, [allProperties, searchName, searchPms, searchOwnerName, searchPropertyType, sortColumn, sortDirection]);
 
   const deletedProperties = allProperties?.filter(p => !p.is_active) || [];
 
@@ -332,11 +332,11 @@ const PropertyOverview = () => {
                         </TableHead>
                         <TableHead 
                           className="cursor-pointer hover:bg-muted/50 select-none"
-                          onClick={() => handleSort("owner_email")}
+                          onClick={() => handleSort("property_type")}
                         >
                           <div className="flex items-center">
-                            OWNER EMAIL
-                            {getSortIcon("owner_email")}
+                            TYPE
+                            {getSortIcon("property_type")}
                           </div>
                         </TableHead>
                         <TableHead>OWNERLIST</TableHead>
@@ -381,8 +381,8 @@ const PropertyOverview = () => {
                         <TableCell className="py-2">
                           <Input
                             placeholder="Search"
-                            value={searchOwnerEmail}
-                            onChange={(e) => setSearchOwnerEmail(e.target.value)}
+                            value={searchPropertyType}
+                            onChange={(e) => setSearchPropertyType(e.target.value)}
                             className="h-8 text-sm"
                           />
                         </TableCell>
@@ -435,7 +435,9 @@ const PropertyOverview = () => {
                             )}
                           </TableCell>
                           <TableCell>{property.owner_name || "-"}</TableCell>
-                          <TableCell>{property.owner_email || "-"}</TableCell>
+                          <TableCell>
+                            <span className="capitalize">{property.property_type?.replace(/_/g, ' ') || "-"}</span>
+                          </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-center">
                               {property.owner_profile ? (
