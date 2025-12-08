@@ -237,16 +237,9 @@ export default function RoomAvailabilityCalendar({
       return;
     }
     
-    // Second click - lock the range if all dates are available
+    // Second click - lock the range
     const rangeStart = isBefore(day, dateRange.from) ? day : dateRange.from;
     const rangeEnd = isBefore(day, dateRange.from) ? dateRange.from : day;
-    
-    if (!isRangeAvailable(rangeStart, rangeEnd)) {
-      // Reset if range includes unavailable dates
-      setHoverDate(undefined);
-      setDateRange({ from: day, to: undefined });
-      return;
-    }
     
     setDateRange({ from: rangeStart, to: rangeEnd });
     setHoverDate(undefined);
