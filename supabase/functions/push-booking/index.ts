@@ -134,15 +134,25 @@ Deno.serve(async (req) => {
             : 'https://staging-api.bensonsoftware.com/api/v3/integrations';
         }
 
-        // Build rooms array from booking data
+        // Build rooms array from booking data with per-room dates
         const rooms = booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0
-          ? booking.rooms.map((room: any) => ({
-              roomTypeId: parseInt(room.roomTypeId) || 0,
-              numberOfAdults: room.numberOfAdults || 1,
-              numberOfTeens: room.numberOfTeens || 0,
-              numberOfChildren: room.numberOfChildren || 0,
-              numberOfInfants: room.numberOfInfants || 0,
-            }))
+          ? booking.rooms.map((room: any) => {
+              const roomData: any = {
+                roomTypeId: parseInt(room.roomTypeId) || 0,
+                numberOfAdults: room.numberOfAdults || 1,
+                numberOfTeens: room.numberOfTeens || 0,
+                numberOfChildren: room.numberOfChildren || 0,
+                numberOfInfants: room.numberOfInfants || 0,
+              };
+              // Include per-room dates if they differ from main booking dates
+              if (room.checkIn && room.checkIn !== booking.check_in_date) {
+                roomData.arrivalDate = room.checkIn;
+              }
+              if (room.checkOut && room.checkOut !== booking.check_out_date) {
+                roomData.departureDate = room.checkOut;
+              }
+              return roomData;
+            })
           : [{
               roomTypeId: parseInt(booking.room_type_id) || 0,
               numberOfAdults: booking.adults || 1,
@@ -151,10 +161,23 @@ Deno.serve(async (req) => {
               numberOfInfants: booking.infants || 0,
             }];
 
+        // Determine earliest arrival and latest departure from all rooms
+        let earliestArrival = booking.check_in_date;
+        let latestDeparture = booking.check_out_date;
+        
+        if (booking.rooms && Array.isArray(booking.rooms)) {
+          booking.rooms.forEach((room: any) => {
+            const roomCheckIn = room.checkIn || booking.check_in_date;
+            const roomCheckOut = room.checkOut || booking.check_out_date;
+            if (roomCheckIn < earliestArrival) earliestArrival = roomCheckIn;
+            if (roomCheckOut > latestDeparture) latestDeparture = roomCheckOut;
+          });
+        }
+
         // Build Benson reservation payload
         const reservationPayload = {
-          arrivalDate: booking.check_in_date,
-          departureDate: booking.check_out_date,
+          arrivalDate: earliestArrival,
+          departureDate: latestDeparture,
           rateTypeId: parseInt(booking.rate_type_id) || 0,
           contactName: booking.guest_name,
           contactNumber: booking.guest_phone || '+0000000000',
