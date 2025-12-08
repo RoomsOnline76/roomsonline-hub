@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Shield, Zap, HeadphonesIcon, Bed, BadgeCheck, MapPinned, Lock } from "lucide-react";
 import heroImage from "@/assets/hero-hotel.jpg";
@@ -37,29 +36,6 @@ const Home = () => {
   const toggleType = (key: string) => {
     setEnabledTypes((prev) => ({ ...prev, [key]: !prev[key] }));
   };
-
-  const features = [
-    {
-      icon: Shield,
-      title: "Secure Booking",
-      description: "Industry-standard security",
-    },
-    {
-      icon: Zap,
-      title: "Instant Confirm",
-      description: "Immediate confirmations",
-    },
-    {
-      icon: BadgeCheck,
-      title: "Verified Stays",
-      description: "Hand-picked properties",
-    },
-    {
-      icon: HeadphonesIcon,
-      title: "24/7 Support",
-      description: "Round-the-clock help",
-    },
-  ];
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
@@ -132,60 +108,52 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Features Section - Compact grid */}
+      {/* Why RoomsOnline Section */}
       <section className="py-6 sm:py-12 bg-secondary/30">
         <div className="container mx-auto px-3 sm:px-4">
           <div className="text-center mb-4 sm:mb-8">
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-1 sm:mb-2">Why RoomsOnline</h2>
+            <p className="text-xs sm:text-sm text-muted-foreground max-w-md mx-auto">
+              Experience seamless booking with trusted local expertise
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:gap-4">
-            {features.map((feature, index) => (
-              <Card key={index} className="border-border/50 bg-card/80">
-                <CardContent className="p-3 sm:p-4 md:p-5">
-                  <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg bg-[var(--hero-gradient)] flex items-center justify-center mb-2 sm:mb-3">
-                    <feature.icon className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
-                  </div>
-                  <h3 className="font-semibold text-xs sm:text-sm md:text-base mb-0.5 sm:mb-1 text-foreground leading-tight">
-                    {feature.title}
-                  </h3>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed">{feature.description}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Trust Section */}
-      <section className="py-6 sm:py-12 bg-background">
-        <div className="container mx-auto px-3 sm:px-4">
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             {[
               {
                 icon: BadgeCheck,
                 title: "Hand-Picked Stays",
-                description: "Only verified properties — no surprises on arrival.",
+                description: "Every property is personally vetted — no surprises on arrival, only quality-assured accommodations.",
               },
               {
                 icon: Zap,
-                title: "Lightning-Fast Support",
-                description: "Average reply time under 5 minutes.",
+                title: "Instant Confirmation",
+                description: "Book with confidence. Receive immediate confirmation and detailed reservation info in seconds.",
               },
               {
                 icon: Lock,
-                title: "Secure Bookings",
-                description: "Safe payments + instant confirmations.",
+                title: "Secure Payments",
+                description: "Industry-standard encryption protects every transaction. Your data stays safe with us.",
               },
               {
                 icon: MapPinned,
                 title: "Local Experts",
-                description: "We know the owners, the towns, the tips… all of it.",
+                description: "We know the owners, the towns, the hidden gems. Real insider knowledge at your fingertips.",
+              },
+              {
+                icon: HeadphonesIcon,
+                title: "24/7 Support",
+                description: "Round-the-clock assistance whenever you need it. Average reply time under 5 minutes.",
+              },
+              {
+                icon: Shield,
+                title: "Trust Guaranteed",
+                description: "Transparent pricing, no hidden fees. What you see is exactly what you pay.",
               },
             ].map((item, index) => (
               <div
                 key={index}
-                className="flex gap-2.5 sm:gap-3 p-3 sm:p-4 rounded-lg bg-secondary/30 border border-border/50"
+                className="flex gap-2.5 sm:gap-3 p-3 sm:p-4 rounded-lg bg-background border border-border/50 hover:border-primary/30 transition-colors"
               >
                 <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <item.icon className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
