@@ -775,7 +775,7 @@ export default function AdminKeys() {
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
   // Filter out Resend email config keys from additionalKeys since we handle them in custom card
-  const resendEmailKeys = ["RESEND_FROM_EMAIL", "RESEND_TO_EMAIL"];
+  const resendEmailKeys = ["RESEND_FROM_EMAIL", "RESEND_TO_EMAIL", "BOOKING_FROM_EMAIL"];
   const additionalKeys = apiKeys
     .filter(
       (k) => k.system_type && additionalServiceTypes.includes(k.system_type) && !resendEmailKeys.includes(k.key_name),
