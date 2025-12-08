@@ -134,7 +134,14 @@ Deno.serve(async (req) => {
             : 'https://staging-api.bensonsoftware.com/api/v3/integrations';
         }
 
+        // Check if any room has custom dates different from main booking dates
+        const hasAnyCustomDates = booking.rooms && Array.isArray(booking.rooms) && booking.rooms.some((room: any) => 
+          (room.checkIn && room.checkIn !== booking.check_in_date) || 
+          (room.checkOut && room.checkOut !== booking.check_out_date)
+        );
+
         // Build rooms array from booking data with per-room dates
+        // When ANY room has custom dates, ALL rooms must include their dates explicitly
         const rooms = booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0
           ? booking.rooms.map((room: any) => {
               const roomData: any = {
@@ -144,12 +151,10 @@ Deno.serve(async (req) => {
                 numberOfChildren: room.numberOfChildren || 0,
                 numberOfInfants: room.numberOfInfants || 0,
               };
-              // Include per-room dates if they differ from main booking dates
-              if (room.checkIn && room.checkIn !== booking.check_in_date) {
-                roomData.arrivalDate = room.checkIn;
-              }
-              if (room.checkOut && room.checkOut !== booking.check_out_date) {
-                roomData.departureDate = room.checkOut;
+              // If any room has custom dates, include dates for ALL rooms
+              if (hasAnyCustomDates) {
+                roomData.arrivalDate = room.checkIn || booking.check_in_date;
+                roomData.departureDate = room.checkOut || booking.check_out_date;
               }
               return roomData;
             })
