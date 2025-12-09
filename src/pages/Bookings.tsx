@@ -523,95 +523,83 @@ const Bookings = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-start mb-8">
+      <div className="container mx-auto px-4 py-4">
+        <div className="flex justify-between items-center mb-4">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">
+            <h1 className="text-xl font-bold text-foreground">
               Bookings
             </h1>
-            <p className="text-muted-foreground">
-              View and manage all reservations
-            </p>
           </div>
           {canSyncBenson && (
             <Button 
               onClick={syncBensonBookings} 
               disabled={syncingBookings}
               variant="outline"
+              size="sm"
             >
               {syncingBookings ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
               ) : (
-                <CloudDownload className="h-4 w-4 mr-2" />
+                <CloudDownload className="h-3 w-3 mr-1" />
               )}
-              Sync from Benson
+              Sync Benson
             </Button>
           )}
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-5 gap-2 mb-3">
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-primary/10">
-                  <CalendarDays className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total</p>
-                  <p className="text-2xl font-bold">{stats.total}</p>
+            <CardContent className="p-2">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-3 w-3 text-primary" />
+                <div className="flex items-baseline gap-1">
+                  <p className="text-lg font-bold">{stats.total}</p>
+                  <p className="text-xs text-muted-foreground">Total</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-green-500/10">
-                  <CalendarDays className="h-4 w-4 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Confirmed</p>
-                  <p className="text-2xl font-bold">{stats.confirmed}</p>
+            <CardContent className="p-2">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-3 w-3 text-green-600" />
+                <div className="flex items-baseline gap-1">
+                  <p className="text-lg font-bold">{stats.confirmed}</p>
+                  <p className="text-xs text-muted-foreground">Confirmed</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-amber-500/10">
-                  <CalendarDays className="h-4 w-4 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Pending</p>
-                  <p className="text-2xl font-bold">{stats.pending}</p>
+            <CardContent className="p-2">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-3 w-3 text-amber-600" />
+                <div className="flex items-baseline gap-1">
+                  <p className="text-lg font-bold">{stats.pending}</p>
+                  <p className="text-xs text-muted-foreground">Pending</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-red-500/10">
-                  <CalendarDays className="h-4 w-4 text-red-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Cancelled</p>
-                  <p className="text-2xl font-bold">{stats.cancelled}</p>
+            <CardContent className="p-2">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-3 w-3 text-red-600" />
+                <div className="flex items-baseline gap-1">
+                  <p className="text-lg font-bold">{stats.cancelled}</p>
+                  <p className="text-xs text-muted-foreground">Cancelled</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-primary/10">
-                  <Building2 className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Revenue</p>
-                  <p className="text-xl font-bold">R{stats.totalRevenue.toLocaleString()}</p>
+            <CardContent className="p-2">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-3 w-3 text-primary" />
+                <div className="flex items-baseline gap-1">
+                  <p className="text-lg font-bold">R{stats.totalRevenue.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Revenue</p>
                 </div>
               </div>
             </CardContent>
@@ -619,20 +607,14 @@ const Bookings = () => {
         </div>
 
         {/* Filters */}
-        <Card className="mb-6">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card className="mb-3">
+          <CardContent className="p-3">
+            <div className="flex flex-wrap items-end gap-3">
               {/* Property Filter */}
-              <div className="space-y-2">
-                <Label>Property</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">Property</Label>
                 <Select value={selectedProperty} onValueChange={setSelectedProperty}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-8 w-[160px] text-xs">
                     <SelectValue placeholder="All properties" />
                   </SelectTrigger>
                   <SelectContent>
@@ -647,34 +629,36 @@ const Bookings = () => {
               </div>
 
               {/* Date From */}
-              <div className="space-y-2">
-                <Label>Check-in From</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">From</Label>
                 <Input
                   type="date"
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
+                  className="h-8 w-[130px] text-xs"
                 />
               </div>
 
               {/* Date To */}
-              <div className="space-y-2">
-                <Label>Check-in To</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">To</Label>
                 <Input
                   type="date"
                   value={dateTo}
                   onChange={(e) => setDateTo(e.target.value)}
+                  className="h-8 w-[130px] text-xs"
                 />
               </div>
 
               {/* Status Filter */}
-              <div className="space-y-2">
-                <Label>Status</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">Status</Label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All statuses" />
+                  <SelectTrigger className="h-8 w-[120px] text-xs">
+                    <SelectValue placeholder="All" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All statuses</SelectItem>
+                    <SelectItem value="all">All</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="confirmed">Confirmed</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
@@ -683,24 +667,21 @@ const Bookings = () => {
               </div>
 
               {/* Search */}
-              <div className="space-y-2">
-                <Label>Search</Label>
+              <div className="space-y-1 flex-1 min-w-[150px]">
+                <Label className="text-xs">Search</Label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                   <Input
-                    placeholder="Guest, email, property..."
+                    placeholder="Guest, email..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9"
+                    className="h-8 pl-7 text-xs"
                   />
                 </div>
               </div>
-            </div>
 
-            <div className="flex justify-end mt-4">
-              <Button variant="outline" size="sm" onClick={clearFilters}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Clear Filters
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 px-2">
+                <RefreshCw className="h-3 w-3" />
               </Button>
             </div>
           </CardContent>
@@ -708,52 +689,50 @@ const Bookings = () => {
 
         {/* Bookings Table */}
         <Card>
-          <CardHeader>
+          <CardHeader className="py-2 px-3">
             <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Reservations</CardTitle>
-                <CardDescription>
-                  {filteredBookings.length} booking{filteredBookings.length !== 1 ? "s" : ""} found
-                  {!showCancelled && stats.cancelled > 0 && (
-                    <span className="text-muted-foreground"> ({stats.cancelled} cancelled hidden)</span>
-                  )}
-                </CardDescription>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm">Reservations</CardTitle>
+                <span className="text-xs text-muted-foreground">
+                  ({filteredBookings.length}{!showCancelled && stats.cancelled > 0 && `, ${stats.cancelled} hidden`})
+                </span>
               </div>
               <div className="flex items-center gap-2">
-                <Label htmlFor="show-cancelled" className="text-sm text-muted-foreground cursor-pointer">
+                <Label htmlFor="show-cancelled" className="text-xs text-muted-foreground cursor-pointer">
                   Show cancelled
                 </Label>
                 <Switch
                   id="show-cancelled"
                   checked={showCancelled}
                   onCheckedChange={setShowCancelled}
+                  className="scale-75"
                 />
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {loading ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Loading bookings...
+              <div className="text-center py-4 text-muted-foreground text-sm">
+                Loading...
               </div>
             ) : filteredBookings.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No bookings found matching your criteria
+              <div className="text-center py-4 text-muted-foreground text-sm">
+                No bookings found
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Property</TableHead>
-                      <TableHead>Guest</TableHead>
-                      <TableHead>Check-in</TableHead>
-                      <TableHead>Check-out</TableHead>
-                      <TableHead>Guests</TableHead>
-                      <TableHead>Rate Type</TableHead>
-                      <TableHead>Total</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Ref</TableHead>
+                    <TableRow className="text-xs">
+                      <TableHead className="py-1.5 px-2 text-xs">Property</TableHead>
+                      <TableHead className="py-1.5 px-2 text-xs">Guest</TableHead>
+                      <TableHead className="py-1.5 px-2 text-xs">In</TableHead>
+                      <TableHead className="py-1.5 px-2 text-xs">Out</TableHead>
+                      <TableHead className="py-1.5 px-2 text-xs">Pax</TableHead>
+                      <TableHead className="py-1.5 px-2 text-xs">Rate</TableHead>
+                      <TableHead className="py-1.5 px-2 text-xs">Total</TableHead>
+                      <TableHead className="py-1.5 px-2 text-xs">Status</TableHead>
+                      <TableHead className="py-1.5 px-2 text-xs">Ref</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -767,68 +746,57 @@ const Bookings = () => {
                         <React.Fragment key={booking.id}>
                           <TableRow 
                             key={booking.id} 
-                            className="cursor-pointer hover:bg-muted/50"
+                            className="cursor-pointer hover:bg-muted/50 text-xs"
                             onClick={() => setExpandedBookingId(isExpanded ? null : booking.id)}
                           >
-                            <TableCell className="font-medium">
-                              <div className="flex items-center gap-2">
-                                <Plus className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-45" : ""}`} />
-                                {booking.property_name}
-                                {hasMultipleRooms && (
-                                  <Badge variant="outline" className="ml-1 text-xs">
-                                    {rooms.length} rooms
-                                  </Badge>
-                                )}
-                                {!hasMultipleRooms && hasRooms && (
-                                  <Badge variant="outline" className="ml-1 text-xs">
-                                    1 room
-                                  </Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">{booking.guest_name}</p>
-                                <p className="text-sm text-muted-foreground">{booking.guest_email}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {format(parseISO(booking.check_in_date), "dd MMM yyyy")}
-                            </TableCell>
-                            <TableCell>
-                              {format(parseISO(booking.check_out_date), "dd MMM yyyy")}
-                            </TableCell>
-                            <TableCell>
+                            <TableCell className="py-1.5 px-2 font-medium">
                               <div className="flex items-center gap-1">
-                                <Users className="h-4 w-4 text-muted-foreground" />
-                                {getTotalGuests(booking)}
+                                <Plus className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-45" : ""}`} />
+                                <span className="truncate max-w-[120px]">{booking.property_name}</span>
+                                {hasMultipleRooms && (
+                                  <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                    {rooms.length}
+                                  </Badge>
+                                )}
                               </div>
                             </TableCell>
-                            <TableCell className="text-sm">
+                            <TableCell className="py-1.5 px-2">
+                              <p className="font-medium truncate max-w-[120px]">{booking.guest_name}</p>
+                            </TableCell>
+                            <TableCell className="py-1.5 px-2">
+                              {format(parseISO(booking.check_in_date), "dd MMM")}
+                            </TableCell>
+                            <TableCell className="py-1.5 px-2">
+                              {format(parseISO(booking.check_out_date), "dd MMM")}
+                            </TableCell>
+                            <TableCell className="py-1.5 px-2">
+                              {getTotalGuests(booking)}
+                            </TableCell>
+                            <TableCell className="py-1.5 px-2 truncate max-w-[80px]">
                               {booking.rate_type_name || "—"}
                             </TableCell>
-                            <TableCell className="font-medium">
+                            <TableCell className="py-1.5 px-2 font-medium">
                               R{Number(booking.total_price).toLocaleString()}
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="py-1.5 px-2">
                               {getStatusBadge(booking.status)}
                             </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {booking.external_reservation_id || booking.id.slice(0, 8)}
+                            <TableCell className="py-1.5 px-2 text-muted-foreground truncate max-w-[70px]">
+                              {booking.external_reservation_id || booking.id.slice(0, 6)}
                             </TableCell>
                           </TableRow>
-                          {/* Expanded room details with cost breakdown */}
+                          {/* Expanded room details */}
                           {isExpanded && (
                             <TableRow key={`${booking.id}-details`} className="bg-muted/30">
-                              <TableCell colSpan={9} className="p-4">
-                                <div className="space-y-4">
-                                  {/* Header with cancel entire reservation button */}
+                              <TableCell colSpan={9} className="p-2">
+                                <div className="space-y-2">
                                   <div className="flex items-center justify-between">
-                                    <p className="text-sm font-medium text-muted-foreground">Room Details & Cost Breakdown</p>
+                                    <p className="text-xs font-medium text-muted-foreground">Room Details</p>
                                     {booking.status !== "cancelled" && (
                                       <Button
                                         variant="destructive"
                                         size="sm"
+                                        className="h-6 text-xs px-2"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           handleCancelReservation(booking);
@@ -836,16 +804,15 @@ const Bookings = () => {
                                         disabled={cancellingBookingId === booking.id}
                                       >
                                         {cancellingBookingId === booking.id ? (
-                                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
                                         ) : (
-                                          <XCircle className="h-4 w-4 mr-1" />
+                                          <XCircle className="h-3 w-3 mr-1" />
                                         )}
-                                        Cancel Entire Reservation
+                                        Cancel All
                                       </Button>
                                     )}
                                   </div>
-                                  
-                                  <div className="grid gap-3">
+                                  <div className="grid gap-2">
                                     {rooms.map((room: any, index: number) => {
                                       const roomDates = {
                                         checkIn: room.arrivalDate || booking.check_in_date,
@@ -869,38 +836,31 @@ const Bookings = () => {
                                       const roomDisplayName = room.roomTypeName || room.roomName || `Room ${index + 1}`;
                                       
                                       return (
-                                        <div key={index} className={`p-3 bg-background rounded-lg border ${isRoomCancelled ? "opacity-50 border-destructive" : ""}`}>
-                                          <div className="flex items-start justify-between gap-4">
-                                            <div className="flex items-start gap-3">
-                                              <Bed className="h-5 w-5 text-muted-foreground mt-0.5" />
-                                              <div>
-                                                <div className="flex items-center gap-2">
-                                                  <p className="font-medium">{roomDisplayName}</p>
-                                                  {isRoomCancelled && (
-                                                    <Badge variant="destructive" className="text-xs">Cancelled</Badge>
-                                                  )}
-                                                </div>
-                                                <p className="text-sm text-muted-foreground">
-                                                  {format(parseISO(roomDates.checkIn), "dd MMM")} → {format(parseISO(roomDates.checkOut), "dd MMM")} ({nights} nights)
-                                                </p>
-                                              </div>
+                                        <div key={index} className={`p-2 bg-background rounded border text-xs ${isRoomCancelled ? "opacity-50 border-destructive" : ""}`}>
+                                          <div className="flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                              <Bed className="h-3 w-3 text-muted-foreground" />
+                                              <span className="font-medium">{roomDisplayName}</span>
+                                              {isRoomCancelled && (
+                                                <Badge variant="destructive" className="text-[10px] px-1 py-0">Cancelled</Badge>
+                                              )}
+                                              <span className="text-muted-foreground">
+                                                {format(parseISO(roomDates.checkIn), "dd MMM")} → {format(parseISO(roomDates.checkOut), "dd MMM")} ({nights}n)
+                                              </span>
                                             </div>
-                                            <div className="flex items-start gap-3">
-                                              <div className="text-right">
-                                                <p className="font-bold">R{Number(roomTotal).toLocaleString()}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                  {room.numberOfAdults || 0}A
-                                                  {(room.numberOfTeens || 0) > 0 && `, ${room.numberOfTeens}T`}
-                                                  {(room.numberOfChildren || 0) > 0 && `, ${room.numberOfChildren}C`}
-                                                  {(room.numberOfInfants || 0) > 0 && `, ${room.numberOfInfants}I`}
-                                                </p>
-                                              </div>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-muted-foreground">
+                                                {room.numberOfAdults || 0}A
+                                                {(room.numberOfTeens || 0) > 0 && `/${room.numberOfTeens}T`}
+                                                {(room.numberOfChildren || 0) > 0 && `/${room.numberOfChildren}C`}
+                                              </span>
+                                              <span className="font-bold">R{Number(roomTotal).toLocaleString()}</span>
                                               {/* Cancel room button */}
                                               {!isRoomCancelled && booking.status !== "cancelled" && rooms.length > 1 && (
                                                 <Button
-                                                  variant="outline"
+                                                  variant="ghost"
                                                   size="sm"
-                                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                  className="h-5 w-5 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     handleCancelRoom(booking, index, roomDisplayName);
@@ -916,31 +876,6 @@ const Bookings = () => {
                                               )}
                                             </div>
                                           </div>
-                                          
-                                          {/* Cost line items from charges */}
-                                          {hasCharges && (
-                                            <div className="mt-3 pt-3 border-t">
-                                              <p className="text-xs font-medium text-muted-foreground mb-2">Cost Breakdown</p>
-                                              <div className="space-y-1">
-                                                {roomCharges.map((charge: any, chargeIdx: number) => (
-                                                  <div key={chargeIdx} className="flex justify-between text-sm">
-                                                    <span className="text-muted-foreground">
-                                                      {charge.chargeTypeName} - {format(parseISO(charge.date), "dd MMM")}
-                                                      {charge.tax > 0 && ` (incl. R${Number(charge.tax).toFixed(2)} tax)`}
-                                                    </span>
-                                                    <span>R{Number(charge.amount || charge.price || 0).toLocaleString()}</span>
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            </div>
-                                          )}
-                                          
-                                          {/* Rate type info - from room or booking level */}
-                                          {(room.rateTypeName || booking.rate_type_name) && (
-                                            <p className="text-xs text-muted-foreground mt-2">
-                                              Rate: {room.rateTypeName || booking.rate_type_name}
-                                            </p>
-                                          )}
                                         </div>
                                       );
                                     })}
