@@ -1223,9 +1223,94 @@ export default function PropertyForm() {
     }
   };
 
+  // Default confirmation mailer template (matches current booking email)
+  const defaultConfirmationMailerTemplate = `
+<div style="text-align: center; margin-bottom: 20px;">
+  <div style="font-size: 32px; color: #22c55e; margin-bottom: 10px;">✓</div>
+  <h1 style="margin: 0; font-size: 24px; color: #333; font-weight: 600;">Reservation Confirmed!</h1>
+  <p style="margin: 10px 0 0; color: #666; font-size: 14px;">Thank you for your reservation</p>
+</div>
+
+<div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 20px;">
+  <p style="margin: 0 0 5px; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Reservation Reference</p>
+  <p style="margin: 0; color: #333; font-size: 20px; font-weight: 600; font-family: monospace;">{{reservation_reference}}</p>
+</div>
+
+<h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">Property Details</h2>
+<table style="width: 100%; margin-bottom: 20px;">
+  <tr>
+    <td style="padding: 8px 0; color: #666;">Property</td>
+    <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">{{property_name}}</td>
+  </tr>
+  <tr>
+    <td style="padding: 8px 0; color: #666;">Location</td>
+    <td style="padding: 8px 0; color: #333; text-align: right;">{{property_location}}</td>
+  </tr>
+</table>
+
+<h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">Stay Details</h2>
+<table style="width: 100%; margin-bottom: 20px;">
+  <tr>
+    <td style="padding: 8px 0; color: #666;">Check-in</td>
+    <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">{{check_in_date}}</td>
+  </tr>
+  <tr>
+    <td style="padding: 8px 0; color: #666;">Check-out</td>
+    <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">{{check_out_date}}</td>
+  </tr>
+  <tr>
+    <td style="padding: 8px 0; color: #666;">Duration</td>
+    <td style="padding: 8px 0; color: #333; text-align: right;">{{nights}} night(s)</td>
+  </tr>
+  <tr>
+    <td style="padding: 8px 0; color: #666;">Guests</td>
+    <td style="padding: 8px 0; color: #333; text-align: right;">{{total_guests}} guest(s)</td>
+  </tr>
+</table>
+
+<h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">Guest Information</h2>
+<table style="width: 100%; margin-bottom: 20px;">
+  <tr>
+    <td style="padding: 8px 0; color: #666;">Name</td>
+    <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">{{guest_name}}</td>
+  </tr>
+  <tr>
+    <td style="padding: 8px 0; color: #666;">Email</td>
+    <td style="padding: 8px 0; color: #333; text-align: right;">{{guest_email}}</td>
+  </tr>
+  <tr>
+    <td style="padding: 8px 0; color: #666;">Phone</td>
+    <td style="padding: 8px 0; color: #333; text-align: right;">{{guest_phone}}</td>
+  </tr>
+</table>
+
+<div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+  <table style="width: 100%;">
+    <tr>
+      <td style="color: #333; font-size: 18px; font-weight: 600;">Total Amount</td>
+      <td style="color: #e91e8c; font-size: 24px; font-weight: 700; text-align: right;">{{total_price}}</td>
+    </tr>
+  </table>
+</div>
+
+<div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+  <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.5;">
+    <strong>Payment Note:</strong> This reservation has not yet been paid. An invoice with deposit and settlement amounts will be issued by the property in due course.
+  </p>
+</div>
+
+<div style="padding: 30px; background-color: #fafafa; border-radius: 8px; text-align: center;">
+  <p style="margin: 0 0 20px; color: #666; font-size: 14px;">Kind regards</p>
+  <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
+    RoomsOnline on behalf of <strong>{{property_name}}</strong>
+  </p>
+  <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
+</div>
+`.trim();
+
   // Templates and Notifications state
   const [selectedTemplate, setSelectedTemplate] = useState<string>("confirmation-mailer");
-  const [templateContent, setTemplateContent] = useState<string>("");
+  const [templateContent, setTemplateContent] = useState<string>(defaultConfirmationMailerTemplate);
   const [preMailerDays, setPreMailerDays] = useState<number>(0);
   const [preMailerHours, setPreMailerHours] = useState<number>(0);
   const [postMailerDays, setPostMailerDays] = useState<number>(0);
@@ -1728,7 +1813,10 @@ export default function PropertyForm() {
           // Load templates
           const templates = amenities?.templates || {};
           if (templates.selected_template) setSelectedTemplate(templates.selected_template);
-          if (templates.template_content) setTemplateContent(templates.template_content);
+          // Only override default template content if one exists in the database
+          if (templates.template_content && templates.template_content.trim()) {
+            setTemplateContent(templates.template_content);
+          }
           if (templates.pre_mailer_days !== undefined) setPreMailerDays(templates.pre_mailer_days);
           if (templates.pre_mailer_hours !== undefined) setPreMailerHours(templates.pre_mailer_hours);
           if (templates.post_mailer_days !== undefined) setPostMailerDays(templates.post_mailer_days);
