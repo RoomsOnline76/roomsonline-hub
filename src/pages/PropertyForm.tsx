@@ -4987,12 +4987,12 @@ export default function PropertyForm() {
 
             {/* Room Information Tab */}
             <TabsContent value="rooms" className="space-y-0">
-              <div className="flex gap-4 h-[calc(100vh-250px)]">
+              <div className="flex gap-2 h-[calc(100vh-220px)]">
                 {/* Left Sidebar - Room Types List */}
-                <div className="w-64 border-r bg-muted/30 p-4 space-y-2">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-sm">ROOM TYPES</h3>
+                <div className="w-56 border-r bg-muted/30 p-2 space-y-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1">
+                      <h3 className="font-semibold text-xs">ROOM TYPES</h3>
                       {selectedPMS && isFieldPopulatedByPMS("room_types", selectedPMS) && (
                         <TooltipProvider>
                           <Tooltip>
@@ -5006,31 +5006,31 @@ export default function PropertyForm() {
                         </TooltipProvider>
                       )}
                     </div>
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={addRoomType}>
-                      <Plus className="h-4 w-4" />
+                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={addRoomType}>
+                      <Plus className="h-3 w-3" />
                     </Button>
                   </div>
                   {roomTypes.map((room) => (
                     <div
                       key={room.id}
                       className={cn(
-                        "flex items-center justify-between p-3 rounded-md transition-colors",
+                        "flex items-center justify-between p-2 rounded-md transition-colors text-xs",
                         selectedRoomType === room.id ? "bg-primary text-primary-foreground" : "hover:bg-muted",
                         room.pms_synced && selectedRoomType !== room.id ? "bg-primary/5 border border-primary/20" : "",
                       )}
                     >
                       <span
-                        className="text-sm font-medium flex-1 cursor-pointer"
+                        className="font-medium flex-1 cursor-pointer truncate"
                         onClick={() => setSelectedRoomType(room.id)}
                       >
                         {room.name}
-                        {room.pms_synced && <Cloud className="inline h-3 w-3 ml-1 opacity-50" />}
+                        {room.pms_synced && <Cloud className="inline h-2.5 w-2.5 ml-1 opacity-50" />}
                       </span>
-                      <div className="flex gap-1">
+                      <div className="flex gap-0.5">
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-6 w-6 p-0"
+                          className="h-5 w-5 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
                             const url = getRoomUrl(propertySlug || id || "", room.id);
@@ -5042,12 +5042,12 @@ export default function PropertyForm() {
                           }}
                           title="View room page"
                         >
-                          <Home className="h-3 w-3" />
+                          <Home className="h-2.5 w-2.5" />
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-6 w-6 p-0"
+                          className="h-5 w-5 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
                             navigator.clipboard.writeText(getRoomUrl(propertySlug || id || "", room.id));
@@ -5058,18 +5058,18 @@ export default function PropertyForm() {
                           }}
                           title="Copy room URL"
                         >
-                          <Copy className="h-3 w-3" />
+                          <Copy className="h-2.5 w-2.5" />
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-6 w-6 p-0"
+                          className="h-5 w-5 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
                             deleteRoomType(room.id);
                           }}
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <Trash2 className="h-2.5 w-2.5" />
                         </Button>
                       </div>
                     </div>
@@ -5079,59 +5079,54 @@ export default function PropertyForm() {
                 {/* Main Content - Room Type Details */}
                 <div className="flex-1 overflow-auto">
                   <Tabs defaultValue="room-type" className="w-full">
-                    <TabsList>
-                      <TabsTrigger value="room-type">Room Type</TabsTrigger>
-                      <TabsTrigger value="rate-types">Rate Types</TabsTrigger>
-                      <TabsTrigger value="facilities">Facilities</TabsTrigger>
-                      <TabsTrigger value="amenities">Amenities</TabsTrigger>
-                      <TabsTrigger value="room-images">Images</TabsTrigger>
-                      <TabsTrigger value="agreement">Agreement</TabsTrigger>
+                    <TabsList className="h-8">
+                      <TabsTrigger value="room-type" className="text-xs h-7">Room Type</TabsTrigger>
+                      <TabsTrigger value="rate-types" className="text-xs h-7">Rate Types</TabsTrigger>
+                      <TabsTrigger value="facilities" className="text-xs h-7">Facilities</TabsTrigger>
+                      <TabsTrigger value="amenities" className="text-xs h-7">Amenities</TabsTrigger>
+                      <TabsTrigger value="room-images" className="text-xs h-7">Images</TabsTrigger>
+                      <TabsTrigger value="agreement" className="text-xs h-7">Agreement</TabsTrigger>
                     </TabsList>
 
                     {/* Room Type Sub-tab */}
-                    <TabsContent value="room-type" className="p-6 space-y-6">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            Room Type Name
+                    <TabsContent value="room-type" className="p-3 space-y-3">
+                      <div className="grid grid-cols-4 gap-2 items-end">
+                        <div className="col-span-2 flex items-center gap-2">
+                          <Label className="text-xs whitespace-nowrap flex items-center gap-1">
+                            Name
                             {isRoomFieldPmsSynced(selectedRoomType, 'name') && (
-                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />Benson</Badge>
+                              <Badge variant="outline" className="text-[10px] h-4 px-1 bg-primary/10"><Cloud className="h-2.5 w-2.5" /></Badge>
                             )}
                           </Label>
                           <Input
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.name || ""}
                             onChange={(e) => updateRoomTypeName(selectedRoomType, e.target.value)}
-                            className={getRoomPmsFieldClass(selectedRoomType, 'name')}
+                            className={cn("h-7 text-xs", getRoomPmsFieldClass(selectedRoomType, 'name'))}
                             disabled={isRoomFieldPmsSynced(selectedRoomType, 'name')}
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label># of rooms for this type*</Label>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs whitespace-nowrap"># Rooms</Label>
                           <Input
                             type="number"
+                            className="h-7 text-xs w-20"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.numRooms || 1}
                             onChange={(e) =>
                               updateRoomTypeField(selectedRoomType, "numRooms", parseInt(e.target.value) || 1)
                             }
                           />
                         </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                          <Link className="h-4 w-4" />
-                          Room URL
-                        </Label>
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-1">
                           <Input
                             readOnly
-                            className="bg-muted/50"
+                            className="bg-muted/50 h-7 text-xs"
                             value={getRoomUrl(propertySlug || id || "", selectedRoomType || "")}
                           />
                           <Button
                             type="button"
                             variant="outline"
                             size="icon"
+                            className="h-7 w-7"
                             onClick={() => {
                               navigator.clipboard.writeText(
                                 getRoomUrl(propertySlug || id || "", selectedRoomType || ""),
@@ -5142,70 +5137,72 @@ export default function PropertyForm() {
                               });
                             }}
                           >
-                            <Copy className="h-4 w-4" />
+                            <Copy className="h-3 w-3" />
                           </Button>
                         </div>
-                        <p className="text-xs text-muted-foreground">Auto-generated link to the room showcase page</p>
                       </div>
 
                       {selectedPMS && (
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label>{selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} Room Type</Label>
+                        <div className="grid grid-cols-2 gap-2 items-end">
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs whitespace-nowrap">{selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} Type</Label>
                             <Input
+                              className="h-7 text-xs"
                               value={roomTypes.find((r) => r.id === selectedRoomType)?.pmsRoomType || ""}
                               onChange={(e) => updateRoomTypeField(selectedRoomType, "pmsRoomType", e.target.value)}
-                              placeholder={`Enter ${selectedPMS} room type name`}
+                              placeholder={`${selectedPMS} room type`}
                             />
                           </div>
-                          <div className="space-y-2">
-                            <Label>{selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} Room ID</Label>
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs whitespace-nowrap">{selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} ID</Label>
                             <Input
+                              className="h-7 text-xs"
                               value={roomTypes.find((r) => r.id === selectedRoomType)?.pmsRoomId || ""}
                               onChange={(e) => updateRoomTypeField(selectedRoomType, "pmsRoomId", e.target.value)}
-                              placeholder={`Enter ${selectedPMS} room ID`}
+                              placeholder={`${selectedPMS} ID`}
                             />
                           </div>
                         </div>
                       )}
 
                       {!selectedPMS && (
-                        <div className="bg-muted/50 border border-border rounded-md p-3">
-                          <p className="text-sm text-muted-foreground">
-                            No PMS connected. Select a PMS system in the General tab to enable room mapping fields.
+                        <div className="bg-muted/50 border border-border rounded-md p-2">
+                          <p className="text-xs text-muted-foreground">
+                            No PMS connected. Select a PMS in General tab.
                           </p>
                         </div>
                       )}
 
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                          Room Type Description
+                      <div className="flex items-start gap-2">
+                        <Label className="text-xs whitespace-nowrap pt-1.5 flex items-center gap-1">
+                          Description
                           {isRoomFieldPmsSynced(selectedRoomType, 'description') && (
-                            <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
+                            <Badge variant="outline" className="text-[10px] h-4 px-1 bg-primary/10"><Cloud className="h-2.5 w-2.5" /></Badge>
                           )}
                         </Label>
                         <Textarea
-                          rows={4}
+                          rows={2}
+                          className={cn("text-xs flex-1", getRoomPmsFieldClass(selectedRoomType, 'description'))}
                           value={roomTypes.find((r) => r.id === selectedRoomType)?.description || ""}
                           onChange={(e) => updateRoomTypeField(selectedRoomType, "description", e.target.value)}
-                          className={getRoomPmsFieldClass(selectedRoomType, 'description')}
                           disabled={isRoomFieldPmsSynced(selectedRoomType, 'description')}
                         />
                       </div>
 
-                      <div className="space-y-2">
-                        <Label>Extra Person Policy</Label>
+                      <div className="flex items-start gap-2">
+                        <Label className="text-xs whitespace-nowrap pt-1.5">Extra Person Policy</Label>
                         <Textarea
-                          rows={2}
+                          rows={1}
+                          className="text-xs flex-1"
                           value={roomTypes.find((r) => r.id === selectedRoomType)?.extraPersonPolicy || ""}
                           onChange={(e) => updateRoomTypeField(selectedRoomType, "extraPersonPolicy", e.target.value)}
                         />
                       </div>
 
                       {/* Bed Configuration Section */}
-                      <div className="space-y-3">
-                        <Label>Bed Configuration</Label>
-                        <div className="border rounded-lg p-4 space-y-3">
+                      <div className="flex items-start gap-2">
+                        <Label className="text-xs whitespace-nowrap pt-1">Beds</Label>
+                        <div className="border rounded-md p-2 flex-1 flex flex-wrap gap-2 items-center">
                           {(() => {
                             const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
                             const bedConfig = parseBedConfiguration(currentRoom?.bedConfiguration);
@@ -5213,7 +5210,7 @@ export default function PropertyForm() {
                             return (
                               <>
                                 {bedConfig.map((bed, index) => (
-                                  <div key={index} className="flex items-center gap-3">
+                                  <div key={index} className="flex items-center gap-1 bg-muted/50 rounded px-2 py-1">
                                     <Select
                                       value={bed.type}
                                       onValueChange={(value) => {
@@ -5222,8 +5219,8 @@ export default function PropertyForm() {
                                         updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
                                       }}
                                     >
-                                      <SelectTrigger className="w-[160px]">
-                                        <SelectValue placeholder="Select bed type" />
+                                      <SelectTrigger className="w-[100px] h-6 text-xs border-0 bg-transparent">
+                                        <SelectValue placeholder="Bed type" />
                                       </SelectTrigger>
                                       <SelectContent>
                                         {BED_TYPES.map((bt) => (
@@ -5231,47 +5228,45 @@ export default function PropertyForm() {
                                         ))}
                                       </SelectContent>
                                     </Select>
-                                    <div className="flex items-center gap-2">
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        onClick={() => {
-                                          const newConfig = [...bedConfig];
-                                          newConfig[index] = { ...bed, count: Math.max(1, bed.count - 1) };
-                                          updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
-                                        }}
-                                        disabled={bed.count <= 1}
-                                      >
-                                        <Minus className="h-4 w-4" />
-                                      </Button>
-                                      <span className="w-8 text-center font-medium">{bed.count}</span>
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        onClick={() => {
-                                          const newConfig = [...bedConfig];
-                                          newConfig[index] = { ...bed, count: bed.count + 1 };
-                                          updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
-                                        }}
-                                      >
-                                        <Plus className="h-4 w-4" />
-                                      </Button>
-                                    </div>
                                     <Button
                                       type="button"
                                       variant="ghost"
                                       size="icon"
-                                      className="h-8 w-8 text-destructive hover:text-destructive"
+                                      className="h-5 w-5"
+                                      onClick={() => {
+                                        const newConfig = [...bedConfig];
+                                        newConfig[index] = { ...bed, count: Math.max(1, bed.count - 1) };
+                                        updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
+                                      }}
+                                      disabled={bed.count <= 1}
+                                    >
+                                      <Minus className="h-3 w-3" />
+                                    </Button>
+                                    <span className="w-4 text-center text-xs font-medium">{bed.count}</span>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-5 w-5"
+                                      onClick={() => {
+                                        const newConfig = [...bedConfig];
+                                        newConfig[index] = { ...bed, count: bed.count + 1 };
+                                        updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
+                                      }}
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-5 w-5 text-destructive hover:text-destructive"
                                       onClick={() => {
                                         const newConfig = bedConfig.filter((_, i) => i !== index);
                                         updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
                                       }}
                                     >
-                                      <X className="h-4 w-4" />
+                                      <X className="h-3 w-3" />
                                     </Button>
                                   </div>
                                 ))}
@@ -5279,13 +5274,14 @@ export default function PropertyForm() {
                                   type="button"
                                   variant="outline"
                                   size="sm"
+                                  className="h-6 text-xs"
                                   onClick={() => {
                                     const newConfig = [...bedConfig, { type: "king", count: 1 }];
                                     updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
                                   }}
                                 >
-                                  <Plus className="h-4 w-4 mr-2" />
-                                  Add Bed
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Add
                                 </Button>
                               </>
                             );
@@ -5293,284 +5289,228 @@ export default function PropertyForm() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label>Room Size (m²)*</Label>
+                      <div className="grid grid-cols-6 gap-2 items-end">
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs whitespace-nowrap">Size (m²)</Label>
                           <Input
                             type="number"
+                            className="h-7 text-xs w-16"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.roomSize || 0}
                             onChange={(e) =>
                               updateRoomTypeField(selectedRoomType, "roomSize", parseInt(e.target.value) || 0)
                             }
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label>Bathrooms*</Label>
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs whitespace-nowrap">Baths</Label>
                           <Input
                             type="number"
+                            className="h-7 text-xs w-14"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.bathrooms || 1}
                             onChange={(e) =>
                               updateRoomTypeField(selectedRoomType, "bathrooms", parseInt(e.target.value) || 0)
                             }
                           />
                         </div>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            Max people per Room*
-                            {isRoomFieldPmsSynced(selectedRoomType, 'maxPeople') && (
-                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                            )}
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
+                            Max
+                            {isRoomFieldPmsSynced(selectedRoomType, 'maxPeople') && <Cloud className="h-2.5 w-2.5 text-primary" />}
                           </Label>
                           <Input
                             type="number"
+                            className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, 'maxPeople'))}
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.maxPeople || 2}
                             onChange={(e) =>
                               updateRoomTypeField(selectedRoomType, "maxPeople", parseInt(e.target.value) || 1)
                             }
-                            className={getRoomPmsFieldClass(selectedRoomType, 'maxPeople')}
                             disabled={isRoomFieldPmsSynced(selectedRoomType, 'maxPeople')}
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            Max adult*
-                            {isRoomFieldPmsSynced(selectedRoomType, 'maxAdults') && (
-                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                            )}
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
+                            Adults
+                            {isRoomFieldPmsSynced(selectedRoomType, 'maxAdults') && <Cloud className="h-2.5 w-2.5 text-primary" />}
                           </Label>
                           <Input
                             type="number"
+                            className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, 'maxAdults'))}
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.maxAdults || 2}
                             onChange={(e) =>
                               updateRoomTypeField(selectedRoomType, "maxAdults", parseInt(e.target.value) || 1)
                             }
-                            className={getRoomPmsFieldClass(selectedRoomType, 'maxAdults')}
                             disabled={isRoomFieldPmsSynced(selectedRoomType, 'maxAdults')}
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            Max children*
-                            {isRoomFieldPmsSynced(selectedRoomType, 'maxChildren') && (
-                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                            )}
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
+                            Children
+                            {isRoomFieldPmsSynced(selectedRoomType, 'maxChildren') && <Cloud className="h-2.5 w-2.5 text-primary" />}
                           </Label>
                           <Input
                             type="number"
+                            className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, 'maxChildren'))}
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.maxChildren || 0}
                             onChange={(e) =>
                               updateRoomTypeField(selectedRoomType, "maxChildren", parseInt(e.target.value) || 0)
                             }
-                            className={getRoomPmsFieldClass(selectedRoomType, 'maxChildren')}
                             disabled={isRoomFieldPmsSynced(selectedRoomType, 'maxChildren')}
                           />
                         </div>
-                      </div>
-
-                      <div className="grid grid-cols-4 gap-4">
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            Min Guests
-                            {isRoomFieldPmsSynced(selectedRoomType, 'minGuests') && (
-                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                            )}
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
+                            Min
+                            {isRoomFieldPmsSynced(selectedRoomType, 'minGuests') && <Cloud className="h-2.5 w-2.5 text-primary" />}
                           </Label>
                           <Input
                             type="number"
+                            className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, 'minGuests'))}
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.minGuests || 1}
                             onChange={(e) =>
                               updateRoomTypeField(selectedRoomType, "minGuests", parseInt(e.target.value) || 1)
                             }
-                            className={getRoomPmsFieldClass(selectedRoomType, 'minGuests')}
                             disabled={isRoomFieldPmsSynced(selectedRoomType, 'minGuests')}
                           />
                         </div>
                       </div>
 
-                      {/* Guest Policy: Teens */}
-                      <div className="border rounded-lg p-4 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <Label className="flex items-center gap-2 font-semibold">
-                            Allow Teens
-                            {isRoomFieldPmsSynced(selectedRoomType, 'allowTeens') && (
-                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                            )}
-                          </Label>
-                          <Switch
-                            checked={roomTypes.find((r) => r.id === selectedRoomType)?.allowTeens || false}
-                            onCheckedChange={(checked) => updateRoomTypeField(selectedRoomType, "allowTeens", checked)}
-                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'allowTeens')}
-                          />
-                        </div>
-                        {roomTypes.find((r) => r.id === selectedRoomType)?.allowTeens && (
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label className="flex items-center gap-2">
-                                Teen Min Age
-                                {isRoomFieldPmsSynced(selectedRoomType, 'teenMinAge') && (
-                                  <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                                )}
-                              </Label>
-                              <Input
-                                type="number"
-                                value={roomTypes.find((r) => r.id === selectedRoomType)?.teenMinAge || 13}
-                                onChange={(e) =>
-                                  updateRoomTypeField(selectedRoomType, "teenMinAge", parseInt(e.target.value) || 13)
-                                }
-                                className={getRoomPmsFieldClass(selectedRoomType, 'teenMinAge')}
-                                disabled={isRoomFieldPmsSynced(selectedRoomType, 'teenMinAge')}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="flex items-center gap-2">
-                                Teen Max Age
-                                {isRoomFieldPmsSynced(selectedRoomType, 'teenMaxAge') && (
-                                  <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                                )}
-                              </Label>
-                              <Input
-                                type="number"
-                                value={roomTypes.find((r) => r.id === selectedRoomType)?.teenMaxAge || 17}
-                                onChange={(e) =>
-                                  updateRoomTypeField(selectedRoomType, "teenMaxAge", parseInt(e.target.value) || 17)
-                                }
-                                className={getRoomPmsFieldClass(selectedRoomType, 'teenMaxAge')}
-                                disabled={isRoomFieldPmsSynced(selectedRoomType, 'teenMaxAge')}
-                              />
-                            </div>
+                      {/* Guest Policies - Compact Row */}
+                      <div className="grid grid-cols-3 gap-2">
+                        {/* Teens */}
+                        <div className="border rounded-md p-2 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs font-medium flex items-center gap-1">
+                              Teens
+                              {isRoomFieldPmsSynced(selectedRoomType, 'allowTeens') && <Cloud className="h-2.5 w-2.5 text-primary" />}
+                            </Label>
+                            <Switch
+                              className="scale-75"
+                              checked={roomTypes.find((r) => r.id === selectedRoomType)?.allowTeens || false}
+                              onCheckedChange={(checked) => updateRoomTypeField(selectedRoomType, "allowTeens", checked)}
+                              disabled={isRoomFieldPmsSynced(selectedRoomType, 'allowTeens')}
+                            />
                           </div>
-                        )}
+                          {roomTypes.find((r) => r.id === selectedRoomType)?.allowTeens && (
+                            <div className="flex gap-2">
+                              <div className="flex items-center gap-1 flex-1">
+                                <Label className="text-[10px] text-muted-foreground">Min</Label>
+                                <Input
+                                  type="number"
+                                  className={cn("h-6 text-xs", getRoomPmsFieldClass(selectedRoomType, 'teenMinAge'))}
+                                  value={roomTypes.find((r) => r.id === selectedRoomType)?.teenMinAge || 13}
+                                  onChange={(e) => updateRoomTypeField(selectedRoomType, "teenMinAge", parseInt(e.target.value) || 13)}
+                                  disabled={isRoomFieldPmsSynced(selectedRoomType, 'teenMinAge')}
+                                />
+                              </div>
+                              <div className="flex items-center gap-1 flex-1">
+                                <Label className="text-[10px] text-muted-foreground">Max</Label>
+                                <Input
+                                  type="number"
+                                  className={cn("h-6 text-xs", getRoomPmsFieldClass(selectedRoomType, 'teenMaxAge'))}
+                                  value={roomTypes.find((r) => r.id === selectedRoomType)?.teenMaxAge || 17}
+                                  onChange={(e) => updateRoomTypeField(selectedRoomType, "teenMaxAge", parseInt(e.target.value) || 17)}
+                                  disabled={isRoomFieldPmsSynced(selectedRoomType, 'teenMaxAge')}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Children */}
+                        <div className="border rounded-md p-2 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs font-medium flex items-center gap-1">
+                              Children
+                              {isRoomFieldPmsSynced(selectedRoomType, 'allowChildren') && <Cloud className="h-2.5 w-2.5 text-primary" />}
+                            </Label>
+                            <Switch
+                              className="scale-75"
+                              checked={roomTypes.find((r) => r.id === selectedRoomType)?.allowChildren || false}
+                              onCheckedChange={(checked) => updateRoomTypeField(selectedRoomType, "allowChildren", checked)}
+                              disabled={isRoomFieldPmsSynced(selectedRoomType, 'allowChildren')}
+                            />
+                          </div>
+                          {roomTypes.find((r) => r.id === selectedRoomType)?.allowChildren && (
+                            <div className="flex gap-2">
+                              <div className="flex items-center gap-1 flex-1">
+                                <Label className="text-[10px] text-muted-foreground">Min</Label>
+                                <Input
+                                  type="number"
+                                  className={cn("h-6 text-xs", getRoomPmsFieldClass(selectedRoomType, 'childMinAge'))}
+                                  value={roomTypes.find((r) => r.id === selectedRoomType)?.childMinAge || 2}
+                                  onChange={(e) => updateRoomTypeField(selectedRoomType, "childMinAge", parseInt(e.target.value) || 2)}
+                                  disabled={isRoomFieldPmsSynced(selectedRoomType, 'childMinAge')}
+                                />
+                              </div>
+                              <div className="flex items-center gap-1 flex-1">
+                                <Label className="text-[10px] text-muted-foreground">Max</Label>
+                                <Input
+                                  type="number"
+                                  className={cn("h-6 text-xs", getRoomPmsFieldClass(selectedRoomType, 'childMaxAge'))}
+                                  value={roomTypes.find((r) => r.id === selectedRoomType)?.childMaxAge || 12}
+                                  onChange={(e) => updateRoomTypeField(selectedRoomType, "childMaxAge", parseInt(e.target.value) || 12)}
+                                  disabled={isRoomFieldPmsSynced(selectedRoomType, 'childMaxAge')}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Infants */}
+                        <div className="border rounded-md p-2 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs font-medium flex items-center gap-1">
+                              Infants
+                              {isRoomFieldPmsSynced(selectedRoomType, 'allowInfants') && <Cloud className="h-2.5 w-2.5 text-primary" />}
+                            </Label>
+                            <Switch
+                              className="scale-75"
+                              checked={roomTypes.find((r) => r.id === selectedRoomType)?.allowInfants || false}
+                              onCheckedChange={(checked) => updateRoomTypeField(selectedRoomType, "allowInfants", checked)}
+                              disabled={isRoomFieldPmsSynced(selectedRoomType, 'allowInfants')}
+                            />
+                          </div>
+                          {roomTypes.find((r) => r.id === selectedRoomType)?.allowInfants && (
+                            <div className="flex gap-2">
+                              <div className="flex items-center gap-1 flex-1">
+                                <Label className="text-[10px] text-muted-foreground">Min</Label>
+                                <Input
+                                  type="number"
+                                  className={cn("h-6 text-xs", getRoomPmsFieldClass(selectedRoomType, 'infantMinAge'))}
+                                  value={roomTypes.find((r) => r.id === selectedRoomType)?.infantMinAge || 0}
+                                  onChange={(e) => updateRoomTypeField(selectedRoomType, "infantMinAge", parseInt(e.target.value) || 0)}
+                                  disabled={isRoomFieldPmsSynced(selectedRoomType, 'infantMinAge')}
+                                />
+                              </div>
+                              <div className="flex items-center gap-1 flex-1">
+                                <Label className="text-[10px] text-muted-foreground">Max</Label>
+                                <Input
+                                  type="number"
+                                  className={cn("h-6 text-xs", getRoomPmsFieldClass(selectedRoomType, 'infantMaxAge'))}
+                                  value={roomTypes.find((r) => r.id === selectedRoomType)?.infantMaxAge || 2}
+                                  onChange={(e) => updateRoomTypeField(selectedRoomType, "infantMaxAge", parseInt(e.target.value) || 2)}
+                                  disabled={isRoomFieldPmsSynced(selectedRoomType, 'infantMaxAge')}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Guest Policy: Children */}
-                      <div className="border rounded-lg p-4 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <Label className="flex items-center gap-2 font-semibold">
-                            Allow Children
-                            {isRoomFieldPmsSynced(selectedRoomType, 'allowChildren') && (
-                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                            )}
-                          </Label>
-                          <Switch
-                            checked={roomTypes.find((r) => r.id === selectedRoomType)?.allowChildren || false}
-                            onCheckedChange={(checked) => updateRoomTypeField(selectedRoomType, "allowChildren", checked)}
-                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'allowChildren')}
-                          />
-                        </div>
-                        {roomTypes.find((r) => r.id === selectedRoomType)?.allowChildren && (
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label className="flex items-center gap-2">
-                                Child Min Age
-                                {isRoomFieldPmsSynced(selectedRoomType, 'childMinAge') && (
-                                  <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                                )}
-                              </Label>
-                              <Input
-                                type="number"
-                                value={roomTypes.find((r) => r.id === selectedRoomType)?.childMinAge || 2}
-                                onChange={(e) =>
-                                  updateRoomTypeField(selectedRoomType, "childMinAge", parseInt(e.target.value) || 2)
-                                }
-                                className={getRoomPmsFieldClass(selectedRoomType, 'childMinAge')}
-                                disabled={isRoomFieldPmsSynced(selectedRoomType, 'childMinAge')}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="flex items-center gap-2">
-                                Child Max Age
-                                {isRoomFieldPmsSynced(selectedRoomType, 'childMaxAge') && (
-                                  <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                                )}
-                              </Label>
-                              <Input
-                                type="number"
-                                value={roomTypes.find((r) => r.id === selectedRoomType)?.childMaxAge || 12}
-                                onChange={(e) =>
-                                  updateRoomTypeField(selectedRoomType, "childMaxAge", parseInt(e.target.value) || 12)
-                                }
-                                className={getRoomPmsFieldClass(selectedRoomType, 'childMaxAge')}
-                                disabled={isRoomFieldPmsSynced(selectedRoomType, 'childMaxAge')}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Guest Policy: Infants */}
-                      <div className="border rounded-lg p-4 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <Label className="flex items-center gap-2 font-semibold">
-                            Allow Infants
-                            {isRoomFieldPmsSynced(selectedRoomType, 'allowInfants') && (
-                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                            )}
-                          </Label>
-                          <Switch
-                            checked={roomTypes.find((r) => r.id === selectedRoomType)?.allowInfants || false}
-                            onCheckedChange={(checked) => updateRoomTypeField(selectedRoomType, "allowInfants", checked)}
-                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'allowInfants')}
-                          />
-                        </div>
-                        {roomTypes.find((r) => r.id === selectedRoomType)?.allowInfants && (
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label className="flex items-center gap-2">
-                                Infant Min Age
-                                {isRoomFieldPmsSynced(selectedRoomType, 'infantMinAge') && (
-                                  <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                                )}
-                              </Label>
-                              <Input
-                                type="number"
-                                value={roomTypes.find((r) => r.id === selectedRoomType)?.infantMinAge || 0}
-                                onChange={(e) =>
-                                  updateRoomTypeField(selectedRoomType, "infantMinAge", parseInt(e.target.value) || 0)
-                                }
-                                className={getRoomPmsFieldClass(selectedRoomType, 'infantMinAge')}
-                                disabled={isRoomFieldPmsSynced(selectedRoomType, 'infantMinAge')}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="flex items-center gap-2">
-                                Infant Max Age
-                                {isRoomFieldPmsSynced(selectedRoomType, 'infantMaxAge') && (
-                                  <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                                )}
-                              </Label>
-                              <Input
-                                type="number"
-                                value={roomTypes.find((r) => r.id === selectedRoomType)?.infantMaxAge || 2}
-                                onChange={(e) =>
-                                  updateRoomTypeField(selectedRoomType, "infantMaxAge", parseInt(e.target.value) || 2)
-                                }
-                                className={getRoomPmsFieldClass(selectedRoomType, 'infantMaxAge')}
-                                disabled={isRoomFieldPmsSynced(selectedRoomType, 'infantMaxAge')}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Additional PMS Fields */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            Min Age Category
-                            {isRoomFieldPmsSynced(selectedRoomType, 'minAgeCategory') && (
-                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                            )}
+                      {/* Additional PMS Fields - Inline */}
+                      <div className="grid grid-cols-4 gap-2 items-end">
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
+                            Age Cat
+                            {isRoomFieldPmsSynced(selectedRoomType, 'minAgeCategory') && <Cloud className="h-2.5 w-2.5 text-primary" />}
                           </Label>
                           <Select
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.minAgeCategory || ""}
                             onValueChange={(value) => updateRoomTypeField(selectedRoomType, "minAgeCategory", value)}
                             disabled={isRoomFieldPmsSynced(selectedRoomType, 'minAgeCategory')}
                           >
-                            <SelectTrigger className={getRoomPmsFieldClass(selectedRoomType, 'minAgeCategory')}>
-                              <SelectValue placeholder="Select category" />
+                            <SelectTrigger className={cn("h-7 text-xs", getRoomPmsFieldClass(selectedRoomType, 'minAgeCategory'))}>
+                              <SelectValue placeholder="Select" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="ADULT">Adult</SelectItem>
@@ -5580,41 +5520,38 @@ export default function PropertyForm() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            Min Adults for Non-Adult Rates
-                            {isRoomFieldPmsSynced(selectedRoomType, 'minAdultsToOfferNonAdultRates') && (
-                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                            )}
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
+                            Min Adults
+                            {isRoomFieldPmsSynced(selectedRoomType, 'minAdultsToOfferNonAdultRates') && <Cloud className="h-2.5 w-2.5 text-primary" />}
                           </Label>
                           <Input
                             type="number"
                             min="0"
+                            className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, 'minAdultsToOfferNonAdultRates'))}
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.minAdultsToOfferNonAdultRates || 0}
                             onChange={(e) =>
                               updateRoomTypeField(selectedRoomType, "minAdultsToOfferNonAdultRates", parseInt(e.target.value) || 0)
                             }
-                            className={getRoomPmsFieldClass(selectedRoomType, 'minAdultsToOfferNonAdultRates')}
                             disabled={isRoomFieldPmsSynced(selectedRoomType, 'minAdultsToOfferNonAdultRates')}
                           />
                         </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Min Stay*</Label>
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs whitespace-nowrap">Min Stay</Label>
                           <Input
                             type="number"
+                            className="h-7 text-xs w-14"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.minStay || 1}
                             onChange={(e) =>
                               updateRoomTypeField(selectedRoomType, "minStay", parseInt(e.target.value) || 1)
                             }
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label>Max Stay*</Label>
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs whitespace-nowrap">Max Stay</Label>
                           <Input
                             type="number"
+                            className="h-7 text-xs w-14"
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.maxStay || 0}
                             onChange={(e) =>
                               updateRoomTypeField(selectedRoomType, "maxStay", parseInt(e.target.value) || 0)
@@ -5623,10 +5560,9 @@ export default function PropertyForm() {
                         </div>
                       </div>
 
-                      <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                        <p className="text-sm text-blue-700">
-                          <strong>INFO:</strong> Please be advised that you need to align the number of "Max adult" with
-                          rate type if Person Rate is applied.
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-2">
+                        <p className="text-xs text-blue-700">
+                          <strong>INFO:</strong> Align "Max adult" with rate type if Person Rate is applied.
                         </p>
                       </div>
 
