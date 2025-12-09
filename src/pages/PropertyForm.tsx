@@ -62,6 +62,7 @@ import { PropertyMap } from "@/components/PropertyMap";
 import { TagInput } from "@/components/TagInput";
 import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS } from "@/lib/pmsFieldConfig";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import RichTextEditor from "@/components/RichTextEditor";
 
 // Map PMS system types to icons
 const getPMSIcon = (systemType: string): LucideIcon => {
@@ -3467,15 +3468,13 @@ export default function PropertyForm() {
                     ))}
                   </div>
 
-                  {/* Template Content */}
+                  {/* Template Content - Rich Text Editor */}
                   <div className="space-y-1">
-                    <Label className="text-xs">Template</Label>
-                    <Textarea
-                      rows={6}
-                      value={templateContent}
-                      onChange={(e) => setTemplateContent(e.target.value)}
+                    <Label className="text-xs">Template (supports formatting, images, and links)</Label>
+                    <RichTextEditor
+                      content={templateContent}
+                      onChange={setTemplateContent}
                       placeholder="Enter your email template content here..."
-                      className="font-mono text-xs"
                     />
                   </div>
 
