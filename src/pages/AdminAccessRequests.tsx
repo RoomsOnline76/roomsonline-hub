@@ -134,11 +134,11 @@ export default function AdminAccessRequests() {
   if (!isAdmin) return null;
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/admin/property-overview")}>
-            <ArrowLeft className="h-5 w-5" />
+    <div className="min-h-screen bg-background p-3">
+      <div className="max-w-6xl mx-auto space-y-3">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate("/admin/property-overview")}>
+            <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex items-baseline gap-2">
             <h1 className="text-xl font-bold text-foreground">Access Requests</h1>
@@ -180,46 +180,48 @@ export default function AdminAccessRequests() {
               <CardDescription className="text-xs">— Review and manage access requests</CardDescription>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="py-2 px-4">
             {requests.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">No access requests yet</p>
+              <p className="text-center text-muted-foreground text-xs py-4">No access requests yet</p>
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Message</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Submitted</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                  <TableRow className="h-8">
+                    <TableHead className="py-1 text-xs">Name</TableHead>
+                    <TableHead className="py-1 text-xs">Email</TableHead>
+                    <TableHead className="py-1 text-xs">Message</TableHead>
+                    <TableHead className="py-1 text-xs">Status</TableHead>
+                    <TableHead className="py-1 text-xs">Submitted</TableHead>
+                    <TableHead className="text-right py-1 text-xs">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {requests.map((request) => (
-                    <TableRow key={request.id}>
-                      <TableCell className="font-medium">{request.full_name}</TableCell>
-                      <TableCell>{request.email}</TableCell>
-                      <TableCell className="max-w-xs truncate">{request.message || "—"}</TableCell>
-                      <TableCell>{getStatusBadge(request.status)}</TableCell>
-                      <TableCell>{format(new Date(request.created_at), "MMM d, yyyy HH:mm")}</TableCell>
-                      <TableCell className="text-right">
+                    <TableRow key={request.id} className="h-10">
+                      <TableCell className="font-medium text-xs py-1">{request.full_name}</TableCell>
+                      <TableCell className="text-xs py-1">{request.email}</TableCell>
+                      <TableCell className="max-w-xs truncate text-xs py-1">{request.message || "—"}</TableCell>
+                      <TableCell className="py-1">{getStatusBadge(request.status)}</TableCell>
+                      <TableCell className="text-xs py-1">{format(new Date(request.created_at), "MMM d, yyyy HH:mm")}</TableCell>
+                      <TableCell className="text-right py-1">
                         {request.status === "pending" && (
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-end gap-1">
                             <Button
                               size="sm"
                               variant="default"
+                              className="h-6 text-xs px-2"
                               onClick={() => handleApprove(request)}
                             >
-                              <UserPlus className="h-4 w-4 mr-1" />
+                              <UserPlus className="h-3 w-3 mr-1" />
                               Approve
                             </Button>
                             <Button
                               size="sm"
                               variant="destructive"
+                              className="h-6 text-xs px-2"
                               onClick={() => handleDecline(request.id)}
                             >
-                              <X className="h-4 w-4 mr-1" />
+                              <X className="h-3 w-3 mr-1" />
                               Decline
                             </Button>
                           </div>
