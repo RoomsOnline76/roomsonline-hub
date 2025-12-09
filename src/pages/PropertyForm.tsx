@@ -3120,42 +3120,68 @@ export default function PropertyForm() {
             </TabsContent>
 
             <TabsContent value="house-rules">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <form onSubmit={handleSubmit} className="space-y-3">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
                   {/* Left Column */}
-                  <div className="lg:col-span-2 space-y-6">
-                    {/* Payment Policies */}
+                  <div className="lg:col-span-3 space-y-3">
+                    {/* Payment & Policy Toggles Row */}
                     <Card>
-                      <CardHeader>
-                        <CardTitle>Payment Policies</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="items_non_refundable"
-                            checked={formData.items_non_refundable}
-                            onCheckedChange={(checked) =>
-                              setFormData({ ...formData, items_non_refundable: checked as boolean })
-                            }
-                          />
-                          <Label htmlFor="items_non_refundable" className="cursor-pointer">
-                            Items Non Refundable
-                          </Label>
+                      <CardContent className="py-3 px-4">
+                        <div className="flex flex-wrap items-center gap-4">
+                          <div className="flex items-center space-x-1.5">
+                            <Checkbox
+                              id="items_non_refundable"
+                              checked={formData.items_non_refundable}
+                              onCheckedChange={(checked) =>
+                                setFormData({ ...formData, items_non_refundable: checked as boolean })
+                              }
+                              className="h-3.5 w-3.5"
+                            />
+                            <Label htmlFor="items_non_refundable" className="cursor-pointer text-xs">
+                              Non Refundable
+                            </Label>
+                          </div>
+                          <Separator orientation="vertical" className="h-5" />
+                          {[
+                            { key: 'smoking_allowed', label: 'Smoking' },
+                            { key: 'pets_allowed', label: 'Pets' },
+                            { key: 'children_allowed', label: 'Children' },
+                            { key: 'parties_allowed', label: 'Parties' },
+                            { key: 'check_in_24h', label: '24h Check-in' },
+                          ].map(({ key, label }) => (
+                            <div key={key} className="flex items-center gap-1.5">
+                              <div
+                                className={`h-5 w-5 rounded-full flex items-center justify-center cursor-pointer ${
+                                  formData[key as keyof typeof formData] ? "bg-green-500" : "bg-destructive"
+                                }`}
+                                onClick={() =>
+                                  setFormData({ ...formData, [key]: !formData[key as keyof typeof formData] })
+                                }
+                              >
+                                {formData[key as keyof typeof formData] ? (
+                                  <Check className="h-3 w-3 text-white" />
+                                ) : (
+                                  <X className="h-3 w-3 text-white" />
+                                )}
+                              </div>
+                              <span className="text-xs">{label}</span>
+                            </div>
+                          ))}
                         </div>
                       </CardContent>
                     </Card>
 
                     {/* Cancellation Policies */}
                     <Card>
-                      <CardHeader>
-                        <CardTitle>Cancellation Policies</CardTitle>
+                      <CardHeader className="py-2 px-4">
+                        <CardTitle className="text-sm">Cancellation Policies</CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-3">
+                      <CardContent className="py-2 px-4 space-y-1.5">
                         {cancellationPolicies.map((policy, index) => (
-                          <div key={index} className="flex items-center gap-2">
-                            <span className="text-sm font-medium whitespace-nowrap">Forfeit</span>
+                          <div key={index} className="flex items-center gap-1.5 text-xs">
+                            <span className="whitespace-nowrap">Forfeit</span>
                             <Input
-                              className="w-20"
+                              className="w-14 h-6 text-xs px-1.5"
                               value={policy.forfeit}
                               onChange={(e) => updateCancellationPolicy(index, "forfeit", e.target.value)}
                             />
@@ -3163,39 +3189,27 @@ export default function PropertyForm() {
                               value={policy.type}
                               onValueChange={(value) => updateCancellationPolicy(index, "type", value)}
                             >
-                              <SelectTrigger className="w-32">
+                              <SelectTrigger className="w-24 h-6 text-xs">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent className="bg-background z-50">
-                                <SelectItem value="% of Total">% of Total</SelectItem>
-                                <SelectItem value="Fixed Amount">Fixed Amount</SelectItem>
+                                <SelectItem value="% of Total" className="text-xs">% of Total</SelectItem>
+                                <SelectItem value="Fixed Amount" className="text-xs">Fixed Amount</SelectItem>
                               </SelectContent>
                             </Select>
-                            <span className="text-sm whitespace-nowrap">if guest cancels</span>
+                            <span className="whitespace-nowrap">if cancels</span>
                             <Input
-                              className="w-20"
+                              className="w-12 h-6 text-xs px-1.5"
                               value={policy.days}
                               onChange={(e) => updateCancellationPolicy(index, "days", e.target.value)}
                             />
-                            <span className="text-sm whitespace-nowrap">Days before arrival</span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => removeCancellationPolicy(index)}
-                            >
-                              <Minus className="h-4 w-4" />
+                            <span className="whitespace-nowrap">days before</span>
+                            <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeCancellationPolicy(index)}>
+                              <Minus className="h-3 w-3" />
                             </Button>
                             {index === cancellationPolicies.length - 1 && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={addCancellationPolicy}
-                              >
-                                <Plus className="h-4 w-4" />
+                              <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={addCancellationPolicy}>
+                                <Plus className="h-3 w-3" />
                               </Button>
                             )}
                           </div>
@@ -3203,341 +3217,131 @@ export default function PropertyForm() {
                       </CardContent>
                     </Card>
 
-                    {/* Policy Toggles */}
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="flex flex-wrap gap-8">
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`h-8 w-8 rounded-full flex items-center justify-center cursor-pointer ${
-                                formData.smoking_allowed ? "bg-green-500" : "bg-destructive"
-                              }`}
-                              onClick={() =>
-                                setFormData({
-                                  ...formData,
-                                  smoking_allowed: !formData.smoking_allowed,
-                                })
-                              }
-                            >
-                              {formData.smoking_allowed ? (
-                                <Check className="h-4 w-4 text-white" />
-                              ) : (
-                                <X className="h-4 w-4 text-white" />
-                              )}
-                            </div>
-                            <span className="text-sm">Smoking</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`h-8 w-8 rounded-full flex items-center justify-center cursor-pointer ${
-                                formData.pets_allowed ? "bg-green-500" : "bg-destructive"
-                              }`}
-                              onClick={() => setFormData({ ...formData, pets_allowed: !formData.pets_allowed })}
-                            >
-                              {formData.pets_allowed ? (
-                                <Check className="h-4 w-4 text-white" />
-                              ) : (
-                                <X className="h-4 w-4 text-white" />
-                              )}
-                            </div>
-                            <span className="text-sm">Pets</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`h-8 w-8 rounded-full flex items-center justify-center cursor-pointer ${
-                                formData.children_allowed ? "bg-green-500" : "bg-destructive"
-                              }`}
-                              onClick={() =>
-                                setFormData({
-                                  ...formData,
-                                  children_allowed: !formData.children_allowed,
-                                })
-                              }
-                            >
-                              {formData.children_allowed ? (
-                                <Check className="h-4 w-4 text-white" />
-                              ) : (
-                                <X className="h-4 w-4 text-white" />
-                              )}
-                            </div>
-                            <span className="text-sm">Children</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`h-8 w-8 rounded-full flex items-center justify-center cursor-pointer ${
-                                formData.parties_allowed ? "bg-green-500" : "bg-destructive"
-                              }`}
-                              onClick={() =>
-                                setFormData({
-                                  ...formData,
-                                  parties_allowed: !formData.parties_allowed,
-                                })
-                              }
-                            >
-                              {formData.parties_allowed ? (
-                                <Check className="h-4 w-4 text-white" />
-                              ) : (
-                                <X className="h-4 w-4 text-white" />
-                              )}
-                            </div>
-                            <span className="text-sm">Parties/Events</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className={`h-8 w-8 rounded-full flex items-center justify-center cursor-pointer ${
-                                formData.check_in_24h ? "bg-green-500" : "bg-destructive"
-                              }`}
-                              onClick={() => setFormData({ ...formData, check_in_24h: !formData.check_in_24h })}
-                            >
-                              {formData.check_in_24h ? (
-                                <Check className="h-4 w-4 text-white" />
-                              ) : (
-                                <X className="h-4 w-4 text-white" />
-                              )}
-                            </div>
-                            <span className="text-sm">24 Hour Check in/out</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    {/* Bottom Row - Deposit, Same Day, Check-in, Check-out */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Bottom Row - Deposit, Same Day, Check-in, Check-out, Age Ranges */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
                       {/* Deposit */}
                       <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base">Deposit</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="flex items-center space-x-2">
+                        <CardHeader className="py-1.5 px-3">
+                          <CardTitle className="text-xs flex items-center gap-1.5">
                             <Checkbox
                               id="deposit_allowed"
                               checked={formData.deposit_allowed}
                               onCheckedChange={(checked) =>
                                 setFormData({ ...formData, deposit_allowed: checked as boolean })
                               }
+                              className="h-3 w-3"
                             />
-                            <Label htmlFor="deposit_allowed" className="cursor-pointer text-sm">
-                              Deposit Allowed
-                            </Label>
+                            Deposit
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="py-1.5 px-3 space-y-1">
+                          <div className="flex items-center gap-1">
+                            <Input placeholder="50" value={formData.deposit_percentage} onChange={(e) => handleInputChange("deposit_percentage", e.target.value)} className="h-6 text-xs" />
+                            <span className="text-xs text-muted-foreground">%</span>
                           </div>
-                          <div className="space-y-2">
-                            <Input
-                              placeholder="50"
-                              value={formData.deposit_percentage}
-                              onChange={(e) => handleInputChange("deposit_percentage", e.target.value)}
-                            />
-                            <span className="text-xs text-muted-foreground">Deposit amount %</span>
-                          </div>
-                          <div className="space-y-2">
-                            <Input
-                              placeholder="2"
-                              value={formData.deposit_days}
-                              onChange={(e) => handleInputChange("deposit_days", e.target.value)}
-                            />
-                            <span className="text-xs text-muted-foreground">Number of days allowed for deposit</span>
+                          <div className="flex items-center gap-1">
+                            <Input placeholder="2" value={formData.deposit_days} onChange={(e) => handleInputChange("deposit_days", e.target.value)} className="h-6 text-xs" />
+                            <span className="text-xs text-muted-foreground">days</span>
                           </div>
                         </CardContent>
                       </Card>
 
-                      {/* Same Day Bookings */}
+                      {/* Same Day */}
                       <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base">Same Day Bookings</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="flex items-center space-x-2">
+                        <CardHeader className="py-1.5 px-3">
+                          <CardTitle className="text-xs flex items-center gap-1.5">
                             <Checkbox
                               id="same_day_bookings"
                               checked={formData.same_day_bookings}
                               onCheckedChange={(checked) =>
                                 setFormData({ ...formData, same_day_bookings: checked as boolean })
                               }
+                              className="h-3 w-3"
                             />
-                            <Label htmlFor="same_day_bookings" className="cursor-pointer text-sm">
-                              Same Day Bookings Allowed
-                            </Label>
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs text-muted-foreground">Cut off Time</Label>
-                            <Input
-                              type="time"
-                              value={formData.same_day_cutoff}
-                              onChange={(e) => handleInputChange("same_day_cutoff", e.target.value)}
-                            />
+                            Same Day
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="py-1.5 px-3">
+                          <div className="flex items-center gap-1">
+                            <Label className="text-xs text-muted-foreground">Cutoff</Label>
+                            <Input type="time" value={formData.same_day_cutoff} onChange={(e) => handleInputChange("same_day_cutoff", e.target.value)} className="h-6 text-xs flex-1" />
                           </div>
                         </CardContent>
                       </Card>
 
                       {/* Check-in */}
                       <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base">Check-in</CardTitle>
+                        <CardHeader className="py-1.5 px-3">
+                          <CardTitle className="text-xs">Check-in</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="space-y-2">
-                            <Label className="text-xs text-muted-foreground">From</Label>
-                            <Input
-                              type="time"
-                              value={formData.check_in_from}
-                              onChange={(e) => handleInputChange("check_in_from", e.target.value)}
-                              disabled={isFieldPopulatedByPMS("check_in_from", selectedPMS)}
-                              className={cn(
-                                getPMSFieldClass("check_in_from", selectedPMS),
-                                isFieldPopulatedByPMS("check_in_from", selectedPMS) && "cursor-not-allowed",
-                              )}
-                            />
+                        <CardContent className="py-1.5 px-3 space-y-1">
+                          <div className="flex items-center gap-1">
+                            <Label className="text-xs text-muted-foreground w-8">From</Label>
+                            <Input type="time" value={formData.check_in_from} onChange={(e) => handleInputChange("check_in_from", e.target.value)} disabled={isFieldPopulatedByPMS("check_in_from", selectedPMS)} className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_in_from", selectedPMS))} />
                           </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs text-muted-foreground">To</Label>
-                            <Input
-                              type="time"
-                              value={formData.check_in_to}
-                              onChange={(e) => handleInputChange("check_in_to", e.target.value)}
-                              disabled={isFieldPopulatedByPMS("check_in_to", selectedPMS)}
-                              className={cn(
-                                getPMSFieldClass("check_in_to", selectedPMS),
-                                isFieldPopulatedByPMS("check_in_to", selectedPMS) && "cursor-not-allowed",
-                              )}
-                            />
+                          <div className="flex items-center gap-1">
+                            <Label className="text-xs text-muted-foreground w-8">To</Label>
+                            <Input type="time" value={formData.check_in_to} onChange={(e) => handleInputChange("check_in_to", e.target.value)} disabled={isFieldPopulatedByPMS("check_in_to", selectedPMS)} className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_in_to", selectedPMS))} />
                           </div>
                         </CardContent>
                       </Card>
 
                       {/* Check-out */}
                       <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base">Check-out</CardTitle>
+                        <CardHeader className="py-1.5 px-3">
+                          <CardTitle className="text-xs">Check-out</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-3">
-                          <div className="space-y-2">
-                            <Label className="text-xs text-muted-foreground">From</Label>
-                            <Input
-                              type="time"
-                              value={formData.check_out_from}
-                              onChange={(e) => handleInputChange("check_out_from", e.target.value)}
-                              disabled={isFieldPopulatedByPMS("check_out_from", selectedPMS)}
-                              className={cn(
-                                getPMSFieldClass("check_out_from", selectedPMS),
-                                isFieldPopulatedByPMS("check_out_from", selectedPMS) && "cursor-not-allowed",
-                              )}
-                            />
+                        <CardContent className="py-1.5 px-3 space-y-1">
+                          <div className="flex items-center gap-1">
+                            <Label className="text-xs text-muted-foreground w-8">From</Label>
+                            <Input type="time" value={formData.check_out_from} onChange={(e) => handleInputChange("check_out_from", e.target.value)} disabled={isFieldPopulatedByPMS("check_out_from", selectedPMS)} className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_out_from", selectedPMS))} />
                           </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs text-muted-foreground">To</Label>
-                            <Input
-                              type="time"
-                              value={formData.check_out_to}
-                              onChange={(e) => handleInputChange("check_out_to", e.target.value)}
-                              disabled={isFieldPopulatedByPMS("check_out_to", selectedPMS)}
-                              className={cn(
-                                getPMSFieldClass("check_out_to", selectedPMS),
-                                isFieldPopulatedByPMS("check_out_to", selectedPMS) && "cursor-not-allowed",
-                              )}
-                            />
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    {/* Age Ranges */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base flex items-center gap-2">
-                            Infant Ages
-                            {selectedPMS === 'benson' && (
-                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />Benson</Badge>
-                            )}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label className="text-xs text-muted-foreground">From</Label>
-                              <Input
-                                value={formData.infant_age_from}
-                                onChange={(e) => handleInputChange("infant_age_from", e.target.value)}
-                                disabled={selectedPMS === 'benson'}
-                                className={selectedPMS === 'benson' ? 'bg-muted cursor-not-allowed' : ''}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-xs text-muted-foreground">To</Label>
-                              <Input
-                                value={formData.infant_age_to}
-                                onChange={(e) => handleInputChange("infant_age_to", e.target.value)}
-                                disabled={selectedPMS === 'benson'}
-                                className={selectedPMS === 'benson' ? 'bg-muted cursor-not-allowed' : ''}
-                              />
-                            </div>
+                          <div className="flex items-center gap-1">
+                            <Label className="text-xs text-muted-foreground w-8">To</Label>
+                            <Input type="time" value={formData.check_out_to} onChange={(e) => handleInputChange("check_out_to", e.target.value)} disabled={isFieldPopulatedByPMS("check_out_to", selectedPMS)} className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_out_to", selectedPMS))} />
                           </div>
                         </CardContent>
                       </Card>
 
+                      {/* Infant Ages */}
                       <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base flex items-center gap-2">
-                            Teen Ages
-                            {selectedPMS === 'benson' && (
-                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />Benson</Badge>
-                            )}
+                        <CardHeader className="py-1.5 px-3">
+                          <CardTitle className="text-xs flex items-center gap-1">
+                            Infant
+                            {selectedPMS === 'benson' && <Cloud className="h-3 w-3 text-primary" />}
                           </CardTitle>
                         </CardHeader>
-                        <CardContent>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label className="text-xs text-muted-foreground">From</Label>
-                              <Input
-                                value={(formData as any).teen_age_from || ''}
-                                onChange={(e) => handleInputChange("teen_age_from" as any, e.target.value)}
-                                disabled={selectedPMS === 'benson'}
-                                className={selectedPMS === 'benson' ? 'bg-muted cursor-not-allowed' : ''}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-xs text-muted-foreground">To</Label>
-                              <Input
-                                value={(formData as any).teen_age_to || ''}
-                                onChange={(e) => handleInputChange("teen_age_to" as any, e.target.value)}
-                                disabled={selectedPMS === 'benson'}
-                                className={selectedPMS === 'benson' ? 'bg-muted cursor-not-allowed' : ''}
-                              />
-                            </div>
-                          </div>
+                        <CardContent className="py-1.5 px-3 flex gap-1">
+                          <Input value={formData.infant_age_from} onChange={(e) => handleInputChange("infant_age_from", e.target.value)} disabled={selectedPMS === 'benson'} className={cn("h-6 text-xs", selectedPMS === 'benson' && 'bg-muted')} placeholder="From" />
+                          <Input value={formData.infant_age_to} onChange={(e) => handleInputChange("infant_age_to", e.target.value)} disabled={selectedPMS === 'benson'} className={cn("h-6 text-xs", selectedPMS === 'benson' && 'bg-muted')} placeholder="To" />
                         </CardContent>
                       </Card>
 
+                      {/* Teen Ages */}
                       <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base flex items-center gap-2">
-                            Children Ages
-                            {selectedPMS === 'benson' && (
-                              <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />Benson</Badge>
-                            )}
+                        <CardHeader className="py-1.5 px-3">
+                          <CardTitle className="text-xs flex items-center gap-1">
+                            Teen
+                            {selectedPMS === 'benson' && <Cloud className="h-3 w-3 text-primary" />}
                           </CardTitle>
                         </CardHeader>
-                        <CardContent>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label className="text-xs text-muted-foreground">From</Label>
-                              <Input
-                                value={formData.children_age_from}
-                                onChange={(e) => handleInputChange("children_age_from", e.target.value)}
-                                disabled={selectedPMS === 'benson'}
-                                className={selectedPMS === 'benson' ? 'bg-muted cursor-not-allowed' : ''}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-xs text-muted-foreground">To</Label>
-                              <Input
-                                value={formData.children_age_to}
-                                onChange={(e) => handleInputChange("children_age_to", e.target.value)}
-                                disabled={selectedPMS === 'benson'}
-                                className={selectedPMS === 'benson' ? 'bg-muted cursor-not-allowed' : ''}
-                              />
-                            </div>
-                          </div>
+                        <CardContent className="py-1.5 px-3 flex gap-1">
+                          <Input value={(formData as any).teen_age_from || ''} onChange={(e) => handleInputChange("teen_age_from" as any, e.target.value)} disabled={selectedPMS === 'benson'} className={cn("h-6 text-xs", selectedPMS === 'benson' && 'bg-muted')} placeholder="From" />
+                          <Input value={(formData as any).teen_age_to || ''} onChange={(e) => handleInputChange("teen_age_to" as any, e.target.value)} disabled={selectedPMS === 'benson'} className={cn("h-6 text-xs", selectedPMS === 'benson' && 'bg-muted')} placeholder="To" />
+                        </CardContent>
+                      </Card>
+
+                      {/* Children Ages */}
+                      <Card>
+                        <CardHeader className="py-1.5 px-3">
+                          <CardTitle className="text-xs flex items-center gap-1">
+                            Children
+                            {selectedPMS === 'benson' && <Cloud className="h-3 w-3 text-primary" />}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="py-1.5 px-3 flex gap-1">
+                          <Input value={formData.children_age_from} onChange={(e) => handleInputChange("children_age_from", e.target.value)} disabled={selectedPMS === 'benson'} className={cn("h-6 text-xs", selectedPMS === 'benson' && 'bg-muted')} placeholder="From" />
+                          <Input value={formData.children_age_to} onChange={(e) => handleInputChange("children_age_to", e.target.value)} disabled={selectedPMS === 'benson'} className={cn("h-6 text-xs", selectedPMS === 'benson' && 'bg-muted')} placeholder="To" />
                         </CardContent>
                       </Card>
                     </div>
@@ -3546,29 +3350,29 @@ export default function PropertyForm() {
                   {/* Right Column - Children Policy */}
                   <div>
                     <Card className="sticky top-4">
-                      <CardHeader>
-                        <CardTitle>Children Policy</CardTitle>
+                      <CardHeader className="py-2 px-3">
+                        <CardTitle className="text-sm">Children Policy</CardTitle>
                       </CardHeader>
-                      <CardContent>
+                      <CardContent className="py-2 px-3">
                         <Textarea
                           value={formData.children_policy}
                           onChange={(e) => handleInputChange("children_policy", e.target.value)}
                           placeholder="Enter children policy details..."
-                          rows={10}
-                          className="resize-none"
+                          rows={6}
+                          className="resize-none text-xs"
                         />
                       </CardContent>
                     </Card>
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-4">
-                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleNavigate("/admin/property-overview")}>
                     Cancel
                   </Button>
                   {isDirty && (
-                    <Button type="submit" disabled={loading}>
-                      <Save className="mr-2 h-4 w-4" />
+                    <Button type="submit" size="sm" className="h-7 text-xs" disabled={loading}>
+                      <Save className="mr-1 h-3 w-3" />
                       {loading ? "Saving..." : "Save Property"}
                     </Button>
                   )}
@@ -3578,14 +3382,14 @@ export default function PropertyForm() {
 
             <TabsContent value="images">
               <Card>
-                <CardHeader>
-                  <CardTitle>Property Images</CardTitle>
+                <CardHeader className="py-2 px-4">
+                  <CardTitle className="text-sm">Property Images</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <CardContent className="py-2 px-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
                     {/* Upload Area */}
                     <div
-                      className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer transition-colors ${
+                      className={`border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition-colors ${
                         isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary"
                       }`}
                       onDrop={handleDrop}
@@ -3593,54 +3397,30 @@ export default function PropertyForm() {
                       onDragLeave={handleDragLeave}
                       onClick={() => document.getElementById("image-upload")?.click()}
                     >
-                      <Upload className="h-12 w-12 text-muted-foreground mb-4" />
-                      <p className="text-sm text-muted-foreground text-center">
-                        Click or Drag and drop image to upload
-                      </p>
-                      <input
-                        id="image-upload"
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => handleImageUpload(e.target.files)}
-                      />
+                      <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                      <p className="text-xs text-muted-foreground text-center">Click or drag to upload</p>
+                      <input id="image-upload" type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleImageUpload(e.target.files)} />
                     </div>
 
                     {/* Image Grid */}
-                    <div className="lg:col-span-3">
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {/* Render uploaded images */}
+                    <div className="lg:col-span-4">
+                      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                         {uploadedImages.map((imageUrl, index) => (
-                          <div
-                            key={index}
-                            className="relative aspect-square rounded-lg overflow-hidden border border-border group"
-                          >
+                          <div key={index} className="relative aspect-square rounded-md overflow-hidden border border-border group">
                             <img src={imageUrl} alt={`Property ${index + 1}`} className="w-full h-full object-cover" />
                             {index === 0 && (
-                              <div className="absolute top-2 left-2 bg-destructive rounded-full p-1.5">
-                                <Heart className="h-4 w-4 text-white fill-white" />
+                              <div className="absolute top-1 left-1 bg-destructive rounded-full p-1">
+                                <Heart className="h-3 w-3 text-white fill-white" />
                               </div>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => removeImage(index)}
-                              className="absolute top-2 right-2 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <X className="h-4 w-4 text-white" />
+                            <button type="button" onClick={() => removeImage(index)} className="absolute top-1 right-1 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <X className="h-3 w-3 text-white" />
                             </button>
                           </div>
                         ))}
-
-                        {/* Empty slots */}
                         {Array.from({ length: Math.max(0, 12 - uploadedImages.length) }, (_, index) => (
-                          <div
-                            key={`empty-${index}`}
-                            className="relative aspect-square rounded-lg border-2 border-dashed border-border bg-muted/20 flex items-center justify-center"
-                          >
-                            <div className="absolute top-2 right-2 bg-muted rounded-full p-1.5">
-                              <X className="h-4 w-4 text-muted-foreground" />
-                            </div>
+                          <div key={`empty-${index}`} className="relative aspect-square rounded-md border-2 border-dashed border-border bg-muted/20 flex items-center justify-center">
+                            <X className="h-3 w-3 text-muted-foreground" />
                           </div>
                         ))}
                       </div>
@@ -3649,13 +3429,13 @@ export default function PropertyForm() {
                 </CardContent>
               </Card>
 
-              <div className="flex justify-end gap-4 mt-6">
-                <Button type="button" variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
+              <div className="flex justify-end gap-2 mt-3">
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleNavigate("/admin/property-overview")}>
                   Cancel
                 </Button>
                 {isDirty && (
-                  <Button type="button" onClick={handleSubmit} disabled={loading}>
-                    <Save className="mr-2 h-4 w-4" />
+                  <Button type="button" size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={loading}>
+                    <Save className="mr-1 h-3 w-3" />
                     {loading ? "Saving..." : "Save Property"}
                   </Button>
                 )}
@@ -3665,119 +3445,67 @@ export default function PropertyForm() {
             {/* Templates and Notifications Tab */}
             <TabsContent value="templates">
               <Card>
-                <CardContent className="p-6 space-y-6">
+                <CardContent className="py-3 px-4 space-y-3">
                   {/* Template Selection Buttons */}
-                  <div className="flex gap-2 flex-wrap">
-                    <Button
-                      type="button"
-                      variant={selectedTemplate === "confirmation-mailer" ? "default" : "outline"}
-                      onClick={() => setSelectedTemplate("confirmation-mailer")}
-                    >
-                      Confirmation Mailer Template
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={selectedTemplate === "confirmation-property" ? "default" : "outline"}
-                      onClick={() => setSelectedTemplate("confirmation-property")}
-                    >
-                      Confirmation Property Template
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={selectedTemplate === "pre-mailer" ? "default" : "outline"}
-                      onClick={() => setSelectedTemplate("pre-mailer")}
-                    >
-                      Pre Mailer Template
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={selectedTemplate === "post-mailer" ? "default" : "outline"}
-                      onClick={() => setSelectedTemplate("post-mailer")}
-                    >
-                      Post Mailer Template
-                    </Button>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {[
+                      { value: "confirmation-mailer", label: "Confirmation Mailer" },
+                      { value: "confirmation-property", label: "Confirmation Property" },
+                      { value: "pre-mailer", label: "Pre Mailer" },
+                      { value: "post-mailer", label: "Post Mailer" },
+                    ].map(({ value, label }) => (
+                      <Button
+                        key={value}
+                        type="button"
+                        size="sm"
+                        className="h-7 text-xs"
+                        variant={selectedTemplate === value ? "default" : "outline"}
+                        onClick={() => setSelectedTemplate(value)}
+                      >
+                        {label}
+                      </Button>
+                    ))}
                   </div>
 
-                  {/* Template Content Textarea */}
-                  <div className="space-y-2">
-                    <Label>Template</Label>
+                  {/* Template Content */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Template</Label>
                     <Textarea
-                      rows={10}
+                      rows={6}
                       value={templateContent}
                       onChange={(e) => setTemplateContent(e.target.value)}
                       placeholder="Enter your email template content here..."
-                      className="font-mono text-sm"
+                      className="font-mono text-xs"
                     />
                   </div>
 
                   {/* Mailer Timing Settings */}
-                  <div className="grid grid-cols-2 gap-6">
-                    {/* Pre Mailer Settings */}
-                    <div className="space-y-4">
-                      <Label className="text-sm font-medium">Send Pre Mailer before checkin:</Label>
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="number"
-                            value={preMailerDays}
-                            onChange={(e) => setPreMailerDays(Number(e.target.value))}
-                            className="w-24"
-                            min="0"
-                          />
-                          <span className="text-sm text-muted-foreground">Days</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="number"
-                            value={preMailerHours}
-                            onChange={(e) => setPreMailerHours(Number(e.target.value))}
-                            className="w-24"
-                            min="0"
-                            max="23"
-                          />
-                          <span className="text-sm text-muted-foreground">Hours</span>
-                        </div>
-                      </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Label className="text-xs">Pre Mailer:</Label>
+                      <Input type="number" value={preMailerDays} onChange={(e) => setPreMailerDays(Number(e.target.value))} className="w-14 h-6 text-xs" min="0" />
+                      <span className="text-xs text-muted-foreground">days</span>
+                      <Input type="number" value={preMailerHours} onChange={(e) => setPreMailerHours(Number(e.target.value))} className="w-14 h-6 text-xs" min="0" max="23" />
+                      <span className="text-xs text-muted-foreground">hrs before</span>
                     </div>
-
-                    {/* Post Mailer Settings */}
-                    <div className="space-y-4">
-                      <Label className="text-sm font-medium">Send Post mailer after checkin:</Label>
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="number"
-                            value={postMailerDays}
-                            onChange={(e) => setPostMailerDays(Number(e.target.value))}
-                            className="w-24"
-                            min="0"
-                          />
-                          <span className="text-sm text-muted-foreground">Days</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="number"
-                            value={postMailerHours}
-                            onChange={(e) => setPostMailerHours(Number(e.target.value))}
-                            className="w-24"
-                            min="0"
-                            max="23"
-                          />
-                          <span className="text-sm text-muted-foreground">Hours</span>
-                        </div>
-                      </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Label className="text-xs">Post Mailer:</Label>
+                      <Input type="number" value={postMailerDays} onChange={(e) => setPostMailerDays(Number(e.target.value))} className="w-14 h-6 text-xs" min="0" />
+                      <span className="text-xs text-muted-foreground">days</span>
+                      <Input type="number" value={postMailerHours} onChange={(e) => setPostMailerHours(Number(e.target.value))} className="w-14 h-6 text-xs" min="0" max="23" />
+                      <span className="text-xs text-muted-foreground">hrs after</span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <div className="flex justify-end gap-4 mt-6">
-                <Button type="button" variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
+              <div className="flex justify-end gap-2 mt-3">
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleNavigate("/admin/property-overview")}>
                   Cancel
                 </Button>
                 {isDirty && (
-                  <Button type="button" onClick={handleSubmit} disabled={loading}>
-                    <Save className="mr-2 h-4 w-4" />
+                  <Button type="button" size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={loading}>
+                    <Save className="mr-1 h-3 w-3" />
                     Save
                   </Button>
                 )}
@@ -3787,295 +3515,156 @@ export default function PropertyForm() {
             {/* Addons Tab */}
             <TabsContent value="addons">
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>ADDONS</CardTitle>
+                <CardHeader className="py-2 px-4 flex flex-row items-center justify-between">
+                  <CardTitle className="text-sm">Addons</CardTitle>
                   <Dialog open={isAddAddonOpen} onOpenChange={setIsAddAddonOpen}>
                     <DialogTrigger asChild>
-                      <Button className="gap-2">
-                        <Plus className="h-4 w-4" />
+                      <Button size="sm" className="h-7 text-xs gap-1">
+                        <Plus className="h-3 w-3" />
                         Add Addon
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
                       <DialogHeader>
-                        <DialogTitle>Add Addon</DialogTitle>
+                        <DialogTitle className="text-sm">Add Addon</DialogTitle>
                       </DialogHeader>
 
                       <Tabs value={addonDialogTab} onValueChange={setAddonDialogTab}>
-                        <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
-                          <TabsTrigger
-                            value="addon"
-                            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
-                          >
-                            Addon
-                          </TabsTrigger>
-                          <TabsTrigger
-                            value="addon-images"
-                            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
-                          >
-                            Addon Images
-                          </TabsTrigger>
+                        <TabsList className="h-7">
+                          <TabsTrigger value="addon" className="text-xs h-6">Addon</TabsTrigger>
+                          <TabsTrigger value="addon-images" className="text-xs h-6">Images</TabsTrigger>
                         </TabsList>
 
-                        <TabsContent value="addon" className="space-y-4 mt-4">
-                          <div className="space-y-2">
-                            <Label>Name</Label>
-                            <Input
-                              value={addonForm.name}
-                              onChange={(e) => setAddonForm({ ...addonForm, name: e.target.value })}
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>Offerings for: *</Label>
-                            <div className="flex gap-4">
-                              <div className="flex items-center gap-2">
-                                <Checkbox
-                                  id="addon-accommodation"
-                                  checked={addonForm.offeringsAccommodation}
-                                  onCheckedChange={(checked) =>
-                                    setAddonForm({ ...addonForm, offeringsAccommodation: checked as boolean })
-                                  }
-                                />
-                                <Label htmlFor="addon-accommodation" className="cursor-pointer">
-                                  Accommodation
-                                </Label>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Checkbox
-                                  id="addon-venue"
-                                  checked={addonForm.offeringsVenue}
-                                  onCheckedChange={(checked) =>
-                                    setAddonForm({ ...addonForm, offeringsVenue: checked as boolean })
-                                  }
-                                />
-                                <Label htmlFor="addon-venue" className="cursor-pointer">
-                                  Venue
-                                </Label>
+                        <TabsContent value="addon" className="space-y-2 mt-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Name</Label>
+                              <Input value={addonForm.name} onChange={(e) => setAddonForm({ ...addonForm, name: e.target.value })} className="h-7 text-xs" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Offerings for:</Label>
+                              <div className="flex gap-3">
+                                <div className="flex items-center gap-1">
+                                  <Checkbox id="addon-accommodation" checked={addonForm.offeringsAccommodation} onCheckedChange={(checked) => setAddonForm({ ...addonForm, offeringsAccommodation: checked as boolean })} className="h-3 w-3" />
+                                  <Label htmlFor="addon-accommodation" className="cursor-pointer text-xs">Accommodation</Label>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Checkbox id="addon-venue" checked={addonForm.offeringsVenue} onCheckedChange={(checked) => setAddonForm({ ...addonForm, offeringsVenue: checked as boolean })} className="h-3 w-3" />
+                                  <Label htmlFor="addon-venue" className="cursor-pointer text-xs">Venue</Label>
+                                </div>
                               </div>
                             </div>
                           </div>
 
-                          <div className="space-y-2">
-                            <Label>Description</Label>
-                            <Textarea
-                              rows={4}
-                              value={addonForm.description}
-                              onChange={(e) => setAddonForm({ ...addonForm, description: e.target.value })}
-                            />
+                          <div className="space-y-1">
+                            <Label className="text-xs">Description</Label>
+                            <Textarea rows={2} value={addonForm.description} onChange={(e) => setAddonForm({ ...addonForm, description: e.target.value })} className="text-xs" />
                           </div>
 
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label>Price Type</Label>
-                              <Select
-                                value={addonForm.priceType}
-                                onValueChange={(value) => setAddonForm({ ...addonForm, priceType: value })}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
+                          <div className="grid grid-cols-4 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Price Type</Label>
+                              <Select value={addonForm.priceType} onValueChange={(value) => setAddonForm({ ...addonForm, priceType: value })}>
+                                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="Price Per Item">Price Per Item</SelectItem>
-                                  <SelectItem value="Price Per Person">Price Per Person</SelectItem>
-                                  <SelectItem value="Price Per Night">Price Per Night</SelectItem>
+                                  <SelectItem value="Price Per Item" className="text-xs">Per Item</SelectItem>
+                                  <SelectItem value="Price Per Person" className="text-xs">Per Person</SelectItem>
+                                  <SelectItem value="Price Per Night" className="text-xs">Per Night</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
-                            <div className="space-y-2">
-                              <Label>Price</Label>
-                              <Input
-                                type="number"
-                                value={addonForm.price}
-                                onChange={(e) => setAddonForm({ ...addonForm, price: Number(e.target.value) })}
-                                min="0"
-                              />
+                            <div className="space-y-1">
+                              <Label className="text-xs">Price</Label>
+                              <Input type="number" value={addonForm.price} onChange={(e) => setAddonForm({ ...addonForm, price: Number(e.target.value) })} min="0" className="h-7 text-xs" />
                             </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>Capacity</Label>
-                            <div className="flex items-center gap-2">
-                              <Checkbox
-                                id="addon-capacity"
-                                checked={addonForm.hasCapacity}
-                                onCheckedChange={(checked) =>
-                                  setAddonForm({ ...addonForm, hasCapacity: checked as boolean })
-                                }
-                              />
-                              <Label htmlFor="addon-capacity" className="cursor-pointer">
-                                Capacity
-                              </Label>
-                              <Input
-                                type="number"
-                                className="w-32"
-                                value={addonForm.capacity}
-                                onChange={(e) => setAddonForm({ ...addonForm, capacity: Number(e.target.value) })}
-                                min="0"
-                                disabled={!addonForm.hasCapacity}
-                              />
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>Days*</Label>
-                            <div className="flex flex-wrap gap-4">
-                              <div className="flex items-center gap-2">
-                                <Checkbox
-                                  id="addon-all-days"
-                                  checked={addonForm.allDays}
-                                  onCheckedChange={(checked) =>
-                                    setAddonForm({ ...addonForm, allDays: checked as boolean })
-                                  }
-                                />
-                                <Label htmlFor="addon-all-days" className="cursor-pointer">
-                                  All days
-                                </Label>
+                            <div className="col-span-2 space-y-1">
+                              <Label className="text-xs">Capacity</Label>
+                              <div className="flex items-center gap-1.5">
+                                <Checkbox id="addon-capacity" checked={addonForm.hasCapacity} onCheckedChange={(checked) => setAddonForm({ ...addonForm, hasCapacity: checked as boolean })} className="h-3 w-3" />
+                                <Input type="number" className="w-20 h-7 text-xs" value={addonForm.capacity} onChange={(e) => setAddonForm({ ...addonForm, capacity: Number(e.target.value) })} min="0" disabled={!addonForm.hasCapacity} />
                               </div>
-                              {["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].map(
-                                (day) => (
-                                  <div key={day} className="flex items-center gap-2">
-                                    <Checkbox
-                                      id={`addon-${day}`}
-                                      checked={addonForm[day as keyof typeof addonForm] as boolean}
-                                      onCheckedChange={(checked) =>
-                                        setAddonForm({ ...addonForm, [day]: checked as boolean })
-                                      }
-                                    />
-                                    <Label htmlFor={`addon-${day}`} className="cursor-pointer capitalize">
-                                      {day}
-                                    </Label>
-                                  </div>
-                                ),
-                              )}
                             </div>
                           </div>
 
-                          <div className="flex justify-end pt-4">
-                            <Button onClick={handleAddAddon}>Create</Button>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Days</Label>
+                            <div className="flex flex-wrap gap-2">
+                              <div className="flex items-center gap-1">
+                                <Checkbox id="addon-all-days" checked={addonForm.allDays} onCheckedChange={(checked) => setAddonForm({ ...addonForm, allDays: checked as boolean })} className="h-3 w-3" />
+                                <Label htmlFor="addon-all-days" className="cursor-pointer text-xs">All</Label>
+                              </div>
+                              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, i) => {
+                                const fullDay = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][i];
+                                return (
+                                  <div key={fullDay} className="flex items-center gap-1">
+                                    <Checkbox id={`addon-${fullDay}`} checked={addonForm[fullDay as keyof typeof addonForm] as boolean} onCheckedChange={(checked) => setAddonForm({ ...addonForm, [fullDay]: checked as boolean })} className="h-3 w-3" />
+                                    <Label htmlFor={`addon-${fullDay}`} className="cursor-pointer text-xs">{day}</Label>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end pt-2">
+                            <Button size="sm" className="h-7 text-xs" onClick={handleAddAddon}>Create</Button>
                           </div>
                         </TabsContent>
 
-                        <TabsContent value="addon-images" className="space-y-4 mt-4">
-                          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                            {/* Upload Area */}
+                        <TabsContent value="addon-images" className="mt-2">
+                          <div className="grid grid-cols-5 gap-2">
                             <div
-                              className={`border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer transition-colors ${
-                                isAddonImageDragging
-                                  ? "border-primary bg-primary/5"
-                                  : "border-border hover:border-primary"
-                              }`}
+                              className={`border-2 border-dashed rounded-md p-3 flex flex-col items-center justify-center cursor-pointer transition-colors ${isAddonImageDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary"}`}
                               onDrop={handleAddonImageDrop}
-                              onDragOver={(e) => {
-                                e.preventDefault();
-                                setIsAddonImageDragging(true);
-                              }}
+                              onDragOver={(e) => { e.preventDefault(); setIsAddonImageDragging(true); }}
                               onDragLeave={() => setIsAddonImageDragging(false)}
                               onClick={() => document.getElementById("addon-image-upload")?.click()}
                             >
-                              <Upload className="h-12 w-12 text-muted-foreground mb-4" />
-                              <p className="text-sm text-muted-foreground text-center">
-                                Click or Drag and drop image to upload
-                              </p>
-                              <input
-                                id="addon-image-upload"
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                className="hidden"
-                                onChange={(e) => handleAddonImageUpload(e.target.files)}
-                              />
+                              <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                              <p className="text-xs text-muted-foreground text-center">Upload</p>
+                              <input id="addon-image-upload" type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleAddonImageUpload(e.target.files)} />
                             </div>
-
-                            {/* Image Grid */}
-                            <div className="lg:col-span-3">
-                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                {/* Render uploaded images */}
-                                {addonImages.map((imageUrl, index) => (
-                                  <div
-                                    key={index}
-                                    className="relative aspect-square rounded-lg overflow-hidden border border-border group"
-                                  >
-                                    <img
-                                      src={imageUrl}
-                                      alt={`Addon ${index + 1}`}
-                                      className="w-full h-full object-cover"
-                                    />
-                                    {index === 0 && (
-                                      <div className="absolute top-2 left-2 bg-destructive rounded-full p-1.5">
-                                        <Heart className="h-4 w-4 text-white fill-white" />
-                                      </div>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => removeAddonImage(index)}
-                                      className="absolute top-2 right-2 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    >
-                                      <X className="h-4 w-4 text-white" />
-                                    </button>
-                                  </div>
-                                ))}
-
-                                {/* Empty slots */}
-                                {Array.from({ length: Math.max(0, 12 - addonImages.length) }, (_, index) => (
-                                  <div
-                                    key={`empty-${index}`}
-                                    className="relative aspect-square rounded-lg border-2 border-dashed border-border bg-muted/20 flex items-center justify-center"
-                                  >
-                                    <div className="absolute top-2 right-2 bg-muted rounded-full p-1.5">
-                                      <X className="h-4 w-4 text-muted-foreground" />
-                                    </div>
-                                  </div>
-                                ))}
+                            {addonImages.slice(0, 8).map((imageUrl, index) => (
+                              <div key={index} className="relative aspect-square rounded-md overflow-hidden border border-border group">
+                                <img src={imageUrl} alt={`Addon ${index + 1}`} className="w-full h-full object-cover" />
+                                <button type="button" onClick={() => removeAddonImage(index)} className="absolute top-1 right-1 bg-muted-foreground/80 hover:bg-destructive rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <X className="h-3 w-3 text-white" />
+                                </button>
                               </div>
-                            </div>
+                            ))}
                           </div>
                         </TabsContent>
                       </Tabs>
                     </DialogContent>
                   </Dialog>
                 </CardHeader>
-                <CardContent>
-                  <div className="border rounded-lg overflow-hidden">
+                <CardContent className="py-2 px-4">
+                  <div className="border rounded-md overflow-hidden">
                     <table className="w-full">
                       <thead className="bg-muted">
                         <tr>
-                          <th className="text-left p-3 font-semibold text-sm">ITEM</th>
-                          <th className="text-left p-3 font-semibold text-sm">DESCRIPTION</th>
-                          <th className="text-left p-3 font-semibold text-sm">PRICE TYPE</th>
-                          <th className="text-left p-3 font-semibold text-sm">CAPACITY</th>
-                          <th className="text-left p-3 font-semibold text-sm">PRICE</th>
-                          <th className="text-left p-3 font-semibold text-sm">OPTIONS</th>
+                          <th className="text-left py-1.5 px-2 font-medium text-xs">ITEM</th>
+                          <th className="text-left py-1.5 px-2 font-medium text-xs">DESCRIPTION</th>
+                          <th className="text-left py-1.5 px-2 font-medium text-xs">TYPE</th>
+                          <th className="text-left py-1.5 px-2 font-medium text-xs">CAP</th>
+                          <th className="text-left py-1.5 px-2 font-medium text-xs">PRICE</th>
+                          <th className="text-left py-1.5 px-2 font-medium text-xs w-16"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {addons.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="p-8 text-center text-muted-foreground">
-                              No addons yet. Click "+ Add Addon" to create one.
-                            </td>
-                          </tr>
+                          <tr><td colSpan={6} className="py-4 text-center text-xs text-muted-foreground">No addons yet</td></tr>
                         ) : (
                           addons.map((addon) => (
                             <tr key={addon.id} className="border-t hover:bg-muted/50">
-                              <td className="p-3">{addon.name}</td>
-                              <td className="p-3 text-sm text-muted-foreground">{addon.description}</td>
-                              <td className="p-3">{addon.priceType}</td>
-                              <td className="p-3">{addon.hasCapacity ? addon.capacity : "-"}</td>
-                              <td className="p-3">{addon.price}</td>
-                              <td className="p-3">
-                                <div className="flex gap-2">
-                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-8 w-8 p-0 text-destructive"
-                                    onClick={() => deleteAddon(addon.id)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                              <td className="py-1.5 px-2 text-xs">{addon.name}</td>
+                              <td className="py-1.5 px-2 text-xs text-muted-foreground truncate max-w-[200px]">{addon.description}</td>
+                              <td className="py-1.5 px-2 text-xs">{addon.priceType}</td>
+                              <td className="py-1.5 px-2 text-xs">{addon.hasCapacity ? addon.capacity : "-"}</td>
+                              <td className="py-1.5 px-2 text-xs">{addon.price}</td>
+                              <td className="py-1.5 px-2">
+                                <div className="flex gap-1">
+                                  <Button size="sm" variant="ghost" className="h-5 w-5 p-0"><Edit className="h-3 w-3" /></Button>
+                                  <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-destructive" onClick={() => deleteAddon(addon.id)}><Trash2 className="h-3 w-3" /></Button>
                                 </div>
                               </td>
                             </tr>
@@ -4091,57 +3680,40 @@ export default function PropertyForm() {
             {/* Specials Tab */}
             <TabsContent value="specials">
               <Card>
-                <CardHeader>
+                <CardHeader className="py-2 px-4">
                   <Tabs value={specialsCategory} onValueChange={setSpecialsCategory}>
-                    <TabsList>
-                      <TabsTrigger value="accommodations">Accommodations</TabsTrigger>
-                      {isEvent && <TabsTrigger value="event-wedding">Event/Wedding Venue</TabsTrigger>}
-                      {isConference && <TabsTrigger value="conference">Conference Venue</TabsTrigger>}
+                    <TabsList className="h-7">
+                      <TabsTrigger value="accommodations" className="text-xs h-6">Accommodations</TabsTrigger>
+                      {isEvent && <TabsTrigger value="event-wedding" className="text-xs h-6">Event/Wedding</TabsTrigger>}
+                      {isConference && <TabsTrigger value="conference" className="text-xs h-6">Conference</TabsTrigger>}
                     </TabsList>
                   </Tabs>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="py-2 px-4">
                   {specialsCategory === "conference" && (
-                    <div className="flex gap-4">
+                    <div className="flex gap-3">
                       {/* Left Sidebar - Specials List */}
-                      <div className="w-64 space-y-2">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="font-semibold text-sm">CONFERENCE SPECIALS</h3>
-                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={addNewSpecial}>
-                            <Plus className="h-4 w-4" />
+                      <div className="w-48 space-y-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-semibold text-xs text-muted-foreground">CONFERENCE SPECIALS</h3>
+                          <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={addNewSpecial}>
+                            <Plus className="h-3 w-3" />
                           </Button>
                         </div>
                         {conferenceSpecials.map((special) => (
                           <div
                             key={special.id}
-                            className={`flex items-center justify-between p-3 rounded-md transition-colors ${
-                              selectedSpecial === special.id
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted hover:bg-muted/80"
+                            className={`flex items-center justify-between py-1.5 px-2 rounded transition-colors text-xs ${
+                              selectedSpecial === special.id ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"
                             }`}
                           >
-                            <span
-                              className="text-sm font-medium flex-1 cursor-pointer"
-                              onClick={() => setSelectedSpecial(special.id)}
-                            >
-                              {special.name}
-                            </span>
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 w-6 p-0"
-                                onClick={() => setIsEditSpecialOpen(true)}
-                              >
-                                <Edit className="h-3 w-3" />
+                            <span className="flex-1 cursor-pointer truncate" onClick={() => setSelectedSpecial(special.id)}>{special.name}</span>
+                            <div className="flex gap-0.5">
+                              <Button size="sm" variant="ghost" className="h-4 w-4 p-0" onClick={() => setIsEditSpecialOpen(true)}>
+                                <Edit className="h-2.5 w-2.5" />
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 w-6 p-0"
-                                onClick={() => deleteSpecial(special.id)}
-                              >
-                                <Trash2 className="h-3 w-3" />
+                              <Button size="sm" variant="ghost" className="h-4 w-4 p-0" onClick={() => deleteSpecial(special.id)}>
+                                <Trash2 className="h-2.5 w-2.5" />
                               </Button>
                             </div>
                           </div>
@@ -4151,206 +3723,111 @@ export default function PropertyForm() {
                       {/* Main Content - Edit Special Dialog */}
                       <Dialog open={isEditSpecialOpen} onOpenChange={setIsEditSpecialOpen}>
                         <DialogTrigger asChild>
-                          <div className="flex-1 flex items-center justify-center border-2 border-dashed rounded-lg p-12 cursor-pointer hover:bg-muted/50">
+                          <div className="flex-1 flex items-center justify-center border-2 border-dashed rounded-md p-6 cursor-pointer hover:bg-muted/50">
                             <div className="text-center">
-                              <p className="text-muted-foreground mb-2">Click to edit special</p>
-                              <Button>
-                                <Edit className="mr-2 h-4 w-4" />
+                              <p className="text-xs text-muted-foreground mb-1">Click to edit special</p>
+                              <Button size="sm" className="h-7 text-xs">
+                                <Edit className="mr-1 h-3 w-3" />
                                 Edit Special
                               </Button>
                             </div>
                           </div>
                         </DialogTrigger>
-                        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
                           <DialogHeader>
                             <div className="flex items-center justify-between">
-                              <DialogTitle>Edit Special</DialogTitle>
-                              <div className="flex items-center gap-2">
-                                <Switch
-                                  checked={specialForm.isPublic}
-                                  onCheckedChange={(checked) => setSpecialForm({ ...specialForm, isPublic: checked })}
-                                />
-                                <Label>Public</Label>
+                              <DialogTitle className="text-sm">Edit Special</DialogTitle>
+                              <div className="flex items-center gap-1.5">
+                                <Switch checked={specialForm.isPublic} onCheckedChange={(checked) => setSpecialForm({ ...specialForm, isPublic: checked })} className="scale-75" />
+                                <Label className="text-xs">Public</Label>
                               </div>
                             </div>
                           </DialogHeader>
 
                           <Tabs value={specialDialogTab} onValueChange={setSpecialDialogTab}>
-                            <TabsList className="bg-primary gap-0 p-0 h-auto rounded-none">
-                              <TabsTrigger
-                                value="edit-special"
-                                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
-                              >
-                                Edit Special
-                              </TabsTrigger>
-                              <TabsTrigger
-                                value="special-images"
-                                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-none px-4 py-2"
-                              >
-                                Special Images
-                              </TabsTrigger>
+                            <TabsList className="h-7">
+                              <TabsTrigger value="edit-special" className="text-xs h-6">Edit Special</TabsTrigger>
+                              <TabsTrigger value="special-images" className="text-xs h-6">Images</TabsTrigger>
                             </TabsList>
 
-                            <TabsContent value="edit-special" className="space-y-6 mt-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                  <Label>Name*</Label>
-                                  <Input
-                                    value={specialForm.name}
-                                    onChange={(e) => setSpecialForm({ ...specialForm, name: e.target.value })}
-                                  />
+                            <TabsContent value="edit-special" className="space-y-3 mt-2">
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Name*</Label>
+                                  <Input value={specialForm.name} onChange={(e) => setSpecialForm({ ...specialForm, name: e.target.value })} className="h-7 text-xs" />
                                 </div>
-                                <div className="space-y-2">
-                                  <Label>Description</Label>
-                                  <Textarea
-                                    rows={1}
-                                    value={specialForm.description}
-                                    onChange={(e) => setSpecialForm({ ...specialForm, description: e.target.value })}
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="space-y-2">
-                                <Label>Seasons</Label>
-                                <div className="flex gap-2">
-                                  <Select
-                                    value={specialForm.season}
-                                    onValueChange={(value) => setSpecialForm({ ...specialForm, season: value })}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Season</Label>
+                                  <Select value={specialForm.season} onValueChange={(value) => setSpecialForm({ ...specialForm, season: value })}>
+                                    <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="08/05/2025-30/09/2025">08/05/2025-30/09/2025</SelectItem>
-                                      <SelectItem value="01/10/2025-30/09/2026">01/10/2025-30/09/2026</SelectItem>
-                                      <SelectItem value="01/10/2026-30/09/2027">01/10/2026-30/09/2027</SelectItem>
+                                      <SelectItem value="08/05/2025-30/09/2025" className="text-xs">08/05/2025-30/09/2025</SelectItem>
+                                      <SelectItem value="01/10/2025-30/09/2026" className="text-xs">01/10/2025-30/09/2026</SelectItem>
                                     </SelectContent>
                                   </Select>
-                                  <Button size="icon" variant="outline">
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Description</Label>
+                                  <Input value={specialForm.description} onChange={(e) => setSpecialForm({ ...specialForm, description: e.target.value })} className="h-7 text-xs" />
                                 </div>
                               </div>
 
-                              <div className="space-y-2">
-                                <h3 className="font-semibold">Period</h3>
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div className="space-y-2">
-                                    <Label>From / To</Label>
-                                    <Popover>
-                                      <PopoverTrigger asChild>
-                                        <Button
-                                          variant="outline"
-                                          className={cn(
-                                            "w-full justify-start text-left font-normal",
-                                            !specialForm.periodFrom && "text-muted-foreground",
-                                          )}
-                                        >
-                                          <CalendarIcon className="mr-2 h-4 w-4" />
-                                          {specialForm.periodFrom
-                                            ? format(specialForm.periodFrom, "yyyy-MM-dd")
-                                            : "2025-11-18"}
-                                        </Button>
-                                      </PopoverTrigger>
-                                      <PopoverContent className="w-auto p-0" align="start">
-                                        <CalendarComponent
-                                          mode="single"
-                                          selected={specialForm.periodFrom}
-                                          onSelect={(date) => setSpecialForm({ ...specialForm, periodFrom: date })}
-                                          initialFocus
-                                        />
-                                      </PopoverContent>
-                                    </Popover>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label>&nbsp;</Label>
-                                    <Popover>
-                                      <PopoverTrigger asChild>
-                                        <Button
-                                          variant="outline"
-                                          className={cn(
-                                            "w-full justify-start text-left font-normal",
-                                            !specialForm.periodTo && "text-muted-foreground",
-                                          )}
-                                        >
-                                          <CalendarIcon className="mr-2 h-4 w-4" />
-                                          {specialForm.periodTo
-                                            ? format(specialForm.periodTo, "yyyy-MM-dd")
-                                            : "2025-11-18"}
-                                        </Button>
-                                      </PopoverTrigger>
-                                      <PopoverContent className="w-auto p-0" align="start">
-                                        <CalendarComponent
-                                          mode="single"
-                                          selected={specialForm.periodTo}
-                                          onSelect={(date) => setSpecialForm({ ...specialForm, periodTo: date })}
-                                          initialFocus
-                                        />
-                                      </PopoverContent>
-                                    </Popover>
-                                  </div>
+                              <div className="grid grid-cols-4 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">From</Label>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button variant="outline" className={cn("w-full h-7 justify-start text-left text-xs", !specialForm.periodFrom && "text-muted-foreground")}>
+                                        <CalendarIcon className="mr-1 h-3 w-3" />
+                                        {specialForm.periodFrom ? format(specialForm.periodFrom, "MM/dd/yy") : "Pick"}
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                      <CalendarComponent mode="single" selected={specialForm.periodFrom} onSelect={(date) => setSpecialForm({ ...specialForm, periodFrom: date })} initialFocus />
+                                    </PopoverContent>
+                                  </Popover>
                                 </div>
-                              </div>
-
-                              <div className="space-y-4">
-                                <h3 className="font-semibold">Pricing Config</h3>
-                                {!specialForm.pricingConfig && (
-                                  <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                                    <p className="text-sm text-red-700">
-                                      <strong>Info:</strong> Pricing Config is required
-                                    </p>
-                                  </div>
-                                )}
-                                <RadioGroup
-                                  value={specialForm.pricingConfig}
-                                  onValueChange={(value: any) =>
-                                    setSpecialForm({ ...specialForm, pricingConfig: value })
-                                  }
-                                >
-                                  <div className="flex items-center space-x-2">
-                                    <RadioGroupItem value="discount" id="discount" />
-                                    <Label htmlFor="discount">Discount (%)</Label>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <RadioGroupItem value="fixed-amount" id="fixed-amount" />
-                                    <Label htmlFor="fixed-amount">Fixed Amount Off</Label>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <RadioGroupItem value="fixed-price" id="fixed-price" />
-                                    <Label htmlFor="fixed-price">Fixed Price</Label>
-                                  </div>
-                                </RadioGroup>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                  <Label>Conferences Rate Type</Label>
-                                  <Input
-                                    value={specialForm.conferenceRateType}
-                                    onChange={(e) =>
-                                      setSpecialForm({ ...specialForm, conferenceRateType: e.target.value })
-                                    }
-                                  />
+                                <div className="space-y-1">
+                                  <Label className="text-xs">To</Label>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button variant="outline" className={cn("w-full h-7 justify-start text-left text-xs", !specialForm.periodTo && "text-muted-foreground")}>
+                                        <CalendarIcon className="mr-1 h-3 w-3" />
+                                        {specialForm.periodTo ? format(specialForm.periodTo, "MM/dd/yy") : "Pick"}
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                      <CalendarComponent mode="single" selected={specialForm.periodTo} onSelect={(date) => setSpecialForm({ ...specialForm, periodTo: date })} initialFocus />
+                                    </PopoverContent>
+                                  </Popover>
                                 </div>
-                                <div className="space-y-2">
-                                  <Label>Venue Hire</Label>
-                                  <Input
-                                    value={specialForm.venueHire}
-                                    onChange={(e) => setSpecialForm({ ...specialForm, venueHire: e.target.value })}
-                                  />
+                                <div className="col-span-2 space-y-1">
+                                  <Label className="text-xs">Pricing</Label>
+                                  <RadioGroup value={specialForm.pricingConfig} onValueChange={(value: any) => setSpecialForm({ ...specialForm, pricingConfig: value })} className="flex gap-3">
+                                    <div className="flex items-center space-x-1">
+                                      <RadioGroupItem value="discount" id="discount" className="h-3 w-3" />
+                                      <Label htmlFor="discount" className="text-xs">Discount %</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-1">
+                                      <RadioGroupItem value="fixed-off" id="fixed-off" className="h-3 w-3" />
+                                      <Label htmlFor="fixed-off" className="text-xs">Fixed Off</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-1">
+                                      <RadioGroupItem value="fixed-price" id="fixed-price" className="h-3 w-3" />
+                                      <Label htmlFor="fixed-price" className="text-xs">Fixed Price</Label>
+                                    </div>
+                                  </RadioGroup>
                                 </div>
-                              </div>
-
-                              <div className="flex justify-end gap-4 pt-4">
-                                <Button variant="outline" onClick={() => setIsEditSpecialOpen(false)}>
-                                  Cancel
-                                </Button>
-                                <Button onClick={() => setIsEditSpecialOpen(false)}>Save</Button>
                               </div>
                             </TabsContent>
 
-                            <TabsContent value="special-images" className="space-y-4 mt-4">
-                              <p className="text-muted-foreground">Special images functionality coming soon...</p>
+                            <TabsContent value="special-images" className="mt-2">
+                              <div className="grid grid-cols-5 gap-2">
+                                <div className="border-2 border-dashed rounded-md p-3 flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50">
+                                  <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                                  <p className="text-xs text-muted-foreground">Upload</p>
+                                </div>
+                              </div>
                             </TabsContent>
                           </Tabs>
                         </DialogContent>
@@ -4359,14 +3836,14 @@ export default function PropertyForm() {
                   )}
 
                   {specialsCategory === "accommodations" && (
-                    <div className="text-center py-12 text-muted-foreground">
-                      Accommodation specials functionality coming soon...
+                    <div className="text-center py-6 text-xs text-muted-foreground">
+                      Accommodation specials coming soon...
                     </div>
                   )}
 
                   {specialsCategory === "event-wedding" && (
-                    <div className="text-center py-12 text-muted-foreground">
-                      Event/Wedding venue specials functionality coming soon...
+                    <div className="text-center py-6 text-xs text-muted-foreground">
+                      Event/Wedding specials coming soon...
                     </div>
                   )}
                 </CardContent>
@@ -6546,220 +6023,97 @@ export default function PropertyForm() {
             </TabsContent>
 
             {/* Packages Tab */}
-            <TabsContent value="packages" className="space-y-6">
+            <TabsContent value="packages" className="space-y-2">
               <Tabs value={packagesCategory} onValueChange={(v) => setPackagesCategory(v as any)} className="w-full">
-                <TabsList>
-                  <TabsTrigger value="accommodations">Accommodations</TabsTrigger>
-                  {isEvent && <TabsTrigger value="event">Event/Wedding Venue</TabsTrigger>}
-                  {isConference && <TabsTrigger value="conference">Conference Venue</TabsTrigger>}
+                <TabsList className="h-7">
+                  <TabsTrigger value="accommodations" className="text-xs h-6">Accommodations</TabsTrigger>
+                  {isEvent && <TabsTrigger value="event" className="text-xs h-6">Event/Wedding</TabsTrigger>}
+                  {isConference && <TabsTrigger value="conference" className="text-xs h-6">Conference</TabsTrigger>}
                 </TabsList>
 
-                <TabsContent value="accommodations" className="mt-6">
-                  <div className="grid grid-cols-[250px_1fr] gap-6">
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">PACKAGES</CardTitle>
-                        <Button size="sm" variant="ghost" onClick={() => setIsEditPackageOpen(true)}>
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {packages.filter((p) => p.category === "accommodations").length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No items yet...</p>
-                        ) : (
-                          packages
-                            .filter((p) => p.category === "accommodations")
-                            .map((pkg) => (
+                {["accommodations", "event", "conference"].map((cat) => (
+                  <TabsContent key={cat} value={cat} className="mt-2">
+                    <div className="grid grid-cols-[180px_1fr] gap-3">
+                      <Card>
+                        <CardHeader className="py-1.5 px-3 flex flex-row items-center justify-between">
+                          <CardTitle className="text-xs font-medium uppercase">{cat}</CardTitle>
+                          <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={() => setIsEditPackageOpen(true)}>
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </CardHeader>
+                        <CardContent className="py-1 px-3 space-y-0.5">
+                          {packages.filter((p) => p.category === cat).length === 0 ? (
+                            <p className="text-xs text-muted-foreground">No items...</p>
+                          ) : (
+                            packages.filter((p) => p.category === cat).map((pkg) => (
                               <div
                                 key={pkg.id}
-                                className={cn(
-                                  "p-2 rounded cursor-pointer hover:bg-accent flex items-center justify-between",
-                                  selectedPackage?.id === pkg.id && "bg-accent",
-                                )}
+                                className={cn("py-1 px-1.5 rounded cursor-pointer hover:bg-accent flex items-center justify-between text-xs", selectedPackage?.id === pkg.id && "bg-accent")}
                                 onClick={() => setSelectedPackage(pkg)}
                               >
-                                <span className="text-sm">{pkg.name}</span>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deletePackage(pkg.id);
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
+                                <span className="truncate">{pkg.name}</span>
+                                <Button size="sm" variant="ghost" className="h-4 w-4 p-0" onClick={(e) => { e.stopPropagation(); deletePackage(pkg.id); }}>
+                                  <Trash2 className="h-2.5 w-2.5" />
                                 </Button>
                               </div>
                             ))
-                        )}
-                      </CardContent>
-                    </Card>
+                          )}
+                        </CardContent>
+                      </Card>
 
-                    <div className="flex gap-2">
-                      <Button variant="destructive" onClick={() => setIsEditPackageOpen(true)}>
-                        Edit Package
-                      </Button>
-                      <Button variant="destructive" onClick={() => setIsPackageImagesOpen(true)}>
-                        Package Images
-                      </Button>
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="event" className="mt-6">
-                  <div className="grid grid-cols-[250px_1fr] gap-6">
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">PACKAGES</CardTitle>
-                        <Button size="sm" variant="ghost" onClick={() => setIsEditPackageOpen(true)}>
-                          <Plus className="h-4 w-4" />
+                      <div className="flex gap-1.5">
+                        <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => setIsEditPackageOpen(true)}>
+                          Edit Package
                         </Button>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {packages.filter((p) => p.category === "event").length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No items yet...</p>
-                        ) : (
-                          packages
-                            .filter((p) => p.category === "event")
-                            .map((pkg) => (
-                              <div
-                                key={pkg.id}
-                                className={cn(
-                                  "p-2 rounded cursor-pointer hover:bg-accent flex items-center justify-between",
-                                  selectedPackage?.id === pkg.id && "bg-accent",
-                                )}
-                                onClick={() => setSelectedPackage(pkg)}
-                              >
-                                <span className="text-sm">{pkg.name}</span>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deletePackage(pkg.id);
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ))
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    <div className="flex gap-2">
-                      <Button variant="destructive" onClick={() => setIsEditPackageOpen(true)}>
-                        Edit Package
-                      </Button>
-                      <Button variant="destructive" onClick={() => setIsPackageImagesOpen(true)}>
-                        Package Images
-                      </Button>
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="conference" className="mt-6">
-                  <div className="grid grid-cols-[250px_1fr] gap-6">
-                    <Card>
-                      <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">PACKAGES</CardTitle>
-                        <Button size="sm" variant="ghost" onClick={() => setIsEditPackageOpen(true)}>
-                          <Plus className="h-4 w-4" />
+                        <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => setIsPackageImagesOpen(true)}>
+                          Package Images
                         </Button>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {packages.filter((p) => p.category === "conference").length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No items yet...</p>
-                        ) : (
-                          packages
-                            .filter((p) => p.category === "conference")
-                            .map((pkg) => (
-                              <div
-                                key={pkg.id}
-                                className={cn(
-                                  "p-2 rounded cursor-pointer hover:bg-accent flex items-center justify-between",
-                                  selectedPackage?.id === pkg.id && "bg-accent",
-                                )}
-                                onClick={() => setSelectedPackage(pkg)}
-                              >
-                                <span className="text-sm">{pkg.name}</span>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deletePackage(pkg.id);
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ))
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    <div className="flex gap-2">
-                      <Button variant="destructive" onClick={() => setIsEditPackageOpen(true)}>
-                        Edit Package
-                      </Button>
-                      <Button variant="destructive" onClick={() => setIsPackageImagesOpen(true)}>
-                        Package Images
-                      </Button>
+                      </div>
                     </div>
-                  </div>
-                </TabsContent>
+                  </TabsContent>
+                ))}
               </Tabs>
             </TabsContent>
 
             {/* Announcements Tab */}
-            <TabsContent value="announcements" className="space-y-6">
+            <TabsContent value="announcements" className="space-y-2">
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>ANNOUNCEMENTS</CardTitle>
-                  <Button variant="destructive" size="sm" onClick={() => setIsManageAnnouncementOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Announcement
+                <CardHeader className="py-2 px-4 flex flex-row items-center justify-between">
+                  <CardTitle className="text-sm">Announcements</CardTitle>
+                  <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setIsManageAnnouncementOpen(true)}>
+                    <Plus className="h-3 w-3" />
+                    Add
                   </Button>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="py-2 px-4">
                   {announcements.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">
-                      No announcements yet. Click "Add Announcement" to create one.
-                    </p>
+                    <p className="text-xs text-muted-foreground text-center py-4">No announcements yet</p>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
                           <tr className="border-b">
-                            <th className="text-left p-3 text-sm font-medium">ENABLED</th>
-                            <th className="text-left p-3 text-sm font-medium">MESSAGE</th>
-                            <th className="text-left p-3 text-sm font-medium">START DATE</th>
-                            <th className="text-left p-3 text-sm font-medium">END DATE</th>
-                            <th className="text-left p-3 text-sm font-medium">ORDER</th>
-                            <th className="text-left p-3 text-sm font-medium">ACTION</th>
+                            <th className="text-left py-1.5 px-2 text-xs font-medium">ON</th>
+                            <th className="text-left py-1.5 px-2 text-xs font-medium">MESSAGE</th>
+                            <th className="text-left py-1.5 px-2 text-xs font-medium">START</th>
+                            <th className="text-left py-1.5 px-2 text-xs font-medium">END</th>
+                            <th className="text-left py-1.5 px-2 text-xs font-medium">#</th>
+                            <th className="py-1.5 px-2 w-10"></th>
                           </tr>
                         </thead>
                         <tbody>
                           {announcements.map((announcement) => (
-                            <tr key={announcement.id} className="border-b">
-                              <td className="p-3">
-                                <Switch
-                                  checked={announcement.enabled}
-                                  onCheckedChange={() => toggleAnnouncementEnabled(announcement.id)}
-                                />
+                            <tr key={announcement.id} className="border-b hover:bg-muted/50">
+                              <td className="py-1 px-2">
+                                <Switch checked={announcement.enabled} onCheckedChange={() => toggleAnnouncementEnabled(announcement.id)} className="scale-75" />
                               </td>
-                              <td className="p-3 text-sm">{announcement.announcement}</td>
-                              <td className="p-3 text-sm">
-                                {announcement.startDate ? format(announcement.startDate, "MM/dd/yyyy") : "-"}
-                              </td>
-                              <td className="p-3 text-sm">
-                                {announcement.endDate ? format(announcement.endDate, "MM/dd/yyyy") : "-"}
-                              </td>
-                              <td className="p-3 text-sm">{announcement.order}</td>
-                              <td className="p-3">
-                                <Button size="sm" variant="ghost" onClick={() => deleteAnnouncement(announcement.id)}>
-                                  <Trash2 className="h-4 w-4" />
+                              <td className="py-1 px-2 text-xs truncate max-w-[200px]">{announcement.announcement}</td>
+                              <td className="py-1 px-2 text-xs">{announcement.startDate ? format(announcement.startDate, "MM/dd/yy") : "-"}</td>
+                              <td className="py-1 px-2 text-xs">{announcement.endDate ? format(announcement.endDate, "MM/dd/yy") : "-"}</td>
+                              <td className="py-1 px-2 text-xs">{announcement.order}</td>
+                              <td className="py-1 px-2">
+                                <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={() => deleteAnnouncement(announcement.id)}>
+                                  <Trash2 className="h-3 w-3" />
                                 </Button>
                               </td>
                             </tr>
