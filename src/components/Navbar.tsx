@@ -10,12 +10,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Building2, Key, LogOut, User, ChevronDown, Shield, Calendar, Megaphone, BookOpen, PieChart, UserPlus, Activity } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { pmsIntegrationStatus, getCompletedMilestoneCount, getTotalMilestoneCount } from "@/components/ApiMilestones";
 import { ProfileModal } from "@/components/ProfileModal";
+
+interface HealthIssue {
+  system: string;
+  reason: string;
+}
 
 export const Navbar = () => {
   const { user, isAdmin, isDev, signOut } = useAuth();
@@ -24,7 +34,7 @@ export const Navbar = () => {
   const [profile, setProfile] = useState<any>(null);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
-  const [apiHealthStatus, setApiHealthStatus] = useState<{ healthy: number; unhealthy: number }>({ healthy: 0, unhealthy: 0 });
+  const [apiHealthStatus, setApiHealthStatus] = useState<{ healthy: number; unhealthy: number; issues: HealthIssue[] }>({ healthy: 0, unhealthy: 0, issues: [] });
   const [bookOpenNewTab, setBookOpenNewTab] = useState(true);
   
   const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
@@ -43,11 +53,11 @@ export const Navbar = () => {
   }, [user]);
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin || isDev) {
       loadPendingRequestsCount();
       checkApiHealth();
     }
-  }, [isAdmin]);
+  }, [isAdmin, isDev]);
 
   const loadBookOpenNewTabSetting = async () => {
     const { data } = await supabase
@@ -61,26 +71,92 @@ export const Navbar = () => {
     }
   };
 
-  // Check health of commissioned APIs based on milestone completion
-  // An API is considered "healthy" if it has completed all 7 milestones
-  // An API is considered "unhealthy" if it has some milestones but not all (partial implementation)
-  const checkApiHealth = () => {
+  // Check health of commissioned APIs based on milestone completion AND data freshness
+  const checkApiHealth = async () => {
     let healthy = 0;
     let unhealthy = 0;
+    const issues: HealthIssue[] = [];
     const totalMilestones = getTotalMilestoneCount();
 
+    // Check milestone completion for all PMS systems
     Object.keys(pmsIntegrationStatus).forEach((systemType) => {
       const completed = getCompletedMilestoneCount(systemType);
       if (completed === totalMilestones) {
-        healthy++;
+        // Milestone complete - will check data freshness next
       } else if (completed > 0) {
-        // Partial implementation - consider as needs attention
+        // Partial implementation
         unhealthy++;
+        issues.push({ system: systemType, reason: `${completed}/${totalMilestones} milestones` });
       }
       // If completed === 0, the API is not yet commissioned, don't count it
     });
 
-    setApiHealthStatus({ healthy, unhealthy });
+    // Check data freshness for active PMS systems with API data sync
+    try {
+      // Get active PMS credentials with refresh intervals
+      const { data: credentials } = await supabase
+        .from("pms_credentials")
+        .select("system_type, refresh_interval_minutes, is_active")
+        .eq("is_active", true);
+
+      if (credentials && credentials.length > 0) {
+        for (const cred of credentials) {
+          // Skip external redirect systems (nightsbridge) - they don't have cached data
+          if (cred.system_type === 'nightsbridge') {
+            // NightsBridge is always healthy if configured
+            const alreadyCounted = issues.some(i => i.system === 'nightsbridge');
+            if (!alreadyCounted) {
+              healthy++;
+            }
+            continue;
+          }
+
+          // Check latest fetched_at from availability cache for this system
+          const { data: cacheData } = await supabase
+            .from("pms_availability_cache")
+            .select("fetched_at")
+            .eq("system_type", cred.system_type)
+            .order("fetched_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          const refreshIntervalMs = (cred.refresh_interval_minutes || 60) * 60 * 1000;
+          const now = Date.now();
+
+          if (!cacheData?.fetched_at) {
+            // No data synced yet
+            const alreadyCounted = issues.some(i => i.system === cred.system_type);
+            if (!alreadyCounted) {
+              unhealthy++;
+              issues.push({ system: cred.system_type, reason: "No sync data" });
+            }
+          } else {
+            const fetchedAt = new Date(cacheData.fetched_at).getTime();
+            const ageMs = now - fetchedAt;
+            
+            if (ageMs > refreshIntervalMs) {
+              // Data is stale
+              const ageMinutes = Math.round(ageMs / 60000);
+              const alreadyCounted = issues.some(i => i.system === cred.system_type);
+              if (!alreadyCounted) {
+                unhealthy++;
+                issues.push({ system: cred.system_type, reason: `Stale (${ageMinutes}m ago)` });
+              }
+            } else {
+              // Data is fresh and milestones complete
+              const hasIssue = issues.some(i => i.system === cred.system_type);
+              if (!hasIssue) {
+                healthy++;
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error checking API health:", error);
+    }
+
+    setApiHealthStatus({ healthy, unhealthy, issues });
   };
 
   const loadProfile = async () => {
@@ -198,21 +274,37 @@ export const Navbar = () => {
             )}
             {isDev && !isBookPage && (
               <Link to="/admin-keys">
-                <Button variant="ghost" className="flex items-center gap-2 relative">
-                  <Key className="h-4 w-4" />
-                  API Keys
-                  {apiHealthStatus.unhealthy > 0 ? (
-                    <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1 text-xs flex items-center gap-0.5">
-                      <Activity className="h-3 w-3" />
-                      {apiHealthStatus.unhealthy}
-                    </Badge>
-                  ) : apiHealthStatus.healthy > 0 ? (
-                    <Badge className="ml-1 h-5 min-w-5 px-1 text-xs bg-green-500 hover:bg-green-600 flex items-center gap-0.5">
-                      <Activity className="h-3 w-3" />
-                      {apiHealthStatus.healthy}
-                    </Badge>
-                  ) : null}
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" className="flex items-center gap-2 relative">
+                      <Key className="h-4 w-4" />
+                      API Keys
+                      {apiHealthStatus.unhealthy > 0 ? (
+                        <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1 text-xs flex items-center gap-0.5">
+                          <Activity className="h-3 w-3" />
+                          {apiHealthStatus.unhealthy}
+                        </Badge>
+                      ) : apiHealthStatus.healthy > 0 ? (
+                        <Badge className="ml-1 h-5 min-w-5 px-1 text-xs bg-green-500 hover:bg-green-600 flex items-center gap-0.5">
+                          <Activity className="h-3 w-3" />
+                          {apiHealthStatus.healthy}
+                        </Badge>
+                      ) : null}
+                    </Button>
+                  </TooltipTrigger>
+                  {apiHealthStatus.issues.length > 0 && (
+                    <TooltipContent side="bottom" className="max-w-xs">
+                      <div className="space-y-1">
+                        <p className="font-medium text-destructive">Unhealthy APIs:</p>
+                        {apiHealthStatus.issues.map((issue, idx) => (
+                          <p key={idx} className="text-xs">
+                            <span className="capitalize font-medium">{issue.system}</span>: {issue.reason}
+                          </p>
+                        ))}
+                      </div>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
               </Link>
             )}
             {isAdmin && !isBookPage && (
