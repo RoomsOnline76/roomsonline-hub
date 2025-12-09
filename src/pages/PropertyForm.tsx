@@ -5637,58 +5637,49 @@ export default function PropertyForm() {
                     </TabsContent>
 
                     {/* Rate Types Sub-tab */}
-                    <TabsContent value="rate-types" className="p-6 space-y-4">
-                      <div className="space-y-4">
-                        {(() => {
-                          const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
-                          const availableRateTypeIds = currentRoom?.availableRateTypes || currentRoom?.linkedRateTypes || [];
-                          const availableRateTypesForRoom = pmsRateTypes.filter(rt => availableRateTypeIds.includes(rt.id));
-                          
-                          return (
-                            <>
-                              <div>
-                                <h3 className="font-semibold text-lg mb-2">Link Rate Types to {currentRoom?.name}</h3>
-                                <p className="text-sm text-muted-foreground">
-                                  Select which rate types are applicable to this room type. This determines which rates appear in the overview.
-                                </p>
+                    <TabsContent value="rate-types" className="p-3 space-y-2">
+                      {(() => {
+                        const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
+                        const availableRateTypeIds = currentRoom?.availableRateTypes || currentRoom?.linkedRateTypes || [];
+                        const availableRateTypesForRoom = pmsRateTypes.filter(rt => availableRateTypeIds.includes(rt.id));
+                        
+                        return (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium">Link Rate Types to {currentRoom?.name}</span>
                                 {availableRateTypesForRoom.length > 0 && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Showing {availableRateTypesForRoom.length} rate type{availableRateTypesForRoom.length !== 1 ? 's' : ''} available for this room from PMS.
-                                  </p>
+                                  <Badge variant="outline" className="text-[10px] h-4">{availableRateTypesForRoom.length} available</Badge>
                                 )}
                               </div>
+                              <Badge variant="secondary" className="text-[10px] h-4">
+                                {getRoomLinkedRateTypes(selectedRoomType).length} linked
+                              </Badge>
+                            </div>
 
-                              {availableRateTypesForRoom.length === 0 ? (
-                                <div className="border rounded-lg p-8 text-center text-muted-foreground">
-                                  <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                                  <p>No rate types available for this room.</p>
-                                  <p className="text-sm">Sync with your PMS to load rate types for this room.</p>
-                                </div>
-                              ) : (
-                                <div className="space-y-3">
-                                  {availableRateTypesForRoom.map((rateType) => {
-                                    const isLinked = getRoomLinkedRateTypes(selectedRoomType).includes(rateType.id);
-                                    return (
-                                      <RateTypeItem
-                                        key={rateType.id}
-                                        rateType={rateType}
-                                        isLinked={isLinked}
-                                        onToggleLink={() => toggleRoomRateTypeLink(selectedRoomType, rateType.id)}
-                                      />
-                                    );
-                                  })}
-                                </div>
-                              )}
-
-                              <div className="bg-muted/50 border rounded-lg p-4 mt-4">
-                                <p className="text-sm text-muted-foreground">
-                                  <strong>{getRoomLinkedRateTypes(selectedRoomType).length}</strong> rate type{getRoomLinkedRateTypes(selectedRoomType).length !== 1 ? 's' : ''} linked to this room.
-                                </p>
+                            {availableRateTypesForRoom.length === 0 ? (
+                              <div className="border rounded-md p-4 text-center text-muted-foreground">
+                                <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                                <p className="text-xs">No rate types available. Sync with PMS to load.</p>
                               </div>
-                            </>
-                          );
-                        })()}
-                      </div>
+                            ) : (
+                              <div className="space-y-1">
+                                {availableRateTypesForRoom.map((rateType) => {
+                                  const isLinked = getRoomLinkedRateTypes(selectedRoomType).includes(rateType.id);
+                                  return (
+                                    <RateTypeItem
+                                      key={rateType.id}
+                                      rateType={rateType}
+                                      isLinked={isLinked}
+                                      onToggleLink={() => toggleRoomRateTypeLink(selectedRoomType, rateType.id)}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </TabsContent>
 
                     {/* Facilities Sub-tab */}
