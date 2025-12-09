@@ -229,54 +229,56 @@ export default function AdminUsers() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">User Management</h1>
-          <p className="text-muted-foreground">
-            Manage user accounts and permissions
-          </p>
+      <div className="container mx-auto px-4 py-3">
+        <div className="flex items-baseline gap-2 mb-3">
+          <h1 className="text-xl font-bold text-foreground">User Management</h1>
+          <span className="text-xs text-muted-foreground">— Manage user accounts and permissions</span>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-3 mb-8">
+        <div className="grid grid-cols-3 gap-2 mb-3">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalUsers}</div>
+            <CardContent className="py-2 px-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-bold">{totalUsers}</span>
+                <span className="text-xs text-muted-foreground">Total Users</span>
+              </div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Admins</CardTitle>
-              <Button
-                size="sm"
-                onClick={() => setAddAdminModalOpen(true)}
-                className="h-8 gap-1"
-              >
-                <Plus className="h-3 w-3" />
-                Add Admin
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{adminCount}</div>
+            <CardContent className="py-2 px-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold">{adminCount}</span>
+                  <span className="text-xs text-muted-foreground">Admins</span>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => setAddAdminModalOpen(true)}
+                  className="h-6 text-xs px-2 gap-1"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add
+                </Button>
+              </div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Property Owners</CardTitle>
-              <Button
-                size="sm"
-                onClick={() => setAddOwnerModalOpen(true)}
-                className="h-8 gap-1"
-              >
-                <Plus className="h-3 w-3" />
-                Add Owner
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{ownerCount}</div>
+            <CardContent className="py-2 px-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold">{ownerCount}</span>
+                  <span className="text-xs text-muted-foreground">Owners</span>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => setAddOwnerModalOpen(true)}
+                  className="h-6 text-xs px-2 gap-1"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
