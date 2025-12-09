@@ -129,10 +129,10 @@ const PropertyOverview = () => {
   };
 
   const getSortIcon = (column: SortColumn) => {
-    if (sortColumn !== column) return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
-    if (sortDirection === "asc") return <ArrowUp className="h-4 w-4 ml-1" />;
-    if (sortDirection === "desc") return <ArrowDown className="h-4 w-4 ml-1" />;
-    return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
+    if (sortColumn !== column) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+    if (sortDirection === "asc") return <ArrowUp className="h-3 w-3 ml-1" />;
+    if (sortDirection === "desc") return <ArrowDown className="h-3 w-3 ml-1" />;
+    return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
   };
 
   // Filter and sort active properties
@@ -240,27 +240,27 @@ const PropertyOverview = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
+      <div className="container mx-auto px-4 py-3">
+        <div className="mb-3">
+          <h1 className="text-xl font-bold text-foreground">
             Property Overview
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Manage your properties
           </p>
         </div>
 
-        <Tabs defaultValue="active" className="space-y-4">
-          <TabsList className="bg-secondary">
-            <TabsTrigger value="active" className="gap-2">
-              Active Properties
-              <Badge className="h-5 min-w-5 px-1.5 text-xs font-medium bg-primary/20 text-primary hover:bg-primary/20">
+        <Tabs defaultValue="active" className="space-y-2">
+          <TabsList className="bg-secondary h-8">
+            <TabsTrigger value="active" className="gap-1 text-xs py-1">
+              Active
+              <Badge className="h-4 min-w-4 px-1 text-[10px] font-medium bg-primary/20 text-primary hover:bg-primary/20">
                 {activeProperties.length}
               </Badge>
             </TabsTrigger>
-            <TabsTrigger value="deleted" className="gap-2">
-              Deleted Properties
-              <Badge className="h-5 min-w-5 px-1.5 text-xs font-medium bg-primary/20 text-primary hover:bg-primary/20">
+            <TabsTrigger value="deleted" className="gap-1 text-xs py-1">
+              Deleted
+              <Badge className="h-4 min-w-4 px-1 text-[10px] font-medium bg-primary/20 text-primary hover:bg-primary/20">
                 {deletedProperties.length}
               </Badge>
             </TabsTrigger>
@@ -268,52 +268,52 @@ const PropertyOverview = () => {
 
           <TabsContent value="active">
             <Card>
-              <CardHeader>
+              <CardHeader className="py-3 px-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Active Properties</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="text-sm">Active Properties</CardTitle>
+                    <CardDescription className="text-xs">
                       Manage your active properties
                     </CardDescription>
                   </div>
-                  <Button onClick={() => navigate('/admin/properties/new')}>
-                    <Building2 className="mr-2 h-4 w-4" />
+                  <Button onClick={() => navigate('/admin/properties/new')} className="h-7 text-xs px-2">
+                    <Building2 className="mr-1 h-3 w-3" />
                     Add Property
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="py-2 px-4">
                 {isLoading ? (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground">Loading properties...</p>
+                  <div className="text-center py-6">
+                    <p className="text-muted-foreground text-xs">Loading properties...</p>
                   </div>
                 ) : activeProperties.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">No Active Properties</h3>
-                    <p className="text-muted-foreground mb-6">
+                  <div className="text-center py-6">
+                    <Building2 className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <h3 className="text-sm font-semibold mb-1">No Active Properties</h3>
+                    <p className="text-muted-foreground text-xs mb-3">
                       Add your first property to get started
                     </p>
-                    <Button onClick={() => navigate('/admin/properties/new')}>
-                      <Building2 className="mr-2 h-4 w-4" />
+                    <Button onClick={() => navigate('/admin/properties/new')} className="h-7 text-xs px-2">
+                      <Building2 className="mr-1 h-3 w-3" />
                       Add Property
                     </Button>
                   </div>
                 ) : (
                   <Table>
                     <TableHeader>
-                      <TableRow>
+                      <TableRow className="h-8">
                         <TableHead 
-                          className="cursor-pointer hover:bg-muted/50 select-none"
+                          className="cursor-pointer hover:bg-muted/50 select-none py-1 text-xs"
                           onClick={() => handleSort("name")}
                         >
                           <div className="flex items-center">
-                            PROPERTY NAME
+                            NAME
                             {getSortIcon("name")}
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="cursor-pointer hover:bg-muted/50 select-none"
+                          className="cursor-pointer hover:bg-muted/50 select-none py-1 text-xs"
                           onClick={() => handleSort("external_system")}
                         >
                           <div className="flex items-center">
@@ -322,16 +322,16 @@ const PropertyOverview = () => {
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="cursor-pointer hover:bg-muted/50 select-none"
+                          className="cursor-pointer hover:bg-muted/50 select-none py-1 text-xs"
                           onClick={() => handleSort("owner_name")}
                         >
                           <div className="flex items-center">
-                            OWNER NAME
+                            OWNER
                             {getSortIcon("owner_name")}
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="cursor-pointer hover:bg-muted/50 select-none"
+                          className="cursor-pointer hover:bg-muted/50 select-none py-1 text-xs"
                           onClick={() => handleSort("property_type")}
                         >
                           <div className="flex items-center">
@@ -339,68 +339,68 @@ const PropertyOverview = () => {
                             {getSortIcon("property_type")}
                           </div>
                         </TableHead>
-                        <TableHead>OWNERLIST</TableHead>
+                        <TableHead className="py-1 text-xs">OWNER</TableHead>
                         <TableHead 
-                          className="cursor-pointer hover:bg-muted/50 select-none"
+                          className="cursor-pointer hover:bg-muted/50 select-none py-1 text-xs"
                           onClick={() => handleSort("total_bookings")}
                         >
                           <div className="flex items-center">
-                            TOTAL BOOKINGS
+                            BOOKINGS
                             {getSortIcon("total_bookings")}
                           </div>
                         </TableHead>
-                        <TableHead>EXTERNAL ID</TableHead>
-                        <TableHead className="text-right">ACTION</TableHead>
+                        <TableHead className="py-1 text-xs">EXT ID</TableHead>
+                        <TableHead className="text-right py-1 text-xs">ACTION</TableHead>
                       </TableRow>
                       {/* Search row */}
-                      <TableRow className="hover:bg-transparent">
-                        <TableCell className="py-2">
+                      <TableRow className="hover:bg-transparent h-7">
+                        <TableCell className="py-1">
                           <Input
                             placeholder="Search"
                             value={searchName}
                             onChange={(e) => setSearchName(e.target.value)}
-                            className="h-8 text-sm"
+                            className="h-6 text-xs"
                           />
                         </TableCell>
-                        <TableCell className="py-2">
+                        <TableCell className="py-1">
                           <Input
                             placeholder="Search"
                             value={searchPms}
                             onChange={(e) => setSearchPms(e.target.value)}
-                            className="h-8 text-sm"
+                            className="h-6 text-xs"
                           />
                         </TableCell>
-                        <TableCell className="py-2">
+                        <TableCell className="py-1">
                           <Input
                             placeholder="Search"
                             value={searchOwnerName}
                             onChange={(e) => setSearchOwnerName(e.target.value)}
-                            className="h-8 text-sm"
+                            className="h-6 text-xs"
                           />
                         </TableCell>
-                        <TableCell className="py-2">
+                        <TableCell className="py-1">
                           <Input
                             placeholder="Search"
                             value={searchPropertyType}
                             onChange={(e) => setSearchPropertyType(e.target.value)}
-                            className="h-8 text-sm"
+                            className="h-6 text-xs"
                           />
                         </TableCell>
-                        <TableCell className="py-2"></TableCell>
-                        <TableCell className="py-2"></TableCell>
-                        <TableCell className="py-2"></TableCell>
-                        <TableCell className="py-2"></TableCell>
+                        <TableCell className="py-1"></TableCell>
+                        <TableCell className="py-1"></TableCell>
+                        <TableCell className="py-1"></TableCell>
+                        <TableCell className="py-1"></TableCell>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {activeProperties.map((property) => (
-                        <TableRow key={property.id}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
+                        <TableRow key={property.id} className="h-8">
+                          <TableCell className="font-medium py-1 text-xs">
+                            <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8"
+                                className="h-6 w-6"
                                 onClick={() => {
                                   const url = getPropertyUrl(property.slug || property.id);
                                   if (homeIconOpenNewTab) {
@@ -411,39 +411,39 @@ const PropertyOverview = () => {
                                 }}
                                 title="View Property Showcase"
                               >
-                                <Home className="h-4 w-4" />
+                                <Home className="h-3 w-3" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8"
+                                className="h-6 w-6"
                                 onClick={() => navigate(`/admin/properties/${property.slug || property.id}`)}
                                 title="Edit Property"
                               >
-                                <Edit className="h-4 w-4" />
+                                <Edit className="h-3 w-3" />
                               </Button>
                               <span>{property.name}</span>
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-1 text-xs">
                             {property.external_system ? (
-                              <Badge variant="outline" className="capitalize">
+                              <Badge variant="outline" className="capitalize text-[10px] px-1 py-0">
                                 {property.external_system}
                               </Badge>
                             ) : (
-                              <span className="text-muted-foreground text-sm">—</span>
+                              <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell>{property.owner_name || "-"}</TableCell>
-                          <TableCell>
+                          <TableCell className="py-1 text-xs">{property.owner_name || "-"}</TableCell>
+                          <TableCell className="py-1 text-xs">
                             <span className="capitalize">{property.property_type?.replace(/_/g, ' ') || "-"}</span>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-1">
                             <div className="flex items-center justify-center">
                               {property.owner_profile ? (
-                                <Avatar className="h-8 w-8">
+                                <Avatar className="h-6 w-6">
                                   <AvatarImage src={property.owner_profile.avatar_url} />
-                                  <AvatarFallback className="text-xs bg-teal-500 text-white">
+                                  <AvatarFallback className="text-[10px] bg-teal-500 text-white">
                                     {property.owner_profile.full_name 
                                       ? property.owner_profile.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase()
                                       : property.owner_profile.email.substring(0, 2).toUpperCase()
@@ -451,34 +451,35 @@ const PropertyOverview = () => {
                                   </AvatarFallback>
                                 </Avatar>
                               ) : (
-                                <div className="w-8 h-8 rounded-full bg-teal-500 flex items-center justify-center">
-                                  <CheckCircle2 className="h-5 w-5 text-white" />
+                                <div className="w-6 h-6 rounded-full bg-teal-500 flex items-center justify-center">
+                                  <CheckCircle2 className="h-3 w-3 text-white" />
                                 </div>
                               )}
                             </div>
                           </TableCell>
-                          <TableCell>{property.total_bookings || 0}</TableCell>
-                          <TableCell>
+                          <TableCell className="py-1 text-xs">{property.total_bookings || 0}</TableCell>
+                          <TableCell className="py-1">
                             {(() => {
                               const externalId = property.external_id || 
                                 property.benson_property_code || 
                                 property.checkfront_property_code || 
                                 property.siteminder_property_code;
                               return externalId ? (
-                                <span className="font-mono text-sm">{externalId}</span>
+                                <span className="font-mono text-[10px]">{externalId}</span>
                               ) : (
-                                <span className="text-muted-foreground text-sm">—</span>
+                                <span className="text-muted-foreground text-xs">—</span>
                               );
                             })()}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right py-1">
                             <Button
                               variant="ghost"
                               size="icon"
+                              className="h-6 w-6"
                               onClick={() => handleDeleteProperty(property.id)}
                               title="Delete Property"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3 w-3" />
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -492,67 +493,68 @@ const PropertyOverview = () => {
 
           <TabsContent value="deleted">
             <Card>
-              <CardHeader>
-                <CardTitle>Deleted Properties</CardTitle>
-                <CardDescription>
+              <CardHeader className="py-3 px-4">
+                <CardTitle className="text-sm">Deleted Properties</CardTitle>
+                <CardDescription className="text-xs">
                   View and reactivate deleted properties
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="py-2 px-4">
                 {isLoading ? (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground">Loading properties...</p>
+                  <div className="text-center py-6">
+                    <p className="text-muted-foreground text-xs">Loading properties...</p>
                   </div>
                 ) : deletedProperties.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Trash2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">No Deleted Properties</h3>
-                    <p className="text-muted-foreground">
+                  <div className="text-center py-6">
+                    <Trash2 className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <h3 className="text-sm font-semibold mb-1">No Deleted Properties</h3>
+                    <p className="text-muted-foreground text-xs">
                       Properties you delete will appear here
                     </p>
                   </div>
                 ) : (
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>PROPERTY NAME</TableHead>
-                        <TableHead>PMS</TableHead>
-                        <TableHead>OWNER NAME</TableHead>
-                        <TableHead>OWNER EMAIL</TableHead>
-                        <TableHead>TOTAL BOOKINGS</TableHead>
-                        <TableHead>STATUS</TableHead>
-                        <TableHead className="text-right">ACTION</TableHead>
+                      <TableRow className="h-8">
+                        <TableHead className="py-1 text-xs">NAME</TableHead>
+                        <TableHead className="py-1 text-xs">PMS</TableHead>
+                        <TableHead className="py-1 text-xs">OWNER</TableHead>
+                        <TableHead className="py-1 text-xs">EMAIL</TableHead>
+                        <TableHead className="py-1 text-xs">BOOKINGS</TableHead>
+                        <TableHead className="py-1 text-xs">STATUS</TableHead>
+                        <TableHead className="text-right py-1 text-xs">ACTION</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {deletedProperties.map((property) => (
-                        <TableRow key={property.id}>
-                          <TableCell className="font-medium">{property.name}</TableCell>
-                          <TableCell>
+                        <TableRow key={property.id} className="h-8">
+                          <TableCell className="font-medium py-1 text-xs">{property.name}</TableCell>
+                          <TableCell className="py-1 text-xs">
                             {property.external_system ? (
-                              <Badge variant="outline" className="capitalize">
+                              <Badge variant="outline" className="capitalize text-[10px] px-1 py-0">
                                 {property.external_system}
                               </Badge>
                             ) : (
-                              <span className="text-muted-foreground text-sm">—</span>
+                              <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell>{property.owner_name || "-"}</TableCell>
-                          <TableCell>{property.owner_email || "-"}</TableCell>
-                          <TableCell>{property.total_bookings || 0}</TableCell>
-                          <TableCell>
+                          <TableCell className="py-1 text-xs">{property.owner_name || "-"}</TableCell>
+                          <TableCell className="py-1 text-xs">{property.owner_email || "-"}</TableCell>
+                          <TableCell className="py-1 text-xs">{property.total_bookings || 0}</TableCell>
+                          <TableCell className="py-1">
                             <Badge 
                               variant="secondary"
-                              className="bg-red-100 text-red-800"
+                              className="bg-red-100 text-red-800 text-[10px] px-1 py-0"
                             >
                               Deleted
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
+                          <TableCell className="text-right py-1">
+                            <div className="flex justify-end gap-1">
                               <Button
                                 variant="outline"
                                 size="sm"
+                                className="h-6 text-xs px-2"
                                 onClick={() => handleReactivateProperty(property.id)}
                               >
                                 Reactivate
@@ -560,10 +562,11 @@ const PropertyOverview = () => {
                               <Button
                                 variant="destructive"
                                 size="sm"
+                                className="h-6 text-xs px-2"
                                 onClick={() => setPropertyToDelete({ id: property.id, name: property.name })}
                               >
-                                <Trash2 className="h-4 w-4 mr-1" />
-                                Permanently Delete
+                                <Trash2 className="h-3 w-3 mr-1" />
+                                Delete
                               </Button>
                             </div>
                           </TableCell>
