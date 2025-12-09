@@ -2886,18 +2886,35 @@ export default function PropertyForm() {
             </TabsContent>
 
             <TabsContent value="info-facilities">
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-3">
                 {/* Property Info */}
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span>Property Info</span>
+                  <CardHeader className="py-2 px-4">
+                    <CardTitle className="text-sm flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span>Property Info</span>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground">Stars</Label>
+                          <div
+                            className={cn(
+                              "inline-block",
+                              getPMSFieldClass("star_rating", selectedPMS),
+                              isFieldPopulatedByPMS("star_rating", selectedPMS) && "opacity-60 pointer-events-none",
+                            )}
+                          >
+                            <StarRating
+                              rating={starRating}
+                              onRatingChange={isFieldPopulatedByPMS("star_rating", selectedPMS) ? () => {} : setStarRating}
+                            />
+                          </div>
+                        </div>
+                      </div>
                       {selectedPMS && (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <div className="flex items-center gap-2 text-sm font-normal">
-                                <div className="w-4 h-4 rounded bg-primary/10 border border-primary/30" />
+                              <div className="flex items-center gap-2 text-xs font-normal">
+                                <div className="w-3 h-3 rounded bg-primary/10 border border-primary/30" />
                                 <span className="text-muted-foreground">
                                   <Cloud className="inline h-3 w-3 mr-1" />
                                   {getPMSDisplayName(selectedPMS)} synced
@@ -2912,81 +2929,54 @@ export default function PropertyForm() {
                       )}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="description">Description</Label>
+                  <CardContent className="py-2 px-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="description" className="text-xs">Description</Label>
                       <Textarea
                         id="description"
                         value={formData.description}
                         onChange={(e) => handleInputChange("description", e.target.value)}
                         placeholder="Describe your property, its unique features, amenities, and what makes it special..."
-                        rows={5}
+                        rows={3}
                         disabled={isFieldPopulatedByPMS("description", selectedPMS)}
                         className={cn(
-                          "resize-none",
+                          "resize-none text-xs",
                           getPMSFieldClass("description", selectedPMS),
                           isFieldPopulatedByPMS("description", selectedPMS) && "cursor-not-allowed",
                         )}
                       />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Stars</Label>
-                      <div
-                        className={cn(
-                          "inline-block p-2 rounded",
-                          getPMSFieldClass("star_rating", selectedPMS),
-                          isFieldPopulatedByPMS("star_rating", selectedPMS) && "opacity-60 pointer-events-none",
-                        )}
-                      >
-                        <StarRating
-                          rating={starRating}
-                          onRatingChange={isFieldPopulatedByPMS("star_rating", selectedPMS) ? () => {} : setStarRating}
-                        />
-                      </div>
                     </div>
                   </CardContent>
                 </Card>
 
                 {/* Facilities */}
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Facilities</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950 p-3 rounded-md border border-blue-200 dark:border-blue-800">
-                      <Info className="h-4 w-4 inline mr-2" />
-                      Checked items will be highlighted on your property listing
+                  <CardHeader className="py-2 px-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm">Facilities</CardTitle>
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Info className="h-3 w-3" />
+                        Checked items will be highlighted on your listing
+                      </div>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  </CardHeader>
+                  <CardContent className="py-2 px-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                       {/* General */}
                       <div>
-                        <h3 className="font-semibold mb-3 text-sm">General</h3>
-                        <div className="space-y-2">
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">General</h3>
+                        <div className="space-y-0.5">
                           {facilities.general.map((facility) => (
-                            <div key={facility} className="flex items-center justify-between group">
-                              <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={facility}
-                                  checked={selectedFacilities.includes(facility)}
-                                  onCheckedChange={() => toggleFacility(facility)}
-                                />
-                                <Label htmlFor={facility} className="cursor-pointer text-sm">
-                                  {facility}
-                                </Label>
-                              </div>
-                              {selectedFacilities.includes(facility) && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                                  onClick={() => toggleFacility(facility)}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              )}
+                            <div key={facility} className="flex items-center space-x-1.5">
+                              <Checkbox
+                                id={facility}
+                                checked={selectedFacilities.includes(facility)}
+                                onCheckedChange={() => toggleFacility(facility)}
+                                className="h-3 w-3"
+                              />
+                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                                {facility}
+                              </Label>
                             </div>
                           ))}
                         </div>
@@ -2994,31 +2984,19 @@ export default function PropertyForm() {
 
                       {/* Bar */}
                       <div>
-                        <h3 className="font-semibold mb-3 text-sm">Bar</h3>
-                        <div className="space-y-2">
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Bar</h3>
+                        <div className="space-y-0.5">
                           {facilities.bar.map((facility) => (
-                            <div key={facility} className="flex items-center justify-between group">
-                              <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={facility}
-                                  checked={selectedFacilities.includes(facility)}
-                                  onCheckedChange={() => toggleFacility(facility)}
-                                />
-                                <Label htmlFor={facility} className="cursor-pointer text-sm">
-                                  {facility}
-                                </Label>
-                              </div>
-                              {selectedFacilities.includes(facility) && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                                  onClick={() => toggleFacility(facility)}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              )}
+                            <div key={facility} className="flex items-center space-x-1.5">
+                              <Checkbox
+                                id={facility}
+                                checked={selectedFacilities.includes(facility)}
+                                onCheckedChange={() => toggleFacility(facility)}
+                                className="h-3 w-3"
+                              />
+                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                                {facility}
+                              </Label>
                             </div>
                           ))}
                         </div>
@@ -3026,31 +3004,19 @@ export default function PropertyForm() {
 
                       {/* Business */}
                       <div>
-                        <h3 className="font-semibold mb-3 text-sm">Business</h3>
-                        <div className="space-y-2">
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Business</h3>
+                        <div className="space-y-0.5">
                           {facilities.business.map((facility) => (
-                            <div key={facility} className="flex items-center justify-between group">
-                              <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={facility}
-                                  checked={selectedFacilities.includes(facility)}
-                                  onCheckedChange={() => toggleFacility(facility)}
-                                />
-                                <Label htmlFor={facility} className="cursor-pointer text-sm">
-                                  {facility}
-                                </Label>
-                              </div>
-                              {selectedFacilities.includes(facility) && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                                  onClick={() => toggleFacility(facility)}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              )}
+                            <div key={facility} className="flex items-center space-x-1.5">
+                              <Checkbox
+                                id={facility}
+                                checked={selectedFacilities.includes(facility)}
+                                onCheckedChange={() => toggleFacility(facility)}
+                                className="h-3 w-3"
+                              />
+                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                                {facility}
+                              </Label>
                             </div>
                           ))}
                         </div>
@@ -3058,31 +3024,19 @@ export default function PropertyForm() {
 
                       {/* Conference Room */}
                       <div>
-                        <h3 className="font-semibold mb-3 text-sm">Conference Room</h3>
-                        <div className="space-y-2">
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Conference Room</h3>
+                        <div className="space-y-0.5">
                           {facilities.conferenceRoom.map((facility) => (
-                            <div key={facility} className="flex items-center justify-between group">
-                              <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={facility}
-                                  checked={selectedFacilities.includes(facility)}
-                                  onCheckedChange={() => toggleFacility(facility)}
-                                />
-                                <Label htmlFor={facility} className="cursor-pointer text-sm">
-                                  {facility}
-                                </Label>
-                              </div>
-                              {selectedFacilities.includes(facility) && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                                  onClick={() => toggleFacility(facility)}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              )}
+                            <div key={facility} className="flex items-center space-x-1.5">
+                              <Checkbox
+                                id={facility}
+                                checked={selectedFacilities.includes(facility)}
+                                onCheckedChange={() => toggleFacility(facility)}
+                                className="h-3 w-3"
+                              />
+                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                                {facility}
+                              </Label>
                             </div>
                           ))}
                         </div>
@@ -3090,31 +3044,19 @@ export default function PropertyForm() {
 
                       {/* Meals */}
                       <div>
-                        <h3 className="font-semibold mb-3 text-sm">Meals</h3>
-                        <div className="space-y-2">
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Meals</h3>
+                        <div className="space-y-0.5">
                           {facilities.meals.map((facility) => (
-                            <div key={facility} className="flex items-center justify-between group">
-                              <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={facility}
-                                  checked={selectedFacilities.includes(facility)}
-                                  onCheckedChange={() => toggleFacility(facility)}
-                                />
-                                <Label htmlFor={facility} className="cursor-pointer text-sm">
-                                  {facility}
-                                </Label>
-                              </div>
-                              {selectedFacilities.includes(facility) && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                                  onClick={() => toggleFacility(facility)}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              )}
+                            <div key={facility} className="flex items-center space-x-1.5">
+                              <Checkbox
+                                id={facility}
+                                checked={selectedFacilities.includes(facility)}
+                                onCheckedChange={() => toggleFacility(facility)}
+                                className="h-3 w-3"
+                              />
+                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                                {facility}
+                              </Label>
                             </div>
                           ))}
                         </div>
@@ -3122,31 +3064,19 @@ export default function PropertyForm() {
 
                       {/* Utility */}
                       <div>
-                        <h3 className="font-semibold mb-3 text-sm">Utility</h3>
-                        <div className="space-y-2">
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Utility</h3>
+                        <div className="space-y-0.5">
                           {facilities.utility.map((facility) => (
-                            <div key={facility} className="flex items-center justify-between group">
-                              <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={facility}
-                                  checked={selectedFacilities.includes(facility)}
-                                  onCheckedChange={() => toggleFacility(facility)}
-                                />
-                                <Label htmlFor={facility} className="cursor-pointer text-sm">
-                                  {facility}
-                                </Label>
-                              </div>
-                              {selectedFacilities.includes(facility) && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                                  onClick={() => toggleFacility(facility)}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              )}
+                            <div key={facility} className="flex items-center space-x-1.5">
+                              <Checkbox
+                                id={facility}
+                                checked={selectedFacilities.includes(facility)}
+                                onCheckedChange={() => toggleFacility(facility)}
+                                className="h-3 w-3"
+                              />
+                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                                {facility}
+                              </Label>
                             </div>
                           ))}
                         </div>
@@ -3154,18 +3084,18 @@ export default function PropertyForm() {
                     </div>
 
                     {selectedFacilities.length > 0 && (
-                      <div className="pt-4">
-                        <Label className="mb-2 block">Selected Facilities</Label>
-                        <div className="flex flex-wrap gap-2">
+                      <div className="pt-2 mt-2 border-t">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Label className="text-xs text-muted-foreground">Selected:</Label>
                           {selectedFacilities.map((facility) => (
-                            <Badge key={facility} variant="secondary" className="gap-1">
+                            <Badge key={facility} variant="secondary" className="text-xs h-5 gap-1">
                               {facility}
                               <button
                                 type="button"
                                 onClick={() => toggleFacility(facility)}
-                                className="ml-1 hover:text-destructive"
+                                className="ml-0.5 hover:text-destructive"
                               >
-                                <X className="h-3 w-3" />
+                                <X className="h-2.5 w-2.5" />
                               </button>
                             </Badge>
                           ))}
@@ -3175,13 +3105,13 @@ export default function PropertyForm() {
                   </CardContent>
                 </Card>
 
-                <div className="flex justify-end gap-4">
-                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleNavigate("/admin/property-overview")}>
                     Cancel
                   </Button>
                   {isDirty && (
-                    <Button type="submit" disabled={loading}>
-                      <Save className="mr-2 h-4 w-4" />
+                    <Button type="submit" size="sm" className="h-7 text-xs" disabled={loading}>
+                      <Save className="mr-1 h-3 w-3" />
                       {loading ? "Saving..." : "Save Property"}
                     </Button>
                   )}
