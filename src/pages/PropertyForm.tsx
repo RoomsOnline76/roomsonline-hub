@@ -3561,7 +3561,7 @@ export default function PropertyForm() {
                     <Label className="text-xs">Template (supports formatting, images, and links)</Label>
                     <RichTextEditor
                       content={templateContent}
-                      onChange={setTemplateContent}
+                      onChange={(html) => { setTemplateContent(html); setIsDirty(true); }}
                       placeholder="Enter your email template content here..."
                     />
                   </div>
@@ -3570,16 +3570,16 @@ export default function PropertyForm() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Label className="text-xs">Pre Mailer:</Label>
-                      <Input type="number" value={preMailerDays} onChange={(e) => setPreMailerDays(Number(e.target.value))} className="w-14 h-6 text-xs" min="0" />
+                      <Input type="number" value={preMailerDays} onChange={(e) => { setPreMailerDays(Number(e.target.value)); setIsDirty(true); }} className="w-14 h-6 text-xs" min="0" />
                       <span className="text-xs text-muted-foreground">days</span>
-                      <Input type="number" value={preMailerHours} onChange={(e) => setPreMailerHours(Number(e.target.value))} className="w-14 h-6 text-xs" min="0" max="23" />
+                      <Input type="number" value={preMailerHours} onChange={(e) => { setPreMailerHours(Number(e.target.value)); setIsDirty(true); }} className="w-14 h-6 text-xs" min="0" max="23" />
                       <span className="text-xs text-muted-foreground">hrs before</span>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <Label className="text-xs">Post Mailer:</Label>
-                      <Input type="number" value={postMailerDays} onChange={(e) => setPostMailerDays(Number(e.target.value))} className="w-14 h-6 text-xs" min="0" />
+                      <Input type="number" value={postMailerDays} onChange={(e) => { setPostMailerDays(Number(e.target.value)); setIsDirty(true); }} className="w-14 h-6 text-xs" min="0" />
                       <span className="text-xs text-muted-foreground">days</span>
-                      <Input type="number" value={postMailerHours} onChange={(e) => setPostMailerHours(Number(e.target.value))} className="w-14 h-6 text-xs" min="0" max="23" />
+                      <Input type="number" value={postMailerHours} onChange={(e) => { setPostMailerHours(Number(e.target.value)); setIsDirty(true); }} className="w-14 h-6 text-xs" min="0" max="23" />
                       <span className="text-xs text-muted-foreground">hrs after</span>
                     </div>
                   </div>
