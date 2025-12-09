@@ -2127,30 +2127,30 @@ export default function PropertyForm() {
   return (
     <>
       <Navbar />
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-3">
         <div className="max-w-7xl mx-auto">
           {/* Breadcrumb Navigation */}
-          <div className="flex items-center gap-2 text-sm mb-6 text-muted-foreground">
+          <div className="flex items-center gap-1 text-xs mb-2 text-muted-foreground">
             <button
               onClick={() => navigate("/admin/property-overview")}
               className="hover:text-foreground transition-colors flex items-center gap-1"
             >
-              <Home className="h-4 w-4" />
+              <Home className="h-3 w-3" />
               Properties
             </button>
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3 w-3" />
             <span className="text-foreground font-medium">
               {isEditMode ? formData.name || "Edit Property" : "Add New Property"}
             </span>
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3 w-3" />
             <span className="text-foreground">
               {activeTab === "general" && "General"}
-              {activeTab === "info-facilities" && "Property info and Facilities"}
+              {activeTab === "info-facilities" && "Info & Facilities"}
               {activeTab === "house-rules" && "House Rules"}
-              {activeTab === "images" && "Property Images"}
-              {activeTab === "rooms" && "Room Information"}
-              {activeTab === "rates" && "Rate Breakdown"}
-              {activeTab === "templates" && "Templates and Notifications"}
+              {activeTab === "images" && "Images"}
+              {activeTab === "rooms" && "Rooms"}
+              {activeTab === "rates" && "Rates"}
+              {activeTab === "templates" && "Templates"}
               {activeTab === "addons" && "Addons"}
               {activeTab === "specials" && "Specials"}
               {activeTab === "packages" && "Packages"}
@@ -2159,42 +2159,39 @@ export default function PropertyForm() {
           </div>
 
           {/* Header with Property Name and Actions */}
-          <div className="mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div>
-                <h1 className="text-3xl font-bold mb-1">{isEditMode ? "Edit Property" : "Add New Property"}</h1>
-                <p className="text-muted-foreground">Configure property details and settings</p>
-              </div>
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-bold">{isEditMode ? "Edit Property" : "Add New Property"}</h1>
               {isEditMode && formData.name && (
-                <Badge variant="outline" className="px-4 py-2 text-base gap-2 border-primary/50 bg-primary/5">
-                  <Building2 className="h-4 w-4 text-primary" />
+                <Badge variant="outline" className="px-2 py-1 text-xs gap-1 border-primary/50 bg-primary/5">
+                  <Building2 className="h-3 w-3 text-primary" />
                   {formData.name}
                 </Badge>
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleNavigate("/admin/property-overview")}>
                 Cancel
               </Button>
               {isDirty && (
-                <Button onClick={handleSubmit} disabled={loading}>
-                  <Save className="mr-2 h-4 w-4" />
-                  {loading ? "Saving..." : "Save Property"}
+                <Button size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={loading}>
+                  <Save className="mr-1 h-3 w-3" />
+                  {loading ? "Saving..." : "Save"}
                 </Button>
               )}
             </div>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="bg-secondary">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
+            <TabsList className="bg-secondary h-8">
               {[
                 { value: "general", icon: Home, label: "General" },
-                { value: "info-facilities", icon: Building2, label: "Property Info & Facilities" },
+                { value: "info-facilities", icon: Building2, label: "Info & Facilities" },
                 { value: "house-rules", icon: FileText, label: "House Rules" },
-                { value: "images", icon: Image, label: "Property Images" },
-                { value: "rooms", icon: Info, label: "Room Information" },
-                { value: "rates", icon: DollarSign, label: "Rate Breakdown" },
-                { value: "templates", icon: Bell, label: "Templates and Notifications" },
+                { value: "images", icon: Image, label: "Images" },
+                { value: "rooms", icon: Info, label: "Rooms" },
+                { value: "rates", icon: DollarSign, label: "Rates" },
+                { value: "templates", icon: Bell, label: "Templates" },
                 { value: "addons", icon: Package, label: "Addons" },
                 { value: "specials", icon: Calendar, label: "Specials" },
                 { value: "packages", icon: Package, label: "Packages" },
@@ -2205,8 +2202,8 @@ export default function PropertyForm() {
                 
                 if (isActive) {
                   return (
-                    <TabsTrigger key={tab.value} value={tab.value} className="gap-2">
-                      <Icon className="h-4 w-4" />
+                    <TabsTrigger key={tab.value} value={tab.value} className="gap-1 text-xs py-1">
+                      <Icon className="h-3 w-3" />
                       {tab.label}
                     </TabsTrigger>
                   );
@@ -2215,12 +2212,12 @@ export default function PropertyForm() {
                 return (
                   <Tooltip key={tab.value}>
                     <TooltipTrigger asChild>
-                      <TabsTrigger value={tab.value} className="px-3">
-                        <Icon className="h-4 w-4" />
+                      <TabsTrigger value={tab.value} className="px-2 py-1">
+                        <Icon className="h-3 w-3" />
                       </TabsTrigger>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>{tab.label}</p>
+                      <p className="text-xs">{tab.label}</p>
                     </TooltipContent>
                   </Tooltip>
                 );
@@ -2228,14 +2225,14 @@ export default function PropertyForm() {
             </TabsList>
 
             <TabsContent value="general">
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-3">
                 {/* Offerings Section */}
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Offerings</CardTitle>
+                  <CardHeader className="py-2 px-4">
+                    <CardTitle className="text-sm">Offerings</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <CardContent className="py-2 px-4">
+                    <div className="flex flex-wrap items-center gap-4">
                       <div className="flex items-center space-x-2">
                         <Checkbox
                           id="accommodation"
@@ -2245,7 +2242,7 @@ export default function PropertyForm() {
                             setIsDirty(true);
                           }}
                         />
-                        <Label htmlFor="accommodation" className="cursor-pointer">
+                        <Label htmlFor="accommodation" className="cursor-pointer text-xs">
                           Accommodation
                         </Label>
                       </div>
@@ -2255,7 +2252,7 @@ export default function PropertyForm() {
                           checked={isVenues}
                           onCheckedChange={(checked) => handleVenuesChange(checked as boolean)}
                         />
-                        <Label htmlFor="venues" className="cursor-pointer">
+                        <Label htmlFor="venues" className="cursor-pointer text-xs">
                           Venues
                         </Label>
                       </div>
@@ -2265,7 +2262,7 @@ export default function PropertyForm() {
                           checked={isEvent}
                           onCheckedChange={(checked) => handleEventChange(checked as boolean)}
                         />
-                        <Label htmlFor="event" className="cursor-pointer">
+                        <Label htmlFor="event" className="cursor-pointer text-xs">
                           Event/Wedding
                         </Label>
                       </div>
@@ -2275,17 +2272,17 @@ export default function PropertyForm() {
                           checked={isConference}
                           onCheckedChange={(checked) => handleConferenceChange(checked as boolean)}
                         />
-                        <Label htmlFor="conference" className="cursor-pointer">
+                        <Label htmlFor="conference" className="cursor-pointer text-xs">
                           Conference
                         </Label>
                       </div>
                     </div>
 
-                    <Separator className="my-6" />
+                    <Separator className="my-3" />
 
-                    <div className="flex flex-wrap items-end gap-4">
-                      <div className="space-y-2 min-w-[200px]">
-                        <Label htmlFor="pms_system">Property Management System</Label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="pms_system" className="text-xs whitespace-nowrap">PMS</Label>
                         <Select
                           value={selectedPMS || "none"}
                           onValueChange={(value) => {
@@ -2293,13 +2290,13 @@ export default function PropertyForm() {
                             setIsDirty(true);
                           }}
                         >
-                          <SelectTrigger id="pms_system">
-                            <SelectValue placeholder="Select PMS system" />
+                          <SelectTrigger id="pms_system" className="h-7 text-xs w-[140px]">
+                            <SelectValue placeholder="Select PMS" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">
-                              <span className="flex items-center gap-2">
-                                <X className="h-4 w-4" />
+                              <span className="flex items-center gap-1 text-xs">
+                                <X className="h-3 w-3" />
                                 None
                               </span>
                             </SelectItem>
@@ -2307,8 +2304,8 @@ export default function PropertyForm() {
                               const IconComponent = getPMSIcon(pms.system_type);
                               return (
                                 <SelectItem key={pms.system_type} value={pms.system_type}>
-                                  <span className="flex items-center gap-2">
-                                    <IconComponent className="h-4 w-4" />
+                                  <span className="flex items-center gap-1 text-xs">
+                                    <IconComponent className="h-3 w-3" />
                                     {pms.name.replace(" API Key", "")}
                                   </span>
                                 </SelectItem>
@@ -2319,123 +2316,77 @@ export default function PropertyForm() {
                       </div>
 
                       {selectedPMS === "nightsbridge" && (
-                        <div className="space-y-2 min-w-[150px]">
-                          <Label htmlFor="bb_id">BBID</Label>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="bb_id" className="text-xs">BBID</Label>
                           <Input
                             id="bb_id"
                             value={formData.bb_id}
                             onChange={(e) => handleInputChange("bb_id", e.target.value)}
                             placeholder="13402"
+                            className="h-7 text-xs w-24"
                           />
                         </div>
                       )}
 
                       {selectedPMS === "semper" && (
                         <>
-                          <div className="space-y-2 min-w-[120px]">
-                            <Label htmlFor="venue_id">VENUE ID</Label>
-                            <Input
-                              id="venue_id"
-                              value={formData.venue_id}
-                              onChange={(e) => handleInputChange("venue_id", e.target.value)}
-                              placeholder="Venue ID"
-                            />
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="venue_id" className="text-xs">Venue</Label>
+                            <Input id="venue_id" value={formData.venue_id} onChange={(e) => handleInputChange("venue_id", e.target.value)} placeholder="ID" className="h-7 text-xs w-20" />
                           </div>
-                          <div className="space-y-2 min-w-[120px]">
-                            <Label htmlFor="channel_id">CHANNEL ID</Label>
-                            <Input
-                              id="channel_id"
-                              value={formData.channel_id}
-                              onChange={(e) => handleInputChange("channel_id", e.target.value)}
-                              placeholder="Channel ID"
-                            />
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="channel_id" className="text-xs">Channel</Label>
+                            <Input id="channel_id" value={formData.channel_id} onChange={(e) => handleInputChange("channel_id", e.target.value)} placeholder="ID" className="h-7 text-xs w-20" />
                           </div>
-                          <div className="space-y-2 min-w-[120px]">
-                            <Label htmlFor="account_id">ACCOUNT ID</Label>
-                            <Input
-                              id="account_id"
-                              value={formData.account_id}
-                              onChange={(e) => handleInputChange("account_id", e.target.value)}
-                              placeholder="Account ID"
-                            />
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="account_id" className="text-xs">Account</Label>
+                            <Input id="account_id" value={formData.account_id} onChange={(e) => handleInputChange("account_id", e.target.value)} placeholder="ID" className="h-7 text-xs w-20" />
                           </div>
-                          <div className="space-y-2 min-w-[120px]">
-                            <Label htmlFor="agent_id">AGENT ID</Label>
-                            <Input
-                              id="agent_id"
-                              value={formData.agent_id}
-                              onChange={(e) => handleInputChange("agent_id", e.target.value)}
-                              placeholder="Agent ID"
-                            />
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="agent_id" className="text-xs">Agent</Label>
+                            <Input id="agent_id" value={formData.agent_id} onChange={(e) => handleInputChange("agent_id", e.target.value)} placeholder="ID" className="h-7 text-xs w-20" />
                           </div>
                         </>
                       )}
 
                       {selectedPMS === "benson" && (
                         <>
-                          <div className="space-y-2 min-w-[280px]">
-                            <Label htmlFor="benson_property_code">Benson Property Code *</Label>
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="benson_property_code" className="text-xs whitespace-nowrap">Benson Code *</Label>
                             <Input
                               id="benson_property_code"
                               value={bensonPropertyCode}
-                              onChange={(e) => {
-                                setBensonPropertyCode(e.target.value);
-                                setIsDirty(true);
-                              }}
-                              placeholder="Enter Benson property code"
+                              onChange={(e) => { setBensonPropertyCode(e.target.value); setIsDirty(true); }}
+                              placeholder="Property code"
+                              className="h-7 text-xs w-40"
                               required
                             />
                           </div>
                           {bensonPropertyCode && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="default"
-                              className="gap-2"
-                              onClick={syncFromBenson}
-                              disabled={isSyncingPms}
-                            >
-                              {isSyncingPms ? (
-                                <RefreshCw className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <RefreshCw className="h-4 w-4" />
-                              )}
-                              {isSyncingPms ? "Syncing..." : "Sync from Benson"}
+                            <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={syncFromBenson} disabled={isSyncingPms}>
+                              <RefreshCw className={cn("h-3 w-3", isSyncingPms && "animate-spin")} />
+                              {isSyncingPms ? "Syncing..." : "Sync"}
                             </Button>
                           )}
                         </>
                       )}
 
                       {lastPmsSync && selectedPMS === "benson" && (
-                        <span className="text-sm text-muted-foreground self-center">
-                          Last synced: {lastPmsSync.toLocaleString()}
-                        </span>
+                        <span className="text-xs text-muted-foreground">Synced: {lastPmsSync.toLocaleString()}</span>
                       )}
 
-                      {/* TripAdvisor ID - always visible */}
-                      <div className="space-y-2 min-w-[150px]">
+                      <div className="flex items-center gap-2">
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Label htmlFor="tripadvisor_id" className="cursor-help flex items-center gap-1">
-                                TripAdvisor ID
-                                <Info className="h-3 w-3 text-muted-foreground" />
+                              <Label htmlFor="tripadvisor_id" className="cursor-help flex items-center gap-1 text-xs">
+                                TripAdvisor <Info className="h-3 w-3 text-muted-foreground" />
                               </Label>
                             </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Check the TripAdvisor URL of the property's listing (it's the number after "d/")</p>
-                            </TooltipContent>
+                            <TooltipContent><p className="text-xs">Number after "d/" in TripAdvisor URL</p></TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-                        <Input
-                          id="tripadvisor_id"
-                          value={tripadvisorId}
-                          onChange={(e) => {
-                            setTripadvisorId(e.target.value);
-                            setIsDirty(true);
-                          }}
-                          placeholder="e.g. 123456"
-                        />
+                        <Input id="tripadvisor_id" value={tripadvisorId} onChange={(e) => { setTripadvisorId(e.target.value); setIsDirty(true); }} placeholder="123456" className="h-7 text-xs w-24" />
                       </div>
                     </div>
                   </CardContent>
@@ -2443,55 +2394,28 @@ export default function PropertyForm() {
 
                 {/* Property Section */}
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
+                  <CardHeader className="py-2 px-4">
+                    <CardTitle className="text-sm flex items-center justify-between">
                       <span>Property</span>
                       {selectedPMS && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="flex items-center gap-2 text-sm font-normal">
-                                <div className="w-4 h-4 rounded bg-primary/10 border border-primary/30" />
-                                <span className="text-muted-foreground">
-                                  <Cloud className="inline h-3 w-3 mr-1" />
-                                  {getPMSDisplayName(selectedPMS)} synced field
-                                </span>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Fields with this background are populated by {getPMSDisplayName(selectedPMS)}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                        <div className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
+                          <div className="w-3 h-3 rounded bg-primary/10 border border-primary/30" />
+                          <Cloud className="h-3 w-3" />
+                          <span>{getPMSDisplayName(selectedPMS)} synced</span>
+                        </div>
                       )}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="name">Name *</Label>
-                        <Input
-                          id="name"
-                          value={formData.name}
-                          onChange={(e) => handleInputChange("name", e.target.value)}
-                          placeholder="Property name"
-                          required
-                          disabled={isFieldPopulatedByPMS("name", selectedPMS)}
-                          className={cn(
-                            getPMSFieldClass("name", selectedPMS),
-                            isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed",
-                          )}
-                        />
+                  <CardContent className="py-2 px-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="name" className="text-xs">Name *</Label>
+                        <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Property name" required disabled={isFieldPopulatedByPMS("name", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("name", selectedPMS), isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")} />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="property_type">Property Type *</Label>
-                        <Select
-                          value={formData.property_type}
-                          onValueChange={(value) => handleInputChange("property_type", value)}
-                        >
-                          <SelectTrigger id="property_type">
-                            <SelectValue placeholder="Select type" />
-                          </SelectTrigger>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="property_type" className="text-xs">Type *</Label>
+                        <Select value={formData.property_type} onValueChange={(value) => handleInputChange("property_type", value)}>
+                          <SelectTrigger id="property_type" className="h-7 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="hotel">Hotel</SelectItem>
                             <SelectItem value="guesthouse">Guest House</SelectItem>
@@ -2503,62 +2427,32 @@ export default function PropertyForm() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="telephone">Telephone Number</Label>
-                        <Input
-                          id="telephone"
-                          value={formData.telephone}
-                          onChange={(e) => handleInputChange("telephone", e.target.value)}
-                          placeholder="+27..."
-                        />
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="telephone" className="text-xs">Telephone</Label>
+                        <Input id="telephone" value={formData.telephone} onChange={(e) => handleInputChange("telephone", e.target.value)} placeholder="+27..." className="h-7 text-xs" />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="contact_email">Contact Email Address *</Label>
-                        <Input
-                          id="contact_email"
-                          type="email"
-                          value={formData.contact_email}
-                          onChange={(e) => handleInputChange("contact_email", e.target.value)}
-                          placeholder="email@example.com"
-                          required
-                        />
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="contact_email" className="text-xs">Contact Email *</Label>
+                        <Input id="contact_email" type="email" value={formData.contact_email} onChange={(e) => handleInputChange("contact_email", e.target.value)} placeholder="email@example.com" required className="h-7 text-xs" />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="currency">Currency *</Label>
-                        <Select
-                          value={formData.currency}
-                          onValueChange={(value) => handleInputChange("currency", value)}
-                        >
-                          <SelectTrigger id="currency">
-                            <SelectValue />
-                          </SelectTrigger>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="currency" className="text-xs">Currency *</Label>
+                        <Select value={formData.currency} onValueChange={(value) => handleInputChange("currency", value)}>
+                          <SelectTrigger id="currency" className="h-7 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="ZAR">ZAR - South African Rand</SelectItem>
-                            <SelectItem value="USD">USD - US Dollar</SelectItem>
-                            <SelectItem value="EUR">EUR - Euro</SelectItem>
-                            <SelectItem value="GBP">GBP - British Pound</SelectItem>
+                            <SelectItem value="ZAR">ZAR</SelectItem>
+                            <SelectItem value="USD">USD</SelectItem>
+                            <SelectItem value="EUR">EUR</SelectItem>
+                            <SelectItem value="GBP">GBP</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="owner_email">Select Owner</Label>
-                        <Select
-                          value={formData.owner_email}
-                          onValueChange={(value) => {
-                            const selectedOwner = owners.find((o) => o.email === value);
-                            handleInputChange("owner_email", value);
-                            handleInputChange("owner_name", selectedOwner?.full_name || "");
-                          }}
-                        >
-                          <SelectTrigger id="owner_email">
-                            <SelectValue placeholder="Select an owner" />
-                          </SelectTrigger>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="owner_email" className="text-xs">Owner</Label>
+                        <Select value={formData.owner_email} onValueChange={(value) => { const selectedOwner = owners.find((o) => o.email === value); handleInputChange("owner_email", value); handleInputChange("owner_name", selectedOwner?.full_name || ""); }}>
+                          <SelectTrigger id="owner_email" className="h-7 text-xs"><SelectValue placeholder="Select owner" /></SelectTrigger>
                           <SelectContent>
-                            {owners.map((owner) => (
-                              <SelectItem key={owner.id} value={owner.email}>
-                                {owner.full_name || owner.email}
-                              </SelectItem>
-                            ))}
+                            {owners.map((owner) => (<SelectItem key={owner.id} value={owner.email}>{owner.full_name || owner.email}</SelectItem>))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -2568,42 +2462,23 @@ export default function PropertyForm() {
 
                 {/* Address Section */}
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Address</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {/* Toggle for no street address */}
-                      <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
-                        <div className="space-y-0.5">
-                          <Label htmlFor="no_street_address">No Street Address Available?</Label>
-                          <p className="text-sm text-muted-foreground">
-                            Use Google Maps pin link instead of street address
-                          </p>
-                        </div>
-                        <Switch
-                          id="no_street_address"
-                          checked={noStreetAddress}
-                          onCheckedChange={(checked) => {
-                            setNoStreetAddress(checked);
-                            setIsDirty(true);
-                          }}
-                        />
+                  <CardHeader className="py-2 px-4">
+                    <CardTitle className="text-sm flex items-center justify-between">
+                      <span>Address</span>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="no_street_address" className="text-xs text-muted-foreground font-normal">No street address?</Label>
+                        <Switch id="no_street_address" checked={noStreetAddress} onCheckedChange={(checked) => { setNoStreetAddress(checked); setIsDirty(true); }} />
                       </div>
-
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="py-2 px-4">
+                    <div className="space-y-2">
                       {!noStreetAddress && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="country">Country *</Label>
-                            <Select
-                              value={formData.country}
-                              onValueChange={(value) => handleInputChange("country", value)}
-                            >
-                              <SelectTrigger
-                                id="country"
-                                className={cn(getPMSFieldClass("country", selectedPMS))}
-                                disabled={isFieldPopulatedByPMS("country", selectedPMS)}
-                              >
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                          <div className="flex flex-col gap-1">
+                            <Label htmlFor="country" className="text-xs">Country *</Label>
+                            <Select value={formData.country} onValueChange={(value) => handleInputChange("country", value)}>
+                              <SelectTrigger id="country" className={cn("h-7 text-xs", getPMSFieldClass("country", selectedPMS))} disabled={isFieldPopulatedByPMS("country", selectedPMS)}>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -2614,103 +2489,39 @@ export default function PropertyForm() {
                               </SelectContent>
                             </Select>
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="city">City *</Label>
-                            <Input
-                              id="city"
-                              value={formData.city}
-                              onChange={(e) => handleInputChange("city", e.target.value)}
-                              placeholder="City name"
-                              required={!noStreetAddress}
-                              disabled={isFieldPopulatedByPMS("city", selectedPMS)}
-                              className={cn(
-                                getPMSFieldClass("city", selectedPMS),
-                                isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed",
-                              )}
-                            />
+                          <div className="flex flex-col gap-1">
+                            <Label htmlFor="city" className="text-xs">City *</Label>
+                            <Input id="city" value={formData.city} onChange={(e) => handleInputChange("city", e.target.value)} placeholder="City" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("city", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("city", selectedPMS), isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed")} />
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="address">Street Name *</Label>
-                            <Input
-                              id="address"
-                              value={formData.address}
-                              onChange={(e) => handleInputChange("address", e.target.value)}
-                              placeholder="Street address"
-                              required={!noStreetAddress}
-                              disabled={isFieldPopulatedByPMS("address", selectedPMS)}
-                              className={cn(
-                                getPMSFieldClass("address", selectedPMS),
-                                isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed",
-                              )}
-                            />
+                          <div className="flex flex-col gap-1">
+                            <Label htmlFor="address" className="text-xs">Street *</Label>
+                            <Input id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Street address" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("address", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("address", selectedPMS), isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed")} />
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="suburb">Suburb</Label>
-                            <Input
-                              id="suburb"
-                              value={formData.suburb}
-                              onChange={(e) => handleInputChange("suburb", e.target.value)}
-                              placeholder="Suburb"
-                            />
+                          <div className="flex flex-col gap-1">
+                            <Label htmlFor="suburb" className="text-xs">Suburb</Label>
+                            <Input id="suburb" value={formData.suburb} onChange={(e) => handleInputChange("suburb", e.target.value)} placeholder="Suburb" className="h-7 text-xs" />
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="postal_code">Postal Code</Label>
-                            <Input
-                              id="postal_code"
-                              value={formData.postal_code}
-                              onChange={(e) => handleInputChange("postal_code", e.target.value)}
-                              placeholder="Postal code"
-                              disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)}
-                              className={cn(
-                                getPMSFieldClass("postal_code", selectedPMS),
-                                isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed",
-                              )}
-                            />
+                          <div className="flex flex-col gap-1">
+                            <Label htmlFor="postal_code" className="text-xs">Postal Code</Label>
+                            <Input id="postal_code" value={formData.postal_code} onChange={(e) => handleInputChange("postal_code", e.target.value)} placeholder="Postal code" disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("postal_code", selectedPMS), isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed")} />
                           </div>
                         </div>
                       )}
 
-                      {/* Google Maps Pin Link - shown when no street address toggle is on */}
                       {noStreetAddress && (
-                        <div className="space-y-2 p-4 border rounded-lg border-primary/20 bg-primary/5">
-                          <Label htmlFor="google_maps_link" className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-primary" />
-                            Google Maps Pin Link *
-                          </Label>
-                          <Input
-                            id="google_maps_link"
-                            value={googleMapsLink}
-                            onChange={(e) => handleGoogleMapsLinkChange(e.target.value)}
-                            placeholder="Paste Google Maps link here (e.g., https://maps.google.com/?q=-33.9,18.4)"
-                            className="font-mono text-sm"
-                            required
-                          />
-                          {googleMapsLink && latitude && longitude ? (
-                            <p className="text-sm text-green-600 flex items-center gap-1">
-                              <Check className="h-4 w-4" />
-                              Coordinates extracted: {latitude.toFixed(6)}, {longitude.toFixed(6)}
-                            </p>
-                          ) : googleMapsLink ? (
-                            <p className="text-sm text-destructive">
-                              Could not extract coordinates from this link. Try a different Google Maps URL.
-                            </p>
-                          ) : null}
+                        <div className="p-2 border rounded-lg border-primary/20 bg-primary/5">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-3 w-3 text-primary" />
+                            <Label htmlFor="google_maps_link" className="text-xs">Google Maps Link *</Label>
+                            <Input id="google_maps_link" value={googleMapsLink} onChange={(e) => handleGoogleMapsLinkChange(e.target.value)} placeholder="Paste Google Maps link" className="flex-1 h-7 text-xs font-mono" required />
+                            {googleMapsLink && latitude && longitude && <span className="text-xs text-green-600 flex items-center gap-1"><Check className="h-3 w-3" />{latitude.toFixed(4)}, {longitude.toFixed(4)}</span>}
+                          </div>
                         </div>
                       )}
 
-                      <div className="pt-4">
-                        <Label className="block mb-2">Property Location</Label>
-                        <PropertyMap
-                          address={formData.address}
-                          city={formData.city}
-                          country={formData.country}
-                          latitude={latitude}
-                          longitude={longitude}
-                          onLocationUpdate={(lat, lng) => {
-                            setLatitude(lat);
-                            setLongitude(lng);
-                          }}
-                        />
+                      <div>
+                        <Label className="text-xs mb-1 block">Property Location</Label>
+                        <PropertyMap address={formData.address} city={formData.city} country={formData.country} latitude={latitude} longitude={longitude} onLocationUpdate={(lat, lng) => { setLatitude(lat); setLongitude(lng); }} />
                       </div>
                     </div>
                   </CardContent>
@@ -2718,113 +2529,61 @@ export default function PropertyForm() {
 
                 {/* Property and Banking Details */}
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Property and Banking Details for Invoicing</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="space-y-0.5">
-                          <Label htmlFor="has_vat">VAT Registered</Label>
-                          <p className="text-sm text-muted-foreground">
-                            Does this property have a VAT registration number?
-                          </p>
-                        </div>
-                        <Switch
-                          id="has_vat"
-                          checked={formData.has_vat}
-                          onCheckedChange={(checked) => handleInputChange("has_vat", checked)}
-                        />
+                  <CardHeader className="py-2 px-4">
+                    <CardTitle className="text-sm flex items-center justify-between">
+                      <span>Banking Details</span>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="has_vat" className="text-xs text-muted-foreground font-normal">VAT Registered?</Label>
+                        <Switch id="has_vat" checked={formData.has_vat} onCheckedChange={(checked) => handleInputChange("has_vat", checked)} />
                       </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {formData.has_vat && (
-                          <div className="space-y-2">
-                            <Label htmlFor="vat_number">VAT #</Label>
-                            <Input
-                              id="vat_number"
-                              value={formData.vat_number}
-                              onChange={(e) => handleInputChange("vat_number", e.target.value)}
-                              placeholder="4930161700"
-                            />
-                          </div>
-                        )}
-                        <div className="space-y-2">
-                          <Label htmlFor="property_registration">Property Registration #</Label>
-                          <Input
-                            id="property_registration"
-                            value={formData.property_registration}
-                            onChange={(e) => handleInputChange("property_registration", e.target.value)}
-                            placeholder="1998/012413/07"
-                          />
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="py-2 px-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                      {formData.has_vat && (
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="vat_number" className="text-xs">VAT #</Label>
+                          <Input id="vat_number" value={formData.vat_number} onChange={(e) => handleInputChange("vat_number", e.target.value)} placeholder="VAT number" className="h-7 text-xs" />
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="bank_name">Bank Name</Label>
-                          <Input
-                            id="bank_name"
-                            value={formData.bank_name}
-                            onChange={(e) => handleInputChange("bank_name", e.target.value)}
-                            placeholder="First National Bank"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="branch_code">Branch Code</Label>
-                          <Input
-                            id="branch_code"
-                            value={formData.branch_code}
-                            onChange={(e) => handleInputChange("branch_code", e.target.value)}
-                            placeholder="203809"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="account_holder">Account Holder</Label>
-                          <Input
-                            id="account_holder"
-                            value={formData.account_holder}
-                            onChange={(e) => handleInputChange("account_holder", e.target.value)}
-                            placeholder="Property name or business name"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="account_number">Account Number</Label>
-                          <Input
-                            id="account_number"
-                            value={formData.account_number}
-                            onChange={(e) => handleInputChange("account_number", e.target.value)}
-                            placeholder="62453541700"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="account_type">Account Type</Label>
-                          <Input
-                            id="account_type"
-                            value={formData.account_type}
-                            onChange={(e) => handleInputChange("account_type", e.target.value)}
-                            placeholder="Gold Business Account"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="swift_code">SWIFT Code</Label>
-                          <Input
-                            id="swift_code"
-                            value={formData.swift_code}
-                            onChange={(e) => handleInputChange("swift_code", e.target.value)}
-                            placeholder="Enter Swift Code"
-                          />
-                        </div>
+                      )}
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="property_registration" className="text-xs">Reg #</Label>
+                        <Input id="property_registration" value={formData.property_registration} onChange={(e) => handleInputChange("property_registration", e.target.value)} placeholder="Registration" className="h-7 text-xs" />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="bank_name" className="text-xs">Bank</Label>
+                        <Input id="bank_name" value={formData.bank_name} onChange={(e) => handleInputChange("bank_name", e.target.value)} placeholder="Bank name" className="h-7 text-xs" />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="branch_code" className="text-xs">Branch</Label>
+                        <Input id="branch_code" value={formData.branch_code} onChange={(e) => handleInputChange("branch_code", e.target.value)} placeholder="Code" className="h-7 text-xs" />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="account_holder" className="text-xs">Holder</Label>
+                        <Input id="account_holder" value={formData.account_holder} onChange={(e) => handleInputChange("account_holder", e.target.value)} placeholder="Name" className="h-7 text-xs" />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="account_number" className="text-xs">Account #</Label>
+                        <Input id="account_number" value={formData.account_number} onChange={(e) => handleInputChange("account_number", e.target.value)} placeholder="Number" className="h-7 text-xs" />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="account_type" className="text-xs">Type</Label>
+                        <Input id="account_type" value={formData.account_type} onChange={(e) => handleInputChange("account_type", e.target.value)} placeholder="Type" className="h-7 text-xs" />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="swift_code" className="text-xs">SWIFT</Label>
+                        <Input id="swift_code" value={formData.swift_code} onChange={(e) => handleInputChange("swift_code", e.target.value)} placeholder="Code" className="h-7 text-xs" />
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                <div className="flex justify-end gap-4">
-                  <Button type="button" variant="outline" onClick={() => handleNavigate("/admin/property-overview")}>
-                    Cancel
-                  </Button>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleNavigate("/admin/property-overview")}>Cancel</Button>
                   {isDirty && (
-                    <Button type="submit" disabled={loading}>
-                      <Save className="mr-2 h-4 w-4" />
-                      {loading ? "Saving..." : "Save Property"}
+                    <Button type="submit" size="sm" className="h-7 text-xs" disabled={loading}>
+                      <Save className="mr-1 h-3 w-3" />
+                      {loading ? "Saving..." : "Save"}
                     </Button>
                   )}
                 </div>
