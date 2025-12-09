@@ -31,7 +31,7 @@ export function PropertyMap({
 }: PropertyMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
-  const [marker, setMarker] = useState<google.maps.Marker | null>(null);
+  const [marker, setMarker] = useState<google.maps.marker.AdvancedMarkerElement | null>(null);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [mapsLoaded, setMapsLoaded] = useState(false);
@@ -82,7 +82,7 @@ export function PropertyMap({
     }
 
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker`;
     script.async = true;
     script.defer = true;
     script.onload = () => setMapsLoaded(true);
@@ -107,19 +107,35 @@ export function PropertyMap({
       mapTypeControl: true,
       streetViewControl: true,
       fullscreenControl: true,
+      mapId: "PROPERTY_EDIT_MAP",
     });
 
-    const newMarker = new window.google.maps.Marker({
+    // Create custom draggable pin element
+    const pinElement = document.createElement("div");
+    pinElement.style.cssText = `
+      width: 32px;
+      height: 32px;
+      background-color: #e11d48;
+      border: 3px solid white;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      cursor: grab;
+    `;
+
+    const newMarker = new window.google.maps.marker.AdvancedMarkerElement({
       position: initialPosition,
       map: newMap,
-      draggable: true,
-      title: "Property Location"
+      gmpDraggable: true,
+      title: "Property Location",
+      content: pinElement,
     });
 
     newMarker.addListener("dragend", () => {
-      const position = newMarker.getPosition();
+      const position = newMarker.position;
       if (position && onLocationUpdate) {
-        onLocationUpdate(position.lat(), position.lng());
+        const lat = typeof position.lat === 'function' ? position.lat() : position.lat;
+        const lng = typeof position.lng === 'function' ? position.lng() : position.lng;
+        onLocationUpdate(lat, lng);
       }
     });
 
@@ -138,7 +154,7 @@ export function PropertyMap({
       if (status === "OK" && results && results[0]) {
         const location = results[0].geometry.location;
         map.setCenter(location);
-        marker.setPosition(location);
+        marker.position = { lat: location.lat(), lng: location.lng() };
         
         if (onLocationUpdate) {
           onLocationUpdate(location.lat(), location.lng());
