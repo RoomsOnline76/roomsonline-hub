@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Calendar, Search, Filter, RefreshCw, Users, CalendarDays, Building2, CloudDownload, Loader2, ChevronDown, ChevronUp, Bed, Plus, XCircle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import {
   Collapsible,
   CollapsibleContent,
@@ -79,6 +80,7 @@ const Bookings = () => {
   const [syncingBookings, setSyncingBookings] = useState(false);
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
   const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(null);
+  const [showCancelled, setShowCancelled] = useState(false);
 
   const canViewAllProperties = isAdmin || isDev;
 
@@ -384,18 +386,30 @@ const Bookings = () => {
     }
   }, [user, properties, selectedProperty, dateFrom, dateTo, statusFilter, canViewAllProperties]);
 
-  // Filter bookings by search term
+  // Filter bookings by search term and cancelled toggle
   const filteredBookings = useMemo(() => {
-    if (!searchTerm) return bookings;
+    let result = bookings;
     
-    const term = searchTerm.toLowerCase();
-    return bookings.filter(booking => 
-      booking.guest_name.toLowerCase().includes(term) ||
-      booking.guest_email.toLowerCase().includes(term) ||
-      booking.property_name?.toLowerCase().includes(term) ||
-      booking.external_reservation_id?.toLowerCase().includes(term)
-    );
-  }, [bookings, searchTerm]);
+    // Filter out cancelled if toggle is off
+    if (!showCancelled) {
+      result = result.filter(booking => 
+        booking.status?.toLowerCase() !== "cancelled"
+      );
+    }
+    
+    // Filter by search term
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(booking => 
+        booking.guest_name.toLowerCase().includes(term) ||
+        booking.guest_email.toLowerCase().includes(term) ||
+        booking.property_name?.toLowerCase().includes(term) ||
+        booking.external_reservation_id?.toLowerCase().includes(term)
+      );
+    }
+    
+    return result;
+  }, [bookings, searchTerm, showCancelled]);
 
   // Stats - normalize status comparisons (Benson uses uppercase, internal uses lowercase)
   const stats = useMemo(() => {
@@ -682,10 +696,27 @@ const Bookings = () => {
         {/* Bookings Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Reservations</CardTitle>
-            <CardDescription>
-              {filteredBookings.length} booking{filteredBookings.length !== 1 ? "s" : ""} found
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Reservations</CardTitle>
+                <CardDescription>
+                  {filteredBookings.length} booking{filteredBookings.length !== 1 ? "s" : ""} found
+                  {!showCancelled && stats.cancelled > 0 && (
+                    <span className="text-muted-foreground"> ({stats.cancelled} cancelled hidden)</span>
+                  )}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="show-cancelled" className="text-sm text-muted-foreground cursor-pointer">
+                  Show cancelled
+                </Label>
+                <Switch
+                  id="show-cancelled"
+                  checked={showCancelled}
+                  onCheckedChange={setShowCancelled}
+                />
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
