@@ -362,13 +362,22 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           }
         }
         
-        // Map restrictions if present
-        if (row.restrictions && Array.isArray(row.restrictions) && row.restrictions.length > 0) {
-          roomData.restrictionsByDate[dateStr] = {
-            stopSell: false,
-            closedToArrival: false,
-            closedToDeparture: false,
-          };
+        // Map restrictions if present - extract from restrictions JSON
+        if (row.restrictions) {
+          const restrictionsData = row.restrictions as any;
+          // Handle both array and object formats
+          const r = Array.isArray(restrictionsData) ? restrictionsData[0] : restrictionsData;
+          if (r && typeof r === 'object') {
+            roomData.restrictionsByDate[dateStr] = {
+              stopSell: r.stop_sell ?? r.stopSell ?? false,
+              minStay: r.min_stay ?? r.minStay ?? null,
+              maxStay: r.max_stay ?? r.maxStay ?? null,
+              leadDaysAdvance: r.lead_days_advance ?? r.leadDaysAdvance ?? null,
+              leadDaysPost: r.lead_days_post ?? r.leadDaysPost ?? null,
+              closedToArrival: r.closed_to_arrival ?? r.closedToArrival ?? false,
+              closedToDeparture: r.closed_to_departure ?? r.closedToDeparture ?? false,
+            };
+          }
         }
       }
 
@@ -1125,22 +1134,15 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       }
     }
     
-    // TEMP TEST DATA: Generate random restrictions based on date hash for testing display
-    const dayOfMonth = date.getDate();
-    const monthOffset = date.getMonth();
-    const hash = (dayOfMonth * 7 + monthOffset * 13) % 31;
-    
-    // Generate varied restrictions on different dates for testing
-    const testRestrictions = {
-      stopSell: hash % 7 === 0 ? true : null, // ~14% of days
-      minStay: hash % 3 === 0 ? (2 + (hash % 5)) : null, // ~33% of days, values 2-6
-      maxStay: hash % 4 === 1 ? (7 + (hash % 7)) : null, // ~25% of days, values 7-13
-      leadDaysAdvance: hash % 5 === 2 ? (1 + (hash % 3)) : null, // ~20% of days, values 1-3
-      leadDaysPost: hash % 6 === 3 ? (hash % 4) : null, // ~17% of days, values 0-3
+    // No restrictions available
+    return {
+      stopSell: null,
+      minStay: null,
+      maxStay: null,
+      leadDaysAdvance: null,
+      leadDaysPost: null,
       fromPms: false,
     };
-    
-    return testRestrictions;
   };
 
   // Render cell value with indicator for missing data
