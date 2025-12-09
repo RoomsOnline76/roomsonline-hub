@@ -171,14 +171,9 @@ export function PropertyMap({
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <div 
-        ref={mapRef} 
-        className="w-full flex-1 min-h-[200px] rounded-lg border border-border"
-      />
-      <p className="text-xs text-muted-foreground mt-1">
-        Drag marker to adjust location
-      </p>
-    </div>
+    <div 
+      ref={mapRef} 
+      className="w-full h-full min-h-[200px] rounded-lg border border-border"
+    />
   );
 }
