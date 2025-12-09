@@ -3947,21 +3947,21 @@ export default function PropertyForm() {
             <TabsContent value="rates" className="space-y-0">
               <div className="flex gap-4 h-[calc(100vh-250px)]">
                 {/* Left Sidebar - Room Types List */}
-                <div className="w-64 border-r bg-muted/30 p-4 space-y-2">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-semibold text-sm">ROOM TYPES</h3>
+                <div className="w-56 border-r bg-muted/30 p-2 space-y-1">
+                  <div className="flex items-center justify-between mb-2 px-1">
+                    <h3 className="font-semibold text-xs text-muted-foreground">ROOM TYPES</h3>
                   </div>
                   {roomTypes.map((room) => (
                     <div
                       key={room.id}
                       onClick={() => setSelectedRoomType(room.id)}
-                      className={`p-3 rounded-md cursor-pointer transition-colors ${
+                      className={`px-2 py-1.5 rounded cursor-pointer transition-colors ${
                         selectedRoomType === room.id
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted hover:bg-muted/80"
                       }`}
                     >
-                      <span className="text-sm font-medium">{room.name}</span>
+                      <span className="text-xs font-medium">{room.name}</span>
                     </div>
                   ))}
                 </div>
