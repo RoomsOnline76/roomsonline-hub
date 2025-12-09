@@ -575,13 +575,25 @@ serve(async (req) => {
             console.log(`Room type: ${roomType.roomTypeId} - ${roomType.name}, availPerNight: ${roomType.roomsAvailablePerNight?.length || 0}`);
             if (roomType.roomsAvailablePerNight) {
               for (const availability of roomType.roomsAvailablePerNight) {
+                // Build restrictions object from availability data
+                const restrictions = {
+                  stop_sell: availability.stopSell ?? availability.isClosed ?? availability.closed ?? false,
+                  min_stay: availability.minStay ?? availability.minimumStay ?? availability.minStayNights ?? null,
+                  max_stay: availability.maxStay ?? availability.maximumStay ?? availability.maxStayNights ?? null,
+                  lead_days_advance: availability.leadDaysAdvance ?? availability.minAdvanceDays ?? null,
+                  lead_days_post: availability.leadDaysPost ?? availability.maxAdvanceDays ?? null,
+                  closed_to_arrival: availability.closedToArrival ?? availability.cta ?? false,
+                  closed_to_departure: availability.closedToDeparture ?? availability.ctd ?? false,
+                  blocked_rooms: availability.blockedRooms || [],
+                };
+                
                 const { error: availError } = await supabase.from("pms_availability_cache").upsert({
                   property_id: property_id,
                   system_type: "benson",
                   external_room_type_id: roomType.roomTypeId.toString(),
                   date: availability.date,
                   available_units: availability.numberOfRoomsAvailable,
-                  restrictions: availability.blockedRooms || [],
+                  restrictions: restrictions,
                   raw_data: {
                     ...availability,
                     roomTypeName: roomType.name,
