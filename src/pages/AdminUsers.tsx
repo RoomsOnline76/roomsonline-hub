@@ -285,68 +285,66 @@ export default function AdminUsers() {
 
         {/* Users Table */}
         <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>All Users</CardTitle>
-                <CardDescription>
-                  View and manage user accounts and roles
-                </CardDescription>
+          <CardHeader className="py-2 px-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-baseline gap-2">
+                <CardTitle className="text-sm">All Users</CardTitle>
+                <CardDescription className="text-xs">— View and manage accounts</CardDescription>
+              </div>
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                <Input
+                  placeholder="Search..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-7 h-7 text-xs"
+                />
               </div>
             </div>
-            <div className="relative mt-4">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name or email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="py-2 px-4">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead className="text-center">Properties</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                <TableRow className="h-8">
+                  <TableHead className="py-1 text-xs">User</TableHead>
+                  <TableHead className="py-1 text-xs">Role</TableHead>
+                  <TableHead className="text-center py-1 text-xs">Properties</TableHead>
+                  <TableHead className="py-1 text-xs">Joined</TableHead>
+                  <TableHead className="text-right py-1 text-xs">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center text-muted-foreground text-xs py-4">
                       {searchTerm ? "No users found" : "No users yet"}
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
+                    <TableRow key={user.id} className="h-10">
+                      <TableCell className="py-1">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-6 w-6">
                             <AvatarImage src={user.avatar_url || undefined} />
-                            <AvatarFallback>{getInitials(user)}</AvatarFallback>
+                            <AvatarFallback className="text-[10px]">{getInitials(user)}</AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-medium">
+                            <p className="text-xs font-medium">
                               {user.full_name || "No name"}
                               {user.id === currentUser?.id && (
-                                <Badge variant="outline" className="ml-2">You</Badge>
+                                <Badge variant="outline" className="ml-1 text-[10px] py-0 px-1">You</Badge>
                               )}
                             </p>
-                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                            <p className="text-[10px] text-muted-foreground">{user.email}</p>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-1">
                         {user.role === "dev" ? (
-                          <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-muted/50 w-[140px]">
-                            <Shield className="h-4 w-4 text-primary" />
-                            <span className="text-sm font-medium">Dev</span>
+                          <div className="flex items-center gap-1 px-2 py-1 border rounded bg-muted/50 w-fit">
+                            <Shield className="h-3 w-3 text-primary" />
+                            <span className="text-xs font-medium">Dev</span>
                           </div>
                         ) : (
                           <Select
@@ -354,57 +352,59 @@ export default function AdminUsers() {
                             onValueChange={(value) => handleRoleChange(user.id, value)}
                             disabled={user.id === currentUser?.id}
                           >
-                            <SelectTrigger className="w-[140px]">
+                            <SelectTrigger className="w-[100px] h-7 text-xs">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="user">
-                                <div className="flex items-center gap-2">
-                                  <User className="h-4 w-4" />
-                                  <span>Owner</span>
+                                <div className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  <span className="text-xs">Owner</span>
                                 </div>
                               </SelectItem>
                               <SelectItem value="admin">
-                                <div className="flex items-center gap-2">
-                                  <Shield className="h-4 w-4" />
-                                  <span>Admin</span>
+                                <div className="flex items-center gap-1">
+                                  <Shield className="h-3 w-3" />
+                                  <span className="text-xs">Admin</span>
                                 </div>
                               </SelectItem>
                             </SelectContent>
                           </Select>
                         )}
                       </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <Building2 className="h-4 w-4 text-muted-foreground" />
-                          <span>{user.property_count || 0}</span>
+                      <TableCell className="text-center py-1">
+                        <div className="flex items-center justify-center gap-1">
+                          <Building2 className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-xs">{user.property_count || 0}</span>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-muted-foreground">
+                      <TableCell className="py-1">
+                        <span className="text-xs text-muted-foreground">
                           {new Date(user.created_at).toLocaleDateString()}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
+                      <TableCell className="text-right py-1">
+                        <div className="flex items-center justify-end gap-1">
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="icon"
+                            className="h-6 w-6"
                             onClick={() => handleResetPassword(user.email)}
                             disabled={user.id === currentUser?.id}
                             title="Reset password"
                           >
-                            <KeyRound className="h-4 w-4" />
+                            <KeyRound className="h-3 w-3" />
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button
                                 variant="ghost"
-                                size="sm"
+                                size="icon"
+                                className="h-6 w-6"
                                 disabled={user.id === currentUser?.id || isLastDevUser(user)}
                                 title={isLastDevUser(user) ? "Cannot delete the last dev user" : undefined}
                               >
-                                <Trash2 className="h-4 w-4 text-destructive" />
+                                <Trash2 className="h-3 w-3 text-destructive" />
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
