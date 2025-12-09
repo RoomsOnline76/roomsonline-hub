@@ -429,11 +429,9 @@ export default function BensonConfig() {
               <Button variant="ghost" size="icon" onClick={() => navigate("/admin/api-keys")}>
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <div>
-                <h1 className="text-3xl font-bold">Benson Field Mappings</h1>
-                <p className="text-muted-foreground">
-                  Map each Benson data field to the corresponding internal UI field
-                </p>
+              <div className="flex items-baseline gap-2">
+                <h1 className="text-xl font-bold text-foreground">Benson Field Mappings</h1>
+                <span className="text-xs text-muted-foreground">— Map Benson data to internal fields</span>
               </div>
             </div>
             <Button onClick={() => navigate("/admin/test-booking-benson")} variant="outline">

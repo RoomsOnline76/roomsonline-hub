@@ -1900,14 +1900,12 @@ export default function AdminKeys() {
       <Navbar />
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold mb-2">API Keys Management</h1>
-            <p className="text-muted-foreground">Manage integration keys for external services</p>
-            <div className="mt-4 flex items-center gap-2">
-              <Badge variant={completedCount === requiredCount ? "default" : "secondary"}>
-                {completedCount} / {requiredCount} Keys Configured
-              </Badge>
-            </div>
+          <div className="flex items-center gap-2 mb-3">
+            <h1 className="text-xl font-bold text-foreground">API Keys Management</h1>
+            <span className="text-xs text-muted-foreground">— Manage integration keys</span>
+            <Badge variant={completedCount === requiredCount ? "default" : "secondary"} className="ml-auto">
+              {completedCount} / {requiredCount} Keys Configured
+            </Badge>
           </div>
 
           {/* Global Settings Section */}

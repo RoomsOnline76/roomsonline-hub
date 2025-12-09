@@ -140,37 +140,45 @@ export default function AdminAccessRequests() {
           <Button variant="ghost" size="icon" onClick={() => navigate("/admin/property-overview")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold">Access Requests</h1>
-            <p className="text-muted-foreground">Manage pending access requests</p>
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-xl font-bold text-foreground">Access Requests</h1>
+            <span className="text-xs text-muted-foreground">— Manage pending access requests</span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-2 mb-3">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-2xl">{pendingCount}</CardTitle>
-              <CardDescription>Pending Requests</CardDescription>
-            </CardHeader>
+            <CardContent className="py-2 px-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-bold">{pendingCount}</span>
+                <span className="text-xs text-muted-foreground">Pending</span>
+              </div>
+            </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-2xl">{requests.filter(r => r.status === "approved").length}</CardTitle>
-              <CardDescription>Approved</CardDescription>
-            </CardHeader>
+            <CardContent className="py-2 px-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-bold">{requests.filter(r => r.status === "approved").length}</span>
+                <span className="text-xs text-muted-foreground">Approved</span>
+              </div>
+            </CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-2xl">{requests.filter(r => r.status === "declined").length}</CardTitle>
-              <CardDescription>Declined</CardDescription>
-            </CardHeader>
+            <CardContent className="py-2 px-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-bold">{requests.filter(r => r.status === "declined").length}</span>
+                <span className="text-xs text-muted-foreground">Declined</span>
+              </div>
+            </CardContent>
           </Card>
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle>All Requests</CardTitle>
-            <CardDescription>Review and manage access requests</CardDescription>
+          <CardHeader className="py-2 px-4">
+            <div className="flex items-baseline gap-2">
+              <CardTitle className="text-sm">All Requests</CardTitle>
+              <CardDescription className="text-xs">— Review and manage access requests</CardDescription>
+            </div>
           </CardHeader>
           <CardContent>
             {requests.length === 0 ? (

@@ -524,11 +524,10 @@ const Bookings = () => {
       <Navbar />
 
       <div className="container mx-auto px-4 py-4">
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">
-              Bookings
-            </h1>
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-xl font-bold text-foreground">Bookings</h1>
+            <span className="text-xs text-muted-foreground">— Manage reservations</span>
           </div>
           {canSyncBenson && (
             <Button 

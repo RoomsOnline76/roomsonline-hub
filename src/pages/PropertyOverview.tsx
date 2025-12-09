@@ -241,13 +241,9 @@ const PropertyOverview = () => {
       <Navbar />
 
       <div className="container mx-auto px-4 py-3">
-        <div className="mb-3">
-          <h1 className="text-xl font-bold text-foreground">
-            Property Overview
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            Manage your properties
-          </p>
+        <div className="flex items-baseline gap-2 mb-3">
+          <h1 className="text-xl font-bold text-foreground">Property Overview</h1>
+          <span className="text-xs text-muted-foreground">— Manage your properties</span>
         </div>
 
         <Tabs defaultValue="active" className="space-y-2">

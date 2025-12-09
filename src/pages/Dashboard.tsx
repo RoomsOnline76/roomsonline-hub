@@ -957,10 +957,8 @@ const Dashboard = () => {
         {/* Header with period selector */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-1">Dashboard</h1>
-            <p className="text-muted-foreground">
-              {isAdmin ? "All properties overview" : "Your properties overview"}
-            </p>
+            <h1 className="text-xl font-bold text-foreground">Dashboard</h1>
+            <span className="text-xs text-muted-foreground ml-2">— {isAdmin ? "All properties overview" : "Your properties overview"}</span>
           </div>
           
           <div className="flex flex-wrap items-center gap-3">
