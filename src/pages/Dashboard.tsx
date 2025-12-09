@@ -953,52 +953,53 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <div className="container mx-auto px-4 py-8">
-        {/* Header with period selector */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">Dashboard</h1>
-            <span className="text-xs text-muted-foreground ml-2">— {isAdmin ? "All properties overview" : "Your properties overview"}</span>
+      <div className="container mx-auto px-4 py-4">
+        {/* Header with period selector - compact */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-lg font-bold text-foreground">Dashboard</h1>
+            <span className="text-[10px] text-muted-foreground">— {isAdmin ? "All properties" : "Your properties"}</span>
           </div>
           
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Compare toggle */}
-            <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-1.5 bg-secondary/50 rounded px-2 py-1">
               <Switch
                 id="compare-prev"
                 checked={comparePrevYear}
                 onCheckedChange={setComparePrevYear}
+                className="scale-75"
               />
-              <Label htmlFor="compare-prev" className="text-sm cursor-pointer whitespace-nowrap">
-                Compare prev. year
+              <Label htmlFor="compare-prev" className="text-xs cursor-pointer whitespace-nowrap">
+                Y-o-Y
               </Label>
             </div>
             
             <Select value={period} onValueChange={handlePeriodChange}>
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-[130px] h-7 text-xs">
                 <SelectValue placeholder="Select period" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="today">Today</SelectItem>
-                <SelectItem value="last_7_days">Last 7 days</SelectItem>
-                <SelectItem value="last_30_days">Last 30 days</SelectItem>
-                <SelectItem value="this_month">This month</SelectItem>
-                <SelectItem value="last_month">Last month</SelectItem>
-                <SelectItem value="this_year">This year</SelectItem>
-                <SelectItem value="custom">Custom range</SelectItem>
+                <SelectItem value="today" className="text-xs">Today</SelectItem>
+                <SelectItem value="last_7_days" className="text-xs">Last 7 days</SelectItem>
+                <SelectItem value="last_30_days" className="text-xs">Last 30 days</SelectItem>
+                <SelectItem value="this_month" className="text-xs">This month</SelectItem>
+                <SelectItem value="last_month" className="text-xs">Last month</SelectItem>
+                <SelectItem value="this_year" className="text-xs">This year</SelectItem>
+                <SelectItem value="custom" className="text-xs">Custom range</SelectItem>
               </SelectContent>
             </Select>
             
             {period === "custom" && (
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-[280px] justify-start text-left font-normal")}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
+                  <Button variant="outline" size="sm" className={cn("h-7 text-xs px-2 justify-start text-left font-normal")}>
+                    <CalendarIcon className="mr-1.5 h-3 w-3" />
                     {dateRange?.from ? (
                       dateRange.to ? (
-                        <>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>
-                      ) : format(dateRange.from, "LLL dd, y")
-                    ) : <span>Pick a date range</span>}
+                        <>{format(dateRange.from, "MMM d")} - {format(dateRange.to, "MMM d, yy")}</>
+                      ) : format(dateRange.from, "MMM d, yy")
+                    ) : <span>Pick dates</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -1014,360 +1015,288 @@ const Dashboard = () => {
               </Popover>
             )}
             
-            <Button variant="outline" size="sm" onClick={exportToCSV} disabled={chartData.length === 0}>
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
+            <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={exportToCSV} disabled={chartData.length === 0}>
+              <Download className="h-3 w-3 mr-1" />
+              CSV
             </Button>
           </div>
         </div>
 
-        {/* Filters Row */}
-        <div className="flex flex-wrap items-center gap-4 mb-4">
-          {/* Type Filter */}
-          <div className="flex items-center gap-2">
-            <Label className="text-sm font-medium whitespace-nowrap">Type:</Label>
-            <Select value={selectedType} onValueChange={(value) => {
-              setSelectedType(value);
-              // Reset property if it's no longer in filtered list
-              if (selectedPropertyId !== "all") {
-                const prop = properties.find(p => p.id === selectedPropertyId);
-                if (prop && value !== "all" && prop.property_type !== value) {
-                  setSelectedPropertyId("all");
-                }
+        {/* Filters Row - compact inline */}
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <Label className="text-xs font-medium text-muted-foreground">Type:</Label>
+          <Select value={selectedType} onValueChange={(value) => {
+            setSelectedType(value);
+            if (selectedPropertyId !== "all") {
+              const prop = properties.find(p => p.id === selectedPropertyId);
+              if (prop && value !== "all" && prop.property_type !== value) {
+                setSelectedPropertyId("all");
               }
-            }}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="All types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All types</SelectItem>
-                {filteredTypes.map(type => (
-                  <SelectItem key={type} value={type}>
-                    {type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            }
+          }}>
+            <SelectTrigger className="w-[110px] h-7 text-xs">
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">All types</SelectItem>
+              {filteredTypes.map(type => (
+                <SelectItem key={type} value={type} className="text-xs">
+                  {type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          {/* Owner Filter */}
-          <div className="flex items-center gap-2">
-            <Label className="text-sm font-medium whitespace-nowrap">Owner:</Label>
-            <Select value={selectedOwner} onValueChange={(value) => {
-              setSelectedOwner(value);
-              // Reset property if it's no longer in filtered list
-              if (selectedPropertyId !== "all") {
-                const prop = properties.find(p => p.id === selectedPropertyId);
-                if (prop && value !== "all" && prop.owner_email !== value) {
-                  setSelectedPropertyId("all");
-                }
+          <Label className="text-xs font-medium text-muted-foreground ml-2">Owner:</Label>
+          <Select value={selectedOwner} onValueChange={(value) => {
+            setSelectedOwner(value);
+            if (selectedPropertyId !== "all") {
+              const prop = properties.find(p => p.id === selectedPropertyId);
+              if (prop && value !== "all" && prop.owner_email !== value) {
+                setSelectedPropertyId("all");
               }
-            }}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="All owners" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All owners</SelectItem>
-                {filteredOwners.map(owner => (
-                  <SelectItem key={owner.email} value={owner.email}>
-                    {owner.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            }
+          }}>
+            <SelectTrigger className="w-[130px] h-7 text-xs">
+              <SelectValue placeholder="All owners" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">All owners</SelectItem>
+              {filteredOwners.map(owner => (
+                <SelectItem key={owner.email} value={owner.email} className="text-xs">
+                  {owner.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          {/* Property Filter with Search */}
-          <div className="flex items-center gap-2">
-            <Label className="text-sm font-medium whitespace-nowrap">Property:</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search..."
-                value={propertySearch}
-                onChange={(e) => setPropertySearch(e.target.value)}
-                className="w-[140px] pl-8 h-9"
-              />
-            </div>
-            <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId}>
-              <SelectTrigger className="w-[220px]">
-                <SelectValue placeholder="All properties" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All properties ({searchFilteredProperties.length})</SelectItem>
-                {searchFilteredProperties.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <Label className="text-xs font-medium text-muted-foreground ml-2">Property:</Label>
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+            <Input
+              placeholder="Search..."
+              value={propertySearch}
+              onChange={(e) => setPropertySearch(e.target.value)}
+              className="w-[100px] pl-6 h-7 text-xs"
+            />
           </div>
+          <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId}>
+            <SelectTrigger className="w-[180px] h-7 text-xs">
+              <SelectValue placeholder="All properties" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">All ({searchFilteredProperties.length})</SelectItem>
+              {searchFilteredProperties.map(p => (
+                <SelectItem key={p.id} value={p.id} className="text-xs">{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Stats Cards - Row 1: Core Stats with Y-o-Y */}
+        {/* Stats Cards - Row 1 & 2 combined compact */}
         <div className={cn(
-          "grid gap-4 mb-4",
-          isAdmin ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" : "grid-cols-1 sm:grid-cols-2"
+          "grid gap-2 mb-3",
+          isAdmin ? "grid-cols-2 sm:grid-cols-4 lg:grid-cols-8" : "grid-cols-2"
         )}>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Bookings</CardTitle>
-              <CalendarDays className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold">{stats.totalBookings}</span>
-                {comparePrevYear && stats.yoyBookings !== 0 && (
-                  <span className={cn(
-                    "text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5",
-                    stats.yoyBookings > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
-                  )}>
-                    {stats.yoyBookings > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                    {stats.yoyBookings > 0 ? "+" : ""}{stats.yoyBookings.toFixed(1)}%
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                <span className="text-green-600">{stats.confirmedBookings} confirmed</span>
-                <span>•</span>
-                <span className="text-yellow-600">{stats.pendingBookings} pending</span>
-              </div>
-            </CardContent>
+          <Card className="p-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-medium text-muted-foreground">Bookings</span>
+              <CalendarDays className="h-3 w-3 text-muted-foreground" />
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-bold">{stats.totalBookings}</span>
+              {comparePrevYear && stats.yoyBookings !== 0 && (
+                <span className={cn(
+                  "text-[9px] font-medium px-1 rounded flex items-center",
+                  stats.yoyBookings > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                )}>
+                  {stats.yoyBookings > 0 ? "+" : ""}{stats.yoyBookings.toFixed(0)}%
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
+              <span className="text-green-600">{stats.confirmedBookings}✓</span>
+              <span className="text-yellow-600">{stats.pendingBookings}⏳</span>
+            </div>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Cancellations</CardTitle>
-              <XCircle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold">{stats.cancelledBookings}</span>
-                {comparePrevYear && stats.yoyCancellations !== 0 && (
-                  <span className={cn(
-                    "text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5",
-                    stats.yoyCancellations < 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
-                  )}>
-                    {stats.yoyCancellations < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                    {stats.yoyCancellations > 0 ? "+" : ""}{stats.yoyCancellations.toFixed(1)}%
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {stats.totalBookings > 0 
-                  ? `${((stats.cancelledBookings / stats.totalBookings) * 100).toFixed(1)}% cancellation rate`
-                  : "No bookings yet"}
-              </p>
-            </CardContent>
+          <Card className="p-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-medium text-muted-foreground">Cancelled</span>
+              <XCircle className="h-3 w-3 text-muted-foreground" />
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-bold">{stats.cancelledBookings}</span>
+              {comparePrevYear && stats.yoyCancellations !== 0 && (
+                <span className={cn(
+                  "text-[9px] font-medium px-1 rounded flex items-center",
+                  stats.yoyCancellations < 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                )}>
+                  {stats.yoyCancellations > 0 ? "+" : ""}{stats.yoyCancellations.toFixed(0)}%
+                </span>
+              )}
+            </div>
+            <span className="text-[9px] text-muted-foreground">
+              {stats.totalBookings > 0 ? `${((stats.cancelledBookings / stats.totalBookings) * 100).toFixed(0)}% rate` : "—"}
+            </span>
           </Card>
 
           {isAdmin && (
             <>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                  <span className="h-4 w-4 flex items-center justify-center text-muted-foreground font-bold text-sm">R</span>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold">R {stats.totalRevenue.toLocaleString("en-ZA", { minimumFractionDigits: 0 })}</span>
-                    {comparePrevYear && stats.yoyRevenue !== 0 && (
-                      <span className={cn(
-                        "text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5",
-                        stats.yoyRevenue > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
-                      )}>
-                        {stats.yoyRevenue > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                        {stats.yoyRevenue > 0 ? "+" : ""}{stats.yoyRevenue.toFixed(1)}%
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    From {stats.confirmedBookings + stats.pendingBookings} active bookings
-                  </p>
-                </CardContent>
+              <Card className="p-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-medium text-muted-foreground">Revenue</span>
+                  <span className="text-[10px] text-muted-foreground font-bold">R</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-bold">R{(stats.totalRevenue / 1000).toFixed(0)}k</span>
+                  {comparePrevYear && stats.yoyRevenue !== 0 && (
+                    <span className={cn(
+                      "text-[9px] font-medium px-1 rounded",
+                      stats.yoyRevenue > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                    )}>
+                      {stats.yoyRevenue > 0 ? "+" : ""}{stats.yoyRevenue.toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+                <span className="text-[9px] text-muted-foreground">{stats.confirmedBookings + stats.pendingBookings} active</span>
               </Card>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Occupancy</CardTitle>
-                  <Percent className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold">{stats.occupancy.toFixed(1)}%</span>
-                    {comparePrevYear && stats.yoyOccupancy !== 0 && (
-                      <span className={cn(
-                        "text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5",
-                        stats.yoyOccupancy > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
-                      )}>
-                        {stats.yoyOccupancy > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                        {stats.yoyOccupancy > 0 ? "+" : ""}{stats.yoyOccupancy.toFixed(1)}pp
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {stats.bookedNights} booked / {stats.availableNights} available nights
-                  </p>
-                </CardContent>
+              <Card className="p-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-medium text-muted-foreground">Occupancy</span>
+                  <Percent className="h-3 w-3 text-muted-foreground" />
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-bold">{stats.occupancy.toFixed(0)}%</span>
+                  {comparePrevYear && stats.yoyOccupancy !== 0 && (
+                    <span className={cn(
+                      "text-[9px] font-medium px-1 rounded",
+                      stats.yoyOccupancy > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                    )}>
+                      {stats.yoyOccupancy > 0 ? "+" : ""}{stats.yoyOccupancy.toFixed(0)}pp
+                    </span>
+                  )}
+                </div>
+                <span className="text-[9px] text-muted-foreground">{stats.bookedNights}/{stats.availableNights} nights</span>
+              </Card>
+
+              <Card className="p-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-medium text-muted-foreground">ADR</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-bold">R{stats.adr.toFixed(0)}</span>
+                  {comparePrevYear && stats.yoyAdr !== 0 && (
+                    <span className={cn(
+                      "text-[9px] font-medium px-1 rounded",
+                      stats.yoyAdr > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                    )}>
+                      {stats.yoyAdr > 0 ? "+" : ""}{stats.yoyAdr.toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+                <span className="text-[9px] text-muted-foreground">per booking</span>
+              </Card>
+
+              <Card className="p-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-medium text-muted-foreground">RevPAR</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-bold">R{stats.revpar.toFixed(0)}</span>
+                  {comparePrevYear && stats.yoyRevpar !== 0 && (
+                    <span className={cn(
+                      "text-[9px] font-medium px-1 rounded",
+                      stats.yoyRevpar > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                    )}>
+                      {stats.yoyRevpar > 0 ? "+" : ""}{stats.yoyRevpar.toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+                <span className="text-[9px] text-muted-foreground">{stats.totalRooms}×{stats.daysInPeriod}d</span>
+              </Card>
+
+              <Card className="p-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-medium text-muted-foreground">Properties</span>
+                  <Building2 className="h-3 w-3 text-muted-foreground" />
+                </div>
+                <span className="text-lg font-bold">{stats.totalProperties}</span>
+                <span className="text-[9px] text-muted-foreground block">{stats.totalRooms} rooms</span>
+              </Card>
+
+              <Card className="p-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-medium text-muted-foreground">Nights</span>
+                  <BedDouble className="h-3 w-3 text-muted-foreground" />
+                </div>
+                <span className="text-lg font-bold">{stats.bookedNights}</span>
+                <span className="text-[9px] text-muted-foreground block">
+                  avg {stats.totalBookings > 0 ? (stats.bookedNights / stats.totalBookings).toFixed(1) : 0}/bkg
+                </span>
               </Card>
             </>
           )}
         </div>
 
-        {/* Stats Cards - Row 2: KPIs */}
-        {isAdmin && (
-          <div className="grid gap-4 mb-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">ADR</CardTitle>
-                <span className="text-xs text-muted-foreground">Avg Daily Rate</span>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold">R {stats.adr.toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                  {comparePrevYear && stats.yoyAdr !== 0 && (
-                    <span className={cn(
-                      "text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5",
-                      stats.yoyAdr > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
-                    )}>
-                      {stats.yoyAdr > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                      {stats.yoyAdr > 0 ? "+" : ""}{stats.yoyAdr.toFixed(1)}%
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Revenue per booking</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">RevPAR</CardTitle>
-                <span className="text-xs text-muted-foreground">Rev/Available Room</span>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold">R {stats.revpar.toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                  {comparePrevYear && stats.yoyRevpar !== 0 && (
-                    <span className={cn(
-                      "text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5",
-                      stats.yoyRevpar > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
-                    )}>
-                      {stats.yoyRevpar > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                      {stats.yoyRevpar > 0 ? "+" : ""}{stats.yoyRevpar.toFixed(1)}%
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">{stats.totalRooms} rooms × {stats.daysInPeriod} days</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Properties</CardTitle>
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalProperties}</div>
-                <p className="text-xs text-muted-foreground mt-1">{stats.totalRooms} total rooms</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Booked Nights</CardTitle>
-                <BedDouble className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.bookedNights}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Avg {stats.totalBookings > 0 ? (stats.bookedNights / stats.totalBookings).toFixed(1) : 0} nights/booking
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Data Quality Warning */}
+        {/* Data Quality Warning - compact */}
         {chartData.some(d => d.isDataGap || d.isInterpolated) && (
-          <div className="mb-6 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
-            <div className="flex items-start gap-2 text-sm">
-              <XCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-              <div>
-                <span className="font-medium text-amber-800 dark:text-amber-200">Data gaps detected: </span>
-                <span className="text-amber-700 dark:text-amber-300">
-                  {chartData.filter(d => d.isDataGap).length} zero periods
-                  {chartData.some(d => d.isInterpolated) && (
-                    <span>, {chartData.filter(d => d.isInterpolated).length} interpolated</span>
-                  )}
-                </span>
-                <div className="mt-1 text-xs text-amber-600 dark:text-amber-400 flex gap-4">
-                  <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded bg-red-500"></span> Data gap (no data)
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded bg-amber-500"></span> Interpolated (estimated)
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded bg-green-500"></span> Actual data
-                  </span>
-                </div>
-              </div>
+          <div className="mb-2 p-2 rounded bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+            <div className="flex items-center gap-2 text-xs">
+              <XCircle className="h-3 w-3 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <span className="text-amber-700 dark:text-amber-300">
+                {chartData.filter(d => d.isDataGap).length} gaps
+                {chartData.some(d => d.isInterpolated) && `, ${chartData.filter(d => d.isInterpolated).length} interpolated`}
+              </span>
+              <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded bg-red-500"></span>gap</span>
+              <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded bg-amber-500"></span>est</span>
+              <span className="flex items-center gap-0.5"><span className="w-2 h-2 rounded bg-green-500"></span>actual</span>
             </div>
           </div>
         )}
 
-        {/* AI Insights */}
-        <Card className="mb-6 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              AI Insights
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-2 mb-3">
-              <Input
-                placeholder="Ask about your data... e.g. 'What's driving revenue?' or 'Top booking trends'"
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !aiLoading && fetchAiInsight()}
-                className="flex-1"
-              />
-              <Button onClick={fetchAiInsight} disabled={aiLoading || !aiPrompt.trim()}>
-                {aiLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
+        {/* AI Insights - compact */}
+        <Card className="mb-3 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent p-2">
+          <div className="flex items-center gap-2 mb-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs font-medium">AI Insights</span>
+          </div>
+          <div className="flex gap-1.5">
+            <Input
+              placeholder="Ask about your data..."
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !aiLoading && fetchAiInsight()}
+              className="flex-1 h-7 text-xs"
+            />
+            <Button size="sm" className="h-7 px-2" onClick={fetchAiInsight} disabled={aiLoading || !aiPrompt.trim()}>
+              {aiLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+            </Button>
+          </div>
+          {aiInsight && (
+            <div className="mt-1.5 p-2 rounded bg-primary/10 border border-primary/20">
+              <p className="text-xs leading-relaxed">{aiInsight}</p>
             </div>
-            {aiInsight && (
-              <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
-                <p className="text-sm leading-relaxed">{aiInsight}</p>
-              </div>
-            )}
-            {!aiInsight && !aiLoading && (
-              <p className="text-xs text-muted-foreground">
-                Examples: "What's the top revenue driver?" • "Any concerning trends?" • "Compare weekday vs weekend"
-              </p>
-            )}
-          </CardContent>
+          )}
+          {!aiInsight && !aiLoading && (
+            <p className="text-[10px] text-muted-foreground mt-1">
+              "What's the top revenue driver?" • "Any concerning trends?"
+            </p>
+          )}
         </Card>
 
-        {/* Charts */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Bookings Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">
-                Bookings Overview
-                {shouldAggregateByMonth && <span className="text-sm font-normal text-muted-foreground ml-2">(Monthly)</span>}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+        {/* Charts - compact */}
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Card className="p-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium">Bookings{shouldAggregateByMonth && " (Monthly)"}</span>
+            </div>
+            <div>
               {bookingsLoading ? (
-                <div className="h-[300px] flex items-center justify-center text-muted-foreground">Loading...</div>
+                <div className="h-[200px] flex items-center justify-center text-xs text-muted-foreground">Loading...</div>
               ) : chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={200}>
                   <ComposedChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} />
@@ -1428,112 +1357,84 @@ const Dashboard = () => {
                   </ComposedChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                <div className="h-[200px] flex items-center justify-center text-xs text-muted-foreground">
                   No booking data for this period
                 </div>
               )}
-            </CardContent>
+            </div>
           </Card>
 
           {/* Revenue Chart - Admin only */}
           {isAdmin && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  Revenue Trend
-                  {shouldAggregateByMonth && <span className="text-sm font-normal text-muted-foreground ml-2">(Monthly)</span>}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+            <Card className="p-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-medium">Revenue{shouldAggregateByMonth && " (Monthly)"}</span>
+              </div>
+              <div>
                 {bookingsLoading ? (
-                  <div className="h-[300px] flex items-center justify-center text-muted-foreground">Loading...</div>
+                  <div className="h-[200px] flex items-center justify-center text-xs text-muted-foreground">Loading...</div>
                 ) : chartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={200}>
                     <ComposedChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11 }} tickLine={false} tickFormatter={(v) => `R${v}`} />
+                      <XAxis dataKey="label" tick={{ fontSize: 9 }} tickLine={false} />
+                      <YAxis tick={{ fontSize: 9 }} tickLine={false} tickFormatter={(v) => `R${v}`} />
                       <Tooltip 
                         content={({ active, payload, label }) => {
                           if (!active || !payload?.length) return null;
                           const data = payload[0]?.payload;
                           return (
-                            <div className="bg-background border border-border rounded-lg p-2 text-xs shadow-lg">
-                              <p className="font-medium mb-1">{label}</p>
-                              {data?.isDataGap && <p className="text-red-500 font-medium">⚠ Data Gap</p>}
-                              {data?.isInterpolated && <p className="text-amber-500 font-medium">~ Interpolated</p>}
+                            <div className="bg-background border border-border rounded p-1.5 text-[10px] shadow-lg">
+                              <p className="font-medium mb-0.5">{label}</p>
+                              {data?.isDataGap && <p className="text-red-500 font-medium">⚠ Gap</p>}
+                              {data?.isInterpolated && <p className="text-amber-500 font-medium">~ Est</p>}
                               {payload.map((entry: any, i: number) => (
                                 <p key={i} style={{ color: entry.color }}>
-                                  {entry.name}: R {Number(entry.value).toLocaleString()}
+                                  {entry.name}: R{Number(entry.value).toLocaleString()}
                                 </p>
                               ))}
                             </div>
                           );
                         }}
                       />
-                      <Legend 
-                        wrapperStyle={{ fontSize: "10px", paddingTop: "8px" }}
-                        formatter={(value) => <span className="text-xs">{value}</span>}
-                      />
-                      {/* 95% Confidence interval - outer (lighter) */}
+                      <Legend wrapperStyle={{ fontSize: "9px", paddingTop: "4px" }} />
                       <Area type="monotone" dataKey="forecastRevenueUpper95" stroke="none" fill="#0ea5e9" fillOpacity={0.08} name="CI 95%" connectNulls={false} />
                       <Area type="monotone" dataKey="forecastRevenueLower95" stroke="none" fill="hsl(var(--background))" fillOpacity={1} connectNulls={false} legendType="none" />
-                      {/* 80% Confidence interval - inner (darker) */}
                       <Area type="monotone" dataKey="forecastRevenueUpper80" stroke="none" fill="#0ea5e9" fillOpacity={0.18} name="CI 80%" connectNulls={false} />
                       <Area type="monotone" dataKey="forecastRevenueLower80" stroke="none" fill="hsl(var(--background))" fillOpacity={1} connectNulls={false} legendType="none" />
-                      {/* Main data bars - highlight gaps/interpolated */}
-                      <Bar 
-                        dataKey="revenue" 
-                        name="Revenue" 
-                        radius={[4, 4, 0, 0]}
-                        cursor="pointer"
-                        onClick={(data) => data?.label && setDrillDownDate(data.label)}
-                      >
+                      <Bar dataKey="revenue" name="Revenue" radius={[3, 3, 0, 0]} cursor="pointer" onClick={(data) => data?.label && setDrillDownDate(data.label)}>
                         {chartData.map((entry, index) => (
-                          <Cell 
-                            key={`cell-revenue-${index}`} 
-                            fill={entry.isDataGap ? "#ef4444" : entry.isInterpolated ? "#fbbf24" : "#22c55e"} 
-                          />
+                          <Cell key={`cell-revenue-${index}`} fill={entry.isDataGap ? "#ef4444" : entry.isInterpolated ? "#fbbf24" : "#22c55e"} />
                         ))}
                       </Bar>
-                      {/* 12-period trend (SMA) - solid orange */}
-                      <Line type="monotone" dataKey="smaRevenue" name="Trend (SMA)" stroke="#f97316" strokeWidth={2} dot={false} connectNulls />
-                      {/* Previous year comparison - dotted amber */}
-                      {comparePrevYear && <Line type="monotone" dataKey="prevRevenue" name="Prev Year" stroke="#eab308" strokeWidth={2} strokeDasharray="3 3" dot={false} />}
-                      {/* Seasonal forecast - dashed blue */}
-                      <Line type="monotone" dataKey="forecastRevenue" name="Forecast" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="6 3" dot={false} connectNulls={false} />
+                      <Line type="monotone" dataKey="smaRevenue" name="Trend" stroke="#f97316" strokeWidth={1.5} dot={false} connectNulls />
+                      {comparePrevYear && <Line type="monotone" dataKey="prevRevenue" name="Prev" stroke="#eab308" strokeWidth={1.5} strokeDasharray="3 3" dot={false} />}
+                      <Line type="monotone" dataKey="forecastRevenue" name="Forecast" stroke="#0ea5e9" strokeWidth={1.5} strokeDasharray="6 3" dot={false} connectNulls={false} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                    No revenue data for this period
+                  <div className="h-[200px] flex items-center justify-center text-xs text-muted-foreground">
+                    No revenue data
                   </div>
                 )}
-              </CardContent>
+              </div>
             </Card>
           )}
 
-          {/* Recent Bookings */}
-          <Card className={isAdmin ? "" : "lg:col-span-2"}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg">
-                Recent Bookings
-                {drillDownDate && (
-                  <span className="ml-2 text-sm font-normal text-muted-foreground">
-                    — {drillDownDate}
-                  </span>
-                )}
-              </CardTitle>
+          {/* Recent Bookings - compact */}
+          <Card className={cn("p-2", isAdmin ? "" : "lg:col-span-2")}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium">
+                Recent{drillDownDate && <span className="text-muted-foreground ml-1">— {drillDownDate}</span>}
+              </span>
               {drillDownDate && (
-                <Button variant="ghost" size="sm" onClick={() => setDrillDownDate(null)}>
-                  <XCircle className="h-4 w-4 mr-1" />
-                  Clear filter
+                <Button variant="ghost" size="sm" className="h-5 px-1 text-[10px]" onClick={() => setDrillDownDate(null)}>
+                  <XCircle className="h-3 w-3 mr-0.5" />Clear
                 </Button>
               )}
-            </CardHeader>
-            <CardContent>
+            </div>
+            <div>
               {(() => {
-                // Filter bookings by drill-down date if active
                 let displayBookings = filteredBookings;
                 if (drillDownDate) {
                   displayBookings = filteredBookings.filter(b => {
@@ -1546,24 +1447,19 @@ const Dashboard = () => {
                 }
                 
                 return displayBookings.length > 0 ? (
-                  <div className="space-y-3">
-                    {displayBookings.slice(0, drillDownDate ? 20 : 5).map((booking) => {
+                  <div className="space-y-1">
+                    {displayBookings.slice(0, drillDownDate ? 15 : 4).map((booking) => {
                       const property = properties.find(p => p.id === booking.property_id);
                       return (
-                        <div key={booking.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
-                          <div className="flex flex-col">
-                            <span className="font-medium text-sm">{booking.guest_name}</span>
-                            <span className="text-xs text-muted-foreground">{property?.name || "Unknown property"}</span>
-                            {drillDownDate && (
-                              <span className="text-xs text-muted-foreground">
-                                {format(new Date(booking.created_at || ''), "MMM d, yyyy")}
-                              </span>
-                            )}
+                        <div key={booking.id} className="flex items-center justify-between p-1.5 rounded border border-border text-xs">
+                          <div>
+                            <span className="font-medium">{booking.guest_name}</span>
+                            <span className="text-muted-foreground ml-1 text-[10px]">{property?.name || "Unknown"}</span>
                           </div>
-                          <div className="flex flex-col items-end">
-                            <span className="font-medium text-sm">R {Number(booking.total_price).toLocaleString()}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium">R{Number(booking.total_price).toLocaleString()}</span>
                             <span className={cn(
-                              "text-xs px-2 py-0.5 rounded-full",
+                              "text-[10px] px-1 rounded",
                               booking.status === "confirmed" && "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400",
                               booking.status === "pending" && "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400",
                               booking.status === "cancelled" && "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
@@ -1574,93 +1470,85 @@ const Dashboard = () => {
                         </div>
                       );
                     })}
-                    {drillDownDate && displayBookings.length > 20 && (
-                      <p className="text-xs text-muted-foreground text-center">
-                        Showing 20 of {displayBookings.length} bookings
+                    {drillDownDate && displayBookings.length > 15 && (
+                      <p className="text-[10px] text-muted-foreground text-center">
+                        +{displayBookings.length - 15} more
                       </p>
                     )}
                   </div>
                 ) : (
-                  <div className="text-center text-muted-foreground py-8">
-                    {drillDownDate ? `No bookings for ${drillDownDate}` : "No bookings found for this period"}
+                  <div className="text-center text-xs text-muted-foreground py-4">
+                    {drillDownDate ? `No bookings for ${drillDownDate}` : "No bookings"}
                   </div>
                 );
               })()}
-            </CardContent>
+            </div>
           </Card>
         </div>
 
-        {/* Property Breakdown Pie Charts */}
+        {/* Property Breakdown Pie Charts - compact */}
         {isAdmin && propertyBreakdown.length > 1 && selectedPropertyId === "all" && (
-          <div className="grid gap-6 lg:grid-cols-2 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Revenue by Property</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={propertyBreakdown}
-                      dataKey="revenue"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      label={({ name, percent }) => `${name.substring(0, 12)}${name.length > 12 ? '...' : ''} (${(percent * 100).toFixed(0)}%)`}
-                      labelLine={{ strokeWidth: 1 }}
-                    >
-                      {propertyBreakdown.map((_, index) => (
-                        <Cell key={`cell-rev-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: number) => [`R ${value.toLocaleString()}`, 'Revenue']}
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--background))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                        fontSize: "12px"
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
+          <div className="grid gap-3 lg:grid-cols-2 mt-3">
+            <Card className="p-2">
+              <span className="text-xs font-medium">Revenue by Property</span>
+              <ResponsiveContainer width="100%" height={160}>
+                <PieChart>
+                  <Pie
+                    data={propertyBreakdown}
+                    dataKey="revenue"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={55}
+                    label={({ name, percent }) => `${name.substring(0, 8)}${name.length > 8 ? '..' : ''} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={{ strokeWidth: 1 }}
+                  >
+                    {propertyBreakdown.map((_, index) => (
+                      <Cell key={`cell-rev-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => [`R${value.toLocaleString()}`, 'Rev']}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--background))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "4px",
+                      fontSize: "10px"
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Bookings by Property</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={propertyBreakdown}
-                      dataKey="bookings"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      label={({ name, percent }) => `${name.substring(0, 12)}${name.length > 12 ? '...' : ''} (${(percent * 100).toFixed(0)}%)`}
-                      labelLine={{ strokeWidth: 1 }}
-                    >
-                      {propertyBreakdown.map((_, index) => (
-                        <Cell key={`cell-book-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: number) => [value, 'Bookings']}
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--background))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                        fontSize: "12px"
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
+            <Card className="p-2">
+              <span className="text-xs font-medium">Bookings by Property</span>
+              <ResponsiveContainer width="100%" height={160}>
+                <PieChart>
+                  <Pie
+                    data={propertyBreakdown}
+                    dataKey="bookings"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={55}
+                    label={({ name, percent }) => `${name.substring(0, 8)}${name.length > 8 ? '..' : ''} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={{ strokeWidth: 1 }}
+                  >
+                    {propertyBreakdown.map((_, index) => (
+                      <Cell key={`cell-book-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => [value, 'Bookings']}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--background))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "4px",
+                      fontSize: "10px"
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
             </Card>
           </div>
         )}
