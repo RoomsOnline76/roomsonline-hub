@@ -1,33 +1,33 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
-import { Resend } from 'https://esm.sh/resend@2.0.0';
-import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { Resend } from "https://esm.sh/resend@2.0.0";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 const requestSchema = z.object({
-  booking_id: z.string().uuid({ message: 'Invalid booking ID format' }),
-  status: z.enum(['success', 'failed']),
+  booking_id: z.string().uuid({ message: "Invalid booking ID format" }),
+  status: z.enum(["success", "failed"]),
   error_message: z.string().optional(),
 });
 
 // Format currency
-function formatCurrency(amount: number, currency: string = 'ZAR'): string {
-  return new Intl.NumberFormat('en-ZA', {
-    style: 'currency',
+function formatCurrency(amount: number, currency: string = "ZAR"): string {
+  return new Intl.NumberFormat("en-ZA", {
+    style: "currency",
     currency,
   }).format(amount);
 }
 
 // Format date
 function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('en-ZA', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+  return new Date(dateString).toLocaleDateString("en-ZA", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 }
 
@@ -42,30 +42,33 @@ function calculateNights(checkIn: string, checkOut: string): number {
 function generateSuccessEmail(booking: any, property: any): string {
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
   const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
-  
+
   // Build detailed rooms itinerary if multi-room with potential different dates
-  let roomsItinerary = '';
+  let roomsItinerary = "";
   const hasRooms = booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0;
-  
+
   if (hasRooms) {
-    roomsItinerary = booking.rooms.map((room: any, index: number) => {
-      const roomCheckIn = room.checkIn || booking.check_in_date;
-      const roomCheckOut = room.checkOut || booking.check_out_date;
-      const roomNights = calculateNights(roomCheckIn, roomCheckOut);
-      const guestSummary = [
-        `${room.numberOfAdults || 1} Adult${(room.numberOfAdults || 1) > 1 ? 's' : ''}`,
-        room.numberOfTeens ? `${room.numberOfTeens} Teen${room.numberOfTeens > 1 ? 's' : ''}` : '',
-        room.numberOfChildren ? `${room.numberOfChildren} Child${room.numberOfChildren > 1 ? 'ren' : ''}` : '',
-        room.numberOfInfants ? `${room.numberOfInfants} Infant${room.numberOfInfants > 1 ? 's' : ''}` : ''
-      ].filter(Boolean).join(', ');
-      
-      return `
+    roomsItinerary = booking.rooms
+      .map((room: any, index: number) => {
+        const roomCheckIn = room.checkIn || booking.check_in_date;
+        const roomCheckOut = room.checkOut || booking.check_out_date;
+        const roomNights = calculateNights(roomCheckIn, roomCheckOut);
+        const guestSummary = [
+          `${room.numberOfAdults || 1} Adult${(room.numberOfAdults || 1) > 1 ? "s" : ""}`,
+          room.numberOfTeens ? `${room.numberOfTeens} Teen${room.numberOfTeens > 1 ? "s" : ""}` : "",
+          room.numberOfChildren ? `${room.numberOfChildren} Child${room.numberOfChildren > 1 ? "ren" : ""}` : "",
+          room.numberOfInfants ? `${room.numberOfInfants} Infant${room.numberOfInfants > 1 ? "s" : ""}` : "",
+        ]
+          .filter(Boolean)
+          .join(", ");
+
+        return `
         <tr>
           <td colspan="2" style="padding: 12px 0; border-bottom: 1px solid #eee;">
             <div style="background-color: #f8f9fa; border-radius: 6px; padding: 12px; border-left: 3px solid #e91e8c;">
-              <p style="margin: 0 0 6px; font-weight: 600; color: #333;">Room ${index + 1}: ${room.roomTypeName || 'Standard Room'}</p>
+              <p style="margin: 0 0 6px; font-weight: 600; color: #333;">Room ${index + 1}: ${room.roomTypeName || "Standard Room"}</p>
               <p style="margin: 0 0 4px; color: #666; font-size: 13px;">
-                <strong>Dates:</strong> ${formatDate(roomCheckIn)} – ${formatDate(roomCheckOut)} (${roomNights} night${roomNights > 1 ? 's' : ''})
+                <strong>Dates:</strong> ${formatDate(roomCheckIn)} – ${formatDate(roomCheckOut)} (${roomNights} night${roomNights > 1 ? "s" : ""})
               </p>
               <p style="margin: 0; color: #666; font-size: 13px;">
                 <strong>Guests:</strong> ${guestSummary}
@@ -74,7 +77,8 @@ function generateSuccessEmail(booking: any, property: any): string {
           </td>
         </tr>
       `;
-    }).join('');
+      })
+      .join("");
   }
 
   // Simple stay section for single room without custom dates
@@ -89,11 +93,11 @@ function generateSuccessEmail(booking: any, property: any): string {
     </tr>
     <tr>
       <td style="padding: 8px 0; color: #666;">Duration</td>
-      <td style="padding: 8px 0; color: #333; text-align: right;">${nights} night${nights > 1 ? 's' : ''}</td>
+      <td style="padding: 8px 0; color: #333; text-align: right;">${nights} night${nights > 1 ? "s" : ""}</td>
     </tr>
     <tr>
       <td style="padding: 8px 0; color: #666;">Guests</td>
-      <td style="padding: 8px 0; color: #333; text-align: right;">${totalGuests} guest${totalGuests > 1 ? 's' : ''}</td>
+      <td style="padding: 8px 0; color: #333; text-align: right;">${totalGuests} guest${totalGuests > 1 ? "s" : ""}</td>
     </tr>
   `;
 
@@ -153,7 +157,7 @@ function generateSuccessEmail(booking: any, property: any): string {
           <!-- Stay Details / Itinerary -->
           <tr>
             <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">${hasRooms && booking.rooms.length > 1 ? 'Itinerary' : 'Stay Details'}</h2>
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">${hasRooms && booking.rooms.length > 1 ? "Itinerary" : "Stay Details"}</h2>
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
                 ${stayContent}
               </table>
@@ -173,12 +177,16 @@ function generateSuccessEmail(booking: any, property: any): string {
                   <td style="padding: 8px 0; color: #666;">Email</td>
                   <td style="padding: 8px 0; color: #333; text-align: right;">${booking.guest_email}</td>
                 </tr>
-                ${booking.guest_phone ? `
+                ${
+                  booking.guest_phone
+                    ? `
                 <tr>
                   <td style="padding: 8px 0; color: #666;">Phone</td>
                   <td style="padding: 8px 0; color: #333; text-align: right;">${booking.guest_phone}</td>
                 </tr>
-                ` : ''}
+                `
+                    : ""
+                }
               </table>
             </td>
           </tr>
@@ -208,7 +216,9 @@ function generateSuccessEmail(booking: any, property: any): string {
             </td>
           </tr>
 
-          ${booking.special_requests ? `
+          ${
+            booking.special_requests
+              ? `
           <!-- Special Requests -->
           <tr>
             <td style="padding: 0 40px 20px;">
@@ -216,14 +226,16 @@ function generateSuccessEmail(booking: any, property: any): string {
               <p style="margin: 0; color: #666; font-style: italic;">"${booking.special_requests}"</p>
             </td>
           </tr>
-          ` : ''}
+          `
+              : ""
+          }
 
           <!-- Footer -->
           <tr>
             <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
               <p style="margin: 0 0 20px; color: #666; font-size: 14px;">Kind regards</p>
               <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
-                RoomOnline on behalf of <strong>${property.name}</strong>
+                RoomsOnline on behalf of <strong>${property.name}</strong>
               </p>
               <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
             </td>
@@ -274,7 +286,7 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
               </p>
               <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
                 <p style="margin: 0; color: #991b1b; font-size: 14px;">
-                  ${errorMessage || 'An unexpected error occurred while processing your reservation. Please try again or contact our support team.'}
+                  ${errorMessage || "An unexpected error occurred while processing your reservation. Please try again or contact our support team."}
                 </p>
               </div>
               <p style="margin: 0 0 20px; color: #333; line-height: 1.6;">
@@ -319,7 +331,7 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
             <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
               <p style="margin: 0 0 20px; color: #666; font-size: 14px;">Kind regards</p>
               <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
-                RoomOnline on behalf of <strong>${property.name}</strong>
+                RoomsOnline on behalf of <strong>${property.name}</strong>
               </p>
               <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
             </td>
@@ -335,30 +347,27 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
-    
+    const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+
     const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
     const body = await req.json();
     const validationResult = requestSchema.safeParse(body);
-    
+
     if (!validationResult.success) {
-      console.error('Validation failed:', validationResult.error);
-      return new Response(
-        JSON.stringify({ error: 'Invalid request parameters' }),
-        { 
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+      console.error("Validation failed:", validationResult.error);
+      return new Response(JSON.stringify({ error: "Invalid request parameters" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const { booking_id, status, error_message } = validationResult.data;
@@ -367,42 +376,41 @@ Deno.serve(async (req) => {
 
     // Get booking details
     const { data: booking, error: bookingError } = await supabaseClient
-      .from('bookings')
-      .select('*, property:properties(*)')
-      .eq('id', booking_id)
+      .from("bookings")
+      .select("*, property:properties(*)")
+      .eq("id", booking_id)
       .single();
 
     if (bookingError || !booking) {
-      console.error('Booking lookup failed:', bookingError);
-      return new Response(
-        JSON.stringify({ error: 'Unable to find booking' }),
-        { 
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+      console.error("Booking lookup failed:", bookingError);
+      return new Response(JSON.stringify({ error: "Unable to find booking" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const property = booking.property;
 
     // Fetch configured from email (same as access request notifications)
     const { data: emailConfig } = await supabaseClient
-      .from('api_keys')
-      .select('key_name, key_value')
-      .eq('key_name', 'RESEND_FROM_EMAIL')
+      .from("api_keys")
+      .select("key_name, key_value")
+      .eq("key_name", "RESEND_FROM_EMAIL")
       .maybeSingle();
 
-    const fromEmail = emailConfig?.key_value || 'RoomsOnline <onboarding@resend.dev>';
+    const fromEmail = emailConfig?.key_value || "RoomsOnline <onboarding@resend.dev>";
 
     // Generate email HTML based on status
-    const html = status === 'success'
-      ? generateSuccessEmail(booking, property)
-      : generateFailureEmail(booking, property, error_message);
+    const html =
+      status === "success"
+        ? generateSuccessEmail(booking, property)
+        : generateFailureEmail(booking, property, error_message);
 
     const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
-    const subject = status === 'success'
-      ? `Reservation Confirmed #${bookingRef} - ${property.name}`
-      : `Reservation Issue #${bookingRef} - ${property.name}`;
+    const subject =
+      status === "success"
+        ? `Reservation Confirmed #${bookingRef} - ${property.name}`
+        : `Reservation Issue #${bookingRef} - ${property.name}`;
 
     console.log(`Sending email to ${booking.guest_email} from ${fromEmail}`);
 
@@ -415,19 +423,19 @@ Deno.serve(async (req) => {
     });
 
     if (emailError) {
-      console.error('Email send error:', emailError);
-      throw new Error(emailError.message || 'Failed to send email');
+      console.error("Email send error:", emailError);
+      throw new Error(emailError.message || "Failed to send email");
     }
 
-    console.log('Email sent successfully:', emailData);
+    console.log("Email sent successfully:", emailData);
 
     // Log the email send
-    await supabaseClient.from('sync_logs').insert({
+    await supabaseClient.from("sync_logs").insert({
       booking_id,
       property_id: property.id,
-      external_system: 'resend',
-      sync_type: 'email_send',
-      status: 'success',
+      external_system: "resend",
+      sync_type: "email_send",
+      status: "success",
       message: `Booking ${status} email sent to ${booking.guest_email}`,
       response_data: emailData,
     });
@@ -438,19 +446,19 @@ Deno.serve(async (req) => {
         message: `Booking ${status} email sent successfully`,
         email_id: emailData?.id,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
-    console.error('Send booking email error:', error);
+    console.error("Send booking email error:", error);
 
     return new Response(
       JSON.stringify({
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : "Unknown error",
       }),
-      { 
+      {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });
