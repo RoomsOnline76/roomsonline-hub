@@ -2482,9 +2482,9 @@ export default function PropertyForm() {
                 </Card>
 
                 {/* Property, Address & Map - Side by side layout */}
-                <div className="flex gap-3">
+                <div className="flex gap-3 items-stretch">
                   {/* Left side - Property & Address (75%) */}
-                  <div className="flex-1 space-y-3">
+                  <div className="flex-1 flex flex-col gap-3">
                     {/* Property Section */}
                     <Card>
                       <CardHeader className="py-2 px-4">
@@ -2615,12 +2615,12 @@ export default function PropertyForm() {
                   </div>
 
                   {/* Right side - Map (25%) */}
-                  <div className="w-1/4 min-w-[200px]">
-                    <Card className="h-full">
+                  <div className="w-1/4 min-w-[200px] flex">
+                    <Card className="flex-1 flex flex-col">
                       <CardHeader className="py-2 px-4">
                         <CardTitle className="text-sm">Location</CardTitle>
                       </CardHeader>
-                      <CardContent className="py-2 px-4 h-[calc(100%-44px)]">
+                      <CardContent className="py-2 px-4 flex-1">
                         <PropertyMap address={formData.address} city={formData.city} country={formData.country} latitude={latitude} longitude={longitude} onLocationUpdate={(lat, lng) => { setLatitude(lat); setLongitude(lng); }} />
                       </CardContent>
                     </Card>

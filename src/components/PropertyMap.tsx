@@ -151,37 +151,33 @@ export function PropertyMap({
 
   if (loading || (apiKey && !mapsLoaded)) {
     return (
-      <div className="space-y-2">
-        <div className="w-full h-[400px] rounded-lg border border-border bg-muted flex items-center justify-center">
-          <p className="text-muted-foreground">Loading map...</p>
-        </div>
+      <div className="w-full h-full min-h-[200px] rounded-lg border border-border bg-muted flex items-center justify-center">
+        <p className="text-muted-foreground text-xs">Loading map...</p>
       </div>
     );
   }
 
   if (!apiKey) {
     return (
-      <div className="space-y-2">
-        <div className="w-full h-[400px] rounded-lg border border-border bg-muted flex items-center justify-center">
-          <div className="text-center space-y-2">
-            <MapPin className="h-8 w-8 mx-auto text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              Configure Google Maps API key in the API Keys page
-            </p>
-          </div>
+      <div className="w-full h-full min-h-[200px] rounded-lg border border-border bg-muted flex items-center justify-center">
+        <div className="text-center space-y-2">
+          <MapPin className="h-6 w-6 mx-auto text-muted-foreground" />
+          <p className="text-xs text-muted-foreground">
+            Configure Google Maps API key
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-2">
+    <div className="h-full flex flex-col">
       <div 
         ref={mapRef} 
-        className="w-full h-[400px] rounded-lg border border-border"
+        className="w-full flex-1 min-h-[200px] rounded-lg border border-border"
       />
-      <p className="text-sm text-muted-foreground">
-        Drag the marker to adjust the property location
+      <p className="text-xs text-muted-foreground mt-1">
+        Drag marker to adjust location
       </p>
     </div>
   );
