@@ -1200,14 +1200,14 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-3">
         {/* Property Indicator */}
         {selectedPropertyData && (
-          <div className="mb-4 p-4 bg-primary/10 border border-primary/20 rounded-lg flex items-center gap-3">
-            <Building2 className="h-5 w-5 text-primary" />
-            <div>
-              <span className="text-sm text-muted-foreground">Currently managing:</span>
-              <h2 className="text-lg font-semibold text-primary">{selectedPropertyData.name}</h2>
+          <div className="mb-2 p-2 bg-primary/10 border border-primary/20 rounded-lg flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-primary" />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Managing:</span>
+              <h2 className="text-sm font-semibold text-primary">{selectedPropertyData.name}</h2>
             </div>
             <div className="ml-auto flex gap-2 items-center">
               {isPmsProperty && (
@@ -1265,43 +1265,43 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
 
         {/* PMS Status Alert */}
         {selectedPropertyData && isPmsProperty && pmsSyncStatus === "not_configured" && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>{selectedPropertyData.external_system?.toUpperCase()} API Not Configured</AlertTitle>
-            <AlertDescription>
-              {pmsSyncError || `Please configure ${selectedPropertyData.external_system} API credentials in Admin → API Keys to enable real-time availability sync.`}
+          <Alert variant="destructive" className="mb-2 py-2">
+            <AlertCircle className="h-3 w-3" />
+            <AlertTitle className="text-xs">{selectedPropertyData.external_system?.toUpperCase()} API Not Configured</AlertTitle>
+            <AlertDescription className="text-xs">
+              {pmsSyncError || `Configure ${selectedPropertyData.external_system} API credentials in Admin → API Keys.`}
             </AlertDescription>
           </Alert>
         )}
 
         {selectedPropertyData && isPmsProperty && pmsSyncStatus === "no_property_code" && (
-          <Alert className="mb-4 border-yellow-500">
-            <AlertCircle className="h-4 w-4 text-yellow-600" />
-            <AlertTitle className="text-yellow-600">Missing Property Code</AlertTitle>
-            <AlertDescription>
-              This property is connected to {selectedPropertyData.external_system} but doesn't have a Property Code configured. Please add it in the property settings.
+          <Alert className="mb-2 py-2 border-yellow-500">
+            <AlertCircle className="h-3 w-3 text-yellow-600" />
+            <AlertTitle className="text-xs text-yellow-600">Missing Property Code</AlertTitle>
+            <AlertDescription className="text-xs">
+              Add Property Code in property settings for {selectedPropertyData.external_system}.
             </AlertDescription>
           </Alert>
         )}
 
         {selectedPropertyData && isPmsProperty && pmsSyncStatus === "success" && lastSyncTime && (
-          <div className="mb-4 text-sm text-muted-foreground flex items-center gap-2">
-            <Cloud className="h-4 w-4 text-green-600" />
-            Last synced from {selectedPropertyData.external_system}: {lastSyncTime.toLocaleTimeString()}
+          <div className="mb-2 text-xs text-muted-foreground flex items-center gap-1">
+            <Cloud className="h-3 w-3 text-green-600" />
+            Synced from {selectedPropertyData.external_system}: {lastSyncTime.toLocaleTimeString()}
           </div>
         )}
 
         {/* Tabs */}
-        <Tabs value="accommodation" className="mb-6">
-          <TabsList className="grid w-full max-w-md" style={{ gridTemplateColumns: `repeat(${1 + (hasEventWedding ? 1 : 0) + (hasConference ? 1 : 0)}, 1fr)` }}>
-            <TabsTrigger value="accommodation">Accommodation</TabsTrigger>
+        <Tabs value="accommodation" className="mb-3">
+          <TabsList className="grid w-full max-w-md h-8" style={{ gridTemplateColumns: `repeat(${1 + (hasEventWedding ? 1 : 0) + (hasConference ? 1 : 0)}, 1fr)` }}>
+            <TabsTrigger value="accommodation" className="text-xs py-1">Accommodation</TabsTrigger>
             {hasEventWedding && (
-              <TabsTrigger value="event" onClick={() => navigateToTab("event")}>
+              <TabsTrigger value="event" onClick={() => navigateToTab("event")} className="text-xs py-1">
                 Event/Wedding
               </TabsTrigger>
             )}
             {hasConference && (
-              <TabsTrigger value="conference" onClick={() => navigateToTab("conference")}>
+              <TabsTrigger value="conference" onClick={() => navigateToTab("conference")} className="text-xs py-1">
                 Conference
               </TabsTrigger>
             )}
@@ -1309,16 +1309,16 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         </Tabs>
 
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold">Calendar</h1>
+        <div className="mb-2">
+          <h1 className="text-xl font-bold">Calendar</h1>
         </div>
 
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-3">
             {/* Filters and Actions */}
-            <div className="flex flex-wrap gap-4 mb-6">
+            <div className="flex flex-wrap gap-2 mb-3">
               <Select value={selectedProperty} onValueChange={handlePropertyChange} disabled={loading}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-[180px] h-8 text-xs">
                   <SelectValue placeholder="Select Property" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1334,9 +1334,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
               {/* Room Types Dropdown */}
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-[200px] justify-between" disabled={!selectedProperty}>
+                  <Button variant="outline" className="w-[160px] h-8 text-xs justify-between" disabled={!selectedProperty}>
                     Room Types ({getSelectedCount(selectedRoomTypes, roomTypes.length)})
-                    <ChevronDown className="h-4 w-4 ml-2" />
+                    <ChevronDown className="h-3 w-3 ml-1" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-2 bg-popover" align="start">
@@ -1363,9 +1363,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
               {/* Rate Types Dropdown */}
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-[200px] justify-between">
+                  <Button variant="outline" className="w-[160px] h-8 text-xs justify-between">
                     Rate Types ({getSelectedCount(selectedRateTypes, rateTypeOptions.length)})
-                    <ChevronDown className="h-4 w-4 ml-2" />
+                    <ChevronDown className="h-3 w-3 ml-1" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[250px] p-2 bg-popover" align="start">
@@ -1388,29 +1388,29 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
 
               <Button 
                 variant="default" 
-                className="gap-2"
+                className="gap-1 h-8 text-xs px-2"
                 onClick={() => {
                   if (isPmsProperty) {
-                    fetchPmsAvailability(true); // Force fresh fetch from PMS
+                    fetchPmsAvailability(true);
                   }
                 }}
                 disabled={pmsSyncStatus === "loading"}
               >
                 {pmsSyncStatus === "loading" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
-                  <RefreshCw className="h-4 w-4" />
+                  <RefreshCw className="h-3 w-3" />
                 )}
                 {isPmsProperty ? `Sync ${selectedPropertyData?.external_system || "PMS"}` : "Refresh"}
               </Button>
 
-              <div className="ml-auto flex gap-2">
-                <Button variant="default" disabled className="opacity-50 cursor-not-allowed">Save</Button>
+              <div className="ml-auto flex gap-1">
+                <Button variant="default" disabled className="opacity-50 cursor-not-allowed h-8 text-xs px-2">Save</Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="default" disabled className="gap-2 opacity-50 cursor-not-allowed">
-                      Rules/Bulk Updates
-                      <ChevronDown className="h-4 w-4" />
+                    <Button variant="default" disabled className="gap-1 opacity-50 cursor-not-allowed h-8 text-xs px-2">
+                      Rules/Bulk
+                      <ChevronDown className="h-3 w-3" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48 bg-popover">
@@ -1442,7 +1442,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
 
             {/* No Property Selected Message */}
             {!selectedProperty && (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="text-center py-4 text-muted-foreground text-sm">
                 Select a property to begin.
               </div>
             )}
@@ -1451,38 +1451,40 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
             {selectedProperty && (
               <>
                 {/* Calendar Navigation */}
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="icon" onClick={goToStart}>
-                      <ChevronsLeft className="h-4 w-4" />
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="icon" onClick={goToStart} className="h-7 w-7">
+                      <ChevronsLeft className="h-3 w-3" />
                     </Button>
-                    <Button variant="outline" size="icon" onClick={goToPrevious}>
-                      <ChevronLeft className="h-4 w-4" />
+                    <Button variant="outline" size="icon" onClick={goToPrevious} className="h-7 w-7">
+                      <ChevronLeft className="h-3 w-3" />
                     </Button>
-                    <span className="text-lg font-semibold min-w-[150px] text-center">
-                      {currentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    <span className="text-sm font-semibold min-w-[130px] text-center">
+                      {currentDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                     </span>
-                    <Button variant="outline" size="icon" onClick={goToNext}>
-                      <ChevronRight className="h-4 w-4" />
+                    <Button variant="outline" size="icon" onClick={goToNext} className="h-7 w-7">
+                      <ChevronRight className="h-3 w-3" />
                     </Button>
-                    <Button variant="outline" size="icon" onClick={goToEnd}>
-                      <ChevronsRight className="h-4 w-4" />
+                    <Button variant="outline" size="icon" onClick={goToEnd} className="h-7 w-7">
+                      <ChevronsRight className="h-3 w-3" />
                     </Button>
-                    <Button variant="outline" onClick={goToToday}>
+                    <Button variant="outline" onClick={goToToday} className="h-7 text-xs px-2">
                       Today
                     </Button>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-1">
                     <Button
                       variant={viewMode === "week" ? "default" : "outline"}
                       onClick={() => setViewMode("week")}
+                      className="h-7 text-xs px-2"
                     >
                       Week
                     </Button>
                     <Button
                       variant={viewMode === "month" ? "default" : "outline"}
                       onClick={() => setViewMode("month")}
+                      className="h-7 text-xs px-2"
                     >
                       Month
                     </Button>
@@ -1490,21 +1492,22 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 </div>
 
                 {/* Display Options with colored indicator legend */}
-                <div className="flex flex-wrap items-center gap-4 mb-6">
-                  <span className="text-sm font-medium text-muted-foreground">Show:</span>
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <span className="text-xs font-medium text-muted-foreground">Show:</span>
                   {/* Rates toggle */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <Checkbox
                       id="legend-rates"
                       checked={selectedDisplayOptions.includes("rates")}
                       onCheckedChange={() => toggleDisplayOption("rates")}
+                      className="h-3 w-3"
                     />
-                    <label htmlFor="legend-rates" className="text-sm cursor-pointer font-medium">
+                    <label htmlFor="legend-rates" className="text-xs cursor-pointer font-medium">
                       Rates
                     </label>
                   </div>
-                  <span className="text-muted-foreground">|</span>
-                  <span className="text-xs text-muted-foreground">Restrictions:</span>
+                  <span className="text-muted-foreground text-xs">|</span>
+                  <span className="text-[10px] text-muted-foreground">Restrictions:</span>
                   {/* Restriction options with colored checkboxes */}
                   {restrictionOptions.map((option) => {
                     const colorMap: Record<string, string> = {
@@ -1518,18 +1521,18 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                     const isChecked = selectedDisplayOptions.includes(option.id);
                     
                     return (
-                      <div key={option.id} className="flex items-center gap-2">
+                      <div key={option.id} className="flex items-center gap-1">
                         <Checkbox
                           id={`legend-${option.id}`}
                           checked={isChecked}
                           onCheckedChange={() => toggleDisplayOption(option.id)}
-                          className="border-0"
+                          className="border-0 h-3 w-3"
                           style={{ 
                             backgroundColor: bgColor,
                             color: "white"
                           }}
                         />
-                        <label htmlFor={`legend-${option.id}`} className="text-sm cursor-pointer">
+                        <label htmlFor={`legend-${option.id}`} className="text-xs cursor-pointer">
                           {option.label}
                         </label>
                       </div>
@@ -1545,7 +1548,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                       {/* Date Header Row */}
                       <thead>
                         <tr>
-                          <th className="border bg-muted/50 p-2 min-w-[200px] sticky left-0 bg-background z-10"></th>
+                          <th className="border bg-muted/50 p-1 min-w-[150px] sticky left-0 bg-background z-10"></th>
                           {calendarDates.map((date, index) => {
                             const header = formatDayHeader(date);
                             const weekend = isWeekend(date);
@@ -1556,9 +1559,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                             const headerContent = (
                               <th
                                 key={index}
-                                className={`border p-2 text-center min-w-[80px] ${
+                                className={`border p-1 text-center min-w-[60px] ${
                                   isTodayDate
-                                    ? "bg-primary/20 dark:bg-primary/30 ring-2 ring-primary ring-inset"
+                                    ? "bg-primary/20 dark:bg-primary/30 ring-1 ring-primary ring-inset"
                                     : isHoliday 
                                       ? "bg-green-100 dark:bg-green-950/30" 
                                       : weekend 
@@ -1566,7 +1569,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                         : "bg-muted/50"
                                 }`}
                               >
-                                <div className={`text-xs font-semibold ${
+                                <div className={`text-[10px] font-semibold ${
                                   isTodayDate
                                     ? "text-primary"
                                     : isHoliday 
@@ -1577,7 +1580,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                 }`}>
                                   {header.day}
                                 </div>
-                                <div className={`text-lg font-bold ${
+                                <div className={`text-sm font-bold ${
                                   isTodayDate
                                     ? "text-primary"
                                     : isHoliday 
@@ -1588,7 +1591,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                 }`}>
                                   {header.date}
                                 </div>
-                                <div className={`text-xs ${
+                                <div className={`text-[10px] ${
                                   isTodayDate
                                     ? "text-primary"
                                     : isHoliday 
@@ -1600,7 +1603,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   {header.month}
                                 </div>
                                 {isTodayDate && (
-                                  <div className="text-[10px] font-semibold text-primary mt-1">TODAY</div>
+                                  <div className="text-[8px] font-semibold text-primary">TODAY</div>
                                 )}
                               </th>
                             );
@@ -1629,7 +1632,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                             <React.Fragment key={room.name}>
                               {/* Room Name Row with Availability - ALWAYS visible */}
                               <tr className="bg-slate-100 dark:bg-slate-800">
-                                <td className="border p-2 font-bold text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
+                                <td className="border p-1 font-semibold text-xs text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
                                   {room.name}
                                 </td>
                                 {calendarDates.map((date, index) => {
@@ -1659,7 +1662,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                     baseColor: string
                                   ) => {
                                     const rounded = hasPrev && hasNext ? "" : hasPrev ? "rounded-r-full" : hasNext ? "rounded-l-full" : "rounded-full";
-                                    return `h-1.5 flex-1 ${baseColor} ${rounded}`;
+                                    return `h-1 flex-1 ${baseColor} ${rounded}`;
                                   };
                                   
                                   // Check continuity for each restriction type (with same value for min/max stay)
@@ -1685,8 +1688,8 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             : ""
                                       }`}
                                     >
-                                      <div className="flex flex-col items-center gap-0.5">
-                                        <span className="font-semibold">{renderCellValue(avail.value, avail.fromPms)}</span>
+                                      <div className="flex flex-col items-center">
+                                        <span className="font-semibold text-xs">{renderCellValue(avail.value, avail.fromPms)}</span>
                                         {hasRestrictions && (
                                           <div className="flex flex-col gap-0.5 w-full px-0">
                                             {showStopSell && (
@@ -1797,7 +1800,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   <React.Fragment key={`${room.name}-rate-${rateIndex}`}>
                                     {/* Rate Type Header Row */}
                                     <tr>
-                                      <td className="border p-2 pl-4 text-sm sticky left-0 bg-background z-10">
+                                      <td className="border p-1 pl-3 text-xs sticky left-0 bg-background z-10">
                                         <span className="text-foreground font-medium">{rateLabel}</span>
                                       </td>
                                       {!isPerPerson && calendarDates.map((date, index) => {
@@ -1807,7 +1810,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                         return (
                                           <td
                                             key={index}
-                                            className={`border p-2 text-center text-sm ${
+                                            className={`border p-1 text-center text-xs ${
                                               isHoliday 
                                                 ? "bg-green-100 dark:bg-green-950/30" 
                                                 : weekend 
@@ -1826,7 +1829,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                         return (
                                           <td
                                             key={index}
-                                            className={`border p-2 text-center text-sm font-medium ${
+                                            className={`border p-1 text-center text-xs font-medium ${
                                               isHoliday 
                                                 ? "bg-green-100 dark:bg-green-950/30" 
                                                 : weekend 
@@ -1842,13 +1845,13 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                     {/* Occupancy Sub-Rows for PER PERSON */}
                                     {isPerPerson && occupancyRows.map(occ => (
                                       <tr key={`${room.name}-rate-${rateIndex}-${occ.key}`}>
-                                        <td className="border p-2 pl-6 text-sm text-muted-foreground sticky left-0 bg-background z-10">
-                                          <div className="flex items-center gap-2">
+                                        <td className="border p-1 pl-4 text-xs text-muted-foreground sticky left-0 bg-background z-10">
+                                          <div className="flex items-center gap-1">
                                             {showCheckboxes && (
                                               <Checkbox 
                                                 checked={isOccupancyRowChecked(room.name, rateTypeId, occ.key)}
                                                 onCheckedChange={() => toggleOccupancyRow(room.name, rateTypeId, occ.key)}
-                                                className="h-4 w-4"
+                                                className="h-3 w-3"
                                               />
                                             )}
                                             <span>{occ.label}</span>
@@ -1868,7 +1871,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                           return (
                                             <td
                                               key={index}
-                                              className={`border p-2 text-center text-sm ${
+                                              className={`border p-1 text-center text-xs ${
                                                 isHoliday 
                                                   ? "bg-green-100 dark:bg-green-950/30" 
                                                   : weekend 
@@ -1899,7 +1902,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                       {/* Date Header Row */}
                       <thead>
                         <tr>
-                          <th className="border bg-muted/50 p-2 min-w-[200px] sticky left-0 bg-background z-10"></th>
+                          <th className="border bg-muted/50 p-1 min-w-[150px] sticky left-0 bg-background z-10"></th>
                           {calendarDates.map((date, index) => {
                             const header = formatDayHeader(date);
                             const weekend = isWeekend(date);
@@ -1910,9 +1913,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                             const headerContent = (
                               <th
                                 key={index}
-                                className={`border p-1 text-center min-w-[50px] ${
+                                className={`border p-0.5 text-center min-w-[40px] ${
                                   isTodayDate
-                                    ? "bg-primary/20 dark:bg-primary/30 ring-2 ring-primary ring-inset"
+                                    ? "bg-primary/20 dark:bg-primary/30 ring-1 ring-primary ring-inset"
                                     : isHoliday 
                                       ? "bg-green-100 dark:bg-green-950/30" 
                                       : weekend 
@@ -1920,7 +1923,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                         : "bg-muted/50"
                                 }`}
                               >
-                                <div className={`text-xs font-semibold ${
+                                <div className={`text-[9px] font-semibold ${
                                   isTodayDate
                                     ? "text-primary"
                                     : isHoliday 
@@ -1931,7 +1934,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                 }`}>
                                   {header.day}
                                 </div>
-                                <div className={`text-sm font-bold ${
+                                <div className={`text-xs font-bold ${
                                   isTodayDate
                                     ? "text-primary"
                                     : isHoliday 
@@ -1978,7 +1981,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                             <React.Fragment key={room.name}>
                               {/* Room Name Row with Availability - ALWAYS visible */}
                               <tr className="bg-slate-100 dark:bg-slate-800">
-                                <td className="border p-2 font-bold text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
+                                <td className="border p-1 font-semibold text-xs text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
                                   {room.name}
                                 </td>
                                 {calendarDates.map((date, index) => {
@@ -2034,8 +2037,8 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                             : ""
                                       }`}
                                     >
-                                      <div className="flex flex-col items-center gap-0.5">
-                                        <span className="font-semibold text-sm">{renderCellValue(avail.value, avail.fromPms)}</span>
+                                      <div className="flex flex-col items-center">
+                                        <span className="font-semibold text-xs">{renderCellValue(avail.value, avail.fromPms)}</span>
                                         {hasRestrictions && (
                                           <div className="flex flex-col gap-0.5 w-full px-0">
                                             {showStopSell && (

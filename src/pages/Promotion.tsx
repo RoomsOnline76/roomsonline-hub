@@ -6,25 +6,25 @@ const Promotion = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
+      <div className="container mx-auto px-4 py-3">
+        <div className="mb-3">
+          <h1 className="text-xl font-bold text-foreground">
             Promotion
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Marketing campaigns
           </p>
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Promotion Management</CardTitle>
-            <CardDescription>
+          <CardHeader className="py-3 px-4">
+            <CardTitle className="text-sm">Promotion Management</CardTitle>
+            <CardDescription className="text-xs">
               Create and manage your marketing campaigns
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">Promotion features coming soon...</p>
+          <CardContent className="py-3 px-4">
+            <p className="text-xs text-muted-foreground">Promotion features coming soon...</p>
           </CardContent>
         </Card>
       </div>
