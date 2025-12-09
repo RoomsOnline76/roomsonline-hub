@@ -2616,13 +2616,8 @@ export default function PropertyForm() {
 
                   {/* Right side - Map (25%) */}
                   <div className="w-1/4 min-w-[200px] flex">
-                    <Card className="flex-1 flex flex-col">
-                      <CardHeader className="py-2 px-4">
-                        <CardTitle className="text-sm">Location</CardTitle>
-                      </CardHeader>
-                      <CardContent className="py-2 px-4 flex-1">
-                        <PropertyMap address={formData.address} city={formData.city} country={formData.country} latitude={latitude} longitude={longitude} onLocationUpdate={(lat, lng) => { setLatitude(lat); setLongitude(lng); }} />
-                      </CardContent>
+                    <Card className="flex-1 flex flex-col p-2">
+                      <PropertyMap address={formData.address} city={formData.city} country={formData.country} latitude={latitude} longitude={longitude} onLocationUpdate={(lat, lng) => { setLatitude(lat); setLongitude(lng); }} />
                     </Card>
                   </div>
                 </div>
