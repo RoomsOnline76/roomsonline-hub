@@ -38,7 +38,7 @@ const DEFAULT_COLOR = "#e11d48";
 export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
+  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [mapsLoaded, setMapsLoaded] = useState(false);
@@ -142,7 +142,7 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
 
     // Create and load script with real callback
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGoogleMaps`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&callback=initGoogleMaps`;
     script.async = true;
     script.onerror = () => {
       console.error("Failed to load Google Maps script");
@@ -180,6 +180,7 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: true,
+        mapId: "PROPERTIES_MAP",
         styles: [
           {
             featureType: "poi",
@@ -229,7 +230,7 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
     if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps) return;
 
     // Clear existing markers
-    markersRef.current.forEach((marker) => marker.setMap(null));
+    markersRef.current.forEach((marker) => marker.map = null);
     markersRef.current = [];
 
     if (filteredProperties.length === 0) return;
@@ -244,18 +245,23 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
 
       const markerColor = typeColors?.[property.property_type] || DEFAULT_COLOR;
 
-      const marker = new window.google.maps.Marker({
+      // Create custom pin element for AdvancedMarkerElement
+      const pinElement = document.createElement("div");
+      pinElement.style.cssText = `
+        width: 24px;
+        height: 24px;
+        background-color: ${markerColor};
+        border: 3px solid white;
+        border-radius: 50%;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        cursor: pointer;
+      `;
+
+      const marker = new window.google.maps.marker.AdvancedMarkerElement({
         position,
         map: mapInstanceRef.current,
         title: property.name,
-        icon: {
-          path: window.google.maps.SymbolPath.CIRCLE,
-          scale: 10,
-          fillColor: markerColor,
-          fillOpacity: 1,
-          strokeColor: "#fff",
-          strokeWeight: 2,
-        }
+        content: pinElement,
       });
 
       const mainImage = property.images?.[0];
@@ -278,7 +284,7 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
       });
 
       marker.addListener("click", () => {
-        infoWindow.open(mapInstanceRef.current, marker);
+        infoWindow.open(mapInstanceRef.current);
       });
 
       markersRef.current.push(marker);
