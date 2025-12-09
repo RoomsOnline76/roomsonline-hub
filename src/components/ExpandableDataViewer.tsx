@@ -424,59 +424,46 @@ export function RateTypeItem({ rateType, isLinked, onToggleLink }: RateTypeItemP
   return (
     <div
       className={cn(
-        "border rounded-lg transition-all",
+        "border rounded-md transition-all",
         isLinked 
           ? "border-primary bg-primary/5 ring-1 ring-primary" 
           : "border-border"
       )}
     >
       <div 
-        className="p-4 cursor-pointer hover:bg-muted/30 transition-colors"
+        className="px-2 py-1.5 cursor-pointer hover:bg-muted/30 transition-colors flex items-center gap-2"
         onClick={onToggleLink}
       >
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <Checkbox 
-                checked={isLinked}
-                className="pointer-events-none"
-              />
-              <span className="font-medium">{rateType.name}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 ml-2"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsExpanded(!isExpanded);
-                }}
-              >
-                {isExpanded ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-              </Button>
-            </div>
-            {rateType.description && (
-              <p className="text-xs text-muted-foreground mt-1 ml-6 line-clamp-2">
-                {rateType.description}
-              </p>
-            )}
-            <div className="flex items-center gap-2 mt-2 ml-6">
-              {rateType.priceType && (
-                <Badge variant="secondary" className="text-xs">
-                  {rateType.priceType}
-                </Badge>
-              )}
-              {(rateType.minStayDays || rateType.minNights) && (
-                <Badge variant="outline" className="text-xs">
-                  Min {rateType.minStayDays || rateType.minNights} nights
-                </Badge>
-              )}
-            </div>
-          </div>
-        </div>
+        <Checkbox 
+          checked={isLinked}
+          className="pointer-events-none h-3.5 w-3.5"
+        />
+        <span className="text-xs font-medium flex-1">{rateType.name}</span>
+        {rateType.priceType && (
+          <Badge variant="secondary" className="text-[10px] h-4 px-1">
+            {rateType.priceType}
+          </Badge>
+        )}
+        {(rateType.minStayDays || rateType.minNights) && (
+          <Badge variant="outline" className="text-[10px] h-4 px-1">
+            Min {rateType.minStayDays || rateType.minNights}n
+          </Badge>
+        )}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-5 w-5 p-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsExpanded(!isExpanded);
+          }}
+        >
+          {isExpanded ? <Minus className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+        </Button>
       </div>
       {isExpanded && (
-        <div className="border-t px-4 py-3 bg-muted/20">
+        <div className="border-t px-2 py-2 bg-muted/20">
           <ExpandableDataViewer data={rateType} defaultExpanded={true} />
         </div>
       )}
