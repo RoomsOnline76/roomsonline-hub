@@ -411,25 +411,38 @@ const Bookings = () => {
     return result;
   }, [bookings, searchTerm, showCancelled]);
 
-  // Stats - normalize status comparisons (Benson uses uppercase, internal uses lowercase)
+  // Stats - calculated from all bookings (not filtered by cancelled toggle) so counts are always accurate
   const stats = useMemo(() => {
     const normalizeStatus = (s: string) => s?.toLowerCase() || "";
-    const total = filteredBookings.length;
-    const confirmed = filteredBookings.filter(b => 
+    
+    // Apply only search filter for stats (not the cancelled toggle)
+    let statsBookings = bookings;
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      statsBookings = bookings.filter(booking => 
+        booking.guest_name.toLowerCase().includes(term) ||
+        booking.guest_email.toLowerCase().includes(term) ||
+        booking.property_name?.toLowerCase().includes(term) ||
+        booking.external_reservation_id?.toLowerCase().includes(term)
+      );
+    }
+    
+    const total = statsBookings.length;
+    const confirmed = statsBookings.filter(b => 
       ["confirmed", "guaranteed", "checked-in"].includes(normalizeStatus(b.status))
     ).length;
-    const pending = filteredBookings.filter(b => 
+    const pending = statsBookings.filter(b => 
       ["pending", "provisional"].includes(normalizeStatus(b.status))
     ).length;
-    const cancelled = filteredBookings.filter(b => 
+    const cancelled = statsBookings.filter(b => 
       normalizeStatus(b.status) === "cancelled"
     ).length;
-    const totalRevenue = filteredBookings
+    const totalRevenue = statsBookings
       .filter(b => normalizeStatus(b.status) !== "cancelled")
       .reduce((sum, b) => sum + Number(b.total_price), 0);
 
     return { total, confirmed, pending, cancelled, totalRevenue };
-  }, [filteredBookings]);
+  }, [bookings, searchTerm]);
 
   const getStatusBadge = (status: string) => {
     const normalized = status?.toLowerCase() || "";
