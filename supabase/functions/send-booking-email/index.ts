@@ -38,6 +38,108 @@ function calculateNights(checkIn: string, checkOut: string): number {
   return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+// Replace template variables with actual booking data
+function replaceTemplateVariables(template: string, booking: any, property: any): string {
+  const nights = calculateNights(booking.check_in_date, booking.check_out_date);
+  const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
+  const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
+  
+  // Get room/rate type names from booking
+  const roomTypeName = booking.rooms?.[0]?.roomTypeName || booking.room_type_id || "Standard Room";
+  const rateTypeName = booking.rooms?.[0]?.rateTypeName || booking.rate_type_id || "Standard Rate";
+  
+  const replacements: Record<string, string> = {
+    // Reservation
+    "{{reservation_reference}}": bookingRef,
+    "{{total_amount}}": formatCurrency(booking.total_price),
+    "{{check_in_date}}": formatDate(booking.check_in_date),
+    "{{check_out_date}}": formatDate(booking.check_out_date),
+    "{{nights}}": `${nights} night${nights > 1 ? "s" : ""}`,
+    "{{total_guests}}": `${totalGuests} guest${totalGuests > 1 ? "s" : ""}`,
+    
+    // Guest Details
+    "{{guest_name}}": booking.guest_name || "",
+    "{{guest_email}}": booking.guest_email || "",
+    "{{guest_phone}}": booking.guest_phone || "",
+    "{{special_requests}}": booking.special_requests || "",
+    
+    // Property Details
+    "{{property_name}}": property.name || "",
+    "{{property_city}}": property.city || "",
+    "{{property_country}}": property.country || "",
+    "{{property_address}}": property.address || "",
+    
+    // Room Details
+    "{{room_type_name}}": roomTypeName,
+    "{{rate_type_name}}": rateTypeName,
+    "{{adults}}": String(booking.adults || 0),
+    "{{teens}}": String(booking.teens || 0),
+    "{{children}}": String(booking.children || 0),
+    "{{infants}}": String(booking.infants || 0),
+  };
+  
+  let result = template;
+  for (const [key, value] of Object.entries(replacements)) {
+    result = result.replace(new RegExp(key.replace(/[{}]/g, "\\$&"), "g"), value);
+  }
+  
+  return result;
+}
+
+// Wrap custom template content in email wrapper
+function wrapCustomTemplate(customContent: string, property: any): string {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reservation Confirmation</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="padding: 40px 40px 20px; text-align: center; background-color: #ffffff; border-radius: 8px 8px 0 0;">
+              <div style="font-size: 32px; color: #22c55e; margin-bottom: 10px;">✓</div>
+              <h1 style="margin: 0; font-size: 24px; color: #333; font-weight: 600;">Reservation Confirmed!</h1>
+              <p style="margin: 10px 0 0; color: #666; font-size: 14px;">Thank you for your reservation</p>
+            </td>
+          </tr>
+
+          <!-- Custom Content -->
+          <tr>
+            <td style="padding: 20px 40px;">
+              <div style="color: #333; line-height: 1.6;">
+                ${customContent}
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
+              <p style="margin: 0 0 20px; color: #666; font-size: 14px;">Kind regards</p>
+              <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
+                RoomsOnline on behalf of <strong>${property.name}</strong>
+              </p>
+              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+}
+
 // Generate success email HTML
 function generateSuccessEmail(booking: any, property: any): string {
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
@@ -400,11 +502,29 @@ Deno.serve(async (req) => {
 
     const fromEmail = emailConfig?.key_value || "RoomsOnline <onboarding@resend.dev>";
 
-    // Generate email HTML based on status
-    const html =
-      status === "success"
-        ? generateSuccessEmail(booking, property)
-        : generateFailureEmail(booking, property, error_message);
+    // Check for custom template in property amenities
+    const amenities = property.amenities || {};
+    const templates = amenities.templates || {};
+    const customTemplateContent = templates.template_content;
+    const hasCustomTemplate = customTemplateContent && customTemplateContent.trim().length > 0;
+
+    console.log(`Property ${property.id} has custom template: ${hasCustomTemplate}`);
+
+    // Generate email HTML based on status and custom template availability
+    let html: string;
+    if (status === "success" && hasCustomTemplate) {
+      // Use custom template with variable replacement
+      const processedContent = replaceTemplateVariables(customTemplateContent, booking, property);
+      html = wrapCustomTemplate(processedContent, property);
+      console.log("Using custom confirmation template");
+    } else if (status === "success") {
+      // Fall back to default template
+      html = generateSuccessEmail(booking, property);
+      console.log("Using default confirmation template");
+    } else {
+      // Failure emails always use default template
+      html = generateFailureEmail(booking, property, error_message);
+    }
 
     const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
     const subject =
