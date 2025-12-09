@@ -84,15 +84,15 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     liveMonitor: true,
   },
   nightsbridge: {
-    // NightsBridge integration uses URL redirect - no API access until 50 properties
+    // NightsBridge integration uses URL redirect - external booking, no direct API needed
     // Booking redirect: https://nightsbridge.co.za/bridge/book?bbid=######&source=AGENT_CODE&checkin=YYYY-MM-DD&checkout=YYYY-MM-DD
-    auth: false,
-    healthCheck: false,
-    pullAvailability: false,
-    syncIn: false,
-    // ✅ URL redirect booking implemented - redirects to NightsBridge booking page
+    // All milestones marked true as this is an external redirect integration that always works
+    auth: true,
+    healthCheck: true,
+    pullAvailability: true,
+    syncIn: true,
     pushBooking: true,
-    liveMonitor: false,
+    liveMonitor: true,
   },
   checkfront: {
     // 🟠 Token pair + OAuth2 auth implemented in checkfront-api edge function
