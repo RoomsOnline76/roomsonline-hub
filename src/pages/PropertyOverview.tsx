@@ -264,13 +264,11 @@ const PropertyOverview = () => {
 
           <TabsContent value="active">
             <Card>
-              <CardHeader className="py-3 px-4">
+              <CardHeader className="py-2 px-4">
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="flex items-baseline gap-2">
                     <CardTitle className="text-sm">Active Properties</CardTitle>
-                    <CardDescription className="text-xs">
-                      Manage your active properties
-                    </CardDescription>
+                    <CardDescription className="text-xs">— Manage your active properties</CardDescription>
                   </div>
                   <Button onClick={() => navigate('/admin/properties/new')} className="h-7 text-xs px-2">
                     <Building2 className="mr-1 h-3 w-3" />
@@ -489,11 +487,11 @@ const PropertyOverview = () => {
 
           <TabsContent value="deleted">
             <Card>
-              <CardHeader className="py-3 px-4">
-                <CardTitle className="text-sm">Deleted Properties</CardTitle>
-                <CardDescription className="text-xs">
-                  View and reactivate deleted properties
-                </CardDescription>
+              <CardHeader className="py-2 px-4">
+                <div className="flex items-baseline gap-2">
+                  <CardTitle className="text-sm">Deleted Properties</CardTitle>
+                  <CardDescription className="text-xs">— View and reactivate deleted properties</CardDescription>
+                </div>
               </CardHeader>
               <CardContent className="py-2 px-4">
                 {isLoading ? (
