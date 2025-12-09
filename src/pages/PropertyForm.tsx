@@ -2481,140 +2481,151 @@ export default function PropertyForm() {
                   </CardContent>
                 </Card>
 
-                {/* Property Section */}
-                <Card>
-                  <CardHeader className="py-2 px-4">
-                    <CardTitle className="text-sm flex items-center justify-between">
-                      <span>Property</span>
-                      {selectedPMS && (
-                        <div className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
-                          <div className="w-3 h-3 rounded bg-primary/10 border border-primary/30" />
-                          <Cloud className="h-3 w-3" />
-                          <span>{getPMSDisplayName(selectedPMS)} synced</span>
-                        </div>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-2 px-4">
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="name" className="text-xs">Name *</Label>
-                        <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Property name" required disabled={isFieldPopulatedByPMS("name", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("name", selectedPMS), isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")} />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="property_type" className="text-xs">Type *</Label>
-                        <Select value={formData.property_type} onValueChange={(value) => handleInputChange("property_type", value)}>
-                          <SelectTrigger id="property_type" className="h-7 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="hotel">Hotel</SelectItem>
-                            <SelectItem value="guesthouse">Guest House</SelectItem>
-                            <SelectItem value="bnb">B&B</SelectItem>
-                            <SelectItem value="lodge">Lodge</SelectItem>
-                            <SelectItem value="resort">Resort</SelectItem>
-                            <SelectItem value="villa">Villa</SelectItem>
-                            <SelectItem value="apartment">Apartment</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="telephone" className="text-xs">Telephone</Label>
-                        <Input id="telephone" value={formData.telephone} onChange={(e) => handleInputChange("telephone", e.target.value)} placeholder="+27..." className="h-7 text-xs" />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="contact_email" className="text-xs">Contact Email *</Label>
-                        <Input id="contact_email" type="email" value={formData.contact_email} onChange={(e) => handleInputChange("contact_email", e.target.value)} placeholder="email@example.com" required className="h-7 text-xs" />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="currency" className="text-xs">Currency *</Label>
-                        <Select value={formData.currency} onValueChange={(value) => handleInputChange("currency", value)}>
-                          <SelectTrigger id="currency" className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ZAR">ZAR</SelectItem>
-                            <SelectItem value="USD">USD</SelectItem>
-                            <SelectItem value="EUR">EUR</SelectItem>
-                            <SelectItem value="GBP">GBP</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="owner_email" className="text-xs">Owner</Label>
-                        <Select value={formData.owner_email} onValueChange={(value) => { const selectedOwner = owners.find((o) => o.email === value); handleInputChange("owner_email", value); handleInputChange("owner_name", selectedOwner?.full_name || ""); }}>
-                          <SelectTrigger id="owner_email" className="h-7 text-xs"><SelectValue placeholder="Select owner" /></SelectTrigger>
-                          <SelectContent>
-                            {owners.map((owner) => (<SelectItem key={owner.id} value={owner.email}>{owner.full_name || owner.email}</SelectItem>))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Address Section */}
-                <Card>
-                  <CardHeader className="py-2 px-4">
-                    <CardTitle className="text-sm flex items-center justify-between">
-                      <span>Address</span>
-                      <div className="flex items-center gap-2">
-                        <Label htmlFor="no_street_address" className="text-xs text-muted-foreground font-normal">No street address?</Label>
-                        <Switch id="no_street_address" checked={noStreetAddress} onCheckedChange={(checked) => { setNoStreetAddress(checked); setIsDirty(true); }} />
-                      </div>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-2 px-4">
-                    <div className="space-y-2">
-                      {!noStreetAddress && (
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                {/* Property, Address & Map - Side by side layout */}
+                <div className="flex gap-3">
+                  {/* Left side - Property & Address (75%) */}
+                  <div className="flex-1 space-y-3">
+                    {/* Property Section */}
+                    <Card>
+                      <CardHeader className="py-2 px-4">
+                        <CardTitle className="text-sm flex items-center justify-between">
+                          <span>Property</span>
+                          {selectedPMS && (
+                            <div className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
+                              <div className="w-3 h-3 rounded bg-primary/10 border border-primary/30" />
+                              <Cloud className="h-3 w-3" />
+                              <span>{getPMSDisplayName(selectedPMS)} synced</span>
+                            </div>
+                          )}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-2 px-4">
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="country" className="text-xs">Country *</Label>
-                            <Select value={formData.country} onValueChange={(value) => handleInputChange("country", value)}>
-                              <SelectTrigger id="country" className={cn("h-7 text-xs", getPMSFieldClass("country", selectedPMS))} disabled={isFieldPopulatedByPMS("country", selectedPMS)}>
-                                <SelectValue />
-                              </SelectTrigger>
+                            <Label htmlFor="name" className="text-xs">Name *</Label>
+                            <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Property name" required disabled={isFieldPopulatedByPMS("name", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("name", selectedPMS), isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")} />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <Label htmlFor="property_type" className="text-xs">Type *</Label>
+                            <Select value={formData.property_type} onValueChange={(value) => handleInputChange("property_type", value)}>
+                              <SelectTrigger id="property_type" className="h-7 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="South Africa">South Africa</SelectItem>
-                                <SelectItem value="United States">United States</SelectItem>
-                                <SelectItem value="United Kingdom">United Kingdom</SelectItem>
-                                <SelectItem value="Australia">Australia</SelectItem>
+                                <SelectItem value="hotel">Hotel</SelectItem>
+                                <SelectItem value="guesthouse">Guest House</SelectItem>
+                                <SelectItem value="bnb">B&B</SelectItem>
+                                <SelectItem value="lodge">Lodge</SelectItem>
+                                <SelectItem value="resort">Resort</SelectItem>
+                                <SelectItem value="villa">Villa</SelectItem>
+                                <SelectItem value="apartment">Apartment</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="city" className="text-xs">City *</Label>
-                            <Input id="city" value={formData.city} onChange={(e) => handleInputChange("city", e.target.value)} placeholder="City" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("city", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("city", selectedPMS), isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed")} />
+                            <Label htmlFor="telephone" className="text-xs">Telephone</Label>
+                            <Input id="telephone" value={formData.telephone} onChange={(e) => handleInputChange("telephone", e.target.value)} placeholder="+27..." className="h-7 text-xs" />
                           </div>
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="address" className="text-xs">Street *</Label>
-                            <Input id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Street address" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("address", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("address", selectedPMS), isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed")} />
+                            <Label htmlFor="contact_email" className="text-xs">Contact Email *</Label>
+                            <Input id="contact_email" type="email" value={formData.contact_email} onChange={(e) => handleInputChange("contact_email", e.target.value)} placeholder="email@example.com" required className="h-7 text-xs" />
                           </div>
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="suburb" className="text-xs">Suburb</Label>
-                            <Input id="suburb" value={formData.suburb} onChange={(e) => handleInputChange("suburb", e.target.value)} placeholder="Suburb" className="h-7 text-xs" />
+                            <Label htmlFor="currency" className="text-xs">Currency *</Label>
+                            <Select value={formData.currency} onValueChange={(value) => handleInputChange("currency", value)}>
+                              <SelectTrigger id="currency" className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="ZAR">ZAR</SelectItem>
+                                <SelectItem value="USD">USD</SelectItem>
+                                <SelectItem value="EUR">EUR</SelectItem>
+                                <SelectItem value="GBP">GBP</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="postal_code" className="text-xs">Postal Code</Label>
-                            <Input id="postal_code" value={formData.postal_code} onChange={(e) => handleInputChange("postal_code", e.target.value)} placeholder="Postal code" disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("postal_code", selectedPMS), isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed")} />
+                            <Label htmlFor="owner_email" className="text-xs">Owner</Label>
+                            <Select value={formData.owner_email} onValueChange={(value) => { const selectedOwner = owners.find((o) => o.email === value); handleInputChange("owner_email", value); handleInputChange("owner_name", selectedOwner?.full_name || ""); }}>
+                              <SelectTrigger id="owner_email" className="h-7 text-xs"><SelectValue placeholder="Select owner" /></SelectTrigger>
+                              <SelectContent>
+                                {owners.map((owner) => (<SelectItem key={owner.id} value={owner.email}>{owner.full_name || owner.email}</SelectItem>))}
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
-                      )}
+                      </CardContent>
+                    </Card>
 
-                      {noStreetAddress && (
-                        <div className="p-2 border rounded-lg border-primary/20 bg-primary/5">
+                    {/* Address Section */}
+                    <Card>
+                      <CardHeader className="py-2 px-4">
+                        <CardTitle className="text-sm flex items-center justify-between">
+                          <span>Address</span>
                           <div className="flex items-center gap-2">
-                            <MapPin className="h-3 w-3 text-primary" />
-                            <Label htmlFor="google_maps_link" className="text-xs">Google Maps Link *</Label>
-                            <Input id="google_maps_link" value={googleMapsLink} onChange={(e) => handleGoogleMapsLinkChange(e.target.value)} placeholder="Paste Google Maps link" className="flex-1 h-7 text-xs font-mono" required />
-                            {googleMapsLink && latitude && longitude && <span className="text-xs text-green-600 flex items-center gap-1"><Check className="h-3 w-3" />{latitude.toFixed(4)}, {longitude.toFixed(4)}</span>}
+                            <Label htmlFor="no_street_address" className="text-xs text-muted-foreground font-normal">No street address?</Label>
+                            <Switch id="no_street_address" checked={noStreetAddress} onCheckedChange={(checked) => { setNoStreetAddress(checked); setIsDirty(true); }} />
                           </div>
-                        </div>
-                      )}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-2 px-4">
+                        {!noStreetAddress && (
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                            <div className="flex flex-col gap-1">
+                              <Label htmlFor="country" className="text-xs">Country *</Label>
+                              <Select value={formData.country} onValueChange={(value) => handleInputChange("country", value)}>
+                                <SelectTrigger id="country" className={cn("h-7 text-xs", getPMSFieldClass("country", selectedPMS))} disabled={isFieldPopulatedByPMS("country", selectedPMS)}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="South Africa">South Africa</SelectItem>
+                                  <SelectItem value="United States">United States</SelectItem>
+                                  <SelectItem value="United Kingdom">United Kingdom</SelectItem>
+                                  <SelectItem value="Australia">Australia</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <Label htmlFor="city" className="text-xs">City *</Label>
+                              <Input id="city" value={formData.city} onChange={(e) => handleInputChange("city", e.target.value)} placeholder="City" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("city", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("city", selectedPMS), isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed")} />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <Label htmlFor="address" className="text-xs">Street *</Label>
+                              <Input id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Street address" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("address", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("address", selectedPMS), isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed")} />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <Label htmlFor="suburb" className="text-xs">Suburb</Label>
+                              <Input id="suburb" value={formData.suburb} onChange={(e) => handleInputChange("suburb", e.target.value)} placeholder="Suburb" className="h-7 text-xs" />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <Label htmlFor="postal_code" className="text-xs">Postal Code</Label>
+                              <Input id="postal_code" value={formData.postal_code} onChange={(e) => handleInputChange("postal_code", e.target.value)} placeholder="Postal code" disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("postal_code", selectedPMS), isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed")} />
+                            </div>
+                          </div>
+                        )}
 
-                      <div>
-                        <Label className="text-xs mb-1 block">Property Location</Label>
+                        {noStreetAddress && (
+                          <div className="p-2 border rounded-lg border-primary/20 bg-primary/5">
+                            <div className="flex items-center gap-2">
+                              <MapPin className="h-3 w-3 text-primary" />
+                              <Label htmlFor="google_maps_link" className="text-xs">Google Maps Link *</Label>
+                              <Input id="google_maps_link" value={googleMapsLink} onChange={(e) => handleGoogleMapsLinkChange(e.target.value)} placeholder="Paste Google Maps link" className="flex-1 h-7 text-xs font-mono" required />
+                              {googleMapsLink && latitude && longitude && <span className="text-xs text-green-600 flex items-center gap-1"><Check className="h-3 w-3" />{latitude.toFixed(4)}, {longitude.toFixed(4)}</span>}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Right side - Map (25%) */}
+                  <div className="w-1/4 min-w-[200px]">
+                    <Card className="h-full">
+                      <CardHeader className="py-2 px-4">
+                        <CardTitle className="text-sm">Location</CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-2 px-4 h-[calc(100%-44px)]">
                         <PropertyMap address={formData.address} city={formData.city} country={formData.country} latitude={latitude} longitude={longitude} onLocationUpdate={(lat, lng) => { setLatitude(lat); setLongitude(lng); }} />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
 
                 {/* Property and Banking Details */}
                 <Card>
