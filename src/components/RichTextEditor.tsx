@@ -16,8 +16,61 @@ import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered, Link as LinkIcon, Image as ImageIcon,
-  Undo, Redo, Palette, Type
+  Undo, Redo, Palette, Braces, ChevronDown
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
+// Template fields available for insertion
+const TEMPLATE_FIELDS = [
+  { 
+    category: 'Reservation',
+    fields: [
+      { value: '{{reservation_reference}}', label: 'Reservation Reference', description: 'Unique booking reference number (e.g., ABC12345)' },
+      { value: '{{total_amount}}', label: 'Total Amount', description: 'Total booking cost formatted with currency (e.g., R 2,500.00)' },
+      { value: '{{check_in_date}}', label: 'Check-in Date', description: 'Formatted arrival date (e.g., Monday, 25 December 2025)' },
+      { value: '{{check_out_date}}', label: 'Check-out Date', description: 'Formatted departure date (e.g., Friday, 29 December 2025)' },
+      { value: '{{nights}}', label: 'Number of Nights', description: 'Total nights of stay (e.g., 4 nights)' },
+      { value: '{{total_guests}}', label: 'Total Guests', description: 'Combined count of all guests (adults + teens + children + infants)' },
+    ]
+  },
+  {
+    category: 'Guest Details',
+    fields: [
+      { value: '{{guest_name}}', label: 'Guest Name', description: 'Full name of the primary guest' },
+      { value: '{{guest_email}}', label: 'Guest Email', description: 'Email address of the guest' },
+      { value: '{{guest_phone}}', label: 'Guest Phone', description: 'Phone number (if provided)' },
+      { value: '{{special_requests}}', label: 'Special Requests', description: 'Any special requests noted by the guest' },
+    ]
+  },
+  {
+    category: 'Property Details',
+    fields: [
+      { value: '{{property_name}}', label: 'Property Name', description: 'Name of the booked property' },
+      { value: '{{property_city}}', label: 'City', description: 'City where the property is located' },
+      { value: '{{property_country}}', label: 'Country', description: 'Country where the property is located' },
+      { value: '{{property_address}}', label: 'Full Address', description: 'Complete property address' },
+    ]
+  },
+  {
+    category: 'Room Details',
+    fields: [
+      { value: '{{room_type_name}}', label: 'Room Type', description: 'Name of the booked room type (e.g., Deluxe Suite)' },
+      { value: '{{rate_type_name}}', label: 'Rate Type', description: 'Selected rate plan (e.g., Bed & Breakfast)' },
+      { value: '{{adults}}', label: 'Adults', description: 'Number of adult guests' },
+      { value: '{{teens}}', label: 'Teens', description: 'Number of teen guests' },
+      { value: '{{children}}', label: 'Children', description: 'Number of child guests' },
+      { value: '{{infants}}', label: 'Infants', description: 'Number of infant guests' },
+    ]
+  },
+];
 
 interface RichTextEditorProps {
   content: string;
@@ -102,6 +155,10 @@ const RichTextEditor = ({ content, onChange, placeholder }: RichTextEditorProps)
     } else {
       editor?.chain().focus().unsetLink().run();
     }
+  };
+
+  const insertTemplateField = (field: string) => {
+    editor?.chain().focus().insertContent(field).run();
   };
 
   if (!editor) return null;
@@ -216,6 +273,44 @@ const RichTextEditor = ({ content, onChange, placeholder }: RichTextEditorProps)
         >
           <ImageIcon className="h-3 w-3" />
         </ToolbarButton>
+
+        <div className="w-px h-4 bg-border mx-1" />
+
+        {/* Template Fields Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1" title="Insert Template Field">
+              <Braces className="h-3 w-3" />
+              <span className="hidden sm:inline">Fields</span>
+              <ChevronDown className="h-2.5 w-2.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-80 max-h-[400px] overflow-y-auto bg-popover z-50" align="start">
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              Click to insert a field into your template
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {TEMPLATE_FIELDS.map((category, idx) => (
+              <DropdownMenuGroup key={category.category}>
+                {idx > 0 && <DropdownMenuSeparator />}
+                <DropdownMenuLabel className="text-xs font-semibold">{category.category}</DropdownMenuLabel>
+                {category.fields.map((field) => (
+                  <DropdownMenuItem
+                    key={field.value}
+                    onClick={() => insertTemplateField(field.value)}
+                    className="flex flex-col items-start gap-0.5 cursor-pointer py-2"
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{field.value}</code>
+                      <span className="text-xs font-medium">{field.label}</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground leading-tight">{field.description}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <div className="w-px h-4 bg-border mx-1" />
 
