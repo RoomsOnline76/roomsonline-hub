@@ -148,10 +148,15 @@ export default function PropertyShowcase() {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || "");
       
       // Fetch property and NightsBridge config in parallel
-      const propertyQuery = supabase
+      let propertyQuery = supabase
         .from("public_properties")
-        .select("*")
-        [isUuid ? 'eq' : 'eq'](isUuid ? 'id' : 'slug', id);
+        .select("*");
+      
+      if (isUuid) {
+        propertyQuery = propertyQuery.eq("id", id);
+      } else {
+        propertyQuery = propertyQuery.eq("slug", id);
+      }
       
       const nbConfigQuery = supabase
         .from("public_nightsbridge_config")
@@ -468,14 +473,22 @@ export default function PropertyShowcase() {
           </div>
         </div>
         
-        {/* NightsBridge iframe */}
-        <div className="flex-1 relative">
-          <iframe
-            src={iframeUrl}
-            title={`Book ${property.name} on NightsBridge`}
-            className="absolute inset-0 w-full h-full border-0"
-            allow="payment"
-          />
+        {/* Main content with iframe and TripAdvisor */}
+        <div className="flex-1 flex flex-col lg:flex-row">
+          {/* NightsBridge iframe */}
+          <div className="flex-1 relative min-h-[60vh] lg:min-h-0">
+            <iframe
+              src={iframeUrl}
+              title={`Book ${property.name} on NightsBridge`}
+              className="absolute inset-0 w-full h-full border-0"
+              allow="payment"
+            />
+          </div>
+          
+          {/* TripAdvisor Reviews sidebar */}
+          <div className="w-full lg:w-80 xl:w-96 border-t lg:border-t-0 lg:border-l border-border bg-muted/30 p-4 overflow-y-auto max-h-[40vh] lg:max-h-none">
+            <TripAdvisorReviews tripadvisorId={property.amenities?.tripadvisor_id} />
+          </div>
         </div>
       </div>
     );
