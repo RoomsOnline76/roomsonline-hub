@@ -479,10 +479,38 @@ export default function PropertyShowcase() {
           
           {/* Property info - stacked */}
           <div className="flex-1 min-w-0 border-l border-border pl-3 sm:pl-4">
-            <h1 className="font-semibold text-sm sm:text-base truncate">{property.name}</h1>
-            <p className="text-xs text-muted-foreground truncate">
+            <div className="flex items-center gap-2">
+              <h1 className="font-semibold text-sm sm:text-base truncate">{property.name}</h1>
+              <span className="text-xs text-muted-foreground hidden sm:inline">•</span>
+              <span className="text-xs text-muted-foreground truncate hidden sm:inline">
+                {property.city}, {property.country}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground truncate sm:hidden">
               {property.city}, {property.country}
             </p>
+            {/* Room types summary */}
+            {(() => {
+              const rooms: RoomType[] = property.amenities?.rooms || property.amenities?.room_types || [];
+              if (rooms.length === 0) return null;
+              return (
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                  {rooms.map((room, idx) => {
+                    const maxAdults = room.maxPeople || room.maxAdults || 2;
+                    const maxChildren = room.maxChildren || 0;
+                    const numRooms = (property.amenities?.rooms?.find((r: any) => r.id === room.id)?.numberOfRooms) || 1;
+                    return (
+                      <span key={room.id || idx} className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        <span className="font-medium text-foreground/80">{room.name}</span>
+                        <span className="text-muted-foreground/70">
+                          {" "}({numRooms}×, {maxAdults}A{maxChildren > 0 ? `/${maxChildren}C` : ""})
+                        </span>
+                      </span>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
         
