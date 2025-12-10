@@ -129,12 +129,14 @@ const NB = () => {
                       <Button
                         variant="outline"
                         className={cn(
-                          "w-full justify-start text-left font-normal",
+                          "w-full justify-start text-left font-normal h-auto py-2",
                           !checkIn && "text-muted-foreground"
                         )}
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {format(checkIn, "yyyy-MM-dd")}
+                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                        <span className="uppercase text-sm">
+                          {format(checkIn, "EEE")} <span className="font-bold text-lg">{format(checkIn, "d")}</span> {format(checkIn, "MMM yyyy")}
+                        </span>
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -156,12 +158,14 @@ const NB = () => {
                       <Button
                         variant="outline"
                         className={cn(
-                          "w-full justify-start text-left font-normal",
+                          "w-full justify-start text-left font-normal h-auto py-2",
                           !checkOut && "text-muted-foreground"
                         )}
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {format(checkOut, "yyyy-MM-dd")}
+                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                        <span className="uppercase text-sm">
+                          {format(checkOut, "EEE")} <span className="font-bold text-lg">{format(checkOut, "d")}</span> {format(checkOut, "MMM yyyy")}
+                        </span>
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
