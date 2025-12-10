@@ -2285,7 +2285,9 @@ export default function PropertyForm() {
                 { value: "specials", icon: Calendar, label: "Specials" },
                 { value: "packages", icon: Package, label: "Packages" },
                 { value: "announcements", icon: Bell, label: "Announcements" },
-              ].map((tab) => {
+              ]
+                .filter((tab) => selectedPMS !== 'nightsbridge' || tab.value === 'general')
+                .map((tab) => {
                 const isActive = activeTab === tab.value;
                 const Icon = tab.icon;
                 
@@ -2318,56 +2320,60 @@ export default function PropertyForm() {
                 {/* Offerings Section */}
                 <Card>
                   <CardHeader className="py-2 px-4">
-                    <CardTitle className="text-sm">Offerings</CardTitle>
+                    <CardTitle className="text-sm">{selectedPMS === 'nightsbridge' ? 'PMS Connection' : 'Offerings'}</CardTitle>
                   </CardHeader>
                   <CardContent className="py-2 px-4">
-                    <div className="flex flex-wrap items-center gap-4">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="accommodation"
-                          checked={isAccommodation}
-                          onCheckedChange={(checked) => {
-                            setIsAccommodation(checked as boolean);
-                            setIsDirty(true);
-                          }}
-                        />
-                        <Label htmlFor="accommodation" className="cursor-pointer text-xs">
-                          Accommodation
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="venues"
-                          checked={isVenues}
-                          onCheckedChange={(checked) => handleVenuesChange(checked as boolean)}
-                        />
-                        <Label htmlFor="venues" className="cursor-pointer text-xs">
-                          Venues
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="event"
-                          checked={isEvent}
-                          onCheckedChange={(checked) => handleEventChange(checked as boolean)}
-                        />
-                        <Label htmlFor="event" className="cursor-pointer text-xs">
-                          Event/Wedding
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="conference"
-                          checked={isConference}
-                          onCheckedChange={(checked) => handleConferenceChange(checked as boolean)}
-                        />
-                        <Label htmlFor="conference" className="cursor-pointer text-xs">
-                          Conference
-                        </Label>
-                      </div>
-                    </div>
+                    {selectedPMS !== 'nightsbridge' && (
+                      <>
+                        <div className="flex flex-wrap items-center gap-4">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="accommodation"
+                              checked={isAccommodation}
+                              onCheckedChange={(checked) => {
+                                setIsAccommodation(checked as boolean);
+                                setIsDirty(true);
+                              }}
+                            />
+                            <Label htmlFor="accommodation" className="cursor-pointer text-xs">
+                              Accommodation
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="venues"
+                              checked={isVenues}
+                              onCheckedChange={(checked) => handleVenuesChange(checked as boolean)}
+                            />
+                            <Label htmlFor="venues" className="cursor-pointer text-xs">
+                              Venues
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="event"
+                              checked={isEvent}
+                              onCheckedChange={(checked) => handleEventChange(checked as boolean)}
+                            />
+                            <Label htmlFor="event" className="cursor-pointer text-xs">
+                              Event/Wedding
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="conference"
+                              checked={isConference}
+                              onCheckedChange={(checked) => handleConferenceChange(checked as boolean)}
+                            />
+                            <Label htmlFor="conference" className="cursor-pointer text-xs">
+                              Conference
+                            </Label>
+                          </div>
+                        </div>
 
-                    <Separator className="my-3" />
+                        <Separator className="my-3" />
+                      </>
+                    )}
 
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2">
@@ -2622,56 +2628,58 @@ export default function PropertyForm() {
                   </div>
                 </div>
 
-                {/* Property and Banking Details */}
-                <Card>
-                  <CardHeader className="py-2 px-4">
-                    <CardTitle className="text-sm flex items-center justify-between">
-                      <span>Banking Details</span>
-                      <div className="flex items-center gap-2">
-                        <Label htmlFor="has_vat" className="text-xs text-muted-foreground font-normal">VAT Registered?</Label>
-                        <Switch id="has_vat" checked={formData.has_vat} onCheckedChange={(checked) => handleInputChange("has_vat", checked)} />
-                      </div>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-2 px-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-                      {formData.has_vat && (
-                        <div className="flex flex-col gap-1">
-                          <Label htmlFor="vat_number" className="text-xs">VAT #</Label>
-                          <Input id="vat_number" value={formData.vat_number} onChange={(e) => handleInputChange("vat_number", e.target.value)} placeholder="VAT number" className="h-7 text-xs" />
+                {/* Property and Banking Details - Hidden for NightsBridge */}
+                {selectedPMS !== 'nightsbridge' && (
+                  <Card>
+                    <CardHeader className="py-2 px-4">
+                      <CardTitle className="text-sm flex items-center justify-between">
+                        <span>Banking Details</span>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="has_vat" className="text-xs text-muted-foreground font-normal">VAT Registered?</Label>
+                          <Switch id="has_vat" checked={formData.has_vat} onCheckedChange={(checked) => handleInputChange("has_vat", checked)} />
                         </div>
-                      )}
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="property_registration" className="text-xs">Reg #</Label>
-                        <Input id="property_registration" value={formData.property_registration} onChange={(e) => handleInputChange("property_registration", e.target.value)} placeholder="Registration" className="h-7 text-xs" />
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-2 px-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                        {formData.has_vat && (
+                          <div className="flex flex-col gap-1">
+                            <Label htmlFor="vat_number" className="text-xs">VAT #</Label>
+                            <Input id="vat_number" value={formData.vat_number} onChange={(e) => handleInputChange("vat_number", e.target.value)} placeholder="VAT number" className="h-7 text-xs" />
+                          </div>
+                        )}
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="property_registration" className="text-xs">Reg #</Label>
+                          <Input id="property_registration" value={formData.property_registration} onChange={(e) => handleInputChange("property_registration", e.target.value)} placeholder="Registration" className="h-7 text-xs" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="bank_name" className="text-xs">Bank</Label>
+                          <Input id="bank_name" value={formData.bank_name} onChange={(e) => handleInputChange("bank_name", e.target.value)} placeholder="Bank name" className="h-7 text-xs" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="branch_code" className="text-xs">Branch</Label>
+                          <Input id="branch_code" value={formData.branch_code} onChange={(e) => handleInputChange("branch_code", e.target.value)} placeholder="Code" className="h-7 text-xs" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="account_holder" className="text-xs">Holder</Label>
+                          <Input id="account_holder" value={formData.account_holder} onChange={(e) => handleInputChange("account_holder", e.target.value)} placeholder="Name" className="h-7 text-xs" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="account_number" className="text-xs">Account #</Label>
+                          <Input id="account_number" value={formData.account_number} onChange={(e) => handleInputChange("account_number", e.target.value)} placeholder="Number" className="h-7 text-xs" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="account_type" className="text-xs">Type</Label>
+                          <Input id="account_type" value={formData.account_type} onChange={(e) => handleInputChange("account_type", e.target.value)} placeholder="Type" className="h-7 text-xs" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="swift_code" className="text-xs">SWIFT</Label>
+                          <Input id="swift_code" value={formData.swift_code} onChange={(e) => handleInputChange("swift_code", e.target.value)} placeholder="Code" className="h-7 text-xs" />
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="bank_name" className="text-xs">Bank</Label>
-                        <Input id="bank_name" value={formData.bank_name} onChange={(e) => handleInputChange("bank_name", e.target.value)} placeholder="Bank name" className="h-7 text-xs" />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="branch_code" className="text-xs">Branch</Label>
-                        <Input id="branch_code" value={formData.branch_code} onChange={(e) => handleInputChange("branch_code", e.target.value)} placeholder="Code" className="h-7 text-xs" />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="account_holder" className="text-xs">Holder</Label>
-                        <Input id="account_holder" value={formData.account_holder} onChange={(e) => handleInputChange("account_holder", e.target.value)} placeholder="Name" className="h-7 text-xs" />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="account_number" className="text-xs">Account #</Label>
-                        <Input id="account_number" value={formData.account_number} onChange={(e) => handleInputChange("account_number", e.target.value)} placeholder="Number" className="h-7 text-xs" />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="account_type" className="text-xs">Type</Label>
-                        <Input id="account_type" value={formData.account_type} onChange={(e) => handleInputChange("account_type", e.target.value)} placeholder="Type" className="h-7 text-xs" />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <Label htmlFor="swift_code" className="text-xs">SWIFT</Label>
-                        <Input id="swift_code" value={formData.swift_code} onChange={(e) => handleInputChange("swift_code", e.target.value)} placeholder="Code" className="h-7 text-xs" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                )}
 
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleNavigate("/admin/property-overview")}>Cancel</Button>
