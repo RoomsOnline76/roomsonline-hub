@@ -3,18 +3,59 @@ import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "lucide-react";
 import flatpickr from "flatpickr";
 import "flatpickr/dist/flatpickr.min.css";
+import { supabase } from "@/integrations/supabase/client";
+
+interface NBProperty {
+  id: string;
+  name: string;
+  external_id: string | null;
+}
 
 const NB = () => {
   const [nights, setNights] = useState(0);
-  const [bbid, setBbid] = useState("36924"); // Default NightsBridge property ID
-  const [iframeKey, setIframeKey] = useState(0); // Force iframe refresh
+  const [bbid, setBbid] = useState("36924");
+  const [properties, setProperties] = useState<NBProperty[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
+  const [iframeKey, setIframeKey] = useState(0);
   const checkInRef = useRef<HTMLInputElement>(null);
   const checkOutRef = useRef<HTMLInputElement>(null);
   const checkInPickerRef = useRef<flatpickr.Instance | null>(null);
   const checkOutPickerRef = useRef<flatpickr.Instance | null>(null);
+
+  // Fetch NightsBridge properties
+  useEffect(() => {
+    const fetchProperties = async () => {
+      const { data } = await supabase
+        .from("properties")
+        .select("id, name, external_id")
+        .eq("external_system", "nightsbridge")
+        .eq("is_active", true)
+        .order("name");
+      
+      if (data && data.length > 0) {
+        setProperties(data);
+        // Select first property by default
+        setSelectedPropertyId(data[0].id);
+        if (data[0].external_id) {
+          setBbid(data[0].external_id);
+        }
+      }
+    };
+    fetchProperties();
+  }, []);
+
+  const handlePropertyChange = (propertyId: string) => {
+    setSelectedPropertyId(propertyId);
+    const property = properties.find(p => p.id === propertyId);
+    if (property?.external_id) {
+      setBbid(property.external_id);
+      setIframeKey(prev => prev + 1);
+    }
+  };
 
   useEffect(() => {
     if (checkInRef.current && checkOutRef.current) {
@@ -111,15 +152,22 @@ const NB = () => {
             <CardContent>
               <div className="grid grid-cols-4 gap-4 mb-4">
                 <div className="col-span-2">
-                  <Label htmlFor="bbid">BBID</Label>
-                  <input
-                    id="bbid"
-                    type="text"
-                    value={bbid}
-                    onChange={(e) => setBbid(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    placeholder="e.g. 36924"
-                  />
+                  <Label>Property</Label>
+                  <Select value={selectedPropertyId} onValueChange={handlePropertyChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a property" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {properties.map((property) => (
+                        <SelectItem key={property.id} value={property.id}>
+                          {property.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {properties.length === 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">No NightsBridge properties found</p>
+                  )}
                 </div>
                 <div>
                   <Label>Check-In</Label>
@@ -163,7 +211,7 @@ const NB = () => {
               </div>
               
               <p className="text-xs text-muted-foreground mt-2">
-                Using <code className="bg-muted px-1 rounded">nbid=371</code> parameter to enable embedding. Full calendar with rates should display.
+                Note: If the iframe shows blank or an error, NightsBridge may block embedding via X-Frame-Options headers.
               </p>
             </CardContent>
           </Card>
