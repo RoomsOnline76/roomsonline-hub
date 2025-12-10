@@ -3511,10 +3511,27 @@ export default function PropertyForm() {
                         {uploadedImages.map((imageUrl, index) => (
                           <div key={index} className="relative aspect-square rounded-md overflow-hidden border border-border group">
                             <img src={imageUrl} alt={`Property ${index + 1}`} className="w-full h-full object-cover" />
-                            {index === 0 && (
-                              <div className="absolute top-1 left-1 bg-destructive rounded-full p-1">
+                            {/* Primary badge or set as primary button */}
+                            {index === 0 ? (
+                              <div className="absolute top-1 left-1 bg-primary rounded-full p-1" title="Primary image">
                                 <Heart className="h-3 w-3 text-white fill-white" />
                               </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  // Move this image to first position
+                                  const newImages = [...uploadedImages];
+                                  const [selected] = newImages.splice(index, 1);
+                                  newImages.unshift(selected);
+                                  setUploadedImages(newImages);
+                                  setIsDirty(true);
+                                }}
+                                className="absolute top-1 left-1 bg-muted-foreground/60 hover:bg-primary rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Set as primary image"
+                              >
+                                <Heart className="h-3 w-3 text-white" />
+                              </button>
                             )}
                             <button type="button" onClick={() => removeImage(index)} className="absolute top-1 right-1 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <X className="h-3 w-3 text-white" />
