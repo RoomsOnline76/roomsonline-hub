@@ -498,10 +498,12 @@ export default function PropertyShowcase() {
                   {rooms.map((room, idx) => {
                     const maxAdults = room.maxPeople || room.maxAdults || 2;
                     const maxChildren = room.maxChildren || 0;
-                    const numRooms = room.numberOfRooms || 1;
+                    const numRooms = room.numRooms || room.numberOfRooms || room.rooms || 1;
+                    const description = room.description || '';
                     return (
                       <span key={room.id || idx} className="text-[10px] text-muted-foreground whitespace-nowrap">
                         <span className="font-medium text-foreground/80">{room.name}</span>
+                        {description && <span className="text-muted-foreground/70"> - {description}</span>}
                         <span className="text-muted-foreground/70">
                           {" "}({numRooms}×, {maxAdults}A{maxChildren > 0 ? `/${maxChildren}C` : ""})
                         </span>
