@@ -436,6 +436,45 @@ export default function PropertyShowcase() {
     );
   }
 
+  // NightsBridge properties: render embedded iframe view
+  const bbid = getNightsBridgeBBID();
+  if (property.external_system === "nightsbridge" && bbid && nightsBridgeAgentCode) {
+    const iframeUrl = `https://nightsbridge.co.za/bridge/book?bbid=${bbid}&source=${nightsBridgeAgentCode}`;
+    
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        {/* Header with back button */}
+        <div className="bg-background border-b border-border px-4 py-3 flex items-center gap-4 shrink-0">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => navigate("/")}
+            className="gap-2"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back to Search
+          </Button>
+          <div className="flex-1">
+            <h1 className="font-semibold text-sm sm:text-base line-clamp-1">{property.name}</h1>
+            <p className="text-xs text-muted-foreground line-clamp-1">
+              {property.city}, {property.country}
+            </p>
+          </div>
+        </div>
+        
+        {/* NightsBridge iframe */}
+        <div className="flex-1 relative">
+          <iframe
+            src={iframeUrl}
+            title={`Book ${property.name} on NightsBridge`}
+            className="absolute inset-0 w-full h-full border-0"
+            allow="payment"
+          />
+        </div>
+      </div>
+    );
+  }
+
   const roomTypes = getRoomTypes();
   const facilities = getFacilities();
   const mealTypes = getMealTypes();
