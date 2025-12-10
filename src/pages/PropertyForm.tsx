@@ -5052,39 +5052,43 @@ export default function PropertyForm() {
                         {room.pms_synced && <Cloud className="inline h-2.5 w-2.5 ml-1 opacity-50" />}
                       </span>
                       <div className="flex gap-0.5">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-5 w-5 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const url = getRoomUrl(propertySlug || id || "", room.id);
-                            if (homeIconOpenNewTab) {
-                              window.open(url, "_blank");
-                            } else {
-                              navigate(`/property/${propertySlug || id}/room/${room.id}`);
-                            }
-                          }}
-                          title="View room page"
-                        >
-                          <Home className="h-2.5 w-2.5" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-5 w-5 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigator.clipboard.writeText(getRoomUrl(propertySlug || id || "", room.id));
-                            toast({
-                              title: "Copied",
-                              description: "Room URL copied to clipboard",
-                            });
-                          }}
-                          title="Copy room URL"
-                        >
-                          <Copy className="h-2.5 w-2.5" />
-                        </Button>
+                        {selectedPMS !== 'nightsbridge' && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-5 w-5 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const url = getRoomUrl(propertySlug || id || "", room.id);
+                                if (homeIconOpenNewTab) {
+                                  window.open(url, "_blank");
+                                } else {
+                                  navigate(`/property/${propertySlug || id}/room/${room.id}`);
+                                }
+                              }}
+                              title="View room page"
+                            >
+                              <Home className="h-2.5 w-2.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-5 w-5 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(getRoomUrl(propertySlug || id || "", room.id));
+                                toast({
+                                  title: "Copied",
+                                  description: "Room URL copied to clipboard",
+                                });
+                              }}
+                              title="Copy room URL"
+                            >
+                              <Copy className="h-2.5 w-2.5" />
+                            </Button>
+                          </>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"
