@@ -2286,7 +2286,7 @@ export default function PropertyForm() {
                 { value: "packages", icon: Package, label: "Packages" },
                 { value: "announcements", icon: Bell, label: "Announcements" },
               ]
-                .filter((tab) => selectedPMS !== 'nightsbridge' || tab.value === 'general' || tab.value === 'images')
+                .filter((tab) => selectedPMS !== 'nightsbridge' || tab.value === 'general' || tab.value === 'images' || tab.value === 'rooms')
                 .map((tab) => {
                 const isActive = activeTab === tab.value;
                 const Icon = tab.icon;
@@ -5106,11 +5106,17 @@ export default function PropertyForm() {
                   <Tabs defaultValue="room-type" className="w-full">
                     <TabsList className="h-8">
                       <TabsTrigger value="room-type" className="text-xs h-7">Room Type</TabsTrigger>
-                      <TabsTrigger value="rate-types" className="text-xs h-7">Rate Types</TabsTrigger>
+                      {selectedPMS !== 'nightsbridge' && (
+                        <TabsTrigger value="rate-types" className="text-xs h-7">Rate Types</TabsTrigger>
+                      )}
                       <TabsTrigger value="facilities" className="text-xs h-7">Facilities</TabsTrigger>
                       <TabsTrigger value="amenities" className="text-xs h-7">Amenities</TabsTrigger>
-                      <TabsTrigger value="room-images" className="text-xs h-7">Images</TabsTrigger>
-                      <TabsTrigger value="agreement" className="text-xs h-7">Agreement</TabsTrigger>
+                      {selectedPMS !== 'nightsbridge' && (
+                        <TabsTrigger value="room-images" className="text-xs h-7">Images</TabsTrigger>
+                      )}
+                      {selectedPMS !== 'nightsbridge' && (
+                        <TabsTrigger value="agreement" className="text-xs h-7">Agreement</TabsTrigger>
+                      )}
                     </TabsList>
 
                     {/* Room Type Sub-tab */}
