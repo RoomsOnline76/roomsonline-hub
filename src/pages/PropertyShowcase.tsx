@@ -438,6 +438,15 @@ export default function PropertyShowcase() {
 
   // NightsBridge properties: render embedded iframe view
   const bbid = getNightsBridgeBBID();
+  
+  // Debug logging
+  console.log('PropertyShowcase NB check:', {
+    external_system: property.external_system,
+    bbid,
+    nightsBridgeAgentCode,
+    external_id: property.external_id
+  });
+  
   if (property.external_system === "nightsbridge" && bbid && nightsBridgeAgentCode) {
     const iframeUrl = `https://nightsbridge.co.za/bridge/book?bbid=${bbid}&source=${nightsBridgeAgentCode}`;
     
