@@ -9,7 +9,8 @@ import "flatpickr/dist/flatpickr.min.css";
 
 const NB = () => {
   const [nights, setNights] = useState(0);
-  const [bbid, setBbid] = useState("14406"); // Default NightsBridge property ID
+  const [bbid, setBbid] = useState("36924"); // Default NightsBridge property ID
+  const [iframeKey, setIframeKey] = useState(0); // Force iframe refresh
   const checkInRef = useRef<HTMLInputElement>(null);
   const checkOutRef = useRef<HTMLInputElement>(null);
   const checkInPickerRef = useRef<flatpickr.Instance | null>(null);
@@ -84,6 +85,17 @@ const NB = () => {
     window.open(`https://book.nightsbridge.com/${bbid}`, "_blank");
   };
 
+  const refreshIframe = () => {
+    setIframeKey(prev => prev + 1);
+  };
+
+  const getIframeUrl = () => {
+    const checkIn = checkInRef.current?.value || new Date().toISOString().split('T')[0];
+    const checkOut = checkOutRef.current?.value || new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    // Using nbid=371 parameter which enables iframe embedding
+    return `https://book.nightsbridge.com/${bbid}?nbid=371&startdate=${checkIn}&enddate=${checkOut}`;
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -135,9 +147,16 @@ const NB = () => {
                 </div>
               </div>
               
-              <div className="border rounded-lg overflow-hidden bg-white" style={{ height: "600px" }}>
+              <div className="flex gap-2 mb-4">
+                <Button onClick={refreshIframe} variant="outline" size="sm">
+                  Reload Calendar
+                </Button>
+              </div>
+              
+              <div className="border rounded-lg overflow-hidden bg-white" style={{ height: "700px" }}>
                 <iframe
-                  src={`https://book.nightsbridge.com/${bbid}?startdate=${checkInRef.current?.value || new Date().toISOString().split('T')[0]}&enddate=${checkOutRef.current?.value || new Date(Date.now() + 86400000).toISOString().split('T')[0]}`}
+                  key={iframeKey}
+                  src={getIframeUrl()}
                   className="w-full h-full border-0"
                   title="NightsBridge Booking"
                   allow="payment"
@@ -145,7 +164,7 @@ const NB = () => {
               </div>
               
               <p className="text-xs text-muted-foreground mt-2">
-                Note: If the iframe shows blank or an error, NightsBridge may block embedding via X-Frame-Options headers.
+                Using <code className="bg-muted px-1 rounded">nbid=371</code> parameter to enable embedding. Full calendar with rates should display.
               </p>
             </CardContent>
           </Card>
