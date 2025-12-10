@@ -472,9 +472,9 @@ export default function PropertyShowcase() {
             <img 
               src={rolWreathLogo} 
               alt="RoomsOnline" 
-              className="h-8 w-8 sm:h-10 sm:w-10 object-contain"
+              className="h-10 w-10 sm:h-12 sm:w-12 object-contain"
             />
-            <span className="text-[10px] sm:text-xs text-muted-foreground italic whitespace-nowrap">proudly presenting</span>
+            <span className="text-sm sm:text-base font-semibold text-primary italic whitespace-nowrap">proudly presenting</span>
           </div>
           
           {/* Property info - stacked */}
