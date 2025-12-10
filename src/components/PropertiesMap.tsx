@@ -174,52 +174,75 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
     return properties.filter((p) => enabledTypes[p.property_type] !== false);
   }, [properties, enabledTypes]);
 
-  // Initialize map once
+  // Initialize map once - with slight delay to ensure DOM is ready
   useEffect(() => {
-    if (!mapRef.current || !mapsLoaded || !window.google?.maps?.Map || mapInstanceRef.current) return;
-
-    console.log("Initializing Google Map...");
-    try {
-      mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-        center: { lat: -28.4793, lng: 24.6727 },
-        zoom: 5,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: true,
-        styles: [
-          {
-            featureType: "poi",
-            elementType: "labels",
-            stylers: [{ visibility: "off" }]
-          }
-        ]
-      });
-
-      console.log("Google Map initialized successfully");
-
-      // Aggressive resize triggers for iOS
-      const triggerResize = () => {
-        if (mapInstanceRef.current && window.google?.maps) {
-          window.google.maps.event.trigger(mapInstanceRef.current, 'resize');
-        }
-      };
-
-      // Multiple resize triggers at different intervals for iOS
-      setTimeout(triggerResize, 100);
-      setTimeout(triggerResize, 300);
-      setTimeout(triggerResize, 500);
-      
-      if (isIOS()) {
-        setTimeout(triggerResize, 1000);
-        setTimeout(() => {
-          window.dispatchEvent(new Event('resize'));
-          triggerResize();
-        }, 1500);
-      }
-    } catch (error) {
-      console.error("Error initializing Google Map:", error);
-      setMapError(true);
+    if (!mapsLoaded) {
+      console.log("Map init check: mapsLoaded is false");
+      return;
     }
+    
+    if (mapInstanceRef.current) {
+      console.log("Map init check: map already exists");
+      return;
+    }
+
+    // Small delay to ensure DOM is fully rendered after state change
+    const initTimer = setTimeout(() => {
+      if (!mapRef.current) {
+        console.log("Map init check: mapRef.current is null");
+        return;
+      }
+      
+      if (!window.google?.maps?.Map) {
+        console.log("Map init check: google.maps.Map not available");
+        return;
+      }
+
+      console.log("Initializing Google Map...");
+      try {
+        mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+          center: { lat: -28.4793, lng: 24.6727 },
+          zoom: 5,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: true,
+          styles: [
+            {
+              featureType: "poi",
+              elementType: "labels",
+              stylers: [{ visibility: "off" }]
+            }
+          ]
+        });
+
+        console.log("Google Map initialized successfully");
+
+        // Aggressive resize triggers for iOS
+        const triggerResize = () => {
+          if (mapInstanceRef.current && window.google?.maps) {
+            window.google.maps.event.trigger(mapInstanceRef.current, 'resize');
+          }
+        };
+
+        // Multiple resize triggers at different intervals for iOS
+        setTimeout(triggerResize, 100);
+        setTimeout(triggerResize, 300);
+        setTimeout(triggerResize, 500);
+        
+        if (isIOS()) {
+          setTimeout(triggerResize, 1000);
+          setTimeout(() => {
+            window.dispatchEvent(new Event('resize'));
+            triggerResize();
+          }, 1500);
+        }
+      } catch (error) {
+        console.error("Error initializing Google Map:", error);
+        setMapError(true);
+      }
+    }, 50);
+
+    return () => clearTimeout(initTimer);
   }, [mapsLoaded]);
 
   // Trigger resize when enabledTypes change
