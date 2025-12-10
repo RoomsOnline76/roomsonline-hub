@@ -5177,28 +5177,30 @@ export default function PropertyForm() {
                         </div>
                       </div>
 
-                      {selectedPMS && (
-                        <div className="grid grid-cols-2 gap-2 items-end">
-                          <div className="flex items-center gap-2">
-                            <Label className="text-xs whitespace-nowrap">{selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} Type</Label>
-                            <Input
-                              className="h-7 text-xs"
-                              value={roomTypes.find((r) => r.id === selectedRoomType)?.pmsRoomType || ""}
-                              onChange={(e) => updateRoomTypeField(selectedRoomType, "pmsRoomType", e.target.value)}
-                              placeholder={`${selectedPMS} room type`}
-                            />
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Label className="text-xs whitespace-nowrap">{selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} ID</Label>
-                            <Input
-                              className="h-7 text-xs"
-                              value={roomTypes.find((r) => r.id === selectedRoomType)?.pmsRoomId || ""}
-                              onChange={(e) => updateRoomTypeField(selectedRoomType, "pmsRoomId", e.target.value)}
-                              placeholder={`${selectedPMS} ID`}
-                            />
-                          </div>
-                        </div>
-                      )}
+                      {selectedPMS !== 'nightsbridge' && (
+                        <>
+                          {selectedPMS && (
+                            <div className="grid grid-cols-2 gap-2 items-end">
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs whitespace-nowrap">{selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} Type</Label>
+                                <Input
+                                  className="h-7 text-xs"
+                                  value={roomTypes.find((r) => r.id === selectedRoomType)?.pmsRoomType || ""}
+                                  onChange={(e) => updateRoomTypeField(selectedRoomType, "pmsRoomType", e.target.value)}
+                                  placeholder={`${selectedPMS} room type`}
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs whitespace-nowrap">{selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} ID</Label>
+                                <Input
+                                  className="h-7 text-xs"
+                                  value={roomTypes.find((r) => r.id === selectedRoomType)?.pmsRoomId || ""}
+                                  onChange={(e) => updateRoomTypeField(selectedRoomType, "pmsRoomId", e.target.value)}
+                                  placeholder={`${selectedPMS} ID`}
+                                />
+                              </div>
+                            </div>
+                          )}
 
                       {!selectedPMS && (
                         <div className="bg-muted/50 border border-border rounded-md p-2">
@@ -5669,6 +5671,8 @@ export default function PropertyForm() {
                           </p>
                         </div>
                       </div>
+                        </>
+                      )}
                     </TabsContent>
 
                     {/* Rate Types Sub-tab */}
