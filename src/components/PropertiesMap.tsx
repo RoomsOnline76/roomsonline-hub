@@ -41,6 +41,7 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
+  const openInfoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [mapsLoaded, setMapsLoaded] = useState(false);
@@ -293,14 +294,8 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
         },
       });
 
-      // Get image - for NightsBridge properties, construct CloudFront gallery URL
-      let mainImage = property.images?.[0];
-      
-      // For NightsBridge properties without stored images, try CloudFront gallery
-      if (!mainImage && property.external_system === 'nightsbridge' && property.external_id) {
-        // NightsBridge uses CloudFront for images - construct gallery URL pattern
-        mainImage = `https://d1zyr4xmqw3mni.cloudfront.net/image/500/gallery/${property.external_id}/property/main.jpg`;
-      }
+      // Get image - use stored images only (NB properties need images stored in DB)
+      const mainImage = property.images?.[0];
       
       const imageHtml = mainImage 
         ? `<img src="${mainImage}" alt="${property.name}" style="width: 100%; height: 100px; object-fit: cover; border-radius: 6px; margin-bottom: 8px;" onerror="this.style.display='none'" />`
@@ -321,7 +316,12 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
       });
 
       marker.addListener("click", () => {
+        // Close any previously open info window
+        if (openInfoWindowRef.current) {
+          openInfoWindowRef.current.close();
+        }
         infoWindow.open(mapInstanceRef.current, marker);
+        openInfoWindowRef.current = infoWindow;
       });
 
       markersRef.current.push(marker);
