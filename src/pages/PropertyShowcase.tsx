@@ -147,23 +147,33 @@ export default function PropertyShowcase() {
       // Check if id is a UUID or slug
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || "");
       
-      // Fetch property by UUID or slug using public view
-      let query = supabase
+      // Fetch property and NightsBridge config in parallel
+      const propertyQuery = supabase
         .from("public_properties")
-        .select("*");
+        .select("*")
+        [isUuid ? 'eq' : 'eq'](isUuid ? 'id' : 'slug', id);
       
-      if (isUuid) {
-        query = query.eq("id", id);
-      } else {
-        query = query.eq("slug", id);
-      }
+      const nbConfigQuery = supabase
+        .from("public_nightsbridge_config")
+        .select("agent_code")
+        .maybeSingle();
       
-      const { data: propertyData, error: propertyError } = await query.maybeSingle();
+      const [propertyResult, nbConfigResult] = await Promise.all([
+        propertyQuery.maybeSingle(),
+        nbConfigQuery
+      ]);
 
+      const { data: propertyData, error: propertyError } = propertyResult;
+      
       if (propertyError) throw propertyError;
       if (!propertyData) {
         console.error("PropertyShowcase: No property found for", { id, isUuid });
         return;
+      }
+      
+      // Set NightsBridge agent code (always available for any NB property)
+      if (nbConfigResult.data?.agent_code) {
+        setNightsBridgeAgentCode(nbConfigResult.data.agent_code);
       }
       
       // Parse images
@@ -187,19 +197,6 @@ export default function PropertyShowcase() {
           availMap.set(item.external_room_type_id, item);
         });
         setAvailability(availMap);
-      }
-
-      // Fetch NightsBridge agent code if this is a NightsBridge property
-      if (propertyData.external_system === "nightsbridge") {
-        // Use public view that doesn't require authentication
-        const { data: nbConfig } = await supabase
-          .from("public_nightsbridge_config")
-          .select("agent_code")
-          .maybeSingle();
-        
-        if (nbConfig?.agent_code) {
-          setNightsBridgeAgentCode(nbConfig.agent_code);
-        }
       }
     } catch (error) {
       console.error("Error fetching property:", error);
