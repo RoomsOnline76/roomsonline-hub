@@ -26,6 +26,8 @@ interface Property {
   price_per_night: number;
   property_type: string;
   images: string[] | null;
+  external_system: string | null;
+  external_id: string | null;
 }
 
 interface PropertiesMapProps {
@@ -51,7 +53,7 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
     const fetchProperties = async () => {
       const { data, error } = await supabase
         .from("public_properties")
-        .select("id, name, slug, latitude, longitude, city, country, price_per_night, property_type, images")
+        .select("id, name, slug, latitude, longitude, city, country, price_per_night, property_type, images, external_system, external_id")
         .not("latitude", "is", null)
         .not("longitude", "is", null);
 
@@ -291,9 +293,17 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
         },
       });
 
-      const mainImage = property.images?.[0];
+      // Get image - for NightsBridge properties, construct CloudFront gallery URL
+      let mainImage = property.images?.[0];
+      
+      // For NightsBridge properties without stored images, try CloudFront gallery
+      if (!mainImage && property.external_system === 'nightsbridge' && property.external_id) {
+        // NightsBridge uses CloudFront for images - construct gallery URL pattern
+        mainImage = `https://d1zyr4xmqw3mni.cloudfront.net/image/500/gallery/${property.external_id}/property/main.jpg`;
+      }
+      
       const imageHtml = mainImage 
-        ? `<img src="${mainImage}" alt="${property.name}" style="width: 100%; height: 100px; object-fit: cover; border-radius: 6px; margin-bottom: 8px;" />`
+        ? `<img src="${mainImage}" alt="${property.name}" style="width: 100%; height: 100px; object-fit: cover; border-radius: 6px; margin-bottom: 8px;" onerror="this.style.display='none'" />`
         : '';
 
       const infoWindow = new window.google.maps.InfoWindow({
