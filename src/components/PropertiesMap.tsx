@@ -42,6 +42,7 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [mapsLoaded, setMapsLoaded] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
   const [properties, setProperties] = useState<Property[]>([]);
 
@@ -216,7 +217,7 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
         });
 
         console.log("Google Map initialized successfully");
-
+        setMapReady(true);
         // Aggressive resize triggers for iOS
         const triggerResize = () => {
           if (mapInstanceRef.current && window.google?.maps) {
@@ -255,9 +256,9 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
     }
   }, [enabledTypes]);
 
-  // Update markers when filtered properties change - depends on mapsLoaded to ensure map exists
+  // Update markers when filtered properties change - depends on mapReady to ensure map exists
   useEffect(() => {
-    if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps) return;
+    if (!mapReady || !mapInstanceRef.current || !window.google?.maps) return;
 
     // Clear existing markers
     markersRef.current.forEach((marker) => marker.setMap(null));
@@ -323,7 +324,7 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
       mapInstanceRef.current.setCenter(bounds.getCenter());
       mapInstanceRef.current.setZoom(12);
     }
-  }, [mapsLoaded, filteredProperties, typeColors]);
+  }, [mapReady, filteredProperties, typeColors]);
 
   // Loading state
   if (loading || (apiKey && !mapsLoaded && !mapError)) {
