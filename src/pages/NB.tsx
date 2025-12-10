@@ -1,12 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import { format, addDays } from "date-fns";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "lucide-react";
-import flatpickr from "flatpickr";
-import "flatpickr/dist/flatpickr.min.css";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 
 interface NBProperty {
@@ -16,15 +18,14 @@ interface NBProperty {
 }
 
 const NB = () => {
-  const [nights, setNights] = useState(0);
+  const [checkIn, setCheckIn] = useState<Date>(new Date());
+  const [checkOut, setCheckOut] = useState<Date>(addDays(new Date(), 1));
   const [bbid, setBbid] = useState("36924");
   const [properties, setProperties] = useState<NBProperty[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
   const [iframeKey, setIframeKey] = useState(0);
-  const checkInRef = useRef<HTMLInputElement>(null);
-  const checkOutRef = useRef<HTMLInputElement>(null);
-  const checkInPickerRef = useRef<flatpickr.Instance | null>(null);
-  const checkOutPickerRef = useRef<flatpickr.Instance | null>(null);
+
+  const nights = Math.max(0, Math.floor((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
 
   // Fetch NightsBridge properties
   useEffect(() => {
@@ -38,7 +39,6 @@ const NB = () => {
       
       if (data && data.length > 0) {
         setProperties(data);
-        // Select first property by default
         setSelectedPropertyId(data[0].id);
         if (data[0].external_id) {
           setBbid(data[0].external_id);
@@ -57,69 +57,24 @@ const NB = () => {
     }
   };
 
-  useEffect(() => {
-    if (checkInRef.current && checkOutRef.current) {
-      // Initialize check-in date picker
-      checkInPickerRef.current = flatpickr(checkInRef.current, {
-        dateFormat: "Y-m-d",
-        allowInput: true,
-        minDate: new Date(),
-        defaultDate: new Date(),
-        onChange: (selectedDates) => {
-          if (selectedDates[0] && checkOutPickerRef.current) {
-            const nextDay = new Date(selectedDates[0]);
-            nextDay.setDate(nextDay.getDate() + 1);
-            checkOutPickerRef.current.set("minDate", nextDay);
-            calculateNights();
-          }
-        },
-      });
-
-      // Initialize check-out date picker
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      
-      checkOutPickerRef.current = flatpickr(checkOutRef.current, {
-        dateFormat: "Y-m-d",
-        allowInput: true,
-        minDate: tomorrow,
-        defaultDate: tomorrow,
-        onChange: (selectedDates) => {
-          if (selectedDates[0] && checkInPickerRef.current) {
-            checkInPickerRef.current.set("maxDate", selectedDates[0]);
-            calculateNights();
-          }
-        },
-      });
-
-      // Initial calculation
-      calculateNights();
+  const handleCheckInChange = (date: Date | undefined) => {
+    if (date) {
+      setCheckIn(date);
+      if (date >= checkOut) {
+        setCheckOut(addDays(date, 1));
+      }
     }
+  };
 
-    return () => {
-      checkInPickerRef.current?.destroy();
-      checkOutPickerRef.current?.destroy();
-    };
-  }, []);
-
-  const calculateNights = () => {
-    if (checkInRef.current?.value && checkOutRef.current?.value) {
-      const startDate = new Date(checkInRef.current.value);
-      const endDate = new Date(checkOutRef.current.value);
-      const difference = endDate.getTime() - startDate.getTime();
-      const nightsCount = Math.floor(difference / (1000 * 60 * 60 * 24));
-      setNights(nightsCount > 0 ? nightsCount : 0);
+  const handleCheckOutChange = (date: Date | undefined) => {
+    if (date && date > checkIn) {
+      setCheckOut(date);
     }
   };
 
   const handleCheckAvailability = () => {
-    const checkIn = checkInRef.current?.value;
-    const checkOut = checkOutRef.current?.value;
-    
-    if (checkIn && checkOut) {
-      const url = `https://book.nightsbridge.com/${bbid}?startdate=${checkIn}&enddate=${checkOut}`;
-      window.open(url, "_blank");
-    }
+    const url = `https://book.nightsbridge.com/${bbid}?startdate=${format(checkIn, "yyyy-MM-dd")}&enddate=${format(checkOut, "yyyy-MM-dd")}`;
+    window.open(url, "_blank");
   };
 
   const handleBookNow = () => {
@@ -131,9 +86,7 @@ const NB = () => {
   };
 
   const getIframeUrl = () => {
-    const checkIn = checkInRef.current?.value || new Date().toISOString().split('T')[0];
-    const checkOut = checkOutRef.current?.value || new Date(Date.now() + 86400000).toISOString().split('T')[0];
-    return `https://book.nightsbridge.com/${bbid}?startdate=${checkIn}&enddate=${checkOut}`;
+    return `https://book.nightsbridge.com/${bbid}?startdate=${format(checkIn, "yyyy-MM-dd")}&enddate=${format(checkOut, "yyyy-MM-dd")}`;
   };
 
   return (
@@ -171,26 +124,57 @@ const NB = () => {
                 </div>
                 <div>
                   <Label>Check-In</Label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <input
-                      ref={checkInRef}
-                      type="text"
-                      className="flex h-10 w-full rounded-md border border-input bg-background pl-10 pr-3 py-2 text-sm"
-                    />
-                  </div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !checkIn && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {format(checkIn, "yyyy-MM-dd")}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={checkIn}
+                        onSelect={handleCheckInChange}
+                        disabled={(date) => date < new Date()}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div>
                   <Label>Check-Out</Label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <input
-                      ref={checkOutRef}
-                      type="text"
-                      onChange={calculateNights}
-                      className="flex h-10 w-full rounded-md border border-input bg-background pl-10 pr-3 py-2 text-sm"
-                    />
-                  </div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !checkOut && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {format(checkOut, "yyyy-MM-dd")}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={checkOut}
+                        onSelect={handleCheckOutChange}
+                        disabled={(date) => date <= checkIn}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
               
