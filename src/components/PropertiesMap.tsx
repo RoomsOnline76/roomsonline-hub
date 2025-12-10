@@ -284,7 +284,10 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
       });
 
       marker.addListener("click", () => {
-        infoWindow.open(mapInstanceRef.current);
+        infoWindow.open({
+          anchor: marker,
+          map: mapInstanceRef.current,
+        });
       });
 
       markersRef.current.push(marker);
