@@ -456,64 +456,66 @@ export default function PropertyShowcase() {
     return (
       <div className="min-h-screen bg-background flex flex-col">
         {/* Header with back button */}
-        <div className="bg-background border-b border-border px-4 py-3 flex items-center gap-4 shrink-0">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => navigate("/")}
-            className="gap-2 shrink-0"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Back to Search</span>
-          </Button>
-          
-          {/* RoomsOnline branding */}
-          <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 border-l border-border">
-            <img 
-              src={rolWreathLogo} 
-              alt="RoomsOnline" 
-              className="h-10 w-10 sm:h-12 sm:w-12 object-contain"
-            />
-            <span className="text-sm sm:text-base font-semibold text-primary italic whitespace-nowrap">proudly presenting</span>
-          </div>
-          
-          {/* Property info - stacked */}
-          <div className="flex-1 min-w-0 border-l border-border pl-3 sm:pl-4">
-            <div className="flex items-center gap-2">
-              <h1 className="font-semibold text-sm sm:text-base truncate">{property.name}</h1>
-              <span className="text-xs text-muted-foreground hidden sm:inline">•</span>
-              <span className="text-xs text-muted-foreground truncate hidden sm:inline">
-                {property.city}, {property.country}
-              </span>
+        <div className="bg-background border-b border-border px-4 py-2 shrink-0 overflow-hidden">
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => navigate("/")}
+              className="gap-1.5 shrink-0 h-8"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline text-xs">Back</span>
+            </Button>
+            
+            {/* RoomsOnline branding */}
+            <div className="flex items-center gap-2 px-2 border-l border-border shrink-0">
+              <img 
+                src={rolWreathLogo} 
+                alt="RoomsOnline" 
+                className="h-8 w-8 sm:h-10 sm:w-10 object-contain"
+              />
+              <span className="text-xs sm:text-sm font-semibold text-primary italic whitespace-nowrap">proudly presenting</span>
             </div>
-            <p className="text-xs text-muted-foreground truncate sm:hidden">
-              {property.city}, {property.country}
-            </p>
-            {/* Room types summary */}
-            {(() => {
-              const rooms: any[] = property.amenities?.rooms || property.amenities?.room_types || [];
-              if (rooms.length === 0) return null;
-              return (
-                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                  {rooms.map((room, idx) => {
-                    const maxAdults = room.maxPeople || room.maxAdults || 2;
-                    const maxChildren = room.maxChildren || 0;
-                    const numRooms = room.numRooms || room.numberOfRooms || room.rooms || 1;
-                    const description = room.description || '';
-                    return (
-                      <span key={room.id || idx} className="text-[10px] text-muted-foreground whitespace-nowrap">
-                        <span className="font-medium text-foreground/80">{room.name}</span>
-                        {description && <span className="text-muted-foreground/70"> - {description}</span>}
-                        <span className="text-muted-foreground/70">
-                          {" "}({numRooms}×, {maxAdults}A{maxChildren > 0 ? `/${maxChildren}C` : ""})
-                        </span>
-                      </span>
-                    );
-                  })}
-                </div>
-              );
-            })()}
+            
+            {/* Property info */}
+            <div className="min-w-0 border-l border-border pl-3 overflow-hidden">
+              <div className="flex items-center gap-2">
+                <h1 className="font-semibold text-xs sm:text-sm truncate">{property.name}</h1>
+                <span className="text-[10px] text-muted-foreground hidden sm:inline">•</span>
+                <span className="text-[10px] text-muted-foreground truncate hidden sm:inline">
+                  {property.city}, {property.country}
+                </span>
+              </div>
+            </div>
           </div>
+          
+          {/* Room types summary - separate row */}
+          {(() => {
+            const rooms: any[] = property.amenities?.rooms || property.amenities?.room_types || [];
+            if (rooms.length === 0) return null;
+            return (
+              <div className="flex flex-wrap gap-x-2 gap-y-0 mt-1.5 overflow-hidden">
+                {rooms.map((room, idx) => {
+                  const maxAdults = room.maxPeople || room.maxAdults || 2;
+                  const maxChildren = room.maxChildren || 0;
+                  const numRooms = room.numRooms || room.numberOfRooms || room.rooms || 1;
+                  const description = room.description || '';
+                  // Truncate long descriptions
+                  const shortDesc = description.length > 40 ? description.substring(0, 40) + '…' : description;
+                  return (
+                    <span key={room.id || idx} className="text-[10px] text-muted-foreground" title={description}>
+                      <span className="font-medium text-primary/80">{room.name}</span>
+                      {shortDesc && <span className="text-muted-foreground/70"> - {shortDesc}</span>}
+                      <span className="text-muted-foreground/60">
+                        {" "}({numRooms}×, {maxAdults}A{maxChildren > 0 ? `/${maxChildren}C` : ""})
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
         
         {/* Main content with iframe and TripAdvisor */}
