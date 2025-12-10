@@ -5177,6 +5177,49 @@ export default function PropertyForm() {
                         </div>
                       </div>
 
+                      {/* NightsBridge-specific fields */}
+                      {selectedPMS === 'nightsbridge' && (
+                        <div className="space-y-2 pt-2 border-t">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Max Adults</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                className="h-7 text-xs"
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.maxPeople || 2}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "maxPeople", parseInt(e.target.value) || 2)
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Max Children</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                className="h-7 text-xs"
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.maxChildren || 0}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "maxChildren", parseInt(e.target.value) || 0)
+                                }
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Description</Label>
+                            <Textarea
+                              className="text-xs min-h-[60px]"
+                              placeholder="Room description..."
+                              value={roomTypes.find((r) => r.id === selectedRoomType)?.description || ""}
+                              onChange={(e) =>
+                                updateRoomTypeField(selectedRoomType, "description", e.target.value)
+                              }
+                            />
+                          </div>
+                        </div>
+                      )}
+
                       {selectedPMS !== 'nightsbridge' && (
                         <>
                           {selectedPMS && (
