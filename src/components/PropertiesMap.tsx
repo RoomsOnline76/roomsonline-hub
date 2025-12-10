@@ -38,7 +38,7 @@ const DEFAULT_COLOR = "#e11d48";
 export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const markersRef = useRef<google.maps.Marker[]>([]);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [mapsLoaded, setMapsLoaded] = useState(false);
@@ -109,7 +109,8 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
     if (!apiKey || loading) return;
 
     // Already loaded
-    if (window.google?.maps) {
+    if (window.google?.maps?.Map) {
+      console.log("Google Maps already available");
       setMapsLoaded(true);
       return;
     }
@@ -117,9 +118,11 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
     // Check if script already exists
     const existingScript = document.querySelector(`script[src*="maps.googleapis.com"]`);
     if (existingScript) {
+      console.log("Google Maps script already in DOM, polling...");
       // Poll for google.maps to be available
       const intervalId = setInterval(() => {
-        if (window.google?.maps) {
+        if (window.google?.maps?.Map) {
+          console.log("Google Maps loaded via polling");
           setMapsLoaded(true);
           clearInterval(intervalId);
         }
@@ -128,7 +131,7 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
       // Timeout after 10s
       const timeoutId = setTimeout(() => {
         clearInterval(intervalId);
-        if (!window.google?.maps) {
+        if (!window.google?.maps?.Map) {
           console.error("Google Maps failed to load (timeout)");
           setMapError(true);
         }
@@ -140,23 +143,25 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
       };
     }
 
+    console.log("Loading Google Maps script...");
     // Create and load script with real callback
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&callback=initGoogleMaps`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&callback=initGoogleMaps&v=weekly`;
     script.async = true;
-    script.onerror = () => {
-      console.error("Failed to load Google Maps script");
+    script.defer = true;
+    script.onerror = (e) => {
+      console.error("Failed to load Google Maps script", e);
       setMapError(true);
     };
     document.head.appendChild(script);
 
     // Timeout fallback
     const timeoutId = setTimeout(() => {
-      if (!window.google?.maps) {
+      if (!window.google?.maps?.Map) {
         console.error("Google Maps failed to load (timeout)");
         setMapError(true);
       }
-    }, 10000);
+    }, 15000);
 
     return () => {
       clearTimeout(timeoutId);
@@ -171,8 +176,9 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
 
   // Initialize map once
   useEffect(() => {
-    if (!mapRef.current || !mapsLoaded || !window.google?.maps || mapInstanceRef.current) return;
+    if (!mapRef.current || !mapsLoaded || !window.google?.maps?.Map || mapInstanceRef.current) return;
 
+    console.log("Initializing Google Map...");
     try {
       mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
         center: { lat: -28.4793, lng: 24.6727 },
@@ -180,7 +186,6 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: true,
-        mapId: "PROPERTIES_MAP",
         styles: [
           {
             featureType: "poi",
@@ -189,6 +194,8 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
           }
         ]
       });
+
+      console.log("Google Map initialized successfully");
 
       // Aggressive resize triggers for iOS
       const triggerResize = () => {
@@ -230,7 +237,7 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
     if (!mapsLoaded || !mapInstanceRef.current || !window.google?.maps) return;
 
     // Clear existing markers
-    markersRef.current.forEach((marker) => marker.map = null);
+    markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
 
     if (filteredProperties.length === 0) return;
@@ -245,23 +252,19 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
 
       const markerColor = typeColors?.[property.property_type] || DEFAULT_COLOR;
 
-      // Create custom pin element for AdvancedMarkerElement
-      const pinElement = document.createElement("div");
-      pinElement.style.cssText = `
-        width: 24px;
-        height: 24px;
-        background-color: ${markerColor};
-        border: 3px solid white;
-        border-radius: 50%;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        cursor: pointer;
-      `;
-
-      const marker = new window.google.maps.marker.AdvancedMarkerElement({
+      // Create marker with custom SVG icon
+      const marker = new window.google.maps.Marker({
         position,
         map: mapInstanceRef.current,
         title: property.name,
-        content: pinElement,
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          fillColor: markerColor,
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 3,
+          scale: 10,
+        },
       });
 
       const mainImage = property.images?.[0];
@@ -284,10 +287,7 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
       });
 
       marker.addListener("click", () => {
-        infoWindow.open({
-          anchor: marker,
-          map: mapInstanceRef.current,
-        });
+        infoWindow.open(mapInstanceRef.current, marker);
       });
 
       markersRef.current.push(marker);
