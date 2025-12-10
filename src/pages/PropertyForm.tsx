@@ -2286,7 +2286,7 @@ export default function PropertyForm() {
                 { value: "packages", icon: Package, label: "Packages" },
                 { value: "announcements", icon: Bell, label: "Announcements" },
               ]
-                .filter((tab) => selectedPMS !== 'nightsbridge' || tab.value === 'general')
+                .filter((tab) => selectedPMS !== 'nightsbridge' || tab.value === 'general' || tab.value === 'images')
                 .map((tab) => {
                 const isActive = activeTab === tab.value;
                 const Icon = tab.icon;
