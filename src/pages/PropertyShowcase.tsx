@@ -465,7 +465,18 @@ export default function PropertyShowcase() {
             <ChevronLeft className="h-4 w-4" />
             Back to Search
           </Button>
-          <div className="flex-1">
+          
+          {/* RoomsOnline branding */}
+          <div className="flex items-center gap-3 px-3 border-l border-border">
+            <img 
+              src="/images/rol-logo.png" 
+              alt="RoomsOnline" 
+              className="h-6 w-auto"
+            />
+            <span className="text-xs text-muted-foreground italic hidden sm:inline">proudly presenting</span>
+          </div>
+          
+          <div className="flex-1 text-right">
             <h1 className="font-semibold text-sm sm:text-base line-clamp-1">{property.name}</h1>
             <p className="text-xs text-muted-foreground line-clamp-1">
               {property.city}, {property.country}
