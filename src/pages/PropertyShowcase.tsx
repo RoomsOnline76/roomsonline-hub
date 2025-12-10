@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 import TripAdvisorReviews from "@/components/TripAdvisorReviews";
+import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
 import { 
   Star, 
   MapPin, 
@@ -460,25 +461,26 @@ export default function PropertyShowcase() {
             variant="outline" 
             size="sm" 
             onClick={() => navigate("/")}
-            className="gap-2"
+            className="gap-2 shrink-0"
           >
             <ChevronLeft className="h-4 w-4" />
-            Back to Search
+            <span className="hidden sm:inline">Back to Search</span>
           </Button>
           
           {/* RoomsOnline branding */}
-          <div className="flex items-center gap-3 px-3 border-l border-border">
+          <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 border-l border-border">
             <img 
-              src="/images/rol-logo.png" 
+              src={rolWreathLogo} 
               alt="RoomsOnline" 
-              className="h-6 w-auto"
+              className="h-8 w-8 sm:h-10 sm:w-10 object-contain"
             />
-            <span className="text-xs text-muted-foreground italic hidden sm:inline">proudly presenting</span>
+            <span className="text-[10px] sm:text-xs text-muted-foreground italic whitespace-nowrap">proudly presenting</span>
           </div>
           
-          <div className="flex-1 text-right">
-            <h1 className="font-semibold text-sm sm:text-base line-clamp-1">{property.name}</h1>
-            <p className="text-xs text-muted-foreground line-clamp-1">
+          {/* Property info - stacked */}
+          <div className="flex-1 min-w-0 border-l border-border pl-3 sm:pl-4">
+            <h1 className="font-semibold text-sm sm:text-base truncate">{property.name}</h1>
+            <p className="text-xs text-muted-foreground truncate">
               {property.city}, {property.country}
             </p>
           </div>
