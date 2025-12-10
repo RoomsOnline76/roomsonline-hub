@@ -92,8 +92,7 @@ const NB = () => {
   const getIframeUrl = () => {
     const checkIn = checkInRef.current?.value || new Date().toISOString().split('T')[0];
     const checkOut = checkOutRef.current?.value || new Date(Date.now() + 86400000).toISOString().split('T')[0];
-    // Using nbid=371 parameter which enables iframe embedding
-    return `https://book.nightsbridge.com/${bbid}?nbid=371&startdate=${checkIn}&enddate=${checkOut}`;
+    return `https://book.nightsbridge.com/${bbid}?startdate=${checkIn}&enddate=${checkOut}`;
   };
 
   return (
