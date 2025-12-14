@@ -63,6 +63,28 @@ import { TagInput } from "@/components/TagInput";
 import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS } from "@/lib/pmsFieldConfig";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import RichTextEditor from "@/components/RichTextEditor";
+import { pmsIntegrationStatus } from "@/components/ApiMilestones";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
+
+// Check if a PMS is fully integrated (all milestones complete)
+const isPMSFullyIntegrated = (systemType: string): boolean => {
+  const status = pmsIntegrationStatus[systemType];
+  if (!status) return false;
+  return Object.values(status).every(v => v === true);
+};
+
+// Check if a PMS has any integration progress
+const getPMSIntegrationLevel = (systemType: string): 'none' | 'partial' | 'full' => {
+  const status = pmsIntegrationStatus[systemType];
+  if (!status) return 'none';
+  const values = Object.values(status);
+  const completeCount = values.filter(v => v === true).length;
+  const pendingCount = values.filter(v => v === 'pending').length;
+  if (completeCount === values.length) return 'full';
+  if (completeCount > 0 || pendingCount > 0) return 'partial';
+  return 'none';
+};
 
 // Map PMS system types to icons
 const getPMSIcon = (systemType: string): LucideIcon => {
@@ -2408,6 +2430,23 @@ export default function PropertyForm() {
                             })}
                           </SelectContent>
                         </Select>
+                        {selectedPMS && selectedPMS !== "none" && !isPMSFullyIntegrated(selectedPMS) && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <AlertTriangle className="h-4 w-4 text-amber-500 cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="max-w-xs">
+                                <p className="text-xs">
+                                  {getPMSIntegrationLevel(selectedPMS) === 'partial' 
+                                    ? `${getPMSDisplayName(selectedPMS)} integration is partially implemented. Some features may not work.`
+                                    : `${getPMSDisplayName(selectedPMS)} integration has not been implemented yet.`
+                                  }
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                       </div>
 
                       {selectedPMS === "nightsbridge" && (
