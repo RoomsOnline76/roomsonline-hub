@@ -177,6 +177,7 @@ const createPropertySchema = (noStreetAddress: boolean) =>
     extra_beds_available: z.boolean().optional(),
     extra_bed_price: z.string().optional(),
     child_adult_age: z.string().optional(),
+    fine_print: z.string().optional(),
   });
 
 // Create a base schema for type inference
@@ -810,6 +811,7 @@ export default function PropertyForm() {
     extra_beds_available: false,
     extra_bed_price: "",
     child_adult_age: "12",
+    fine_print: "",
   });
 
   const [starRating, setStarRating] = useState(0);
@@ -1813,6 +1815,7 @@ export default function PropertyForm() {
             extra_beds_available: houseRules.extra_beds_available ?? false,
             extra_bed_price: houseRules.extra_bed_price || "",
             child_adult_age: houseRules.child_adult_age || "12",
+            fine_print: houseRules.fine_print || "",
           });
 
           // Set offerings
@@ -2252,6 +2255,7 @@ export default function PropertyForm() {
             extra_beds_available: formData.extra_beds_available,
             extra_bed_price: formData.extra_bed_price,
             child_adult_age: formData.child_adult_age,
+            fine_print: formData.fine_print,
           },
           house_style: {
             company_logo: companyLogo,
@@ -3872,6 +3876,23 @@ Prime Location: Located near major attractions and airports."
                           onChange={(e) => handleInputChange("special_requests_message", e.target.value)}
                           placeholder="e.g., Property takes special requests - add in the next step!"
                           rows={2}
+                          className="resize-none text-xs"
+                        />
+                      </CardContent>
+                    </Card>
+
+                    {/* The Fine Print */}
+                    <Card>
+                      <CardHeader className="py-2 px-3">
+                        <CardTitle className="text-xs">The Fine Print</CardTitle>
+                        <p className="text-xs text-muted-foreground">Need-to-know information for guests</p>
+                      </CardHeader>
+                      <CardContent className="py-2 px-3">
+                        <Textarea
+                          value={formData.fine_print}
+                          onChange={(e) => handleInputChange("fine_print", e.target.value)}
+                          placeholder="e.g., Please inform the property in advance of your expected arrival time. You can use the Special Requests box when booking, or contact the property directly with the contact details provided in your confirmation."
+                          rows={3}
                           className="resize-none text-xs"
                         />
                       </CardContent>
