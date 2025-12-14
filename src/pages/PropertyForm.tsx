@@ -5815,178 +5815,139 @@ export default function PropertyForm() {
                         </p>
                       </div>
 
-                      <div className="grid grid-cols-6 gap-6">
-                        {/* Cooking */}
+                      <div className="grid grid-cols-4 gap-6">
+                        {/* Cooking & Kitchen */}
                         <div className="space-y-3">
-                          <h4 className="font-semibold text-sm">Cooking</h4>
+                          <h4 className="font-semibold text-sm">Cooking & Kitchen</h4>
                           {[
                             "Braai/Barbeque Facilities",
-                            "Cleaning Service",
                             "Coffee/tea facilities",
-                            "DSTV/Satellite TV",
-                            "Desk",
-                            "Dining Table",
-                            "Ironing board",
+                            "Electric kettle",
+                            "Kitchenette",
                             "Microwave",
-                            "Non-smoking",
-                            "Outdoor Furniture",
-                            "Outdoor dining area",
                             "Oven",
-                            "Patio",
                             "Refrigerator",
-                            "Sitting area",
                             "Toaster",
                             "Two Plate Stove",
-                            "Wake up call",
+                            "Dining Table",
                           ].map((item) => (
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`facility-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(
-                                  item,
-                                )}
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(item)}
                                 onCheckedChange={(checked) => {
-                                  const currentFacilities =
-                                    ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
-                                  const newFacilities = checked
-                                    ? [...currentFacilities, item]
-                                    : currentFacilities.filter((f: string) => f !== item);
+                                  const currentFacilities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
+                                  const newFacilities = checked ? [...currentFacilities, item] : currentFacilities.filter((f: string) => f !== item);
                                   updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
                                 }}
                               />
-                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
-                                {item}
-                              </Label>
+                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
                             </div>
                           ))}
                         </div>
 
-                        {/* General */}
+                        {/* Room Features */}
                         <div className="space-y-3">
-                          <h4 className="font-semibold text-sm">General</h4>
-                          {["Kitchenette", "Hairdryer", "Shower and bath", "Telephone"].map((item) => (
+                          <h4 className="font-semibold text-sm">Room Features</h4>
+                          {[
+                            "Airconditioned room",
+                            "Heating",
+                            "Electric blankets",
+                            "Hypoallergenic",
+                            "Desk",
+                            "Sitting area",
+                            "DSTV/Satellite TV",
+                            "Flat screen TV",
+                            "Telephone",
+                            "Shared lounge/TV area",
+                            "Non-smoking",
+                            "Patio",
+                            "Terrace",
+                            "Outdoor Furniture",
+                            "Outdoor dining area",
+                          ].map((item) => (
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`facility-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(
-                                  item,
-                                )}
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(item)}
                                 onCheckedChange={(checked) => {
-                                  const currentFacilities =
-                                    ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
-                                  const newFacilities = checked
-                                    ? [...currentFacilities, item]
-                                    : currentFacilities.filter((f: string) => f !== item);
+                                  const currentFacilities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
+                                  const newFacilities = checked ? [...currentFacilities, item] : currentFacilities.filter((f: string) => f !== item);
                                   updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
                                 }}
                               />
-                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
-                                {item}
-                              </Label>
+                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
                             </div>
                           ))}
                         </div>
 
-                        {/* Laundry */}
+                        {/* Bathroom & Laundry */}
                         <div className="space-y-3">
-                          <h4 className="font-semibold text-sm">Laundry</h4>
-                          {["Airconditioned room", "Iron", "Washing machine"].map((item) => (
+                          <h4 className="font-semibold text-sm">Bathroom & Laundry</h4>
+                          {[
+                            "Shower and bath",
+                            "Hairdryer",
+                            "Cleaning Service",
+                            "Daily housekeeping",
+                            "Iron",
+                            "Ironing board",
+                            "Ironing service",
+                            "Laundry",
+                            "Trouser press",
+                            "Washing machine",
+                          ].map((item) => (
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`facility-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(
-                                  item,
-                                )}
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(item)}
                                 onCheckedChange={(checked) => {
-                                  const currentFacilities =
-                                    ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
-                                  const newFacilities = checked
-                                    ? [...currentFacilities, item]
-                                    : currentFacilities.filter((f: string) => f !== item);
+                                  const currentFacilities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
+                                  const newFacilities = checked ? [...currentFacilities, item] : currentFacilities.filter((f: string) => f !== item);
                                   updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
                                 }}
                               />
-                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
-                                {item}
-                              </Label>
+                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
                             </div>
                           ))}
                         </div>
 
-                        {/* Media */}
+                        {/* Security & Safety */}
                         <div className="space-y-3">
-                          <h4 className="font-semibold text-sm">Media</h4>
-                          {["Flat screen TV"].map((item) => (
+                          <h4 className="font-semibold text-sm">Security & Safety</h4>
+                          {[
+                            "Safe",
+                            "Safety deposit box",
+                            "Fire extinguishers",
+                            "Key access",
+                            "24-hour security",
+                          ].map((item) => (
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`facility-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(
-                                  item,
-                                )}
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(item)}
                                 onCheckedChange={(checked) => {
-                                  const currentFacilities =
-                                    ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
-                                  const newFacilities = checked
-                                    ? [...currentFacilities, item]
-                                    : currentFacilities.filter((f: string) => f !== item);
+                                  const currentFacilities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
+                                  const newFacilities = checked ? [...currentFacilities, item] : currentFacilities.filter((f: string) => f !== item);
                                   updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
                                 }}
                               />
-                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
-                                {item}
-                              </Label>
+                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
                             </div>
                           ))}
-                        </div>
 
-                        {/* Security */}
-                        <div className="space-y-3">
-                          <h4 className="font-semibold text-sm">Security</h4>
-                          {["Safe"].map((item) => (
+                          <h4 className="font-semibold text-sm pt-4">View</h4>
+                          {["Garden view", "Landmark view", "Mountain view", "Pool view"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`facility-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(
-                                  item,
-                                )}
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(item)}
                                 onCheckedChange={(checked) => {
-                                  const currentFacilities =
-                                    ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
-                                  const newFacilities = checked
-                                    ? [...currentFacilities, item]
-                                    : currentFacilities.filter((f: string) => f !== item);
+                                  const currentFacilities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
+                                  const newFacilities = checked ? [...currentFacilities, item] : currentFacilities.filter((f: string) => f !== item);
                                   updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
                                 }}
                               />
-                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
-                                {item}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* View */}
-                        <div className="space-y-3">
-                          <h4 className="font-semibold text-sm">View</h4>
-                          {["Garden view", "Landmark view", "Mountain view", "Pool view", "Terrace"].map((item) => (
-                            <div key={item} className="flex items-center gap-2">
-                              <Checkbox
-                                id={`facility-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(
-                                  item,
-                                )}
-                                onCheckedChange={(checked) => {
-                                  const currentFacilities =
-                                    ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
-                                  const newFacilities = checked
-                                    ? [...currentFacilities, item]
-                                    : currentFacilities.filter((f: string) => f !== item);
-                                  updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
-                                }}
-                              />
-                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
-                                {item}
-                              </Label>
+                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
                             </div>
                           ))}
                         </div>
@@ -6001,80 +5962,199 @@ export default function PropertyForm() {
                         </p>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-6">
+                      <div className="grid grid-cols-4 gap-6">
+                        {/* Bathroom */}
                         <div className="space-y-3">
                           <h4 className="font-semibold text-sm">Bathroom</h4>
-                          {["Bathroom amenities", "Hand wash", "Towels", "Bathrobe", "Slippers", "Toiletries"].map(
-                            (item) => (
-                              <div key={item} className="flex items-center gap-2">
-                                <Checkbox
-                                  id={`amenity-${item}`}
-                                  checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(
-                                    item,
-                                  )}
-                                  onCheckedChange={(checked) => {
-                                    const currentAmenities =
-                                      ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
-                                    const newAmenities = checked
-                                      ? [...currentAmenities, item]
-                                      : currentAmenities.filter((a: string) => a !== item);
-                                    updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
-                                  }}
-                                />
-                                <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">
-                                  {item}
-                                </Label>
-                              </div>
-                            ),
-                          )}
-                        </div>
-                        <div className="space-y-3">
-                          <h4 className="font-semibold text-sm">Bedroom</h4>
-                          {["Extra pillows", "Extra blankets", "Linen", "Blackout curtains", "Reading lamp"].map(
-                            (item) => (
-                              <div key={item} className="flex items-center gap-2">
-                                <Checkbox
-                                  id={`amenity-${item}`}
-                                  checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(
-                                    item,
-                                  )}
-                                  onCheckedChange={(checked) => {
-                                    const currentAmenities =
-                                      ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
-                                    const newAmenities = checked
-                                      ? [...currentAmenities, item]
-                                      : currentAmenities.filter((a: string) => a !== item);
-                                    updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
-                                  }}
-                                />
-                                <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">
-                                  {item}
-                                </Label>
-                              </div>
-                            ),
-                          )}
-                        </div>
-                        <div className="space-y-3">
-                          <h4 className="font-semibold text-sm">Extras</h4>
-                          {["Welcome pack", "Mini bar", "Bottled water", "Fruit basket", "Snacks"].map((item) => (
+                          {["Bathroom amenities", "Hand wash", "Towels", "Bathrobe", "Slippers", "Toiletries", "Toilet paper", "Shower cap"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`amenity-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(
-                                  item,
-                                )}
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
                                 onCheckedChange={(checked) => {
-                                  const currentAmenities =
-                                    ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
-                                  const newAmenities = checked
-                                    ? [...currentAmenities, item]
-                                    : currentAmenities.filter((a: string) => a !== item);
+                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
+                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
                                   updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
                                 }}
                               />
-                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">
-                                {item}
-                              </Label>
+                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Bedroom */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">Bedroom</h4>
+                          {["Extra pillows", "Extra blankets", "Linen", "Blackout curtains", "Reading lamp", "Wake up call", "Socket near bed", "Clothes rack"].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox
+                                id={`amenity-${item}`}
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
+                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
+                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
+                                }}
+                              />
+                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Food & Drink */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">Food & Drink</h4>
+                          {[
+                            "Welcome pack",
+                            "Mini bar",
+                            "Bottled water",
+                            "Fruit basket",
+                            "Snacks",
+                            "Wine/champagne",
+                            "Coffee house on site",
+                            "Kid-friendly buffet",
+                            "Kid meals",
+                            "Special diet menus",
+                            "Snack bar",
+                          ].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox
+                                id={`amenity-${item}`}
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
+                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
+                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
+                                }}
+                              />
+                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Wellness & Spa */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">Wellness & Spa</h4>
+                          {[
+                            "Full body massage",
+                            "Hand massage",
+                            "Head massage",
+                            "Couples massage",
+                            "Foot massage",
+                            "Neck massage",
+                            "Back massage",
+                            "Body treatments",
+                          ].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox
+                                id={`amenity-${item}`}
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
+                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
+                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
+                                }}
+                              />
+                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Activities */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">Activities</h4>
+                          {[
+                            "Live music/performance",
+                            "Themed dinner nights",
+                            "Walking tours",
+                            "Game drives",
+                            "Evening entertainment",
+                            "Entertainment staff",
+                            "Hiking",
+                            "Board games/puzzles",
+                          ].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox
+                                id={`amenity-${item}`}
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
+                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
+                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
+                                }}
+                              />
+                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Business & Reception */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">Business & Reception</h4>
+                          {[
+                            "Fax/photocopying",
+                            "Business centre",
+                            "Meeting/banquet facilities",
+                            "Invoice provided",
+                            "Private check-in/check-out",
+                            "Concierge service",
+                            "Luggage storage",
+                            "Tour desk",
+                            "Express check-in/check-out",
+                          ].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox
+                                id={`amenity-${item}`}
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
+                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
+                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
+                                }}
+                              />
+                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Family Services */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">Family Services</h4>
+                          {[
+                            "Babysitting/child services",
+                            "All ages welcome",
+                            "Shuttle service",
+                          ].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox
+                                id={`amenity-${item}`}
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
+                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
+                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
+                                }}
+                              />
+                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Internet */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm">Internet</h4>
+                          {["Free WiFi", "WiFi available"].map((item) => (
+                            <div key={item} className="flex items-center gap-2">
+                              <Checkbox
+                                id={`amenity-${item}`}
+                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
+                                onCheckedChange={(checked) => {
+                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
+                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
+                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
+                                }}
+                              />
+                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
                             </div>
                           ))}
                         </div>
