@@ -165,6 +165,18 @@ const createPropertySchema = (noStreetAddress: boolean) =>
     closest_airport: z.string().optional(),
     closest_airport_distance: z.string().optional(),
     couples_rating: z.string().optional(),
+    // Additional House Rules fields
+    min_check_in_age: z.string().optional(),
+    pets_policy: z.string().optional(),
+    special_requests_message: z.string().optional(),
+    advance_notice_required: z.boolean().optional(),
+    cot_available: z.boolean().optional(),
+    cot_age_from: z.string().optional(),
+    cot_age_to: z.string().optional(),
+    cot_price: z.string().optional(),
+    extra_beds_available: z.boolean().optional(),
+    extra_bed_price: z.string().optional(),
+    child_adult_age: z.string().optional(),
   });
 
 // Create a base schema for type inference
@@ -786,6 +798,18 @@ export default function PropertyForm() {
     closest_airport: "",
     closest_airport_distance: "",
     couples_rating: "",
+    // Additional House Rules fields
+    min_check_in_age: "18",
+    pets_policy: "",
+    special_requests_message: "",
+    advance_notice_required: true,
+    cot_available: false,
+    cot_age_from: "0",
+    cot_age_to: "2",
+    cot_price: "Free",
+    extra_beds_available: false,
+    extra_bed_price: "",
+    child_adult_age: "12",
   });
 
   const [starRating, setStarRating] = useState(0);
@@ -1768,6 +1792,27 @@ export default function PropertyForm() {
             infant_age_to: houseRules.infant_age_to || "2",
             children_age_from: houseRules.children_age_from || "3",
             children_age_to: houseRules.children_age_to || "12",
+            // Property Info fields
+            about_property: amenities?.property_info?.about_property || "",
+            restaurants_cafes: amenities?.property_info?.restaurants_cafes || "",
+            restaurants_cafes_distance: amenities?.property_info?.restaurants_cafes_distance || "",
+            public_transport: amenities?.property_info?.public_transport || "",
+            public_transport_distance: amenities?.property_info?.public_transport_distance || "",
+            closest_airport: amenities?.property_info?.closest_airport || "",
+            closest_airport_distance: amenities?.property_info?.closest_airport_distance || "",
+            couples_rating: amenities?.property_info?.couples_rating || "",
+            // Additional House Rules fields
+            min_check_in_age: houseRules.min_check_in_age || "18",
+            pets_policy: houseRules.pets_policy || "",
+            special_requests_message: houseRules.special_requests_message || "",
+            advance_notice_required: houseRules.advance_notice_required ?? true,
+            cot_available: houseRules.cot_available ?? false,
+            cot_age_from: houseRules.cot_age_from || "0",
+            cot_age_to: houseRules.cot_age_to || "2",
+            cot_price: houseRules.cot_price || "Free",
+            extra_beds_available: houseRules.extra_beds_available ?? false,
+            extra_bed_price: houseRules.extra_bed_price || "",
+            child_adult_age: houseRules.child_adult_age || "12",
           });
 
           // Set offerings
@@ -2160,6 +2205,16 @@ export default function PropertyForm() {
             benson_id: selectedPMS === "benson" ? formData.bb_id : existingExternalIds.benson_id,
             tripadvisor_id: tripadvisorId || existingExternalIds.tripadvisor_id,
           },
+          property_info: {
+            about_property: formData.about_property,
+            restaurants_cafes: formData.restaurants_cafes,
+            restaurants_cafes_distance: formData.restaurants_cafes_distance,
+            public_transport: formData.public_transport,
+            public_transport_distance: formData.public_transport_distance,
+            closest_airport: formData.closest_airport,
+            closest_airport_distance: formData.closest_airport_distance,
+            couples_rating: formData.couples_rating,
+          },
           room_types: roomTypes,
           meal_types: selectedMealTypes,
           star_rating: starRating,
@@ -2186,6 +2241,17 @@ export default function PropertyForm() {
             infant_age_to: formData.infant_age_to,
             children_age_from: formData.children_age_from,
             children_age_to: formData.children_age_to,
+            min_check_in_age: formData.min_check_in_age,
+            pets_policy: formData.pets_policy,
+            special_requests_message: formData.special_requests_message,
+            advance_notice_required: formData.advance_notice_required,
+            cot_available: formData.cot_available,
+            cot_age_from: formData.cot_age_from,
+            cot_age_to: formData.cot_age_to,
+            cot_price: formData.cot_price,
+            extra_beds_available: formData.extra_beds_available,
+            extra_bed_price: formData.extra_bed_price,
+            child_adult_age: formData.child_adult_age,
           },
           house_style: {
             company_logo: companyLogo,
@@ -3691,6 +3757,125 @@ Prime Location: Located near major attractions and airports."
                         </CardContent>
                       </Card>
                     </div>
+
+                    {/* Additional Rules Row - Age Restriction, Pets Policy, Cot & Extra Beds */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                      {/* Age Restriction */}
+                      <Card>
+                        <CardHeader className="py-1.5 px-3">
+                          <CardTitle className="text-xs">Age Restriction</CardTitle>
+                        </CardHeader>
+                        <CardContent className="py-1.5 px-3">
+                          <div className="flex items-center gap-1">
+                            <Label className="text-xs text-muted-foreground whitespace-nowrap">Min Age</Label>
+                            <Input value={formData.min_check_in_age} onChange={(e) => handleInputChange("min_check_in_age", e.target.value)} className="h-6 text-xs flex-1" placeholder="18" />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Child Charged as Adult Age */}
+                      <Card>
+                        <CardHeader className="py-1.5 px-3">
+                          <CardTitle className="text-xs">Adult Rate Age</CardTitle>
+                        </CardHeader>
+                        <CardContent className="py-1.5 px-3">
+                          <div className="flex items-center gap-1">
+                            <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
+                            <Input value={formData.child_adult_age} onChange={(e) => handleInputChange("child_adult_age", e.target.value)} className="h-6 text-xs flex-1" placeholder="12" />
+                            <span className="text-xs text-muted-foreground">yrs</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Cot Policy */}
+                      <Card>
+                        <CardHeader className="py-1.5 px-3">
+                          <CardTitle className="text-xs flex items-center gap-1.5">
+                            <Checkbox
+                              id="cot_available"
+                              checked={formData.cot_available}
+                              onCheckedChange={(checked) => setFormData({ ...formData, cot_available: checked as boolean })}
+                              className="h-3 w-3"
+                            />
+                            Cot Available
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="py-1.5 px-3 space-y-1">
+                          <div className="flex items-center gap-1">
+                            <Input value={formData.cot_age_from} onChange={(e) => handleInputChange("cot_age_from", e.target.value)} className="h-6 text-xs" placeholder="0" />
+                            <span className="text-xs">-</span>
+                            <Input value={formData.cot_age_to} onChange={(e) => handleInputChange("cot_age_to", e.target.value)} className="h-6 text-xs" placeholder="2" />
+                            <span className="text-xs text-muted-foreground">yrs</span>
+                          </div>
+                          <Input value={formData.cot_price} onChange={(e) => handleInputChange("cot_price", e.target.value)} className="h-6 text-xs" placeholder="Free" />
+                        </CardContent>
+                      </Card>
+
+                      {/* Extra Beds */}
+                      <Card>
+                        <CardHeader className="py-1.5 px-3">
+                          <CardTitle className="text-xs flex items-center gap-1.5">
+                            <Checkbox
+                              id="extra_beds_available"
+                              checked={formData.extra_beds_available}
+                              onCheckedChange={(checked) => setFormData({ ...formData, extra_beds_available: checked as boolean })}
+                              className="h-3 w-3"
+                            />
+                            Extra Beds
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="py-1.5 px-3">
+                          <div className="flex items-center gap-1">
+                            <Label className="text-xs text-muted-foreground">Price</Label>
+                            <Input value={formData.extra_bed_price} onChange={(e) => handleInputChange("extra_bed_price", e.target.value)} className="h-6 text-xs flex-1" placeholder="Amount" disabled={!formData.extra_beds_available} />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Advance Notice */}
+                      <Card>
+                        <CardHeader className="py-1.5 px-3">
+                          <CardTitle className="text-xs flex items-center gap-1.5">
+                            <Checkbox
+                              id="advance_notice_required"
+                              checked={formData.advance_notice_required}
+                              onCheckedChange={(checked) => setFormData({ ...formData, advance_notice_required: checked as boolean })}
+                              className="h-3 w-3"
+                            />
+                            Advance Notice
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="py-1.5 px-3">
+                          <p className="text-xs text-muted-foreground">Guest must notify arrival time</p>
+                        </CardContent>
+                      </Card>
+
+                      {/* Pets Policy */}
+                      <Card>
+                        <CardHeader className="py-1.5 px-3">
+                          <CardTitle className="text-xs">Pets Policy</CardTitle>
+                        </CardHeader>
+                        <CardContent className="py-1.5 px-3">
+                          <Input value={formData.pets_policy} onChange={(e) => handleInputChange("pets_policy", e.target.value)} className="h-6 text-xs" placeholder="e.g., Pets are not allowed" />
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Special Requests Message */}
+                    <Card>
+                      <CardHeader className="py-2 px-3">
+                        <CardTitle className="text-xs">Special Requests Message</CardTitle>
+                      </CardHeader>
+                      <CardContent className="py-2 px-3">
+                        <Textarea
+                          value={formData.special_requests_message}
+                          onChange={(e) => handleInputChange("special_requests_message", e.target.value)}
+                          placeholder="e.g., Property takes special requests - add in the next step!"
+                          rows={2}
+                          className="resize-none text-xs"
+                        />
+                      </CardContent>
+                    </Card>
                   </div>
 
                   {/* Right Column - Children Policy */}
