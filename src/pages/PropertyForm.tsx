@@ -156,6 +156,15 @@ const createPropertySchema = (noStreetAddress: boolean) =>
     infant_age_to: z.string().optional(),
     children_age_from: z.string().optional(),
     children_age_to: z.string().optional(),
+    // Property Info fields
+    about_property: z.string().optional(),
+    restaurants_cafes: z.string().optional(),
+    restaurants_cafes_distance: z.string().optional(),
+    public_transport: z.string().optional(),
+    public_transport_distance: z.string().optional(),
+    closest_airport: z.string().optional(),
+    closest_airport_distance: z.string().optional(),
+    couples_rating: z.string().optional(),
   });
 
 // Create a base schema for type inference
@@ -768,6 +777,15 @@ export default function PropertyForm() {
     infant_age_to: "2",
     children_age_from: "3",
     children_age_to: "12",
+    // Property Info fields
+    about_property: "",
+    restaurants_cafes: "",
+    restaurants_cafes_distance: "",
+    public_transport: "",
+    public_transport_distance: "",
+    closest_airport: "",
+    closest_airport_distance: "",
+    couples_rating: "",
   });
 
   const [starRating, setStarRating] = useState(0);
@@ -2674,6 +2692,124 @@ export default function PropertyForm() {
                     </Card>
                   </div>
                 </div>
+
+                {/* Property Info Section */}
+                <Card>
+                  <CardHeader className="py-2 px-4">
+                    <CardTitle className="text-sm">Property Info</CardTitle>
+                  </CardHeader>
+                  <CardContent className="py-2 px-4 space-y-4">
+                    {/* About this property */}
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="about_property" className="text-xs font-medium">About this property</Label>
+                      <Textarea
+                        id="about_property"
+                        value={formData.about_property}
+                        onChange={(e) => handleInputChange("about_property", e.target.value)}
+                        placeholder="Comfortable Accommodations: Property offers family rooms with garden or lake views. Each room includes airconditioning, a private bathroom, and modern amenities.
+
+Exceptional Facilities: Guests enjoy spa facilities, a swimming pool with a view, a lush garden, and a terrace. The property features a restaurant, bar, and free WiFi.
+
+Dining Experience: The family-friendly restaurant serves breakfast, lunch, and dinner with vegetarian, vegan, and gluten-free options.
+
+Prime Location: Located near major attractions and airports."
+                        className="h-32 text-xs resize-none"
+                        rows={6}
+                      />
+                    </div>
+
+                    {/* Couples Rating */}
+                    <div className="flex items-center gap-3">
+                      <Label htmlFor="couples_rating" className="text-xs whitespace-nowrap">Couples Rating</Label>
+                      <Input
+                        id="couples_rating"
+                        value={formData.couples_rating}
+                        onChange={(e) => handleInputChange("couples_rating", e.target.value)}
+                        placeholder="e.g., 9.7 for a two-person trip"
+                        className="h-7 text-xs max-w-xs"
+                      />
+                    </div>
+
+                    <Separator className="my-2" />
+
+                    {/* Property Surroundings */}
+                    <div className="space-y-3">
+                      <Label className="text-xs font-medium">Property Surroundings</Label>
+                      
+                      {/* Restaurants & Cafes */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="restaurants_cafes" className="text-xs text-muted-foreground">Restaurants & Cafes</Label>
+                          <Input
+                            id="restaurants_cafes"
+                            value={formData.restaurants_cafes}
+                            onChange={(e) => handleInputChange("restaurants_cafes", e.target.value)}
+                            placeholder="e.g., Local restaurants, cafes"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="restaurants_cafes_distance" className="text-xs text-muted-foreground">Distance</Label>
+                          <Input
+                            id="restaurants_cafes_distance"
+                            value={formData.restaurants_cafes_distance}
+                            onChange={(e) => handleInputChange("restaurants_cafes_distance", e.target.value)}
+                            placeholder="e.g., 2 km"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Public Transport */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="public_transport" className="text-xs text-muted-foreground">Public Transport</Label>
+                          <Input
+                            id="public_transport"
+                            value={formData.public_transport}
+                            onChange={(e) => handleInputChange("public_transport", e.target.value)}
+                            placeholder="e.g., Bus stop, Train station"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="public_transport_distance" className="text-xs text-muted-foreground">Distance</Label>
+                          <Input
+                            id="public_transport_distance"
+                            value={formData.public_transport_distance}
+                            onChange={(e) => handleInputChange("public_transport_distance", e.target.value)}
+                            placeholder="e.g., 500 m"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Closest Airport */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="closest_airport" className="text-xs text-muted-foreground">Closest Airport</Label>
+                          <Input
+                            id="closest_airport"
+                            value={formData.closest_airport}
+                            onChange={(e) => handleInputChange("closest_airport", e.target.value)}
+                            placeholder="e.g., Hoedspruit Eastgate Airport"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="closest_airport_distance" className="text-xs text-muted-foreground">Distance</Label>
+                          <Input
+                            id="closest_airport_distance"
+                            value={formData.closest_airport_distance}
+                            onChange={(e) => handleInputChange("closest_airport_distance", e.target.value)}
+                            placeholder="e.g., 52 km"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
                 {/* Property and Banking Details - Hidden for NightsBridge */}
                 {selectedPMS !== 'nightsbridge' && (
