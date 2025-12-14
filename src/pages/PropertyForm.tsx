@@ -2042,16 +2042,16 @@ export default function PropertyForm() {
   };
 
   const facilities = {
-    general: ["Free Parking", "Free Secure Parking", "Gym", "Outdoor Swimming Pool", "Indoor Swimming Pool", "Spa"],
+    general: ["Free Parking", "Free Secure Parking", "Gym", "Outdoor Swimming Pool", "Indoor Swimming Pool", "Spa", "Airport shuttle", "Family rooms"],
     bar: ["Bar", "Wine Cellar"],
     business: ["Business centre", "Meeting rooms"],
     conferenceRoom: ["Conference room", "Boardroom"],
     meals: ["Restaurant", "Breakfast included", "Room service"],
-    utility: ["WiFi", "Air conditioning", "Heating", "Laundry service", "Cleaning products", "Electric kettle"],
+    utility: ["Free WiFi", "WiFi", "Air conditioning", "Heating", "Laundry service", "Cleaning products", "Electric kettle"],
     bathroom: ["Shower", "Toilet paper", "Towels"],
     outdoors: ["Garden", "Garden view", "Terrace", "Outdoor furniture", "Outdoor fireplace"],
     kitchen: ["Kitchen"],
-    room: ["Socket near the bed", "Clothes rack"],
+    room: ["Socket near the bed", "Clothes rack", "Non-smoking rooms"],
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
