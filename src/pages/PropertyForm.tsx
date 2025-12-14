@@ -2110,20 +2110,17 @@ export default function PropertyForm() {
   };
 
   const facilities = {
-    general: ["Free Parking", "Free Secure Parking", "Gym", "Outdoor Swimming Pool", "Indoor Swimming Pool", "Spa", "Airport shuttle", "Family rooms"],
-    bar: ["Bar", "Wine Cellar"],
-    business: ["Business centre", "Meeting rooms", "Fax/photocopying", "Meeting/banquet facilities"],
-    conferenceRoom: ["Conference room", "Boardroom"],
-    meals: ["Restaurant", "Breakfast included", "Room service"],
-    utility: ["Free WiFi", "WiFi", "Air conditioning", "Heating", "Laundry service", "Cleaning products", "Electric kettle"],
-    bathroom: ["Shower", "Toilet paper", "Towels"],
-    outdoors: ["Garden", "Garden view", "Terrace", "Outdoor furniture", "Outdoor fireplace"],
-    kitchen: ["Kitchen"],
-    room: ["Socket near the bed", "Clothes rack", "Non-smoking rooms"],
-    wellness: ["Full body massage", "Hand massage", "Head massage", "Couples massage", "Foot massage", "Neck massage", "Back massage", "Body treatments"],
-    activities: ["Live music/performance", "Themed dinner nights", "Walking tours", "Game drives", "Evening entertainment", "Entertainment staff", "Hiking", "Board games/puzzles"],
-    reception: ["Invoice provided", "Private check-in/check-out", "Concierge service", "Luggage storage", "Tour desk", "Express check-in/check-out"],
-    family: ["Babysitting/child services", "All ages welcome", "Shuttle service"],
+    general: ["Wheelchair Accessible", "Non-Smoking Rooms", "Designated Smoking Area", "Garden", "Terrace/Patio", "Fireplace Lounge", "Lift/Elevator"],
+    businessReception: ["24-Hour Front Desk", "Wake-Up Service", "Safety Deposit Box", "Currency Exchange", "Ticket Service", "Porter/Bell Service", "Express Check-Out", "Concierge Service"],
+    conferenceEvents: ["Banquet Hall", "Event Space", "Wedding Facilities", "Audio-Visual Equipment", "Projector", "Screen", "Event Catering"],
+    mealsDining: ["Breakfast Available (Paid)", "Lunch Available", "Dinner Available", "Special Diet Menus on Request", "BBQ/Braai Facilities", "Packed Lunches", "Restaurant", "Bar", "Wine Cellar", "Room Service"],
+    utilityRoom: ["Backup Power Generator", "Solar Power", "Inverter Power", "Iron & Ironing Board", "In-Room Safe", "Desk/Workspace", "Wardrobe/Closet", "Free WiFi", "Air Conditioning", "Heating", "Laundry Service", "Electric Kettle"],
+    wellnessFitness: ["Fitness Centre", "Sauna", "Steam Room", "Hot Tub/Jacuzzi", "Yoga Classes", "Spa", "Outdoor Swimming Pool", "Indoor Swimming Pool", "Full Body Massage", "Couples Massage"],
+    activitiesExperiences: ["Game Drives (Morning)", "Game Drives (Evening)", "Guided Safari Walks", "Bird Watching", "Cycling", "Fishing", "Cultural Tours", "Hiking Trails", "Airport Transfer", "Walking Tours", "Live Music/Performance"],
+    familyServices: ["Children Play Area", "Kids Meals", "Child-Friendly Activities", "Family Rooms", "Babysitting/Child Services"],
+    safetySecurity: ["24-Hour Security", "CCTV", "Fire Extinguishers", "First Aid Kit"],
+    languagesSpoken: ["English", "Afrikaans", "Other Languages"],
+    transportParking: ["On-Site Parking", "Free Secure Parking", "Nearby Parking", "Car Hire Assistance", "Airport Shuttle"],
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -3342,31 +3339,11 @@ Prime Location: Located near major attractions and airports."
                         </div>
                       </div>
 
-                      {/* Bar */}
-                      <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Bar</h3>
-                        <div className="space-y-0.5">
-                          {facilities.bar.map((facility) => (
-                            <div key={facility} className="flex items-center space-x-1.5">
-                              <Checkbox
-                                id={facility}
-                                checked={selectedFacilities.includes(facility)}
-                                onCheckedChange={() => toggleFacility(facility)}
-                                className="h-3 w-3"
-                              />
-                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
-                                {facility}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
                       {/* Business & Reception */}
                       <div>
                         <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Business & Reception</h3>
                         <div className="space-y-0.5">
-                          {[...facilities.business, ...facilities.reception].map((facility) => (
+                          {facilities.businessReception.map((facility) => (
                             <div key={facility} className="flex items-center space-x-1.5">
                               <Checkbox
                                 id={facility}
@@ -3382,11 +3359,11 @@ Prime Location: Located near major attractions and airports."
                         </div>
                       </div>
 
-                      {/* Conference Room */}
+                      {/* Conference & Events */}
                       <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Conference Room</h3>
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Conference & Events</h3>
                         <div className="space-y-0.5">
-                          {facilities.conferenceRoom.map((facility) => (
+                          {facilities.conferenceEvents.map((facility) => (
                             <div key={facility} className="flex items-center space-x-1.5">
                               <Checkbox
                                 id={facility}
@@ -3402,11 +3379,11 @@ Prime Location: Located near major attractions and airports."
                         </div>
                       </div>
 
-                      {/* Meals */}
+                      {/* Meals & Dining */}
                       <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Meals</h3>
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Meals & Dining</h3>
                         <div className="space-y-0.5">
-                          {facilities.meals.map((facility) => (
+                          {facilities.mealsDining.map((facility) => (
                             <div key={facility} className="flex items-center space-x-1.5">
                               <Checkbox
                                 id={facility}
@@ -3422,11 +3399,11 @@ Prime Location: Located near major attractions and airports."
                         </div>
                       </div>
 
-                      {/* Utility */}
+                      {/* Utility & Room Features */}
                       <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Utility</h3>
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Utility & Room Features</h3>
                         <div className="space-y-0.5">
-                          {facilities.utility.map((facility) => (
+                          {facilities.utilityRoom.map((facility) => (
                             <div key={facility} className="flex items-center space-x-1.5">
                               <Checkbox
                                 id={facility}
@@ -3442,11 +3419,11 @@ Prime Location: Located near major attractions and airports."
                         </div>
                       </div>
 
-                      {/* Wellness & Spa */}
+                      {/* Wellness & Fitness */}
                       <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Wellness & Spa</h3>
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Wellness & Fitness</h3>
                         <div className="space-y-0.5">
-                          {facilities.wellness.map((facility) => (
+                          {facilities.wellnessFitness.map((facility) => (
                             <div key={facility} className="flex items-center space-x-1.5">
                               <Checkbox
                                 id={facility}
@@ -3462,11 +3439,11 @@ Prime Location: Located near major attractions and airports."
                         </div>
                       </div>
 
-                      {/* Activities */}
+                      {/* Activities & Experiences */}
                       <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Activities</h3>
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Activities & Experiences</h3>
                         <div className="space-y-0.5">
-                          {facilities.activities.map((facility) => (
+                          {facilities.activitiesExperiences.map((facility) => (
                             <div key={facility} className="flex items-center space-x-1.5">
                               <Checkbox
                                 id={facility}
@@ -3486,7 +3463,67 @@ Prime Location: Located near major attractions and airports."
                       <div>
                         <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Family Services</h3>
                         <div className="space-y-0.5">
-                          {facilities.family.map((facility) => (
+                          {facilities.familyServices.map((facility) => (
+                            <div key={facility} className="flex items-center space-x-1.5">
+                              <Checkbox
+                                id={facility}
+                                checked={selectedFacilities.includes(facility)}
+                                onCheckedChange={() => toggleFacility(facility)}
+                                className="h-3 w-3"
+                              />
+                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                                {facility}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Safety & Security */}
+                      <div>
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Safety & Security</h3>
+                        <div className="space-y-0.5">
+                          {facilities.safetySecurity.map((facility) => (
+                            <div key={facility} className="flex items-center space-x-1.5">
+                              <Checkbox
+                                id={facility}
+                                checked={selectedFacilities.includes(facility)}
+                                onCheckedChange={() => toggleFacility(facility)}
+                                className="h-3 w-3"
+                              />
+                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                                {facility}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Languages Spoken */}
+                      <div>
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Languages Spoken</h3>
+                        <div className="space-y-0.5">
+                          {facilities.languagesSpoken.map((facility) => (
+                            <div key={facility} className="flex items-center space-x-1.5">
+                              <Checkbox
+                                id={facility}
+                                checked={selectedFacilities.includes(facility)}
+                                onCheckedChange={() => toggleFacility(facility)}
+                                className="h-3 w-3"
+                              />
+                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                                {facility}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Transport & Parking */}
+                      <div>
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Transport & Parking</h3>
+                        <div className="space-y-0.5">
+                          {facilities.transportParking.map((facility) => (
                             <div key={facility} className="flex items-center space-x-1.5">
                               <Checkbox
                                 id={facility}
