@@ -2047,7 +2047,11 @@ export default function PropertyForm() {
     business: ["Business centre", "Meeting rooms"],
     conferenceRoom: ["Conference room", "Boardroom"],
     meals: ["Restaurant", "Breakfast included", "Room service"],
-    utility: ["WiFi", "Air conditioning", "Heating", "Laundry service"],
+    utility: ["WiFi", "Air conditioning", "Heating", "Laundry service", "Cleaning products", "Electric kettle"],
+    bathroom: ["Shower", "Toilet paper", "Towels"],
+    outdoors: ["Garden", "Garden view", "Terrace", "Outdoor furniture", "Outdoor fireplace"],
+    kitchen: ["Kitchen"],
+    room: ["Socket near the bed", "Clothes rack"],
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
