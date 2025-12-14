@@ -2882,32 +2882,6 @@ Prime Location: Located near major attractions and airports."
                       </div>
                     </div>
 
-                    <Separator className="my-2" />
-
-                    {/* Breakfast Options */}
-                    <div className="space-y-2">
-                      <Label className="text-xs font-medium">Breakfast Options</Label>
-                      <div className="flex flex-wrap gap-3">
-                        {['Continental', 'Full English/Irish', 'Vegetarian', 'Vegan', 'Halal', 'Gluten-free', 'Buffet'].map((option) => (
-                          <div key={option} className="flex items-center space-x-1.5">
-                            <Checkbox
-                              id={`breakfast-${option}`}
-                              checked={selectedBreakfastOptions.includes(option)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedBreakfastOptions([...selectedBreakfastOptions, option]);
-                                } else {
-                                  setSelectedBreakfastOptions(selectedBreakfastOptions.filter(o => o !== option));
-                                }
-                                setIsDirty(true);
-                              }}
-                              className="h-3.5 w-3.5"
-                            />
-                            <Label htmlFor={`breakfast-${option}`} className="cursor-pointer text-xs">{option}</Label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
                   </CardContent>
                 </Card>
 
@@ -3548,6 +3522,35 @@ Prime Location: Located near major attractions and airports."
                         </div>
                       </div>
                     )}
+                  </CardContent>
+                </Card>
+
+                {/* Breakfast Options */}
+                <Card>
+                  <CardHeader className="py-2 px-4">
+                    <CardTitle className="text-sm">Breakfast Options</CardTitle>
+                  </CardHeader>
+                  <CardContent className="py-2 px-4">
+                    <div className="flex flex-wrap gap-3">
+                      {['Continental', 'Full English/Irish', 'Vegetarian', 'Vegan', 'Halal', 'Gluten-free', 'Buffet'].map((option) => (
+                        <div key={option} className="flex items-center space-x-1.5">
+                          <Checkbox
+                            id={`breakfast-${option}`}
+                            checked={selectedBreakfastOptions.includes(option)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedBreakfastOptions([...selectedBreakfastOptions, option]);
+                              } else {
+                                setSelectedBreakfastOptions(selectedBreakfastOptions.filter(o => o !== option));
+                              }
+                              setIsDirty(true);
+                            }}
+                            className="h-3.5 w-3.5"
+                          />
+                          <Label htmlFor={`breakfast-${option}`} className="cursor-pointer text-xs">{option}</Label>
+                        </div>
+                      ))}
+                    </div>
                   </CardContent>
                 </Card>
 
