@@ -123,10 +123,11 @@ export default function AdminKeys() {
 
   // Checkfront-specific state (supports Token and OAuth2 auth)
   const [checkfrontCredentials, setCheckfrontCredentials] = useState<PMSCredentials | null>(null);
+  const [checkfrontHost, setCheckfrontHost] = useState("");
   const [checkfrontApiKey, setCheckfrontApiKey] = useState("");
   const [checkfrontApiSecret, setCheckfrontApiSecret] = useState("");
-  const [checkfrontUsername, setCheckfrontUsername] = useState("");
-  const [checkfrontPassword, setCheckfrontPassword] = useState("");
+  const [checkfrontClientId, setCheckfrontClientId] = useState("");
+  const [checkfrontClientSecret, setCheckfrontClientSecret] = useState("");
   const [checkfrontAuthMethod, setCheckfrontAuthMethod] = useState<"token" | "oauth2">("token");
   const [checkfrontEnvironment, setCheckfrontEnvironment] = useState<"staging" | "production">("staging");
   const [editingCheckfront, setEditingCheckfront] = useState(false);
@@ -621,15 +622,16 @@ export default function AdminKeys() {
     const credData = {
       system_type: "checkfront",
       environment: checkfrontEnvironment,
+      base_url: checkfrontHost || checkfrontCredentials?.base_url || null,
       // Token auth uses api_key and agent_code (repurposed as secret)
       api_key: checkfrontAuthMethod === "token" ? checkfrontApiKey || checkfrontCredentials?.api_key || null : null,
       agent_code:
         checkfrontAuthMethod === "token" ? checkfrontApiSecret || checkfrontCredentials?.agent_code || null : null,
-      // OAuth2 uses username/password
+      // OAuth2 uses username (client_id) and password (client_secret)
       username:
-        checkfrontAuthMethod === "oauth2" ? checkfrontUsername || checkfrontCredentials?.username || null : null,
+        checkfrontAuthMethod === "oauth2" ? checkfrontClientId || checkfrontCredentials?.username || null : null,
       password:
-        checkfrontAuthMethod === "oauth2" ? checkfrontPassword || checkfrontCredentials?.password || null : null,
+        checkfrontAuthMethod === "oauth2" ? checkfrontClientSecret || checkfrontCredentials?.password || null : null,
       is_active: true,
     };
 
@@ -654,10 +656,11 @@ export default function AdminKeys() {
         description: "Checkfront credentials have been updated successfully",
       });
       setEditingCheckfront(false);
+      setCheckfrontHost("");
       setCheckfrontApiKey("");
       setCheckfrontApiSecret("");
-      setCheckfrontUsername("");
-      setCheckfrontPassword("");
+      setCheckfrontClientId("");
+      setCheckfrontClientSecret("");
       fetchCheckfrontCredentials();
     }
     setSavingCheckfront(false);
@@ -1699,6 +1702,18 @@ export default function AdminKeys() {
             <CardContent>
               {editingCheckfront ? (
                 <div className="space-y-4">
+                  {/* Host URL - Required for both auth methods */}
+                  <div className="space-y-2">
+                    <Label htmlFor="checkfront-host">Host URL *</Label>
+                    <Input
+                      id="checkfront-host"
+                      value={checkfrontHost}
+                      onChange={(e) => setCheckfrontHost(e.target.value)}
+                      placeholder={checkfrontCredentials?.base_url || "yourcompany.checkfront.com"}
+                    />
+                    <p className="text-xs text-muted-foreground">Your Checkfront subdomain (e.g., yourcompany.checkfront.com)</p>
+                  </div>
+
                   {/* Auth Method Toggle */}
                   <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg">
                     <Label className="text-sm font-medium">Authentication Method:</Label>
@@ -1715,7 +1730,7 @@ export default function AdminKeys() {
                         size="sm"
                         onClick={() => setCheckfrontAuthMethod("oauth2")}
                       >
-                        OAuth2 (Username/Password)
+                        OAuth2 (Client ID/Secret)
                       </Button>
                     </div>
                   </div>
@@ -1729,7 +1744,7 @@ export default function AdminKeys() {
                           type="password"
                           value={checkfrontApiKey}
                           onChange={(e) => setCheckfrontApiKey(e.target.value)}
-                          placeholder={checkfrontCredentials?.api_key ? "••••••••" : "Enter API key"}
+                          placeholder={checkfrontCredentials?.api_key ? "••••••••" : "cf_api_xxxxxxxx"}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1739,29 +1754,29 @@ export default function AdminKeys() {
                           type="password"
                           value={checkfrontApiSecret}
                           onChange={(e) => setCheckfrontApiSecret(e.target.value)}
-                          placeholder={checkfrontCredentials?.agent_code ? "••••••••" : "Enter API secret"}
+                          placeholder={checkfrontCredentials?.agent_code ? "••••••••" : "xxxxxxxxxxxxxxxx"}
                         />
                       </div>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="checkfront-username">Username</Label>
+                        <Label htmlFor="checkfront-clientid">OAuth2 Client ID</Label>
                         <Input
-                          id="checkfront-username"
-                          value={checkfrontUsername}
-                          onChange={(e) => setCheckfrontUsername(e.target.value)}
-                          placeholder={checkfrontCredentials?.username ? "••••••••" : "Enter username"}
+                          id="checkfront-clientid"
+                          value={checkfrontClientId}
+                          onChange={(e) => setCheckfrontClientId(e.target.value)}
+                          placeholder={checkfrontCredentials?.username ? "••••••••" : "oauth_client_xxxxxxxx"}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="checkfront-password">Password</Label>
+                        <Label htmlFor="checkfront-clientsecret">OAuth2 Client Secret</Label>
                         <Input
-                          id="checkfront-password"
+                          id="checkfront-clientsecret"
                           type="password"
-                          value={checkfrontPassword}
-                          onChange={(e) => setCheckfrontPassword(e.target.value)}
-                          placeholder={checkfrontCredentials?.password ? "••••••••" : "Enter password"}
+                          value={checkfrontClientSecret}
+                          onChange={(e) => setCheckfrontClientSecret(e.target.value)}
+                          placeholder={checkfrontCredentials?.password ? "••••••••" : "xxxxxxxxxxxxxxxx"}
                         />
                       </div>
                     </div>
@@ -1795,10 +1810,11 @@ export default function AdminKeys() {
                       variant="outline"
                       onClick={() => {
                         setEditingCheckfront(false);
+                        setCheckfrontHost("");
                         setCheckfrontApiKey("");
                         setCheckfrontApiSecret("");
-                        setCheckfrontUsername("");
-                        setCheckfrontPassword("");
+                        setCheckfrontClientId("");
+                        setCheckfrontClientSecret("");
                       }}
                     >
                       Cancel
@@ -1807,7 +1823,13 @@ export default function AdminKeys() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                    <div>
+                      <Label className="text-muted-foreground">Host</Label>
+                      <p className="font-medium truncate text-xs">
+                        {checkfrontCredentials?.base_url || "Not set"}
+                      </p>
+                    </div>
                     <div>
                       <Label className="text-muted-foreground">Auth Method</Label>
                       <p className="font-medium">
@@ -1815,7 +1837,7 @@ export default function AdminKeys() {
                       </p>
                     </div>
                     <div>
-                      <Label className="text-muted-foreground">{isTokenConfigured ? "API Key" : "Username"}</Label>
+                      <Label className="text-muted-foreground">{isTokenConfigured ? "API Key" : "Client ID"}</Label>
                       <p className={`font-medium ${isConfigured ? "text-green-600" : ""}`}>
                         {isConfigured ? "Configured" : "Not set"}
                       </p>
