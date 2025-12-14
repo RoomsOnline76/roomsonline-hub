@@ -816,6 +816,7 @@ export default function PropertyForm() {
 
   const [starRating, setStarRating] = useState(0);
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
+  const [selectedBreakfastOptions, setSelectedBreakfastOptions] = useState<string[]>([]);
   const [cancellationPolicies, setCancellationPolicies] = useState([
     { forfeit: "10", type: "% of Total", days: "999" },
     { forfeit: "100", type: "% of Total", days: "30" },
@@ -1879,6 +1880,7 @@ export default function PropertyForm() {
           // Load other saved data
           if (amenities?.star_rating) setStarRating(amenities.star_rating);
           if (amenities?.facilities && Array.isArray(amenities.facilities)) setSelectedFacilities(amenities.facilities);
+          if (amenities?.breakfast_options && Array.isArray(amenities.breakfast_options)) setSelectedBreakfastOptions(amenities.breakfast_options);
           if (amenities?.cancellation_policies) setCancellationPolicies(amenities.cancellation_policies);
           if (amenities?.seasons) setSeasons(amenities.seasons);
           if (amenities?.season_rates) setSeasonRates(amenities.season_rates);
@@ -2222,6 +2224,7 @@ export default function PropertyForm() {
           meal_types: selectedMealTypes,
           star_rating: starRating,
           facilities: selectedFacilities,
+          breakfast_options: selectedBreakfastOptions,
           cancellation_policies: cancellationPolicies,
           house_rules: {
             items_non_refundable: formData.items_non_refundable,
@@ -2876,6 +2879,33 @@ Prime Location: Located near major attractions and airports."
                             className="h-7 text-xs"
                           />
                         </div>
+                      </div>
+                    </div>
+
+                    <Separator className="my-2" />
+
+                    {/* Breakfast Options */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Breakfast Options</Label>
+                      <div className="flex flex-wrap gap-3">
+                        {['Continental', 'Full English/Irish', 'Vegetarian', 'Vegan', 'Halal', 'Gluten-free', 'Buffet'].map((option) => (
+                          <div key={option} className="flex items-center space-x-1.5">
+                            <Checkbox
+                              id={`breakfast-${option}`}
+                              checked={selectedBreakfastOptions.includes(option)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedBreakfastOptions([...selectedBreakfastOptions, option]);
+                                } else {
+                                  setSelectedBreakfastOptions(selectedBreakfastOptions.filter(o => o !== option));
+                                }
+                                setIsDirty(true);
+                              }}
+                              className="h-3.5 w-3.5"
+                            />
+                            <Label htmlFor={`breakfast-${option}`} className="cursor-pointer text-xs">{option}</Label>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </CardContent>
