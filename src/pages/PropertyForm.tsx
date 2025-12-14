@@ -2044,7 +2044,7 @@ export default function PropertyForm() {
   const facilities = {
     general: ["Free Parking", "Free Secure Parking", "Gym", "Outdoor Swimming Pool", "Indoor Swimming Pool", "Spa", "Airport shuttle", "Family rooms"],
     bar: ["Bar", "Wine Cellar"],
-    business: ["Business centre", "Meeting rooms"],
+    business: ["Business centre", "Meeting rooms", "Fax/photocopying", "Meeting/banquet facilities"],
     conferenceRoom: ["Conference room", "Boardroom"],
     meals: ["Restaurant", "Breakfast included", "Room service"],
     utility: ["Free WiFi", "WiFi", "Air conditioning", "Heating", "Laundry service", "Cleaning products", "Electric kettle"],
@@ -2052,6 +2052,10 @@ export default function PropertyForm() {
     outdoors: ["Garden", "Garden view", "Terrace", "Outdoor furniture", "Outdoor fireplace"],
     kitchen: ["Kitchen"],
     room: ["Socket near the bed", "Clothes rack", "Non-smoking rooms"],
+    wellness: ["Full body massage", "Hand massage", "Head massage", "Couples massage", "Foot massage", "Neck massage", "Back massage", "Body treatments"],
+    activities: ["Live music/performance", "Themed dinner nights", "Walking tours", "Game drives", "Evening entertainment", "Entertainment staff", "Hiking", "Board games/puzzles"],
+    reception: ["Invoice provided", "Private check-in/check-out", "Concierge service", "Luggage storage", "Tour desk", "Express check-in/check-out"],
+    family: ["Babysitting/child services", "All ages welcome", "Shuttle service"],
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -3107,7 +3111,7 @@ export default function PropertyForm() {
                     </div>
                   </CardHeader>
                   <CardContent className="py-2 px-4">
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                       {/* General */}
                       <div>
                         <h3 className="font-semibold mb-1 text-xs text-muted-foreground">General</h3>
@@ -3148,11 +3152,11 @@ export default function PropertyForm() {
                         </div>
                       </div>
 
-                      {/* Business */}
+                      {/* Business & Reception */}
                       <div>
-                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Business</h3>
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Business & Reception</h3>
                         <div className="space-y-0.5">
-                          {facilities.business.map((facility) => (
+                          {[...facilities.business, ...facilities.reception].map((facility) => (
                             <div key={facility} className="flex items-center space-x-1.5">
                               <Checkbox
                                 id={facility}
@@ -3213,6 +3217,66 @@ export default function PropertyForm() {
                         <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Utility</h3>
                         <div className="space-y-0.5">
                           {facilities.utility.map((facility) => (
+                            <div key={facility} className="flex items-center space-x-1.5">
+                              <Checkbox
+                                id={facility}
+                                checked={selectedFacilities.includes(facility)}
+                                onCheckedChange={() => toggleFacility(facility)}
+                                className="h-3 w-3"
+                              />
+                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                                {facility}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Wellness & Spa */}
+                      <div>
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Wellness & Spa</h3>
+                        <div className="space-y-0.5">
+                          {facilities.wellness.map((facility) => (
+                            <div key={facility} className="flex items-center space-x-1.5">
+                              <Checkbox
+                                id={facility}
+                                checked={selectedFacilities.includes(facility)}
+                                onCheckedChange={() => toggleFacility(facility)}
+                                className="h-3 w-3"
+                              />
+                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                                {facility}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Activities */}
+                      <div>
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Activities</h3>
+                        <div className="space-y-0.5">
+                          {facilities.activities.map((facility) => (
+                            <div key={facility} className="flex items-center space-x-1.5">
+                              <Checkbox
+                                id={facility}
+                                checked={selectedFacilities.includes(facility)}
+                                onCheckedChange={() => toggleFacility(facility)}
+                                className="h-3 w-3"
+                              />
+                              <Label htmlFor={facility} className="cursor-pointer text-xs leading-none">
+                                {facility}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Family Services */}
+                      <div>
+                        <h3 className="font-semibold mb-1 text-xs text-muted-foreground">Family Services</h3>
+                        <div className="space-y-0.5">
+                          {facilities.family.map((facility) => (
                             <div key={facility} className="flex items-center space-x-1.5">
                               <Checkbox
                                 id={facility}
@@ -6032,113 +6096,6 @@ export default function PropertyForm() {
                           ))}
                         </div>
 
-                        {/* Wellness & Spa */}
-                        <div className="space-y-3">
-                          <h4 className="font-semibold text-sm">Wellness & Spa</h4>
-                          {[
-                            "Full body massage",
-                            "Hand massage",
-                            "Head massage",
-                            "Couples massage",
-                            "Foot massage",
-                            "Neck massage",
-                            "Back massage",
-                            "Body treatments",
-                          ].map((item) => (
-                            <div key={item} className="flex items-center gap-2">
-                              <Checkbox
-                                id={`amenity-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
-                                onCheckedChange={(checked) => {
-                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
-                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
-                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
-                                }}
-                              />
-                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Activities */}
-                        <div className="space-y-3">
-                          <h4 className="font-semibold text-sm">Activities</h4>
-                          {[
-                            "Live music/performance",
-                            "Themed dinner nights",
-                            "Walking tours",
-                            "Game drives",
-                            "Evening entertainment",
-                            "Entertainment staff",
-                            "Hiking",
-                            "Board games/puzzles",
-                          ].map((item) => (
-                            <div key={item} className="flex items-center gap-2">
-                              <Checkbox
-                                id={`amenity-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
-                                onCheckedChange={(checked) => {
-                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
-                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
-                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
-                                }}
-                              />
-                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Business & Reception */}
-                        <div className="space-y-3">
-                          <h4 className="font-semibold text-sm">Business & Reception</h4>
-                          {[
-                            "Fax/photocopying",
-                            "Business centre",
-                            "Meeting/banquet facilities",
-                            "Invoice provided",
-                            "Private check-in/check-out",
-                            "Concierge service",
-                            "Luggage storage",
-                            "Tour desk",
-                            "Express check-in/check-out",
-                          ].map((item) => (
-                            <div key={item} className="flex items-center gap-2">
-                              <Checkbox
-                                id={`amenity-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
-                                onCheckedChange={(checked) => {
-                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
-                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
-                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
-                                }}
-                              />
-                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Family Services */}
-                        <div className="space-y-3">
-                          <h4 className="font-semibold text-sm">Family Services</h4>
-                          {[
-                            "Babysitting/child services",
-                            "All ages welcome",
-                            "Shuttle service",
-                          ].map((item) => (
-                            <div key={item} className="flex items-center gap-2">
-                              <Checkbox
-                                id={`amenity-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
-                                onCheckedChange={(checked) => {
-                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
-                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
-                                  updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
-                                }}
-                              />
-                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
-                            </div>
-                          ))}
-                        </div>
 
                         {/* Internet */}
                         <div className="space-y-3">
