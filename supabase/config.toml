@@ -32,3 +32,6 @@ verify_jwt = true
 
 [functions.tripadvisor-api]
 verify_jwt = false
+
+[functions.hostfully-api]
+verify_jwt = true

@@ -58,6 +58,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     key: 'hostfully',
     name: 'Hostfully',
     description: 'Property management platform for vacation rental managers',
+    hasCustomCard: true,
   },
   {
     key: 'siteminder',
