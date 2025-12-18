@@ -166,6 +166,20 @@ Every PMS adapter edge function MUST return responses conforming to the strict c
 3. **No "almost the same" data** - Exact field names, exact types, exact structure
 4. **Transformers required** - Each adapter transforms raw PMS data to contract shape
 
+### RULE #4: Field Naming Convention - snake_case ONLY
+
+**ALL adapter response fields MUST use `snake_case`** - no exceptions. This applies to:
+- Top-level response keys (`room_types`, `rate_types`, `availability`)
+- Nested object fields (`room_type_id`, `min_guests`, `max_guests`)
+- Guest rules (`allow_teens`, `teen_min_age`, `teen_max_age`)
+- Rate fields (`rate_type_id`, `price_type`, `min_stay_days`)
+
+**Why this matters:**
+- Eliminates UI fallback code (`rt.maxGuests || rt.max_guests`)
+- Ensures consistent data access patterns across all components
+- New PMS integrations work immediately without UI changes
+- Single source of truth from adapter contract
+
 **Standard Data Shapes:**
 - `AvailabilityResponse` - Room availability with restrictions and rates
 - `RoomTypesResponse` - Room type definitions with guest rules
@@ -175,17 +189,18 @@ Every PMS adapter edge function MUST return responses conforming to the strict c
 
 **When adding new PMS:**
 1. Import contract types from `_shared/adapter-contract.ts`
-2. Transform raw PMS response to contract shape
+2. Transform raw PMS response to contract shape with `snake_case` fields
 3. Use `createSuccessResponse()` / `createErrorResponse()` helpers
 4. NEVER return raw PMS data directly
 
 ### Adapter Compliance Status
 
-| Adapter | Contract | Error Codes | Actions | Notes |
-|---------|----------|-------------|---------|-------|
-| `roomsonline-pms-api` | ✅ | ✅ | ✅ | Reference native adapter |
-| `benson-api` | ✅ | ✅ | ✅ | Reference external adapter |
-| `checkfront-api` | ⚠️ Pending | ⚠️ Pending | ⚠️ Pending | Awaiting API docs finalization |
+| Adapter | Contract | snake_case | Error Codes | Actions | Notes |
+|---------|----------|------------|-------------|---------|-------|
+| `roomsonline-pms-api` | ✅ | ✅ | ✅ | ✅ | Reference native adapter |
+| `benson-api` | ✅ | ✅ | ✅ | ✅ | Reference external adapter (Dec 2025 audit) |
+| `hostfully-api` | ✅ | ✅ | ✅ | ✅ | Full compliance |
+| `checkfront-api` | ⚠️ Pending | ⚠️ Pending | ⚠️ Pending | ⚠️ Pending | Awaiting API docs finalization |
 
 ### Standardized Error Codes
 
@@ -206,19 +221,19 @@ All adapters MUST use these codes (defined in `adapter-contract.ts`):
 
 ### Standardized Action Names
 
-| Action | Description | Native | Benson | Checkfront |
-|--------|-------------|--------|--------|------------|
-| `get_capabilities` | Returns capability flags | ✅ | ✅ | ⚠️ |
-| `health_check` | Tests connection/credentials | ❌ | ✅ | ⚠️ |
-| `fetch_availability` | Get availability + rates | ✅ | ✅ | ⚠️ |
-| `get_room_types` | Get room type definitions | ✅ | ✅ | ⚠️ |
-| `get_rate_types` | Get rate type definitions | ✅ | ✅ | ⚠️ |
-| `get_reservations` | List reservations | ✅ | ✅ | ⚠️ |
-| `create_reservation` | Create booking | ✅ | ✅ | ⚠️ |
-| `modify_reservation` | Modify booking | ⚠️ Limited | ⚠️ Stub | ⚠️ |
-| `cancel_reservation` | Cancel booking | ✅ | ⚠️ Stub | ⚠️ |
-| `set_availability` | Write availability (native only) | ✅ | ❌ | ❌ |
-| `set_rates` | Write rates (native only) | ✅ | ❌ | ❌ |
+| Action | Description | Native | Benson | Hostfully | Checkfront |
+|--------|-------------|--------|--------|-----------|------------|
+| `get_capabilities` | Returns capability flags | ✅ | ✅ | ✅ | ⚠️ |
+| `health_check` | Tests connection/credentials | ❌ | ✅ | ✅ | ⚠️ |
+| `fetch_availability` | Get availability + rates | ✅ | ✅ | ✅ | ⚠️ |
+| `get_room_types` | Get room type definitions | ✅ | ✅ | ✅ | ⚠️ |
+| `get_rate_types` | Get rate type definitions | ✅ | ✅ | ✅ | ⚠️ |
+| `get_reservations` | List reservations | ✅ | ✅ | ✅ | ⚠️ |
+| `create_reservation` | Create booking | ✅ | ✅ | ✅ | ⚠️ |
+| `modify_reservation` | Modify booking | ⚠️ Limited | ⚠️ Stub | ⚠️ Stub | ⚠️ |
+| `cancel_reservation` | Cancel booking | ✅ | ⚠️ Stub | ⚠️ Stub | ⚠️ |
+| `set_availability` | Write availability (native only) | ✅ | ❌ | ❌ | ❌ |
+| `set_rates` | Write rates (native only) | ✅ | ❌ | ❌ | ❌ |
 
 ---
 
@@ -401,6 +416,31 @@ supabase/
 - PMS credentials stored in `pms_credentials`, not `api_keys`
 - Benson uses HTTP Basic Auth (username:password base64 encoded)
 - NightsBridge properties redirect to external booking URL
+
+### UI Component Guidelines for PMS Data
+
+When consuming adapter responses in UI components:
+
+1. **Always unwrap adapter response**: `const responseData = data?.data || data;`
+2. **Use `snake_case` field names**: `responseData.room_types`, not `responseData.roomTypes`
+3. **Access nested fields with `snake_case`**: `rt.max_guests`, `rt.allow_children`, `rt.teen_min_age`
+4. **Import utility**: `import { unwrapAdapterResponse } from "@/lib/pmsUtils";`
+
+**Example:**
+```typescript
+const { data } = await supabase.functions.invoke('benson-api', {
+  body: { action: 'fetch_property_data', property_id: propertyId }
+});
+
+const responseData = unwrapAdapterResponse(data);
+const roomTypes = responseData?.room_types || [];
+const rateTypes = responseData?.rate_types || [];
+
+// Access nested fields
+roomTypes.forEach(rt => {
+  console.log(rt.name, rt.max_guests, rt.allow_children);
+});
+```
 
 ---
 

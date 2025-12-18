@@ -727,58 +727,46 @@ Properties are linked to owners via `owner_email` matching `profiles.email`. Thi
 
 ### Current Implementation Status
 
-| Feature           | NightsBridge | Checkfront  | Semper    | Benson | SiteMinder |
-| ----------------- | ------------ | ----------- | --------- | ------ | ---------- |
-| API Key Storage   | ✓            | ✓           | ✓         | ✓      | ✓          |
-| Property Linking  | ✓ (BBID)     | ✓           | ✓ (3 IDs) | ✓      | ✓          |
-| Pull Rates        | Placeholder  | Placeholder | ✗         | ✗      | ✗          |
-| Pull Availability | Placeholder  | Placeholder | ✗         | ✗      | ✗          |
-| Push Bookings     | Placeholder  | Placeholder | ✗         | ✗      | ✗          |
-| Webhook Receiver  | ✗            | ✗           | ✗         | ✗      | ✗          |
+| Feature           | NightsBridge | Checkfront  | Benson | Hostfully | SiteMinder |
+| ----------------- | ------------ | ----------- | ------ | --------- | ---------- |
+| Adapter Contract  | N/A (redirect) | ⚠️ Pending | ✅ Full | ✅ Full | ⚠️ Pending |
+| API Key Storage   | ✅           | ✅          | ✅     | ✅        | ✅         |
+| Property Linking  | ✅ (BBID)    | ✅          | ✅     | ✅        | ✅         |
+| Pull Rates        | N/A          | ⚠️ Pending  | ✅     | ✅        | ⚠️ Pending |
+| Pull Availability | N/A          | ⚠️ Pending  | ✅     | ✅        | ⚠️ Pending |
+| Push Bookings     | N/A          | ⚠️ Pending  | ✅     | ✅        | ⚠️ Pending |
+| snake_case Fields | N/A          | ⚠️ Pending  | ✅     | ✅        | ⚠️ Pending |
 
-### Integration Gap Analysis
+*NightsBridge uses external redirect model - no direct API integration needed.*
 
-#### Required for Full Integration:
+### Adapter Contract Compliance (Dec 2025)
 
-1. **API Documentation Required**:
-   - NightsBridge API endpoints, authentication, and data formats
-   - Checkfront API v3 specifications
-   - Semper API documentation
-   - Benson API documentation
-   - SiteMinder API documentation
+All PMS adapters must conform to the standardized response contract defined in `supabase/functions/_shared/adapter-contract.ts`:
 
-2. **Rate Sync Implementation**:
-   - Map external rate structures to `property_rates` schema
-   - Handle different rate type naming conventions
-   - Currency conversion if needed
-   - Rate update frequency/scheduling
+**Key Requirements:**
+1. **Response Shape**: `{ success, data, error, source, fetched_at, action }`
+2. **Field Naming**: ALL fields must use `snake_case` (e.g., `room_type_id`, `max_guests`, `allow_children`)
+3. **Error Codes**: Use standardized codes (`INVALID_REQUEST`, `AUTH_FAILED`, `BOOKING_REJECTED`, etc.)
+4. **Data Transformation**: Raw PMS responses must be transformed to contract shape
 
-3. **Availability Sync Implementation**:
-   - Map external availability to `property_availability` schema
-   - Handle overbooking rules
-   - Sync frequency configuration
+**Compliant Adapters:**
+- `benson-api` - Full compliance (Dec 2025 audit)
+- `hostfully-api` - Full compliance
+- `roomsonline-pms-api` - Reference native adapter
 
-4. **Booking Push Implementation**:
-   - Transform `bookings` to PMS-specific formats
-   - Handle booking modifications
-   - Handle cancellations
-   - Guest data mapping
+**Pending:**
+- `checkfront-api` - Awaiting API docs finalization
 
-5. **Webhook Receivers**:
-   - Real-time updates from PMS
-   - Booking confirmations
-   - Rate/availability changes
-   - Cancellation notifications
+### Integration Architecture
 
-6. **Error Handling**:
-   - Retry logic for failed syncs
-   - Alert system for persistent failures
-   - Manual override capabilities
-
-7. **Testing Requirements**:
-   - Sandbox/test environments for each PMS
-   - Test API keys
-   - Sample data for validation
+```
+UI Components → unwrapAdapterResponse() → Adapter Edge Function → PMS API
+                     ↓
+              Access snake_case fields:
+              - room_types, rate_types, availability
+              - rt.max_guests, rt.allow_children
+              - rate.rate_type_id, rate.min_stay_days
+```
 
 ---
 
@@ -973,21 +961,34 @@ Base URL: `https://qmprswbgkpzcvexmmcbf.supabase.co/functions/v1/`
 
 ## Known Limitations
 
-1. Edge function PMS integrations use placeholder API endpoints
-2. No real-time sync - requires manual trigger or scheduled jobs
-3. No webhook receivers for PMS callbacks
-4. Single PMS per property (by design)
-5. No payment processing integration yet
-6. Email templates not connected to SendGrid
+1. Single PMS per property (by design)
+2. No real-time sync via webhooks - requires manual trigger or scheduled jobs
+3. No payment processing integration yet
+4. Booking modifications limited (Benson supports create only)
+5. NightsBridge uses external redirect (no direct API)
 
 ---
 
 ## Roadmap for PMS Integration
 
-1. Obtain API documentation and test credentials for each PMS
-2. Implement actual API calls in edge functions
-3. Create webhook receivers for real-time updates
-4. Add scheduled sync jobs
-5. Implement comprehensive error handling and alerting
-6. Add sync status dashboard for monitoring
-7. Implement booking modification and cancellation flows
+1. ~~Implement adapter contract compliance~~ ✅ Complete (Dec 2025)
+2. ~~Benson full integration~~ ✅ Complete
+3. ~~Hostfully adapter~~ ✅ Complete
+4. Checkfront adapter implementation (pending API docs)
+5. SiteMinder adapter implementation
+6. Webhook receivers for real-time updates
+7. Scheduled sync jobs
+8. Booking modification/cancellation flows
+
+---
+
+## Recent Updates (Dec 2025)
+
+### Adapter Contract Compliance Audit
+
+- **Benson Adapter**: Updated to full `snake_case` compliance for all fields
+  - `fetch_types`: Returns `room_type_id`, `rate_type_id`
+  - `fetch_property_data`: All nested fields transformed (`max_guests`, `allow_children`, `teen_min_age`, etc.)
+- **PropertyForm.tsx**: Updated to unwrap adapter responses and use `snake_case` fields
+- **Bookings.tsx**: Updated to correctly access `data.data.reservations` from adapter response
+- **Utility**: `unwrapAdapterResponse()` in `src/lib/pmsUtils.ts` for consistent response handling
