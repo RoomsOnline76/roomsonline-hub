@@ -135,6 +135,49 @@ Located in `supabase/functions/`:
 
 ---
 
+## Adapter Response Contract
+
+### RULE #3: Standardized Adapter Outputs - NO EXCEPTIONS
+
+Every PMS adapter edge function MUST return responses conforming to the strict contract defined in `supabase/functions/_shared/adapter-contract.ts`.
+
+**Base Response Shape (ALL responses):**
+```typescript
+{
+  success: boolean;           // Operation succeeded?
+  data: T | null;            // Response data (null if error)
+  error: {                   // Error details (null if success)
+    code: string;
+    message: string;
+    details?: unknown;
+  } | null;
+  source: "benson" | "nightsbridge" | "checkfront" | ...;
+  fetched_at: string;        // ISO8601 timestamp
+  action: string;            // Action performed
+}
+```
+
+**The Rules:**
+1. **Benson is the BASE** - Reference implementation for all field names and structures
+2. **New adapters MUST conform** - May ADD fields but NEVER remove or rename base fields
+3. **No "almost the same" data** - Exact field names, exact types, exact structure
+4. **Transformers required** - Each adapter transforms raw PMS data to contract shape
+
+**Standard Data Shapes:**
+- `AvailabilityResponse` - Room availability with restrictions and rates
+- `RoomTypesResponse` - Room type definitions with guest rules
+- `RateTypesResponse` - Rate type definitions with stay restrictions
+- `ReservationsResponse` - Reservation data with contact and room details
+- `CreateReservationResponse` - Booking creation confirmation
+
+**When adding new PMS:**
+1. Import contract types from `_shared/adapter-contract.ts`
+2. Transform raw PMS response to contract shape
+3. Use `createSuccessResponse()` / `createErrorResponse()` helpers
+4. NEVER return raw PMS data directly
+
+---
+
 ## Authentication & Authorization
 
 ### Roles
