@@ -156,11 +156,22 @@ Deno.serve(async (req) => {
             : 'https://staging-api.bensonsoftware.com/api/v3/integrations';
         }
 
-        // =======================================================================
-        // CRITICAL: Cache is never authoritative. PMS always is.
-        // Re-verify availability with live PMS call before creating reservation
-        // =======================================================================
-        console.log(`Verifying live availability with PMS before booking creation`);
+        // =========================================================================
+        // ██████╗ ██╗   ██╗██╗     ███████╗     ██╗
+        // ██╔══██╗██║   ██║██║     ██╔════╝    ███║
+        // ██████╔╝██║   ██║██║     █████╗      ╚██║
+        // ██╔══██╗██║   ██║██║     ██╔══╝       ██║
+        // ██║  ██║╚██████╔╝███████╗███████╗     ██║
+        // ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝     ╚═╝
+        // 
+        // UNBREAKABLE RULE: NO BOOKING IS EVER CREATED FROM CACHE DATA ALONE
+        // 
+        // For ALL booking actions → Hit PMS LIVE first, then write result.
+        // Cache is NEVER authoritative. PMS ALWAYS is.
+        // 
+        // This block MUST remain and MUST NOT be bypassed under any circumstances.
+        // =========================================================================
+        console.log(`[RULE #1] Verifying LIVE availability with PMS before ANY booking creation`);
         
         const availabilityUrl = `${apiBaseUrl}/${propertyCode}/availability?startDate=${booking.check_in_date}&endDate=${booking.check_out_date}`;
         console.log(`Checking live availability: ${availabilityUrl}`);
