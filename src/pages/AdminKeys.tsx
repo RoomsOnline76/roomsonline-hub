@@ -30,6 +30,8 @@ import {
 // Map PMS system types to icons
 const getPMSIcon = (systemType: string | null): LucideIcon => {
   switch (systemType) {
+    case "roomsonline":
+      return Key;
     case "nightsbridge":
       return BedDouble;
     case "semper":
@@ -2017,6 +2019,50 @@ export default function AdminKeys() {
                 </div>
               </CardContent>
             </Card>
+          </div>
+
+          {/* RoomsOnline API Section */}
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">RoomsOnline API</h2>
+            <Accordion type="multiple" className="space-y-4">
+              <AccordionItem value="roomsonline" className="border rounded-lg px-4 border-primary/30 bg-primary/5">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center justify-between w-full pr-4">
+                    <div className="flex items-center gap-3">
+                      <Key className="h-5 w-5 text-primary" />
+                      <span className="font-semibold">RoomsOnline API</span>
+                      <Badge variant="default" className="text-xs">Internal API</Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        In Development
+                      </Badge>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-4 space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      RoomsOnline's proprietary API for direct property management and booking engine integration. 
+                      This will become the unified interface for properties not using third-party PMS systems.
+                    </p>
+                    <div className="p-4 rounded-lg border bg-background text-center space-y-2">
+                      <p className="text-sm font-medium">Planned Capabilities</p>
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        <Badge variant="secondary">Direct Availability</Badge>
+                        <Badge variant="secondary">Native Rate Management</Badge>
+                        <Badge variant="secondary">Booking Engine</Badge>
+                        <Badge variant="secondary">Channel Manager</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Development in progress. This API will follow the standardized adapter contract.
+                      </p>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
 
           {/* PMS Systems Section */}
