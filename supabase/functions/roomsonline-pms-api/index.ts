@@ -32,6 +32,23 @@ const corsHeaders = {
 const SOURCE = "roomsonline" as const;
 
 // ============================================================================
+// STANDARDIZED ERROR CODES (from adapter-contract.ts)
+// ============================================================================
+
+const ERROR_CODES = {
+  INVALID_REQUEST: 'INVALID_REQUEST',
+  AUTH_FAILED: 'AUTH_FAILED',
+  ACCESS_DENIED: 'ACCESS_DENIED',
+  NOT_FOUND: 'NOT_FOUND',
+  AVAILABILITY_CHANGED: 'AVAILABILITY_CHANGED',
+  BOOKING_REJECTED: 'BOOKING_REJECTED',
+  MODIFICATION_NOT_SUPPORTED: 'MODIFICATION_NOT_SUPPORTED',
+  CANCELLATION_NOT_SUPPORTED: 'CANCELLATION_NOT_SUPPORTED',
+  INTERNAL_ADAPTER_ERROR: 'INTERNAL_ADAPTER_ERROR',
+  PMS_UNAVAILABLE: 'PMS_UNAVAILABLE',
+} as const;
+
+// ============================================================================
 // CAPABILITY DECLARATION
 // ============================================================================
 
@@ -204,7 +221,7 @@ Deno.serve(async (req) => {
     if (!baseResult.success) {
       console.error("[roomsonline-pms-api] Validation error:", baseResult.error);
       return new Response(
-        JSON.stringify(createErrorResponse("VALIDATION_ERROR", "Invalid request format", "unknown", baseResult.error.errors)),
+        JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "Invalid request format", "unknown", baseResult.error.errors)),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
@@ -244,14 +261,14 @@ Deno.serve(async (req) => {
 
       default:
         return new Response(
-          JSON.stringify(createErrorResponse("UNKNOWN_ACTION", `Unknown action: ${action}`, action)),
+          JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, `Unknown action: ${action}`, action)),
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
         );
     }
   } catch (error) {
     console.error("[roomsonline-pms-api] Unhandled error:", error);
     return new Response(
-      JSON.stringify(createErrorResponse("INTERNAL_ERROR", "Internal server error", "unknown", String(error))),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Internal server error", "unknown", String(error))),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
@@ -274,7 +291,7 @@ async function handleFetchAvailability(body: unknown, supabase: any): Promise<Re
   const parsed = fetchAvailabilitySchema.safeParse(body);
   if (!parsed.success) {
     return new Response(
-      JSON.stringify(createErrorResponse("VALIDATION_ERROR", "Invalid fetch_availability request", "fetch_availability", parsed.error.errors)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "Invalid fetch_availability request", "fetch_availability", parsed.error.errors)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
     );
   }
@@ -294,7 +311,7 @@ async function handleFetchAvailability(body: unknown, supabase: any): Promise<Re
   if (availError) {
     console.error("[roomsonline-pms-api] Error fetching availability:", availError);
     return new Response(
-      JSON.stringify(createErrorResponse("DB_ERROR", "Failed to fetch availability", "fetch_availability", availError)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to fetch availability", "fetch_availability", availError)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
@@ -308,7 +325,7 @@ async function handleFetchAvailability(body: unknown, supabase: any): Promise<Re
   if (roomError) {
     console.error("[roomsonline-pms-api] Error fetching room types:", roomError);
     return new Response(
-      JSON.stringify(createErrorResponse("DB_ERROR", "Failed to fetch room types", "fetch_availability", roomError)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to fetch room types", "fetch_availability", roomError)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
@@ -385,7 +402,7 @@ async function handleFetchAvailability(body: unknown, supabase: any): Promise<Re
 async function handleGetRoomTypes(body: { propertyId?: string }, supabase: any): Promise<Response> {
   if (!body.propertyId) {
     return new Response(
-      JSON.stringify(createErrorResponse("VALIDATION_ERROR", "propertyId is required", "get_room_types")),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId is required", "get_room_types")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
     );
   }
@@ -401,7 +418,7 @@ async function handleGetRoomTypes(body: { propertyId?: string }, supabase: any):
   if (error) {
     console.error("[roomsonline-pms-api] Error fetching room types:", error);
     return new Response(
-      JSON.stringify(createErrorResponse("DB_ERROR", "Failed to fetch room types", "get_room_types", error)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to fetch room types", "get_room_types", error)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
@@ -437,7 +454,7 @@ async function handleGetRoomTypes(body: { propertyId?: string }, supabase: any):
 async function handleGetRateTypes(body: { propertyId?: string }, supabase: any): Promise<Response> {
   if (!body.propertyId) {
     return new Response(
-      JSON.stringify(createErrorResponse("VALIDATION_ERROR", "propertyId is required", "get_rate_types")),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId is required", "get_rate_types")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
     );
   }
@@ -453,7 +470,7 @@ async function handleGetRateTypes(body: { propertyId?: string }, supabase: any):
   if (error) {
     console.error("[roomsonline-pms-api] Error fetching rate types:", error);
     return new Response(
-      JSON.stringify(createErrorResponse("DB_ERROR", "Failed to fetch rate types", "get_rate_types", error)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to fetch rate types", "get_rate_types", error)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
@@ -480,7 +497,7 @@ async function handleGetRateTypes(body: { propertyId?: string }, supabase: any):
 async function handleGetReservations(body: { propertyId?: string; start_date?: string; end_date?: string }, supabase: any): Promise<Response> {
   if (!body.propertyId) {
     return new Response(
-      JSON.stringify(createErrorResponse("VALIDATION_ERROR", "propertyId is required", "get_reservations")),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId is required", "get_reservations")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
     );
   }
@@ -506,7 +523,7 @@ async function handleGetReservations(body: { propertyId?: string; start_date?: s
   if (error) {
     console.error("[roomsonline-pms-api] Error fetching reservations:", error);
     return new Response(
-      JSON.stringify(createErrorResponse("DB_ERROR", "Failed to fetch reservations", "get_reservations", error)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to fetch reservations", "get_reservations", error)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
@@ -542,7 +559,7 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
   const parsed = createReservationSchema.safeParse(body);
   if (!parsed.success) {
     return new Response(
-      JSON.stringify(createErrorResponse("VALIDATION_ERROR", "Invalid create_reservation request", "create_reservation", parsed.error.errors)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "Invalid create_reservation request", "create_reservation", parsed.error.errors)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
     );
   }
@@ -565,7 +582,7 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
   if (availError) {
     console.error("[roomsonline-pms-api] Error checking availability:", availError);
     return new Response(
-      JSON.stringify(createErrorResponse("DB_ERROR", "Failed to validate availability", "create_reservation", availError)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to validate availability", "create_reservation", availError)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
@@ -589,7 +606,7 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
       if (availableUnits < requiredCount) {
         return new Response(
           JSON.stringify(createErrorResponse(
-            "INSUFFICIENT_AVAILABILITY",
+            ERROR_CODES.AVAILABILITY_CHANGED,
             `Not enough availability for room type ${roomTypeId} on ${date}. Required: ${requiredCount}, Available: ${availableUnits}`,
             "create_reservation"
           )),
@@ -602,7 +619,7 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
       if (restrictions.stop_sell) {
         return new Response(
           JSON.stringify(createErrorResponse(
-            "STOP_SELL",
+            ERROR_CODES.BOOKING_REJECTED,
             `Room type ${roomTypeId} is not available for booking on ${date} (stop sell active)`,
             "create_reservation"
           )),
@@ -661,7 +678,7 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
   if (insertError) {
     console.error("[roomsonline-pms-api] Error creating reservation:", insertError);
     return new Response(
-      JSON.stringify(createErrorResponse("DB_ERROR", "Failed to create reservation", "create_reservation", insertError)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to create reservation", "create_reservation", insertError)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
@@ -701,7 +718,7 @@ async function handleModifyReservation(body: unknown, supabase: any): Promise<Re
   const parsed = modifyReservationSchema.safeParse(body);
   if (!parsed.success) {
     return new Response(
-      JSON.stringify(createErrorResponse("VALIDATION_ERROR", "Invalid modify_reservation request", "modify_reservation", parsed.error.errors)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "Invalid modify_reservation request", "modify_reservation", parsed.error.errors)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
     );
   }
@@ -719,14 +736,14 @@ async function handleModifyReservation(body: unknown, supabase: any): Promise<Re
 
   if (fetchError || !existing) {
     return new Response(
-      JSON.stringify(createErrorResponse("NOT_FOUND", "Reservation not found", "modify_reservation")),
+      JSON.stringify(createErrorResponse(ERROR_CODES.NOT_FOUND, "Reservation not found", "modify_reservation")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
     );
   }
 
   if (existing.status === "cancelled") {
     return new Response(
-      JSON.stringify(createErrorResponse("INVALID_STATE", "Cannot modify a cancelled reservation", "modify_reservation")),
+      JSON.stringify(createErrorResponse(ERROR_CODES.BOOKING_REJECTED, "Cannot modify a cancelled reservation", "modify_reservation")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 409 }
     );
   }
@@ -760,7 +777,7 @@ async function handleModifyReservation(body: unknown, supabase: any): Promise<Re
 
   if (availError) {
     return new Response(
-      JSON.stringify(createErrorResponse("DB_ERROR", "Failed to validate availability", "modify_reservation", availError)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to validate availability", "modify_reservation", availError)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
@@ -783,7 +800,7 @@ async function handleModifyReservation(body: unknown, supabase: any): Promise<Re
       if (availableUnits < requiredCount) {
         return new Response(
           JSON.stringify(createErrorResponse(
-            "MODIFICATION_NOT_POSSIBLE",
+            ERROR_CODES.MODIFICATION_NOT_SUPPORTED,
             `Cannot modify reservation - insufficient availability for new dates. Please contact the property directly.`,
             "modify_reservation"
           )),
@@ -804,7 +821,7 @@ async function handleModifyReservation(body: unknown, supabase: any): Promise<Re
 
   if (updateError) {
     return new Response(
-      JSON.stringify(createErrorResponse("DB_ERROR", "Failed to update reservation", "modify_reservation", updateError)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to update reservation", "modify_reservation", updateError)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
@@ -826,7 +843,7 @@ async function handleCancelReservation(body: unknown, supabase: any): Promise<Re
   const parsed = cancelReservationSchema.safeParse(body);
   if (!parsed.success) {
     return new Response(
-      JSON.stringify(createErrorResponse("VALIDATION_ERROR", "Invalid cancel_reservation request", "cancel_reservation", parsed.error.errors)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "Invalid cancel_reservation request", "cancel_reservation", parsed.error.errors)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
     );
   }
@@ -844,7 +861,7 @@ async function handleCancelReservation(body: unknown, supabase: any): Promise<Re
 
   if (fetchError || !existing) {
     return new Response(
-      JSON.stringify(createErrorResponse("NOT_FOUND", "Reservation not found", "cancel_reservation")),
+      JSON.stringify(createErrorResponse(ERROR_CODES.NOT_FOUND, "Reservation not found", "cancel_reservation")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
     );
   }
@@ -873,7 +890,7 @@ async function handleCancelReservation(body: unknown, supabase: any): Promise<Re
 
   if (updateError) {
     return new Response(
-      JSON.stringify(createErrorResponse("DB_ERROR", "Failed to cancel reservation", "cancel_reservation", updateError)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to cancel reservation", "cancel_reservation", updateError)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
@@ -928,7 +945,7 @@ async function handleSetAvailability(body: unknown, supabase: any): Promise<Resp
   const parsed = setAvailabilitySchema.safeParse(body);
   if (!parsed.success) {
     return new Response(
-      JSON.stringify(createErrorResponse("VALIDATION_ERROR", "Invalid set_availability request", "set_availability", parsed.error.errors)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "Invalid set_availability request", "set_availability", parsed.error.errors)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
     );
   }
@@ -967,7 +984,7 @@ async function handleSetAvailability(body: unknown, supabase: any): Promise<Resp
   if (error) {
     console.error("[roomsonline-pms-api] Error setting availability:", error);
     return new Response(
-      JSON.stringify(createErrorResponse("DB_ERROR", "Failed to set availability", "set_availability", error)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to set availability", "set_availability", error)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
@@ -989,7 +1006,7 @@ async function handleSetRates(body: unknown, supabase: any): Promise<Response> {
   const parsed = setRatesSchema.safeParse(body);
   if (!parsed.success) {
     return new Response(
-      JSON.stringify(createErrorResponse("VALIDATION_ERROR", "Invalid set_rates request", "set_rates", parsed.error.errors)),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "Invalid set_rates request", "set_rates", parsed.error.errors)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
     );
   }

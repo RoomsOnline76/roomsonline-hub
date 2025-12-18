@@ -179,6 +179,47 @@ Every PMS adapter edge function MUST return responses conforming to the strict c
 3. Use `createSuccessResponse()` / `createErrorResponse()` helpers
 4. NEVER return raw PMS data directly
 
+### Adapter Compliance Status
+
+| Adapter | Contract | Error Codes | Actions | Notes |
+|---------|----------|-------------|---------|-------|
+| `roomsonline-pms-api` | ✅ | ✅ | ✅ | Reference native adapter |
+| `benson-api` | ✅ | ✅ | ✅ | Reference external adapter |
+| `checkfront-api` | ⚠️ Pending | ⚠️ Pending | ⚠️ Pending | Awaiting API docs finalization |
+
+### Standardized Error Codes
+
+All adapters MUST use these codes (defined in `adapter-contract.ts`):
+
+| Code | When to Use |
+|------|-------------|
+| `INVALID_REQUEST` | Invalid parameters, validation failure, unknown action |
+| `AUTH_FAILED` | Authentication/credential failure |
+| `ACCESS_DENIED` | User lacks permission |
+| `NOT_FOUND` | Resource not found |
+| `AVAILABILITY_CHANGED` | Availability changed since last check |
+| `BOOKING_REJECTED` | PMS rejected booking (stop sell, restrictions) |
+| `MODIFICATION_NOT_SUPPORTED` | PMS doesn't support modification |
+| `CANCELLATION_NOT_SUPPORTED` | PMS doesn't support cancellation |
+| `INTERNAL_ADAPTER_ERROR` | Catch-all for unexpected failures |
+| `PMS_UNAVAILABLE` | PMS system unreachable |
+
+### Standardized Action Names
+
+| Action | Description | Native | Benson | Checkfront |
+|--------|-------------|--------|--------|------------|
+| `get_capabilities` | Returns capability flags | ✅ | ✅ | ⚠️ |
+| `health_check` | Tests connection/credentials | ❌ | ✅ | ⚠️ |
+| `fetch_availability` | Get availability + rates | ✅ | ✅ | ⚠️ |
+| `get_room_types` | Get room type definitions | ✅ | ✅ | ⚠️ |
+| `get_rate_types` | Get rate type definitions | ✅ | ✅ | ⚠️ |
+| `get_reservations` | List reservations | ✅ | ✅ | ⚠️ |
+| `create_reservation` | Create booking | ✅ | ✅ | ⚠️ |
+| `modify_reservation` | Modify booking | ⚠️ Limited | ⚠️ Stub | ⚠️ |
+| `cancel_reservation` | Cancel booking | ✅ | ⚠️ Stub | ⚠️ |
+| `set_availability` | Write availability (native only) | ✅ | ❌ | ❌ |
+| `set_rates` | Write rates (native only) | ✅ | ❌ | ❌ |
+
 ---
 
 ## RoomsOnline Native PMS

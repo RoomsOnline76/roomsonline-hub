@@ -318,3 +318,71 @@ export const DEFAULT_RESTRICTIONS: AvailabilityRestrictions = {
   closed_to_arrival: false,
   closed_to_departure: false,
 };
+
+// ============================================================================
+// STANDARDIZED ERROR CODES
+// ============================================================================
+
+/**
+ * All adapters MUST use these error codes for consistency.
+ * Do NOT create custom error codes - use these or request additions.
+ */
+export const ERROR_CODES = {
+  /** Invalid request parameters or format */
+  INVALID_REQUEST: 'INVALID_REQUEST',
+  /** Authentication/credential failure */
+  AUTH_FAILED: 'AUTH_FAILED',
+  /** User lacks permission for this operation */
+  ACCESS_DENIED: 'ACCESS_DENIED',
+  /** Requested resource not found */
+  NOT_FOUND: 'NOT_FOUND',
+  /** Availability changed since last check (booking conflict) */
+  AVAILABILITY_CHANGED: 'AVAILABILITY_CHANGED',
+  /** PMS rejected the booking (stop sell, restrictions, etc.) */
+  BOOKING_REJECTED: 'BOOKING_REJECTED',
+  /** PMS does not support modification */
+  MODIFICATION_NOT_SUPPORTED: 'MODIFICATION_NOT_SUPPORTED',
+  /** PMS does not support cancellation */
+  CANCELLATION_NOT_SUPPORTED: 'CANCELLATION_NOT_SUPPORTED',
+  /** Internal adapter error (catch-all for unexpected failures) */
+  INTERNAL_ADAPTER_ERROR: 'INTERNAL_ADAPTER_ERROR',
+  /** PMS system is unavailable/unreachable */
+  PMS_UNAVAILABLE: 'PMS_UNAVAILABLE',
+} as const;
+
+export type ErrorCode = typeof ERROR_CODES[keyof typeof ERROR_CODES];
+
+// ============================================================================
+// STANDARDIZED ACTION NAMES
+// ============================================================================
+
+/**
+ * All adapters MUST use these action names for consistency.
+ * Each PMS may support a subset of these actions based on capabilities.
+ */
+export const ACTIONS = {
+  /** Returns adapter capability flags */
+  GET_CAPABILITIES: 'get_capabilities',
+  /** Tests PMS connection and credentials */
+  HEALTH_CHECK: 'health_check',
+  /** Fetches availability and rates for date range */
+  FETCH_AVAILABILITY: 'fetch_availability',
+  /** Gets room type definitions */
+  GET_ROOM_TYPES: 'get_room_types',
+  /** Gets rate type definitions */
+  GET_RATE_TYPES: 'get_rate_types',
+  /** Gets reservations for date range */
+  GET_RESERVATIONS: 'get_reservations',
+  /** Creates a new reservation */
+  CREATE_RESERVATION: 'create_reservation',
+  /** Modifies an existing reservation */
+  MODIFY_RESERVATION: 'modify_reservation',
+  /** Cancels an existing reservation */
+  CANCEL_RESERVATION: 'cancel_reservation',
+  /** (Native only) Sets availability directly */
+  SET_AVAILABILITY: 'set_availability',
+  /** (Native only) Sets rates directly */
+  SET_RATES: 'set_rates',
+} as const;
+
+export type ActionName = typeof ACTIONS[keyof typeof ACTIONS];
