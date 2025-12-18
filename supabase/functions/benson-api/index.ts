@@ -13,6 +13,35 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ============================================================================
+// STANDARDIZED ERROR CODES (from adapter-contract.ts)
+// ============================================================================
+
+const ERROR_CODES = {
+  INVALID_REQUEST: 'INVALID_REQUEST',
+  AUTH_FAILED: 'AUTH_FAILED',
+  ACCESS_DENIED: 'ACCESS_DENIED',
+  NOT_FOUND: 'NOT_FOUND',
+  AVAILABILITY_CHANGED: 'AVAILABILITY_CHANGED',
+  BOOKING_REJECTED: 'BOOKING_REJECTED',
+  MODIFICATION_NOT_SUPPORTED: 'MODIFICATION_NOT_SUPPORTED',
+  CANCELLATION_NOT_SUPPORTED: 'CANCELLATION_NOT_SUPPORTED',
+  INTERNAL_ADAPTER_ERROR: 'INTERNAL_ADAPTER_ERROR',
+  PMS_UNAVAILABLE: 'PMS_UNAVAILABLE',
+} as const;
+
+// ============================================================================
+// CAPABILITY DECLARATION
+// ============================================================================
+
+const CAPABILITIES = {
+  supports_live_availability: true,
+  supports_rate_fetch: true,
+  supports_create_booking: true,
+  supports_modify_booking: false,
+  supports_webhooks: false,
+};
+
 // Standardized response wrapper - ALL adapters MUST use this shape
 interface AdapterResponse<T = unknown> {
   success: boolean;
@@ -39,12 +68,29 @@ function createAdapterResponse<T>(
   };
 }
 
+function createSuccessResponse<T>(data: T, action: string): AdapterResponse<T> {
+  return createAdapterResponse(true, data, null, action);
+}
+
+function createErrorResponse(
+  code: string,
+  message: string,
+  action: string,
+  details?: unknown
+): AdapterResponse<null> {
+  return createAdapterResponse(false, null, { code, message, details }, action);
+}
+
 // Input validation schemas
 const baseRequestSchema = z.object({
   action: z.enum([
-    "test_connection",
+    "get_capabilities",
+    "health_check",
+    "test_connection", // Legacy alias for health_check
     "fetch_availability",
     "create_reservation",
+    "modify_reservation",
+    "cancel_reservation",
     "get_reservations",
     "fetch_types",
     "fetch_property_data",
@@ -89,6 +135,16 @@ const createReservationSchema = baseRequestSchema.extend({
       numberOfInfants: z.number().min(0),
     })),
   }),
+});
+
+const modifyReservationSchema = baseRequestSchema.extend({
+  action: z.literal("modify_reservation"),
+  reservation_id: z.string(),
+});
+
+const cancelReservationSchema = baseRequestSchema.extend({
+  action: z.literal("cancel_reservation"),
+  reservation_id: z.string(),
 });
 
 const postBillSchema = baseRequestSchema.extend({
@@ -439,6 +495,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let action = "unknown";
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -451,12 +509,21 @@ serve(async (req) => {
     if (!baseValidation.success) {
       console.error("Validation failed:", baseValidation.error);
       return new Response(
-        JSON.stringify({ error: "Invalid request parameters", details: baseValidation.error.issues }),
+        JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "Invalid request parameters", "unknown", baseValidation.error.issues)),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
     
-    const { action, property_id, ...params } = body;
+    const { property_id, ...params } = body;
+    action = body.action;
+
+    // Handle get_capabilities early (no credentials needed)
+    if (action === "get_capabilities") {
+      return new Response(
+        JSON.stringify(createSuccessResponse(CAPABILITIES, "get_capabilities")),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     console.log(`Benson API action: ${action}, property_id: ${property_id}`);
 
@@ -481,14 +548,14 @@ serve(async (req) => {
     if (credError || !credentials) {
       console.error("Benson credentials not found:", credError);
       return new Response(
-        JSON.stringify({ error: `Benson ${activeEnvironment} credentials not configured` }),
+        JSON.stringify(createErrorResponse(ERROR_CODES.AUTH_FAILED, `Benson ${activeEnvironment} credentials not configured`, action)),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     if (!credentials.username || !credentials.password) {
       return new Response(
-        JSON.stringify({ error: `Benson ${activeEnvironment} username/password not configured` }),
+        JSON.stringify(createErrorResponse(ERROR_CODES.AUTH_FAILED, `Benson ${activeEnvironment} username/password not configured`, action)),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -510,14 +577,14 @@ serve(async (req) => {
     if (propError || !property) {
       console.error("Property not found:", propError);
       return new Response(
-        JSON.stringify({ error: "Property not found" }),
+        JSON.stringify(createErrorResponse(ERROR_CODES.NOT_FOUND, "Property not found", action)),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     if (!property.benson_property_code) {
       return new Response(
-        JSON.stringify({ error: "Benson property code not configured for this property" }),
+        JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "Benson property code not configured for this property", action)),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -526,6 +593,7 @@ serve(async (req) => {
     let result: any;
 
     switch (action) {
+      case "health_check":
       case "test_connection": {
         // Simple test to verify credentials work
         const baseUrl = creds.baseUrl || (creds.environment === "production" ? BENSON_PRODUCTION_URL : BENSON_STAGING_URL);
@@ -553,24 +621,21 @@ serve(async (req) => {
           const errorText = await testResponse.text();
           console.error(`Test failed: ${testResponse.status} - ${errorText}`);
           return new Response(
-            JSON.stringify({ 
-              success: false, 
-              status: testResponse.status,
-              error: errorText || "Authentication failed",
-              url: testUrl,
-              username: creds.username,
-              environment: creds.environment
-            }),
+            JSON.stringify(createErrorResponse(
+              testResponse.status === 401 ? ERROR_CODES.AUTH_FAILED : ERROR_CODES.PMS_UNAVAILABLE,
+              errorText || "Connection test failed",
+              "health_check",
+              { status: testResponse.status, url: testUrl }
+            )),
             { status: testResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
         
         const testData = await testResponse.json();
         result = { 
-          success: true, 
+          healthy: true, 
           message: "Connection successful",
-          roomTypesCount: Array.isArray(testData) ? testData.length : 0,
-          data: testData
+          room_types_count: Array.isArray(testData) ? testData.length : 0,
         };
         break;
       }
@@ -587,23 +652,23 @@ serve(async (req) => {
         
         // Benson returns an array of room types directly - wrap it in expected structure
         const availabilityRoomTypes = Array.isArray(rawAvailability) ? rawAvailability : (rawAvailability?.roomTypes || []);
-        result = { roomTypes: availabilityRoomTypes };
+        result = { room_types: availabilityRoomTypes };
         
         console.log(`Benson availability response structure:`, JSON.stringify({
-          hasRoomTypes: !!result.roomTypes,
-          roomTypesCount: result.roomTypes?.length || 0,
-          sampleRoomType: result.roomTypes?.[0] ? {
-            roomTypeId: result.roomTypes[0].roomTypeId,
-            name: result.roomTypes[0].name,
-            hasRatesTypes: !!result.roomTypes[0].rateTypes,
-            rateTypesCount: result.roomTypes[0].rateTypes?.length || 0,
+          hasRoomTypes: !!result.room_types,
+          roomTypesCount: result.room_types?.length || 0,
+          sampleRoomType: result.room_types?.[0] ? {
+            roomTypeId: result.room_types[0].roomTypeId,
+            name: result.room_types[0].name,
+            hasRatesTypes: !!result.room_types[0].rateTypes,
+            rateTypesCount: result.room_types[0].rateTypes?.length || 0,
           } : null,
         }));
         
         // Cache the availability data
-        if (result.roomTypes && result.roomTypes.length > 0) {
-          console.log(`Processing ${result.roomTypes.length} room types for caching`);
-          for (const roomType of result.roomTypes) {
+        if (result.room_types && result.room_types.length > 0) {
+          console.log(`Processing ${result.room_types.length} room types for caching`);
+          for (const roomType of result.room_types) {
             console.log(`Room type: ${roomType.roomTypeId} - ${roomType.name}, availPerNight: ${roomType.roomsAvailablePerNight?.length || 0}`);
             if (roomType.roomsAvailablePerNight) {
               for (const availability of roomType.roomsAvailablePerNight) {
@@ -747,7 +812,36 @@ serve(async (req) => {
             onConflict: "property_id,system_type,external_reservation_id"
           });
         }
+        
+        // Transform to contract shape
+        result = {
+          reservation_id: result.id?.toString(),
+          confirmation_number: result.reservationVoucher || result.id?.toString(),
+          status: result.status,
+        };
         break;
+
+      case "modify_reservation":
+        // Benson does not support modification via API
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            ERROR_CODES.MODIFICATION_NOT_SUPPORTED,
+            "Benson API does not support reservation modification. Please modify directly in Benson.",
+            "modify_reservation"
+          )),
+          { status: 501, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+
+      case "cancel_reservation":
+        // Benson does not support cancellation via API
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            ERROR_CODES.CANCELLATION_NOT_SUPPORTED,
+            "Benson API does not support reservation cancellation. Please cancel directly in Benson.",
+            "cancel_reservation"
+          )),
+          { status: 501, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
 
       case "get_reservations":
         result = await getReservations(
@@ -817,6 +911,35 @@ serve(async (req) => {
           }
           console.log(`Successfully synced ${result.length} reservations`);
         }
+        
+        // Transform to contract shape
+        result = {
+          reservations: (Array.isArray(result) ? result : []).map((res: any) => ({
+            reservation_id: res.id?.toString(),
+            status: res.status,
+            arrival_date: res.arrivalDate,
+            departure_date: res.departureDate,
+            contact: {
+              name: res.contactName || res.reservationName || "",
+              email: res.contactEmail,
+              phone: res.contactNumber,
+            },
+            rooms: (res.reservationRooms || []).map((room: any) => ({
+              room_type_id: room.roomTypeId?.toString(),
+              room_type_name: room.roomTypeName,
+              adults: room.numberOfAdults || 0,
+              teens: room.numberOfTeens || 0,
+              children: room.numberOfChildren || 0,
+              infants: room.numberOfInfants || 0,
+            })),
+            total_amount: res.charges?.reduce((sum: number, charge: any) => sum + (parseFloat(charge.amount) || 0), 0) || 0,
+            currency: "ZAR",
+            rate_type_name: res.rateTypeName,
+            voucher: res.reservationVoucher,
+            notes: res.note,
+            created_at: res.createDate,
+          })),
+        };
         break;
 
       case "fetch_types":
@@ -867,10 +990,10 @@ serve(async (req) => {
         console.log(`Fetched ${fetchedRoomTypes.length} room types, ${fetchedRateTypes.size} rate types from availability`);
         
         result = {
-          roomTypes: fetchedRoomTypes,
-          rateTypes: Array.from(fetchedRateTypes.values()),
-          chargeTypes: [], // Not available from availability endpoint
-          paymentTypes: [], // Not available from availability endpoint
+          room_types: fetchedRoomTypes,
+          rate_types: Array.from(fetchedRateTypes.values()),
+          charge_types: [], // Not available from availability endpoint
+          payment_types: [], // Not available from availability endpoint
         };
         break;
 
@@ -898,87 +1021,38 @@ serve(async (req) => {
         // Extract room types from availability response
         const extractedRoomTypes: any[] = [];
         const extractedRateTypes: Map<number, any> = new Map();
-        const extractedRates: any[] = [];
         
         if (Array.isArray(availabilityData)) {
           availabilityData.forEach((roomType: any) => {
-            // Collect linked rate type IDs for this room type
-            const linkedRateTypeIds: number[] = [];
-            if (roomType.rateTypes && Array.isArray(roomType.rateTypes)) {
-              roomType.rateTypes.forEach((rt: any) => {
-                if (rt.rateTypeId) {
-                  linkedRateTypeIds.push(rt.rateTypeId);
-                }
-              });
-            }
-            
-            // Extract room type info - capture all available fields from Benson INCLUDING nested arrays
             extractedRoomTypes.push({
               id: roomType.roomTypeId,
               name: roomType.name,
-              description: roomType.description,
-              minGuests: roomType.minGuests,
-              maxGuests: roomType.maxGuests,
-              allowTeens: roomType.allowTeens,
+              minPeople: roomType.minPeople || roomType.minGuests || 1,
+              maxPeople: roomType.maxPeople || roomType.maxGuests || 2,
               teenMinAge: roomType.teenMinAge,
               teenMaxAge: roomType.teenMaxAge,
-              allowChildren: roomType.allowChildren,
               childMinAge: roomType.childMinAge,
               childMaxAge: roomType.childMaxAge,
-              allowInfants: roomType.allowInfants,
               infantMinAge: roomType.infantMinAge,
               infantMaxAge: roomType.infantMaxAge,
-              // Additional Benson fields
-              minAgeCategory: roomType.minAgeCategory,
-              minAdultsToOfferNonAdultRates: roomType.minAdultsToOfferNonAdultRates,
-              // Linked rate types from API
-              linkedRateTypeIds: linkedRateTypeIds,
-              // NESTED ARRAYS - include full data for exploration in configurator
-              roomsAvailablePerNight: roomType.roomsAvailablePerNight || [],
-              rateTypes: roomType.rateTypes || [],
+              allowTeens: roomType.allowTeens ?? true,
+              allowChildren: roomType.allowChildren ?? true,
+              allowInfants: roomType.allowInfants ?? true,
+              rateTypes: roomType.rateTypes?.map((rt: any) => ({
+                id: rt.rateTypeId,
+                name: rt.name,
+                priceType: rt.priceType,
+              })) || [],
             });
             
-            // Extract rate types from this room type - capture all Benson rate type fields
+            // Extract rate types for mapping
             if (roomType.rateTypes && Array.isArray(roomType.rateTypes)) {
               roomType.rateTypes.forEach((rateType: any) => {
                 if (!extractedRateTypes.has(rateType.rateTypeId)) {
-                  // Log the raw rate type data for debugging
-                  console.log(`Rate type ${rateType.rateTypeId} raw data:`, JSON.stringify(rateType).substring(0, 500));
-                  
                   extractedRateTypes.set(rateType.rateTypeId, {
                     id: rateType.rateTypeId,
                     name: rateType.name,
-                    description: rateType.description || null,
-                    priceType: rateType.priceType || null,
-                    // Benson uses minAdvanceDays/maxAdvanceDays
-                    minAdvanceDays: rateType.minAdvanceDays ?? null,
-                    maxAdvanceDays: rateType.maxAdvanceDays ?? null,
-                    // Benson uses minStayDays/maxStayDays (not minNights)
-                    minStayDays: rateType.minStayDays ?? null,
-                    maxStayDays: rateType.maxStayDays ?? null,
-                    // Stay/Pay discount fields
-                    stayPayStayNights: rateType.stayPayStayNights ?? null,
-                    stayPayDiscountNights: rateType.stayPayDiscountNights ?? null,
-                    stayPayDiscountPercentage: rateType.stayPayDiscountPercentage ?? null,
-                  });
-                }
-                
-                // Extract rates for this room/rate type combination
-                if (rateType.rates && Array.isArray(rateType.rates)) {
-                  rateType.rates.forEach((rate: any) => {
-                    extractedRates.push({
-                      roomTypeId: roomType.roomTypeId,
-                      roomTypeName: roomType.name,
-                      rateTypeId: rateType.rateTypeId,
-                      rateTypeName: rateType.name,
-                      date: rate.date,
-                      roomAmount: rate.roomAmount,
-                      adultAmount1: rate.adultAmount1,
-                      adultAmount2: rate.adultAmount2,
-                      teenAmount: rate.teenAmount,
-                      childAmount: rate.childAmount,
-                      infantAmount: rate.infantAmount,
-                    });
+                    priceType: rateType.priceType,
                   });
                 }
               });
@@ -986,64 +1060,14 @@ serve(async (req) => {
           });
         }
         
-        console.log(`Property data - Room types: ${extractedRoomTypes.length}, Rate types: ${extractedRateTypes.size}`);
-        console.log(`Property data - Rates: ${extractedRates.length}`);
-        
-        // Cache room types to pms_room_types_cache table
-        if (extractedRoomTypes.length > 0) {
-          for (const rt of extractedRoomTypes) {
-            await supabase.from("pms_room_types_cache").upsert({
-              property_id: property_id,
-              system_type: "benson",
-              external_room_type_id: String(rt.id),
-              name: rt.name,
-              description: rt.description || null,
-              min_guests: rt.minGuests || 1,
-              max_guests: rt.maxGuests || 2,
-              allow_teens: rt.allowTeens ?? true,
-              teen_min_age: rt.teenMinAge || null,
-              teen_max_age: rt.teenMaxAge || null,
-              allow_children: rt.allowChildren ?? true,
-              child_min_age: rt.childMinAge || null,
-              child_max_age: rt.childMaxAge || null,
-              allow_infants: rt.allowInfants ?? true,
-              infant_min_age: rt.infantMinAge || null,
-              infant_max_age: rt.infantMaxAge || null,
-              linked_rate_type_ids: rt.linkedRateTypeIds || [],
-              raw_data: rt,
-              fetched_at: new Date().toISOString(),
-            }, { onConflict: "property_id,system_type,external_room_type_id" });
-          }
-          console.log(`Cached ${extractedRoomTypes.length} room types to database`);
-        }
-        
-        // Cache rate types to pms_rate_types_cache table
-        const rateTypesArray = Array.from(extractedRateTypes.values());
-        if (rateTypesArray.length > 0) {
-          for (const rt of rateTypesArray) {
-            await supabase.from("pms_rate_types_cache").upsert({
-              property_id: property_id,
-              system_type: "benson",
-              external_rate_type_id: String(rt.id),
-              name: rt.name,
-              description: rt.description || null,
-              price_type: rt.priceType || null,
-              min_stay_days: rt.minStayDays || null,
-              max_stay_days: rt.maxStayDays || null,
-              min_advance_days: rt.minAdvanceDays || null,
-              max_advance_days: rt.maxAdvanceDays || null,
-              raw_data: rt,
-              fetched_at: new Date().toISOString(),
-            }, { onConflict: "property_id,system_type,external_rate_type_id" });
-          }
-          console.log(`Cached ${rateTypesArray.length} rate types to database`);
-        }
+        console.log(`Extracted ${extractedRoomTypes.length} room types, ${extractedRateTypes.size} rate types from availability`);
         
         result = {
-          roomTypes: extractedRoomTypes,
-          rateTypes: rateTypesArray,
-          rates: extractedRates,
-          warnings: availabilityData.length === 0 ? ['No availability data returned from Benson'] : [],
+          room_types: extractedRoomTypes,
+          rate_types: Array.from(extractedRateTypes.values()),
+          charge_types: [], // Not available from availability endpoint
+          payment_types: [], // Not available from availability endpoint
+          availability: availabilityData,
         };
         break;
 
@@ -1061,7 +1085,7 @@ serve(async (req) => {
 
       default:
         return new Response(
-          JSON.stringify({ error: `Unknown action: ${action}` }),
+          JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, `Unknown action: ${action}`, action)),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
     }
@@ -1078,9 +1102,8 @@ serve(async (req) => {
     });
 
     // Return standardized adapter response
-    const response = createAdapterResponse(true, result, null, action);
     return new Response(
-      JSON.stringify(response),
+      JSON.stringify(createSuccessResponse(result, action)),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
@@ -1101,31 +1124,28 @@ serve(async (req) => {
       console.error("Failed to log error:", logError);
     }
 
-    // Parse error message for user-friendly response
+    // Parse error message for standardized error code
     const errorMsg = error.message || "";
+    let errorCode: string = ERROR_CODES.INTERNAL_ADAPTER_ERROR;
     let userMessage = "An error occurred processing your request";
     let statusCode = 500;
 
     if (errorMsg.includes("401")) {
+      errorCode = ERROR_CODES.AUTH_FAILED;
       userMessage = "Authentication failed. Please verify your Benson username and password in API Keys settings.";
       statusCode = 401;
     } else if (errorMsg.includes("404")) {
+      errorCode = ERROR_CODES.NOT_FOUND;
       userMessage = "Benson API endpoint not found. Please verify the property code and API URL are correct.";
       statusCode = 404;
     } else if (errorMsg.includes("403")) {
+      errorCode = ERROR_CODES.ACCESS_DENIED;
       userMessage = "Access denied. Your Benson account may not have API access enabled.";
       statusCode = 403;
     }
 
-    // Return standardized error response
-    const errorResponse = createAdapterResponse(
-      false,
-      null,
-      { code: statusCode.toString(), message: userMessage, details: errorMsg },
-      "unknown"
-    );
     return new Response(
-      JSON.stringify(errorResponse),
+      JSON.stringify(createErrorResponse(errorCode, userMessage, action, errorMsg)),
       { status: statusCode, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
