@@ -1012,13 +1012,14 @@ serve(async (req) => {
         }
         
         // Extract room types and rate types from availability response
+        // CONTRACT: Return snake_case IDs per adapter-contract.ts
         const fetchedRoomTypes: any[] = [];
         const fetchedRateTypes: Map<number, any> = new Map();
         
         if (Array.isArray(typesAvailData)) {
           typesAvailData.forEach((roomType: any) => {
             fetchedRoomTypes.push({
-              id: roomType.roomTypeId,
+              room_type_id: roomType.roomTypeId,
               name: roomType.name,
             });
             
@@ -1027,7 +1028,7 @@ serve(async (req) => {
               roomType.rateTypes.forEach((rateType: any) => {
                 if (!fetchedRateTypes.has(rateType.rateTypeId)) {
                   fetchedRateTypes.set(rateType.rateTypeId, {
-                    id: rateType.rateTypeId,
+                    rate_type_id: rateType.rateTypeId,
                     name: rateType.name,
                   });
                 }
@@ -1068,30 +1069,36 @@ serve(async (req) => {
         }
         
         // Extract room types from availability response
+        // CONTRACT: Return snake_case fields per adapter-contract.ts
         const extractedRoomTypes: any[] = [];
         const extractedRateTypes: Map<number, any> = new Map();
         
         if (Array.isArray(availabilityData)) {
           availabilityData.forEach((roomType: any) => {
             extractedRoomTypes.push({
-              id: roomType.roomTypeId,
+              room_type_id: roomType.roomTypeId,
               name: roomType.name,
-              minPeople: roomType.minPeople || roomType.minGuests || 1,
-              maxPeople: roomType.maxPeople || roomType.maxGuests || 2,
-              teenMinAge: roomType.teenMinAge,
-              teenMaxAge: roomType.teenMaxAge,
-              childMinAge: roomType.childMinAge,
-              childMaxAge: roomType.childMaxAge,
-              infantMinAge: roomType.infantMinAge,
-              infantMaxAge: roomType.infantMaxAge,
-              allowTeens: roomType.allowTeens ?? true,
-              allowChildren: roomType.allowChildren ?? true,
-              allowInfants: roomType.allowInfants ?? true,
-              rateTypes: roomType.rateTypes?.map((rt: any) => ({
-                id: rt.rateTypeId,
+              min_guests: roomType.minPeople || roomType.minGuests || 1,
+              max_guests: roomType.maxPeople || roomType.maxGuests || 2,
+              teen_min_age: roomType.teenMinAge,
+              teen_max_age: roomType.teenMaxAge,
+              child_min_age: roomType.childMinAge,
+              child_max_age: roomType.childMaxAge,
+              infant_min_age: roomType.infantMinAge,
+              infant_max_age: roomType.infantMaxAge,
+              allow_teens: roomType.allowTeens ?? true,
+              allow_children: roomType.allowChildren ?? true,
+              allow_infants: roomType.allowInfants ?? true,
+              min_age_category: roomType.minAgeCategory,
+              min_adults_to_offer_non_adult_rates: roomType.minAdultsToOfferNonAdultRates,
+              rate_types: roomType.rateTypes?.map((rt: any) => ({
+                rate_type_id: rt.rateTypeId,
                 name: rt.name,
-                priceType: rt.priceType,
+                price_type: rt.priceType,
               })) || [],
+              // Keep raw data for availability array (used for rates)
+              rooms_available_per_night: roomType.roomsAvailablePerNight,
+              linked_rate_type_ids: roomType.rateTypes?.map((rt: any) => rt.rateTypeId) || [],
             });
             
             // Extract rate types for mapping
@@ -1099,9 +1106,16 @@ serve(async (req) => {
               roomType.rateTypes.forEach((rateType: any) => {
                 if (!extractedRateTypes.has(rateType.rateTypeId)) {
                   extractedRateTypes.set(rateType.rateTypeId, {
-                    id: rateType.rateTypeId,
+                    rate_type_id: rateType.rateTypeId,
                     name: rateType.name,
-                    priceType: rateType.priceType,
+                    price_type: rateType.priceType,
+                    min_advance_days: rateType.minAdvanceDays,
+                    max_advance_days: rateType.maxAdvanceDays,
+                    min_stay_days: rateType.minStayDays,
+                    max_stay_days: rateType.maxStayDays,
+                    stay_pay_stay_nights: rateType.stayPayStayNights,
+                    stay_pay_discount_nights: rateType.stayPayDiscountNights,
+                    stay_pay_discount_percentage: rateType.stayPayDiscountPercentage,
                   });
                 }
               });
@@ -1116,7 +1130,7 @@ serve(async (req) => {
           rate_types: Array.from(extractedRateTypes.values()),
           charge_types: [], // Not available from availability endpoint
           payment_types: [], // Not available from availability endpoint
-          availability: availabilityData,
+          availability: availabilityData, // Raw availability data for rates extraction
         };
         break;
 
