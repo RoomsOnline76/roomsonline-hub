@@ -39,6 +39,7 @@ export interface AdapterResponse<T = unknown> {
  * Supported PMS sources
  */
 export type PmsSource = 
+  | 'roomsonline'  // Native PMS - first-class internal adapter
   | 'benson' 
   | 'nightsbridge' 
   | 'checkfront' 

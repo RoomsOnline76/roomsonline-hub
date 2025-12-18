@@ -1,10 +1,19 @@
 // Configuration for which fields each PMS system populates
 // This allows dynamic indication of API-synced fields in the property form
 
-export type PMSSystem = 'benson' | 'nightsbridge' | 'checkfront' | 'semper' | 'siteminder' | 'mews' | 'opera';
+export type PMSSystem = 'roomsonline' | 'benson' | 'nightsbridge' | 'checkfront' | 'semper' | 'siteminder' | 'mews' | 'opera';
 
 // Define which fields each PMS system can populate
 export const pmsPopulatedFields: Record<PMSSystem, string[]> = {
+  // RoomsOnline Native PMS - all fields are managed internally, similar to Benson pattern
+  roomsonline: [
+    'name',
+    'description',
+    'room_types',
+    'rate_types',
+    'availability',
+    'rates',
+  ],
   benson: [
     // Property core fields
     'name',
@@ -132,6 +141,7 @@ export const getPMSFieldClass = (
 // Get display name for PMS systems
 export const getPMSDisplayName = (pmsKey: string): string => {
   const names: Record<string, string> = {
+    roomsonline: 'RoomsOnline',
     benson: 'Benson',
     nightsbridge: 'NightsBridge',
     checkfront: 'Checkfront',

@@ -1,5 +1,8 @@
 project_id = "qmprswbgkpzcvexmmcbf"
 
+[functions.roomsonline-pms-api]
+verify_jwt = true
+
 [functions.benson-api]
 verify_jwt = true
 
