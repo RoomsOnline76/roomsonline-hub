@@ -500,7 +500,10 @@ const Bookings = () => {
 
       if (error) throw error;
 
-      const count = Array.isArray(data) ? data.length : 0;
+      // Unwrap adapter response per contract
+      const responseData = data?.data || data;
+      const reservations = responseData?.reservations || [];
+      const count = Array.isArray(reservations) ? reservations.length : 0;
       toast.success(`Synced ${count} reservations from Benson`);
       
       // Reload bookings after sync

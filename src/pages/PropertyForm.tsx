@@ -362,25 +362,34 @@ export default function PropertyForm() {
 
       if (error) throw error;
 
-      if (data?.error) {
-        throw new Error(data.error);
+      // Check for adapter-level error
+      if (data?.success === false && data?.error) {
+        throw new Error(data.error.message || 'Unknown error');
       }
+
+      // Unwrap adapter response - data is in data.data per adapter contract
+      const responseData = data?.data || data;
 
       let hasChanges = false;
 
       // Update room types from PMS with all available fields
-      if (data?.roomTypes && Array.isArray(data.roomTypes)) {
-        const pmsRoomTypes = data.roomTypes.map((rt: any) => {
+      // CONTRACT: Use snake_case field names per adapter-contract.ts
+      const roomTypesArray = responseData?.room_types || responseData?.roomTypes || [];
+      if (Array.isArray(roomTypesArray) && roomTypesArray.length > 0) {
+        const pmsRoomTypes = roomTypesArray.map((rt: any) => {
           // Track which fields are populated from PMS
           const pmsSyncedFields: string[] = ['name', 'pmsRoomId'];
           
+          // Get room type ID - handle both snake_case (contract) and camelCase (legacy)
+          const roomTypeId = rt.room_type_id ?? rt.id;
+          
           const roomData: any = {
-            id: rt.id?.toString() || Date.now().toString(),
-            name: rt.name || `Room Type ${rt.id}`,
+            id: roomTypeId?.toString() || Date.now().toString(),
+            name: rt.name || `Room Type ${roomTypeId}`,
             url: "",
             selected: false,
-            pms_id: rt.id,
-            pmsRoomId: rt.id?.toString() || "",
+            pms_id: roomTypeId,
+            pmsRoomId: roomTypeId?.toString() || "",
             pms_synced: true,
           };
           
@@ -390,94 +399,111 @@ export default function PropertyForm() {
             pmsSyncedFields.push('description');
           }
           
-          // Map guest capacity
-          if (rt.maxGuests !== undefined) {
-            roomData.maxPeople = rt.maxGuests;
-            pmsSyncedFields.push('maxPeople');
+          // Map guest capacity - handle both snake_case (contract) and camelCase (legacy)
+          const maxGuests = rt.max_guests ?? rt.maxGuests ?? rt.maxPeople;
+          const minGuests = rt.min_guests ?? rt.minGuests ?? rt.minPeople;
+          
+          if (maxGuests !== undefined) {
+            roomData.maxPeople = maxGuests;
+            roomData.maxAdults = maxGuests;
+            pmsSyncedFields.push('maxPeople', 'maxAdults');
           }
-          if (rt.minGuests !== undefined) {
-            roomData.minGuests = rt.minGuests;
+          if (minGuests !== undefined) {
+            roomData.minGuests = minGuests;
             pmsSyncedFields.push('minGuests');
           }
           
-          // Calculate max adults (maxGuests minus potential children/teens)
-          if (rt.maxGuests !== undefined) {
-            roomData.maxAdults = rt.maxGuests;
-            pmsSyncedFields.push('maxAdults');
-          }
+          // Map children settings - handle both formats
+          const allowChildren = rt.allow_children ?? rt.allowChildren;
+          const childMinAge = rt.child_min_age ?? rt.childMinAge;
+          const childMaxAge = rt.child_max_age ?? rt.childMaxAge;
           
-          // Map children settings
-          if (rt.allowChildren !== undefined) {
-            roomData.allowChildren = rt.allowChildren;
+          if (allowChildren !== undefined) {
+            roomData.allowChildren = allowChildren;
             pmsSyncedFields.push('allowChildren');
-            if (rt.allowChildren && rt.childMaxAge) {
-              roomData.maxChildren = Math.min(rt.maxGuests || 2, 4); // Reasonable default
+            if (allowChildren && childMaxAge) {
+              roomData.maxChildren = Math.min(maxGuests || 2, 4);
               pmsSyncedFields.push('maxChildren');
             }
-            if (rt.childMinAge !== undefined) {
-              roomData.childMinAge = rt.childMinAge;
+            if (childMinAge !== undefined) {
+              roomData.childMinAge = childMinAge;
               pmsSyncedFields.push('childMinAge');
             }
-            if (rt.childMaxAge !== undefined) {
-              roomData.childMaxAge = rt.childMaxAge;
+            if (childMaxAge !== undefined) {
+              roomData.childMaxAge = childMaxAge;
               pmsSyncedFields.push('childMaxAge');
             }
           }
           
-          // Map teen settings
-          if (rt.allowTeens !== undefined) {
-            roomData.allowTeens = rt.allowTeens;
+          // Map teen settings - handle both formats
+          const allowTeens = rt.allow_teens ?? rt.allowTeens;
+          const teenMinAge = rt.teen_min_age ?? rt.teenMinAge;
+          const teenMaxAge = rt.teen_max_age ?? rt.teenMaxAge;
+          
+          if (allowTeens !== undefined) {
+            roomData.allowTeens = allowTeens;
             pmsSyncedFields.push('allowTeens');
-            if (rt.teenMinAge !== undefined) {
-              roomData.teenMinAge = rt.teenMinAge;
+            if (teenMinAge !== undefined) {
+              roomData.teenMinAge = teenMinAge;
               pmsSyncedFields.push('teenMinAge');
             }
-            if (rt.teenMaxAge !== undefined) {
-              roomData.teenMaxAge = rt.teenMaxAge;
+            if (teenMaxAge !== undefined) {
+              roomData.teenMaxAge = teenMaxAge;
               pmsSyncedFields.push('teenMaxAge');
             }
           }
           
-          // Map infant settings
-          if (rt.allowInfants !== undefined) {
-            roomData.allowInfants = rt.allowInfants;
+          // Map infant settings - handle both formats
+          const allowInfants = rt.allow_infants ?? rt.allowInfants;
+          const infantMinAge = rt.infant_min_age ?? rt.infantMinAge;
+          const infantMaxAge = rt.infant_max_age ?? rt.infantMaxAge;
+          
+          if (allowInfants !== undefined) {
+            roomData.allowInfants = allowInfants;
             pmsSyncedFields.push('allowInfants');
-            if (rt.infantMinAge !== undefined) {
-              roomData.infantMinAge = rt.infantMinAge;
+            if (infantMinAge !== undefined) {
+              roomData.infantMinAge = infantMinAge;
               pmsSyncedFields.push('infantMinAge');
             }
-            if (rt.infantMaxAge !== undefined) {
-              roomData.infantMaxAge = rt.infantMaxAge;
+            if (infantMaxAge !== undefined) {
+              roomData.infantMaxAge = infantMaxAge;
               pmsSyncedFields.push('infantMaxAge');
             }
           }
           
-          // Map additional Benson fields
-          if (rt.minAgeCategory) {
-            roomData.minAgeCategory = rt.minAgeCategory;
+          // Map additional Benson fields - handle both formats
+          const minAgeCategory = rt.min_age_category ?? rt.minAgeCategory;
+          const minAdultsToOfferNonAdultRates = rt.min_adults_to_offer_non_adult_rates ?? rt.minAdultsToOfferNonAdultRates;
+          
+          if (minAgeCategory) {
+            roomData.minAgeCategory = minAgeCategory;
             pmsSyncedFields.push('minAgeCategory');
           }
-          if (rt.minAdultsToOfferNonAdultRates !== undefined) {
-            roomData.minAdultsToOfferNonAdultRates = rt.minAdultsToOfferNonAdultRates;
+          if (minAdultsToOfferNonAdultRates !== undefined) {
+            roomData.minAdultsToOfferNonAdultRates = minAdultsToOfferNonAdultRates;
             pmsSyncedFields.push('minAdultsToOfferNonAdultRates');
           }
           
-          // Include nested arrays from Benson API for exploration in configurator
-          if (rt.roomsAvailablePerNight && Array.isArray(rt.roomsAvailablePerNight)) {
-            roomData.roomsAvailablePerNight = rt.roomsAvailablePerNight;
+          // Include nested arrays from PMS API for exploration in configurator
+          const roomsAvailablePerNight = rt.rooms_available_per_night ?? rt.roomsAvailablePerNight;
+          const rateTypes = rt.rate_types ?? rt.rateTypes;
+          
+          if (roomsAvailablePerNight && Array.isArray(roomsAvailablePerNight)) {
+            roomData.roomsAvailablePerNight = roomsAvailablePerNight;
             pmsSyncedFields.push('roomsAvailablePerNight');
           }
-          if (rt.rateTypes && Array.isArray(rt.rateTypes)) {
-            roomData.rateTypes = rt.rateTypes;
+          if (rateTypes && Array.isArray(rateTypes)) {
+            roomData.rateTypes = rateTypes;
             pmsSyncedFields.push('rateTypes');
           }
           
-          // Store linked rate type IDs extracted from nested rateTypes
-          if (rt.linkedRateTypeIds && Array.isArray(rt.linkedRateTypeIds)) {
-            roomData.linkedRateTypeIds = rt.linkedRateTypeIds;
-          } else if (rt.rateTypes && Array.isArray(rt.rateTypes)) {
+          // Store linked rate type IDs - handle both formats
+          const linkedRateTypeIds = rt.linked_rate_type_ids ?? rt.linkedRateTypeIds;
+          if (linkedRateTypeIds && Array.isArray(linkedRateTypeIds)) {
+            roomData.linkedRateTypeIds = linkedRateTypeIds;
+          } else if (rateTypes && Array.isArray(rateTypes)) {
             // Extract linked rate type IDs from nested rateTypes array
-            roomData.linkedRateTypeIds = rt.rateTypes.map((rate: any) => rate.rateTypeId);
+            roomData.linkedRateTypeIds = rateTypes.map((rate: any) => rate.rate_type_id ?? rate.rateTypeId);
           }
           
           // Store the list of PMS-synced fields
@@ -556,26 +582,28 @@ export default function PropertyForm() {
 
         toast({
           title: "Room Types Synced",
-          description: `Found ${data.roomTypes.length} room types. ${newCount} new, ${updatedCount} updated.`,
+          description: `Found ${roomTypesArray.length} room types. ${newCount} new, ${updatedCount} updated.`,
         });
       }
 
-      // Store rate types as a separate array with all Benson API fields
-      if (data?.rateTypes && Array.isArray(data.rateTypes) && data.rateTypes.length > 0) {
-        console.log("Rate types from Benson:", data.rateTypes);
+      // Store rate types as a separate array with all PMS API fields
+      // CONTRACT: Use snake_case field names per adapter-contract.ts
+      const rateTypesArray = responseData?.rate_types || responseData?.rateTypes || [];
+      if (Array.isArray(rateTypesArray) && rateTypesArray.length > 0) {
+        console.log("Rate types from PMS:", rateTypesArray);
         
-        const importedRateTypes = data.rateTypes.map((rt: any) => ({
-          id: rt.id,
-          name: rt.name || `Rate Type ${rt.id}`,
+        const importedRateTypes = rateTypesArray.map((rt: any) => ({
+          id: rt.rate_type_id ?? rt.id,
+          name: rt.name || `Rate Type ${rt.rate_type_id ?? rt.id}`,
           description: rt.description || null,
-          priceType: rt.priceType || null,
-          minAdvanceDays: rt.minAdvanceDays ?? null,
-          maxAdvanceDays: rt.maxAdvanceDays ?? null,
-          minStayDays: rt.minStayDays ?? null,
-          maxStayDays: rt.maxStayDays ?? null,
-          stayPayStayNights: rt.stayPayStayNights ?? null,
-          stayPayDiscountNights: rt.stayPayDiscountNights ?? null,
-          stayPayDiscountPercentage: rt.stayPayDiscountPercentage ?? null,
+          priceType: rt.price_type ?? rt.priceType ?? null,
+          minAdvanceDays: rt.min_advance_days ?? rt.minAdvanceDays ?? null,
+          maxAdvanceDays: rt.max_advance_days ?? rt.maxAdvanceDays ?? null,
+          minStayDays: rt.min_stay_days ?? rt.minStayDays ?? null,
+          maxStayDays: rt.max_stay_days ?? rt.maxStayDays ?? null,
+          stayPayStayNights: rt.stay_pay_stay_nights ?? rt.stayPayStayNights ?? null,
+          stayPayDiscountNights: rt.stay_pay_discount_nights ?? rt.stayPayDiscountNights ?? null,
+          stayPayDiscountPercentage: rt.stay_pay_discount_percentage ?? rt.stayPayDiscountPercentage ?? null,
           pms_synced: true,
         }));
         
@@ -602,51 +630,70 @@ export default function PropertyForm() {
         hasChanges = true;
         toast({
           title: "Rate Types Synced",
-          description: `Found ${data.rateTypes.length} rate types. ${newRateTypeCount} new, ${updatedRateTypeCount} updated.`,
+          description: `Found ${rateTypesArray.length} rate types. ${newRateTypeCount} new, ${updatedRateTypeCount} updated.`,
         });
       }
 
-      // Store rates per room type - group by roomTypeId
-      if (data?.rates && Array.isArray(data.rates) && data.rates.length > 0) {
-        console.log("Rates data from Benson:", data.rates.length, "rate entries");
+      // Store rates per room type - extract from raw availability data
+      // NOTE: Raw availability data contains rate data in rateTypes arrays within each room type
+      const availabilityData = responseData?.availability || [];
+      if (Array.isArray(availabilityData) && availabilityData.length > 0) {
+        console.log("Availability data from PMS:", availabilityData.length, "room type entries");
         
-        // Group rates by roomTypeId
-        const ratesByRoomType: Record<number, any[]> = {};
-        data.rates.forEach((rate: any) => {
-          if (!ratesByRoomType[rate.roomTypeId]) {
-            ratesByRoomType[rate.roomTypeId] = [];
-          }
-          ratesByRoomType[rate.roomTypeId].push({
-            rateTypeId: rate.rateTypeId,
-            rateTypeName: rate.rateTypeName,
-            date: rate.date,
-            roomAmount: rate.roomAmount,
-            adultAmount1: rate.adultAmount1,
-            adultAmount2: rate.adultAmount2,
-            teenAmount: rate.teenAmount,
-            childAmount: rate.childAmount,
-            infantAmount: rate.infantAmount,
+        // Extract rates from availability data
+        // Each room type has rateTypes[] with rates[] inside
+        const allRates: any[] = [];
+        availabilityData.forEach((roomType: any) => {
+          const roomTypeId = roomType.roomTypeId;
+          const rateTypes = roomType.rateTypes || [];
+          rateTypes.forEach((rateType: any) => {
+            const rates = rateType.rates || [];
+            rates.forEach((rate: any) => {
+              allRates.push({
+                roomTypeId,
+                rateTypeId: rateType.rateTypeId,
+                rateTypeName: rateType.name,
+                date: rate.date,
+                roomAmount: rate.roomAmount,
+                adultAmount1: rate.adultAmount1,
+                adultAmount2: rate.adultAmount2,
+                teenAmount: rate.teenAmount,
+                childAmount: rate.childAmount,
+                infantAmount: rate.infantAmount,
+              });
+            });
           });
         });
         
-        // Update room types with their rates
-        setRoomTypes(prev => prev.map(room => {
-          const pmsId = room.pms_id;
-          if (pmsId && ratesByRoomType[pmsId]) {
-            return {
-              ...room,
-              pms_rates: ratesByRoomType[pmsId],
-              pms_rates_synced_at: new Date().toISOString(),
-            };
-          }
-          return room;
-        }));
-        
-        hasChanges = true;
-        toast({
-          title: "Rates Synced",
-          description: `Stored ${data.rates.length} rate entries across ${Object.keys(ratesByRoomType).length} room types.`,
-        });
+        if (allRates.length > 0) {
+          // Group rates by roomTypeId
+          const ratesByRoomType: Record<number, any[]> = {};
+          allRates.forEach((rate: any) => {
+            if (!ratesByRoomType[rate.roomTypeId]) {
+              ratesByRoomType[rate.roomTypeId] = [];
+            }
+            ratesByRoomType[rate.roomTypeId].push(rate);
+          });
+          
+          // Update room types with their rates
+          setRoomTypes(prev => prev.map(room => {
+            const pmsId = room.pms_id;
+            if (pmsId && ratesByRoomType[pmsId]) {
+              return {
+                ...room,
+                pms_rates: ratesByRoomType[pmsId],
+                pms_rates_synced_at: new Date().toISOString(),
+              };
+            }
+            return room;
+          }));
+          
+          hasChanges = true;
+          toast({
+            title: "Rates Synced",
+            description: `Stored ${allRates.length} rate entries across ${Object.keys(ratesByRoomType).length} room types.`,
+          });
+        }
       }
 
       // Trigger dirty state if any changes were made
