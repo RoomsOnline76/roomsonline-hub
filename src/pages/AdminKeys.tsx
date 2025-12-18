@@ -40,6 +40,11 @@ const getPMSIcon = (systemType: string | null): LucideIcon => {
       return Briefcase;
     case "siteminder":
       return Layers;
+    case "littlehotelier":
+    case "cloudbeds":
+    case "smoobu":
+    case "hostfully":
+      return BedDouble;
     case "google":
       return MapPin;
     case "sendgrid":
@@ -1906,6 +1911,40 @@ export default function AdminKeys() {
     );
   };
 
+  // Placeholder card for upcoming PMS integrations
+  const renderPlaceholderPMSCard = (name: string, systemType: string, description: string) => {
+    const Icon = getPMSIcon(systemType);
+    return (
+      <AccordionItem key={systemType} value={systemType} className="border rounded-lg px-4 opacity-60">
+        <AccordionTrigger className="hover:no-underline">
+          <div className="flex items-center justify-between w-full pr-4">
+            <div className="flex items-center gap-3">
+              <Icon className="h-5 w-5 text-muted-foreground" />
+              <span className="font-semibold">{name}</span>
+              <Badge variant="outline" className="text-xs">Coming Soon</Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                Not Available
+              </Badge>
+            </div>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="pt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">{description}</p>
+            <div className="p-4 rounded-lg border bg-muted/50 text-center">
+              <p className="text-sm text-muted-foreground">
+                This integration is planned for a future release. Contact support for more information.
+              </p>
+            </div>
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    );
+  };
+
   if (loading) {
     return (
       <>
@@ -1987,6 +2026,10 @@ export default function AdminKeys() {
               {renderBensonCard()}
               {renderNightsbridgeCard()}
               {renderCheckfrontCard()}
+              {renderPlaceholderPMSCard("Little Hotelier", "littlehotelier", "Cloud-based property management system designed for small hotels, B&Bs, and guest houses")}
+              {renderPlaceholderPMSCard("Cloudbeds", "cloudbeds", "All-in-one hospitality management platform for hotels and accommodation providers")}
+              {renderPlaceholderPMSCard("Smoobu", "smoobu", "Channel manager and vacation rental software for property managers")}
+              {renderPlaceholderPMSCard("Hostfully", "hostfully", "Property management platform for vacation rental managers")}
               {pmsKeys.map(renderKeyCard)}
             </Accordion>
           </div>
