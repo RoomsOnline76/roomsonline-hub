@@ -328,12 +328,16 @@ const Booking = () => {
         });
 
         if (error) throw error;
-        availability = data;
-        setAvailabilityData(data);
+        // Unwrap adapter response - data may be in data.data or data directly
+        availability = data?.data || data;
+        setAvailabilityData(availability);
       }
 
       const lineItems: CostLineItem[] = [];
       let runningTotal = 0;
+
+      // Get room types array - handle both snake_case (contract) and camelCase (legacy)
+      const roomTypesArray = availability?.room_types || availability?.roomTypes || [];
 
       // Calculate cost for each room
       for (const room of rooms) {
@@ -344,14 +348,19 @@ const Booking = () => {
           ? Math.ceil((new Date(roomCheckOut).getTime() - new Date(roomCheckIn).getTime()) / (1000 * 60 * 60 * 24))
           : nights;
 
-        const roomType = availability?.roomTypes?.find(
-          (rt: any) => String(rt.roomTypeId) === room.roomTypeId
+        // Find room type - handle both snake_case and camelCase field names
+        const roomType = roomTypesArray.find(
+          (rt: any) => String(rt.room_type_id || rt.roomTypeId) === room.roomTypeId
         );
 
         if (!roomType) continue;
 
-        const rateType = roomType.rateTypes?.find(
-          (rt: any) => String(rt.rateTypeId) === selectedRateType
+        // Get rate types array - handle both formats
+        const rateTypesArray = roomType.rate_types || roomType.rateTypes || [];
+        
+        // Find rate type - handle both formats
+        const rateType = rateTypesArray.find(
+          (rt: any) => String(rt.rate_type_id || rt.rateTypeId) === selectedRateType
         );
 
         if (!rateType) continue;
@@ -366,13 +375,15 @@ const Booking = () => {
           return rateDate >= roomCheckIn && rateDate < roomCheckOut;
         });
         
-        const priceType = (rateType.priceType || 'PER ROOM').toUpperCase();
+        // Handle both snake_case and camelCase for priceType
+        const priceType = (rateType.price_type || rateType.priceType || 'PER ROOM').toUpperCase();
         const roomTotalGuests = room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants;
 
         if (priceType === 'PER ROOM' || priceType === 'PERROOM') {
           let totalRoomAmount = 0;
           rates.forEach((rate: any) => {
-            totalRoomAmount += rate.roomAmount || 0;
+            // Handle both snake_case and camelCase
+            totalRoomAmount += rate.room_amount || rate.roomAmount || 0;
           });
 
           if (totalRoomAmount > 0) {
@@ -393,24 +404,29 @@ const Booking = () => {
           let totalInfantAmount = 0;
 
           rates.forEach((rate: any) => {
+            // Handle both snake_case (contract) and camelCase (legacy)
+            const adultAmount1 = rate.adult_amount_1 || rate.adultAmount1 || rate.adult_amount || rate.adultAmount || 0;
+            const adultAmount2 = rate.adult_amount_2 || rate.adultAmount2 || rate.adult_amount || rate.adultAmount || 0;
+            const teenAmount = rate.teen_amount || rate.teenAmount || 0;
+            const childAmount = rate.child_amount || rate.childAmount || 0;
+            const infantAmount = rate.infant_amount || rate.infantAmount || 0;
+
             if (room.numberOfAdults === 1) {
-              totalAdultAmount += rate.adultAmount1 || rate.adultAmount || 0;
+              totalAdultAmount += adultAmount1;
             } else if (room.numberOfAdults === 2) {
-              totalAdultAmount += rate.adultAmount2 || rate.adultAmount || 0;
+              totalAdultAmount += adultAmount2;
             } else if (room.numberOfAdults > 2) {
-              const baseRate = rate.adultAmount2 || rate.adultAmount || 0;
-              const additionalAdultRate = rate.adultAmount1 || rate.adultAmount || 0;
-              totalAdultAmount += baseRate + (additionalAdultRate * (room.numberOfAdults - 2));
+              totalAdultAmount += adultAmount2 + (adultAmount1 * (room.numberOfAdults - 2));
             }
 
             if (room.numberOfTeens > 0) {
-              totalTeenAmount += (rate.teenAmount || 0) * room.numberOfTeens;
+              totalTeenAmount += teenAmount * room.numberOfTeens;
             }
             if (room.numberOfChildren > 0) {
-              totalChildAmount += (rate.childAmount || 0) * room.numberOfChildren;
+              totalChildAmount += childAmount * room.numberOfChildren;
             }
             if (room.numberOfInfants > 0) {
-              totalInfantAmount += (rate.infantAmount || 0) * room.numberOfInfants;
+              totalInfantAmount += infantAmount * room.numberOfInfants;
             }
           });
 
