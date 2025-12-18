@@ -829,6 +829,7 @@ export type Database = {
           amenities: Json | null
           bathrooms: number | null
           bedrooms: number | null
+          benson_environment: string | null
           benson_property_code: string | null
           checkfront_property_code: string | null
           city: string
@@ -859,6 +860,7 @@ export type Database = {
           amenities?: Json | null
           bathrooms?: number | null
           bedrooms?: number | null
+          benson_environment?: string | null
           benson_property_code?: string | null
           checkfront_property_code?: string | null
           city: string
@@ -889,6 +891,7 @@ export type Database = {
           amenities?: Json | null
           bathrooms?: number | null
           bedrooms?: number | null
+          benson_environment?: string | null
           benson_property_code?: string | null
           checkfront_property_code?: string | null
           city?: string

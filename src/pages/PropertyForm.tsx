@@ -321,6 +321,7 @@ export default function PropertyForm() {
     { key_name: string; name: string; system_type: string }[]
   >([]);
   const [bensonPropertyCode, setBensonPropertyCode] = useState<string>("");
+  const [bensonEnvironment, setBensonEnvironment] = useState<"staging" | "production">("staging");
   const [isSyncingPms, setIsSyncingPms] = useState(false);
   const [lastPmsSync, setLastPmsSync] = useState<Date | null>(null);
 
@@ -1859,9 +1860,12 @@ export default function PropertyForm() {
           const externalSystem = data.external_system || "";
           setSelectedPMS(externalSystem);
 
-          // Set Benson property code
+          // Set Benson property code and environment
           if (data.benson_property_code) {
             setBensonPropertyCode(data.benson_property_code);
+          }
+          if ((data as any).benson_environment) {
+            setBensonEnvironment((data as any).benson_environment as "staging" | "production");
           }
 
           // Store existing external IDs to preserve when PMS changes
@@ -2190,6 +2194,7 @@ export default function PropertyForm() {
         external_id: formData.bb_id || formData.venue_id || null,
         // Preserve existing benson_property_code if PMS changed, only update if benson is selected
         benson_property_code: selectedPMS === "benson" ? bensonPropertyCode : existingBensonPropertyCode,
+        benson_environment: selectedPMS === "benson" ? bensonEnvironment : null,
         is_active: true,
         images: uploadedImages,
         max_guests: 2, // Default value, can be updated later
@@ -2621,6 +2626,18 @@ export default function PropertyForm() {
                               className="h-7 text-xs w-40"
                               required
                             />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="benson_environment" className="text-xs whitespace-nowrap">Env</Label>
+                            <Select value={bensonEnvironment} onValueChange={(v) => { setBensonEnvironment(v as "staging" | "production"); setIsDirty(true); }}>
+                              <SelectTrigger className="h-7 text-xs w-24">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="staging">Staging</SelectItem>
+                                <SelectItem value="production">Production</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
                           {bensonPropertyCode && (
                             <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={syncFromBenson} disabled={isSyncingPms}>

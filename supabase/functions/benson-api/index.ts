@@ -527,50 +527,10 @@ serve(async (req) => {
 
     console.log(`Benson API action: ${action}, property_id: ${property_id}`);
 
-    // Get active environment setting
-    const { data: envSetting } = await supabase
-      .from("api_keys")
-      .select("key_value")
-      .eq("key_name", "BENSON_ACTIVE_ENVIRONMENT")
-      .maybeSingle();
-
-    const activeEnvironment = envSetting?.key_value || "staging";
-    console.log(`Using Benson ${activeEnvironment} environment`);
-
-    // Get Benson credentials for the active environment
-    const { data: credentials, error: credError } = await supabase
-      .from("pms_credentials")
-      .select("*")
-      .eq("system_type", "benson")
-      .eq("environment", activeEnvironment)
-      .maybeSingle();
-
-    if (credError || !credentials) {
-      console.error("Benson credentials not found:", credError);
-      return new Response(
-        JSON.stringify(createErrorResponse(ERROR_CODES.AUTH_FAILED, `Benson ${activeEnvironment} credentials not configured`, action)),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (!credentials.username || !credentials.password) {
-      return new Response(
-        JSON.stringify(createErrorResponse(ERROR_CODES.AUTH_FAILED, `Benson ${activeEnvironment} username/password not configured`, action)),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const creds: BensonCredentials = {
-      username: credentials.username,
-      password: credentials.password,
-      environment: credentials.environment as "staging" | "production",
-      baseUrl: credentials.base_url || undefined,
-    };
-
-    // Get property info
+    // Get property info first to determine which environment to use
     const { data: property, error: propError } = await supabase
       .from("properties")
-      .select("id, benson_property_code")
+      .select("id, benson_property_code, benson_environment")
       .eq("id", property_id)
       .single();
 
@@ -588,6 +548,40 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Use property's environment setting (per-property, not global)
+    const propertyEnvironment = property.benson_environment || "staging";
+    console.log(`Using Benson ${propertyEnvironment} environment for property ${property_id}`);
+
+    // Get Benson credentials for the property's environment
+    const { data: credentials, error: credError } = await supabase
+      .from("pms_credentials")
+      .select("*")
+      .eq("system_type", "benson")
+      .eq("environment", propertyEnvironment)
+      .maybeSingle();
+
+    if (credError || !credentials) {
+      console.error("Benson credentials not found:", credError);
+      return new Response(
+        JSON.stringify(createErrorResponse(ERROR_CODES.AUTH_FAILED, `Benson ${propertyEnvironment} credentials not configured`, action)),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!credentials.username || !credentials.password) {
+      return new Response(
+        JSON.stringify(createErrorResponse(ERROR_CODES.AUTH_FAILED, `Benson ${propertyEnvironment} username/password not configured`, action)),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const creds: BensonCredentials = {
+      username: credentials.username,
+      password: credentials.password,
+      environment: credentials.environment as "staging" | "production",
+      baseUrl: credentials.base_url || undefined,
+    };
 
     const propertyCode = property.benson_property_code;
     let result: any;
