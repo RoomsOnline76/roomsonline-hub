@@ -48,6 +48,7 @@ import {
   Layers,
   LucideIcon,
   Cloud,
+  Key,
 } from "lucide-react";
 import { StarRating } from "@/components/StarRating";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -89,6 +90,8 @@ const getPMSIntegrationLevel = (systemType: string): 'none' | 'partial' | 'full'
 // Map PMS system types to icons
 const getPMSIcon = (systemType: string): LucideIcon => {
   switch (systemType) {
+    case "roomsonline":
+      return Key;
     case "nightsbridge":
       return BedDouble;
     case "semper":
@@ -99,6 +102,13 @@ const getPMSIcon = (systemType: string): LucideIcon => {
       return Briefcase;
     case "siteminder":
       return Layers;
+    case "littlehotelier":
+    case "cloudbeds":
+    case "smoobu":
+    case "hostfully":
+    case "mews":
+    case "opera":
+      return BedDouble;
     default:
       return Building2;
   }
@@ -661,18 +671,12 @@ export default function PropertyForm() {
     }
   };
 
-  // Load available PMS systems - use static list of supported systems
+  // Load available PMS systems from centralized config
   useEffect(() => {
-    const supportedPMSSystems = [
-      { key_name: "benson", name: "Benson", system_type: "benson" },
-      { key_name: "checkfront", name: "Checkfront", system_type: "checkfront" },
-      { key_name: "mews", name: "Mews", system_type: "mews" },
-      { key_name: "nightsbridge", name: "NightsBridge", system_type: "nightsbridge" },
-      { key_name: "opera", name: "Opera", system_type: "opera" },
-      { key_name: "semper", name: "Semper", system_type: "semper" },
-      { key_name: "siteminder", name: "SiteMinder", system_type: "siteminder" },
-    ];
-    setAvailablePMSSystems(supportedPMSSystems);
+    // Import dynamically to avoid circular dependencies
+    import("@/lib/pmsSystemsConfig").then(({ getPropertyFormPMSSystems }) => {
+      setAvailablePMSSystems(getPropertyFormPMSSystems());
+    });
   }, []);
 
   // Location state

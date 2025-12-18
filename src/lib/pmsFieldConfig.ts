@@ -1,7 +1,7 @@
 // Configuration for which fields each PMS system populates
 // This allows dynamic indication of API-synced fields in the property form
 
-export type PMSSystem = 'roomsonline' | 'benson' | 'nightsbridge' | 'checkfront' | 'semper' | 'siteminder' | 'mews' | 'opera';
+export type PMSSystem = 'roomsonline' | 'benson' | 'nightsbridge' | 'checkfront' | 'semper' | 'siteminder' | 'mews' | 'opera' | 'littlehotelier' | 'cloudbeds' | 'smoobu' | 'hostfully';
 
 // Define which fields each PMS system can populate
 export const pmsPopulatedFields: Record<PMSSystem, string[]> = {
@@ -86,6 +86,11 @@ export const pmsPopulatedFields: Record<PMSSystem, string[]> = {
     'rates',
     'guest_info',
   ],
+  // Future integrations - empty until implemented
+  littlehotelier: [],
+  cloudbeds: [],
+  smoobu: [],
+  hostfully: [],
 };
 
 // Room-level fields that Benson populates
@@ -149,6 +154,10 @@ export const getPMSDisplayName = (pmsKey: string): string => {
     siteminder: 'SiteMinder',
     mews: 'Mews',
     opera: 'Opera',
+    littlehotelier: 'Little Hotelier',
+    cloudbeds: 'Cloudbeds',
+    smoobu: 'Smoobu',
+    hostfully: 'Hostfully',
   };
   return names[pmsKey.toLowerCase()] || pmsKey;
 };
