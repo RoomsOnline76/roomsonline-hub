@@ -2,10 +2,42 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
+// ============================================================================
+// BENSON API - BASE REFERENCE IMPLEMENTATION
+// All other PMS adapters MUST conform to Benson's response shapes.
+// See: supabase/functions/_shared/adapter-contract.ts
+// ============================================================================
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Standardized response wrapper - ALL adapters MUST use this shape
+interface AdapterResponse<T = unknown> {
+  success: boolean;
+  data: T | null;
+  error: { code: string; message: string; details?: unknown } | null;
+  source: string;
+  fetched_at: string;
+  action: string;
+}
+
+function createAdapterResponse<T>(
+  success: boolean,
+  data: T | null,
+  error: { code: string; message: string; details?: unknown } | null,
+  action: string
+): AdapterResponse<T> {
+  return {
+    success,
+    data,
+    error,
+    source: "benson",
+    fetched_at: new Date().toISOString(),
+    action,
+  };
+}
 
 // Input validation schemas
 const baseRequestSchema = z.object({
@@ -1045,8 +1077,10 @@ serve(async (req) => {
       response_data: typeof result === "object" ? result : { result },
     });
 
+    // Return standardized adapter response
+    const response = createAdapterResponse(true, result, null, action);
     return new Response(
-      JSON.stringify(result),
+      JSON.stringify(response),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
@@ -1083,8 +1117,15 @@ serve(async (req) => {
       statusCode = 403;
     }
 
+    // Return standardized error response
+    const errorResponse = createAdapterResponse(
+      false,
+      null,
+      { code: statusCode.toString(), message: userMessage, details: errorMsg },
+      "unknown"
+    );
     return new Response(
-      JSON.stringify({ error: userMessage }),
+      JSON.stringify(errorResponse),
       { status: statusCode, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
