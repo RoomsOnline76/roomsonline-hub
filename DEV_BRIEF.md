@@ -152,40 +152,45 @@ Located in `supabase/functions/`:
 
 ---
 
-## Data Authority Rule
+## Data Authority Rules
 
-### ⚠️ CRITICAL: Cache is NEVER Authoritative. PMS Always Is.
+### ⚠️ RULE #1: NO BOOKING IS EVER CREATED FROM CACHE DATA ALONE
 
-This is a **non-negotiable architectural rule** that governs all PMS data handling:
+This is an **UNBREAKABLE architectural rule**:
 
-1. **Cache is read-optimized, not truth** - Cached availability, rates, and restrictions are for display only
-2. **All booking creation MUST verify live with PMS** - Even if cache shows rooms available, the booking flow re-checks PMS live before creating reservations
-3. **Cache entries carry provenance timestamps**:
-   - `source_timestamp` - When the PMS system reported this data was valid
-   - `fetched_at` - When RoomsOnline pulled this data (last_synced_at)
-
-### Implementation Details
-
-**In `push-booking` edge function:**
-```typescript
-// Before creating any reservation:
-// 1. Fetch live availability from PMS
-// 2. Validate requested rooms against live data
-// 3. Only proceed if PMS confirms availability
-// 4. Fail with clear error if PMS shows insufficient availability
+```
+For ALL booking actions → Hit PMS LIVE first, then write result.
 ```
 
-**In `pms_availability_cache` table:**
-```sql
-source_timestamp  -- PMS-reported validity timestamp
-fetched_at        -- When we synced (last_synced_at)
-```
+**The Rule:**
+1. Cache is read-optimized display data ONLY
+2. Before creating ANY booking, the system MUST fetch live availability from PMS
+3. If live check fails or shows insufficient availability → booking is REJECTED
+4. Only after PMS confirms availability → proceed with reservation creation
 
-**Why this matters:**
-- Other guests may book between cache refresh and our booking attempt
+**Why this is unbreakable:**
+- Other guests may book between cache refresh and our attempt
 - PMS may have manual blocks, maintenance, overbooking rules
 - Cache can never know about real-time PMS state changes
 - Prevents double-bookings and inventory conflicts
+- PMS is the single source of truth for availability
+
+### RULE #2: Cache is NEVER Authoritative. PMS Always Is.
+
+**Cache entries carry provenance timestamps:**
+- `source_timestamp` - When the PMS system reported this data was valid
+- `fetched_at` - When RoomsOnline pulled this data (last_synced_at)
+
+**Implementation in `push-booking`:**
+```typescript
+// BEFORE any reservation creation:
+// 1. Fetch LIVE availability from PMS API
+// 2. Validate ALL requested rooms against live data
+// 3. ONLY proceed if PMS confirms availability
+// 4. FAIL with clear error if PMS shows insufficient availability
+```
+
+This code block is marked with ASCII art banner and MUST NOT be removed or bypassed.
 
 ---
 
