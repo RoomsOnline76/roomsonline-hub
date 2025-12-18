@@ -62,12 +62,36 @@ RoomsOnline is a **unified booking engine** for vacation rentals, hotels, and B&
 
 | Table | Purpose |
 |-------|---------|
-| `pms_credentials` | API credentials per PMS system |
+| `pms_credentials` | API credentials per PMS system + capability flags |
 | `pms_reservations` | Synced reservations from external PMS |
 | `pms_room_types_cache` | Cached room type data from PMS |
 | `pms_rate_types_cache` | Cached rate type data from PMS |
-| `pms_availability_cache` | Cached availability & restrictions |
+| `pms_availability_cache` | Cached availability & restrictions (with `source_timestamp`, `fetched_at`) |
 | `pms_mappings` | Field ID mappings between PMS and internal system |
+
+### PMS Capabilities
+
+Each PMS integration tracks its supported capabilities in `pms_credentials.capabilities`:
+
+| Capability | Description |
+|------------|-------------|
+| `supports_live_availability` | Can fetch real-time availability from PMS |
+| `supports_rate_fetch` | Can pull rates/pricing from PMS |
+| `supports_create_booking` | Can push new bookings to PMS |
+| `supports_modify_booking` | Can modify/cancel existing bookings in PMS |
+| `supports_webhooks` | PMS can push updates via webhooks |
+
+**Current PMS Capability Matrix:**
+
+| PMS | Live Avail | Rates | Create | Modify | Webhooks |
+|-----|------------|-------|--------|--------|----------|
+| Benson | ✅ | ✅ | ✅ | ❌ | ❌ |
+| NightsBridge | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Checkfront | TBD | TBD | TBD | TBD | TBD |
+
+*NightsBridge uses external redirect, so no direct API capabilities.*
+
+**Principle**: Not all PMS systems support all features - that's OK. We always optimize for the available capabilities and gracefully degrade when features aren't supported.
 
 ### Supporting Tables
 

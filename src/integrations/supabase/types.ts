@@ -375,6 +375,7 @@ export type Database = {
           agent_code: string | null
           api_key: string | null
           base_url: string | null
+          capabilities: Json | null
           created_at: string | null
           environment: string
           id: string
@@ -391,6 +392,7 @@ export type Database = {
           agent_code?: string | null
           api_key?: string | null
           base_url?: string | null
+          capabilities?: Json | null
           created_at?: string | null
           environment?: string
           id?: string
@@ -407,6 +409,7 @@ export type Database = {
           agent_code?: string | null
           api_key?: string | null
           base_url?: string | null
+          capabilities?: Json | null
           created_at?: string | null
           environment?: string
           id?: string
