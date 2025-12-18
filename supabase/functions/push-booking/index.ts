@@ -156,6 +156,32 @@ Deno.serve(async (req) => {
             : 'https://staging-api.bensonsoftware.com/api/v3/integrations';
         }
 
+        // =======================================================================
+        // CRITICAL: Cache is never authoritative. PMS always is.
+        // Re-verify availability with live PMS call before creating reservation
+        // =======================================================================
+        console.log(`Verifying live availability with PMS before booking creation`);
+        
+        const availabilityUrl = `${apiBaseUrl}/${propertyCode}/availability?startDate=${booking.check_in_date}&endDate=${booking.check_out_date}`;
+        console.log(`Checking live availability: ${availabilityUrl}`);
+        
+        const availResponse = await fetch(availabilityUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': authHeader,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!availResponse.ok) {
+          const availErrorText = await availResponse.text();
+          console.error('Live availability check failed:', availResponse.status, availErrorText);
+          throw new Error(`PMS availability verification failed: ${availResponse.status}`);
+        }
+        
+        const liveAvailability = await availResponse.json();
+        console.log(`Live availability response received, validating rooms...`);
+
         // Get rooms array or create single room from legacy fields
         const bookingRooms = booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0
           ? booking.rooms
@@ -168,6 +194,37 @@ Deno.serve(async (req) => {
               checkIn: booking.check_in_date,
               checkOut: booking.check_out_date,
             }];
+
+        // Validate each room type has availability in live PMS data
+        const availabilityByRoomType = new Map<string, number>();
+        if (Array.isArray(liveAvailability)) {
+          for (const roomType of liveAvailability) {
+            const minAvailable = roomType.roomsAvailablePerNight?.reduce(
+              (min: number, day: any) => Math.min(min, day.numberOfRoomsAvailable || 0),
+              Infinity
+            ) || 0;
+            availabilityByRoomType.set(roomType.roomTypeId.toString(), minAvailable);
+          }
+        }
+
+        // Count rooms needed per type
+        const roomsNeededByType = new Map<string, number>();
+        for (const room of bookingRooms) {
+          const typeId = room.roomTypeId?.toString() || '';
+          roomsNeededByType.set(typeId, (roomsNeededByType.get(typeId) || 0) + 1);
+        }
+
+        // Check availability
+        for (const [typeId, needed] of roomsNeededByType) {
+          const available = availabilityByRoomType.get(typeId) || 0;
+          if (available < needed) {
+            const errorMsg = `Insufficient availability for room type ${typeId}: need ${needed}, PMS shows ${available} available`;
+            console.error(errorMsg);
+            throw new Error(errorMsg);
+          }
+        }
+        
+        console.log(`Live PMS availability verified successfully`);
 
         // Group rooms by date range
         const roomGroups = groupRoomsByDateRange(bookingRooms, booking.check_in_date, booking.check_out_date);

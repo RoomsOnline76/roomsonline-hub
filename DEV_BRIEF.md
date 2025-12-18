@@ -128,13 +128,51 @@ Located in `supabase/functions/`:
 
 ---
 
+## Data Authority Rule
+
+### ⚠️ CRITICAL: Cache is NEVER Authoritative. PMS Always Is.
+
+This is a **non-negotiable architectural rule** that governs all PMS data handling:
+
+1. **Cache is read-optimized, not truth** - Cached availability, rates, and restrictions are for display only
+2. **All booking creation MUST verify live with PMS** - Even if cache shows rooms available, the booking flow re-checks PMS live before creating reservations
+3. **Cache entries carry provenance timestamps**:
+   - `source_timestamp` - When the PMS system reported this data was valid
+   - `fetched_at` - When RoomsOnline pulled this data (last_synced_at)
+
+### Implementation Details
+
+**In `push-booking` edge function:**
+```typescript
+// Before creating any reservation:
+// 1. Fetch live availability from PMS
+// 2. Validate requested rooms against live data
+// 3. Only proceed if PMS confirms availability
+// 4. Fail with clear error if PMS shows insufficient availability
+```
+
+**In `pms_availability_cache` table:**
+```sql
+source_timestamp  -- PMS-reported validity timestamp
+fetched_at        -- When we synced (last_synced_at)
+```
+
+**Why this matters:**
+- Other guests may book between cache refresh and our booking attempt
+- PMS may have manual blocks, maintenance, overbooking rules
+- Cache can never know about real-time PMS state changes
+- Prevents double-bookings and inventory conflicts
+
+---
+
 ## Key Architectural Decisions
 
 1. **PMS-Agnostic Data Model** - Unified internal schema with mapping layer for external IDs
-2. **Benson-Only Internal Booking** - Full booking flow only for Benson; NightsBridge redirects externally
-3. **Multi-Domain Deployment** - Same codebase serves admin console and public booking page based on hostname
-4. **Soft Delete Pattern** - Properties use `permanently_deleted_at` to preserve historical data
-5. **Session Storage Persistence** - Multi-room booking state persists across navigation
+2. **Cache Never Authoritative** - All booking creation verifies live with PMS
+3. **Benson-Only Internal Booking** - Full booking flow only for Benson; NightsBridge redirects externally
+4. **Multi-Domain Deployment** - Same codebase serves admin console and public booking page based on hostname
+5. **Soft Delete Pattern** - Properties use `permanently_deleted_at` to preserve historical data
+6. **Session Storage Persistence** - Multi-room booking state persists across navigation
 
 ---
 
