@@ -5,7 +5,7 @@
 RoomsOnline is a **unified booking engine** for vacation rentals, hotels, and B&Bs that integrates with multiple Property Management Systems (PMS). It serves as a central platform connecting property owners to various booking systems while providing a consistent booking experience for guests.
 
 ### Key Capabilities
-- Multi-PMS integration (Benson, NightsBridge, Checkfront, SiteMinder)
+- Multi-PMS integration (Benson, NightsBridge, Checkfront, SiteMinder, **RoomsOnline Native**)
 - Real-time availability and rate synchronization
 - Multi-room booking support
 - Property management dashboard
@@ -85,10 +85,12 @@ Each PMS integration tracks its supported capabilities in `pms_credentials.capab
 
 | PMS | Live Avail | Rates | Create | Modify | Webhooks |
 |-----|------------|-------|--------|--------|----------|
+| **RoomsOnline** | ✅ | ✅ | ✅ | Limited | ❌ |
 | Benson | ✅ | ✅ | ✅ | ❌ | ❌ |
 | NightsBridge | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Checkfront | TBD | TBD | TBD | TBD | TBD |
 
+*RoomsOnline Native PMS is our first-class internal adapter for properties without external PMS.*
 *NightsBridge uses external redirect, so no direct API capabilities.*
 
 **Principle**: Not all PMS systems support all features - that's OK. We always optimize for the available capabilities and gracefully degrade when features aren't supported.
@@ -116,6 +118,7 @@ Located in `supabase/functions/`:
 
 | Function | Purpose |
 |----------|---------|
+| `roomsonline-pms-api` | **Native PMS adapter** - manages availability, rates, bookings for properties without external PMS |
 | `benson-api` | Benson PMS integration - fetch availability, rates, room types, reservations; push bookings |
 | `checkfront-api` | Checkfront PMS integration |
 | `push-booking` | Push bookings to connected PMS systems |
@@ -151,7 +154,7 @@ Every PMS adapter edge function MUST return responses conforming to the strict c
     message: string;
     details?: unknown;
   } | null;
-  source: "benson" | "nightsbridge" | "checkfront" | ...;
+  source: "roomsonline" | "benson" | "nightsbridge" | "checkfront" | ...;
   fetched_at: string;        // ISO8601 timestamp
   action: string;            // Action performed
 }
@@ -175,6 +178,70 @@ Every PMS adapter edge function MUST return responses conforming to the strict c
 2. Transform raw PMS response to contract shape
 3. Use `createSuccessResponse()` / `createErrorResponse()` helpers
 4. NEVER return raw PMS data directly
+
+---
+
+## RoomsOnline Native PMS
+
+### Overview
+
+The **RoomsOnline Native PMS** (`roomsonline-pms-api`) is our first-class internal adapter for properties that don't use an external PMS system. It provides full booking engine capabilities while maintaining compatibility with the adapter-based architecture.
+
+### Capabilities
+
+| Capability | Status |
+|------------|--------|
+| `supports_live_availability` | ✅ true |
+| `supports_rate_fetch` | ✅ true |
+| `supports_create_booking` | ✅ true |
+| `supports_modify_booking` | ⚠️ "limited" (date changes only with full availability) |
+| `supports_webhooks` | ❌ false |
+
+### Supported Actions
+
+| Action | Description |
+|--------|-------------|
+| `get_capabilities` | Returns capability flags |
+| `fetch_availability` | Read availability from cache tables |
+| `get_room_types` | Get room type definitions |
+| `get_rate_types` | Get rate type definitions |
+| `get_reservations` | List reservations for property |
+| `create_reservation` | Create booking with live availability validation |
+| `modify_reservation` | Modify dates (limited - requires full availability) |
+| `cancel_reservation` | Cancel booking and restore availability |
+| `set_availability` | Write availability to cache |
+| `set_rates` | Write rates to cache |
+
+### Data Flow
+
+```
+Property (external_system = 'roomsonline')
+    ↓
+roomsonline-pms-api edge function
+    ↓
+Direct read/write to cache tables:
+  - pms_availability_cache
+  - pms_room_types_cache
+  - pms_rate_types_cache
+  - pms_reservations
+```
+
+### Key Differences from External PMS Adapters
+
+| Aspect | External PMS (Benson) | RoomsOnline Native |
+|--------|----------------------|-------------------|
+| Data source | External API | Local database |
+| Sync required | Yes (pull from API) | No (direct access) |
+| Rate management | PMS controls | Admin controls via set_rates |
+| Availability | PMS controls | Admin controls via set_availability |
+| Booking validation | Live API check | Live cache check + immediate update |
+
+### Architecture Principles
+
+1. **Same adapter contract** - Uses identical response shapes as external PMS adapters
+2. **Real-time validation** - Bookings always validate current availability before creation
+3. **Immediate cache updates** - Availability decremented on booking, restored on cancellation
+4. **PMS migration safe** - Can be disabled per property when switching to external PMS
 
 ---
 
