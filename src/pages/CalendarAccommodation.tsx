@@ -473,65 +473,79 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         return;
       }
 
-      // Transform Benson/PMS data into unified format
+      // Transform PMS data into unified format
       const transformedData: PMSRoomTypeData[] = [];
       
       // Unwrap adapter contract response format (data is nested in data.data)
       const responseData = data?.data || data;
-      const roomTypes = responseData?.roomTypes || responseData?.room_types || [];
+      const roomTypes = responseData?.room_types || responseData?.roomTypes || [];
       
       if (Array.isArray(roomTypes)) {
         for (const roomType of roomTypes) {
           const roomData: PMSRoomTypeData = {
-            roomTypeId: roomType.roomTypeId?.toString() || "",
-            roomTypeName: roomType.roomTypeName || roomType.name || `Room ${roomType.roomTypeId}`,
+            // Handle both snake_case (contract) and camelCase (legacy) formats
+            roomTypeId: (roomType.room_type_id ?? roomType.roomTypeId)?.toString() || "",
+            roomTypeName: roomType.room_type_name ?? roomType.roomTypeName ?? roomType.name ?? `Room ${roomType.room_type_id ?? roomType.roomTypeId}`,
             availabilityByDate: {},
             ratesByDate: {},
             restrictionsByDate: {},
           };
 
-          // Map availability per night
-          if (roomType.roomsAvailablePerNight && Array.isArray(roomType.roomsAvailablePerNight)) {
-            for (const avail of roomType.roomsAvailablePerNight) {
+          // Map availability per night - handle both formats
+          const availPerNight = roomType.rooms_available_per_night ?? roomType.roomsAvailablePerNight ?? [];
+          if (Array.isArray(availPerNight)) {
+            for (const avail of availPerNight) {
               const dateStr = avail.date;
-              roomData.availabilityByDate[dateStr] = avail.numberOfRoomsAvailable ?? 0;
+              roomData.availabilityByDate[dateStr] = avail.available_units ?? avail.numberOfRoomsAvailable ?? 0;
               
               // Map restrictions if present
-              if (avail.blockedRooms || avail.restrictions) {
-                roomData.restrictionsByDate[dateStr] = {
-                  stopSell: avail.stopSell || false,
-                  minStay: avail.minimumStay,
-                  maxStay: avail.maximumStay,
-                  closedToArrival: avail.closedToArrival || false,
-                  closedToDeparture: avail.closedToDeparture || false,
-                };
-              }
+              roomData.restrictionsByDate[dateStr] = {
+                stopSell: avail.stop_sell ?? avail.stopSell ?? false,
+                minStay: avail.min_stay ?? avail.minimumStay ?? avail.minStay,
+                maxStay: avail.max_stay ?? avail.maximumStay ?? avail.maxStay,
+                leadDaysAdvance: avail.lead_days_advance ?? avail.leadDaysAdvance,
+                leadDaysPost: avail.lead_days_post ?? avail.leadDaysPost,
+                closedToArrival: avail.closed_to_arrival ?? avail.closedToArrival ?? false,
+                closedToDeparture: avail.closed_to_departure ?? avail.closedToDeparture ?? false,
+              };
             }
           }
 
-          // Map rates
-          if (roomType.rateTypes && Array.isArray(roomType.rateTypes)) {
-            for (const rateType of roomType.rateTypes) {
-              if (rateType.rates && Array.isArray(rateType.rates)) {
-                for (const rate of rateType.rates) {
+          // Map rates - handle both formats
+          const rateTypesArray = roomType.rate_types ?? roomType.rateTypes ?? [];
+          if (Array.isArray(rateTypesArray)) {
+            for (const rateType of rateTypesArray) {
+              const ratesArray = rateType.rates ?? [];
+              if (Array.isArray(ratesArray)) {
+                for (const rate of ratesArray) {
                   const dateStr = rate.date;
                   if (!roomData.ratesByDate[dateStr]) {
                     roomData.ratesByDate[dateStr] = [];
                   }
+                  
+                  // Build adult amounts from either format
+                  const adultAmounts: { [key: string]: number } = {};
+                  const rawAdultAmounts = rate.adult_amounts ?? {};
+                  
+                  // Handle snake_case (adult_amount_1, adult_amount_2, etc.)
+                  for (let i = 1; i <= 10; i++) {
+                    const snakeKey = `adult_amount_${i}`;
+                    const camelKey = `adultAmount${i}`;
+                    const value = rawAdultAmounts[snakeKey] ?? rawAdultAmounts[camelKey] ?? rate[camelKey];
+                    if (value !== undefined && value !== null) {
+                      adultAmounts[camelKey] = value;
+                    }
+                  }
+                  
                   roomData.ratesByDate[dateStr].push({
-                    rateTypeId: rateType.rateTypeId?.toString() || "",
-                    rateTypeName: rateType.name || `Rate ${rateType.rateTypeId}`,
-                    priceType: rateType.priceType || "UnitRate",
-                    roomAmount: rate.roomAmount || 0,
-                    adultAmounts: rate.adultAmount1 ? {
-                      adultAmount1: rate.adultAmount1,
-                      adultAmount2: rate.adultAmount2,
-                      adultAmount3: rate.adultAmount3,
-                      adultAmount4: rate.adultAmount4,
-                    } : undefined,
-                    teenAmount: rate.teenAmount,
-                    childAmount: rate.childAmount,
-                    infantAmount: rate.infantAmount,
+                    rateTypeId: (rateType.rate_type_id ?? rateType.rateTypeId)?.toString() || "",
+                    rateTypeName: rateType.rate_type_name ?? rateType.name ?? `Rate ${rateType.rate_type_id ?? rateType.rateTypeId}`,
+                    priceType: rateType.price_type ?? rateType.priceType ?? "UnitRate",
+                    roomAmount: rate.room_amount ?? rate.roomAmount ?? 0,
+                    adultAmounts: Object.keys(adultAmounts).length > 0 ? adultAmounts : undefined,
+                    teenAmount: rate.teen_amount ?? rate.teenAmount,
+                    childAmount: rate.child_amount ?? rate.childAmount,
+                    infantAmount: rate.infant_amount ?? rate.infantAmount,
                   });
                 }
               }
