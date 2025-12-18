@@ -319,6 +319,7 @@ export type Database = {
           rates: Json | null
           raw_data: Json | null
           restrictions: Json | null
+          source_timestamp: string | null
           system_type: string
           updated_at: string | null
         }
@@ -333,6 +334,7 @@ export type Database = {
           rates?: Json | null
           raw_data?: Json | null
           restrictions?: Json | null
+          source_timestamp?: string | null
           system_type: string
           updated_at?: string | null
         }
@@ -347,6 +349,7 @@ export type Database = {
           rates?: Json | null
           raw_data?: Json | null
           restrictions?: Json | null
+          source_timestamp?: string | null
           system_type?: string
           updated_at?: string | null
         }

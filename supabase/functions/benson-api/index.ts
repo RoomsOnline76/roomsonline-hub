@@ -587,6 +587,8 @@ serve(async (req) => {
                   blocked_rooms: availability.blockedRooms || [],
                 };
                 
+                // source_timestamp: use the date from PMS as source authority marker
+                // fetched_at: when we pulled this data (last_synced_at)
                 const { error: availError } = await supabase.from("pms_availability_cache").upsert({
                   property_id: property_id,
                   system_type: "benson",
@@ -599,6 +601,7 @@ serve(async (req) => {
                     roomTypeName: roomType.name,
                     roomTypeId: roomType.roomTypeId,
                   },
+                  source_timestamp: availability.lastModified || availability.updatedAt || new Date().toISOString(),
                   fetched_at: new Date().toISOString(),
                 }, {
                   onConflict: "property_id,system_type,external_room_type_id,date"
@@ -649,6 +652,7 @@ serve(async (req) => {
                     roomTypeName: roomType.name,
                     roomTypeId: roomType.roomTypeId,
                   },
+                  source_timestamp: new Date().toISOString(), // PMS timestamp when data was valid
                   fetched_at: new Date().toISOString(),
                 }, {
                   onConflict: "property_id,system_type,external_room_type_id,date"
