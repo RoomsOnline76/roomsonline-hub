@@ -252,15 +252,21 @@ export default function BensonConfig() {
 
       if (error) throw error;
 
+      // Response is wrapped in adapter format: { success, data: {...}, error, ... }
+      const responseData = data.data || data;
+      
       setBensonData(prev => ({
         ...prev,
-        roomTypes: data.room_types || data.roomTypes || [],
-        rateTypes: data.rate_types || data.rateTypes || [],
+        roomTypes: responseData.room_types || responseData.roomTypes || [],
+        rateTypes: responseData.rate_types || responseData.rateTypes || [],
       }));
+
+      const roomCount = responseData.room_types?.length || responseData.roomTypes?.length || 0;
+      const rateCount = responseData.rate_types?.length || responseData.rateTypes?.length || 0;
 
       toast({
         title: "Data fetched",
-        description: `Found ${data.room_types?.length || data.roomTypes?.length || 0} room types, ${data.rate_types?.length || data.rateTypes?.length || 0} rate types`,
+        description: `Found ${roomCount} room types, ${rateCount} rate types`,
       });
     } catch (error: any) {
       toast({
