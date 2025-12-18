@@ -142,6 +142,15 @@ export default function AdminKeys() {
   const [savingCheckfront, setSavingCheckfront] = useState(false);
   const [togglingCheckfront, setTogglingCheckfront] = useState(false);
 
+  // Hostfully-specific state
+  const [hostfullyCredentials, setHostfullyCredentials] = useState<PMSCredentials | null>(null);
+  const [hostfullyApiKey, setHostfullyApiKey] = useState("");
+  const [hostfullyEnvironment, setHostfullyEnvironment] = useState<"sandbox" | "production">("sandbox");
+  const [editingHostfully, setEditingHostfully] = useState(false);
+  const [savingHostfully, setSavingHostfully] = useState(false);
+  const [togglingHostfully, setTogglingHostfully] = useState(false);
+  const [hostfullyRefreshInterval, setHostfullyRefreshInterval] = useState<number>(60);
+
   // Benson toggle state
   const [togglingBenson, setTogglingBenson] = useState(false);
 
@@ -174,6 +183,7 @@ export default function AdminKeys() {
     fetchBensonActiveEnvironment();
     fetchNightsbridgeCredentials();
     fetchCheckfrontCredentials();
+    fetchHostfullyCredentials();
     fetchResendConfig();
     fetchTripadvisorConfig();
     fetchGlobalSettings();
@@ -475,6 +485,22 @@ export default function AdminKeys() {
     }
   };
 
+  const fetchHostfullyCredentials = async () => {
+    const { data, error } = await supabase
+      .from("pms_credentials")
+      .select("*")
+      .eq("system_type", "hostfully")
+      .maybeSingle();
+
+    if (!error && data) {
+      setHostfullyCredentials(data);
+      setHostfullyEnvironment(data.environment as "sandbox" | "production");
+      if (data.refresh_interval_minutes) {
+        setHostfullyRefreshInterval(data.refresh_interval_minutes);
+      }
+    }
+  };
+
   const handleUpdateKey = async (keyId: string) => {
     const { error } = await supabase.from("api_keys").update({ key_value: editValue }).eq("id", keyId);
 
@@ -674,6 +700,43 @@ export default function AdminKeys() {
     setSavingCheckfront(false);
   };
 
+  const handleSaveHostfullyCredentials = async () => {
+    setSavingHostfully(true);
+
+    const credData = {
+      system_type: "hostfully",
+      environment: hostfullyEnvironment,
+      api_key: hostfullyApiKey || hostfullyCredentials?.api_key || null,
+      is_active: true,
+    };
+
+    let error;
+    if (hostfullyCredentials) {
+      const result = await supabase.from("pms_credentials").update(credData).eq("id", hostfullyCredentials.id);
+      error = result.error;
+    } else {
+      const result = await supabase.from("pms_credentials").insert(credData);
+      error = result.error;
+    }
+
+    if (error) {
+      toast({
+        title: "Error saving credentials",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Credentials saved",
+        description: "Hostfully credentials have been updated successfully",
+      });
+      setEditingHostfully(false);
+      setHostfullyApiKey("");
+      fetchHostfullyCredentials();
+    }
+    setSavingHostfully(false);
+  };
+
   // Toggle handlers for PMS credentials
   const handleToggleBenson = async (enabled: boolean) => {
     setTogglingBenson(true);
@@ -718,6 +781,19 @@ export default function AdminKeys() {
     setTogglingCheckfront(false);
   };
 
+  const handleToggleHostfully = async (enabled: boolean) => {
+    setTogglingHostfully(true);
+    if (hostfullyCredentials) {
+      await supabase.from("pms_credentials").update({ is_active: enabled }).eq("id", hostfullyCredentials.id);
+    }
+    toast({
+      title: enabled ? "Hostfully enabled" : "Hostfully disabled",
+      description: `Hostfully integration is now ${enabled ? "active" : "inactive"}`,
+    });
+    fetchHostfullyCredentials();
+    setTogglingHostfully(false);
+  };
+
   // Handler for saving refresh intervals
   const handleSaveRefreshInterval = async (systemType: string, intervalMinutes: number) => {
     setSavingRefreshInterval(systemType);
@@ -731,6 +807,8 @@ export default function AdminKeys() {
       credentialIds.push(nightsbridgeCredentials.id);
     } else if (systemType === "checkfront" && checkfrontCredentials) {
       credentialIds.push(checkfrontCredentials.id);
+    } else if (systemType === "hostfully" && hostfullyCredentials) {
+      credentialIds.push(hostfullyCredentials.id);
     }
 
     if (credentialIds.length === 0) {
@@ -780,6 +858,8 @@ export default function AdminKeys() {
     if (nightsbridgeCredentials?.agent_code) count++;
     // Check Checkfront
     if (checkfrontCredentials?.api_key || checkfrontCredentials?.username) count++;
+    // Check Hostfully
+    if (hostfullyCredentials?.api_key) count++;
     // RoomsOnline API is always "in development" - count as 0 until implemented
     return count;
   };
@@ -1931,6 +2011,160 @@ export default function AdminKeys() {
     );
   };
 
+  // Hostfully-specific card with sandbox/production toggle
+  const renderHostfullyCard = () => {
+    const isConfigured = !!hostfullyCredentials?.api_key;
+
+    return (
+      <AccordionItem value="hostfully" className={`border rounded-lg px-4 ${!hostfullyCredentials?.is_active ? "opacity-60" : ""}`}>
+        <AccordionTrigger className="hover:no-underline">
+          <div className="flex items-center justify-between w-full pr-4">
+            <div className="flex items-center gap-3">
+              <BedDouble className="h-5 w-5 text-primary" />
+              <span className="font-semibold">Hostfully</span>
+              <Badge variant="outline" className="text-xs">API Key</Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
+                <Switch
+                  checked={hostfullyCredentials?.is_active ?? false}
+                  onCheckedChange={handleToggleHostfully}
+                  disabled={togglingHostfully || !isConfigured}
+                  className={!isConfigured ? "opacity-50" : ""}
+                />
+                <span className="text-xs text-muted-foreground">{hostfullyCredentials?.is_active ? "On" : "Off"}</span>
+              </div>
+              {isConfigured ? (
+                <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Configured
+                </Badge>
+              ) : (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Not Configured
+                </Badge>
+              )}
+            </div>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="pt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Property management platform for vacation rental managers
+            </p>
+            <div className="text-xs text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-2 py-1 rounded-md inline-block">
+              ⓘ Rate Limit: 10,000 API calls per hour
+            </div>
+
+            {/* Active Environment Toggle */}
+            <div className="flex items-center justify-between p-4 rounded-lg border bg-primary/5 border-primary/20">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">Active Environment</Label>
+                <p className="text-xs text-muted-foreground">API calls will use {hostfullyEnvironment} endpoint</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm ${hostfullyEnvironment === "sandbox" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
+                  Sandbox
+                </span>
+                <Switch
+                  checked={hostfullyEnvironment === "production"}
+                  onCheckedChange={(checked) => setHostfullyEnvironment(checked ? "production" : "sandbox")}
+                />
+                <span className={`text-sm ${hostfullyEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
+                  Production
+                </span>
+              </div>
+            </div>
+
+            {editingHostfully ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="hostfully-apikey">API Key</Label>
+                  <Input
+                    id="hostfully-apikey"
+                    type="password"
+                    value={hostfullyApiKey}
+                    onChange={(e) => setHostfullyApiKey(e.target.value)}
+                    placeholder={hostfullyCredentials?.api_key ? "••••••••" : "Enter API key from Agency Settings"}
+                  />
+                  <p className="text-xs text-muted-foreground">Find this in your Hostfully Agency Settings → API Access</p>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveHostfullyCredentials} disabled={savingHostfully}>
+                    {savingHostfully ? "Saving..." : "Save"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingHostfully(false);
+                      setHostfullyApiKey("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <Label className="text-muted-foreground">API Key</Label>
+                    <p className={`font-medium ${hostfullyCredentials?.api_key ? "text-green-600" : ""}`}>
+                      {hostfullyCredentials?.api_key ? "Configured" : "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Environment</Label>
+                    <p className="font-medium capitalize">{hostfullyCredentials?.environment || "Sandbox"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Status</Label>
+                    <p className="font-medium">{hostfullyCredentials?.is_active ? "Active" : "Inactive"}</p>
+                  </div>
+                </div>
+
+                {/* Refresh Interval Setting */}
+                <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium">Data Refresh Interval</Label>
+                    <p className="text-xs text-muted-foreground">Auto-refresh API data when older than this (minutes)</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={1440}
+                      value={hostfullyRefreshInterval}
+                      onChange={(e) => setHostfullyRefreshInterval(parseInt(e.target.value) || 60)}
+                      className="w-20 text-center"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => handleSaveRefreshInterval("hostfully", hostfullyRefreshInterval)}
+                      disabled={savingRefreshInterval === "hostfully" || !isConfigured}
+                    >
+                      {savingRefreshInterval === "hostfully" ? "..." : "Save"}
+                    </Button>
+                  </div>
+                </div>
+
+                <ApiMilestones systemType="hostfully" className="pt-4 border-t" />
+
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setEditingHostfully(true)}>
+                    {isConfigured ? "Update Credentials" : "Configure"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    );
+  };
+
   // Placeholder card for upcoming PMS integrations
   const renderPlaceholderPMSCard = (name: string, systemType: string, description: string) => {
     const Icon = getPMSIcon(systemType);
@@ -2093,7 +2327,7 @@ export default function AdminKeys() {
               {renderPlaceholderPMSCard("Little Hotelier", "littlehotelier", "Cloud-based property management system designed for small hotels, B&Bs, and guest houses")}
               {renderPlaceholderPMSCard("Cloudbeds", "cloudbeds", "All-in-one hospitality management platform for hotels and accommodation providers")}
               {renderPlaceholderPMSCard("Smoobu", "smoobu", "Channel manager and vacation rental software for property managers")}
-              {renderPlaceholderPMSCard("Hostfully", "hostfully", "Property management platform for vacation rental managers")}
+              {renderHostfullyCard()}
               {pmsKeys.map(renderKeyCard)}
             </Accordion>
           </div>
