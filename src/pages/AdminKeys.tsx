@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { ApiMilestones } from "@/components/ApiMilestones";
+import { TOTAL_PMS_SYSTEMS_COUNT, ALL_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
 import {
   Key,
   AlertCircle,
@@ -770,6 +771,23 @@ export default function AdminKeys() {
     return !value || value.startsWith("placeholder_key_");
   };
 
+  // Calculate configured PMS/API count based on actual credentials
+  const getConfiguredPMSCount = () => {
+    let count = 0;
+    // Check Benson (either staging or production configured)
+    if (bensonStagingCredentials?.username || bensonProductionCredentials?.username) count++;
+    // Check NightsBridge
+    if (nightsbridgeCredentials?.agent_code) count++;
+    // Check Checkfront
+    if (checkfrontCredentials?.api_key || checkfrontCredentials?.username) count++;
+    // RoomsOnline API is always "in development" - count as 0 until implemented
+    return count;
+  };
+
+  const configuredPMSCount = getConfiguredPMSCount();
+  const totalPMSCount = TOTAL_PMS_SYSTEMS_COUNT;
+
+  // Legacy count for other API keys (Google Maps, etc.)
   const requiredCount = apiKeys.filter((k) => k.is_required).length;
   const completedCount = apiKeys.filter((k) => k.is_required && !isPlaceholder(k.key_value)).length;
 
@@ -1966,8 +1984,8 @@ export default function AdminKeys() {
           <div className="flex items-center gap-2 mb-3">
             <h1 className="text-xl font-bold text-foreground">API Keys Management</h1>
             <span className="text-xs text-muted-foreground">— Manage integration keys</span>
-            <Badge variant={completedCount === requiredCount ? "default" : "secondary"} className="ml-auto">
-              {completedCount} / {requiredCount} Keys Configured
+            <Badge variant={configuredPMSCount === totalPMSCount ? "default" : "secondary"} className="ml-auto">
+              {configuredPMSCount} / {totalPMSCount} PMS/API Configured
             </Badge>
           </div>
 
