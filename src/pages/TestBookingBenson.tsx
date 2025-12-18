@@ -159,29 +159,35 @@ const TestBookingBenson = () => {
 
   // Derive room types from availability data
   const roomTypes = useMemo(() => {
-    if (!availabilityData?.roomTypes) return [];
-    return availabilityData.roomTypes.map((rt: any) => {
-      // Get available units from roomsAvailablePerNight array (Benson structure)
-      // Calculate minimum available units across all dates in the range
+    // Unwrap adapter response - data may be nested in data.data
+    const responseData = availabilityData?.data || availabilityData;
+    const roomTypesArray = responseData?.room_types || responseData?.roomTypes || [];
+    
+    if (!roomTypesArray || roomTypesArray.length === 0) return [];
+    
+    return roomTypesArray.map((rt: any) => {
+      // Get available units from rooms_available_per_night (snake_case) or roomsAvailablePerNight (camelCase)
+      const availPerNight = rt.rooms_available_per_night || rt.roomsAvailablePerNight || [];
       let availableUnits = 0;
       
-      if (rt.roomsAvailablePerNight && rt.roomsAvailablePerNight.length > 0) {
+      if (availPerNight.length > 0) {
         // Get minimum units across all nights in the range
-        availableUnits = rt.roomsAvailablePerNight.reduce((min: number, night: any) => {
-          const units = night.numberOfRoomsAvailable ?? 0;
+        availableUnits = availPerNight.reduce((min: number, night: any) => {
+          const units = night.available_units ?? night.numberOfRoomsAvailable ?? 0;
           return Math.min(min, units);
-        }, rt.roomsAvailablePerNight[0]?.numberOfRoomsAvailable ?? 0);
+        }, availPerNight[0]?.available_units ?? availPerNight[0]?.numberOfRoomsAvailable ?? 0);
       }
       
+      const roomTypeId = rt.room_type_id ?? rt.roomTypeId;
       return {
-        id: String(rt.roomTypeId),
-        external_room_type_id: String(rt.roomTypeId),
-        name: rt.name,
-        max_guests: rt.maxGuests || rt.maxPeople || 10,
-        min_guests: rt.minGuests || 1,
-        allow_teens: rt.allowTeens ?? true,
-        allow_children: rt.allowChildren ?? true,
-        allow_infants: rt.allowInfants ?? true,
+        id: String(roomTypeId),
+        external_room_type_id: String(roomTypeId),
+        name: rt.room_type_name ?? rt.name,
+        max_guests: rt.max_guests ?? rt.maxGuests ?? rt.maxPeople ?? 10,
+        min_guests: rt.min_guests ?? rt.minGuests ?? 1,
+        allow_teens: rt.allow_teens ?? rt.allowTeens ?? true,
+        allow_children: rt.allow_children ?? rt.allowChildren ?? true,
+        allow_infants: rt.allow_infants ?? rt.allowInfants ?? true,
         available_units: availableUnits,
       };
     });
@@ -189,37 +195,45 @@ const TestBookingBenson = () => {
 
   // Get rate types for a specific room type
   const getRateTypesForRoom = (roomTypeId: string) => {
-    if (!availabilityData?.roomTypes || !roomTypeId) return [];
+    // Unwrap adapter response
+    const responseData = availabilityData?.data || availabilityData;
+    const roomTypesArray = responseData?.room_types || responseData?.roomTypes || [];
     
-    const selectedRoom = availabilityData.roomTypes.find(
-      (rt: any) => String(rt.roomTypeId) === roomTypeId
+    if (!roomTypesArray || roomTypesArray.length === 0 || !roomTypeId) return [];
+    
+    const selectedRoom = roomTypesArray.find(
+      (rt: any) => String(rt.room_type_id ?? rt.roomTypeId) === roomTypeId
     );
     
-    if (!selectedRoom?.rateTypes) return [];
+    const rateTypesArray = selectedRoom?.rate_types || selectedRoom?.rateTypes || [];
+    if (!rateTypesArray || rateTypesArray.length === 0) return [];
     
     const rateList: (RateType & { min_stay?: number; max_stay?: number; hasRates: boolean })[] = [];
     
-    selectedRoom.rateTypes.forEach((rate: any) => {
-      const rateTypeId = String(rate.rateTypeId);
+    rateTypesArray.forEach((rate: any) => {
+      const rateTypeId = String(rate.rate_type_id ?? rate.rateTypeId);
+      const ratesArray = rate.rates || [];
       
-      const hasRates = rate.rates?.some((r: any) => {
-        const roomAmount = r.roomAmount || 0;
-        const adultAmount1 = r.adultAmount1 || 0;
-        const adultAmount2 = r.adultAmount2 || 0;
-        const adultAmount = r.adultAmount || 0;
-        const teenAmount = r.teenAmount || 0;
-        const childAmount = r.childAmount || 0;
-        const infantAmount = r.infantAmount || 0;
+      const hasRates = ratesArray.some((r: any) => {
+        const roomAmount = r.room_amount ?? r.roomAmount ?? 0;
+        // Handle snake_case adult amounts
+        const adultAmounts = r.adult_amounts || {};
+        const adultAmount1 = adultAmounts.adult_amount_1 ?? adultAmounts.adultAmount1 ?? r.adultAmount1 ?? 0;
+        const adultAmount2 = adultAmounts.adult_amount_2 ?? adultAmounts.adultAmount2 ?? r.adultAmount2 ?? 0;
+        const adultAmount = r.adultAmount ?? 0;
+        const teenAmount = r.teen_amount ?? r.teenAmount ?? 0;
+        const childAmount = r.child_amount ?? r.childAmount ?? 0;
+        const infantAmount = r.infant_amount ?? r.infantAmount ?? 0;
         return roomAmount > 0 || adultAmount1 > 0 || adultAmount2 > 0 || adultAmount > 0 || teenAmount > 0 || childAmount > 0 || infantAmount > 0;
-      }) ?? false;
+      });
       
       rateList.push({
         id: rateTypeId,
         external_rate_type_id: rateTypeId,
-        name: rate.name,
-        price_type: rate.priceType,
-        min_stay: rate.minStayDays || rate.minNights || 1,
-        max_stay: rate.maxStayDays || rate.maxNights || 365,
+        name: rate.rate_type_name ?? rate.name,
+        price_type: rate.price_type ?? rate.priceType,
+        min_stay: rate.min_stay_days ?? rate.minStayDays ?? rate.minNights ?? 1,
+        max_stay: rate.max_stay_days ?? rate.maxStayDays ?? rate.maxNights ?? 365,
         hasRates,
       });
     });
@@ -386,9 +400,12 @@ const TestBookingBenson = () => {
 
       if (error) throw error;
 
-      // Add fetch timestamp and date range to the data
+      // Unwrap adapter response and add fetch timestamp
+      const responseData = data?.data || data;
       const enrichedData = { 
-        ...data, 
+        ...data,
+        // Keep the unwrapped data accessible at both levels for compatibility
+        data: responseData, 
         fetchedAt: new Date().toISOString(),
         fetchedForDates: {
           checkIn: format(checkInDate, "yyyy-MM-dd"),
@@ -403,7 +420,8 @@ const TestBookingBenson = () => {
         [selectedPropertyId]: enrichedData
       }));
       
-      toast({ title: "Availability fetched", description: `Retrieved data for ${data.roomTypes?.length || 0} room types` });
+      const roomTypesCount = responseData?.room_types?.length || responseData?.roomTypes?.length || 0;
+      toast({ title: "Availability fetched", description: `Retrieved data for ${roomTypesCount} room types` });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
@@ -440,6 +458,10 @@ const TestBookingBenson = () => {
         setAvailabilityData(data);
       }
 
+      // Unwrap adapter response
+      const responseData = availability?.data || availability;
+      const roomTypesArray = responseData?.room_types || responseData?.roomTypes || [];
+
       const allLineItems: CostLineItem[] = [];
       const roomBreakdowns: RoomCostBreakdown[] = [];
       let runningTotal = 0;
@@ -450,24 +472,26 @@ const TestBookingBenson = () => {
         const roomDates = getRoomDates(bookingRoom);
         const roomNights = roomDates.nights;
         
-        const roomType = availability?.roomTypes?.find(
-          (rt: any) => String(rt.roomTypeId) === bookingRoom.roomTypeId
+        const roomType = roomTypesArray.find(
+          (rt: any) => String(rt.room_type_id ?? rt.roomTypeId) === bookingRoom.roomTypeId
         );
 
         if (!roomType) continue;
 
         // Use first room's rate type since it's global
         const effectiveRateTypeId = bookingRooms[0]?.rateTypeId;
-        const rateType = roomType.rateTypes?.find(
-          (rt: any) => String(rt.rateTypeId) === effectiveRateTypeId
+        const rateTypesArray = roomType.rate_types || roomType.rateTypes || [];
+        const rateType = rateTypesArray.find(
+          (rt: any) => String(rt.rate_type_id ?? rt.rateTypeId) === effectiveRateTypeId
         );
 
         if (!rateType) continue;
 
-        const roomLabel = `Room ${roomIndex + 1}: ${roomType.name}`;
+        const roomLabel = `Room ${roomIndex + 1}: ${roomType.room_type_name ?? roomType.name}`;
+        const rateName = rateType.rate_type_name ?? rateType.name;
         const allRates = rateType.rates || [];
         const rates = allRates.slice(0, roomNights);
-        const priceType = (rateType.priceType || 'PER ROOM').toUpperCase();
+        const priceType = (rateType.price_type ?? rateType.priceType ?? 'PER ROOM').toUpperCase();
         const roomTotalGuests = bookingRoom.adults + bookingRoom.teens + bookingRoom.children + bookingRoom.infants;
 
         const roomLineItems: CostLineItem[] = [];
@@ -476,7 +500,7 @@ const TestBookingBenson = () => {
         if (priceType === 'PER ROOM' || priceType === 'PERROOM') {
           let totalRoomAmount = 0;
           rates.forEach((rate: any) => {
-            totalRoomAmount += rate.roomAmount || 0;
+            totalRoomAmount += rate.room_amount ?? rate.roomAmount ?? 0;
           });
 
           if (totalRoomAmount > 0) {

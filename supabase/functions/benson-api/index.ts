@@ -644,25 +644,80 @@ serve(async (req) => {
           params.rate_type_ids
         );
         
-        // Benson returns an array of room types directly - wrap it in expected structure
+        // Benson returns an array of room types directly
         const availabilityRoomTypes = Array.isArray(rawAvailability) ? rawAvailability : (rawAvailability?.roomTypes || []);
-        result = { room_types: availabilityRoomTypes };
+        
+        // Transform to snake_case contract format
+        const transformedRoomTypes = availabilityRoomTypes.map((roomType: any) => ({
+          room_type_id: roomType.roomTypeId?.toString() || "",
+          room_type_name: roomType.name || `Room ${roomType.roomTypeId}`,
+          max_guests: roomType.maxGuests || roomType.maxPeople,
+          min_guests: roomType.minGuests,
+          allow_teens: roomType.allowTeens,
+          teen_min_age: roomType.teenMinAge,
+          teen_max_age: roomType.teenMaxAge,
+          allow_children: roomType.allowChildren,
+          child_min_age: roomType.childMinAge,
+          child_max_age: roomType.childMaxAge,
+          allow_infants: roomType.allowInfants,
+          infant_min_age: roomType.infantMinAge,
+          infant_max_age: roomType.infantMaxAge,
+          rooms_available_per_night: (roomType.roomsAvailablePerNight || []).map((avail: any) => ({
+            date: avail.date,
+            available_units: avail.numberOfRoomsAvailable ?? 0,
+            stop_sell: avail.stopSell ?? avail.isClosed ?? false,
+            min_stay: avail.minimumStay ?? avail.minStay,
+            max_stay: avail.maximumStay ?? avail.maxStay,
+            lead_days_advance: avail.leadDaysAdvance,
+            lead_days_post: avail.leadDaysPost,
+            closed_to_arrival: avail.closedToArrival ?? false,
+            closed_to_departure: avail.closedToDeparture ?? false,
+          })),
+          rate_types: (roomType.rateTypes || []).map((rateType: any) => ({
+            rate_type_id: rateType.rateTypeId?.toString() || "",
+            rate_type_name: rateType.name || `Rate ${rateType.rateTypeId}`,
+            price_type: rateType.priceType || "UnitRate",
+            min_stay_days: rateType.minStayDays,
+            max_stay_days: rateType.maxStayDays,
+            rates: (rateType.rates || []).map((rate: any) => ({
+              date: rate.date,
+              room_amount: rate.roomAmount || 0,
+              adult_amounts: {
+                adult_amount_1: rate.adultAmount1,
+                adult_amount_2: rate.adultAmount2,
+                adult_amount_3: rate.adultAmount3,
+                adult_amount_4: rate.adultAmount4,
+                adult_amount_5: rate.adultAmount5,
+                adult_amount_6: rate.adultAmount6,
+                adult_amount_7: rate.adultAmount7,
+                adult_amount_8: rate.adultAmount8,
+                adult_amount_9: rate.adultAmount9,
+                adult_amount_10: rate.adultAmount10,
+              },
+              teen_amount: rate.teenAmount,
+              child_amount: rate.childAmount,
+              infant_amount: rate.infantAmount,
+            })),
+          })),
+        }));
+        
+        result = { room_types: transformedRoomTypes };
         
         console.log(`Benson availability response structure:`, JSON.stringify({
           hasRoomTypes: !!result.room_types,
           roomTypesCount: result.room_types?.length || 0,
           sampleRoomType: result.room_types?.[0] ? {
-            roomTypeId: result.room_types[0].roomTypeId,
-            name: result.room_types[0].name,
-            hasRatesTypes: !!result.room_types[0].rateTypes,
-            rateTypesCount: result.room_types[0].rateTypes?.length || 0,
+            room_type_id: result.room_types[0].room_type_id,
+            room_type_name: result.room_types[0].room_type_name,
+            hasRateTypes: !!result.room_types[0].rate_types,
+            rateTypesCount: result.room_types[0].rate_types?.length || 0,
           } : null,
         }));
         
-        // Cache the availability data
-        if (result.room_types && result.room_types.length > 0) {
-          console.log(`Processing ${result.room_types.length} room types for caching`);
-          for (const roomType of result.room_types) {
+        // Cache the availability data (still using raw Benson data for caching)
+        if (availabilityRoomTypes && availabilityRoomTypes.length > 0) {
+          console.log(`Processing ${availabilityRoomTypes.length} room types for caching`);
+          for (const roomType of availabilityRoomTypes) {
             console.log(`Room type: ${roomType.roomTypeId} - ${roomType.name}, availPerNight: ${roomType.roomsAvailablePerNight?.length || 0}`);
             if (roomType.roomsAvailablePerNight) {
               for (const availability of roomType.roomsAvailablePerNight) {
