@@ -476,8 +476,12 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       // Transform Benson/PMS data into unified format
       const transformedData: PMSRoomTypeData[] = [];
       
-      if (data?.roomTypes && Array.isArray(data.roomTypes)) {
-        for (const roomType of data.roomTypes) {
+      // Unwrap adapter contract response format (data is nested in data.data)
+      const responseData = data?.data || data;
+      const roomTypes = responseData?.roomTypes || responseData?.room_types || [];
+      
+      if (Array.isArray(roomTypes)) {
+        for (const roomType of roomTypes) {
           const roomData: PMSRoomTypeData = {
             roomTypeId: roomType.roomTypeId?.toString() || "",
             roomTypeName: roomType.roomTypeName || roomType.name || `Room ${roomType.roomTypeId}`,
