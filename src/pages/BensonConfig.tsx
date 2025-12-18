@@ -254,13 +254,13 @@ export default function BensonConfig() {
 
       setBensonData(prev => ({
         ...prev,
-        roomTypes: data.roomTypes || [],
-        rateTypes: data.rateTypes || [],
+        roomTypes: data.room_types || data.roomTypes || [],
+        rateTypes: data.rate_types || data.rateTypes || [],
       }));
 
       toast({
         title: "Data fetched",
-        description: `Found ${data.roomTypes?.length || 0} room types, ${data.rateTypes?.length || 0} rate types`,
+        description: `Found ${data.room_types?.length || data.roomTypes?.length || 0} room types, ${data.rate_types?.length || data.rateTypes?.length || 0} rate types`,
       });
     } catch (error: any) {
       toast({
