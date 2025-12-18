@@ -671,12 +671,38 @@ export default function PropertyForm() {
     }
   };
 
-  // Load available PMS systems from centralized config
+  // Load available PMS systems - only show ones that are "ON" (is_active=true)
   useEffect(() => {
-    // Import dynamically to avoid circular dependencies
-    import("@/lib/pmsSystemsConfig").then(({ getPropertyFormPMSSystems }) => {
-      setAvailablePMSSystems(getPropertyFormPMSSystems());
-    });
+    const fetchActivePMSSystems = async () => {
+      // Get active PMS credentials
+      const { data: activeCredentials } = await supabase
+        .from("pms_credentials")
+        .select("system_type")
+        .eq("is_active", true);
+
+      // Get RoomsOnline active status from api_keys
+      const { data: roomsonlineKey } = await supabase
+        .from("api_keys")
+        .select("key_value")
+        .eq("key_name", "ROOMSONLINE_ACTIVE")
+        .single();
+
+      const activeSystemTypes = new Set(activeCredentials?.map(c => c.system_type) || []);
+      
+      // Add roomsonline if active
+      if (roomsonlineKey?.key_value === "true") {
+        activeSystemTypes.add("roomsonline");
+      }
+
+      // Import and filter PMS systems
+      const { getPropertyFormPMSSystems } = await import("@/lib/pmsSystemsConfig");
+      const allSystems = getPropertyFormPMSSystems();
+      const filteredSystems = allSystems.filter(s => activeSystemTypes.has(s.system_type));
+      
+      setAvailablePMSSystems(filteredSystems);
+    };
+
+    fetchActivePMSSystems();
   }, []);
 
   // Location state

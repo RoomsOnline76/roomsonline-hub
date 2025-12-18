@@ -177,6 +177,10 @@ export default function AdminKeys() {
   const [homeIconOpenNewTab, setHomeIconOpenNewTab] = useState(true);
   const [savingHomeIconOpenNewTab, setSavingHomeIconOpenNewTab] = useState(false);
 
+  // RoomsOnline API state
+  const [roomsonlineActive, setRoomsonlineActive] = useState(false);
+  const [togglingRoomsonline, setTogglingRoomsonline] = useState(false);
+
   useEffect(() => {
     fetchApiKeys();
     fetchBensonCredentials();
@@ -187,6 +191,7 @@ export default function AdminKeys() {
     fetchResendConfig();
     fetchTripadvisorConfig();
     fetchGlobalSettings();
+    fetchRoomsonlineStatus();
   }, []);
 
   const fetchResendConfig = async () => {
@@ -792,6 +797,47 @@ export default function AdminKeys() {
     });
     fetchHostfullyCredentials();
     setTogglingHostfully(false);
+  };
+
+  const handleToggleRoomsonline = async (enabled: boolean) => {
+    setTogglingRoomsonline(true);
+    // Store RoomsOnline active status in api_keys table
+    const { error } = await supabase
+      .from("api_keys")
+      .upsert({
+        key_name: "ROOMSONLINE_ACTIVE",
+        name: "RoomsOnline API Active",
+        key_value: enabled ? "true" : "false",
+        system_type: "roomsonline",
+        is_required: false,
+      }, { onConflict: "key_name" });
+
+    if (error) {
+      toast({
+        title: "Error toggling RoomsOnline",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      setRoomsonlineActive(enabled);
+      toast({
+        title: enabled ? "RoomsOnline enabled" : "RoomsOnline disabled",
+        description: `RoomsOnline API is now ${enabled ? "active" : "inactive"}`,
+      });
+    }
+    setTogglingRoomsonline(false);
+  };
+
+  const fetchRoomsonlineStatus = async () => {
+    const { data } = await supabase
+      .from("api_keys")
+      .select("key_value")
+      .eq("key_name", "ROOMSONLINE_ACTIVE")
+      .single();
+
+    if (data?.key_value === "true") {
+      setRoomsonlineActive(true);
+    }
   };
 
   // Handler for saving refresh intervals
@@ -2277,7 +2323,7 @@ export default function AdminKeys() {
           <div className="mb-8">
             <h2 className="text-xl font-semibold mb-4">RoomsOnline API</h2>
             <Accordion type="multiple" className="space-y-4">
-              <AccordionItem value="roomsonline" className="border rounded-lg px-4 border-primary/30 bg-primary/5">
+              <AccordionItem value="roomsonline" className={`border rounded-lg px-4 border-primary/30 bg-primary/5 ${!roomsonlineActive ? "opacity-60" : ""}`}>
                 <AccordionTrigger className="hover:no-underline">
                   <div className="flex items-center justify-between w-full pr-4">
                     <div className="flex items-center gap-3">
@@ -2286,6 +2332,14 @@ export default function AdminKeys() {
                       <Badge variant="default" className="text-xs">Internal API</Badge>
                     </div>
                     <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
+                        <Switch
+                          checked={roomsonlineActive}
+                          onCheckedChange={handleToggleRoomsonline}
+                          disabled={togglingRoomsonline}
+                        />
+                        <span className="text-xs text-muted-foreground">{roomsonlineActive ? "On" : "Off"}</span>
+                      </div>
                       <Badge variant="outline" className="flex items-center gap-1">
                         <AlertCircle className="h-3 w-3" />
                         In Development
@@ -2317,17 +2371,17 @@ export default function AdminKeys() {
             </Accordion>
           </div>
 
-          {/* PMS Systems Section */}
+          {/* PMS Systems Section - Alphabetically ordered */}
           <div className="mb-8">
             <h2 className="text-xl font-semibold mb-4">Property Management Systems</h2>
             <Accordion type="multiple" className="space-y-4">
               {renderBensonCard()}
-              {renderNightsbridgeCard()}
               {renderCheckfrontCard()}
-              {renderPlaceholderPMSCard("Little Hotelier", "littlehotelier", "Cloud-based property management system designed for small hotels, B&Bs, and guest houses")}
               {renderPlaceholderPMSCard("Cloudbeds", "cloudbeds", "All-in-one hospitality management platform for hotels and accommodation providers")}
-              {renderPlaceholderPMSCard("Smoobu", "smoobu", "Channel manager and vacation rental software for property managers")}
               {renderHostfullyCard()}
+              {renderPlaceholderPMSCard("Little Hotelier", "littlehotelier", "Cloud-based property management system designed for small hotels, B&Bs, and guest houses")}
+              {renderNightsbridgeCard()}
+              {renderPlaceholderPMSCard("Smoobu", "smoobu", "Channel manager and vacation rental software for property managers")}
               {pmsKeys.map(renderKeyCard)}
             </Accordion>
           </div>
