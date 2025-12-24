@@ -3357,8 +3357,31 @@ export default function PropertyForm() {
               <ROLSpecTab
                 data={rolSpecData}
                 onChange={setRolSpecData}
-                propertyName={formData.name}
-                propertyDescription={formData.description}
+                propertyContext={{
+                  name: formData.name,
+                  property_type: formData.property_type,
+                  property_url: formData.property_url,
+                  star_rating: starRating,
+                  description: formData.description,
+                  country: formData.country,
+                  city: formData.city,
+                  suburb: formData.suburb,
+                  restaurants_cafes: formData.restaurants_cafes,
+                  public_transport: formData.public_transport,
+                  closest_airport: formData.closest_airport,
+                  pets_allowed: formData.pets_allowed,
+                  children_allowed: formData.children_allowed,
+                  smoking_allowed: formData.smoking_allowed,
+                  check_in_from: formData.check_in_from,
+                  check_out_to: formData.check_out_to,
+                  facilities: selectedFacilities,
+                  rooms: roomTypes.map(r => ({
+                    name: r.name,
+                    description: r.description,
+                    maxPeople: r.maxPeople,
+                    bedConfiguration: r.bedConfiguration?.map(b => `${b.count} ${b.type}`).join(', ')
+                  }))
+                }}
                 onDirty={() => setIsDirty(true)}
               />
             </TabsContent>

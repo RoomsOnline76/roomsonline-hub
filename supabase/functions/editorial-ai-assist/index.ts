@@ -11,44 +11,90 @@ serve(async (req) => {
   }
 
   try {
-    const { propertyName, propertyDescription, editorialRating, existingContent } = await req.json();
+    const { propertyContext, editorialRating, existingContent } = await req.json();
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Build context about the property
+    // Build comprehensive property context
+    const { 
+      name, property_type, property_url, star_rating, description,
+      country, city, suburb, restaurants_cafes, public_transport, closest_airport,
+      pets_allowed, children_allowed, smoking_allowed, check_in_from, check_out_to,
+      facilities, rooms 
+    } = propertyContext || {};
+
+    // Build rating context
     const ratingContext = editorialRating 
-      ? `The property has been given an editorial rating of "${editorialRating.replace(/_/g, ' ')}".` 
+      ? `Editorial Rating: "${editorialRating.replace(/_/g, ' ')}"` 
       : "";
 
+    // Build rooms summary
+    const roomsSummary = rooms?.length 
+      ? rooms.map((r: { name: string; maxPeople: number; bedConfiguration?: string }) => 
+          `- ${r.name} (sleeps ${r.maxPeople}${r.bedConfiguration ? `, ${r.bedConfiguration}` : ''})`
+        ).join('\n')
+      : "No rooms configured";
+
+    // Build policies summary
+    const policies = [
+      pets_allowed ? "Pets allowed" : "No pets",
+      children_allowed ? "Children welcome" : "Adults only",
+      smoking_allowed ? "Smoking permitted" : "No smoking"
+    ].join(", ");
+
     const systemPrompt = `You are an expert travel and hospitality copywriter for RoomsOnline, a curated luxury and boutique accommodation platform. 
+
 Your writing style is:
 - Evocative but not flowery
 - Honest and specific, not generic
 - Speaks to discerning travelers
 - Uses sensory details sparingly but effectively
-- Avoids clichés like "hidden gem" or "best-kept secret" unless truly warranted
+- Avoids clichés like "hidden gem" or "best-kept secret"
 
-Write in second person ("you") when addressing the traveler.
-Keep each response concise - 2-4 sentences maximum per field.`;
+CRITICAL RULES:
+- Each field MUST be exactly 1-2 sentences. Never more than 2 sentences.
+- Each response must directly address the specific intent of that field.
+- Write in second person ("you") when addressing the traveler.
+- Be specific to THIS property - reference actual facilities, location, or room types when relevant.`;
 
-    const userPrompt = `Generate editorial content for the following property:
+    const userPrompt = `Generate editorial content for this property:
 
-Property Name: ${propertyName}
-${propertyDescription ? `Description: ${propertyDescription}` : ""}
+PROPERTY: ${name || "Unknown"} (${property_type || "Accommodation"}, ${star_rating || 0}-star)
 ${ratingContext}
+${property_url ? `Website: ${property_url}` : ""}
 
-Please generate content for these fields (only for fields that don't already have content):
+LOCATION: ${[city, suburb, country].filter(Boolean).join(", ") || "Not specified"}
 
-${!existingContent?.why_we_chose_this_place ? "1. why_we_chose_this_place: Explain what made this property stand out to our editorial team." : ""}
-${!existingContent?.who_this_suits ? "2. who_this_suits: Describe the ideal guest - their preferences, travel style, and what they're seeking." : ""}
-${!existingContent?.what_its_really_like ? "3. what_its_really_like: Give an honest, grounded description of the actual experience." : ""}
-${!existingContent?.why_this_place_matters ? "4. why_this_place_matters: Explain the significance - what makes it memorable or impactful." : ""}
-${!existingContent?.who_its_not_for ? "5. who_its_not_for: Be honest about who might not enjoy this property." : ""}
+DESCRIPTION: ${description || "No description provided"}
 
-Respond with a JSON object containing only the fields you generated, with the field name as the key and the content as the value.`;
+SURROUNDINGS:
+- Dining: ${restaurants_cafes || "Not specified"}
+- Transport: ${public_transport || "Not specified"}
+- Airport: ${closest_airport || "Not specified"}
+
+FACILITIES: ${facilities?.length ? facilities.join(", ") : "None listed"}
+
+ROOM TYPES:
+${roomsSummary}
+
+POLICIES: ${policies}
+Check-in: ${check_in_from || "Flexible"} | Check-out: ${check_out_to || "Flexible"}
+
+---
+
+Generate 1-2 sentences for each empty field, directly addressing its specific intent:
+
+${!existingContent?.why_we_chose_this_place ? "1. why_we_chose_this_place: What specific quality made our editorial team select this property?" : ""}
+${!existingContent?.who_this_suits ? "2. who_this_suits: Who is the ideal guest for this specific property?" : ""}
+${!existingContent?.what_its_really_like ? "3. what_its_really_like: What is the honest, grounded experience of staying here?" : ""}
+${!existingContent?.why_this_place_matters ? "4. why_this_place_matters: What makes this property memorable or significant?" : ""}
+${!existingContent?.who_its_not_for ? "5. who_its_not_for: Who should consider other options instead?" : ""}`;
+
+    console.log("Generating editorial content for:", name);
+    console.log("Fields to generate:", Object.entries(existingContent || {}).filter(([_, v]) => !v).map(([k]) => k));
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -67,15 +113,30 @@ Respond with a JSON object containing only the fields you generated, with the fi
             type: "function",
             function: {
               name: "generate_editorial_content",
-              description: "Generate editorial content for property fields",
+              description: "Generate editorial content for property fields (1-2 sentences each)",
               parameters: {
                 type: "object",
                 properties: {
-                  why_we_chose_this_place: { type: "string", description: "What made this property stand out" },
-                  who_this_suits: { type: "string", description: "The ideal guest profile" },
-                  what_its_really_like: { type: "string", description: "Honest description of the experience" },
-                  why_this_place_matters: { type: "string", description: "Significance and impact" },
-                  who_its_not_for: { type: "string", description: "Who might not enjoy this property" }
+                  why_we_chose_this_place: { 
+                    type: "string", 
+                    description: "1-2 sentences: The specific quality that made this property stand out" 
+                  },
+                  who_this_suits: { 
+                    type: "string", 
+                    description: "1-2 sentences: The ideal guest profile for this property" 
+                  },
+                  what_its_really_like: { 
+                    type: "string", 
+                    description: "1-2 sentences: Honest description of the actual experience" 
+                  },
+                  why_this_place_matters: { 
+                    type: "string", 
+                    description: "1-2 sentences: What makes it memorable or significant" 
+                  },
+                  who_its_not_for: { 
+                    type: "string", 
+                    description: "1-2 sentences: Who might not enjoy this property" 
+                  }
                 },
                 additionalProperties: false
               }
@@ -110,6 +171,7 @@ Respond with a JSON object containing only the fields you generated, with the fi
     const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
     if (toolCall?.function?.arguments) {
       const suggestions = JSON.parse(toolCall.function.arguments);
+      console.log("Generated suggestions:", Object.keys(suggestions));
       return new Response(JSON.stringify({ suggestions }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
