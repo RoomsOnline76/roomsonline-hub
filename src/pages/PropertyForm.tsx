@@ -122,6 +122,7 @@ const createPropertySchema = (noStreetAddress: boolean) =>
     property_type: z.string().min(1, "Property type is required"),
     contact_email: z.string().email("Invalid email address"),
     telephone: z.string().optional(),
+    property_url: z.string().url("Invalid URL").optional().or(z.literal("")),
     currency: z.string().min(1, "Currency is required"),
     owner_name: z.string().optional(),
     owner_email: z.string().email("Invalid email address").optional().or(z.literal("")),
@@ -822,6 +823,7 @@ export default function PropertyForm() {
     property_type: "",
     contact_email: "",
     telephone: "",
+    property_url: "",
     currency: "ZAR",
     owner_name: "",
     owner_email: "",
@@ -1832,6 +1834,7 @@ export default function PropertyForm() {
             property_type: data.property_type || "",
             contact_email: amenities?.contact?.email || "",
             telephone: amenities?.contact?.telephone || "",
+            property_url: data.property_url || "",
             currency: amenities?.currency || "ZAR",
             owner_name: data.owner_name || "",
             owner_email: data.owner_email || "",
@@ -2263,6 +2266,7 @@ export default function PropertyForm() {
         // Preserve existing benson_property_code if PMS changed, only update if benson is selected
         benson_property_code: selectedPMS === "benson" ? bensonPropertyCode : existingBensonPropertyCode,
         benson_environment: selectedPMS === "benson" ? bensonEnvironment : null,
+        property_url: formData.property_url || null,
         is_active: true,
         images: uploadedImages,
         max_guests: 2, // Default value, can be updated later
@@ -2777,8 +2781,9 @@ export default function PropertyForm() {
                           )}
                         </CardTitle>
                       </CardHeader>
-                      <CardContent className="py-2 px-4">
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                      <CardContent className="py-2 px-4 space-y-3">
+                        {/* Row 1 */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           <div className="flex flex-col gap-1">
                             <Label htmlFor="name" className="text-xs">Name *</Label>
                             <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Property name" required disabled={isFieldPopulatedByPMS("name", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("name", selectedPMS), isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")} />
@@ -2806,6 +2811,9 @@ export default function PropertyForm() {
                             <Label htmlFor="contact_email" className="text-xs">Contact Email *</Label>
                             <Input id="contact_email" type="email" value={formData.contact_email} onChange={(e) => handleInputChange("contact_email", e.target.value)} placeholder="email@example.com" required className="h-7 text-xs" />
                           </div>
+                        </div>
+                        {/* Row 2 */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           <div className="flex flex-col gap-1">
                             <Label htmlFor="currency" className="text-xs">Currency *</Label>
                             <Select value={formData.currency} onValueChange={(value) => handleInputChange("currency", value)}>
@@ -2826,6 +2834,10 @@ export default function PropertyForm() {
                                 {owners.map((owner) => (<SelectItem key={owner.id} value={owner.email}>{owner.full_name || owner.email}</SelectItem>))}
                               </SelectContent>
                             </Select>
+                          </div>
+                          <div className="flex flex-col gap-1 col-span-2">
+                            <Label htmlFor="property_url" className="text-xs">Property Website</Label>
+                            <Input id="property_url" type="url" value={formData.property_url} onChange={(e) => handleInputChange("property_url", e.target.value)} placeholder="https://www.explorersclub.co.za/" className="h-7 text-xs" />
                           </div>
                         </div>
                       </CardContent>
