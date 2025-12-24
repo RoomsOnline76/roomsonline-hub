@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
+import { PropertySegmentSection } from "@/components/PropertySegmentSection";
 import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2 } from "lucide-react";
 import heroFallback from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { composeHeadline, composeMapSubheadline } from "@/lib/headlineComposer";
 import CategoryBanner from "@/components/CategoryBanner";
-import { BannerSegment } from "@/lib/bannerSegments";
+import { BannerSegment, BANNER_SEGMENTS } from "@/lib/bannerSegments";
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
   { key: "hotel", label: "Hotel", color: "bg-red-500", hex: "#ef4444" },
@@ -65,16 +66,25 @@ const Home = () => {
   const mapSubheadline = useMemo(() => composeMapSubheadline(), []);
 
   const handleSegmentClick = (segment: BannerSegment) => {
-    // Scroll to map section
-    const mapSection = document.getElementById("map-section");
-    if (mapSection) {
-      mapSection.scrollIntoView({ behavior: "smooth" });
-    }
-    
-    // If "ALL" is clicked, enable all types; otherwise this could filter by segment
-    // For now, we scroll to map - future enhancement could integrate with segment filters
     if (segment.filterType === null) {
+      // "ALL" - scroll to map and enable all types
+      const mapSection = document.getElementById("map-section");
+      if (mapSection) {
+        mapSection.scrollIntoView({ behavior: "smooth" });
+      }
       setEnabledTypes(INITIAL_ENABLED_TYPES);
+    } else {
+      // Scroll to the specific segment section
+      const segmentSection = document.getElementById(`segment-${segment.id}`);
+      if (segmentSection) {
+        segmentSection.scrollIntoView({ behavior: "smooth" });
+      } else {
+        // Fallback to map if segment section doesn't exist
+        const mapSection = document.getElementById("map-section");
+        if (mapSection) {
+          mapSection.scrollIntoView({ behavior: "smooth" });
+        }
+      }
     }
   };
 
@@ -196,6 +206,17 @@ const Home = () => {
           </div>
         </div>
       </section>
+
+      {/* Property Segment Sections - Filtered Results */}
+      {BANNER_SEGMENTS.filter(seg => seg.filterType !== null).map((segment) => (
+        <div key={segment.id} id={`segment-${segment.id}`}>
+          <PropertySegmentSection 
+            segmentId={segment.filterType!} 
+            title={segment.label}
+            limit={8}
+          />
+        </div>
+      ))}
 
       {/* Why RoomsOnline Section */}
       <section className="py-6 sm:py-12 bg-secondary/30">
