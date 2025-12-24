@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
-import { Button } from "@/components/ui/button";
+import { PropertySegmentSection } from "@/components/PropertySegmentSection";
 import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock } from "lucide-react";
 import heroImage from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
-
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
   { key: "hotel", label: "Hotel", color: "bg-red-500", hex: "#ef4444" },
@@ -107,6 +106,12 @@ const Home = () => {
           </div>
         </div>
       </section>
+
+      {/* Property Segment Sections */}
+      <PropertySegmentSection segmentId="discover_new" title="Discover New" limit={8} />
+      <PropertySegmentSection segmentId="beach" title="Beach Escapes" limit={8} />
+      <PropertySegmentSection segmentId="luxury_style" title="Luxury & Style" limit={8} />
+      <PropertySegmentSection segmentId="seclusion_escape" title="Seclusion & Escape" limit={8} />
 
       {/* Why RoomsOnline Section */}
       <section className="py-6 sm:py-12 bg-secondary/30">
