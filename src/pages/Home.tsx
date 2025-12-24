@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2 } from "lucide-react";
@@ -6,7 +6,8 @@ import heroFallback from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { composeHeadline, composeMapSubheadline } from "@/lib/headlineComposer";
-
+import CategoryBanner from "@/components/CategoryBanner";
+import { BannerSegment } from "@/lib/bannerSegments";
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
   { key: "hotel", label: "Hotel", color: "bg-red-500", hex: "#ef4444" },
@@ -57,10 +58,25 @@ const Home = () => {
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
   const [heroImage, setHeroImage] = useState<string>(heroFallback);
   const [isLoadingHero, setIsLoadingHero] = useState(true);
+  const heroRef = useRef<HTMLElement>(null);
   
   // Generate headlines once on mount (lazy initialization)
   const headline = useMemo(() => composeHeadline(), []);
   const mapSubheadline = useMemo(() => composeMapSubheadline(), []);
+
+  const handleSegmentClick = (segment: BannerSegment) => {
+    // Scroll to map section
+    const mapSection = document.getElementById("map-section");
+    if (mapSection) {
+      mapSection.scrollIntoView({ behavior: "smooth" });
+    }
+    
+    // If "ALL" is clicked, enable all types; otherwise this could filter by segment
+    // For now, we scroll to map - future enhancement could integrate with segment filters
+    if (segment.filterType === null) {
+      setEnabledTypes(INITIAL_ENABLED_TYPES);
+    }
+  };
 
   // Fetch random hero image from hero properties
   useEffect(() => {
@@ -105,7 +121,7 @@ const Home = () => {
   return (
     <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
       {/* Hero Section - Full Bleed */}
-      <section className="relative h-screen w-full flex-shrink-0">
+      <section ref={heroRef} className="relative h-screen w-full flex-shrink-0">
         {/* Full-bleed background image */}
         <div
           className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${isLoadingHero ? 'opacity-0' : 'opacity-100'}`}
@@ -134,10 +150,13 @@ const Home = () => {
             {headline}
           </p>
         </div>
+
+        {/* Auto-scrolling Category Banner */}
+        <CategoryBanner onSegmentClick={handleSegmentClick} heroRef={heroRef} />
       </section>
 
       {/* Properties Map Section */}
-      <section className="py-6 sm:py-10 bg-background">
+      <section id="map-section" className="py-6 sm:py-10 bg-background">
         <div className="container mx-auto px-3 sm:px-4">
           <div className="text-center mb-4 sm:mb-6">
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-1">Explore Our World</h2>
