@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
-import { Button } from "@/components/ui/button";
-import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock } from "lucide-react";
-import heroImage from "@/assets/hero-hotel.jpg";
+import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2 } from "lucide-react";
+import heroFallback from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { composeHeadline } from "@/lib/headlineComposer";
 
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
@@ -30,8 +31,71 @@ const INITIAL_ENABLED_TYPES: Record<string, boolean> = {
   apartment: true,
 };
 
+/**
+ * Extract the primary image URL from a property's images array
+ * Handles both object format (with url property) and plain string URLs
+ */
+function extractPrimaryImageUrl(images: unknown): string | null {
+  if (!images || !Array.isArray(images) || images.length === 0) return null;
+  
+  const firstImage = images[0];
+  
+  // Format 1: Object with url property
+  if (typeof firstImage === 'object' && firstImage !== null && 'url' in firstImage) {
+    return (firstImage as { url: string }).url;
+  }
+  
+  // Format 2: Plain string URL
+  if (typeof firstImage === 'string') {
+    return firstImage;
+  }
+  
+  return null;
+}
+
 const Home = () => {
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
+  const [heroImage, setHeroImage] = useState<string>(heroFallback);
+  const [isLoadingHero, setIsLoadingHero] = useState(true);
+  
+  // Generate headline once on mount (lazy initialization)
+  const headline = useMemo(() => composeHeadline(), []);
+
+  // Fetch random hero image from hero properties
+  useEffect(() => {
+    async function fetchHeroImage() {
+      try {
+        const { data: heroProperties } = await supabase
+          .from("properties")
+          .select("images")
+          .eq("hero_listing", true)
+          .eq("is_active", true);
+        
+        if (heroProperties && heroProperties.length > 0) {
+          // Collect all primary images from hero properties
+          const validImages: string[] = [];
+          for (const prop of heroProperties) {
+            const imageUrl = extractPrimaryImageUrl(prop.images);
+            if (imageUrl) {
+              validImages.push(imageUrl);
+            }
+          }
+          
+          // Randomly select one
+          if (validImages.length > 0) {
+            const randomIndex = Math.floor(Math.random() * validImages.length);
+            setHeroImage(validImages[randomIndex]);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching hero image:", error);
+      } finally {
+        setIsLoadingHero(false);
+      }
+    }
+    
+    fetchHeroImage();
+  }, []);
 
   const toggleType = (key: string) => {
     setEnabledTypes((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -39,30 +103,35 @@ const Home = () => {
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
-      {/* Hero Section - Compact for mobile */}
-      <section className="relative flex-shrink-0">
+      {/* Hero Section - Full Bleed */}
+      <section className="relative h-screen w-full flex-shrink-0">
+        {/* Full-bleed background image */}
         <div
-          className="absolute inset-0 z-0"
-          style={{
-            backgroundImage: `url(${heroImage})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center 30%",
-          }}
+          className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${isLoadingHero ? 'opacity-0' : 'opacity-100'}`}
+          style={{ backgroundImage: `url(${heroImage})` }}
         >
-          <div className="absolute inset-0 bg-gradient-to-b from-background/95 via-background/80 to-background" />
+          {/* Subtle gradient overlay for text readability */}
+          <div className="absolute inset-0 bg-black/40" />
         </div>
 
-        <div className="relative z-10 container mx-auto px-3 sm:px-4 py-6 sm:py-12 md:py-20">
-          <div className="text-center mb-4 sm:mb-8">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-2 sm:mb-3 tracking-tight leading-tight">
-              Book Your Perfect Stay
-            </h1>
-            <p className="text-sm sm:text-base md:text-lg text-muted-foreground max-w-md mx-auto px-2">
-              Discover and Explore our curated premium destination portfolio
-            </p>
-          </div>
+        {/* Logo - Top Left */}
+        <div className="absolute top-6 left-6 z-20">
+          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <div className="h-10 w-10 rounded-lg bg-[var(--hero-gradient)] flex items-center justify-center">
+              <Building2 className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white drop-shadow-lg">RoomsOnline</h1>
+              <p className="text-xs text-white/80 drop-shadow">Unified Booking Engine</p>
+            </div>
+          </Link>
+        </div>
 
-          <SearchForm />
+        {/* Centered Value Proposition */}
+        <div className="absolute inset-0 flex items-center justify-center z-10">
+          <p className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl text-white text-center font-medium tracking-wide max-w-4xl px-8 drop-shadow-lg leading-relaxed">
+            {headline}
+          </p>
         </div>
       </section>
 
