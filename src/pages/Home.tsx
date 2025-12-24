@@ -142,7 +142,6 @@ const Home = () => {
           <div className="text-center mb-4 sm:mb-6">
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-1">Explore Our World</h2>
             <p className="text-xs sm:text-sm text-muted-foreground">{mapSubheadline}</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">Tap a pin to view details</p>
           </div>
 
           {/* Property Type Toggles - Horizontal scroll on mobile */}
