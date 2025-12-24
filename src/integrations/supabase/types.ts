@@ -337,6 +337,27 @@ export type Database = {
         }
         Relationships: []
       }
+      navigation_tag_categories: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          tag_name: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          tag_name: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          tag_name?: string
+        }
+        Relationships: []
+      }
       pms_availability_cache: {
         Row: {
           available_units: number | null
