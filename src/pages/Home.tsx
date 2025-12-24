@@ -154,15 +154,15 @@ const Home = () => {
           </Link>
         </div>
 
-        {/* Hero Text Layout - Center Column Divider */}
+        {/* Hero Text Layout - Right-aligned to screen center */}
         <div className="absolute inset-0 flex items-center z-10">
-          <div className="w-full max-w-7xl mx-auto px-8">
-            {/* "We are RoomsOnline." - Left aligned, 25% bigger */}
-            <p className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl text-white font-bold tracking-wide drop-shadow-lg mb-4 text-left w-1/2">
+          <div className="w-1/2 pr-8 flex flex-col items-end">
+            {/* "We are RoomsOnline." - 25% bigger, right-aligned to center */}
+            <p className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl text-white font-bold tracking-wide drop-shadow-lg mb-4 text-right whitespace-nowrap">
               We are RoomsOnline.
             </p>
-            {/* Main hero text - Right aligned to center */}
-            <p className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl text-white font-medium tracking-wide drop-shadow-lg leading-relaxed text-right w-full pl-[50%]">
+            {/* Main hero text - right-aligned to center */}
+            <p className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl text-white font-medium tracking-wide drop-shadow-lg leading-relaxed text-right max-w-2xl">
               {headline}
             </p>
           </div>
