@@ -154,11 +154,18 @@ const Home = () => {
           </Link>
         </div>
 
-        {/* Centered Value Proposition */}
-        <div className="absolute inset-0 flex items-center justify-center z-10">
-          <p className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl text-white text-center font-medium tracking-wide max-w-4xl px-8 drop-shadow-lg leading-relaxed">
-            {headline}
-          </p>
+        {/* Hero Text Layout - Center Column Divider */}
+        <div className="absolute inset-0 flex items-center z-10">
+          <div className="w-full max-w-7xl mx-auto px-8">
+            {/* "We are RoomsOnline." - Left aligned, 25% bigger */}
+            <p className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl text-white font-bold tracking-wide drop-shadow-lg mb-4 text-left w-1/2">
+              We are RoomsOnline.
+            </p>
+            {/* Main hero text - Right aligned to center */}
+            <p className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl text-white font-medium tracking-wide drop-shadow-lg leading-relaxed text-right w-full pl-[50%]">
+              {headline}
+            </p>
+          </div>
         </div>
 
         {/* Auto-scrolling Category Banner */}
