@@ -275,6 +275,33 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
           streetViewControl: false,
           fullscreenControl: true,
           styles: [
+            // Grayscale styling for the entire map
+            {
+              elementType: "geometry",
+              stylers: [{ saturation: -100 }]
+            },
+            {
+              elementType: "labels.text.fill",
+              stylers: [{ saturation: -100 }, { lightness: 20 }]
+            },
+            {
+              elementType: "labels.text.stroke",
+              stylers: [{ saturation: -100 }, { lightness: 100 }]
+            },
+            {
+              elementType: "labels.icon",
+              stylers: [{ saturation: -100 }]
+            },
+            {
+              featureType: "water",
+              elementType: "geometry",
+              stylers: [{ saturation: -100 }, { lightness: 30 }]
+            },
+            {
+              featureType: "road",
+              elementType: "geometry",
+              stylers: [{ saturation: -100 }, { lightness: 10 }]
+            },
             {
               featureType: "poi",
               elementType: "labels",
