@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.hostfully-api]
 verify_jwt = true
+
+[functions.editorial-ai-assist]
+verify_jwt = true
