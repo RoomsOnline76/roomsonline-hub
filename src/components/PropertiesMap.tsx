@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MapPin, Loader2 } from "lucide-react";
 import { getPropertyUrl } from "@/lib/config";
 import { filterPropertiesByMapFilters } from "@/lib/mapFilters";
+import { MarkerClusterer, Renderer } from "@googlemaps/markerclusterer";
 
 // Global callback for Google Maps - iOS requires a real callback function
 declare global {
@@ -40,10 +41,16 @@ interface PropertiesMapProps {
 
 const DEFAULT_COLOR = "#e11d48";
 
+// Custom marker with property type data
+interface PropertyMarker extends google.maps.Marker {
+  propertyType?: string;
+}
+
 export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [] }: PropertiesMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
+  const clustererRef = useRef<MarkerClusterer | null>(null);
+  const markersRef = useRef<PropertyMarker[]>([]);
   const openInfoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -193,6 +200,48 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
     return filtered;
   }, [properties, enabledTypes, selectedMapFilters]);
 
+  // Create custom renderer for clusters with weighted dominant colors
+  const createClusterRenderer = (colors: Record<string, string> | undefined): Renderer => ({
+    render: ({ count, position, markers }) => {
+      // Count property types in this cluster
+      const typeCounts: Record<string, number> = {};
+      markers?.forEach((marker) => {
+        const propertyMarker = marker as PropertyMarker;
+        const type = propertyMarker.propertyType || 'default';
+        typeCounts[type] = (typeCounts[type] || 0) + 1;
+      });
+      
+      // Find dominant type (most pins)
+      const dominantType = Object.keys(typeCounts).reduce(
+        (a, b) => (typeCounts[a] || 0) > (typeCounts[b] || 0) ? a : b,
+        'default'
+      );
+      const clusterColor = colors?.[dominantType] || DEFAULT_COLOR;
+
+      // Subtle size scaling based on count
+      const scale = 16 + Math.min(count * 0.3, 6);
+
+      return new window.google.maps.Marker({
+        position,
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          fillColor: clusterColor,
+          fillOpacity: 0.85,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+          scale,
+        },
+        label: {
+          text: String(count),
+          color: '#ffffff',
+          fontSize: '11px',
+          fontWeight: '600',
+        },
+        zIndex: Number(google.maps.Marker.MAX_ZINDEX) + count,
+      });
+    },
+  });
+
   // Initialize map once - with slight delay to ensure DOM is ready
   useEffect(() => {
     if (!mapsLoaded) {
@@ -274,17 +323,21 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
     }
   }, [enabledTypes]);
 
-  // Update markers when filtered properties change - depends on mapReady to ensure map exists
+  // Update markers and clusterer when filtered properties change
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !window.google?.maps) return;
 
-    // Clear existing markers
+    // Clear existing clusterer and markers
+    if (clustererRef.current) {
+      clustererRef.current.clearMarkers();
+    }
     markersRef.current.forEach((marker) => marker.setMap(null));
     markersRef.current = [];
 
     if (filteredProperties.length === 0) return;
 
     const bounds = new window.google.maps.LatLngBounds();
+    const newMarkers: PropertyMarker[] = [];
     
     filteredProperties.forEach((property) => {
       if (!property.latitude || !property.longitude) return;
@@ -294,22 +347,24 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
 
       const markerColor = typeColors?.[property.property_type] || DEFAULT_COLOR;
 
-      // Create marker with custom SVG icon
-      const marker = new window.google.maps.Marker({
+      // Create marker with subtle styling
+      const marker: PropertyMarker = new window.google.maps.Marker({
         position,
-        map: mapInstanceRef.current,
         title: property.name,
         icon: {
           path: window.google.maps.SymbolPath.CIRCLE,
           fillColor: markerColor,
-          fillOpacity: 1,
+          fillOpacity: 0.9,
           strokeColor: '#ffffff',
-          strokeWeight: 3,
-          scale: 10,
+          strokeWeight: 2,
+          scale: 8,
         },
       });
 
-      // Get image - use stored images only (NB properties need images stored in DB)
+      // Store property type for cluster weighting
+      marker.propertyType = property.property_type;
+
+      // Get image - use stored images only
       const mainImage = property.images?.[0];
       
       const imageHtml = mainImage 
@@ -339,8 +394,22 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
         openInfoWindowRef.current = infoWindow;
       });
 
-      markersRef.current.push(marker);
+      newMarkers.push(marker);
     });
+
+    markersRef.current = newMarkers;
+
+    // Create or update clusterer
+    if (clustererRef.current) {
+      clustererRef.current.clearMarkers();
+      clustererRef.current.addMarkers(newMarkers);
+    } else {
+      clustererRef.current = new MarkerClusterer({
+        map: mapInstanceRef.current,
+        markers: newMarkers,
+        renderer: createClusterRenderer(typeColors),
+      });
+    }
 
     // Fit map to show all markers
     if (filteredProperties.length > 1) {
