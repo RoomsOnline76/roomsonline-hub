@@ -38,3 +38,6 @@ verify_jwt = true
 
 [functions.editorial-ai-assist]
 verify_jwt = true
+
+[functions.bulk-editorial-generate]
+verify_jwt = false
