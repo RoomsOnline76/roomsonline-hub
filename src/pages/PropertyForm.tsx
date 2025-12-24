@@ -66,7 +66,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import RichTextEditor from "@/components/RichTextEditor";
 import { pmsIntegrationStatus } from "@/components/ApiMilestones";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Sparkles } from "lucide-react";
+import { ROLSpecTab } from "@/components/property/ROLSpecTab";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -901,6 +902,19 @@ export default function PropertyForm() {
   ]);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+
+  // ROL Spec state
+  const [rolSpecData, setRolSpecData] = useState({
+    hero_listing: false,
+    editorial_rating: "",
+    why_we_chose_this_place: "",
+    who_this_suits: "",
+    what_its_really_like: "",
+    why_this_place_matters: "",
+    who_its_not_for: "",
+    owner_notes: "",
+    navigation_tags: [] as string[],
+  });
 
   // Room types state with full data structure
   const [roomTypes, setRoomTypes] = useState<any[]>([
@@ -2474,17 +2488,18 @@ export default function PropertyForm() {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
             <TabsList className="bg-secondary h-8">
               {[
-                { value: "general", icon: Home, label: "General" },
-                { value: "info-facilities", icon: Building2, label: "Info & Facilities" },
-                { value: "house-rules", icon: FileText, label: "House Rules" },
-                { value: "images", icon: Image, label: "Images" },
-                { value: "rooms", icon: Info, label: "Rooms" },
-                { value: "rates", icon: DollarSign, label: "Rates" },
-                { value: "templates", icon: Bell, label: "Templates" },
-                { value: "addons", icon: Package, label: "Addons" },
-                { value: "specials", icon: Calendar, label: "Specials" },
-                { value: "packages", icon: Package, label: "Packages" },
-                { value: "announcements", icon: Bell, label: "Announcements" },
+                { value: "general", icon: Home, label: "General", highlight: false },
+                { value: "rol-spec", icon: Sparkles, label: "ROL Spec", highlight: true },
+                { value: "info-facilities", icon: Building2, label: "Info & Facilities", highlight: false },
+                { value: "house-rules", icon: FileText, label: "House Rules", highlight: false },
+                { value: "images", icon: Image, label: "Images", highlight: false },
+                { value: "rooms", icon: Info, label: "Rooms", highlight: false },
+                { value: "rates", icon: DollarSign, label: "Rates", highlight: false },
+                { value: "templates", icon: Bell, label: "Templates", highlight: false },
+                { value: "addons", icon: Package, label: "Addons", highlight: false },
+                { value: "specials", icon: Calendar, label: "Specials", highlight: false },
+                { value: "packages", icon: Package, label: "Packages", highlight: false },
+                { value: "announcements", icon: Bell, label: "Announcements", highlight: false },
               ]
                 .filter((tab) => selectedPMS !== 'nightsbridge' || tab.value === 'general' || tab.value === 'images' || tab.value === 'rooms')
                 .map((tab) => {
@@ -2493,7 +2508,14 @@ export default function PropertyForm() {
                 
                 if (isActive) {
                   return (
-                    <TabsTrigger key={tab.value} value={tab.value} className="gap-1 text-xs py-1">
+                    <TabsTrigger 
+                      key={tab.value} 
+                      value={tab.value} 
+                      className={cn(
+                        "gap-1 text-xs py-1",
+                        tab.highlight && "bg-primary/10 text-primary border border-primary/30 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                      )}
+                    >
                       <Icon className="h-3 w-3" />
                       {tab.label}
                     </TabsTrigger>
@@ -2503,7 +2525,13 @@ export default function PropertyForm() {
                 return (
                   <Tooltip key={tab.value}>
                     <TooltipTrigger asChild>
-                      <TabsTrigger value={tab.value} className="px-2 py-1">
+                      <TabsTrigger 
+                        value={tab.value} 
+                        className={cn(
+                          "px-2 py-1",
+                          tab.highlight && "bg-primary/10 text-primary border border-primary/30"
+                        )}
+                      >
                         <Icon className="h-3 w-3" />
                       </TabsTrigger>
                     </TooltipTrigger>
@@ -3334,6 +3362,16 @@ Prime Location: Located near major attractions and airports."
                   )}
                 </div>
               </form>
+            </TabsContent>
+
+            <TabsContent value="rol-spec">
+              <ROLSpecTab
+                data={rolSpecData}
+                onChange={setRolSpecData}
+                propertyName={formData.name}
+                propertyDescription={formData.description}
+                onDirty={() => setIsDirty(true)}
+              />
             </TabsContent>
 
             <TabsContent value="info-facilities">

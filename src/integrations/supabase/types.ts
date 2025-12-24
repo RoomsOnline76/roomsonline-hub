@@ -836,8 +836,10 @@ export type Database = {
           country: string
           created_at: string | null
           description: string | null
+          editorial_rating: string | null
           external_id: string | null
           external_system: string | null
+          hero_listing: boolean | null
           id: string
           images: Json | null
           is_active: boolean | null
@@ -845,8 +847,10 @@ export type Database = {
           longitude: number | null
           max_guests: number
           name: string
+          navigation_tags: string[] | null
           owner_email: string | null
           owner_name: string | null
+          owner_notes: string | null
           permanently_deleted_at: string | null
           price_per_night: number
           property_type: string
@@ -854,6 +858,11 @@ export type Database = {
           siteminder_property_code: string | null
           slug: string | null
           updated_at: string | null
+          what_its_really_like: string | null
+          who_its_not_for: string | null
+          who_this_suits: string | null
+          why_this_place_matters: string | null
+          why_we_chose_this_place: string | null
         }
         Insert: {
           address: string
@@ -867,8 +876,10 @@ export type Database = {
           country: string
           created_at?: string | null
           description?: string | null
+          editorial_rating?: string | null
           external_id?: string | null
           external_system?: string | null
+          hero_listing?: boolean | null
           id?: string
           images?: Json | null
           is_active?: boolean | null
@@ -876,8 +887,10 @@ export type Database = {
           longitude?: number | null
           max_guests?: number
           name: string
+          navigation_tags?: string[] | null
           owner_email?: string | null
           owner_name?: string | null
+          owner_notes?: string | null
           permanently_deleted_at?: string | null
           price_per_night: number
           property_type: string
@@ -885,6 +898,11 @@ export type Database = {
           siteminder_property_code?: string | null
           slug?: string | null
           updated_at?: string | null
+          what_its_really_like?: string | null
+          who_its_not_for?: string | null
+          who_this_suits?: string | null
+          why_this_place_matters?: string | null
+          why_we_chose_this_place?: string | null
         }
         Update: {
           address?: string
@@ -898,8 +916,10 @@ export type Database = {
           country?: string
           created_at?: string | null
           description?: string | null
+          editorial_rating?: string | null
           external_id?: string | null
           external_system?: string | null
+          hero_listing?: boolean | null
           id?: string
           images?: Json | null
           is_active?: boolean | null
@@ -907,8 +927,10 @@ export type Database = {
           longitude?: number | null
           max_guests?: number
           name?: string
+          navigation_tags?: string[] | null
           owner_email?: string | null
           owner_name?: string | null
+          owner_notes?: string | null
           permanently_deleted_at?: string | null
           price_per_night?: number
           property_type?: string
@@ -916,6 +938,11 @@ export type Database = {
           siteminder_property_code?: string | null
           slug?: string | null
           updated_at?: string | null
+          what_its_really_like?: string | null
+          who_its_not_for?: string | null
+          who_this_suits?: string | null
+          why_this_place_matters?: string | null
+          why_we_chose_this_place?: string | null
         }
         Relationships: []
       }
