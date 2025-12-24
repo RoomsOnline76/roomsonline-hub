@@ -1962,6 +1962,19 @@ export default function PropertyForm() {
             setUploadedImages(data.images as string[]);
           }
 
+          // Load ROL Spec fields (direct columns)
+          setRolSpecData({
+            hero_listing: (data as any).hero_listing ?? false,
+            editorial_rating: (data as any).editorial_rating || "",
+            why_we_chose_this_place: (data as any).why_we_chose_this_place || "",
+            who_this_suits: (data as any).who_this_suits || "",
+            what_its_really_like: (data as any).what_its_really_like || "",
+            why_this_place_matters: (data as any).why_this_place_matters || "",
+            who_its_not_for: (data as any).who_its_not_for || "",
+            owner_notes: (data as any).owner_notes || "",
+            navigation_tags: (data as any).navigation_tags || [],
+          });
+
           // Load meal types if available
           if (amenities?.meal_types && Array.isArray(amenities.meal_types)) {
             setSelectedMealTypes(amenities.meal_types);
@@ -2260,6 +2273,16 @@ export default function PropertyForm() {
         images: uploadedImages,
         max_guests: 2, // Default value, can be updated later
         price_per_night: 0, // Default value, can be updated later
+        // ROL Spec fields (stored as direct columns)
+        hero_listing: rolSpecData.hero_listing,
+        editorial_rating: rolSpecData.editorial_rating || null,
+        why_we_chose_this_place: rolSpecData.why_we_chose_this_place || null,
+        who_this_suits: rolSpecData.who_this_suits || null,
+        what_its_really_like: rolSpecData.what_its_really_like || null,
+        why_this_place_matters: rolSpecData.why_this_place_matters || null,
+        who_its_not_for: rolSpecData.who_its_not_for || null,
+        owner_notes: rolSpecData.owner_notes || null,
+        navigation_tags: rolSpecData.navigation_tags || [],
         amenities: {
           offerings: {
             accommodation: isAccommodation,
