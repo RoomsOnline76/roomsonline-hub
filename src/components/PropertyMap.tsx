@@ -35,6 +35,7 @@ export function PropertyMap({
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [mapsLoaded, setMapsLoaded] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   // Fetch Google Maps API key from database
   useEffect(() => {
@@ -97,50 +98,61 @@ export function PropertyMap({
   useEffect(() => {
     if (!mapRef.current || !mapsLoaded || !window.google?.maps) return;
 
-    const initialPosition = latitude && longitude 
-      ? { lat: Number(latitude), lng: Number(longitude) }
-      : { lat: -33.9249, lng: 18.4241 }; // Default to Cape Town
+    try {
+      const initialPosition = latitude && longitude 
+        ? { lat: Number(latitude), lng: Number(longitude) }
+        : { lat: -33.9249, lng: 18.4241 }; // Default to Cape Town
 
-    const newMap = new window.google.maps.Map(mapRef.current, {
-      center: initialPosition,
-      zoom: 15,
-      mapTypeControl: true,
-      streetViewControl: true,
-      fullscreenControl: true,
-      mapId: "PROPERTY_EDIT_MAP",
-    });
+      const newMap = new window.google.maps.Map(mapRef.current, {
+        center: initialPosition,
+        zoom: 15,
+        mapTypeControl: true,
+        streetViewControl: true,
+        fullscreenControl: true,
+        mapId: "PROPERTY_EDIT_MAP",
+      });
 
-    // Create custom draggable pin element
-    const pinElement = document.createElement("div");
-    pinElement.style.cssText = `
-      width: 32px;
-      height: 32px;
-      background-color: #e11d48;
-      border: 3px solid white;
-      border-radius: 50%;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      cursor: grab;
-    `;
+      // Listen for authentication errors
+      newMap.addListener("error", (e: any) => {
+        console.error("Google Maps error:", e);
+        setMapError("Map failed to load. Please check API key configuration.");
+      });
 
-    const newMarker = new window.google.maps.marker.AdvancedMarkerElement({
-      position: initialPosition,
-      map: newMap,
-      gmpDraggable: true,
-      title: "Property Location",
-      content: pinElement,
-    });
+      // Create custom draggable pin element
+      const pinElement = document.createElement("div");
+      pinElement.style.cssText = `
+        width: 32px;
+        height: 32px;
+        background-color: #e11d48;
+        border: 3px solid white;
+        border-radius: 50%;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        cursor: grab;
+      `;
 
-    newMarker.addListener("dragend", () => {
-      const position = newMarker.position;
-      if (position && onLocationUpdate) {
-        const lat = typeof position.lat === 'function' ? position.lat() : position.lat;
-        const lng = typeof position.lng === 'function' ? position.lng() : position.lng;
-        onLocationUpdate(lat, lng);
-      }
-    });
+      const newMarker = new window.google.maps.marker.AdvancedMarkerElement({
+        position: initialPosition,
+        map: newMap,
+        gmpDraggable: true,
+        title: "Property Location",
+        content: pinElement,
+      });
 
-    setMap(newMap);
-    setMarker(newMarker);
+      newMarker.addListener("dragend", () => {
+        const position = newMarker.position;
+        if (position && onLocationUpdate) {
+          const lat = typeof position.lat === 'function' ? position.lat() : position.lat;
+          const lng = typeof position.lng === 'function' ? position.lng() : position.lng;
+          onLocationUpdate(lat, lng);
+        }
+      });
+
+      setMap(newMap);
+      setMarker(newMarker);
+    } catch (error) {
+      console.error("Failed to initialize Google Maps:", error);
+      setMapError("Failed to initialize map. The API key may not be authorized for this domain.");
+    }
   }, [mapsLoaded, latitude, longitude, onLocationUpdate]);
 
   // Geocode address when it changes
@@ -180,6 +192,20 @@ export function PropertyMap({
           <MapPin className="h-6 w-6 mx-auto text-muted-foreground" />
           <p className="text-xs text-muted-foreground">
             Configure Google Maps API key
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (mapError) {
+    return (
+      <div className="w-full h-full min-h-[200px] rounded-lg border border-destructive/30 bg-destructive/5 flex items-center justify-center">
+        <div className="text-center space-y-2 p-4">
+          <MapPin className="h-6 w-6 mx-auto text-destructive" />
+          <p className="text-xs text-destructive font-medium">Map Error</p>
+          <p className="text-xs text-muted-foreground max-w-[200px]">
+            {mapError}
           </p>
         </div>
       </div>
