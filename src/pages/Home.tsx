@@ -5,7 +5,7 @@ import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2 } f
 import heroFallback from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { composeHeadline } from "@/lib/headlineComposer";
+import { composeHeadline, composeMapSubheadline } from "@/lib/headlineComposer";
 
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
@@ -58,8 +58,9 @@ const Home = () => {
   const [heroImage, setHeroImage] = useState<string>(heroFallback);
   const [isLoadingHero, setIsLoadingHero] = useState(true);
   
-  // Generate headline once on mount (lazy initialization)
+  // Generate headlines once on mount (lazy initialization)
   const headline = useMemo(() => composeHeadline(), []);
+  const mapSubheadline = useMemo(() => composeMapSubheadline(), []);
 
   // Fetch random hero image from hero properties
   useEffect(() => {
@@ -140,6 +141,7 @@ const Home = () => {
         <div className="container mx-auto px-3 sm:px-4">
           <div className="text-center mb-4 sm:mb-6">
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-1">Explore Our World</h2>
+            <p className="text-xs sm:text-sm text-muted-foreground">{mapSubheadline}</p>
             <p className="text-xs sm:text-sm text-muted-foreground">Tap a pin to view details</p>
           </div>
 
