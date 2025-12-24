@@ -1207,6 +1207,7 @@ export type Database = {
           longitude: number | null
           max_guests: number | null
           name: string | null
+          navigation_tags: string[] | null
           price_per_night: number | null
           property_type: string | null
           property_url: string | null
@@ -1234,6 +1235,7 @@ export type Database = {
           longitude?: number | null
           max_guests?: number | null
           name?: string | null
+          navigation_tags?: string[] | null
           price_per_night?: number | null
           property_type?: string | null
           property_url?: string | null
@@ -1261,6 +1263,7 @@ export type Database = {
           longitude?: number | null
           max_guests?: number | null
           name?: string | null
+          navigation_tags?: string[] | null
           price_per_night?: number | null
           property_type?: string | null
           property_url?: string | null
