@@ -1200,6 +1200,7 @@ export type Database = {
           description: string | null
           external_id: string | null
           external_system: string | null
+          hero_listing: boolean | null
           id: string | null
           images: Json | null
           is_active: boolean | null
@@ -1228,6 +1229,7 @@ export type Database = {
           description?: string | null
           external_id?: string | null
           external_system?: string | null
+          hero_listing?: boolean | null
           id?: string | null
           images?: Json | null
           is_active?: boolean | null
@@ -1256,6 +1258,7 @@ export type Database = {
           description?: string | null
           external_id?: string | null
           external_system?: string | null
+          hero_listing?: boolean | null
           id?: string | null
           images?: Json | null
           is_active?: boolean | null
