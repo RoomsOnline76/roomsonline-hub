@@ -86,6 +86,36 @@ export type Database = {
         }
         Relationships: []
       }
+      book_page_images: {
+        Row: {
+          alt_text: string | null
+          column_type: string
+          created_at: string | null
+          id: string
+          image_url: string
+          row_position: number
+          updated_at: string | null
+        }
+        Insert: {
+          alt_text?: string | null
+          column_type: string
+          created_at?: string | null
+          id?: string
+          image_url: string
+          row_position: number
+          updated_at?: string | null
+        }
+        Update: {
+          alt_text?: string | null
+          column_type?: string
+          created_at?: string | null
+          id?: string
+          image_url?: string
+          row_position?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       booking_sync_status: {
         Row: {
           booking_id: string
