@@ -103,15 +103,40 @@ interface ROLSpecData {
   navigation_tags: string[];
 }
 
+interface PropertyContext {
+  name: string;
+  property_type: string;
+  property_url?: string;
+  star_rating: number;
+  description?: string;
+  country: string;
+  city: string;
+  suburb?: string;
+  restaurants_cafes?: string;
+  public_transport?: string;
+  closest_airport?: string;
+  pets_allowed?: boolean;
+  children_allowed?: boolean;
+  smoking_allowed?: boolean;
+  check_in_from?: string;
+  check_out_to?: string;
+  facilities: string[];
+  rooms: Array<{
+    name: string;
+    description?: string;
+    maxPeople: number;
+    bedConfiguration?: string;
+  }>;
+}
+
 interface ROLSpecTabProps {
   data: ROLSpecData;
   onChange: (data: ROLSpecData) => void;
-  propertyName?: string;
-  propertyDescription?: string;
+  propertyContext: PropertyContext;
   onDirty: () => void;
 }
 
-export function ROLSpecTab({ data, onChange, propertyName, propertyDescription, onDirty }: ROLSpecTabProps) {
+export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpecTabProps) {
   const { toast } = useToast();
   const [activeSubTab, setActiveSubTab] = useState("details");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -130,7 +155,7 @@ export function ROLSpecTab({ data, onChange, propertyName, propertyDescription, 
   };
 
   const handleAIAssist = async () => {
-    if (!propertyName) {
+    if (!propertyContext.name) {
       toast({
         title: "Property name required",
         description: "Please enter a property name before using AI assistance",
@@ -143,16 +168,14 @@ export function ROLSpecTab({ data, onChange, propertyName, propertyDescription, 
     try {
       const { data: response, error } = await supabase.functions.invoke("editorial-ai-assist", {
         body: {
-          propertyName,
-          propertyDescription: propertyDescription || "",
+          propertyContext,
           editorialRating: data.editorial_rating,
           existingContent: {
             why_we_chose_this_place: data.why_we_chose_this_place,
             who_this_suits: data.who_this_suits,
             what_its_really_like: data.what_its_really_like,
             why_this_place_matters: data.why_this_place_matters,
-            who_its_not_for: data.who_its_not_for,
-            owner_notes: data.owner_notes
+            who_its_not_for: data.who_its_not_for
           }
         }
       });
@@ -290,8 +313,8 @@ export function ROLSpecTab({ data, onChange, propertyName, propertyDescription, 
             </CardHeader>
             <CardContent className="py-3 px-4">
               <p className="text-xs text-muted-foreground mb-3">
-                Use AI to help generate content for empty editorial text fields below. 
-                The assistant will use the property name, description, and selected rating as context.
+                Use AI to generate content for empty editorial fields below. 
+                The assistant uses the complete property listing (location, facilities, rooms, policies) as context.
               </p>
               <Button
                 type="button"
