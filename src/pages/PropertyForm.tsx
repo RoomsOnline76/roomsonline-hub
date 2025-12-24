@@ -3379,7 +3379,9 @@ export default function PropertyForm() {
                     name: r.name,
                     description: r.description,
                     maxPeople: r.maxPeople,
-                    bedConfiguration: r.bedConfiguration?.map(b => `${b.count} ${b.type}`).join(', ')
+                    bedConfiguration: Array.isArray(r.bedConfiguration) 
+                      ? r.bedConfiguration.map(b => `${b.count} ${b.type}`).join(', ')
+                      : undefined
                   }))
                 }}
                 onDirty={() => setIsDirty(true)}
