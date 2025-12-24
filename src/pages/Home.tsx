@@ -154,8 +154,8 @@ const Home = () => {
           </Link>
         </div>
 
-        {/* Hero Text Layout - Right-aligned to screen center */}
-        <div className="absolute inset-0 flex items-center z-10">
+        {/* Hero Text Layout - Right-aligned to screen center, top-aligned */}
+        <div className="absolute inset-0 flex items-start pt-32 md:pt-40 z-10">
           <div className="w-1/2 pr-8 flex flex-col items-end">
             {/* "We are RoomsOnline." - 25% bigger, right-aligned to center */}
             <p className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl text-white font-bold tracking-wide drop-shadow-lg mb-4 text-right whitespace-nowrap">
