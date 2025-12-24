@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { MapPin, Loader2 } from "lucide-react";
 import { getPropertyUrl } from "@/lib/config";
+import { filterPropertiesByMapFilters } from "@/lib/mapFilters";
 
 // Global callback for Google Maps - iOS requires a real callback function
 declare global {
@@ -28,16 +29,18 @@ interface Property {
   images: string[] | null;
   external_system: string | null;
   external_id: string | null;
+  navigation_tags: string[] | null;
 }
 
 interface PropertiesMapProps {
   enabledTypes?: Record<string, boolean>;
   typeColors?: Record<string, string>;
+  selectedMapFilters?: string[];
 }
 
 const DEFAULT_COLOR = "#e11d48";
 
-export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) {
+export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [] }: PropertiesMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
@@ -54,15 +57,16 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
     const fetchProperties = async () => {
       const { data, error } = await supabase
         .from("public_properties")
-        .select("id, name, slug, latitude, longitude, city, country, price_per_night, property_type, images, external_system, external_id")
+        .select("id, name, slug, latitude, longitude, city, country, price_per_night, property_type, images, external_system, external_id, navigation_tags")
         .not("latitude", "is", null)
         .not("longitude", "is", null);
 
       if (!error && data) {
-        // Parse images if needed
+        // Parse images and navigation_tags if needed
         const parsedData = data.map(p => ({
           ...p,
-          images: Array.isArray(p.images) ? (p.images as string[]) : null
+          images: Array.isArray(p.images) ? (p.images as string[]) : null,
+          navigation_tags: Array.isArray(p.navigation_tags) ? (p.navigation_tags as string[]) : null
         }));
         setProperties(parsedData);
       }
@@ -172,11 +176,22 @@ export function PropertiesMap({ enabledTypes, typeColors }: PropertiesMapProps) 
     };
   }, [apiKey, loading]);
 
-  // Filter properties based on enabled types
+  // Filter properties based on enabled types and map filters
   const filteredProperties = useMemo(() => {
-    if (!enabledTypes) return properties;
-    return properties.filter((p) => enabledTypes[p.property_type] !== false);
-  }, [properties, enabledTypes]);
+    let filtered = properties;
+    
+    // Filter by property type
+    if (enabledTypes) {
+      filtered = filtered.filter((p) => enabledTypes[p.property_type] !== false);
+    }
+    
+    // Filter by map filters (navigation tags)
+    if (selectedMapFilters.length > 0) {
+      filtered = filterPropertiesByMapFilters(filtered, selectedMapFilters);
+    }
+    
+    return filtered;
+  }, [properties, enabledTypes, selectedMapFilters]);
 
   // Initialize map once - with slight delay to ensure DOM is ready
   useEffect(() => {

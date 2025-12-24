@@ -2,9 +2,16 @@ import { useState } from "react";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { PropertySegmentSection } from "@/components/PropertySegmentSection";
-import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock } from "lucide-react";
+import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, ChevronDown, X } from "lucide-react";
 import heroImage from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
+import { MAP_FILTER_CATEGORIES, getMapFiltersByCategory, type MapFilterCategoryId } from "@/lib/mapFilters";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
   { key: "hotel", label: "Hotel", color: "bg-red-500", hex: "#ef4444" },
@@ -31,10 +38,24 @@ const INITIAL_ENABLED_TYPES: Record<string, boolean> = {
 
 const Home = () => {
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
+  const [selectedMapFilters, setSelectedMapFilters] = useState<string[]>([]);
+  const [openCategory, setOpenCategory] = useState<MapFilterCategoryId | null>(null);
 
   const toggleType = (key: string) => {
     setEnabledTypes((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+
+  const toggleMapFilter = (filterId: string) => {
+    setSelectedMapFilters((prev) =>
+      prev.includes(filterId) ? prev.filter((id) => id !== filterId) : [...prev, filterId]
+    );
+  };
+
+  const clearMapFilters = () => {
+    setSelectedMapFilters([]);
+  };
+
+  const filtersByCategory = getMapFiltersByCategory();
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
@@ -75,7 +96,7 @@ const Home = () => {
 
           {/* Property Type Toggles - Horizontal scroll on mobile */}
           <div className="overflow-x-auto pb-2 -mx-3 px-3 sm:mx-0 sm:px-0 sm:overflow-visible scrollbar-hide">
-            <div className="flex sm:flex-wrap sm:justify-center gap-2 mb-3 sm:mb-5 min-w-max sm:min-w-0">
+            <div className="flex sm:flex-wrap sm:justify-center gap-2 mb-3 sm:mb-4 min-w-max sm:min-w-0">
               {PROPERTY_TYPES.map((type) => (
                 <button
                   key={type.key}
@@ -101,8 +122,69 @@ const Home = () => {
             </div>
           </div>
 
+          {/* Map Filters by Category */}
+          <div className="mb-3 sm:mb-4">
+            <div className="flex flex-wrap items-center gap-2 justify-center">
+              {MAP_FILTER_CATEGORIES.map((category) => (
+                <Collapsible
+                  key={category.id}
+                  open={openCategory === category.id}
+                  onOpenChange={(open) => setOpenCategory(open ? category.id : null)}
+                >
+                  <CollapsibleTrigger asChild>
+                    <button
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all touch-manipulation active:scale-95 ${
+                        openCategory === category.id || selectedMapFilters.some((f) => filtersByCategory[category.id].some((cf) => cf.id === f))
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-background text-muted-foreground hover:border-primary/30"
+                      }`}
+                    >
+                      {category.label}
+                      <ChevronDown
+                        className={`h-3 w-3 transition-transform ${openCategory === category.id ? "rotate-180" : ""}`}
+                      />
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="absolute z-20 mt-1 p-2 bg-background border border-border rounded-lg shadow-lg min-w-[180px]">
+                    <div className="flex flex-col gap-1">
+                      {filtersByCategory[category.id].map((filter) => (
+                        <button
+                          key={filter.id}
+                          onClick={() => toggleMapFilter(filter.id)}
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left transition-colors ${
+                            selectedMapFilters.includes(filter.id)
+                              ? "bg-primary/10 text-primary"
+                              : "hover:bg-muted text-foreground"
+                          }`}
+                        >
+                          <span
+                            className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                              selectedMapFilters.includes(filter.id) ? "bg-primary" : "bg-muted-foreground/30"
+                            }`}
+                          />
+                          {filter.label}
+                        </button>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              ))}
+
+              {/* Clear filters button */}
+              {selectedMapFilters.length > 0 && (
+                <button
+                  onClick={clearMapFilters}
+                  className="flex items-center gap-1 px-2 py-1 rounded-full bg-destructive/10 text-destructive text-xs font-medium hover:bg-destructive/20 transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                  Clear ({selectedMapFilters.length})
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="h-[250px] sm:h-[350px] md:h-[400px] rounded-lg overflow-hidden border border-border shadow-sm">
-            <PropertiesMap enabledTypes={enabledTypes} typeColors={TYPE_COLORS} />
+            <PropertiesMap enabledTypes={enabledTypes} typeColors={TYPE_COLORS} selectedMapFilters={selectedMapFilters} />
           </div>
         </div>
       </section>
