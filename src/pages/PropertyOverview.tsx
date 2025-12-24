@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Building2, Edit, Trash2, Home, CheckCircle2, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { Building2, Edit, Trash2, Home, CheckCircle2, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,6 +43,7 @@ const PropertyOverview = () => {
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [homeIconOpenNewTab, setHomeIconOpenNewTab] = useState(true);
+  const [uploadingCell, setUploadingCell] = useState<string | null>(null);
 
   // Load home icon new tab setting
   useEffect(() => {
@@ -111,6 +112,59 @@ const PropertyOverview = () => {
       return propertiesWithExtras;
     },
   });
+
+  // Fetch book page images
+  const { data: bookPageImages, refetch: refetchBookImages } = useQuery({
+    queryKey: ["book-page-images"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("book_page_images")
+        .select("*");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Handle book page image upload
+  const handleBookPageImageUpload = async (
+    columnType: 'experience' | 'map' | 'curated',
+    rowPosition: number,
+    file: File
+  ) => {
+    const cellKey = `${columnType}-${rowPosition}`;
+    setUploadingCell(cellKey);
+    
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `book-page/${columnType}-row${rowPosition}-${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("property-images")
+        .upload(fileName, file);
+      
+      if (uploadError) throw uploadError;
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from("property-images")
+        .getPublicUrl(fileName);
+      
+      const { error: upsertError } = await supabase.from("book_page_images").upsert({
+        column_type: columnType,
+        row_position: rowPosition,
+        image_url: publicUrl,
+      }, { onConflict: 'column_type,row_position' });
+      
+      if (upsertError) throw upsertError;
+      
+      refetchBookImages();
+      toast.success("Image uploaded successfully");
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("Failed to upload image");
+    } finally {
+      setUploadingCell(null);
+    }
+  };
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -259,6 +313,10 @@ const PropertyOverview = () => {
               <Badge className="h-4 min-w-4 px-1 text-[10px] font-medium bg-primary/20 text-primary hover:bg-primary/20">
                 {deletedProperties.length}
               </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="bookpage" className="gap-1 text-xs py-1">
+              <Image className="h-3 w-3 mr-1" />
+              Book Page
             </TabsTrigger>
           </TabsList>
 
@@ -569,6 +627,75 @@ const PropertyOverview = () => {
                     </TableBody>
                   </Table>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="bookpage">
+            <Card>
+              <CardHeader className="py-2 px-4">
+                <div className="flex items-baseline gap-2">
+                  <CardTitle className="text-sm">Book Page Images</CardTitle>
+                  <CardDescription className="text-xs">— Upload images for the booking page grid (3 rows × 3 columns)</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="py-4 px-4">
+                {/* Column Headers */}
+                <div className="grid grid-cols-3 gap-4 mb-3">
+                  <div className="text-center font-semibold text-xs uppercase tracking-wide text-muted-foreground">Experience</div>
+                  <div className="text-center font-semibold text-xs uppercase tracking-wide text-muted-foreground">Map</div>
+                  <div className="text-center font-semibold text-xs uppercase tracking-wide text-muted-foreground">Curated</div>
+                </div>
+                
+                {/* 3x3 Grid */}
+                {[1, 2, 3].map((row) => (
+                  <div key={row} className="grid grid-cols-3 gap-4 mb-4">
+                    {(['experience', 'map', 'curated'] as const).map((col) => {
+                      const cellKey = `${col}-${row}`;
+                      const existingImage = bookPageImages?.find(
+                        (img: any) => img.column_type === col && img.row_position === row
+                      );
+                      
+                      return (
+                        <div
+                          key={cellKey}
+                          className="aspect-video border-2 border-dashed border-border rounded-lg flex items-center justify-center cursor-pointer hover:border-primary hover:bg-muted/50 transition-colors relative overflow-hidden group"
+                          onClick={() => document.getElementById(`upload-${cellKey}`)?.click()}
+                        >
+                          {existingImage ? (
+                            <>
+                              <img 
+                                src={existingImage.image_url} 
+                                alt={`${col} row ${row}`}
+                                className="w-full h-full object-cover" 
+                              />
+                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Upload className="h-6 w-6 text-white" />
+                              </div>
+                            </>
+                          ) : uploadingCell === cellKey ? (
+                            <span className="text-xs text-muted-foreground">Uploading...</span>
+                          ) : (
+                            <div className="flex flex-col items-center gap-1 text-muted-foreground">
+                              <Upload className="h-6 w-6" />
+                              <span className="text-[10px]">Click to upload</span>
+                            </div>
+                          )}
+                          <input
+                            id={`upload-${cellKey}`}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleBookPageImageUpload(col, row, file);
+                            }}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </TabsContent>
