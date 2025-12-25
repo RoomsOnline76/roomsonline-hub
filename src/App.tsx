@@ -27,6 +27,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
+import AboutUs from "./pages/AboutUs";
 import PropertyListing from "./pages/PropertyListing";
 import NB from "./pages/NB";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -188,6 +189,7 @@ const App = () => (
           <Route path="/booking/:id" element={<Booking />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms-of-service" element={<TermsOfService />} />
+          <Route path="/about" element={<AboutUs />} />
           <Route
             path="/nb"
             element={

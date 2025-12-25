@@ -250,9 +250,13 @@ const Home = () => {
               <span className="block px-4 py-2 text-sm text-muted-foreground cursor-default">
                 Journal
               </span>
-              <span className="block px-4 py-2 text-sm text-muted-foreground cursor-default">
+              <Link
+                to="/about"
+                className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
                 About Us
-              </span>
+              </Link>
               <Link
                 to="/privacy"
                 className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
