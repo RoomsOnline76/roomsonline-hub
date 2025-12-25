@@ -473,7 +473,7 @@ function HomeContent() {
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground">
               Explore Our World{" "}
               <span className="font-normal text-muted-foreground">
-                — Filter by what calls to you — lodges, rustic vibe, coastal retreat, or something unexpected.
+                — Toggle or Filter by what calls to you — lodges, rustic vibe, coastal retreat, or something unexpected.
               </span>
             </h2>
           </div>
