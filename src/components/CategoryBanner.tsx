@@ -1,5 +1,7 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { BANNER_SEGMENTS, BannerSegment } from "@/lib/bannerSegments";
+import { SEGMENT_FILTERS, SegmentFilterId } from "@/lib/segmentFilters";
+import { supabase } from "@/integrations/supabase/client";
 
 interface CategoryBannerProps {
   onSegmentClick: (segment: BannerSegment) => void;
@@ -10,6 +12,7 @@ const CategoryBanner = ({ onSegmentClick, heroRef }: CategoryBannerProps) => {
   const [isSticky, setIsSticky] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [propertyTags, setPropertyTags] = useState<string[]>([]);
   const bannerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | null>(null);
@@ -18,6 +21,43 @@ const CategoryBanner = ({ onSegmentClick, heroRef }: CategoryBannerProps) => {
   const dragStartScrollRef = useRef(0);
   const lastTimeRef = useRef(0);
   const scrollSpeed = 50; // pixels per second
+
+  // Fetch all unique navigation tags from properties
+  useEffect(() => {
+    const fetchPropertyTags = async () => {
+      const { data } = await supabase
+        .from("public_properties")
+        .select("navigation_tags")
+        .not("navigation_tags", "is", null);
+      
+      if (data) {
+        const allTags = new Set<string>();
+        data.forEach(p => {
+          if (Array.isArray(p.navigation_tags)) {
+            p.navigation_tags.forEach(tag => allTags.add(tag));
+          }
+        });
+        setPropertyTags(Array.from(allTags));
+      }
+    };
+    fetchPropertyTags();
+  }, []);
+
+  // Filter segments that have at least one property with matching tags
+  const visibleSegments = useMemo(() => {
+    if (propertyTags.length === 0) return BANNER_SEGMENTS; // Show all while loading
+    
+    return BANNER_SEGMENTS.filter(segment => {
+      // Always show "ALL" segment
+      if (segment.filterType === null) return true;
+      
+      // Check if this segment has any matching properties
+      const segmentConfig = SEGMENT_FILTERS[segment.filterType as SegmentFilterId];
+      if (!segmentConfig) return false;
+      
+      return segmentConfig.tags.some(tag => propertyTags.includes(tag));
+    });
+  }, [propertyTags]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -132,8 +172,8 @@ const CategoryBanner = ({ onSegmentClick, heroRef }: CategoryBannerProps) => {
     handleDragEnd();
   };
 
-  // Duplicate segments for seamless infinite scroll
-  const duplicatedSegments = [...BANNER_SEGMENTS, ...BANNER_SEGMENTS];
+  // Duplicate visible segments for seamless infinite scroll
+  const duplicatedSegments = [...visibleSegments, ...visibleSegments];
 
   return (
     <div
