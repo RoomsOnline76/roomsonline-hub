@@ -589,167 +589,107 @@ export const SearchForm = () => {
   }
 
   // Default compact mode (in hero)
+  // Mobile: collapsed to just "Where to?" pill - tapping expands
+  // Desktop: full inline form
+  if (isMobile) {
+    return (
+      <div className="w-full max-w-xl mx-auto px-4">
+        <button
+          type="button"
+          onClick={handleFieldFocus}
+          className="w-full bg-card/95 backdrop-blur-md rounded-full shadow-lg border border-border/50 px-4 py-3 flex items-center gap-3"
+        >
+          <Search className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+          <span className="text-base text-muted-foreground">Where to?</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-xl mx-auto px-2 sm:px-0">
-      <form onSubmit={handleSearch} className="bg-card/95 backdrop-blur-md rounded-2xl sm:rounded-full shadow-lg border border-border/50 px-3 py-2 sm:px-2 sm:py-1.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-1">
+      <form onSubmit={handleSearch} className="bg-card/95 backdrop-blur-md rounded-full shadow-lg border border-border/50 px-2 py-1.5 flex flex-row items-center gap-1">
         {/* Destination */}
         <div className="flex-1 min-w-0">
           <div className="relative">
-            <MapPin className={cn(
-              "absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground",
-              isMobile ? "h-5 w-5" : "h-3.5 w-3.5"
-            )} />
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               type="text"
               placeholder="Where to?"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={handleFieldFocus}
-              className={cn(
-                "bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0",
-                isMobile ? "pl-11 h-12 text-base" : "pl-7 h-8 text-xs"
-              )}
+              className="pl-7 h-8 text-xs bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
             />
           </div>
         </div>
 
-        <div className="hidden sm:block w-px h-6 bg-border" />
-        <div className="sm:hidden w-full h-px bg-border" />
+        <div className="w-px h-6 bg-border" />
 
-        {/* Date Range Picker - Mobile uses Sheet */}
-        {isMobile ? (
-          <Sheet open={showMobileDateSheet} onOpenChange={setShowMobileDateSheet}>
-            <SheetTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                className={cn(
-                  "justify-start h-12 px-3 text-base font-normal hover:bg-secondary/50",
-                  !dateRange?.from && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-5 w-5 flex-shrink-0" />
-                <span className="flex-1 text-left truncate">
-                  {formatDateRange()}
-                </span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="h-auto max-h-[85vh] rounded-t-2xl safe-area-bottom">
-              <SheetHeader className="pb-4">
-                <SheetTitle>Select dates</SheetTitle>
-              </SheetHeader>
-              <div className="flex justify-center overflow-auto">
-                {datePickerContent}
-              </div>
-              <div className="pt-4 flex gap-2">
-                <Button variant="outline" className="flex-1 h-12" onClick={() => {
-                  setDateRange(undefined);
-                  setHoverDate(undefined);
-                }}>
-                  Clear
-                </Button>
-                <Button className="flex-1 h-12" onClick={() => setShowMobileDateSheet(false)}>
-                  Done
-                </Button>
-              </div>
-            </SheetContent>
-          </Sheet>
-        ) : (
-          <Popover open={showDatePicker} onOpenChange={(open) => {
-            setShowDatePicker(open);
-            if (open) handleFieldFocus();
-          }} modal={true}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "h-8 px-2 text-xs font-normal hover:bg-secondary/50",
-                  !dateRange?.from && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-1 h-3.5 w-3.5 flex-shrink-0" />
-                <span className="truncate max-w-[80px]">
-                  {formatDateRange()}
-                </span>
-                {dateRange?.from && (
-                  <X 
-                    className="h-3 w-3 ml-1 text-muted-foreground hover:text-foreground" 
-                    onClick={clearDates}
-                  />
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent 
-              className="w-auto p-0 z-50 bg-background border border-border shadow-xl" 
-              align="center" 
-              sideOffset={8}
+        {/* Date Range Picker */}
+        <Popover open={showDatePicker} onOpenChange={(open) => {
+          setShowDatePicker(open);
+          if (open) handleFieldFocus();
+        }} modal={true}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-8 px-2 text-xs font-normal hover:bg-secondary/50",
+                !dateRange?.from && "text-muted-foreground"
+              )}
             >
-              {datePickerContent}
-            </PopoverContent>
-          </Popover>
-        )}
+              <CalendarIcon className="mr-1 h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate max-w-[80px]">
+                {formatDateRange()}
+              </span>
+              {dateRange?.from && (
+                <X 
+                  className="h-3 w-3 ml-1 text-muted-foreground hover:text-foreground" 
+                  onClick={clearDates}
+                />
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent 
+            className="w-auto p-0 z-50 bg-background border border-border shadow-xl" 
+            align="center" 
+            sideOffset={8}
+          >
+            {datePickerContent}
+          </PopoverContent>
+        </Popover>
 
-        <div className="hidden sm:block w-px h-6 bg-border" />
-        <div className="sm:hidden w-full h-px bg-border" />
+        <div className="w-px h-6 bg-border" />
 
-        {/* Guests - Mobile uses Sheet */}
-        {isMobile ? (
-          <Sheet open={showMobileGuestSheet} onOpenChange={setShowMobileGuestSheet}>
-            <SheetTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                className="justify-start h-12 px-3 text-base font-normal hover:bg-secondary/50"
-              >
-                <Users className="mr-2 h-5 w-5" />
-                <span>{guests.adults + guests.children} guest{guests.adults + guests.children !== 1 ? 's' : ''}</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="h-auto rounded-t-2xl safe-area-bottom">
-              <SheetHeader className="pb-4">
-                <SheetTitle>How many guests?</SheetTitle>
-              </SheetHeader>
-              <GuestPickerContent />
-              <div className="pt-4">
-                <Button className="w-full h-12" onClick={() => setShowMobileGuestSheet(false)}>
-                  Done
-                </Button>
-              </div>
-            </SheetContent>
-          </Sheet>
-        ) : (
-          <Popover open={showGuestPicker} onOpenChange={(open) => {
-            setShowGuestPicker(open);
-            if (open) handleFieldFocus();
-          }} modal={true}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2 text-xs font-normal hover:bg-secondary/50"
-              >
-                <Users className="mr-1 h-3.5 w-3.5" />
-                <span>{guests.adults + guests.children}</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56 p-3 z-50 bg-background border border-border shadow-xl" align="center" sideOffset={8}>
-              <GuestPickerContent />
-            </PopoverContent>
-          </Popover>
-        )}
+        {/* Guests */}
+        <Popover open={showGuestPicker} onOpenChange={(open) => {
+          setShowGuestPicker(open);
+          if (open) handleFieldFocus();
+        }} modal={true}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs font-normal hover:bg-secondary/50"
+            >
+              <Users className="mr-1 h-3.5 w-3.5" />
+              <span>{guests.adults + guests.children}</span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-3 z-50 bg-background border border-border shadow-xl" align="center" sideOffset={8}>
+            <GuestPickerContent />
+          </PopoverContent>
+        </Popover>
 
         {/* Search Button */}
         <Button
           type="submit"
-          className={cn(
-            "rounded-full bg-primary hover:bg-primary/90 flex-shrink-0",
-            isMobile ? "h-12 w-full mt-1" : "h-8 w-8"
-          )}
+          className="rounded-full bg-primary hover:bg-primary/90 flex-shrink-0 h-8 w-8"
           disabled={!selectedProperty}
         >
-          <Search className={cn(isMobile ? "h-5 w-5" : "h-3.5 w-3.5")} />
-          {isMobile && <span className="ml-2">Search</span>}
+          <Search className="h-3.5 w-3.5" />
         </Button>
       </form>
     </div>
