@@ -39,6 +39,16 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
+// Redirect component for /book path
+const BookRedirect = () => {
+  if (window.location.hostname === 'book.sleepinafrica.roomsonline.co.za') {
+    return <Home />;
+  }
+  // Redirect to book subdomain
+  window.location.href = 'https://book.sleepinafrica.roomsonline.co.za';
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <CurrencyProvider>
@@ -50,13 +60,11 @@ const App = () => (
           <Route path="/" element={
             window.location.hostname === 'book.sleepinafrica.roomsonline.co.za' 
               ? <Home /> 
-              : <Navigate to="/dashboard/reports" replace />
+              : window.location.hostname === 'sleepinafrica.roomsonline.co.za'
+                ? <Home />
+                : <Navigate to="/dashboard/reports" replace />
           } />
-          <Route path="/book" element={
-            window.location.hostname === 'book.sleepinafrica.roomsonline.co.za'
-              ? <Home />
-              : (() => { window.location.href = 'https://book.sleepinafrica.roomsonline.co.za'; return null; })()
-          } />
+          <Route path="/book" element={<BookRedirect />} />
           <Route path="/property_listing" element={<PropertyListing />} />
           <Route path="/staging" element={<StagingBook />} />
           <Route path="/auth" element={<Auth />} />
