@@ -15,7 +15,7 @@ interface FindByCardProps {
 
 function FindByCard({ title, subtitle, description, imageUrl, onClick, href }: FindByCardProps) {
   const content = (
-    <div className="group relative overflow-hidden rounded-lg h-64 sm:h-72 cursor-pointer">
+    <div className="group relative overflow-hidden rounded-lg min-h-[16rem] sm:min-h-[18rem] cursor-pointer">
       {/* Background Image */}
       <img
         src={imageUrl}
@@ -26,14 +26,14 @@ function FindByCard({ title, subtitle, description, imageUrl, onClick, href }: F
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
       
       {/* Content */}
-      <div className="absolute inset-0 flex flex-col justify-end p-4 sm:p-6">
+      <div className="relative flex flex-col justify-end p-4 sm:p-6 min-h-[16rem] sm:min-h-[18rem]">
         <span className="text-xs font-semibold text-primary/90 uppercase tracking-wider mb-1">
           {subtitle}
         </span>
         <h3 className="text-lg sm:text-xl font-bold text-white mb-2">
           {title}
         </h3>
-        <p className="text-xs sm:text-sm text-white/80 leading-relaxed line-clamp-3">
+        <p className="text-xs sm:text-sm text-white/80 leading-relaxed">
           {description}
         </p>
       </div>
@@ -153,7 +153,7 @@ export function FindBySection({ onScrollToTypes, onScrollToMap }: FindBySectionP
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
             {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-64 sm:h-72 rounded-lg" />
+              <Skeleton key={i} className="min-h-[16rem] sm:min-h-[18rem] rounded-lg" />
             ))}
           </div>
         </div>
