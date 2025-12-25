@@ -52,7 +52,11 @@ const App = () => (
               ? <Home /> 
               : <Navigate to="/dashboard/reports" replace />
           } />
-          <Route path="/book" element={<Home />} />
+          <Route path="/book" element={
+            window.location.hostname === 'book.sleepinafrica.roomsonline.co.za'
+              ? <Home />
+              : (() => { window.location.href = 'https://book.sleepinafrica.roomsonline.co.za'; return null; })()
+          } />
           <Route path="/property_listing" element={<PropertyListing />} />
           <Route path="/staging" element={<StagingBook />} />
           <Route path="/auth" element={<Auth />} />
