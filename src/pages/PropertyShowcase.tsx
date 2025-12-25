@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getNightsBridgeBookingUrl } from "@/lib/config";
@@ -91,6 +92,77 @@ const amenityIcons: Record<string, any> = {
 
 const slugifyRoomName = (name: string) => {
   return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+};
+
+// NightsBridge responsive booking content component
+const NightsBridgeBookingContent = ({ 
+  iframeUrl, 
+  propertyName,
+  tripadvisorId 
+}: { 
+  iframeUrl: string; 
+  propertyName: string;
+  tripadvisorId?: string;
+}) => {
+  const isMobile = useIsMobile();
+  
+  if (isMobile) {
+    // Mobile: Full-screen iframe with collapsible TripAdvisor at bottom
+    return (
+      <div className="flex-1 flex flex-col w-full">
+        {/* Full-height iframe for mobile */}
+        <div className="flex-1 relative" style={{ minHeight: 'calc(100vh - 120px)' }}>
+          <iframe
+            src={iframeUrl}
+            title={`Book ${propertyName} on NightsBridge`}
+            className="absolute inset-0 w-full h-full border-0"
+            allow="payment"
+            style={{ 
+              WebkitOverflowScrolling: 'touch',
+              overflow: 'auto'
+            }}
+          />
+        </div>
+        
+        {/* Collapsible TripAdvisor section for mobile */}
+        {tripadvisorId && (
+          <div className="border-t border-border bg-muted/30 p-3">
+            <details className="group">
+              <summary className="flex items-center justify-between cursor-pointer text-sm font-medium">
+                <span>TripAdvisor Reviews</span>
+                <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+              </summary>
+              <div className="mt-3 max-h-[50vh] overflow-y-auto">
+                <TripAdvisorReviews tripadvisorId={tripadvisorId} />
+              </div>
+            </details>
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  // Desktop: Side-by-side layout
+  return (
+    <div className="flex-1 flex flex-row max-w-7xl mx-auto w-full">
+      {/* NightsBridge iframe - takes most space */}
+      <div className="flex-1 relative min-h-[calc(100vh-100px)]">
+        <iframe
+          src={iframeUrl}
+          title={`Book ${propertyName} on NightsBridge`}
+          className="absolute inset-0 w-full h-full border-0"
+          allow="payment"
+        />
+      </div>
+      
+      {/* TripAdvisor Reviews sidebar */}
+      {tripadvisorId && (
+        <div className="w-80 xl:w-96 border-l border-border bg-muted/30 p-4 overflow-y-auto">
+          <TripAdvisorReviews tripadvisorId={tripadvisorId} />
+        </div>
+      )}
+    </div>
+  );
 };
 
 // Track rooms already added to booking from sessionStorage
@@ -521,22 +593,11 @@ export default function PropertyShowcase() {
         </div>
         
         {/* Main content with iframe and TripAdvisor */}
-        <div className="flex-1 flex flex-col lg:flex-row max-w-7xl mx-auto w-full">
-          {/* NightsBridge iframe */}
-          <div className="flex-1 relative min-h-[60vh] lg:min-h-0">
-            <iframe
-              src={iframeUrl}
-              title={`Book ${property.name} on NightsBridge`}
-              className="absolute inset-0 w-full h-full border-0"
-              allow="payment"
-            />
-          </div>
-          
-          {/* TripAdvisor Reviews sidebar */}
-          <div className="w-full lg:w-80 xl:w-96 border-t lg:border-t-0 lg:border-l border-border bg-muted/30 p-4 overflow-y-auto max-h-[40vh] lg:max-h-none">
-            <TripAdvisorReviews tripadvisorId={property.amenities?.tripadvisor_id} />
-          </div>
-        </div>
+        <NightsBridgeBookingContent 
+          iframeUrl={iframeUrl} 
+          propertyName={property.name}
+          tripadvisorId={property.amenities?.tripadvisor_id}
+        />
       </div>
     );
   }
