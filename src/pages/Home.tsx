@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { useHomePropertySegments } from "@/components/HomePropertySegments";
+import { FindBySection } from "@/components/FindBySection";
 import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2, ChevronDown, X } from "lucide-react";
 import heroFallback from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
@@ -69,6 +70,8 @@ const Home = () => {
   const [heroImage, setHeroImage] = useState<string>(heroFallback);
   const [isLoadingHero, setIsLoadingHero] = useState(true);
   const heroRef = useRef<HTMLElement>(null);
+  const typesRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<HTMLElement>(null);
   const [selectedMapFilters, setSelectedMapFilters] = useState<string[]>([]);
   
   // Get property segments
@@ -76,7 +79,15 @@ const Home = () => {
   
   // Get filters grouped by category
   const filtersByCategory = useMemo(() => getMapFiltersByCategory(), []);
-  
+
+  // Scroll handlers for FindBy section
+  const handleScrollToTypes = useCallback(() => {
+    typesRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  const handleScrollToMap = useCallback(() => {
+    mapRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
   const handleFilterSelect = (categoryId: MapFilterCategoryId, filterId: string) => {
     if (filterId === "all") {
       // Remove filters from this category
@@ -215,6 +226,12 @@ const Home = () => {
         <CategoryBanner onSegmentClick={handleSegmentClick} heroRef={heroRef} />
       </section>
 
+      {/* Find By Section */}
+      <FindBySection 
+        onScrollToTypes={handleScrollToTypes} 
+        onScrollToMap={handleScrollToMap} 
+      />
+
       {/* Discover New Segment */}
       {discoverNewSection}
 
@@ -222,7 +239,7 @@ const Home = () => {
       {destinationSection}
 
       {/* Properties Map Section */}
-      <section id="map-section" className="py-6 sm:py-10 bg-background">
+      <section ref={mapRef} id="map-section" className="py-6 sm:py-10 bg-background">
         <div className="container mx-auto px-3 sm:px-4">
           <div className="text-left mb-4 sm:mb-6">
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground">Explore Our World</h2>
@@ -297,7 +314,9 @@ const Home = () => {
       </section>
 
       {/* Type Segments */}
-      {typesSections}
+      <div ref={typesRef}>
+        {typesSections}
+      </div>
 
       {/* Why RoomsOnline Section */}
       <section className="py-6 sm:py-12 bg-secondary/30">
