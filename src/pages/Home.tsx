@@ -435,16 +435,8 @@ function HomeContent() {
         onScrollToMap={handleScrollToMap} 
       />
 
-      {/* Random Destination Section (1 random destination tag) */}
-      {destinationSection}
-
-      {/* Random Types Sections (2 random type tags) */}
-      {typesSections}
-
-      {/* All Segment Sections with IDs for banner navigation (hidden, for scroll targets) */}
-      <div className="hidden">
-        {allSegmentSections}
-      </div>
+      {/* All Segment Sections with IDs for banner navigation */}
+      {allSegmentSections}
 
       {/* Properties Map Section */}
       <section ref={mapRef} id="map-section" className="py-6 sm:py-10 bg-background">
