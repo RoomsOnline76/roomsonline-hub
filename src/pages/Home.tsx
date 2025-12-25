@@ -295,9 +295,13 @@ function HomeContent() {
             {/* Dropdown Menu */}
             {isMenuOpen && (
               <div className="absolute top-12 right-0 w-48 bg-background/95 backdrop-blur-sm rounded-lg border border-border shadow-xl py-2">
-                <span className="block px-4 py-2 text-sm text-muted-foreground cursor-default">
+                <Link
+                  to="/journals"
+                  className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                  onClick={() => setIsMenuOpen(false)}
+                >
                   Journal
-                </span>
+                </Link>
                 <Link
                   to="/about"
                   className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
