@@ -2,17 +2,20 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { format, isAfter, isBefore, isSameDay, addMonths, subMonths, endOfMonth, startOfMonth } from "date-fns";
-import { CalendarIcon, MapPin, Users, Search, X } from "lucide-react";
+import { CalendarIcon, MapPin, Users, Search, X, Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { DayPicker, DateRange } from "react-day-picker";
 import { supabase } from "@/integrations/supabase/client";
 import { useSearch, PropertySearchResult } from "@/contexts/SearchContext";
 import { SearchResultsDropdown } from "@/components/SearchResultsDropdown";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export const SearchForm = () => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const { 
     isExpanded, 
     setIsExpanded, 
@@ -30,6 +33,8 @@ export const SearchForm = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [showMobileDateSheet, setShowMobileDateSheet] = useState(false);
+  const [showMobileGuestSheet, setShowMobileGuestSheet] = useState(false);
   
   // Track hover date for preview "worm" effect
   const [hoverDate, setHoverDate] = useState<Date | undefined>();
@@ -244,186 +249,285 @@ export const SearchForm = () => {
     return isAfter(day, displayRange.from) && isBefore(day, displayRange.to);
   };
 
+  // Mobile date picker sheet content
+  const DatePickerContent = () => (
+    <DayPicker
+      mode="range"
+      selected={displayRange}
+      month={displayedMonth}
+      onMonthChange={setDisplayedMonth}
+      numberOfMonths={isMobile ? 1 : 2}
+      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+      onDayClick={handleDayClick}
+      onDayMouseEnter={handleDayMouseEnterWithNav}
+      onDayMouseLeave={handleDayMouseLeaveWithNav}
+      modifiers={{
+        range_start: (day) => isRangeStart(day),
+        range_end: (day) => isRangeEnd(day),
+        range_middle: (day) => isRangeMiddle(day),
+      }}
+      modifiersClassNames={{
+        range_start: "bg-primary text-primary-foreground rounded-l-md rounded-r-none",
+        range_end: "bg-primary text-primary-foreground rounded-r-md rounded-l-none",
+        range_middle: "bg-primary/30 text-foreground rounded-none",
+      }}
+      className="p-3 pointer-events-auto"
+      classNames={{
+        months: cn("flex gap-4", isMobile ? "flex-col" : "flex-row"),
+        month: "space-y-3",
+        caption: "flex justify-center pt-1 relative items-center",
+        caption_label: "text-sm font-medium",
+        nav: "space-x-1 flex items-center",
+        nav_button: cn(
+          "bg-transparent p-0 opacity-50 hover:opacity-100 inline-flex items-center justify-center",
+          isMobile ? "h-10 w-10 touch-target" : "h-7 w-7"
+        ),
+        nav_button_previous: "absolute left-1",
+        nav_button_next: "absolute right-1",
+        table: "w-full border-collapse",
+        head_row: "flex",
+        head_cell: cn(
+          "text-muted-foreground rounded-md font-normal",
+          isMobile ? "w-10 text-xs flex-1" : "w-8 text-[11px]"
+        ),
+        row: "flex w-full mt-1",
+        cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 flex-1",
+        day: cn(
+          "p-0 font-normal hover:bg-primary/20 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center",
+          isMobile ? "h-10 w-10 text-sm touch-target" : "h-8 w-8 text-sm"
+        ),
+        day_today: "bg-accent text-accent-foreground font-semibold",
+        day_outside: "text-muted-foreground opacity-50",
+        day_disabled: "text-muted-foreground opacity-50 cursor-not-allowed hover:bg-transparent",
+        day_hidden: "invisible",
+      }}
+    />
+  );
+
+  // Mobile guest picker content
+  const GuestPickerContent = () => (
+    <div className={cn("space-y-4", isMobile && "p-2")}>
+      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+        <div>
+          <p className={cn("font-medium", isMobile ? "text-base" : "text-sm")}>Adults</p>
+          <p className={cn("text-muted-foreground", isMobile ? "text-sm" : "text-xs")}>Ages 13+</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="icon"
+            className={cn("rounded-full", isMobile ? "h-10 w-10 touch-target" : "h-7 w-7")}
+            onClick={() => setGuests(g => ({ ...g, adults: Math.max(1, g.adults - 1) }))}
+            disabled={guests.adults <= 1}
+          >
+            <Minus className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
+          </Button>
+          <span className={cn("text-center font-medium", isMobile ? "w-8 text-lg" : "w-5 text-sm")}>{guests.adults}</span>
+          <Button
+            variant="outline"
+            size="icon"
+            className={cn("rounded-full", isMobile ? "h-10 w-10 touch-target" : "h-7 w-7")}
+            onClick={() => setGuests(g => ({ ...g, adults: Math.min(10, g.adults + 1) }))}
+            disabled={guests.adults >= 10}
+          >
+            <Plus className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
+          </Button>
+        </div>
+      </div>
+      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+        <div>
+          <p className={cn("font-medium", isMobile ? "text-base" : "text-sm")}>Children</p>
+          <p className={cn("text-muted-foreground", isMobile ? "text-sm" : "text-xs")}>Ages 0-12</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="icon"
+            className={cn("rounded-full", isMobile ? "h-10 w-10 touch-target" : "h-7 w-7")}
+            onClick={() => setGuests(g => ({ ...g, children: Math.max(0, g.children - 1) }))}
+            disabled={guests.children <= 0}
+          >
+            <Minus className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
+          </Button>
+          <span className={cn("text-center font-medium", isMobile ? "w-8 text-lg" : "w-5 text-sm")}>{guests.children}</span>
+          <Button
+            variant="outline"
+            size="icon"
+            className={cn("rounded-full", isMobile ? "h-10 w-10 touch-target" : "h-7 w-7")}
+            onClick={() => setGuests(g => ({ ...g, children: Math.min(10, g.children + 1) }))}
+            disabled={guests.children >= 10}
+          >
+            <Plus className={cn(isMobile ? "h-4 w-4" : "h-3 w-3")} />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
   // Expanded mode - inline, not fixed
   if (isExpanded) {
     return (
-      <div ref={formRef} className="w-full relative flex items-center gap-2">
-        <form onSubmit={handleSearch} className="flex-1 bg-card rounded-full shadow-md border border-border px-3 py-2 flex items-center gap-2">
+      <div ref={formRef} className="w-full relative flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <form onSubmit={handleSearch} className="flex-1 bg-card rounded-2xl sm:rounded-full shadow-md border border-border px-3 py-2 sm:py-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2">
           {/* Destination with live search */}
           <div className="flex-1 min-w-0 relative">
             <div className="relative">
-              <MapPin className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-4 sm:w-4 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Search properties..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onFocus={() => setShowResults(searchResults.length > 0)}
-                className="pl-8 h-9 text-sm bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                className={cn(
+                  "pl-10 bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0",
+                  isMobile ? "h-12 text-base" : "h-9 text-sm"
+                )}
                 autoFocus
               />
             </div>
           </div>
 
-          <div className="w-px h-7 bg-border" />
+          <div className="hidden sm:block w-px h-7 bg-border" />
+          <div className="sm:hidden w-full h-px bg-border" />
 
-          {/* Date Range Picker */}
-          <Popover open={showDatePicker} onOpenChange={setShowDatePicker} modal={true}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "h-9 px-3 text-sm font-normal hover:bg-secondary/50",
-                  !dateRange?.from && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-1.5 h-4 w-4 flex-shrink-0" />
-                <span className="truncate max-w-[100px]">
-                  {formatDateRange()}
-                </span>
-                {dateRange?.from && (
-                  <X 
-                    className="h-3.5 w-3.5 ml-1 text-muted-foreground hover:text-foreground" 
-                    onClick={clearDates}
-                  />
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent 
-              className="w-auto p-0 z-[60] bg-background border border-border shadow-xl" 
-              align="center" 
-              sideOffset={8}
-            >
-              <DayPicker
-                mode="range"
-                selected={displayRange}
-                month={displayedMonth}
-                onMonthChange={setDisplayedMonth}
-                numberOfMonths={2}
-                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                onDayClick={handleDayClick}
-                onDayMouseEnter={handleDayMouseEnterWithNav}
-                onDayMouseLeave={handleDayMouseLeaveWithNav}
-                modifiers={{
-                  range_start: (day) => isRangeStart(day),
-                  range_end: (day) => isRangeEnd(day),
-                  range_middle: (day) => isRangeMiddle(day),
-                }}
-                modifiersClassNames={{
-                  range_start: "bg-primary text-primary-foreground rounded-l-md rounded-r-none",
-                  range_end: "bg-primary text-primary-foreground rounded-r-md rounded-l-none",
-                  range_middle: "bg-primary/30 text-foreground rounded-none",
-                }}
-                className="p-3 pointer-events-auto"
-                classNames={{
-                  months: "flex flex-col sm:flex-row gap-4",
-                  month: "space-y-3",
-                  caption: "flex justify-center pt-1 relative items-center",
-                  caption_label: "text-sm font-medium",
-                  nav: "space-x-1 flex items-center",
-                  nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 inline-flex items-center justify-center",
-                  nav_button_previous: "absolute left-1",
-                  nav_button_next: "absolute right-1",
-                  table: "w-full border-collapse",
-                  head_row: "flex",
-                  head_cell: "text-muted-foreground rounded-md w-8 font-normal text-[11px]",
-                  row: "flex w-full mt-1",
-                  cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20",
-                  day: cn(
-                    "h-8 w-8 p-0 font-normal hover:bg-primary/20 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center text-sm"
-                  ),
-                  day_today: "bg-accent text-accent-foreground font-semibold",
-                  day_outside: "text-muted-foreground opacity-50",
-                  day_disabled: "text-muted-foreground opacity-50 cursor-not-allowed hover:bg-transparent",
-                  day_hidden: "invisible",
-                }}
-              />
-            </PopoverContent>
-          </Popover>
-
-          <div className="w-px h-7 bg-border" />
-
-          {/* Guests */}
-          <Popover open={showGuestPicker} onOpenChange={setShowGuestPicker} modal={true}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-9 px-3 text-sm font-normal hover:bg-secondary/50"
-              >
-                <Users className="mr-1.5 h-4 w-4" />
-                <span>{guests.adults + guests.children}</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56 p-3 z-[60] bg-background border border-border shadow-xl" align="center" sideOffset={8}>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Adults</p>
-                    <p className="text-xs text-muted-foreground">Ages 13+</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-7 w-7 rounded-full"
-                      onClick={() => setGuests(g => ({ ...g, adults: Math.max(1, g.adults - 1) }))}
-                      disabled={guests.adults <= 1}
-                    >
-                      −
-                    </Button>
-                    <span className="w-5 text-center text-sm">{guests.adults}</span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-7 w-7 rounded-full"
-                      onClick={() => setGuests(g => ({ ...g, adults: Math.min(10, g.adults + 1) }))}
-                      disabled={guests.adults >= 10}
-                    >
-                      +
-                    </Button>
-                  </div>
+          {/* Date Range - Mobile uses Sheet, Desktop uses Popover */}
+          {isMobile ? (
+            <Sheet open={showMobileDateSheet} onOpenChange={setShowMobileDateSheet}>
+              <SheetTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={cn(
+                    "justify-start h-12 px-3 text-base font-normal hover:bg-secondary/50",
+                    !dateRange?.from && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-5 w-5 flex-shrink-0" />
+                  <span className="flex-1 text-left truncate">
+                    {formatDateRange()}
+                  </span>
+                  {dateRange?.from && (
+                    <X 
+                      className="h-4 w-4 ml-2 text-muted-foreground hover:text-foreground" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        clearDates(e);
+                      }}
+                    />
+                  )}
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="h-auto max-h-[85vh] rounded-t-2xl safe-area-bottom">
+                <SheetHeader className="pb-4">
+                  <SheetTitle>Select dates</SheetTitle>
+                </SheetHeader>
+                <div className="flex justify-center overflow-auto">
+                  <DatePickerContent />
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Children</p>
-                    <p className="text-xs text-muted-foreground">Ages 0-12</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-7 w-7 rounded-full"
-                      onClick={() => setGuests(g => ({ ...g, children: Math.max(0, g.children - 1) }))}
-                      disabled={guests.children <= 0}
-                    >
-                      −
-                    </Button>
-                    <span className="w-5 text-center text-sm">{guests.children}</span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-7 w-7 rounded-full"
-                      onClick={() => setGuests(g => ({ ...g, children: Math.min(10, g.children + 1) }))}
-                      disabled={guests.children >= 10}
-                    >
-                      +
-                    </Button>
-                  </div>
+                <div className="pt-4 flex gap-2">
+                  <Button variant="outline" className="flex-1 h-12" onClick={() => {
+                    setDateRange(undefined);
+                    setHoverDate(undefined);
+                  }}>
+                    Clear
+                  </Button>
+                  <Button className="flex-1 h-12" onClick={() => setShowMobileDateSheet(false)}>
+                    Done
+                  </Button>
                 </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+              </SheetContent>
+            </Sheet>
+          ) : (
+            <Popover open={showDatePicker} onOpenChange={setShowDatePicker} modal={true}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    "h-9 px-3 text-sm font-normal hover:bg-secondary/50",
+                    !dateRange?.from && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-1.5 h-4 w-4 flex-shrink-0" />
+                  <span className="truncate max-w-[100px]">
+                    {formatDateRange()}
+                  </span>
+                  {dateRange?.from && (
+                    <X 
+                      className="h-3.5 w-3.5 ml-1 text-muted-foreground hover:text-foreground" 
+                      onClick={clearDates}
+                    />
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent 
+                className="w-auto p-0 z-[60] bg-background border border-border shadow-xl" 
+                align="center" 
+                sideOffset={8}
+              >
+                <DatePickerContent />
+              </PopoverContent>
+            </Popover>
+          )}
+
+          <div className="hidden sm:block w-px h-7 bg-border" />
+          <div className="sm:hidden w-full h-px bg-border" />
+
+          {/* Guests - Mobile uses Sheet, Desktop uses Popover */}
+          {isMobile ? (
+            <Sheet open={showMobileGuestSheet} onOpenChange={setShowMobileGuestSheet}>
+              <SheetTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="justify-start h-12 px-3 text-base font-normal hover:bg-secondary/50"
+                >
+                  <Users className="mr-2 h-5 w-5" />
+                  <span>{guests.adults + guests.children} guest{guests.adults + guests.children !== 1 ? 's' : ''}</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="h-auto rounded-t-2xl safe-area-bottom">
+                <SheetHeader className="pb-4">
+                  <SheetTitle>How many guests?</SheetTitle>
+                </SheetHeader>
+                <GuestPickerContent />
+                <div className="pt-4">
+                  <Button className="w-full h-12" onClick={() => setShowMobileGuestSheet(false)}>
+                    Done
+                  </Button>
+                </div>
+              </SheetContent>
+            </Sheet>
+          ) : (
+            <Popover open={showGuestPicker} onOpenChange={setShowGuestPicker} modal={true}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 px-3 text-sm font-normal hover:bg-secondary/50"
+                >
+                  <Users className="mr-1.5 h-4 w-4" />
+                  <span>{guests.adults + guests.children}</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-3 z-[60] bg-background border border-border shadow-xl" align="center" sideOffset={8}>
+                <GuestPickerContent />
+              </PopoverContent>
+            </Popover>
+          )}
 
           {/* Search Button */}
           <Button
             type="submit"
-            size="icon"
-            className="h-9 w-9 rounded-full bg-primary hover:bg-primary/90 flex-shrink-0"
+            className={cn(
+              "rounded-full bg-primary hover:bg-primary/90 flex-shrink-0",
+              isMobile ? "h-12 w-full sm:w-12" : "h-9 w-9"
+            )}
             disabled={!searchQuery || !dateRange?.from || !dateRange?.to}
           >
-            <Search className="h-4 w-4" />
+            <Search className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
+            {isMobile && <span className="ml-2">Search</span>}
           </Button>
         </form>
         
@@ -438,10 +542,13 @@ export const SearchForm = () => {
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full hover:bg-muted flex-shrink-0"
+          className={cn(
+            "rounded-full hover:bg-muted flex-shrink-0",
+            isMobile ? "h-12 w-12 touch-target absolute top-2 right-2 sm:relative sm:top-0 sm:right-0" : "h-9 w-9"
+          )}
           onClick={handleClose}
         >
-          <X className="h-5 w-5" />
+          <X className={cn(isMobile ? "h-6 w-6" : "h-5 w-5")} />
         </Button>
       </div>
     );
@@ -449,188 +556,166 @@ export const SearchForm = () => {
 
   // Default compact mode (in hero)
   return (
-    <div className="w-full max-w-xl mx-auto">
-      <form onSubmit={handleSearch} className="bg-card/95 backdrop-blur-md rounded-full shadow-lg border border-border/50 px-2 py-1.5 flex items-center gap-1">
+    <div className="w-full max-w-xl mx-auto px-2 sm:px-0">
+      <form onSubmit={handleSearch} className="bg-card/95 backdrop-blur-md rounded-2xl sm:rounded-full shadow-lg border border-border/50 px-3 py-2 sm:px-2 sm:py-1.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-1">
         {/* Destination */}
         <div className="flex-1 min-w-0">
           <div className="relative">
-            <MapPin className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <MapPin className={cn(
+              "absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground",
+              isMobile ? "h-5 w-5" : "h-3.5 w-3.5"
+            )} />
             <Input
               type="text"
-              placeholder="Destination loading..."
+              placeholder="Where to?"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={handleFieldFocus}
-              className="pl-7 h-8 text-xs bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+              className={cn(
+                "bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0",
+                isMobile ? "pl-11 h-12 text-base" : "pl-7 h-8 text-xs"
+              )}
             />
           </div>
         </div>
 
-        <div className="w-px h-6 bg-border" />
+        <div className="hidden sm:block w-px h-6 bg-border" />
+        <div className="sm:hidden w-full h-px bg-border" />
 
-        {/* Date Range Picker */}
-        <Popover open={showDatePicker} onOpenChange={(open) => {
-          setShowDatePicker(open);
-          if (open) handleFieldFocus();
-        }} modal={true}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "h-8 px-2 text-xs font-normal hover:bg-secondary/50",
-                !dateRange?.from && "text-muted-foreground"
-              )}
-            >
-              <CalendarIcon className="mr-1 h-3.5 w-3.5 flex-shrink-0" />
-              <span className="truncate max-w-[80px]">
-                {formatDateRange()}
-              </span>
-              {dateRange?.from && (
-                <X 
-                  className="h-3 w-3 ml-1 text-muted-foreground hover:text-foreground" 
-                  onClick={clearDates}
-                />
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent 
-            className="w-auto p-0 z-50 bg-background border border-border shadow-xl" 
-            align="center" 
-            sideOffset={8}
-          >
-            <DayPicker
-              mode="range"
-              selected={displayRange}
-              month={displayedMonth}
-              onMonthChange={setDisplayedMonth}
-              numberOfMonths={2}
-              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-              onDayClick={handleDayClick}
-              onDayMouseEnter={handleDayMouseEnterWithNav}
-              onDayMouseLeave={handleDayMouseLeaveWithNav}
-              modifiers={{
-                range_start: (day) => isRangeStart(day),
-                range_end: (day) => isRangeEnd(day),
-                range_middle: (day) => isRangeMiddle(day),
-              }}
-              modifiersClassNames={{
-                range_start: "bg-primary text-primary-foreground rounded-l-md rounded-r-none",
-                range_end: "bg-primary text-primary-foreground rounded-r-md rounded-l-none",
-                range_middle: "bg-primary/30 text-foreground rounded-none",
-              }}
-              className="p-3 pointer-events-auto"
-              classNames={{
-                months: "flex flex-col sm:flex-row gap-4",
-                month: "space-y-3",
-                caption: "flex justify-center pt-1 relative items-center",
-                caption_label: "text-sm font-medium",
-                nav: "space-x-1 flex items-center",
-                nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 inline-flex items-center justify-center",
-                nav_button_previous: "absolute left-1",
-                nav_button_next: "absolute right-1",
-                table: "w-full border-collapse",
-                head_row: "flex",
-                head_cell: "text-muted-foreground rounded-md w-8 font-normal text-[11px]",
-                row: "flex w-full mt-1",
-                cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20",
-                day: cn(
-                  "h-8 w-8 p-0 font-normal hover:bg-primary/20 rounded-md transition-colors cursor-pointer inline-flex items-center justify-center text-sm"
-                ),
-                day_today: "bg-accent text-accent-foreground font-semibold",
-                day_outside: "text-muted-foreground opacity-50",
-                day_disabled: "text-muted-foreground opacity-50 cursor-not-allowed hover:bg-transparent",
-                day_hidden: "invisible",
-              }}
-            />
-          </PopoverContent>
-        </Popover>
-
-        <div className="w-px h-6 bg-border" />
-
-        {/* Guests */}
-        <Popover open={showGuestPicker} onOpenChange={(open) => {
-          setShowGuestPicker(open);
-          if (open) handleFieldFocus();
-        }} modal={true}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 px-2 text-xs font-normal hover:bg-secondary/50"
-            >
-              <Users className="mr-1 h-3.5 w-3.5" />
-              <span>{guests.adults + guests.children}</span>
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-3 z-50 bg-background border border-border shadow-xl" align="center" sideOffset={8}>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">Adults</p>
-                  <p className="text-xs text-muted-foreground">Ages 13+</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7 rounded-full"
-                    onClick={() => setGuests(g => ({ ...g, adults: Math.max(1, g.adults - 1) }))}
-                    disabled={guests.adults <= 1}
-                  >
-                    −
-                  </Button>
-                  <span className="w-5 text-center text-sm">{guests.adults}</span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7 rounded-full"
-                    onClick={() => setGuests(g => ({ ...g, adults: Math.min(10, g.adults + 1) }))}
-                    disabled={guests.adults >= 10}
-                  >
-                    +
-                  </Button>
-                </div>
+        {/* Date Range Picker - Mobile uses Sheet */}
+        {isMobile ? (
+          <Sheet open={showMobileDateSheet} onOpenChange={setShowMobileDateSheet}>
+            <SheetTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                className={cn(
+                  "justify-start h-12 px-3 text-base font-normal hover:bg-secondary/50",
+                  !dateRange?.from && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-5 w-5 flex-shrink-0" />
+                <span className="flex-1 text-left truncate">
+                  {formatDateRange()}
+                </span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="h-auto max-h-[85vh] rounded-t-2xl safe-area-bottom">
+              <SheetHeader className="pb-4">
+                <SheetTitle>Select dates</SheetTitle>
+              </SheetHeader>
+              <div className="flex justify-center overflow-auto">
+                <DatePickerContent />
               </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">Children</p>
-                  <p className="text-xs text-muted-foreground">Ages 0-12</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7 rounded-full"
-                    onClick={() => setGuests(g => ({ ...g, children: Math.max(0, g.children - 1) }))}
-                    disabled={guests.children <= 0}
-                  >
-                    −
-                  </Button>
-                  <span className="w-5 text-center text-sm">{guests.children}</span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7 rounded-full"
-                    onClick={() => setGuests(g => ({ ...g, children: Math.min(10, g.children + 1) }))}
-                    disabled={guests.children >= 10}
-                  >
-                    +
-                  </Button>
-                </div>
+              <div className="pt-4 flex gap-2">
+                <Button variant="outline" className="flex-1 h-12" onClick={() => {
+                  setDateRange(undefined);
+                  setHoverDate(undefined);
+                }}>
+                  Clear
+                </Button>
+                <Button className="flex-1 h-12" onClick={() => setShowMobileDateSheet(false)}>
+                  Done
+                </Button>
               </div>
-            </div>
-          </PopoverContent>
-        </Popover>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Popover open={showDatePicker} onOpenChange={(open) => {
+            setShowDatePicker(open);
+            if (open) handleFieldFocus();
+          }} modal={true}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "h-8 px-2 text-xs font-normal hover:bg-secondary/50",
+                  !dateRange?.from && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-1 h-3.5 w-3.5 flex-shrink-0" />
+                <span className="truncate max-w-[80px]">
+                  {formatDateRange()}
+                </span>
+                {dateRange?.from && (
+                  <X 
+                    className="h-3 w-3 ml-1 text-muted-foreground hover:text-foreground" 
+                    onClick={clearDates}
+                  />
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent 
+              className="w-auto p-0 z-50 bg-background border border-border shadow-xl" 
+              align="center" 
+              sideOffset={8}
+            >
+              <DatePickerContent />
+            </PopoverContent>
+          </Popover>
+        )}
+
+        <div className="hidden sm:block w-px h-6 bg-border" />
+        <div className="sm:hidden w-full h-px bg-border" />
+
+        {/* Guests - Mobile uses Sheet */}
+        {isMobile ? (
+          <Sheet open={showMobileGuestSheet} onOpenChange={setShowMobileGuestSheet}>
+            <SheetTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                className="justify-start h-12 px-3 text-base font-normal hover:bg-secondary/50"
+              >
+                <Users className="mr-2 h-5 w-5" />
+                <span>{guests.adults + guests.children} guest{guests.adults + guests.children !== 1 ? 's' : ''}</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="h-auto rounded-t-2xl safe-area-bottom">
+              <SheetHeader className="pb-4">
+                <SheetTitle>How many guests?</SheetTitle>
+              </SheetHeader>
+              <GuestPickerContent />
+              <div className="pt-4">
+                <Button className="w-full h-12" onClick={() => setShowMobileGuestSheet(false)}>
+                  Done
+                </Button>
+              </div>
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <Popover open={showGuestPicker} onOpenChange={(open) => {
+            setShowGuestPicker(open);
+            if (open) handleFieldFocus();
+          }} modal={true}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs font-normal hover:bg-secondary/50"
+              >
+                <Users className="mr-1 h-3.5 w-3.5" />
+                <span>{guests.adults + guests.children}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-3 z-50 bg-background border border-border shadow-xl" align="center" sideOffset={8}>
+              <GuestPickerContent />
+            </PopoverContent>
+          </Popover>
+        )}
 
         {/* Search Button */}
         <Button
           type="submit"
-          size="icon"
-          className="h-8 w-8 rounded-full bg-primary hover:bg-primary/90 flex-shrink-0"
+          className={cn(
+            "rounded-full bg-primary hover:bg-primary/90 flex-shrink-0",
+            isMobile ? "h-12 w-full mt-1" : "h-8 w-8"
+          )}
           disabled={!searchQuery || !dateRange?.from || !dateRange?.to}
         >
-          <Search className="h-3.5 w-3.5" />
+          <Search className={cn(isMobile ? "h-5 w-5" : "h-3.5 w-3.5")} />
+          {isMobile && <span className="ml-2">Search</span>}
         </Button>
       </form>
     </div>

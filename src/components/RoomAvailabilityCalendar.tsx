@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ArrowLeft, Users, Calendar, ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { 
   format, 
   startOfMonth, 
@@ -61,6 +63,7 @@ export default function RoomAvailabilityCalendar({
   externalSystem,
 }: RoomAvailabilityCalendarProps) {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
   
   // Initialize dates from URL params if available
@@ -333,7 +336,7 @@ export default function RoomAvailabilityCalendar({
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
-        <div className="grid lg:grid-cols-3 gap-8 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8 max-w-5xl mx-auto">
           {/* Calendar Section */}
           <div className="lg:col-span-2">
             <Card>
@@ -375,7 +378,7 @@ export default function RoomAvailabilityCalendar({
                     onDayMouseEnter={handleDayMouseEnter}
                     month={displayedMonth}
                     onMonthChange={setDisplayedMonth}
-                    numberOfMonths={2}
+                    numberOfMonths={isMobile ? 1 : 2}
                     disabled={(date) => isBefore(date, startOfDay(new Date()))}
                     modifiers={{
                       available: (date) => !isBefore(date, startOfDay(new Date())) && isDateAvailable(date),
