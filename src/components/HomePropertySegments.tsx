@@ -97,7 +97,7 @@ function SegmentSection({ title, tag, properties, isLoading }: SegmentSectionPro
   );
 }
 
-export function useHomePropertySegments() {
+export function useHomePropertySegments(filteredPropertyIds: string[] | null = null) {
   // Fetch tag categories from database
   const { data: tagCategories } = useQuery({
     queryKey: ["navigation-tag-categories"],
@@ -112,7 +112,7 @@ export function useHomePropertySegments() {
   });
 
   // Fetch all properties
-  const { data: properties, isLoading } = useQuery({
+  const { data: allProperties, isLoading } = useQuery({
     queryKey: ["properties-all-segments"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -130,6 +130,13 @@ export function useHomePropertySegments() {
       return data as PropertyData[];
     },
   });
+
+  // Filter properties if filteredPropertyIds is provided
+  const properties = useMemo(() => {
+    if (!allProperties) return [];
+    if (filteredPropertyIds === null) return allProperties;
+    return allProperties.filter(p => filteredPropertyIds.includes(p.id));
+  }, [allProperties, filteredPropertyIds]);
 
 
   // Compute random segments (stable during session via useMemo)

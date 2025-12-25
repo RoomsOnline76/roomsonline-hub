@@ -104,8 +104,19 @@ function HomeContent() {
     },
   });
   
+  // Compute filtered property IDs for map and segments (moved up for hook usage)
+  const filteredPropertyIds = useMemo(() => {
+    if (selectedProperty) {
+      return [selectedProperty.id];
+    }
+    if (searchResults.length > 0) {
+      return searchResults.map(p => p.id);
+    }
+    return null; // null means no filter
+  }, [selectedProperty, searchResults]);
+
   // Get property segments with search filtering
-  const { discoverNewSection, destinationSection, typesSections } = useHomePropertySegments();
+  const { discoverNewSection, destinationSection, typesSections } = useHomePropertySegments(filteredPropertyIds);
   
   // Get filters grouped by category
   const filtersByCategory = useMemo(() => getMapFiltersByCategory(), []);
@@ -247,16 +258,6 @@ function HomeContent() {
     setEnabledTypes((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Compute filtered property IDs for map and segments
-  const filteredPropertyIds = useMemo(() => {
-    if (selectedProperty) {
-      return [selectedProperty.id];
-    }
-    if (searchResults.length > 0) {
-      return searchResults.map(p => p.id);
-    }
-    return null; // null means no filter
-  }, [selectedProperty, searchResults]);
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
