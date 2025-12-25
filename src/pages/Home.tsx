@@ -280,8 +280,8 @@ function HomeContent() {
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
-      {/* Hero Section - Full Bleed */}
-      <section ref={heroRef} className="relative h-screen w-full flex-shrink-0">
+      {/* Hero Section - Full Bleed, uses dvh on mobile to fit viewport including banner */}
+      <section ref={heroRef} className="relative h-[100dvh] sm:h-screen w-full flex-shrink-0">
         {/* Full-bleed background - video if available, image as fallback */}
         <div className={`absolute inset-0 transition-opacity duration-700 ${isLoadingHero ? 'opacity-0' : 'opacity-100'}`}>
           {heroVideoUrl ? (
