@@ -311,7 +311,8 @@ function HomeContent() {
   return (
     <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
       {/* Hero Section - Full Bleed, uses dvh on mobile to fit viewport including banner */}
-      <section ref={heroRef} className="relative h-[100dvh] sm:h-screen w-full flex-shrink-0">
+      {/* landscape: uses min-h to prevent overlap when viewport is short and wide */}
+      <section ref={heroRef} className="relative h-[100dvh] sm:h-screen w-full flex-shrink-0 landscape:min-h-[500px]">
         {/* Full-bleed background - video if available, image as fallback */}
         <div
           className={`absolute inset-0 transition-opacity duration-700 ${isLoadingHero ? "opacity-0" : "opacity-100"}`}
@@ -440,15 +441,15 @@ function HomeContent() {
           </div>
         )}
 
-        {/* Hero Text Layout */}
-        <div className="absolute inset-0 flex items-end pb-32 sm:pb-36 z-10">
+        {/* Hero Text Layout - landscape: reduced padding and text sizes to prevent overlap */}
+        <div className="absolute inset-0 flex items-end pb-32 sm:pb-36 landscape:pb-20 landscape:sm:pb-24 z-10">
           <div className="w-full px-6 md:px-12 flex flex-col">
             {/* "We are RoomsOnline." - Left-aligned */}
-            <p className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl text-white font-bold tracking-wide drop-shadow-lg mb-4 text-left whitespace-nowrap">
+            <p className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl landscape:text-xl landscape:md:text-2xl text-white font-bold tracking-wide drop-shadow-lg mb-4 landscape:mb-2 text-left whitespace-nowrap">
               We are RoomsOnline.
             </p>
             {/* Main hero text */}
-            <p className="text-xl md:text-2xl lg:text-3xl xl:text-4xl text-white font-medium tracking-wide drop-shadow-lg leading-relaxed text-right max-w-[50%] self-center mr-auto">
+            <p className="text-xl md:text-2xl lg:text-3xl xl:text-4xl landscape:text-lg landscape:md:text-xl text-white font-medium tracking-wide drop-shadow-lg leading-relaxed landscape:leading-snug text-right max-w-[50%] self-center mr-auto">
               {headline}
             </p>
           </div>
