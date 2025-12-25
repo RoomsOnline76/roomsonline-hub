@@ -149,16 +149,16 @@ export function useHomePropertySegments(filteredPropertyIds: string[] | null = n
     return allProperties.filter(p => filteredPropertyIds.includes(p.id));
   }, [allProperties, filteredPropertyIds]);
 
-
-  // Compute random segments (stable during session via useMemo)
+  // Compute random segments based on ALL properties (not filtered) 
+  // This ensures the random selection stays stable regardless of search filters
   const { randomDestination, randomTypes } = useMemo(() => {
-    if (!tagCategories || !properties || properties.length === 0) {
+    if (!tagCategories || !allProperties || allProperties.length === 0) {
       return { randomDestination: null, randomTypes: [] };
     }
 
-    // Get existing tags from properties
+    // Get existing tags from ALL properties (not filtered)
     const propertyTags = new Set<string>();
-    properties.forEach(p => {
+    allProperties.forEach(p => {
       p.navigation_tags?.forEach(tag => propertyTags.add(tag));
     });
 
@@ -183,7 +183,7 @@ export function useHomePropertySegments(filteredPropertyIds: string[] | null = n
       randomDestination: randomDest,
       randomTypes: randomTypesSelected,
     };
-  }, [tagCategories, properties]);
+  }, [tagCategories, allProperties]);
 
   // Generate all segment sections with proper IDs for banner navigation
   const allSegmentSections = useMemo(() => {
