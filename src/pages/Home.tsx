@@ -4,7 +4,23 @@ import { PropertiesMap } from "@/components/PropertiesMap";
 import { useHomePropertySegments, SegmentSection } from "@/components/HomePropertySegments";
 import { SegmentFilterId } from "@/lib/segmentFilters";
 import { FindBySection } from "@/components/FindBySection";
-import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, X, Menu, Calendar, ArrowRight, BookOpen, Users, ShieldCheck, FileText, Mail } from "lucide-react";
+import {
+  Shield,
+  Zap,
+  HeadphonesIcon,
+  BadgeCheck,
+  MapPinned,
+  Lock,
+  X,
+  Menu,
+  Calendar,
+  ArrowRight,
+  BookOpen,
+  Users,
+  ShieldCheck,
+  FileText,
+  Mail,
+} from "lucide-react";
 import heroFallback from "@/assets/hero-hotel.jpg";
 import rolLogo from "@/assets/rol-logo.png";
 import { Link } from "react-router-dom";
@@ -17,13 +33,7 @@ import { BannerSegment, BANNER_SEGMENTS } from "@/lib/bannerSegments";
 import { MAP_FILTER_CATEGORIES, getMapFiltersByCategory, MapFilterCategoryId } from "@/lib/mapFilters";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import { CurrencySelector } from "@/components/CurrencySelector";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
@@ -55,32 +65,36 @@ const INITIAL_ENABLED_TYPES: Record<string, boolean> = {
  */
 function extractPrimaryImageUrl(images: unknown): string | null {
   if (!images || !Array.isArray(images) || images.length === 0) return null;
-  
+
   const firstImage = images[0];
-  
+
   // Format 1: Object with url property
-  if (typeof firstImage === 'object' && firstImage !== null && 'url' in firstImage) {
+  if (typeof firstImage === "object" && firstImage !== null && "url" in firstImage) {
     return (firstImage as { url: string }).url;
   }
-  
+
   // Format 2: Plain string URL
-  if (typeof firstImage === 'string') {
+  if (typeof firstImage === "string") {
     return firstImage;
   }
-  
+
   return null;
 }
 
 function HomeContent() {
   const { selectedProperty, searchResults, isExpanded } = useSearch();
-  
+
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
   const [heroImage, setHeroImage] = useState<string>(heroFallback);
   const [heroVideoUrl, setHeroVideoUrl] = useState<string | null>(null);
   const [heroProperty, setHeroProperty] = useState<{ name: string; city: string; country: string } | null>(null);
   const [originalHeroImage, setOriginalHeroImage] = useState<string>(heroFallback);
   const [originalHeroVideoUrl, setOriginalHeroVideoUrl] = useState<string | null>(null);
-  const [originalHeroProperty, setOriginalHeroProperty] = useState<{ name: string; city: string; country: string } | null>(null);
+  const [originalHeroProperty, setOriginalHeroProperty] = useState<{
+    name: string;
+    city: string;
+    country: string;
+  } | null>(null);
   const [isLoadingHero, setIsLoadingHero] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
@@ -89,7 +103,7 @@ function HomeContent() {
   const mapRef = useRef<HTMLElement>(null);
   const [selectedMapFilters, setSelectedMapFilters] = useState<string[]>([]);
   const [selectedSegment, setSelectedSegment] = useState<BannerSegment | null>(null);
-  
+
   // Fetch latest 2 journals for preview
   const threeYearsAgo = subYears(new Date(), 3).toISOString();
   const { data: latestJournals } = useQuery({
@@ -107,21 +121,28 @@ function HomeContent() {
       return data;
     },
   });
-  
+
   // Compute filtered property IDs for map and segments (moved up for hook usage)
   const filteredPropertyIds = useMemo(() => {
     if (selectedProperty) {
       return [selectedProperty.id];
     }
     if (searchResults.length > 0) {
-      return searchResults.map(p => p.id);
+      return searchResults.map((p) => p.id);
     }
     return null; // null means no filter
   }, [selectedProperty, searchResults]);
 
   // Get property segments with search filtering
-  const { discoverNewSection, destinationSection, typesSections, allSegmentSections, properties, isLoading: propertiesLoading } = useHomePropertySegments(filteredPropertyIds);
-  
+  const {
+    discoverNewSection,
+    destinationSection,
+    typesSections,
+    allSegmentSections,
+    properties,
+    isLoading: propertiesLoading,
+  } = useHomePropertySegments(filteredPropertyIds);
+
   // Get filters grouped by category
   const filtersByCategory = useMemo(() => getMapFiltersByCategory(), []);
 
@@ -133,7 +154,7 @@ function HomeContent() {
   const handleScrollToMap = useCallback(() => {
     mapRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
-  
+
   // Close hamburger menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -143,41 +164,37 @@ function HomeContent() {
     };
 
     if (isMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isMenuOpen]);
 
   const handleFilterSelect = (categoryId: MapFilterCategoryId, filterId: string) => {
     if (filterId === "all") {
       // Remove filters from this category
-      setSelectedMapFilters(prev => 
-        prev.filter(id => !filtersByCategory[categoryId].some(f => f.id === id))
-      );
+      setSelectedMapFilters((prev) => prev.filter((id) => !filtersByCategory[categoryId].some((f) => f.id === id)));
     } else {
       // Replace any existing filter from this category with the new one
-      setSelectedMapFilters(prev => {
-        const withoutCategory = prev.filter(id => 
-          !filtersByCategory[categoryId].some(f => f.id === id)
-        );
+      setSelectedMapFilters((prev) => {
+        const withoutCategory = prev.filter((id) => !filtersByCategory[categoryId].some((f) => f.id === id));
         return [...withoutCategory, filterId];
       });
     }
   };
-  
+
   const clearAllFilters = () => {
     setSelectedMapFilters([]);
   };
-  
+
   const getSelectedFilterForCategory = (categoryId: MapFilterCategoryId): string => {
     const categoryFilters = filtersByCategory[categoryId];
-    const selected = selectedMapFilters.find(id => categoryFilters.some(f => f.id === id));
+    const selected = selectedMapFilters.find((id) => categoryFilters.some((f) => f.id === id));
     return selected || "all";
   };
-  
+
   // Generate headlines once on mount (lazy initialization)
   const headline = useMemo(() => composeHeadline(), []);
   const mapSubheadline = useMemo(() => composeMapSubheadline(), []);
@@ -220,10 +237,16 @@ function HomeContent() {
           .select("images, hero_video_url, name, city, country")
           .eq("hero_listing", true)
           .eq("is_active", true);
-        
+
         if (heroProperties && heroProperties.length > 0) {
           // Collect all valid hero properties with their media
-          const validProperties: { imageUrl: string; videoUrl: string | null; name: string; city: string; country: string }[] = [];
+          const validProperties: {
+            imageUrl: string;
+            videoUrl: string | null;
+            name: string;
+            city: string;
+            country: string;
+          }[] = [];
           for (const prop of heroProperties) {
             const imageUrl = extractPrimaryImageUrl(prop.images);
             if (imageUrl) {
@@ -236,7 +259,7 @@ function HomeContent() {
               });
             }
           }
-          
+
           // Randomly select one
           if (validProperties.length > 0) {
             const randomIndex = Math.floor(Math.random() * validProperties.length);
@@ -256,7 +279,7 @@ function HomeContent() {
         setIsLoadingHero(false);
       }
     }
-    
+
     fetchHeroMedia();
   }, []);
 
@@ -267,10 +290,10 @@ function HomeContent() {
       if (selectedImage) {
         setHeroImage(selectedImage);
         setHeroVideoUrl(null); // No video for search-selected property
-        setHeroProperty({ 
-          name: selectedProperty.name, 
-          city: selectedProperty.city, 
-          country: selectedProperty.country 
+        setHeroProperty({
+          name: selectedProperty.name,
+          city: selectedProperty.city,
+          country: selectedProperty.country,
         });
       }
     } else {
@@ -285,13 +308,14 @@ function HomeContent() {
     setEnabledTypes((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-
   return (
     <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
       {/* Hero Section - Full Bleed, uses dvh on mobile to fit viewport including banner */}
       <section ref={heroRef} className="relative h-[100dvh] sm:h-screen w-full flex-shrink-0">
         {/* Full-bleed background - video if available, image as fallback */}
-        <div className={`absolute inset-0 transition-opacity duration-700 ${isLoadingHero ? 'opacity-0' : 'opacity-100'}`}>
+        <div
+          className={`absolute inset-0 transition-opacity duration-700 ${isLoadingHero ? "opacity-0" : "opacity-100"}`}
+        >
           {heroVideoUrl ? (
             <video
               autoPlay
@@ -304,50 +328,53 @@ function HomeContent() {
               <source src={heroVideoUrl} type="video/mp4" />
             </video>
           ) : (
-            <div
-              className="absolute inset-0 bg-cover bg-center"
-              style={{ backgroundImage: `url(${heroImage})` }}
-            />
+            <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${heroImage})` }} />
           )}
           {/* Subtle gradient overlay for text readability */}
           <div className="absolute inset-0 bg-black/40" />
         </div>
 
         {/* Top Bar - Logo, Search, Menu */}
-        <div className={`absolute top-0 left-0 right-0 z-20 transition-all duration-300 ${isExpanded ? 'bg-background border-b border-border shadow-lg' : ''}`}>
+        <div
+          className={`absolute top-0 left-0 right-0 z-20 transition-all duration-300 ${isExpanded ? "bg-background border-b border-border shadow-lg" : ""}`}
+        >
           {/* Row 1: Navigation - Logo, Currency, Menu */}
-          <div className={`flex items-center justify-between gap-4 ${isExpanded ? 'px-4 py-3' : 'px-4 py-4 sm:px-6 sm:py-6'}`}>
+          <div
+            className={`flex items-center justify-between gap-4 ${isExpanded ? "px-4 py-3" : "px-4 py-4 sm:px-6 sm:py-6"}`}
+          >
             {/* Logo - Left */}
             <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0">
-              <img 
-                src={rolLogo} 
-                alt="RoomsOnline" 
-                className={`object-contain invert brightness-0 filter drop-shadow-lg ${isExpanded ? 'h-8 w-8' : 'h-10 w-10 sm:h-12 sm:w-12'}`}
+              <img
+                src={rolLogo}
+                alt="RoomsOnline"
+                className={`object-contain invert brightness-0 filter drop-shadow-lg ${isExpanded ? "h-8 w-8" : "h-10 w-10 sm:h-12 sm:w-12"}`}
               />
-              <div className={`${isExpanded ? 'hidden' : 'block'}`}>
+              <div className={`${isExpanded ? "hidden" : "block"}`}>
                 <h1 className="text-lg sm:text-xl font-bold text-white drop-shadow-lg">RoomsOnline</h1>
                 <p className="text-xs text-white/80 drop-shadow hidden sm:block">Unified Booking Engine</p>
               </div>
             </Link>
 
             {/* Desktop: Search Bar inline - hidden on mobile */}
-            <div className={`hidden sm:flex flex-1 max-w-xl mx-4 transition-opacity ${isExpanded ? 'opacity-100' : 'opacity-50 hover:opacity-75'}`}>
+            <div
+              className={`hidden sm:flex flex-1 max-w-xl mx-4 transition-opacity ${isExpanded ? "opacity-100" : "opacity-50 hover:opacity-75"}`}
+            >
               <SearchForm />
             </div>
 
             {/* Currency Selector & Hamburger Menu - Right */}
             <div className="flex items-center gap-2 flex-shrink-0">
               <CurrencySelector compact className="hero" />
-              
+
               <div className="relative" ref={menuRef}>
                 <button
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className={`rounded-lg flex items-center justify-center transition-colors ${isExpanded ? 'h-8 w-8 bg-muted hover:bg-muted/80' : 'h-10 w-10 bg-white/10 backdrop-blur-sm hover:bg-white/20'}`}
+                  className={`rounded-lg flex items-center justify-center transition-colors ${isExpanded ? "h-8 w-8 bg-muted hover:bg-muted/80" : "h-10 w-10 bg-white/10 backdrop-blur-sm hover:bg-white/20"}`}
                   aria-label="Open menu"
                 >
-                  <Menu className={`${isExpanded ? 'h-5 w-5 text-foreground' : 'h-6 w-6 text-white'}`} />
+                  <Menu className={`${isExpanded ? "h-5 w-5 text-foreground" : "h-6 w-6 text-white"}`} />
                 </button>
-              
+
                 {/* Dropdown Menu */}
                 {isMenuOpen && (
                   <div className="absolute top-12 right-0 w-52 bg-background/95 backdrop-blur-md border border-border rounded-lg shadow-xl py-2 z-50">
@@ -396,9 +423,9 @@ function HomeContent() {
               </div>
             </div>
           </div>
-          
+
           {/* Row 2: Mobile Search Bar - hidden on desktop */}
-          <div className={`sm:hidden px-4 pb-4 transition-opacity ${isExpanded ? 'opacity-100' : 'opacity-50'}`}>
+          <div className={`sm:hidden px-4 pb-4 transition-opacity ${isExpanded ? "opacity-100" : "opacity-50"}`}>
             <SearchForm />
           </div>
         </div>
@@ -406,9 +433,7 @@ function HomeContent() {
         {/* Property Attribution - Bottom Right */}
         {heroProperty && (
           <div className="absolute bottom-24 sm:bottom-28 right-6 z-20 text-right">
-            <p className="text-sm sm:text-base font-medium text-white drop-shadow-lg">
-              {heroProperty.name}
-            </p>
+            <p className="text-sm sm:text-base font-medium text-white drop-shadow-lg">{heroProperty.name}</p>
             <p className="text-xs sm:text-sm text-white/80 drop-shadow">
               {heroProperty.city}, {heroProperty.country}
             </p>
@@ -430,26 +455,25 @@ function HomeContent() {
         </div>
 
         {/* Auto-scrolling Category Banner */}
-        <CategoryBanner 
-          onSegmentClick={handleSegmentClick} 
-          heroRef={heroRef} 
+        <CategoryBanner
+          onSegmentClick={handleSegmentClick}
+          heroRef={heroRef}
           selectedProperty={selectedProperty ?? null}
         />
       </section>
 
       {/* Find By Section */}
-      <FindBySection 
-        onScrollToTypes={handleScrollToTypes} 
-        onScrollToMap={handleScrollToMap} 
-      />
-
+      <FindBySection onScrollToTypes={handleScrollToTypes} onScrollToMap={handleScrollToMap} />
 
       {/* Properties Map Section */}
       <section ref={mapRef} id="map-section" className="py-6 sm:py-10 bg-background">
         <div className="container mx-auto px-3 sm:px-4">
           <div className="text-left mb-4 sm:mb-6">
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground">
-              Explore Our World <span className="font-normal text-muted-foreground">— Filter by what calls to you — lodges, villas, coastal escapes, or something unexpected.</span>
+              Explore Our World{" "}
+              <span className="font-normal text-muted-foreground">
+                — Filter by what calls to you — lodges, rustic vibe, coastal retreat, or something unexpected.
+              </span>
             </h2>
           </div>
 
@@ -516,9 +540,9 @@ function HomeContent() {
           </div>
 
           <div className="h-[250px] sm:h-[350px] md:h-[400px] rounded-lg overflow-hidden border border-border shadow-sm">
-            <PropertiesMap 
-              enabledTypes={enabledTypes} 
-              typeColors={TYPE_COLORS} 
+            <PropertiesMap
+              enabledTypes={enabledTypes}
+              typeColors={TYPE_COLORS}
               selectedMapFilters={selectedMapFilters}
               filteredPropertyIds={filteredPropertyIds ?? null}
             />
@@ -612,10 +636,7 @@ function HomeContent() {
           <div className="container mx-auto px-3 sm:px-4">
             <div className="flex items-center justify-between mb-4 sm:mb-8">
               <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground">From the Journal</h2>
-              <Link 
-                to="/journals" 
-                className="flex items-center gap-1 text-sm text-primary hover:underline"
-              >
+              <Link to="/journals" className="flex items-center gap-1 text-sm text-primary hover:underline">
                 View all
                 <ArrowRight className="h-4 w-4" />
               </Link>
@@ -638,16 +659,14 @@ function HomeContent() {
                       />
                     </div>
                   )}
-                  
+
                   {/* Content */}
                   <div className="p-4">
                     <h3 className="font-semibold text-sm sm:text-base text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
                       {journal.title}
                     </h3>
                     {journal.excerpt && (
-                      <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 mb-3">
-                        {journal.excerpt}
-                      </p>
+                      <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 mb-3">{journal.excerpt}</p>
                     )}
                     {journal.publish_date && (
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -669,9 +688,7 @@ function HomeContent() {
       <footer className="py-4 sm:py-6 border-t border-border mt-auto bg-background">
         <div className="container mx-auto px-3 sm:px-4">
           <div className="flex justify-end">
-            <p className="text-[10px] sm:text-xs text-muted-foreground">
-              © 2025 RoomsOnline
-            </p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">© 2025 RoomsOnline</p>
           </div>
         </div>
       </footer>
