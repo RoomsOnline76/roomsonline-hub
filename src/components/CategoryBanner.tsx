@@ -1,3 +1,4 @@
+// Category banner component with search filtering support
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { BANNER_SEGMENTS, BannerSegment } from "@/lib/bannerSegments";
 import { SEGMENT_FILTERS, SegmentFilterId } from "@/lib/segmentFilters";

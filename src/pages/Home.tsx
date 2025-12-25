@@ -361,7 +361,7 @@ function HomeContent() {
         <CategoryBanner 
           onSegmentClick={handleSegmentClick} 
           heroRef={heroRef} 
-          selectedProperty={selectedProperty}
+          selectedProperty={selectedProperty ?? null}
         />
       </section>
 
@@ -451,7 +451,7 @@ function HomeContent() {
               enabledTypes={enabledTypes} 
               typeColors={TYPE_COLORS} 
               selectedMapFilters={selectedMapFilters}
-              filteredPropertyIds={filteredPropertyIds}
+              filteredPropertyIds={filteredPropertyIds ?? null}
             />
           </div>
         </div>
