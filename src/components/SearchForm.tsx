@@ -269,12 +269,18 @@ export const SearchForm = () => {
   const DatePickerContent = () => (
     <DayPicker
       mode="range"
-      selected={displayRange}
+      selected={dateRange}
       month={displayedMonth}
       onMonthChange={setDisplayedMonth}
       numberOfMonths={isMobile ? 1 : 2}
       disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-      onDayClick={handleDayClick}
+      onSelect={(range) => {
+        setDateRange(range);
+        if (range?.from && range?.to) {
+          setHoverDate(undefined);
+          setTimeout(() => setShowDatePicker(false), 150);
+        }
+      }}
       onDayMouseEnter={handleDayMouseEnterWithNav}
       onDayMouseLeave={handleDayMouseLeaveWithNav}
       modifiers={{
