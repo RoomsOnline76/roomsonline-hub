@@ -366,29 +366,9 @@ const Home = () => {
       {/* Footer - Compact */}
       <footer className="py-4 sm:py-6 border-t border-border mt-auto bg-background">
         <div className="container mx-auto px-3 sm:px-4">
-          <div className="flex flex-col items-center gap-3 sm:gap-4">
-            {/* Brand */}
-            <span className="text-sm sm:text-base font-semibold text-foreground">RoomsOnline</span>
-
-            {/* Links */}
-            <div className="flex gap-4 sm:gap-6">
-              <Link
-                to="/privacy-policy"
-                className="text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors"
-              >
-                Privacy
-              </Link>
-              <Link
-                to="/terms-of-service"
-                className="text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors"
-              >
-                Terms
-              </Link>
-            </div>
-
-            {/* Copyright */}
-            <p className="text-[10px] sm:text-xs text-muted-foreground text-center">
-              © {new Date().getFullYear()} RoomsOnline
+          <div className="flex justify-end">
+            <p className="text-[10px] sm:text-xs text-muted-foreground">
+              © 2025 RoomsOnline
             </p>
           </div>
         </div>
