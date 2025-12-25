@@ -2193,6 +2193,7 @@ export default function PropertyForm() {
         } = supabase.storage.from("property-images").getPublicUrl(filePath);
 
         setUploadedImages((prev) => [...prev, publicUrl]);
+        setIsDirty(true);
       } catch (error) {
         toast({
           title: "Upload failed",
