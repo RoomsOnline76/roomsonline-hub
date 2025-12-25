@@ -13,6 +13,17 @@ import {
 } from '@/contexts/CurrencyContext';
 import { cn } from '@/lib/utils';
 
+// Currency to country flag emoji mapping
+const CURRENCY_FLAGS: Record<string, string> = {
+  ZAR: '🇿🇦',
+  USD: '🇺🇸',
+  EUR: '🇪🇺',
+  GBP: '🇬🇧',
+  AUD: '🇦🇺',
+  CAD: '🇨🇦',
+  CHF: '🇨🇭',
+};
+
 interface CurrencySelectorProps {
   compact?: boolean;
   className?: string;
@@ -29,23 +40,24 @@ export function CurrencySelector({ compact = false, className, variant = 'defaul
       <Select value={currency} onValueChange={setCurrency}>
         <SelectTrigger 
           className={cn(
-            compact ? "w-[80px]" : "w-[180px]",
+            compact ? "w-[90px]" : "w-[180px]",
             isHero || compact 
               ? "bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20 focus:ring-white/30" 
               : "bg-background border-border"
           )}
         >
           <SelectValue>
-            {compact 
-              ? currency 
-              : `${CURRENCY_SYMBOLS[currency]} ${currency}`
-            }
+            <span className="flex items-center gap-1.5">
+              <span>{CURRENCY_FLAGS[currency]}</span>
+              <span>{currency}</span>
+            </span>
           </SelectValue>
         </SelectTrigger>
         <SelectContent className="bg-background/95 backdrop-blur-md border-border z-50">
           {SUPPORTED_CURRENCIES.map((code) => (
             <SelectItem key={code} value={code}>
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-2.5">
+                <span className="text-base">{CURRENCY_FLAGS[code]}</span>
                 <span className="font-medium w-6">{CURRENCY_SYMBOLS[code]}</span>
                 <span>{code}</span>
                 {!compact && (
