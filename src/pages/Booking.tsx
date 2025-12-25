@@ -1003,25 +1003,25 @@ const Booking = () => {
                         const isAtMaxCapacity = currentRoomTotal >= maxGuestsForRoom;
                         
                         return (
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
                             {/* Adults (required, min 1) */}
                             <div className="space-y-2">
-                              <Label className="text-sm">Adults *</Label>
+                              <Label className="text-xs sm:text-sm">Adults *</Label>
                               <div className="flex items-center gap-2">
                                 <Button 
                                   variant="outline" 
                                   size="icon" 
-                                  className="h-8 w-8"
+                                  className="h-10 w-10 sm:h-8 sm:w-8"
                                   onClick={() => adjustGuestCount(index, 'numberOfAdults', -1)}
                                   disabled={room.numberOfAdults <= 1}
                                 >
                                   <Minus className="h-4 w-4" />
                                 </Button>
-                                <span className="w-8 text-center font-medium">{room.numberOfAdults}</span>
+                                <span className="w-8 text-center font-medium text-sm sm:text-base">{room.numberOfAdults}</span>
                                 <Button 
                                   variant="outline" 
                                   size="icon" 
-                                  className="h-8 w-8"
+                                  className="h-10 w-10 sm:h-8 sm:w-8"
                                   onClick={() => adjustGuestCount(index, 'numberOfAdults', 1)}
                                   disabled={isAtMaxCapacity}
                                 >
@@ -1033,22 +1033,22 @@ const Booking = () => {
                             {/* Teens - only show if allowed */}
                             {allowTeens && (
                               <div className="space-y-2">
-                                <Label className="text-sm">Teens</Label>
+                                <Label className="text-xs sm:text-sm">Teens</Label>
                                 <div className="flex items-center gap-2">
                                   <Button 
                                     variant="outline" 
                                     size="icon" 
-                                    className="h-8 w-8"
+                                    className="h-10 w-10 sm:h-8 sm:w-8"
                                     onClick={() => adjustGuestCount(index, 'numberOfTeens', -1)}
                                     disabled={room.numberOfTeens <= 0}
                                   >
                                     <Minus className="h-4 w-4" />
                                   </Button>
-                                  <span className="w-8 text-center font-medium">{room.numberOfTeens}</span>
+                                  <span className="w-8 text-center font-medium text-sm sm:text-base">{room.numberOfTeens}</span>
                                   <Button 
                                     variant="outline" 
                                     size="icon" 
-                                    className="h-8 w-8"
+                                    className="h-10 w-10 sm:h-8 sm:w-8"
                                     onClick={() => adjustGuestCount(index, 'numberOfTeens', 1)}
                                     disabled={isAtMaxCapacity}
                                   >
@@ -1061,22 +1061,22 @@ const Booking = () => {
                             {/* Children - only show if allowed */}
                             {allowChildren && (
                               <div className="space-y-2">
-                                <Label className="text-sm">Children</Label>
+                                <Label className="text-xs sm:text-sm">Children</Label>
                                 <div className="flex items-center gap-2">
                                   <Button 
                                     variant="outline" 
                                     size="icon" 
-                                    className="h-8 w-8"
+                                    className="h-10 w-10 sm:h-8 sm:w-8"
                                     onClick={() => adjustGuestCount(index, 'numberOfChildren', -1)}
                                     disabled={room.numberOfChildren <= 0}
                                   >
                                     <Minus className="h-4 w-4" />
                                   </Button>
-                                  <span className="w-8 text-center font-medium">{room.numberOfChildren}</span>
+                                  <span className="w-8 text-center font-medium text-sm sm:text-base">{room.numberOfChildren}</span>
                                   <Button 
                                     variant="outline" 
                                     size="icon" 
-                                    className="h-8 w-8"
+                                    className="h-10 w-10 sm:h-8 sm:w-8"
                                     onClick={() => adjustGuestCount(index, 'numberOfChildren', 1)}
                                     disabled={isAtMaxCapacity}
                                   >
@@ -1089,22 +1089,22 @@ const Booking = () => {
                             {/* Infants - only show if allowed */}
                             {allowInfants && (
                               <div className="space-y-2">
-                                <Label className="text-sm">Infants</Label>
+                                <Label className="text-xs sm:text-sm">Infants</Label>
                                 <div className="flex items-center gap-2">
                                   <Button 
                                     variant="outline" 
                                     size="icon" 
-                                    className="h-8 w-8"
+                                    className="h-10 w-10 sm:h-8 sm:w-8"
                                     onClick={() => adjustGuestCount(index, 'numberOfInfants', -1)}
                                     disabled={room.numberOfInfants <= 0}
                                   >
                                     <Minus className="h-4 w-4" />
                                   </Button>
-                                  <span className="w-8 text-center font-medium">{room.numberOfInfants}</span>
+                                  <span className="w-8 text-center font-medium text-sm sm:text-base">{room.numberOfInfants}</span>
                                   <Button 
                                     variant="outline" 
                                     size="icon" 
-                                    className="h-8 w-8"
+                                    className="h-10 w-10 sm:h-8 sm:w-8"
                                     onClick={() => adjustGuestCount(index, 'numberOfInfants', 1)}
                                     disabled={isAtMaxCapacity}
                                   >
@@ -1154,29 +1154,40 @@ const Booking = () => {
               </CardContent>
             </Card>
 
-            {/* Submit Button (Mobile) */}
-            <div className="lg:hidden">
-              <Button 
-                className="w-full" 
-                size="lg"
-                onClick={() => createBookingMutation.mutate()}
-                disabled={createBookingMutation.isPending || !isFormValid}
-              >
-                {createBookingMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  'Confirm Booking'
-                )}
-              </Button>
+            {/* Mobile Sticky Footer - Submit Button */}
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 z-40 safe-area-bottom">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate">
+                    {totalCost > 0 ? `R ${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'Price on request'}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {nights} night{nights !== 1 ? 's' : ''} • {totalGuests} guest{totalGuests !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <Button 
+                  className="h-12 px-6 text-base flex-shrink-0" 
+                  onClick={() => createBookingMutation.mutate()}
+                  disabled={createBookingMutation.isPending || !isFormValid}
+                >
+                  {createBookingMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing
+                    </>
+                  ) : (
+                    'Confirm'
+                  )}
+                </Button>
+              </div>
               {!isFormValid && (
                 <p className="text-xs text-muted-foreground mt-2 text-center">
                   Please fill in all required fields above
                 </p>
               )}
             </div>
+            {/* Spacer for mobile sticky footer */}
+            <div className="lg:hidden h-24" />
           </div>
 
           {/* Booking Summary */}

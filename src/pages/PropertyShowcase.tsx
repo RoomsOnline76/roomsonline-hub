@@ -637,8 +637,8 @@ export default function PropertyShowcase() {
         )}
       </div>
 
-      {/* Hero Section with Image Gallery */}
-      <section className="relative h-[60vh] min-h-[400px] max-h-[600px] bg-muted overflow-hidden">
+      {/* Hero Section with Image Gallery - Mobile first */}
+      <section className="relative h-[50vh] sm:h-[60vh] min-h-[300px] sm:min-h-[400px] max-h-[600px] bg-muted overflow-hidden">
         {property.images.length > 0 ? (
           <>
             <img
@@ -648,34 +648,37 @@ export default function PropertyShowcase() {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
             
-            {/* Image Navigation */}
+            {/* Image Navigation - larger touch targets on mobile */}
             {property.images.length > 1 && (
               <>
                 <button
                   onClick={prevImage}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background p-2 rounded-full shadow-lg transition-all"
+                  className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background p-3 sm:p-2 rounded-full shadow-lg transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  aria-label="Previous image"
                 >
-                  <ChevronLeft className="h-6 w-6" />
+                  <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
                 </button>
                 <button
                   onClick={nextImage}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background p-2 rounded-full shadow-lg transition-all"
+                  className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background p-3 sm:p-2 rounded-full shadow-lg transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  aria-label="Next image"
                 >
-                  <ChevronRight className="h-6 w-6" />
+                  <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
                 </button>
                 
-                {/* Image Indicators */}
+                {/* Image Indicators - larger touch targets on mobile */}
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
                   {property.images.map((_, idx) => (
                     <button
                       key={idx}
                       onClick={() => setCurrentImageIndex(idx)}
                       className={cn(
-                        "w-2 h-2 rounded-full transition-all",
+                        "rounded-full transition-all min-h-[24px] min-w-[24px] sm:min-h-0 sm:min-w-0",
                         idx === currentImageIndex 
-                          ? "bg-primary w-6" 
-                          : "bg-background/60 hover:bg-background"
+                          ? "bg-primary w-6 h-2.5 sm:w-6 sm:h-2" 
+                          : "bg-background/60 hover:bg-background w-2.5 h-2.5 sm:w-2 sm:h-2"
                       )}
+                      aria-label={`Go to image ${idx + 1}`}
                     />
                   ))}
                 </div>
@@ -685,8 +688,8 @@ export default function PropertyShowcase() {
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-muted">
             <div className="text-center text-muted-foreground">
-              <Bed className="h-16 w-16 mx-auto mb-4 opacity-50" />
-              <p>No images available</p>
+              <Bed className="h-12 w-12 sm:h-16 sm:w-16 mx-auto mb-4 opacity-50" />
+              <p className="text-sm sm:text-base">No images available</p>
             </div>
           </div>
         )}

@@ -464,21 +464,21 @@ export default function RoomAvailabilityCalendar({
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-7 w-7"
+                        className="h-10 w-10 sm:h-7 sm:w-7"
                         onClick={() => setGuests(g => ({ ...g, adults: Math.max(1, g.adults - 1) }))}
                         disabled={guests.adults <= 1}
                       >
-                        <Minus className="h-3 w-3" />
+                        <Minus className="h-4 w-4 sm:h-3 sm:w-3" />
                       </Button>
                       <span className="w-8 text-center font-medium">{guests.adults}</span>
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-7 w-7"
+                        className="h-10 w-10 sm:h-7 sm:w-7"
                         onClick={() => setGuests(g => ({ ...g, adults: g.adults + 1 }))}
                         disabled={isAtMaxCapacity}
                       >
-                        <Plus className="h-3 w-3" />
+                        <Plus className="h-4 w-4 sm:h-3 sm:w-3" />
                       </Button>
                     </div>
                   </div>
@@ -504,21 +504,21 @@ export default function RoomAvailabilityCalendar({
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-10 w-10 sm:h-7 sm:w-7"
                               onClick={() => setGuests(g => ({ ...g, teens: Math.max(0, g.teens - 1) }))}
                               disabled={guests.teens <= 0}
                             >
-                              <Minus className="h-3 w-3" />
+                              <Minus className="h-4 w-4 sm:h-3 sm:w-3" />
                             </Button>
                             <span className="w-8 text-center font-medium">{guests.teens}</span>
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-10 w-10 sm:h-7 sm:w-7"
                               onClick={() => setGuests(g => ({ ...g, teens: g.teens + 1 }))}
                               disabled={isAtMaxCapacity}
                             >
-                              <Plus className="h-3 w-3" />
+                              <Plus className="h-4 w-4 sm:h-3 sm:w-3" />
                             </Button>
                           </div>
                         </div>
@@ -542,21 +542,21 @@ export default function RoomAvailabilityCalendar({
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-10 w-10 sm:h-7 sm:w-7"
                               onClick={() => setGuests(g => ({ ...g, children: Math.max(0, g.children - 1) }))}
                               disabled={guests.children <= 0}
                             >
-                              <Minus className="h-3 w-3" />
+                              <Minus className="h-4 w-4 sm:h-3 sm:w-3" />
                             </Button>
                             <span className="w-8 text-center font-medium">{guests.children}</span>
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-10 w-10 sm:h-7 sm:w-7"
                               onClick={() => setGuests(g => ({ ...g, children: g.children + 1 }))}
                               disabled={isAtMaxCapacity}
                             >
-                              <Plus className="h-3 w-3" />
+                              <Plus className="h-4 w-4 sm:h-3 sm:w-3" />
                             </Button>
                           </div>
                         </div>
@@ -580,21 +580,21 @@ export default function RoomAvailabilityCalendar({
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-10 w-10 sm:h-7 sm:w-7"
                               onClick={() => setGuests(g => ({ ...g, infants: Math.max(0, g.infants - 1) }))}
                               disabled={guests.infants <= 0}
                             >
-                              <Minus className="h-3 w-3" />
+                              <Minus className="h-4 w-4 sm:h-3 sm:w-3" />
                             </Button>
                             <span className="w-8 text-center font-medium">{guests.infants}</span>
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-10 w-10 sm:h-7 sm:w-7"
                               onClick={() => setGuests(g => ({ ...g, infants: g.infants + 1 }))}
                               disabled={isAtMaxCapacity}
                             >
-                              <Plus className="h-3 w-3" />
+                              <Plus className="h-4 w-4 sm:h-3 sm:w-3" />
                             </Button>
                           </div>
                         </div>
@@ -619,21 +619,21 @@ export default function RoomAvailabilityCalendar({
                           <Button
                             variant="outline"
                             size="icon"
-                            className="h-7 w-7"
+                            className="h-10 w-10 sm:h-7 sm:w-7"
                             onClick={() => setGuests(g => ({ ...g, children: Math.max(0, g.children - 1) }))}
                             disabled={guests.children <= 0}
                           >
-                            <Minus className="h-3 w-3" />
+                            <Minus className="h-4 w-4 sm:h-3 sm:w-3" />
                           </Button>
                           <span className="w-8 text-center font-medium">{guests.children}</span>
                           <Button
                             variant="outline"
                             size="icon"
-                            className="h-7 w-7"
+                            className="h-10 w-10 sm:h-7 sm:w-7"
                             onClick={() => setGuests(g => ({ ...g, children: g.children + 1 }))}
                             disabled={isAtMaxCapacity}
                           >
-                            <Plus className="h-3 w-3" />
+                            <Plus className="h-4 w-4 sm:h-3 sm:w-3" />
                           </Button>
                         </div>
                       </div>
@@ -660,8 +660,7 @@ export default function RoomAvailabilityCalendar({
                 )}
 
                 <Button 
-                  className="w-full" 
-                  size="lg"
+                  className="w-full h-12 sm:h-10 text-base sm:text-sm" 
                   disabled={!dateRange?.from || !dateRange?.to}
                   onClick={handleProceedToBooking}
                 >
@@ -675,7 +674,7 @@ export default function RoomAvailabilityCalendar({
             </Card>
 
             {/* Back Button */}
-            <Button variant="outline" className="w-full mt-4" onClick={handleBackToRoom}>
+            <Button variant="outline" className="w-full h-12 sm:h-10 mt-4" onClick={handleBackToRoom}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Room
             </Button>
