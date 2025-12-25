@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
-import { PropertySegmentSection } from "@/components/PropertySegmentSection";
+import { HomePropertySegments } from "@/components/HomePropertySegments";
 import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2, ChevronDown, X } from "lucide-react";
 import heroFallback from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
@@ -10,6 +10,7 @@ import { composeHeadline, composeMapSubheadline } from "@/lib/headlineComposer";
 import CategoryBanner from "@/components/CategoryBanner";
 import { BannerSegment, BANNER_SEGMENTS } from "@/lib/bannerSegments";
 import { MAP_FILTER_CATEGORIES, getMapFiltersByCategory, MapFilterCategoryId } from "@/lib/mapFilters";
+import { useQuery } from "@tanstack/react-query";
 import {
   Select,
   SelectContent,
@@ -286,16 +287,8 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Property Segment Sections - Filtered Results */}
-      {BANNER_SEGMENTS.filter(seg => seg.filterType !== null).map((segment) => (
-        <div key={segment.id} id={`segment-${segment.id}`}>
-          <PropertySegmentSection 
-            segmentId={segment.filterType!} 
-            title={segment.label}
-            limit={8}
-          />
-        </div>
-      ))}
+      {/* Property Segment Sections - Dynamic Random Selection */}
+      <HomePropertySegments />
 
       {/* Why RoomsOnline Section */}
       <section className="py-6 sm:py-12 bg-secondary/30">
