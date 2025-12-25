@@ -12,16 +12,17 @@ import {
   CURRENCY_NAMES 
 } from '@/contexts/CurrencyContext';
 import { cn } from '@/lib/utils';
+import 'flag-icons/css/flag-icons.min.css';
 
-// Currency to country flag emoji mapping
-const CURRENCY_FLAGS: Record<string, string> = {
-  ZAR: '🇿🇦',
-  USD: '🇺🇸',
-  EUR: '🇪🇺',
-  GBP: '🇬🇧',
-  AUD: '🇦🇺',
-  CAD: '🇨🇦',
-  CHF: '🇨🇭',
+// Currency to ISO country code mapping for flag-icons
+const CURRENCY_COUNTRY_CODES: Record<string, string> = {
+  ZAR: 'za',
+  USD: 'us',
+  EUR: 'eu',
+  GBP: 'gb',
+  AUD: 'au',
+  CAD: 'ca',
+  CHF: 'ch',
 };
 
 interface CurrencySelectorProps {
@@ -48,7 +49,7 @@ export function CurrencySelector({ compact = false, className, variant = 'defaul
         >
           <SelectValue>
             <span className="flex items-center gap-2">
-              <span className="text-base leading-none">{CURRENCY_FLAGS[currency]}</span>
+              <span className={`fi fi-${CURRENCY_COUNTRY_CODES[currency]} rounded-sm`} style={{ fontSize: '1rem' }} />
               <span>{currency}</span>
             </span>
           </SelectValue>
@@ -57,7 +58,7 @@ export function CurrencySelector({ compact = false, className, variant = 'defaul
           {SUPPORTED_CURRENCIES.map((code) => (
             <SelectItem key={code} value={code}>
               <span className="flex items-center gap-3">
-                <span className="text-lg leading-none">{CURRENCY_FLAGS[code]}</span>
+                <span className={`fi fi-${CURRENCY_COUNTRY_CODES[code]} rounded-sm`} style={{ fontSize: '1.25rem' }} />
                 <span className="font-medium w-8">{CURRENCY_SYMBOLS[code]}</span>
                 <span className="font-medium">{code}</span>
               </span>
