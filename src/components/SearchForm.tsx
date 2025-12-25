@@ -540,7 +540,7 @@ export const SearchForm = () => {
               "rounded-full bg-primary hover:bg-primary/90 flex-shrink-0",
               isMobile ? "h-12 w-full sm:w-12" : "h-9 w-9"
             )}
-            disabled={!searchQuery || !dateRange?.from || !dateRange?.to}
+            disabled={!selectedProperty}
           >
             <Search className={cn(isMobile ? "h-5 w-5" : "h-4 w-4")} />
             {isMobile && <span className="ml-2">Search</span>}
@@ -728,7 +728,7 @@ export const SearchForm = () => {
             "rounded-full bg-primary hover:bg-primary/90 flex-shrink-0",
             isMobile ? "h-12 w-full mt-1" : "h-8 w-8"
           )}
-          disabled={!searchQuery || !dateRange?.from || !dateRange?.to}
+          disabled={!selectedProperty}
         >
           <Search className={cn(isMobile ? "h-5 w-5" : "h-3.5 w-3.5")} />
           {isMobile && <span className="ml-2">Search</span>}
