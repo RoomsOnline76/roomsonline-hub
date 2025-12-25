@@ -157,9 +157,9 @@ export function HomePropertySegments() {
     const shuffledDestinations = shuffleArray(destinationTags);
     const randomDest = shuffledDestinations[0] || null;
 
-    // Pick 3 random types
+    // Pick 2 random types
     const shuffledTypes = shuffleArray(typeTags);
-    const randomTypesSelected = shuffledTypes.slice(0, 3);
+    const randomTypesSelected = shuffledTypes.slice(0, 2);
 
     return {
       randomDestination: randomDest,
