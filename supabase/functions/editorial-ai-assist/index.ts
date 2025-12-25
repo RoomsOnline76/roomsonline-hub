@@ -11,12 +11,83 @@ serve(async (req) => {
   }
 
   try {
-    const { propertyContext, editorialRating, existingContent } = await req.json();
+    const body = await req.json();
+    const { action, propertyContext, editorialRating, existingContent, title, content: journalContent } = body;
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
+
+    // Handle journal meta generation
+    if (action === "generate_journal_meta") {
+      const systemPrompt = `You are an expert SEO copywriter. Generate compelling meta title and description for a journal article.`;
+      
+      const userPrompt = `Generate SEO-optimized meta title and description for this journal:
+      
+Title: ${title}
+Content excerpt: ${journalContent?.substring(0, 1000) || "No content"}
+
+Requirements:
+- Meta title: 50-60 characters, compelling and includes main keyword
+- Meta description: 150-160 characters, summarizes content and encourages clicks`;
+
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "generate_meta",
+                description: "Generate SEO meta title and description",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    meta_title: { type: "string", description: "SEO meta title, 50-60 characters" },
+                    meta_description: { type: "string", description: "SEO meta description, 150-160 characters" }
+                  },
+                  required: ["meta_title", "meta_description"],
+                  additionalProperties: false
+                }
+              }
+            }
+          ],
+          tool_choice: { type: "function", function: { name: "generate_meta" } }
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("AI gateway error:", response.status, errorText);
+        throw new Error(`AI gateway error: ${response.status}`);
+      }
+
+      const aiResponse = await response.json();
+      const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
+      
+      if (toolCall?.function?.arguments) {
+        const result = JSON.parse(toolCall.function.arguments);
+        return new Response(JSON.stringify(result), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ meta_title: "", meta_description: "" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Original property editorial content generation
 
     // Build comprehensive property context
     const { 

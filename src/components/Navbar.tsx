@@ -15,7 +15,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Building2, Key, LogOut, User, ChevronDown, Shield, Calendar, Megaphone, BookOpen, PieChart, UserPlus, Activity } from "lucide-react";
+import { Building2, Key, LogOut, User, ChevronDown, Shield, Calendar, Megaphone, BookOpen, PieChart, UserPlus, Activity, Newspaper } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +37,8 @@ export const Navbar = () => {
   const [apiHealthStatus, setApiHealthStatus] = useState<{ healthy: number; unhealthy: number; issues: HealthIssue[] }>({ healthy: 0, unhealthy: 0, issues: [] });
   const [bookOpenNewTab, setBookOpenNewTab] = useState(true);
   
+  const isSleepInAfricaDomain = window.location.hostname === "sleepinafrica.roomsonline.co.za" || 
+                                 window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
   const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
   const isBookPage = isBookDomain || location.pathname === "/book" || location.pathname.startsWith("/book/");
   
@@ -311,6 +313,14 @@ export const Navbar = () => {
                   <Button variant="ghost">NB</Button>
                 </Link>
               </>
+            )}
+            {(isAdmin || isDev) && isSleepInAfricaDomain && !isBookPage && (
+              <Link to="/admin/journals">
+                <Button variant="ghost" className="flex items-center gap-2">
+                  <Newspaper className="h-4 w-4" />
+                  Journal
+                </Button>
+              </Link>
             )}
             {isAdmin && !isBookPage && (
               <>
