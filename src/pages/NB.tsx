@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { format, addDays } from "date-fns";
+import { useSearchParams } from "react-router-dom";
+import { format, addDays, parse } from "date-fns";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,8 +19,33 @@ interface NBProperty {
 }
 
 const NB = () => {
-  const [checkIn, setCheckIn] = useState<Date>(new Date());
-  const [checkOut, setCheckOut] = useState<Date>(addDays(new Date(), 1));
+  const [searchParams] = useSearchParams();
+  const urlPropertyId = searchParams.get("propertyId");
+  const urlCheckIn = searchParams.get("checkIn");
+  const urlCheckOut = searchParams.get("checkOut");
+  
+  const [checkIn, setCheckIn] = useState<Date>(() => {
+    if (urlCheckIn) {
+      try {
+        return parse(urlCheckIn, "yyyy-MM-dd", new Date());
+      } catch {
+        return new Date();
+      }
+    }
+    return new Date();
+  });
+  
+  const [checkOut, setCheckOut] = useState<Date>(() => {
+    if (urlCheckOut) {
+      try {
+        return parse(urlCheckOut, "yyyy-MM-dd", new Date());
+      } catch {
+        return addDays(new Date(), 1);
+      }
+    }
+    return addDays(new Date(), 1);
+  });
+  
   const [bbid, setBbid] = useState("36924");
   const [properties, setProperties] = useState<NBProperty[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
@@ -39,14 +65,22 @@ const NB = () => {
       
       if (data && data.length > 0) {
         setProperties(data);
-        setSelectedPropertyId(data[0].id);
-        if (data[0].external_id) {
-          setBbid(data[0].external_id);
+        
+        // Check if URL has a property ID and use that, otherwise use first property
+        const initialPropertyId = urlPropertyId && data.some(p => p.id === urlPropertyId) 
+          ? urlPropertyId 
+          : data[0].id;
+        
+        setSelectedPropertyId(initialPropertyId);
+        
+        const selectedProp = data.find(p => p.id === initialPropertyId);
+        if (selectedProp?.external_id) {
+          setBbid(selectedProp.external_id);
         }
       }
     };
     fetchProperties();
-  }, []);
+  }, [urlPropertyId]);
 
   const handlePropertyChange = (propertyId: string) => {
     setSelectedPropertyId(propertyId);
