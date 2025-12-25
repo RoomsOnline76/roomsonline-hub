@@ -341,7 +341,7 @@ function HomeContent() {
                   Privacy
                 </Link>
                 <Link
-                  to="/terms"
+                  to="/terms-of-service"
                   className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
                   onClick={() => setIsMenuOpen(false)}
                 >
