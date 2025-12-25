@@ -29,10 +29,10 @@ export function PropertySegmentSection({
       const { data, error } = await supabase
         .from("properties")
         .select(`
-          id, slug, name, city, country, images,
+          id, slug, name, city, country, images, description,
           editorial_rating, navigation_tags,
           why_we_chose_this_place, who_this_suits, 
-          what_its_really_like, why_this_place_matters
+          what_its_really_like, why_this_place_matters, who_its_not_for
         `)
         .eq("is_active", true)
         .is("permanently_deleted_at", null);

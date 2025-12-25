@@ -17,19 +17,27 @@ interface PropertyCardProps {
     who_this_suits?: string | null;
     what_its_really_like?: string | null;
     why_this_place_matters?: string | null;
+    who_its_not_for?: string | null;
+    description?: string | null;
   };
 }
 
 function getRandomEditorialBlurb(property: PropertyCardProps["property"]): string | null {
+  // All 6 ROL Spec editorial fields for randomization
   const blurbs = [
     property.why_we_chose_this_place,
     property.who_this_suits,
     property.what_its_really_like,
     property.why_this_place_matters,
+    property.who_its_not_for,
+    property.description,
   ].filter((blurb): blurb is string => Boolean(blurb && blurb.trim()));
 
   if (blurbs.length === 0) return null;
-  return blurbs[Math.floor(Math.random() * blurbs.length)];
+  
+  // Use property id hash for consistent but unique randomization per card
+  const hash = property.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return blurbs[hash % blurbs.length];
 }
 
 function getPrimaryImage(images: unknown): string {
