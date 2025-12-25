@@ -404,6 +404,7 @@ const PropertyOverview = () => {
                           </div>
                         </TableHead>
                         <TableHead className="py-1 text-xs">EXT ID</TableHead>
+                        <TableHead className="py-1 text-xs">TA ID</TableHead>
                         <TableHead className="text-right py-1 text-xs">ACTION</TableHead>
                       </TableRow>
                       {/* Search row */}
@@ -440,6 +441,7 @@ const PropertyOverview = () => {
                             className="h-6 text-xs"
                           />
                         </TableCell>
+                        <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
@@ -506,6 +508,17 @@ const PropertyOverview = () => {
                                 property.siteminder_property_code;
                               return externalId ? (
                                 <span className="font-mono text-[10px]">{externalId}</span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              );
+                            })()}
+                          </TableCell>
+                          <TableCell className="py-1">
+                            {(() => {
+                              const amenities = property.amenities as any;
+                              const taId = amenities?.external_ids?.tripadvisor_id;
+                              return taId ? (
+                                <span className="font-mono text-[10px]">{taId}</span>
                               ) : (
                                 <span className="text-muted-foreground text-xs">—</span>
                               );
