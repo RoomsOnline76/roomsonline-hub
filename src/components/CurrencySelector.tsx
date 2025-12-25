@@ -16,18 +16,23 @@ import { cn } from '@/lib/utils';
 interface CurrencySelectorProps {
   compact?: boolean;
   className?: string;
+  variant?: 'default' | 'hero';
 }
 
-export function CurrencySelector({ compact = false, className }: CurrencySelectorProps) {
+export function CurrencySelector({ compact = false, className, variant = 'default' }: CurrencySelectorProps) {
   const { currency, setCurrency, isStale } = useCurrency();
+
+  const isHero = variant === 'hero' || className?.includes('hero');
 
   return (
     <div className={cn("relative", className)}>
       <Select value={currency} onValueChange={setCurrency}>
         <SelectTrigger 
           className={cn(
-            "bg-background border-border",
-            compact ? "w-[80px]" : "w-[180px]"
+            compact ? "w-[80px]" : "w-[180px]",
+            isHero || compact 
+              ? "bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20 focus:ring-white/30" 
+              : "bg-background border-border"
           )}
         >
           <SelectValue>
@@ -37,7 +42,7 @@ export function CurrencySelector({ compact = false, className }: CurrencySelecto
             }
           </SelectValue>
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="bg-background border-border z-50">
           {SUPPORTED_CURRENCIES.map((code) => (
             <SelectItem key={code} value={code}>
               <span className="flex items-center gap-2">

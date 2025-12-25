@@ -14,6 +14,7 @@ import CategoryBanner from "@/components/CategoryBanner";
 import { BannerSegment, BANNER_SEGMENTS } from "@/lib/bannerSegments";
 import { MAP_FILTER_CATEGORIES, getMapFiltersByCategory, MapFilterCategoryId } from "@/lib/mapFilters";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
+import { CurrencySelector } from "@/components/CurrencySelector";
 import {
   Select,
   SelectContent,
@@ -301,6 +302,9 @@ function HomeContent() {
           <div className="flex-1 max-w-xl mx-4 opacity-50">
             <SearchForm />
           </div>
+
+          {/* Currency Selector */}
+          <CurrencySelector compact className="flex-shrink-0" />
 
           {/* Hamburger Menu - Right */}
           <div className="relative flex-shrink-0">
