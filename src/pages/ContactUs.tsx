@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Building2, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ const contactSchema = z.object({
 });
 
 const ContactUs = () => {
+  const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
@@ -213,18 +214,25 @@ const ContactUs = () => {
       </main>
 
       {/* Success Modal */}
-      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+      <Dialog open={showSuccessModal} onOpenChange={(open) => {
+        setShowSuccessModal(open);
+        if (!open) navigate("/");
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl">Message Sent</DialogTitle>
-            <DialogDescription className="pt-4 text-base">
-              Thank you for reaching out.
-              <br /><br />
-              Your message has been received and is with the RoomsOnline team.
+            <DialogDescription className="pt-4 text-base space-y-4">
+              <p>Thank you for reaching out.</p>
+              <p>Your message has been received and is with the RoomsOnline team.</p>
+              <p>We read every enquiry properly (no auto-replies pretending to be people), and we'll get back to you as soon as we can — usually within one business day.</p>
+              <p>In the meantime, feel free to keep exploring. Great places have a way of finding you.</p>
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end pt-4">
-            <Button onClick={() => setShowSuccessModal(false)}>Close</Button>
+            <Button onClick={() => {
+              setShowSuccessModal(false);
+              navigate("/");
+            }}>Close</Button>
           </div>
         </DialogContent>
       </Dialog>
