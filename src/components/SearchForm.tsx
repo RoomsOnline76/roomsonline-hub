@@ -274,8 +274,8 @@ export const SearchForm = () => {
     return isAfter(day, range.from) && isBefore(day, range.to);
   };
 
-  // Mobile date picker sheet content
-  const DatePickerContent = () => (
+  // Date picker content - using JSX variable instead of function component to prevent remounting
+  const datePickerContent = (
     <DayPicker
       mode="range"
       selected={dateRange}
@@ -287,7 +287,10 @@ export const SearchForm = () => {
         setDateRange(range);
         if (range?.from && range?.to) {
           setHoverDate(undefined);
-          setTimeout(() => setShowDatePicker(false), 150);
+          setTimeout(() => {
+            setShowDatePicker(false);
+            setShowMobileDateSheet(false);
+          }, 150);
         }
       }}
       onDayMouseEnter={handleDayMouseEnterWithNav}
@@ -454,7 +457,7 @@ export const SearchForm = () => {
                   <SheetTitle>Select dates</SheetTitle>
                 </SheetHeader>
                 <div className="flex justify-center overflow-auto">
-                  <DatePickerContent />
+                  {datePickerContent}
                 </div>
                 <div className="pt-4 flex gap-2">
                   <Button variant="outline" className="flex-1 h-12" onClick={() => {
@@ -497,7 +500,7 @@ export const SearchForm = () => {
                 align="center" 
                 sideOffset={8}
               >
-                <DatePickerContent />
+                {datePickerContent}
               </PopoverContent>
             </Popover>
           )}
@@ -636,7 +639,7 @@ export const SearchForm = () => {
                 <SheetTitle>Select dates</SheetTitle>
               </SheetHeader>
               <div className="flex justify-center overflow-auto">
-                <DatePickerContent />
+                {datePickerContent}
               </div>
               <div className="pt-4 flex gap-2">
                 <Button variant="outline" className="flex-1 h-12" onClick={() => {
@@ -682,7 +685,7 @@ export const SearchForm = () => {
               align="center" 
               sideOffset={8}
             >
-              <DatePickerContent />
+              {datePickerContent}
             </PopoverContent>
           </Popover>
         )}
