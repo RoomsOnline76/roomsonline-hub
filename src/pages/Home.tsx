@@ -68,6 +68,7 @@ function extractPrimaryImageUrl(images: unknown): string | null {
 const Home = () => {
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
   const [heroImage, setHeroImage] = useState<string>(heroFallback);
+  const [heroVideoUrl, setHeroVideoUrl] = useState<string | null>(null);
   const [heroProperty, setHeroProperty] = useState<{ name: string; city: string; country: string } | null>(null);
   const [isLoadingHero, setIsLoadingHero] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -144,24 +145,25 @@ const Home = () => {
     }
   };
 
-  // Fetch random hero image from hero properties
+  // Fetch random hero image/video from hero properties
   useEffect(() => {
-    async function fetchHeroImage() {
+    async function fetchHeroMedia() {
       try {
         const { data: heroProperties } = await supabase
           .from("properties")
-          .select("images, name, city, country")
+          .select("images, hero_video_url, name, city, country")
           .eq("hero_listing", true)
           .eq("is_active", true);
         
         if (heroProperties && heroProperties.length > 0) {
-          // Collect all primary images from hero properties with their info
-          const validProperties: { imageUrl: string; name: string; city: string; country: string }[] = [];
+          // Collect all valid hero properties with their media
+          const validProperties: { imageUrl: string; videoUrl: string | null; name: string; city: string; country: string }[] = [];
           for (const prop of heroProperties) {
             const imageUrl = extractPrimaryImageUrl(prop.images);
             if (imageUrl) {
               validProperties.push({
                 imageUrl,
+                videoUrl: prop.hero_video_url || null,
                 name: prop.name,
                 city: prop.city,
                 country: prop.country,
@@ -174,6 +176,7 @@ const Home = () => {
             const randomIndex = Math.floor(Math.random() * validProperties.length);
             const selected = validProperties[randomIndex];
             setHeroImage(selected.imageUrl);
+            setHeroVideoUrl(selected.videoUrl);
             setHeroProperty({ name: selected.name, city: selected.city, country: selected.country });
           }
         }
@@ -184,7 +187,7 @@ const Home = () => {
       }
     }
     
-    fetchHeroImage();
+    fetchHeroMedia();
   }, []);
 
   const toggleType = (key: string) => {
@@ -195,11 +198,25 @@ const Home = () => {
     <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
       {/* Hero Section - Full Bleed */}
       <section ref={heroRef} className="relative h-screen w-full flex-shrink-0">
-        {/* Full-bleed background image */}
-        <div
-          className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${isLoadingHero ? 'opacity-0' : 'opacity-100'}`}
-          style={{ backgroundImage: `url(${heroImage})` }}
-        >
+        {/* Full-bleed background - video if available, image as fallback */}
+        <div className={`absolute inset-0 transition-opacity duration-700 ${isLoadingHero ? 'opacity-0' : 'opacity-100'}`}>
+          {heroVideoUrl ? (
+            <video
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover"
+              poster={heroImage}
+            >
+              <source src={heroVideoUrl} type="video/mp4" />
+            </video>
+          ) : (
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: `url(${heroImage})` }}
+            />
+          )}
           {/* Subtle gradient overlay for text readability */}
           <div className="absolute inset-0 bg-black/40" />
         </div>
