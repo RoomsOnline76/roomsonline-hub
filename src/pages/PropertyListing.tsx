@@ -48,8 +48,8 @@ export default function PropertyListing() {
                 <span className="sm:hidden">Back</span>
               </Link>
             </Button>
-            <h1 className="text-lg sm:text-xl font-bold text-foreground">
-              All Properties
+            <h1 className="text-base sm:text-lg font-medium text-foreground/80 italic">
+              Discover hand-picked extraordinary escapes and places that spark the wanderlust
             </h1>
           </div>
         </div>
