@@ -96,7 +96,7 @@ export function PropertyCard({ property }: PropertyCardProps) {
 
           {/* Random Editorial Blurb */}
           {blurb && (
-            <p className="text-sm text-muted-foreground italic line-clamp-3 leading-relaxed">
+            <p className="text-sm text-muted-foreground italic leading-relaxed">
               "{blurb}"
             </p>
           )}
