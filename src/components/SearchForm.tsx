@@ -252,17 +252,26 @@ export const SearchForm = () => {
     return `${format(dateRange.from, "d MMM")} — ${format(dateRange.to, "d MMM")}`;
   };
 
+  // Use actual dateRange when complete, otherwise displayRange for worm preview
+  const getVisualRange = () => {
+    if (dateRange?.from && dateRange?.to) return dateRange;
+    return displayRange;
+  };
+
   const isRangeStart = (day: Date): boolean => {
-    return displayRange?.from ? isSameDay(day, displayRange.from) : false;
+    const range = getVisualRange();
+    return range?.from ? isSameDay(day, range.from) : false;
   };
 
   const isRangeEnd = (day: Date): boolean => {
-    return displayRange?.to ? isSameDay(day, displayRange.to) : false;
+    const range = getVisualRange();
+    return range?.to ? isSameDay(day, range.to) : false;
   };
 
   const isRangeMiddle = (day: Date): boolean => {
-    if (!displayRange?.from || !displayRange?.to) return false;
-    return isAfter(day, displayRange.from) && isBefore(day, displayRange.to);
+    const range = getVisualRange();
+    if (!range?.from || !range?.to) return false;
+    return isAfter(day, range.from) && isBefore(day, range.to);
   };
 
   // Mobile date picker sheet content
