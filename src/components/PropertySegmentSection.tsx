@@ -19,7 +19,9 @@ export function PropertySegmentSection({
   title, 
   limit 
 }: PropertySegmentSectionProps) {
-  const sectionTitle = title || SEGMENT_FILTERS[segmentId]?.label || "Properties";
+  const segmentConfig = SEGMENT_FILTERS[segmentId];
+  const sectionTitle = title || segmentConfig?.label || "Properties";
+  const segmentTags = segmentConfig?.tags || [];
 
   const { data: properties, isLoading } = useQuery({
     queryKey: ["properties-segment", segmentId],
@@ -53,9 +55,14 @@ export function PropertySegmentSection({
       <div className="container mx-auto px-3 sm:px-4">
         {/* Section Header */}
         <div className="mb-6">
-          <h2 className="text-xl sm:text-2xl font-bold text-foreground">
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground inline">
             {sectionTitle}
           </h2>
+          {segmentTags.length > 0 && (
+            <span className="ml-3 text-xs sm:text-sm text-muted-foreground">
+              TAGS: {segmentTags.join(", ")}
+            </span>
+          )}
         </div>
 
         {/* Loading State */}
