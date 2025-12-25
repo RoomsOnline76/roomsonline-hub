@@ -108,6 +108,7 @@ export function HomePropertySegments() {
       if (error) throw error;
       return data as TagCategory[];
     },
+    staleTime: 0, // Always fetch fresh data
   });
 
   // Fetch all properties
@@ -130,29 +131,26 @@ export function HomePropertySegments() {
     },
   });
 
-  // Get unique tags from properties that actually exist
-  const existingTags = useMemo(() => {
-    if (!properties) return new Set<string>();
-    const tags = new Set<string>();
-    properties.forEach(p => {
-      p.navigation_tags?.forEach(tag => tags.add(tag));
-    });
-    return tags;
-  }, [properties]);
 
-  // Compute random segments on mount (stable during session via useMemo)
+  // Compute random segments (stable during session via useMemo)
   const { randomDestination, randomTypes } = useMemo(() => {
-    if (!tagCategories || existingTags.size === 0) {
+    if (!tagCategories || !properties || properties.length === 0) {
       return { randomDestination: null, randomTypes: [] };
     }
 
+    // Get existing tags from properties
+    const propertyTags = new Set<string>();
+    properties.forEach(p => {
+      p.navigation_tags?.forEach(tag => propertyTags.add(tag));
+    });
+
     // Only include tags that exist in properties
     const destinationTags = tagCategories
-      .filter(t => t.category === "destination" && existingTags.has(t.tag_name))
+      .filter(t => t.category === "destination" && propertyTags.has(t.tag_name))
       .map(t => t.tag_name);
     
     const typeTags = tagCategories
-      .filter(t => t.category === "type" && existingTags.has(t.tag_name))
+      .filter(t => t.category === "type" && propertyTags.has(t.tag_name))
       .map(t => t.tag_name);
 
     // Pick 1 random destination
@@ -167,7 +165,7 @@ export function HomePropertySegments() {
       randomDestination: randomDest,
       randomTypes: randomTypesSelected,
     };
-  }, [tagCategories, existingTags]);
+  }, [tagCategories, properties]);
 
   return (
     <>
