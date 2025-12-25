@@ -305,59 +305,60 @@ function HomeContent() {
               <SearchForm />
             </div>
 
-            {/* Currency Selector */}
-            <CurrencySelector compact className="flex-shrink-0" />
-
-            {/* Hamburger Menu - Right */}
-            <div className="relative flex-shrink-0">
-              <button
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`rounded-lg flex items-center justify-center transition-colors ${isExpanded ? 'h-8 w-8 bg-muted hover:bg-muted/80' : 'h-10 w-10 bg-white/10 backdrop-blur-sm hover:bg-white/20'}`}
-                aria-label="Open menu"
-              >
-                <Menu className={`${isExpanded ? 'h-5 w-5 text-foreground' : 'h-6 w-6 text-white'}`} />
-              </button>
+            {/* Currency Selector & Hamburger Menu - Right */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <CurrencySelector compact />
               
-              {/* Dropdown Menu */}
-              {isMenuOpen && (
-                <div className="absolute top-12 right-0 w-48 bg-background/95 backdrop-blur-sm rounded-lg border border-border shadow-xl py-2">
-                  <Link
-                    to="/journals"
-                    className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    Journal
-                  </Link>
-                  <Link
-                    to="/about"
-                    className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    About Us
-                  </Link>
-                  <Link
-                    to="/privacy-policy"
-                    className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    Privacy
-                  </Link>
-                  <Link
-                    to="/terms-of-service"
-                    className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    Terms & Conditions
-                  </Link>
-                  <Link
-                    to="/contact"
-                    className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    Contact Us
-                  </Link>
-                </div>
-              )}
+              <div className="relative">
+                <button
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  className={`rounded-lg flex items-center justify-center transition-colors ${isExpanded ? 'h-8 w-8 bg-muted hover:bg-muted/80' : 'h-10 w-10 bg-white/10 backdrop-blur-sm hover:bg-white/20'}`}
+                  aria-label="Open menu"
+                >
+                  <Menu className={`${isExpanded ? 'h-5 w-5 text-foreground' : 'h-6 w-6 text-white'}`} />
+                </button>
+              
+                {/* Dropdown Menu */}
+                {isMenuOpen && (
+                  <div className="absolute top-12 right-0 w-48 bg-background border border-border rounded-lg shadow-xl py-2 z-50">
+                    <Link
+                      to="/journals"
+                      className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Journal
+                    </Link>
+                    <Link
+                      to="/about"
+                      className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      About Us
+                    </Link>
+                    <Link
+                      to="/privacy-policy"
+                      className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Privacy
+                    </Link>
+                    <Link
+                      to="/terms-of-service"
+                      className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Terms & Conditions
+                    </Link>
+                    <Link
+                      to="/contact"
+                      className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Contact Us
+                    </Link>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
