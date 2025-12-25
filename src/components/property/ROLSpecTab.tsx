@@ -7,44 +7,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Info, Compass, Loader2 } from "lucide-react";
+import { Info, Compass, Loader2, Sparkles } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { EDITORIAL_RATING_CONFIG } from "@/components/EditorialRatingBadge";
 
-// Editorial rating options with help text
-const EDITORIAL_RATINGS = [
-  {
-    value: "a_good_find",
-    label: "A Good Find",
-    helpText: "Solid, dependable, and honestly enjoyable. Not trying to be flashy — just a place that does what it promises, well."
-  },
-  {
-    value: "quietly_excellent",
-    label: "Quietly Excellent",
-    helpText: "Nothing screams for attention… and that's the point. Thoughtful details, calm confidence, and a stay that lingers longer than expected."
-  },
-  {
-    value: "exceptionally_considered",
-    label: "Exceptionally Considered",
-    helpText: "Every choice feels intentional — from layout to location to atmosphere. This is where good taste and good judgement quietly meet."
-  },
-  {
-    value: "standout_character",
-    label: "Standout Character",
-    helpText: "A place with a point of view. You don't forget it easily, and you wouldn't confuse it with anywhere else."
-  },
-  {
-    value: "truly_special",
-    label: "Truly Special",
-    helpText: "Rare. Memorable. Emotionally sticky. The kind of stay people bring up months later, unprompted."
-  },
-  {
-    value: "once_in_a_while",
-    label: "Once-in-a-While",
-    helpText: "Not perfect for everyone — and that's exactly why it's here. A genuinely exceptional place that earns its reputation by being unapologetically itself."
-  }
-];
+// Get editorial ratings from shared config
+const EDITORIAL_RATINGS = Object.entries(EDITORIAL_RATING_CONFIG).map(([value, config]) => ({
+  value,
+  label: config.label,
+  helpText: config.description,
+  Icon: config.Icon,
+  iconColor: config.iconColor,
+  bgColor: config.bgColor,
+}));
 
 // Navigation tags organized for multi-column layout
 const NAVIGATION_TAGS = [
@@ -282,16 +259,36 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   onValueChange={(value) => updateField("editorial_rating", value)}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a rating..." />
+                    <SelectValue placeholder="Select a rating...">
+                      {data.editorial_rating && (() => {
+                        const selected = EDITORIAL_RATINGS.find(r => r.value === data.editorial_rating);
+                        if (!selected) return null;
+                        const Icon = selected.Icon;
+                        return (
+                          <div className="flex items-center gap-2">
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center ${selected.bgColor}`}>
+                              <Icon className={`h-3 w-3 ${selected.iconColor}`} />
+                            </div>
+                            <span>{selected.label}</span>
+                          </div>
+                        );
+                      })()}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent className="bg-background">
-                    {EDITORIAL_RATINGS.map((rating) => (
-                      <SelectItem key={rating.value} value={rating.value}>
-                        <div className="flex items-center gap-2">
-                          <span>{rating.label}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {EDITORIAL_RATINGS.map((rating) => {
+                      const Icon = rating.Icon;
+                      return (
+                        <SelectItem key={rating.value} value={rating.value}>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center ${rating.bgColor}`}>
+                              <Icon className={`h-3 w-3 ${rating.iconColor}`} />
+                            </div>
+                            <span>{rating.label}</span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
                 {selectedRating && (
