@@ -3,7 +3,7 @@ import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { useHomePropertySegments } from "@/components/HomePropertySegments";
 import { FindBySection } from "@/components/FindBySection";
-import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2, ChevronDown, X } from "lucide-react";
+import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2, ChevronDown, X, Menu } from "lucide-react";
 import heroFallback from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -68,7 +68,9 @@ function extractPrimaryImageUrl(images: unknown): string | null {
 const Home = () => {
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
   const [heroImage, setHeroImage] = useState<string>(heroFallback);
+  const [heroProperty, setHeroProperty] = useState<{ name: string; city: string; country: string } | null>(null);
   const [isLoadingHero, setIsLoadingHero] = useState(true);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
   const typesRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<HTMLElement>(null);
@@ -148,24 +150,31 @@ const Home = () => {
       try {
         const { data: heroProperties } = await supabase
           .from("properties")
-          .select("images")
+          .select("images, name, city, country")
           .eq("hero_listing", true)
           .eq("is_active", true);
         
         if (heroProperties && heroProperties.length > 0) {
-          // Collect all primary images from hero properties
-          const validImages: string[] = [];
+          // Collect all primary images from hero properties with their info
+          const validProperties: { imageUrl: string; name: string; city: string; country: string }[] = [];
           for (const prop of heroProperties) {
             const imageUrl = extractPrimaryImageUrl(prop.images);
             if (imageUrl) {
-              validImages.push(imageUrl);
+              validProperties.push({
+                imageUrl,
+                name: prop.name,
+                city: prop.city,
+                country: prop.country,
+              });
             }
           }
           
           // Randomly select one
-          if (validImages.length > 0) {
-            const randomIndex = Math.floor(Math.random() * validImages.length);
-            setHeroImage(validImages[randomIndex]);
+          if (validProperties.length > 0) {
+            const randomIndex = Math.floor(Math.random() * validProperties.length);
+            const selected = validProperties[randomIndex];
+            setHeroImage(selected.imageUrl);
+            setHeroProperty({ name: selected.name, city: selected.city, country: selected.country });
           }
         }
       } catch (error) {
@@ -207,6 +216,58 @@ const Home = () => {
             </div>
           </Link>
         </div>
+
+        {/* Hamburger Menu - Top Right */}
+        <div className="absolute top-6 right-6 z-20">
+          <button
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className="h-10 w-10 rounded-lg bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-colors"
+            aria-label="Open menu"
+          >
+            <Menu className="h-6 w-6 text-white" />
+          </button>
+          
+          {/* Dropdown Menu */}
+          {isMenuOpen && (
+            <div className="absolute top-12 right-0 w-48 bg-background/95 backdrop-blur-sm rounded-lg border border-border shadow-xl py-2">
+              <span className="block px-4 py-2 text-sm text-muted-foreground cursor-default">
+                Journal
+              </span>
+              <span className="block px-4 py-2 text-sm text-muted-foreground cursor-default">
+                About Us
+              </span>
+              <Link
+                to="/privacy"
+                className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Privacy
+              </Link>
+              <Link
+                to="/terms"
+                className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Terms & Conditions
+              </Link>
+              <span className="block px-4 py-2 text-sm text-muted-foreground cursor-default">
+                Contact Us
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Property Attribution - Bottom Right */}
+        {heroProperty && (
+          <div className="absolute bottom-24 sm:bottom-28 right-6 z-20 text-right">
+            <p className="text-sm sm:text-base font-medium text-white drop-shadow-lg">
+              {heroProperty.name}
+            </p>
+            <p className="text-xs sm:text-sm text-white/80 drop-shadow">
+              {heroProperty.city}, {heroProperty.country}
+            </p>
+          </div>
+        )}
 
         {/* Hero Text Layout */}
         <div className="absolute inset-0 flex items-start pt-32 md:pt-40 z-10">
