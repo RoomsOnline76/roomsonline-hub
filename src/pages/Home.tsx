@@ -2,13 +2,21 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { PropertySegmentSection } from "@/components/PropertySegmentSection";
-import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2 } from "lucide-react";
+import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2, ChevronDown, X } from "lucide-react";
 import heroFallback from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { composeHeadline, composeMapSubheadline } from "@/lib/headlineComposer";
 import CategoryBanner from "@/components/CategoryBanner";
 import { BannerSegment, BANNER_SEGMENTS } from "@/lib/bannerSegments";
+import { MAP_FILTER_CATEGORIES, getMapFiltersByCategory, MapFilterCategoryId } from "@/lib/mapFilters";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
   { key: "hotel", label: "Hotel", color: "bg-red-500", hex: "#ef4444" },
@@ -60,6 +68,37 @@ const Home = () => {
   const [heroImage, setHeroImage] = useState<string>(heroFallback);
   const [isLoadingHero, setIsLoadingHero] = useState(true);
   const heroRef = useRef<HTMLElement>(null);
+  const [selectedMapFilters, setSelectedMapFilters] = useState<string[]>([]);
+  
+  // Get filters grouped by category
+  const filtersByCategory = useMemo(() => getMapFiltersByCategory(), []);
+  
+  const handleFilterSelect = (categoryId: MapFilterCategoryId, filterId: string) => {
+    if (filterId === "all") {
+      // Remove filters from this category
+      setSelectedMapFilters(prev => 
+        prev.filter(id => !filtersByCategory[categoryId].some(f => f.id === id))
+      );
+    } else {
+      // Replace any existing filter from this category with the new one
+      setSelectedMapFilters(prev => {
+        const withoutCategory = prev.filter(id => 
+          !filtersByCategory[categoryId].some(f => f.id === id)
+        );
+        return [...withoutCategory, filterId];
+      });
+    }
+  };
+  
+  const clearAllFilters = () => {
+    setSelectedMapFilters([]);
+  };
+  
+  const getSelectedFilterForCategory = (categoryId: MapFilterCategoryId): string => {
+    const categoryFilters = filtersByCategory[categoryId];
+    const selected = selectedMapFilters.find(id => categoryFilters.some(f => f.id === id));
+    return selected || "all";
+  };
   
   // Generate headlines once on mount (lazy initialization)
   const headline = useMemo(() => composeHeadline(), []);
@@ -208,8 +247,42 @@ const Home = () => {
             </div>
           </div>
 
+          {/* Navigation Tag Filter Dropdowns */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+            {MAP_FILTER_CATEGORIES.map((category) => (
+              <Select
+                key={category.id}
+                value={getSelectedFilterForCategory(category.id)}
+                onValueChange={(value) => handleFilterSelect(category.id, value)}
+              >
+                <SelectTrigger className="w-[140px] sm:w-[160px] h-9 text-xs sm:text-sm bg-background border-border">
+                  <SelectValue placeholder={category.label} />
+                </SelectTrigger>
+                <SelectContent className="bg-background border-border z-50">
+                  <SelectItem value="all" className="text-xs sm:text-sm">
+                    All {category.label}
+                  </SelectItem>
+                  {filtersByCategory[category.id].map((filter) => (
+                    <SelectItem key={filter.id} value={filter.id} className="text-xs sm:text-sm">
+                      {filter.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ))}
+            {selectedMapFilters.length > 0 && (
+              <button
+                onClick={clearAllFilters}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-3 w-3" />
+                Clear
+              </button>
+            )}
+          </div>
+
           <div className="h-[250px] sm:h-[350px] md:h-[400px] rounded-lg overflow-hidden border border-border shadow-sm">
-            <PropertiesMap enabledTypes={enabledTypes} typeColors={TYPE_COLORS} />
+            <PropertiesMap enabledTypes={enabledTypes} typeColors={TYPE_COLORS} selectedMapFilters={selectedMapFilters} />
           </div>
         </div>
       </section>
