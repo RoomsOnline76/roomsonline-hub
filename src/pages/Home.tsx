@@ -3,10 +3,12 @@ import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { useHomePropertySegments } from "@/components/HomePropertySegments";
 import { FindBySection } from "@/components/FindBySection";
-import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2, X, Menu } from "lucide-react";
+import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2, X, Menu, Calendar, ArrowRight } from "lucide-react";
 import heroFallback from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { format, subYears } from "date-fns";
 import { composeHeadline, composeMapSubheadline } from "@/lib/headlineComposer";
 import CategoryBanner from "@/components/CategoryBanner";
 import { BannerSegment, BANNER_SEGMENTS } from "@/lib/bannerSegments";
@@ -82,6 +84,24 @@ function HomeContent() {
   const typesRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<HTMLElement>(null);
   const [selectedMapFilters, setSelectedMapFilters] = useState<string[]>([]);
+  
+  // Fetch latest 2 journals for preview
+  const threeYearsAgo = subYears(new Date(), 3).toISOString();
+  const { data: latestJournals } = useQuery({
+    queryKey: ["home-journal-preview"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("journals")
+        .select("id, title, excerpt, featured_image_url, header_image_url, publish_date, slug")
+        .eq("status", "published")
+        .gte("publish_date", threeYearsAgo)
+        .order("publish_date", { ascending: false })
+        .limit(2);
+
+      if (error) throw error;
+      return data;
+    },
+  });
   
   // Get property segments with search filtering
   const { discoverNewSection, destinationSection, typesSections } = useHomePropertySegments();
@@ -527,6 +547,65 @@ function HomeContent() {
           </div>
         </div>
       </section>
+
+      {/* Journal Preview Section */}
+      {latestJournals && latestJournals.length > 0 && (
+        <section className="py-6 sm:py-12 bg-background">
+          <div className="container mx-auto px-3 sm:px-4">
+            <div className="flex items-center justify-between mb-4 sm:mb-8">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground">From the Journal</h2>
+              <Link 
+                to="/journals" 
+                className="flex items-center gap-1 text-sm text-primary hover:underline"
+              >
+                View all
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              {latestJournals.map((journal) => (
+                <Link
+                  key={journal.id}
+                  to={`/journals#journal-${journal.slug || journal.id}`}
+                  className="group block bg-card rounded-lg border border-border overflow-hidden hover:border-primary/30 transition-colors"
+                >
+                  {/* Image */}
+                  {(journal.featured_image_url || journal.header_image_url) && (
+                    <div className="aspect-[16/9] overflow-hidden">
+                      <img
+                        src={journal.featured_image_url || journal.header_image_url || ""}
+                        alt={journal.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Content */}
+                  <div className="p-4">
+                    <h3 className="font-semibold text-sm sm:text-base text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+                      {journal.title}
+                    </h3>
+                    {journal.excerpt && (
+                      <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 mb-3">
+                        {journal.excerpt}
+                      </p>
+                    )}
+                    {journal.publish_date && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <time dateTime={journal.publish_date}>
+                          {format(new Date(journal.publish_date), "MMM d, yyyy")}
+                        </time>
+                      </div>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Footer - Compact */}
       <footer className="py-4 sm:py-6 border-t border-border mt-auto bg-background">
