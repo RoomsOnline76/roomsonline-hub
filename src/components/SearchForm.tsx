@@ -155,7 +155,7 @@ export const SearchForm = () => {
             <MapPin className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Where to"
+              placeholder="Destination loading..."
               value={destination}
               onChange={(e) => setDestination(e.target.value)}
               className="pl-7 h-8 text-xs bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
