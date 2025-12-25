@@ -394,7 +394,6 @@ const PropertyOverview = () => {
                             {getSortIcon("property_type")}
                           </div>
                         </TableHead>
-                        <TableHead className="py-1 text-xs">OWNER</TableHead>
                         <TableHead 
                           className="cursor-pointer hover:bg-muted/50 select-none py-1 text-xs"
                           onClick={() => handleSort("total_bookings")}
@@ -441,7 +440,6 @@ const PropertyOverview = () => {
                             className="h-6 text-xs"
                           />
                         </TableCell>
-                        <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
@@ -498,25 +496,6 @@ const PropertyOverview = () => {
                           </TableCell>
                           <TableCell className="py-1 text-xs">
                             <span className="capitalize">{property.property_type?.replace(/_/g, ' ') || "-"}</span>
-                          </TableCell>
-                          <TableCell className="py-1">
-                            <div className="flex items-center justify-center">
-                              {property.owner_profile ? (
-                                <Avatar className="h-6 w-6">
-                                  <AvatarImage src={property.owner_profile.avatar_url} />
-                                  <AvatarFallback className="text-[10px] bg-teal-500 text-white">
-                                    {property.owner_profile.full_name 
-                                      ? property.owner_profile.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase()
-                                      : property.owner_profile.email.substring(0, 2).toUpperCase()
-                                    }
-                                  </AvatarFallback>
-                                </Avatar>
-                              ) : (
-                                <div className="w-6 h-6 rounded-full bg-teal-500 flex items-center justify-center">
-                                  <CheckCircle2 className="h-3 w-3 text-white" />
-                                </div>
-                              )}
-                            </div>
                           </TableCell>
                           <TableCell className="py-1 text-xs">{property.total_bookings || 0}</TableCell>
                           <TableCell className="py-1">
