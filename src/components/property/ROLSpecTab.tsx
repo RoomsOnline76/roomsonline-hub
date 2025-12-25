@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Info, Compass, Loader2, Sparkles } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Info, Compass, Loader2, Sparkles, Upload, Video, X } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -70,6 +71,7 @@ const NAVIGATION_TAGS = [
 
 interface ROLSpecData {
   hero_listing: boolean;
+  hero_video_url: string;
   editorial_rating: string;
   why_we_chose_this_place: string;
   who_this_suits: string;
@@ -117,6 +119,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
   const { toast } = useToast();
   const [activeSubTab, setActiveSubTab] = useState("details");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
 
   const updateField = <K extends keyof ROLSpecData>(field: K, value: ROLSpecData[K]) => {
     onChange({ ...data, [field]: value });
@@ -247,6 +250,62 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   onCheckedChange={(checked) => updateField("hero_listing", checked)}
                 />
               </div>
+
+              {/* Hero Video Upload - Only visible when hero_listing is enabled */}
+              {data.hero_listing && (
+                <div className="space-y-3 pt-3 border-t border-border/50">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <Video className="h-4 w-4 text-primary" />
+                      Hero Video
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Upload a video to display in the hero section (optional)
+                    </p>
+                  </div>
+                  
+                  {data.hero_video_url ? (
+                    <div className="space-y-2">
+                      <div className="relative rounded-lg overflow-hidden border border-border bg-muted/30">
+                        <video 
+                          src={data.hero_video_url} 
+                          className="w-full h-32 object-cover"
+                          controls
+                          muted
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-2 right-2 h-7 w-7"
+                          onClick={() => updateField("hero_video_url", "")}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {data.hero_video_url}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+                        <Video className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-xs text-muted-foreground mb-2">
+                          Enter a video URL or upload to storage
+                        </p>
+                        <Input
+                          type="url"
+                          placeholder="https://example.com/video.mp4"
+                          value={data.hero_video_url || ""}
+                          onChange={(e) => updateField("hero_video_url", e.target.value)}
+                          className="text-xs"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Editorial Rating */}
               <div className="space-y-2">

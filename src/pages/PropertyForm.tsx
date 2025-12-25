@@ -904,6 +904,7 @@ export default function PropertyForm() {
   // ROL Spec state
   const [rolSpecData, setRolSpecData] = useState({
     hero_listing: false,
+    hero_video_url: "",
     editorial_rating: "",
     why_we_chose_this_place: "",
     who_this_suits: "",
@@ -1962,6 +1963,7 @@ export default function PropertyForm() {
           // Load ROL Spec fields (direct columns)
           setRolSpecData({
             hero_listing: (data as any).hero_listing ?? false,
+            hero_video_url: (data as any).hero_video_url || "",
             editorial_rating: (data as any).editorial_rating || "",
             why_we_chose_this_place: (data as any).why_we_chose_this_place || "",
             who_this_suits: (data as any).who_this_suits || "",
@@ -2273,6 +2275,7 @@ export default function PropertyForm() {
         price_per_night: 0, // Default value, can be updated later
         // ROL Spec fields (stored as direct columns)
         hero_listing: rolSpecData.hero_listing,
+        hero_video_url: rolSpecData.hero_video_url || null,
         editorial_rating: rolSpecData.editorial_rating || null,
         why_we_chose_this_place: rolSpecData.why_we_chose_this_place || null,
         who_this_suits: rolSpecData.who_this_suits || null,
