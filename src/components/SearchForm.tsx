@@ -23,6 +23,7 @@ export const SearchForm = () => {
     setSearchQuery, 
     searchResults, 
     setSearchResults,
+    selectedProperty,
     setSelectedProperty,
     resetSearch 
   } = useSearch();
@@ -69,7 +70,7 @@ export const SearchForm = () => {
       const searchPattern = `%${query}%`;
       const { data, error } = await supabase
         .from("properties")
-        .select("id, name, city, country, slug, images, navigation_tags, description, why_we_chose_this_place, who_this_suits, what_its_really_like, why_this_place_matters, who_its_not_for")
+        .select("id, name, city, country, slug, images, navigation_tags, external_system, description, why_we_chose_this_place, who_this_suits, what_its_really_like, why_this_place_matters, who_its_not_for")
         .eq("is_active", true)
         .is("permanently_deleted_at", null)
         .or(`name.ilike.${searchPattern},city.ilike.${searchPattern},description.ilike.${searchPattern},why_we_chose_this_place.ilike.${searchPattern},who_this_suits.ilike.${searchPattern},what_its_really_like.ilike.${searchPattern},why_this_place_matters.ilike.${searchPattern},who_its_not_for.ilike.${searchPattern}`)
@@ -85,6 +86,7 @@ export const SearchForm = () => {
         slug: p.slug,
         images: p.images,
         navigation_tags: p.navigation_tags,
+        external_system: p.external_system,
       }));
       
       setSearchResults(results);
@@ -209,19 +211,33 @@ export const SearchForm = () => {
 
   const handleSearch = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!searchQuery || !dateRange?.from || !dateRange?.to) {
+    
+    // Must have a selected property to proceed
+    if (!selectedProperty) {
       return;
     }
     
-    const searchParams = new URLSearchParams({
-      destination: searchQuery,
-      checkIn: format(dateRange.from, "yyyy-MM-dd"),
-      checkOut: format(dateRange.to, "yyyy-MM-dd"),
-      adults: guests.adults.toString(),
-      children: guests.children.toString(),
-    });
+    const propertySlug = selectedProperty.slug || selectedProperty.id;
     
-    navigate(`/search?${searchParams.toString()}`);
+    // Build query params - only include what's set
+    const params = new URLSearchParams();
+    if (dateRange?.from) params.set("checkIn", format(dateRange.from, "yyyy-MM-dd"));
+    if (dateRange?.to) params.set("checkOut", format(dateRange.to, "yyyy-MM-dd"));
+    if (guests.adults) params.set("adults", guests.adults.toString());
+    if (guests.children) params.set("children", guests.children.toString());
+    
+    const queryString = params.toString() ? `?${params.toString()}` : "";
+    
+    // Check if NightsBridge property - route to property showcase instead
+    if (selectedProperty.external_system === "nightsbridge") {
+      navigate(`/property/${propertySlug}${queryString}`);
+    } else {
+      // Navigate directly to booking page
+      navigate(`/booking/${propertySlug}${queryString}`);
+    }
+    
+    // Reset search state after navigation
+    resetSearch();
   };
 
   const clearDates = (e: React.MouseEvent) => {
