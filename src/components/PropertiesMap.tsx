@@ -400,23 +400,27 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
 
       // Get image - use stored images only
       const mainImage = property.images?.[0];
+      const propertyUrl = getPropertyUrl(property.slug || property.id);
       
       const imageHtml = mainImage 
-        ? `<img src="${mainImage}" alt="${property.name}" style="width: 100%; height: 100px; object-fit: cover; border-radius: 6px; margin-bottom: 8px;" onerror="this.style.display='none'" />`
+        ? `<a href="${propertyUrl}" style="display: block;"><img src="${mainImage}" alt="${property.name}" style="width: 100%; height: 80px; object-fit: cover; border-radius: 4px; margin-bottom: 6px;" onerror="this.parentElement.style.display='none'" /></a>`
         : '';
 
       const infoWindow = new window.google.maps.InfoWindow({
         content: `
-          <div style="padding: 8px; max-width: 220px;">
+          <div style="padding: 6px; max-width: 180px; font-family: system-ui, sans-serif;">
             ${imageHtml}
-            <h3 style="font-weight: 600; margin-bottom: 4px; color: #111;">${property.name}</h3>
-            <p style="font-size: 12px; color: #666; margin-bottom: 8px;">${property.city}, ${property.country}</p>
-            <a href="${getPropertyUrl(property.slug || property.id)}" 
-               style="display: inline-block; padding: 6px 12px; background: #e11d48; color: white; border-radius: 6px; text-decoration: none; font-size: 12px;">
-              View Property
+            <a href="${propertyUrl}" style="text-decoration: none; color: inherit;">
+              <h3 style="font-weight: 600; font-size: 13px; margin: 0 0 2px 0; color: #111; line-height: 1.2;">${property.name}</h3>
+            </a>
+            <p style="font-size: 11px; color: #666; margin: 0 0 6px 0;">${property.city}, ${property.country}</p>
+            <a href="${propertyUrl}" 
+               style="display: inline-block; padding: 5px 10px; background: #e11d48; color: white; border-radius: 4px; text-decoration: none; font-size: 11px; font-weight: 500;">
+              View
             </a>
           </div>
-        `
+        `,
+        maxWidth: 200
       });
 
       marker.addListener("click", () => {
