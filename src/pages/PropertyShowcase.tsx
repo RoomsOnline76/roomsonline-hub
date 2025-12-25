@@ -562,33 +562,6 @@ export default function PropertyShowcase() {
                 </div>
               </div>
             </div>
-            
-            {/* Room types summary - separate row */}
-            {(() => {
-              const rooms: any[] = property.amenities?.rooms || property.amenities?.room_types || [];
-              if (rooms.length === 0) return null;
-              return (
-                <div className="flex flex-wrap gap-x-2 gap-y-0 mt-1.5 overflow-hidden">
-                  {rooms.map((room, idx) => {
-                    const maxAdults = room.maxPeople || room.maxAdults || 2;
-                    const maxChildren = room.maxChildren || 0;
-                    const numRooms = room.numRooms || room.numberOfRooms || room.rooms || 1;
-                    const description = room.description || '';
-                    // Truncate long descriptions
-                    const shortDesc = description.length > 40 ? description.substring(0, 40) + '…' : description;
-                    return (
-                      <span key={room.id || idx} className="text-[10px] text-muted-foreground" title={description}>
-                        <span className="font-medium text-primary/80">{room.name}</span>
-                        {shortDesc && <span className="text-muted-foreground/70"> - {shortDesc}</span>}
-                        <span className="text-muted-foreground/60">
-                          {" "}({numRooms}×, {maxAdults}A{maxChildren > 0 ? `/${maxChildren}C` : ""})
-                        </span>
-                      </span>
-                    );
-                  })}
-                </div>
-              );
-            })()}
           </div>
         </div>
         
