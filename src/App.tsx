@@ -33,6 +33,7 @@ import PropertyListing from "./pages/PropertyListing";
 import NB from "./pages/NB";
 import AdminJournals from "./pages/AdminJournals";
 import JournalEditor from "./pages/JournalEditor";
+import PublicJournals from "./pages/PublicJournals";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -214,10 +215,11 @@ const App = () => (
             path="/admin/journals/:id"
             element={
               <ProtectedRoute requireAdmin={true}>
-                <JournalEditor />
+              <JournalEditor />
               </ProtectedRoute>
             }
           />
+          <Route path="/journals" element={<PublicJournals />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
