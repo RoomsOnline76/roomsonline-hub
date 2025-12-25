@@ -1,8 +1,17 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PropertySegmentSection } from "@/components/PropertySegmentSection";
 import { SegmentFilterId } from "@/lib/segmentFilters";
+
+const HERO_SENTENCES = [
+  "Discover hand-picked extraordinary escapes and places that spark the wanderlust",
+  "Pursue the remarkable and find places that forever spark the spirit",
+  "Explore thoughtfully curated destinations crafted to inspire your next adventure",
+  "Uncover hidden gems and extraordinary places that define exceptional travel",
+  "Journey to remarkable destinations where every stay becomes a story",
+];
 
 // Segment ordering: Luxury | Style first, then type segments, then destination segments
 // Excludes "discover_new" (New) segment
@@ -30,6 +39,13 @@ const DESTINATION_SEGMENTS: SegmentFilterId[] = [
 const ALL_SEGMENTS = [...TYPE_SEGMENTS, ...DESTINATION_SEGMENTS];
 
 export default function PropertyListing() {
+  const [heroSentence, setHeroSentence] = useState("");
+
+  useEffect(() => {
+    const randomIndex = Math.floor(Math.random() * HERO_SENTENCES.length);
+    setHeroSentence(HERO_SENTENCES[randomIndex]);
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header with Back Button */}
@@ -49,7 +65,7 @@ export default function PropertyListing() {
               </Link>
             </Button>
             <h1 className="text-base sm:text-lg font-medium text-foreground/80 italic">
-              Discover hand-picked extraordinary escapes and places that spark the wanderlust
+              {heroSentence}
             </h1>
           </div>
         </div>
