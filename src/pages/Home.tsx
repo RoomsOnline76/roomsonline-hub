@@ -294,14 +294,19 @@ const Home = () => {
           </div>
         )}
 
+        {/* Search Bar - Top Center Overlay */}
+        <div className="absolute top-24 sm:top-28 left-0 right-0 z-20 px-4 sm:px-6">
+          <SearchForm />
+        </div>
+
         {/* Hero Text Layout */}
-        <div className="absolute inset-0 flex items-start pt-32 md:pt-40 z-10">
+        <div className="absolute inset-0 flex items-end pb-32 sm:pb-36 z-10">
           <div className="w-full px-6 md:px-12 flex flex-col">
-            {/* "We are RoomsOnline." - Left-aligned, reduced 25% */}
+            {/* "We are RoomsOnline." - Left-aligned */}
             <p className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl text-white font-bold tracking-wide drop-shadow-lg mb-4 text-left whitespace-nowrap">
               We are RoomsOnline.
             </p>
-            {/* Main hero text - Aligned to center, writing right-to-left from middle, reduced 25% */}
+            {/* Main hero text */}
             <p className="text-xl md:text-2xl lg:text-3xl xl:text-4xl text-white font-medium tracking-wide drop-shadow-lg leading-relaxed text-right max-w-[50%] self-center mr-auto">
               {headline}
             </p>
