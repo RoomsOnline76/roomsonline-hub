@@ -1,3 +1,4 @@
+// Properties map component with search filtering support
 import { useEffect, useRef, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { MapPin, Loader2 } from "lucide-react";
