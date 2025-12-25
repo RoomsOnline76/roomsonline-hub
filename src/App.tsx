@@ -31,6 +31,8 @@ import AboutUs from "./pages/AboutUs";
 import ContactUs from "./pages/ContactUs";
 import PropertyListing from "./pages/PropertyListing";
 import NB from "./pages/NB";
+import AdminJournals from "./pages/AdminJournals";
+import JournalEditor from "./pages/JournalEditor";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -197,6 +199,22 @@ const App = () => (
             element={
               <ProtectedRoute requireDev={true}>
                 <NB />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/journals"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <AdminJournals />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/journals/:id"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <JournalEditor />
               </ProtectedRoute>
             }
           />

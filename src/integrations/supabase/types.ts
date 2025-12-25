@@ -319,6 +319,57 @@ export type Database = {
           },
         ]
       }
+      journals: {
+        Row: {
+          author_id: string | null
+          content: string | null
+          created_at: string
+          excerpt: string | null
+          featured_image_url: string | null
+          header_image_url: string | null
+          id: string
+          meta_description: string | null
+          meta_title: string | null
+          publish_date: string | null
+          slug: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          content?: string | null
+          created_at?: string
+          excerpt?: string | null
+          featured_image_url?: string | null
+          header_image_url?: string | null
+          id?: string
+          meta_description?: string | null
+          meta_title?: string | null
+          publish_date?: string | null
+          slug?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          content?: string | null
+          created_at?: string
+          excerpt?: string | null
+          featured_image_url?: string | null
+          header_image_url?: string | null
+          id?: string
+          meta_description?: string | null
+          meta_title?: string | null
+          publish_date?: string | null
+          slug?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       meal_type_suggestions: {
         Row: {
           created_at: string
@@ -1302,6 +1353,10 @@ export type Database = {
       }
     }
     Functions: {
+      generate_journal_slug: {
+        Args: { journal_id: string; journal_title: string }
+        Returns: string
+      }
       generate_property_slug: {
         Args: { property_id: string; property_name: string }
         Returns: string
