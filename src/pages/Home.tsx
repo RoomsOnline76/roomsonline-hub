@@ -271,9 +271,13 @@ const Home = () => {
               >
                 Terms & Conditions
               </Link>
-              <span className="block px-4 py-2 text-sm text-muted-foreground cursor-default">
+              <Link
+                to="/contact"
+                className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
                 Contact Us
-              </span>
+              </Link>
             </div>
           )}
         </div>

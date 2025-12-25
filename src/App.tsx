@@ -28,6 +28,7 @@ import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import AboutUs from "./pages/AboutUs";
+import ContactUs from "./pages/ContactUs";
 import PropertyListing from "./pages/PropertyListing";
 import NB from "./pages/NB";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -190,6 +191,7 @@ const App = () => (
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route path="/about" element={<AboutUs />} />
+          <Route path="/contact" element={<ContactUs />} />
           <Route
             path="/nb"
             element={
