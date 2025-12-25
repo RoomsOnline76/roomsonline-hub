@@ -8,6 +8,7 @@ interface PropertySearchResult {
   slug: string | null;
   images: unknown;
   navigation_tags: string[] | null;
+  external_system: string | null;
 }
 
 interface SearchContextType {
