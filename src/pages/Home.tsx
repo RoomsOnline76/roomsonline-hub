@@ -320,7 +320,7 @@ function HomeContent() {
               
                 {/* Dropdown Menu */}
                 {isMenuOpen && (
-                  <div className="absolute top-12 right-0 w-48 bg-background border border-border rounded-lg shadow-xl py-2 z-50">
+                  <div className="absolute top-12 right-0 w-48 bg-background/95 backdrop-blur-md border border-border rounded-lg shadow-xl py-2 z-50">
                     <Link
                       to="/journals"
                       className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
