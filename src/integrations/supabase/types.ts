@@ -891,6 +891,7 @@ export type Database = {
           external_id: string | null
           external_system: string | null
           hero_listing: boolean | null
+          hero_video_url: string | null
           id: string
           images: Json | null
           is_active: boolean | null
@@ -931,6 +932,7 @@ export type Database = {
           external_id?: string | null
           external_system?: string | null
           hero_listing?: boolean | null
+          hero_video_url?: string | null
           id?: string
           images?: Json | null
           is_active?: boolean | null
@@ -971,6 +973,7 @@ export type Database = {
           external_id?: string | null
           external_system?: string | null
           hero_listing?: boolean | null
+          hero_video_url?: string | null
           id?: string
           images?: Json | null
           is_active?: boolean | null
