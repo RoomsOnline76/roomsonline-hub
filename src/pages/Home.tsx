@@ -299,7 +299,7 @@ function HomeContent() {
           </Link>
 
           {/* Search Bar - Center */}
-          <div className="flex-1 max-w-xl mx-4 opacity-50">
+          <div className="flex-1 max-w-xl mx-4 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity">
             <SearchForm />
           </div>
 
