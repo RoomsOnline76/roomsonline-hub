@@ -146,9 +146,9 @@ export function FindBySection({ onScrollToTypes, onScrollToMap }: FindBySectionP
 
   if (isLoading) {
     return (
-      <section className="py-8 sm:py-12 bg-background">
+      <section className="py-6 sm:py-8 bg-background">
         <div className="container mx-auto px-3 sm:px-4">
-          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-6">
+          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-4 sm:mb-5">
             FIND BY...
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
@@ -162,9 +162,9 @@ export function FindBySection({ onScrollToTypes, onScrollToMap }: FindBySectionP
   }
 
   return (
-    <section className="py-8 sm:py-12 bg-background">
+    <section className="py-6 sm:py-8 bg-background">
       <div className="container mx-auto px-3 sm:px-4">
-        <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-6">
+        <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-4 sm:mb-5">
           FIND BY...
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
