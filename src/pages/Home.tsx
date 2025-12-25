@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
-import { HomePropertySegments } from "@/components/HomePropertySegments";
+import { useHomePropertySegments } from "@/components/HomePropertySegments";
 import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2, ChevronDown, X } from "lucide-react";
 import heroFallback from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
@@ -70,6 +70,9 @@ const Home = () => {
   const [isLoadingHero, setIsLoadingHero] = useState(true);
   const heroRef = useRef<HTMLElement>(null);
   const [selectedMapFilters, setSelectedMapFilters] = useState<string[]>([]);
+  
+  // Get property segments
+  const { discoverNewSection, destinationSection, typesSections } = useHomePropertySegments();
   
   // Get filters grouped by category
   const filtersByCategory = useMemo(() => getMapFiltersByCategory(), []);
@@ -212,6 +215,12 @@ const Home = () => {
         <CategoryBanner onSegmentClick={handleSegmentClick} heroRef={heroRef} />
       </section>
 
+      {/* Discover New Segment */}
+      {discoverNewSection}
+
+      {/* Destination Segment */}
+      {destinationSection}
+
       {/* Properties Map Section */}
       <section id="map-section" className="py-6 sm:py-10 bg-background">
         <div className="container mx-auto px-3 sm:px-4">
@@ -287,8 +296,8 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Property Segment Sections - Dynamic Random Selection */}
-      <HomePropertySegments />
+      {/* Type Segments */}
+      {typesSections}
 
       {/* Why RoomsOnline Section */}
       <section className="py-6 sm:py-12 bg-secondary/30">
