@@ -134,6 +134,66 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
     updateField("navigation_tags", newTags);
   };
 
+  const handleVideoUpload = async (file: File) => {
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.type.startsWith('video/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a video file (MP4, WebM, etc.)",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate file size (max 100MB)
+    const maxSize = 100 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({
+        title: "File too large",
+        description: "Maximum file size is 100MB",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploadingVideo(true);
+    try {
+      const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('hero-videos')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get the public URL
+      const { data: urlData } = supabase.storage
+        .from('hero-videos')
+        .getPublicUrl(uploadData.path);
+
+      updateField("hero_video_url", urlData.publicUrl);
+      
+      toast({
+        title: "Video uploaded",
+        description: "Hero video has been uploaded successfully"
+      });
+    } catch (error) {
+      console.error("Video upload error:", error);
+      toast({
+        title: "Upload failed",
+        description: "Could not upload video. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploadingVideo(false);
+    }
+  };
+
   const handleAIAssist = async () => {
     if (!propertyContext.name) {
       toast({
@@ -288,20 +348,54 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
-                        <Video className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                        <p className="text-xs text-muted-foreground mb-2">
-                          Enter a video URL or upload to storage
-                        </p>
-                        <Input
-                          type="url"
-                          placeholder="https://example.com/video.mp4"
-                          value={data.hero_video_url || ""}
-                          onChange={(e) => updateField("hero_video_url", e.target.value)}
-                          className="text-xs"
+                    <div className="space-y-3">
+                      {/* File Upload Area */}
+                      <label className="block border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors cursor-pointer">
+                        <input
+                          type="file"
+                          accept="video/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleVideoUpload(file);
+                          }}
+                          disabled={isUploadingVideo}
                         />
+                        {isUploadingVideo ? (
+                          <>
+                            <Loader2 className="h-8 w-8 text-primary mx-auto mb-2 animate-spin" />
+                            <p className="text-xs text-primary font-medium">Uploading video...</p>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                            <p className="text-sm font-medium text-foreground mb-1">
+                              Click to upload video
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              MP4, WebM up to 100MB
+                            </p>
+                          </>
+                        )}
+                      </label>
+                      
+                      {/* Or paste URL */}
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                          <span className="w-full border-t border-border" />
+                        </div>
+                        <div className="relative flex justify-center text-xs">
+                          <span className="bg-card px-2 text-muted-foreground">or paste URL</span>
+                        </div>
                       </div>
+                      
+                      <Input
+                        type="url"
+                        placeholder="https://example.com/video.mp4"
+                        value={data.hero_video_url || ""}
+                        onChange={(e) => updateField("hero_video_url", e.target.value)}
+                        className="text-xs"
+                      />
                     </div>
                   )}
                 </div>
