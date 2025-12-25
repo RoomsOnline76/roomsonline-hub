@@ -99,6 +99,7 @@ export function EditorialRatingBadge({ rating, className }: EditorialRatingBadge
         </div>
       </TooltipTrigger>
       <TooltipContent side="right" className="max-w-xs">
+        <p className="text-xs text-muted-foreground mb-1">RoomsOnline rates this property:</p>
         <p className="font-semibold mb-1">{label}</p>
         <p className="text-xs text-muted-foreground">{description}</p>
       </TooltipContent>
