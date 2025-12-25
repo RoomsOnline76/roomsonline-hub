@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSearch, PropertySearchResult } from "@/contexts/SearchContext";
 import { SearchResultsDropdown } from "@/components/SearchResultsDropdown";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { getNightsBridgeBookingUrl } from "@/lib/config";
 
 export const SearchForm = () => {
   const navigate = useNavigate();
@@ -209,7 +210,7 @@ export const SearchForm = () => {
 
   const displayRange = getDisplayRange();
 
-  const handleSearch = (e?: React.FormEvent) => {
+  const handleSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     
     // Must have a selected property to proceed
@@ -228,8 +229,42 @@ export const SearchForm = () => {
     
     const queryString = params.toString() ? `?${params.toString()}` : "";
     
-    // Check if NightsBridge property - route to property showcase instead
+    // Check if NightsBridge property
     if (selectedProperty.external_system === "nightsbridge") {
+      // On mobile, open NightsBridge booking URL directly
+      if (isMobile) {
+        try {
+          // Fetch property external_id and agent code
+          const [propertyResult, nbConfigResult] = await Promise.all([
+            supabase
+              .from("public_properties")
+              .select("external_id")
+              .eq("id", selectedProperty.id)
+              .maybeSingle(),
+            supabase
+              .from("public_nightsbridge_config")
+              .select("agent_code")
+              .maybeSingle()
+          ]);
+          
+          const bbid = propertyResult.data?.external_id;
+          const agentCode = nbConfigResult.data?.agent_code;
+          
+          if (bbid && agentCode) {
+            const checkIn = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined;
+            const checkOut = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined;
+            const bookingUrl = getNightsBridgeBookingUrl(bbid, agentCode, checkIn, checkOut);
+            
+            // Reset and navigate to external URL
+            resetSearch();
+            window.location.href = bookingUrl;
+            return;
+          }
+        } catch (error) {
+          console.error("Error fetching NightsBridge config:", error);
+        }
+      }
+      // Desktop or fallback: route to property showcase
       navigate(`/property/${propertySlug}${queryString}`);
     } else {
       // Navigate directly to booking page
