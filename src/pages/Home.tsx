@@ -83,6 +83,7 @@ function HomeContent() {
   const [isLoadingHero, setIsLoadingHero] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const typesRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<HTMLElement>(null);
   const [selectedMapFilters, setSelectedMapFilters] = useState<string[]>([]);
@@ -131,6 +132,23 @@ function HomeContent() {
     mapRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
   
+  // Close hamburger menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isMenuOpen]);
+
   const handleFilterSelect = (categoryId: MapFilterCategoryId, filterId: string) => {
     if (filterId === "all") {
       // Remove filters from this category
@@ -313,7 +331,7 @@ function HomeContent() {
             <div className="flex items-center gap-2 flex-shrink-0">
               <CurrencySelector compact className="hero" />
               
-              <div className="relative">
+              <div className="relative" ref={menuRef}>
                 <button
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   className={`rounded-lg flex items-center justify-center transition-colors ${isExpanded ? 'h-8 w-8 bg-muted hover:bg-muted/80' : 'h-10 w-10 bg-white/10 backdrop-blur-sm hover:bg-white/20'}`}
