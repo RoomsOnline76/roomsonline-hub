@@ -1,6 +1,6 @@
 # RoomsOnline - Unified Booking Engine
 
-//resync push 20251218 1745
+//resync push 20251225 1200
 
 ## Project Overview
 
@@ -727,34 +727,37 @@ Properties are linked to owners via `owner_email` matching `profiles.email`. Thi
 
 ### Current Implementation Status
 
-| Feature           | NightsBridge | Checkfront  | Benson | Hostfully | SiteMinder |
-| ----------------- | ------------ | ----------- | ------ | --------- | ---------- |
-| Adapter Contract  | N/A (redirect) | ⚠️ Pending | ✅ Full | ✅ Full | ⚠️ Pending |
-| API Key Storage   | ✅           | ✅          | ✅     | ✅        | ✅         |
-| Property Linking  | ✅ (BBID)    | ✅          | ✅     | ✅        | ✅         |
-| Pull Rates        | N/A          | ⚠️ Pending  | ✅     | ✅        | ⚠️ Pending |
-| Pull Availability | N/A          | ⚠️ Pending  | ✅     | ✅        | ⚠️ Pending |
-| Push Bookings     | N/A          | ⚠️ Pending  | ✅     | ✅        | ⚠️ Pending |
-| snake_case Fields | N/A          | ⚠️ Pending  | ✅     | ✅        | ⚠️ Pending |
+| Feature           | NightsBridge   | Checkfront | Benson  | Hostfully | SiteMinder |
+| ----------------- | -------------- | ---------- | ------- | --------- | ---------- |
+| Adapter Contract  | N/A (redirect) | ⚠️ Pending | ✅ Full | ✅ Full   | ⚠️ Pending |
+| API Key Storage   | ✅             | ✅         | ✅      | ✅        | ✅         |
+| Property Linking  | ✅ (BBID)      | ✅         | ✅      | ✅        | ✅         |
+| Pull Rates        | N/A            | ⚠️ Pending | ✅      | ✅        | ⚠️ Pending |
+| Pull Availability | N/A            | ⚠️ Pending | ✅      | ✅        | ⚠️ Pending |
+| Push Bookings     | N/A            | ⚠️ Pending | ✅      | ✅        | ⚠️ Pending |
+| snake_case Fields | N/A            | ⚠️ Pending | ✅      | ✅        | ⚠️ Pending |
 
-*NightsBridge uses external redirect model - no direct API integration needed.*
+_NightsBridge uses external redirect model - no direct API integration needed._
 
 ### Adapter Contract Compliance (Dec 2025)
 
 All PMS adapters must conform to the standardized response contract defined in `supabase/functions/_shared/adapter-contract.ts`:
 
 **Key Requirements:**
+
 1. **Response Shape**: `{ success, data, error, source, fetched_at, action }`
 2. **Field Naming**: ALL fields must use `snake_case` (e.g., `room_type_id`, `max_guests`, `allow_children`)
 3. **Error Codes**: Use standardized codes (`INVALID_REQUEST`, `AUTH_FAILED`, `BOOKING_REJECTED`, etc.)
 4. **Data Transformation**: Raw PMS responses must be transformed to contract shape
 
 **Compliant Adapters:**
+
 - `benson-api` - Full compliance (Dec 2025 audit)
 - `hostfully-api` - Full compliance
 - `roomsonline-pms-api` - Reference native adapter
 
 **Pending:**
+
 - `checkfront-api` - Awaiting API docs finalization
 
 ### Integration Architecture
