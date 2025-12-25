@@ -97,7 +97,7 @@ function SegmentSection({ title, tag, properties, isLoading }: SegmentSectionPro
   );
 }
 
-export function HomePropertySegments() {
+export function useHomePropertySegments() {
   // Fetch tag categories from database
   const { data: tagCategories } = useQuery({
     queryKey: ["navigation-tag-categories"],
@@ -167,36 +167,31 @@ export function HomePropertySegments() {
     };
   }, [tagCategories, properties]);
 
-  return (
-    <>
-      {/* Always show Discover New */}
+  return { 
+    discoverNewSection: (
       <SegmentSection
         title="Discover New"
         tag="New"
         properties={properties || []}
         isLoading={isLoading}
       />
-
-      {/* Show 1 random destination segment */}
-      {randomDestination && (
-        <SegmentSection
-          title={randomDestination}
-          tag={randomDestination}
-          properties={properties || []}
-          isLoading={isLoading}
-        />
-      )}
-
-      {/* Show 3 random type segments */}
-      {randomTypes.map((tag) => (
-        <SegmentSection
-          key={tag}
-          title={tag}
-          tag={tag}
-          properties={properties || []}
-          isLoading={isLoading}
-        />
-      ))}
-    </>
-  );
+    ),
+    destinationSection: randomDestination ? (
+      <SegmentSection
+        title={randomDestination}
+        tag={randomDestination}
+        properties={properties || []}
+        isLoading={isLoading}
+      />
+    ) : null,
+    typesSections: randomTypes.map((tag) => (
+      <SegmentSection
+        key={tag}
+        title={tag}
+        tag={tag}
+        properties={properties || []}
+        isLoading={isLoading}
+      />
+    )),
+  };
 }
