@@ -96,7 +96,24 @@ export function SegmentSection({ id, title, tag, segmentId, properties, isLoadin
           </div>
         )}
 
-        {!isLoading && (
+        {/* 1 property - centered, enlarged */}
+        {!isLoading && filteredProperties.length === 1 && (
+          <div className="max-w-2xl mx-auto">
+            <PropertyCard property={filteredProperties[0]} variant="large" />
+          </div>
+        )}
+
+        {/* 2 properties - side by side, enlarged */}
+        {!isLoading && filteredProperties.length === 2 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {filteredProperties.map((property) => (
+              <PropertyCard key={property.id} property={property} variant="large" />
+            ))}
+          </div>
+        )}
+
+        {/* 3+ properties - standard grid */}
+        {!isLoading && filteredProperties.length >= 3 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {filteredProperties.map((property) => (
               <PropertyCard key={property.id} property={property} />

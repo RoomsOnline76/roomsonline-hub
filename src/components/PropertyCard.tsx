@@ -20,6 +20,7 @@ interface PropertyCardProps {
     who_its_not_for?: string | null;
     description?: string | null;
   };
+  variant?: "default" | "large";
 }
 
 function getRandomEditorialBlurb(property: PropertyCardProps["property"]): string | null {
@@ -54,16 +55,18 @@ function getPrimaryImage(images: unknown): string {
   return fallback;
 }
 
-export function PropertyCard({ property }: PropertyCardProps) {
+export function PropertyCard({ property, variant = "default" }: PropertyCardProps) {
   const blurb = useMemo(() => getRandomEditorialBlurb(property), [property.id]);
   const imageUrl = getPrimaryImage(property.images);
   const propertyLink = `/property/${property.slug || property.id}`;
+
+  const isLarge = variant === "large";
 
   return (
     <Link to={propertyLink} className="block group">
       <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 h-full">
         {/* Image with editorial badge overlay */}
-        <div className="relative h-48 sm:h-52 overflow-hidden">
+        <div className={`relative overflow-hidden ${isLarge ? "h-64 sm:h-72" : "h-48 sm:h-52"}`}>
           <img
             src={imageUrl}
             alt={property.name}
@@ -80,15 +83,15 @@ export function PropertyCard({ property }: PropertyCardProps) {
           )}
         </div>
 
-        <CardContent className="p-4">
+        <CardContent className={isLarge ? "p-5" : "p-4"}>
           {/* Property Name */}
-          <h3 className="font-semibold text-base text-foreground line-clamp-1 mb-1.5 group-hover:text-primary transition-colors">
+          <h3 className={`font-semibold text-foreground line-clamp-1 mb-1.5 group-hover:text-primary transition-colors ${isLarge ? "text-lg" : "text-base"}`}>
             {property.name}
           </h3>
 
           {/* Location */}
-          <div className="flex items-center gap-1.5 text-muted-foreground text-sm mb-3">
-            <MapPin className="h-3.5 w-3.5 shrink-0" />
+          <div className={`flex items-center gap-1.5 text-muted-foreground mb-3 ${isLarge ? "text-base" : "text-sm"}`}>
+            <MapPin className={isLarge ? "h-4 w-4 shrink-0" : "h-3.5 w-3.5 shrink-0"} />
             <span className="line-clamp-1">
               {property.city}, {property.country}
             </span>
@@ -96,7 +99,7 @@ export function PropertyCard({ property }: PropertyCardProps) {
 
           {/* Random Editorial Blurb */}
           {blurb && (
-            <p className="text-sm text-muted-foreground italic leading-relaxed">
+            <p className={`text-muted-foreground italic leading-relaxed ${isLarge ? "text-base" : "text-sm"}`}>
               "{blurb}"
             </p>
           )}
