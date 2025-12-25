@@ -228,12 +228,9 @@ export const SearchForm = () => {
     
     const queryString = params.toString() ? `?${params.toString()}` : "";
     
-    // Check if NightsBridge property - route to our NB booking page
+    // Check if NightsBridge property - route to property showcase (shows NB booking iframe)
     if (selectedProperty.external_system === "nightsbridge") {
-      // Add property ID to params for NB page
-      params.set("propertyId", selectedProperty.id);
-      const nbQueryString = params.toString() ? `?${params.toString()}` : "";
-      navigate(`/nb${nbQueryString}`);
+      navigate(`/property/${propertySlug}${queryString}`);
     } else {
       // Navigate directly to booking page for other properties
       navigate(`/booking/${propertySlug}${queryString}`);
