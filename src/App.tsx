@@ -27,6 +27,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
+import PropertyListing from "./pages/PropertyListing";
 import NB from "./pages/NB";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -45,6 +46,7 @@ const App = () => (
               : <Navigate to="/dashboard/reports" replace />
           } />
           <Route path="/book" element={<Home />} />
+          <Route path="/property_listing" element={<PropertyListing />} />
           <Route path="/staging" element={<StagingBook />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/auth" element={<Auth />} />
