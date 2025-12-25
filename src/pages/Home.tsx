@@ -286,76 +286,78 @@ function HomeContent() {
         </div>
 
         {/* Top Bar - Logo, Search, Menu */}
-        <div className={`absolute top-6 left-6 right-6 z-20 flex items-center justify-between gap-4 ${isExpanded ? 'invisible' : ''}`}>
-          {/* Logo - Left */}
-          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0">
-            <div className="h-10 w-10 rounded-lg bg-[var(--hero-gradient)] flex items-center justify-center">
-              <Building2 className="h-6 w-6 text-white" />
-            </div>
-            <div className="hidden sm:block">
-              <h1 className="text-xl font-bold text-white drop-shadow-lg">RoomsOnline</h1>
-              <p className="text-xs text-white/80 drop-shadow">Unified Booking Engine</p>
-            </div>
-          </Link>
-
-          {/* Search Bar - Center */}
-          <div className="flex-1 max-w-xl mx-4 opacity-50 hover:opacity-75 transition-opacity">
-            <SearchForm />
-          </div>
-
-          {/* Currency Selector */}
-          <CurrencySelector compact className="flex-shrink-0" />
-
-          {/* Hamburger Menu - Right */}
-          <div className="relative flex-shrink-0">
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="h-10 w-10 rounded-lg bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-colors"
-              aria-label="Open menu"
-            >
-              <Menu className="h-6 w-6 text-white" />
-            </button>
-            
-            {/* Dropdown Menu */}
-            {isMenuOpen && (
-              <div className="absolute top-12 right-0 w-48 bg-background/95 backdrop-blur-sm rounded-lg border border-border shadow-xl py-2">
-                <Link
-                  to="/journals"
-                  className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Journal
-                </Link>
-                <Link
-                  to="/about"
-                  className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  About Us
-                </Link>
-                <Link
-                  to="/privacy-policy"
-                  className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Privacy
-                </Link>
-                <Link
-                  to="/terms-of-service"
-                  className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Terms & Conditions
-                </Link>
-                <Link
-                  to="/contact"
-                  className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Contact Us
-                </Link>
+        <div className={`absolute top-0 left-0 right-0 z-20 transition-all duration-300 ${isExpanded ? 'bg-background border-b border-border shadow-lg' : ''}`}>
+          <div className={`flex items-center justify-between gap-4 ${isExpanded ? 'px-4 py-3' : 'px-6 py-6'}`}>
+            {/* Logo - Left */}
+            <Link to="/" className={`flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0 ${isExpanded ? '' : ''}`}>
+              <div className={`rounded-lg bg-[var(--hero-gradient)] flex items-center justify-center ${isExpanded ? 'h-8 w-8' : 'h-10 w-10'}`}>
+                <Building2 className={`text-white ${isExpanded ? 'h-5 w-5' : 'h-6 w-6'}`} />
               </div>
-            )}
+              <div className={`${isExpanded ? 'hidden' : 'hidden sm:block'}`}>
+                <h1 className="text-xl font-bold text-white drop-shadow-lg">RoomsOnline</h1>
+                <p className="text-xs text-white/80 drop-shadow">Unified Booking Engine</p>
+              </div>
+            </Link>
+
+            {/* Search Bar - Center */}
+            <div className={`flex-1 max-w-xl mx-4 transition-opacity ${isExpanded ? 'opacity-100' : 'opacity-50 hover:opacity-75'}`}>
+              <SearchForm />
+            </div>
+
+            {/* Currency Selector */}
+            <CurrencySelector compact className="flex-shrink-0" />
+
+            {/* Hamburger Menu - Right */}
+            <div className="relative flex-shrink-0">
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className={`rounded-lg flex items-center justify-center transition-colors ${isExpanded ? 'h-8 w-8 bg-muted hover:bg-muted/80' : 'h-10 w-10 bg-white/10 backdrop-blur-sm hover:bg-white/20'}`}
+                aria-label="Open menu"
+              >
+                <Menu className={`${isExpanded ? 'h-5 w-5 text-foreground' : 'h-6 w-6 text-white'}`} />
+              </button>
+              
+              {/* Dropdown Menu */}
+              {isMenuOpen && (
+                <div className="absolute top-12 right-0 w-48 bg-background/95 backdrop-blur-sm rounded-lg border border-border shadow-xl py-2">
+                  <Link
+                    to="/journals"
+                    className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Journal
+                  </Link>
+                  <Link
+                    to="/about"
+                    className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    About Us
+                  </Link>
+                  <Link
+                    to="/privacy-policy"
+                    className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Privacy
+                  </Link>
+                  <Link
+                    to="/terms-of-service"
+                    className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Terms & Conditions
+                  </Link>
+                  <Link
+                    to="/contact"
+                    className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Contact Us
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
