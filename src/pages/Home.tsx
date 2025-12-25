@@ -288,26 +288,27 @@ function HomeContent() {
 
         {/* Top Bar - Logo, Search, Menu */}
         <div className={`absolute top-0 left-0 right-0 z-20 transition-all duration-300 ${isExpanded ? 'bg-background border-b border-border shadow-lg' : ''}`}>
-          <div className={`flex items-center justify-between gap-4 ${isExpanded ? 'px-4 py-3' : 'px-6 py-6'}`}>
+          {/* Row 1: Navigation - Logo, Currency, Menu */}
+          <div className={`flex items-center justify-between gap-4 ${isExpanded ? 'px-4 py-3' : 'px-4 py-4 sm:px-6 sm:py-6'}`}>
             {/* Logo - Left */}
-            <Link to="/" className={`flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0 ${isExpanded ? '' : ''}`}>
+            <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0">
               <div className={`rounded-lg bg-[var(--hero-gradient)] flex items-center justify-center ${isExpanded ? 'h-8 w-8' : 'h-10 w-10'}`}>
                 <Building2 className={`text-white ${isExpanded ? 'h-5 w-5' : 'h-6 w-6'}`} />
               </div>
-              <div className={`${isExpanded ? 'hidden' : 'hidden sm:block'}`}>
-                <h1 className="text-xl font-bold text-white drop-shadow-lg">RoomsOnline</h1>
-                <p className="text-xs text-white/80 drop-shadow">Unified Booking Engine</p>
+              <div className={`${isExpanded ? 'hidden' : 'block'}`}>
+                <h1 className="text-lg sm:text-xl font-bold text-white drop-shadow-lg">RoomsOnline</h1>
+                <p className="text-xs text-white/80 drop-shadow hidden sm:block">Unified Booking Engine</p>
               </div>
             </Link>
 
-            {/* Search Bar - Center */}
-            <div className={`flex-1 max-w-xl mx-4 transition-opacity ${isExpanded ? 'opacity-100' : 'opacity-50 hover:opacity-75'}`}>
+            {/* Desktop: Search Bar inline - hidden on mobile */}
+            <div className={`hidden sm:flex flex-1 max-w-xl mx-4 transition-opacity ${isExpanded ? 'opacity-100' : 'opacity-50 hover:opacity-75'}`}>
               <SearchForm />
             </div>
 
             {/* Currency Selector & Hamburger Menu - Right */}
             <div className="flex items-center gap-2 flex-shrink-0">
-              <CurrencySelector compact />
+              <CurrencySelector compact className="hero" />
               
               <div className="relative">
                 <button
@@ -365,6 +366,11 @@ function HomeContent() {
                 )}
               </div>
             </div>
+          </div>
+          
+          {/* Row 2: Mobile Search Bar - hidden on desktop */}
+          <div className={`sm:hidden px-4 pb-4 transition-opacity ${isExpanded ? 'opacity-100' : 'opacity-50'}`}>
+            <SearchForm />
           </div>
         </div>
 
