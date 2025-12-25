@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Building2, Edit, Trash2, Home, CheckCircle2, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image } from "lucide-react";
+import { Building2, Edit, Trash2, Home, CheckCircle2, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type SortDirection = "asc" | "desc" | null;
-type SortColumn = "name" | "external_system" | "owner_name" | "property_type" | "total_bookings" | null;
+type SortColumn = "name" | "external_system" | "hero_listing" | "property_type" | "total_bookings" | null;
 
 const PropertyOverview = () => {
   const navigate = useNavigate();
@@ -36,7 +36,7 @@ const PropertyOverview = () => {
   // Search filters state
   const [searchName, setSearchName] = useState("");
   const [searchPms, setSearchPms] = useState("");
-  const [searchOwnerName, setSearchOwnerName] = useState("");
+  const [searchHero, setSearchHero] = useState("");
   const [searchPropertyType, setSearchPropertyType] = useState("");
 
   // Sort state
@@ -204,10 +204,13 @@ const PropertyOverview = () => {
         p.external_system?.toLowerCase().includes(searchPms.toLowerCase())
       );
     }
-    if (searchOwnerName) {
-      filtered = filtered.filter(p => 
-        p.owner_name?.toLowerCase().includes(searchOwnerName.toLowerCase())
-      );
+    if (searchHero) {
+      const searchLower = searchHero.toLowerCase();
+      if (searchLower === 'yes' || searchLower === 'hero') {
+        filtered = filtered.filter(p => p.hero_listing === true);
+      } else if (searchLower === 'no') {
+        filtered = filtered.filter(p => !p.hero_listing);
+      }
     }
     if (searchPropertyType) {
       filtered = filtered.filter(p => 
@@ -238,7 +241,7 @@ const PropertyOverview = () => {
     }
 
     return filtered;
-  }, [allProperties, searchName, searchPms, searchOwnerName, searchPropertyType, sortColumn, sortDirection]);
+  }, [allProperties, searchName, searchPms, searchHero, searchPropertyType, sortColumn, sortDirection]);
 
   const deletedProperties = allProperties?.filter(p => !p.is_active) || [];
 
@@ -375,11 +378,11 @@ const PropertyOverview = () => {
                         </TableHead>
                         <TableHead 
                           className="cursor-pointer hover:bg-muted/50 select-none py-1 text-xs"
-                          onClick={() => handleSort("owner_name")}
+                          onClick={() => handleSort("hero_listing")}
                         >
                           <div className="flex items-center">
-                            OWNER
-                            {getSortIcon("owner_name")}
+                            HERO
+                            {getSortIcon("hero_listing")}
                           </div>
                         </TableHead>
                         <TableHead 
@@ -424,9 +427,9 @@ const PropertyOverview = () => {
                         </TableCell>
                         <TableCell className="py-1">
                           <Input
-                            placeholder="Search"
-                            value={searchOwnerName}
-                            onChange={(e) => setSearchOwnerName(e.target.value)}
+                            placeholder="yes/no"
+                            value={searchHero}
+                            onChange={(e) => setSearchHero(e.target.value)}
                             className="h-6 text-xs"
                           />
                         </TableCell>
@@ -486,7 +489,13 @@ const PropertyOverview = () => {
                               <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="py-1 text-xs">{property.owner_name || "-"}</TableCell>
+                          <TableCell className="py-1 text-xs">
+                            {property.hero_listing ? (
+                              <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
                           <TableCell className="py-1 text-xs">
                             <span className="capitalize">{property.property_type?.replace(/_/g, ' ') || "-"}</span>
                           </TableCell>
