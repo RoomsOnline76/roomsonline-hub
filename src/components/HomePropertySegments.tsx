@@ -38,7 +38,7 @@ interface PropertyData {
   who_its_not_for: string | null;
 }
 
-interface SegmentSectionProps {
+export interface SegmentSectionProps {
   id?: string;
   title: string;
   tag?: string;
@@ -47,7 +47,7 @@ interface SegmentSectionProps {
   isLoading: boolean;
 }
 
-function SegmentSection({ id, title, tag, segmentId, properties, isLoading }: SegmentSectionProps) {
+export function SegmentSection({ id, title, tag, segmentId, properties, isLoading }: SegmentSectionProps) {
   // Filter by segmentId if provided, otherwise by tag
   const filteredProperties = useMemo(() => {
     if (segmentId) {
@@ -230,5 +230,8 @@ export function useHomePropertySegments(filteredPropertyIds: string[] | null = n
     )),
     // All segment sections for banner navigation
     allSegmentSections,
+    // Expose properties and loading state for dynamic segment rendering
+    properties: properties || [],
+    isLoading,
   };
 }

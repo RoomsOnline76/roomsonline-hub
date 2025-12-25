@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
-import { useHomePropertySegments } from "@/components/HomePropertySegments";
+import { useHomePropertySegments, SegmentSection } from "@/components/HomePropertySegments";
+import { SegmentFilterId } from "@/lib/segmentFilters";
 import { FindBySection } from "@/components/FindBySection";
 import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, X, Menu, Calendar, ArrowRight, BookOpen, Users, ShieldCheck, FileText, Mail } from "lucide-react";
 import heroFallback from "@/assets/hero-hotel.jpg";
@@ -87,6 +88,7 @@ function HomeContent() {
   const typesRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<HTMLElement>(null);
   const [selectedMapFilters, setSelectedMapFilters] = useState<string[]>([]);
+  const [selectedSegment, setSelectedSegment] = useState<BannerSegment | null>(null);
   
   // Fetch latest 2 journals for preview
   const threeYearsAgo = subYears(new Date(), 3).toISOString();
@@ -118,7 +120,7 @@ function HomeContent() {
   }, [selectedProperty, searchResults]);
 
   // Get property segments with search filtering
-  const { discoverNewSection, destinationSection, typesSections, allSegmentSections } = useHomePropertySegments(filteredPropertyIds);
+  const { discoverNewSection, destinationSection, typesSections, allSegmentSections, properties, isLoading: propertiesLoading } = useHomePropertySegments(filteredPropertyIds);
   
   // Get filters grouped by category
   const filtersByCategory = useMemo(() => getMapFiltersByCategory(), []);
@@ -182,26 +184,32 @@ function HomeContent() {
 
   const handleSegmentClick = (segment: BannerSegment) => {
     if (segment.filterType === null) {
-      // "ALL" - scroll to map and enable all types
-      const mapSection = document.getElementById("map-section");
-      if (mapSection) {
-        mapSection.scrollIntoView({ behavior: "smooth" });
-      }
-      setEnabledTypes(INITIAL_ENABLED_TYPES);
-    } else {
-      // Scroll to the specific segment section
-      const segmentSection = document.getElementById(`segment-${segment.id}`);
-      if (segmentSection) {
-        segmentSection.scrollIntoView({ behavior: "smooth" });
-      } else {
-        // Fallback to map if segment section doesn't exist
+      // "ALL" - clear selection, scroll to map
+      setSelectedSegment(null);
+      setTimeout(() => {
         const mapSection = document.getElementById("map-section");
         if (mapSection) {
           mapSection.scrollIntoView({ behavior: "smooth" });
         }
-      }
+      }, 50);
+      setEnabledTypes(INITIAL_ENABLED_TYPES);
+    } else {
+      // Set selected segment, scroll will happen via useEffect
+      setSelectedSegment(segment);
     }
   };
+
+  // Scroll to selected segment after it renders
+  useEffect(() => {
+    if (selectedSegment) {
+      setTimeout(() => {
+        const segmentSection = document.getElementById(`segment-${selectedSegment.id}`);
+        if (segmentSection) {
+          segmentSection.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
+    }
+  }, [selectedSegment]);
 
   // Fetch random hero image/video from hero properties
   useEffect(() => {
@@ -517,10 +525,22 @@ function HomeContent() {
         </div>
       </section>
 
-      {/* Additional Type Segments (random selection) */}
+      {/* Additional Type Segments - shows selected segment or defaults */}
       <div ref={typesRef}>
-        {typesSections}
-        {destinationSection}
+        {selectedSegment ? (
+          <SegmentSection
+            id={`segment-${selectedSegment.id}`}
+            title={selectedSegment.label}
+            segmentId={selectedSegment.filterType as SegmentFilterId}
+            properties={properties}
+            isLoading={propertiesLoading}
+          />
+        ) : (
+          <>
+            {typesSections}
+            {destinationSection}
+          </>
+        )}
       </div>
 
       {/* Why RoomsOnline Section */}
