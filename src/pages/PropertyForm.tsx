@@ -145,6 +145,8 @@ const createPropertySchema = (noStreetAddress: boolean) =>
     account_number: z.string().optional(),
     account_type: z.string().optional(),
     swift_code: z.string().optional(),
+    accepts_bitcoin: z.boolean().optional(),
+    bitcoin_wallet_address: z.string().optional(),
     description: z.string().optional(),
     star_rating: z.number().min(0).max(5),
     facilities: z.array(z.string()).optional(),
@@ -846,6 +848,8 @@ export default function PropertyForm() {
     account_number: "",
     account_type: "",
     swift_code: "",
+    accepts_bitcoin: false,
+    bitcoin_wallet_address: "",
     description: "",
     star_rating: 0,
     facilities: [],
@@ -1863,6 +1867,8 @@ export default function PropertyForm() {
             account_number: amenities?.banking?.account_number || "",
             account_type: amenities?.banking?.account_type || "",
             swift_code: amenities?.banking?.swift_code || "",
+            accepts_bitcoin: amenities?.banking?.accepts_bitcoin || false,
+            bitcoin_wallet_address: amenities?.banking?.bitcoin_wallet_address || "",
             description: data.description || "",
             star_rating: 0,
             facilities: [],
@@ -2313,6 +2319,8 @@ export default function PropertyForm() {
             account_number: formData.account_number,
             account_type: formData.account_type,
             swift_code: formData.swift_code,
+            accepts_bitcoin: formData.accepts_bitcoin,
+            bitcoin_wallet_address: formData.accepts_bitcoin ? formData.bitcoin_wallet_address : null,
           },
           // Preserve existing external IDs, only update for currently selected PMS
           external_ids: {
@@ -3008,8 +3016,9 @@ export default function PropertyForm() {
                         </div>
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="py-2 px-4">
-                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                    <CardContent className="py-2 px-4 space-y-3">
+                      {/* Row 1: Traditional Banking */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {formData.has_vat && (
                           <div className="flex flex-col gap-1">
                             <Label htmlFor="vat_number" className="text-xs">VAT #</Label>
@@ -3028,6 +3037,9 @@ export default function PropertyForm() {
                           <Label htmlFor="branch_code" className="text-xs">Branch</Label>
                           <Input id="branch_code" value={formData.branch_code} onChange={(e) => handleInputChange("branch_code", e.target.value)} placeholder="Code" className="h-7 text-xs" />
                         </div>
+                      </div>
+                      {/* Row 2: Account Details */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div className="flex flex-col gap-1">
                           <Label htmlFor="account_holder" className="text-xs">Holder</Label>
                           <Input id="account_holder" value={formData.account_holder} onChange={(e) => handleInputChange("account_holder", e.target.value)} placeholder="Name" className="h-7 text-xs" />
@@ -3044,6 +3056,19 @@ export default function PropertyForm() {
                           <Label htmlFor="swift_code" className="text-xs">SWIFT</Label>
                           <Input id="swift_code" value={formData.swift_code} onChange={(e) => handleInputChange("swift_code", e.target.value)} placeholder="Code" className="h-7 text-xs" />
                         </div>
+                      </div>
+                      {/* Row 3: Bitcoin */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-border">
+                        <div className="flex items-center gap-2">
+                          <Switch id="accepts_bitcoin" checked={formData.accepts_bitcoin} onCheckedChange={(checked) => handleInputChange("accepts_bitcoin", checked)} />
+                          <Label htmlFor="accepts_bitcoin" className="text-xs">Bitcoin</Label>
+                        </div>
+                        {formData.accepts_bitcoin && (
+                          <div className="flex flex-col gap-1 col-span-3">
+                            <Label htmlFor="bitcoin_wallet_address" className="text-xs">Wallet Address</Label>
+                            <Input id="bitcoin_wallet_address" value={formData.bitcoin_wallet_address} onChange={(e) => handleInputChange("bitcoin_wallet_address", e.target.value)} placeholder="Bitcoin wallet address" className="h-7 text-xs font-mono" />
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
