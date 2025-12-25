@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Search, Calendar } from "lucide-react";
+import { Search, Calendar, ArrowLeft } from "lucide-react";
 import { format, subYears } from "date-fns";
 
 export default function PublicJournals() {
@@ -57,8 +57,15 @@ export default function PublicJournals() {
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-40">
         <div className="container mx-auto px-4 py-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
+              <Link 
+                to="/" 
+                className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Back to Home</span>
+              </Link>
               <h1 className="text-3xl font-bold text-foreground">Journal</h1>
               <p className="text-muted-foreground mt-1">
                 Stories, insights, and travel inspiration
