@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Search, Calendar } from "lucide-react";
@@ -7,6 +8,7 @@ import { format, subYears } from "date-fns";
 
 export default function PublicJournals() {
   const [searchQuery, setSearchQuery] = useState("");
+  const location = useLocation();
   
   const threeYearsAgo = subYears(new Date(), 3).toISOString();
 
@@ -24,6 +26,19 @@ export default function PublicJournals() {
       return data;
     },
   });
+
+  // Scroll to anchor on load or when journals change
+  useEffect(() => {
+    if (journals && location.hash) {
+      const elementId = location.hash.slice(1); // Remove the #
+      setTimeout(() => {
+        const element = document.getElementById(elementId);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
+    }
+  }, [journals, location.hash]);
 
   const filteredJournals = useMemo(() => {
     if (!journals) return [];
@@ -95,7 +110,8 @@ export default function PublicJournals() {
             {filteredJournals.map((journal) => (
               <article
                 key={journal.id}
-                className="border-b border-border pb-16 last:border-b-0"
+                id={`journal-${journal.slug || journal.id}`}
+                className="border-b border-border pb-16 last:border-b-0 scroll-mt-24"
               >
                 {/* Header Image */}
                 {journal.header_image_url && (
