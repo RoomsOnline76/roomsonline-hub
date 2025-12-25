@@ -443,6 +443,7 @@ function HomeContent() {
         <div className="container mx-auto px-3 sm:px-4">
           <div className="text-left mb-4 sm:mb-6">
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground">Explore Our World</h2>
+            <p className="text-sm text-muted-foreground mt-1">Filter by what calls to you — lodges, villas, coastal escapes, or something unexpected.</p>
           </div>
 
           {/* Property Type Toggles - Horizontal scroll on mobile */}
