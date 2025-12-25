@@ -435,7 +435,7 @@ export const SearchForm = () => {
                   )}
                 >
                   <CalendarIcon className="mr-2 h-5 w-5 flex-shrink-0" />
-                  <span className="flex-1 text-left truncate">
+                  <span className="text-left whitespace-nowrap">
                     {formatDateRange()}
                   </span>
                   {dateRange?.from && (
