@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Gem, Sparkles, Target, Flame, Heart, Crown, LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -5,6 +6,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export interface EditorialRatingConfig {
   label: string;
@@ -79,6 +81,9 @@ interface EditorialRatingBadgeProps {
 }
 
 export function EditorialRatingBadge({ rating, className }: EditorialRatingBadgeProps) {
+  const isMobile = useIsMobile();
+  const [isOpen, setIsOpen] = useState(false);
+
   if (!rating) return null;
 
   const config = EDITORIAL_RATING_CONFIG[rating];
@@ -86,10 +91,20 @@ export function EditorialRatingBadge({ rating, className }: EditorialRatingBadge
 
   const { label, description, Icon, iconColor } = config;
 
+  // On mobile, stop propagation so tapping the badge shows tooltip instead of navigating
+  const handleClick = (e: React.MouseEvent) => {
+    if (isMobile) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsOpen(!isOpen);
+    }
+  };
+
   return (
-    <Tooltip>
+    <Tooltip open={isMobile ? isOpen : undefined} onOpenChange={isMobile ? setIsOpen : undefined}>
       <TooltipTrigger asChild>
         <div
+          onClick={handleClick}
           className={cn(
             "inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-200/80 backdrop-blur-sm cursor-help",
             className
