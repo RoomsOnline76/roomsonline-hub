@@ -317,6 +317,14 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
           ]
         });
 
+        // Close info window when clicking on the map (not on a marker)
+        mapInstanceRef.current.addListener("click", () => {
+          if (openInfoWindowRef.current) {
+            openInfoWindowRef.current.close();
+            openInfoWindowRef.current = null;
+          }
+        });
+
         console.log("Google Map initialized successfully");
         setMapReady(true);
         // Aggressive resize triggers for iOS
