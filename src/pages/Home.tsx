@@ -193,15 +193,15 @@ const Home = () => {
           </Link>
         </div>
 
-        {/* Hero Text Layout - Right-aligned to screen center, top-aligned */}
+        {/* Hero Text Layout */}
         <div className="absolute inset-0 flex items-start pt-32 md:pt-40 z-10">
-          <div className="w-1/2 pr-8 flex flex-col items-end">
-            {/* "We are RoomsOnline." - 25% bigger, right-aligned to center */}
-            <p className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl text-white font-bold tracking-wide drop-shadow-lg mb-4 text-right whitespace-nowrap">
+          <div className="w-full px-6 md:px-12 flex flex-col">
+            {/* "We are RoomsOnline." - Left-aligned, reduced 25% */}
+            <p className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl text-white font-bold tracking-wide drop-shadow-lg mb-4 text-left whitespace-nowrap">
               We are RoomsOnline.
             </p>
-            {/* Main hero text - right-aligned to center */}
-            <p className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl text-white font-medium tracking-wide drop-shadow-lg leading-relaxed text-right max-w-2xl">
+            {/* Main hero text - Aligned to center, writing right-to-left from middle, reduced 25% */}
+            <p className="text-xl md:text-2xl lg:text-3xl xl:text-4xl text-white font-medium tracking-wide drop-shadow-lg leading-relaxed text-right max-w-[50%] self-center mr-auto">
               {headline}
             </p>
           </div>
