@@ -74,7 +74,7 @@ export function PropertyCard({ property }: PropertyCardProps) {
           
           {/* Editorial Rating Badge */}
           {property.editorial_rating && (
-            <div className="absolute bottom-3 left-3">
+            <div className="absolute top-3 left-3">
               <EditorialRatingBadge rating={property.editorial_rating} />
             </div>
           )}
