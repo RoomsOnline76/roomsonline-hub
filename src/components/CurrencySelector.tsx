@@ -42,7 +42,7 @@ export function CurrencySelector({ compact = false, className, variant = 'defaul
             }
           </SelectValue>
         </SelectTrigger>
-        <SelectContent className="bg-background border-border z-50">
+        <SelectContent className="bg-background/95 backdrop-blur-md border-border z-50">
           {SUPPORTED_CURRENCIES.map((code) => (
             <SelectItem key={code} value={code}>
               <span className="flex items-center gap-2">
