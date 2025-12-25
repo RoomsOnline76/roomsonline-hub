@@ -70,9 +70,9 @@ export function SegmentSection({ id, title, tag, segmentId, properties, isLoadin
   const displayTags = segmentConfig?.tags || (tag ? [tag] : []);
 
   return (
-    <section id={id} className="py-8 sm:py-12">
+    <section id={id} className="py-6 sm:py-8">
       <div className="container mx-auto px-3 sm:px-4">
-        <div className="mb-6">
+        <div className="mb-4">
           <h2 className="text-xl sm:text-2xl font-bold text-foreground inline">
             {title}
           </h2>

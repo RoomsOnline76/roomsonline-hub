@@ -466,9 +466,9 @@ function HomeContent() {
       <FindBySection onScrollToTypes={handleScrollToTypes} onScrollToMap={handleScrollToMap} />
 
       {/* Properties Map Section */}
-      <section ref={mapRef} id="map-section" className="py-6 sm:py-10 bg-background">
+      <section ref={mapRef} id="map-section" className="py-6 sm:py-8 bg-background">
         <div className="container mx-auto px-3 sm:px-4">
-          <div className="text-left mb-4 sm:mb-6">
+          <div className="text-left mb-3 sm:mb-5">
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground">
               Explore Our World{" "}
               <span className="font-normal text-muted-foreground">
@@ -569,9 +569,9 @@ function HomeContent() {
       </div>
 
       {/* Why RoomsOnline Section */}
-      <section className="py-6 sm:py-12 bg-secondary/30">
+      <section className="py-6 sm:py-8 bg-secondary/30">
         <div className="container mx-auto px-3 sm:px-4">
-          <div className="text-left mb-4 sm:mb-8">
+          <div className="text-left mb-3 sm:mb-5">
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground">Why RoomsOnline</h2>
           </div>
 
@@ -632,9 +632,9 @@ function HomeContent() {
 
       {/* Journal Preview Section */}
       {latestJournals && latestJournals.length > 0 && (
-        <section className="py-6 sm:py-12 bg-background">
+        <section className="py-6 sm:py-8 bg-background">
           <div className="container mx-auto px-3 sm:px-4">
-            <div className="flex items-center justify-between mb-4 sm:mb-8">
+            <div className="flex items-center justify-between mb-3 sm:mb-5">
               <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground">From the Journal</h2>
               <Link to="/journals" className="flex items-center gap-1 text-sm text-primary hover:underline">
                 View all
