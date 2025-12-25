@@ -38,7 +38,9 @@ export const Navbar = () => {
   const [bookOpenNewTab, setBookOpenNewTab] = useState(true);
   
   const isSleepInAfricaDomain = window.location.hostname === "sleepinafrica.roomsonline.co.za" || 
-                                 window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
+                                 window.location.hostname === "book.sleepinafrica.roomsonline.co.za" ||
+                                 window.location.hostname.includes("lovable.app") ||
+                                 window.location.hostname === "localhost";
   const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
   const isBookPage = isBookDomain || location.pathname === "/book" || location.pathname.startsWith("/book/");
   
