@@ -60,7 +60,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Send notification email to RoomsOnline team
     const emailResponse = await resend.emails.send({
-      from: "RoomsOnline Contact <onboarding@resend.dev>",
+      from: "RoomsOnline Contact <contact@notify.roomsonline.co.za>",
       to: ["dev@roomsonline.co.za"],
       reply_to: email,
       subject: `New Contact Form Submission from ${name}`,
