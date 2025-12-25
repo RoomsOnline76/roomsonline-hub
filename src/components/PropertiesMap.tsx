@@ -402,23 +402,23 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
       const mainImage = property.images?.[0];
       const propertyUrl = getPropertyUrl(property.slug || property.id);
       
-      const imageHtml = mainImage 
-        ? `<a href="${propertyUrl}" style="display: block;"><img src="${mainImage}" alt="${property.name}" style="width: 100%; height: 80px; object-fit: cover; border-radius: 4px; margin-bottom: 6px;" onerror="this.parentElement.style.display='none'" /></a>`
-        : '';
-
       const infoWindow = new window.google.maps.InfoWindow({
         content: `
-          <div style="padding: 6px; max-width: 180px; font-family: system-ui, sans-serif;">
-            ${imageHtml}
-            <a href="${propertyUrl}" style="text-decoration: none; color: inherit;">
-              <h3 style="font-weight: 600; font-size: 13px; margin: 0 0 2px 0; color: #111; line-height: 1.2;">${property.name}</h3>
-            </a>
-            <p style="font-size: 11px; color: #666; margin: 0 0 6px 0;">${property.city}, ${property.country}</p>
-            <a href="${propertyUrl}" 
-               style="display: inline-block; padding: 5px 10px; background: #e11d48; color: white; border-radius: 4px; text-decoration: none; font-size: 11px; font-weight: 500;">
-              View
-            </a>
-          </div>
+          <style>
+            .gm-style-iw-c { padding: 0 !important; background: transparent !important; box-shadow: none !important; border-radius: 8px !important; }
+            .gm-style-iw-d { overflow: hidden !important; padding: 0 !important; }
+            .gm-style-iw-t::after { display: none !important; }
+            .gm-ui-hover-effect { display: none !important; }
+          </style>
+          <a href="${propertyUrl}" style="display: block; text-decoration: none; color: inherit;">
+            <div style="max-width: 180px; font-family: system-ui, sans-serif; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+              ${mainImage ? `<img src="${mainImage}" alt="${property.name}" style="width: 100%; height: 80px; object-fit: cover;" onerror="this.style.display='none'" />` : ''}
+              <div style="padding: 8px;">
+                <h3 style="font-weight: 600; font-size: 13px; margin: 0 0 2px 0; color: #111; line-height: 1.2;">${property.name}</h3>
+                <p style="font-size: 11px; color: #666; margin: 0;">${property.city}, ${property.country}</p>
+              </div>
+            </div>
+          </a>
         `,
         maxWidth: 200
       });
