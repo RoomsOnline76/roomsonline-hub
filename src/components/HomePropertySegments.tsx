@@ -130,18 +130,29 @@ export function HomePropertySegments() {
     },
   });
 
-  // Compute random segments on mount (stable during session via useMemo with empty deps)
+  // Get unique tags from properties that actually exist
+  const existingTags = useMemo(() => {
+    if (!properties) return new Set<string>();
+    const tags = new Set<string>();
+    properties.forEach(p => {
+      p.navigation_tags?.forEach(tag => tags.add(tag));
+    });
+    return tags;
+  }, [properties]);
+
+  // Compute random segments on mount (stable during session via useMemo)
   const { randomDestination, randomTypes } = useMemo(() => {
-    if (!tagCategories) {
+    if (!tagCategories || existingTags.size === 0) {
       return { randomDestination: null, randomTypes: [] };
     }
 
+    // Only include tags that exist in properties
     const destinationTags = tagCategories
-      .filter(t => t.category === "destination")
+      .filter(t => t.category === "destination" && existingTags.has(t.tag_name))
       .map(t => t.tag_name);
     
     const typeTags = tagCategories
-      .filter(t => t.category === "type")
+      .filter(t => t.category === "type" && existingTags.has(t.tag_name))
       .map(t => t.tag_name);
 
     // Pick 1 random destination
@@ -156,7 +167,7 @@ export function HomePropertySegments() {
       randomDestination: randomDest,
       randomTypes: randomTypesSelected,
     };
-  }, [tagCategories]);
+  }, [tagCategories, existingTags]);
 
   return (
     <>
