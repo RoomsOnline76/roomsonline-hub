@@ -23,13 +23,12 @@ interface PropertyCardProps {
 }
 
 function getRandomEditorialBlurb(property: PropertyCardProps["property"]): string | null {
-  // All 6 ROL Spec editorial fields for randomization
+  // 5 ROL Spec editorial fields for randomization (excluding who_its_not_for)
   const blurbs = [
     property.why_we_chose_this_place,
     property.who_this_suits,
     property.what_its_really_like,
     property.why_this_place_matters,
-    property.who_its_not_for,
     property.description,
   ].filter((blurb): blurb is string => Boolean(blurb && blurb.trim()));
 
