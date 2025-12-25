@@ -3,7 +3,7 @@ import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { useHomePropertySegments } from "@/components/HomePropertySegments";
 import { FindBySection } from "@/components/FindBySection";
-import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2, ChevronDown, X, Menu } from "lucide-react";
+import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2, X, Menu } from "lucide-react";
 import heroFallback from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +11,7 @@ import { composeHeadline, composeMapSubheadline } from "@/lib/headlineComposer";
 import CategoryBanner from "@/components/CategoryBanner";
 import { BannerSegment, BANNER_SEGMENTS } from "@/lib/bannerSegments";
 import { MAP_FILTER_CATEGORIES, getMapFiltersByCategory, MapFilterCategoryId } from "@/lib/mapFilters";
-import { useQuery } from "@tanstack/react-query";
+import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import {
   Select,
   SelectContent,
@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
   { key: "hotel", label: "Hotel", color: "bg-red-500", hex: "#ef4444" },
@@ -65,11 +66,16 @@ function extractPrimaryImageUrl(images: unknown): string | null {
   return null;
 }
 
-const Home = () => {
+function HomeContent() {
+  const { selectedProperty, searchResults, isExpanded } = useSearch();
+  
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
   const [heroImage, setHeroImage] = useState<string>(heroFallback);
   const [heroVideoUrl, setHeroVideoUrl] = useState<string | null>(null);
   const [heroProperty, setHeroProperty] = useState<{ name: string; city: string; country: string } | null>(null);
+  const [originalHeroImage, setOriginalHeroImage] = useState<string>(heroFallback);
+  const [originalHeroVideoUrl, setOriginalHeroVideoUrl] = useState<string | null>(null);
+  const [originalHeroProperty, setOriginalHeroProperty] = useState<{ name: string; city: string; country: string } | null>(null);
   const [isLoadingHero, setIsLoadingHero] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
@@ -77,7 +83,7 @@ const Home = () => {
   const mapRef = useRef<HTMLElement>(null);
   const [selectedMapFilters, setSelectedMapFilters] = useState<string[]>([]);
   
-  // Get property segments
+  // Get property segments with search filtering
   const { discoverNewSection, destinationSection, typesSections } = useHomePropertySegments();
   
   // Get filters grouped by category
@@ -91,6 +97,7 @@ const Home = () => {
   const handleScrollToMap = useCallback(() => {
     mapRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
+  
   const handleFilterSelect = (categoryId: MapFilterCategoryId, filterId: string) => {
     if (filterId === "all") {
       // Remove filters from this category
@@ -178,6 +185,10 @@ const Home = () => {
             setHeroImage(selected.imageUrl);
             setHeroVideoUrl(selected.videoUrl);
             setHeroProperty({ name: selected.name, city: selected.city, country: selected.country });
+            // Store original values
+            setOriginalHeroImage(selected.imageUrl);
+            setOriginalHeroVideoUrl(selected.videoUrl);
+            setOriginalHeroProperty({ name: selected.name, city: selected.city, country: selected.country });
           }
         }
       } catch (error) {
@@ -190,9 +201,41 @@ const Home = () => {
     fetchHeroMedia();
   }, []);
 
+  // Update hero image when a property is selected from search
+  useEffect(() => {
+    if (selectedProperty) {
+      const selectedImage = extractPrimaryImageUrl(selectedProperty.images);
+      if (selectedImage) {
+        setHeroImage(selectedImage);
+        setHeroVideoUrl(null); // No video for search-selected property
+        setHeroProperty({ 
+          name: selectedProperty.name, 
+          city: selectedProperty.city, 
+          country: selectedProperty.country 
+        });
+      }
+    } else {
+      // Reset to original when no property selected
+      setHeroImage(originalHeroImage);
+      setHeroVideoUrl(originalHeroVideoUrl);
+      setHeroProperty(originalHeroProperty);
+    }
+  }, [selectedProperty, originalHeroImage, originalHeroVideoUrl, originalHeroProperty]);
+
   const toggleType = (key: string) => {
     setEnabledTypes((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+
+  // Compute filtered property IDs for map and segments
+  const filteredPropertyIds = useMemo(() => {
+    if (selectedProperty) {
+      return [selectedProperty.id];
+    }
+    if (searchResults.length > 0) {
+      return searchResults.map(p => p.id);
+    }
+    return null; // null means no filter
+  }, [selectedProperty, searchResults]);
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
@@ -222,7 +265,7 @@ const Home = () => {
         </div>
 
         {/* Top Bar - Logo, Search, Menu */}
-        <div className="absolute top-6 left-6 right-6 z-20 flex items-center justify-between gap-4">
+        <div className={`absolute top-6 left-6 right-6 z-20 flex items-center justify-between gap-4 ${isExpanded ? 'invisible' : ''}`}>
           {/* Logo - Left */}
           <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0">
             <div className="h-10 w-10 rounded-lg bg-[var(--hero-gradient)] flex items-center justify-center">
@@ -315,7 +358,11 @@ const Home = () => {
         </div>
 
         {/* Auto-scrolling Category Banner */}
-        <CategoryBanner onSegmentClick={handleSegmentClick} heroRef={heroRef} />
+        <CategoryBanner 
+          onSegmentClick={handleSegmentClick} 
+          heroRef={heroRef} 
+          selectedProperty={selectedProperty}
+        />
       </section>
 
       {/* Find By Section */}
@@ -400,7 +447,12 @@ const Home = () => {
           </div>
 
           <div className="h-[250px] sm:h-[350px] md:h-[400px] rounded-lg overflow-hidden border border-border shadow-sm">
-            <PropertiesMap enabledTypes={enabledTypes} typeColors={TYPE_COLORS} selectedMapFilters={selectedMapFilters} />
+            <PropertiesMap 
+              enabledTypes={enabledTypes} 
+              typeColors={TYPE_COLORS} 
+              selectedMapFilters={selectedMapFilters}
+              filteredPropertyIds={filteredPropertyIds}
+            />
           </div>
         </div>
       </section>
@@ -483,6 +535,14 @@ const Home = () => {
         </div>
       </footer>
     </div>
+  );
+}
+
+const Home = () => {
+  return (
+    <SearchProvider>
+      <HomeContent />
+    </SearchProvider>
   );
 };
 

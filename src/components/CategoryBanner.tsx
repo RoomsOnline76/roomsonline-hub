@@ -2,13 +2,15 @@ import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { BANNER_SEGMENTS, BannerSegment } from "@/lib/bannerSegments";
 import { SEGMENT_FILTERS, SegmentFilterId } from "@/lib/segmentFilters";
 import { supabase } from "@/integrations/supabase/client";
+import { PropertySearchResult } from "@/contexts/SearchContext";
 
 interface CategoryBannerProps {
   onSegmentClick: (segment: BannerSegment) => void;
   heroRef: React.RefObject<HTMLElement>;
+  selectedProperty?: PropertySearchResult | null;
 }
 
-const CategoryBanner = ({ onSegmentClick, heroRef }: CategoryBannerProps) => {
+const CategoryBanner = ({ onSegmentClick, heroRef, selectedProperty }: CategoryBannerProps) => {
   const [isSticky, setIsSticky] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -45,6 +47,16 @@ const CategoryBanner = ({ onSegmentClick, heroRef }: CategoryBannerProps) => {
 
   // Filter segments that have at least one property with matching tags
   const visibleSegments = useMemo(() => {
+    // If a property is selected, only show its navigation tags
+    if (selectedProperty?.navigation_tags && selectedProperty.navigation_tags.length > 0) {
+      return BANNER_SEGMENTS.filter(segment => {
+        if (segment.filterType === null) return true; // Always show "ALL"
+        const segmentConfig = SEGMENT_FILTERS[segment.filterType as SegmentFilterId];
+        if (!segmentConfig) return false;
+        return segmentConfig.tags.some(tag => selectedProperty.navigation_tags?.includes(tag));
+      });
+    }
+    
     if (propertyTags.length === 0) return BANNER_SEGMENTS; // Show all while loading
     
     return BANNER_SEGMENTS.filter(segment => {
@@ -57,7 +69,7 @@ const CategoryBanner = ({ onSegmentClick, heroRef }: CategoryBannerProps) => {
       
       return segmentConfig.tags.some(tag => propertyTags.includes(tag));
     });
-  }, [propertyTags]);
+  }, [propertyTags, selectedProperty]);
 
   useEffect(() => {
     const handleScroll = () => {
