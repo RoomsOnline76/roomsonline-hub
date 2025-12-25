@@ -2520,7 +2520,7 @@ export default function PropertyForm() {
                 { value: "packages", icon: Package, label: "Packages", highlight: false },
                 { value: "announcements", icon: Bell, label: "Announcements", highlight: false },
               ]
-                .filter((tab) => selectedPMS !== 'nightsbridge' || tab.value === 'general' || tab.value === 'images' || tab.value === 'rooms')
+                .filter((tab) => selectedPMS !== 'nightsbridge' || tab.value === 'general' || tab.value === 'rol-spec' || tab.value === 'images' || tab.value === 'rooms')
                 .map((tab) => {
                 const isActive = activeTab === tab.value;
                 const Icon = tab.icon;
