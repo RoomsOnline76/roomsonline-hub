@@ -37,6 +37,7 @@ interface PropertiesMapProps {
   enabledTypes?: Record<string, boolean>;
   typeColors?: Record<string, string>;
   selectedMapFilters?: string[];
+  filteredPropertyIds?: string[] | null;
 }
 
 const DEFAULT_COLOR = "#e11d48";
@@ -46,7 +47,7 @@ interface PropertyMarker extends google.maps.Marker {
   propertyType?: string;
 }
 
-export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [] }: PropertiesMapProps) {
+export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [], filteredPropertyIds }: PropertiesMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const clustererRef = useRef<MarkerClusterer | null>(null);
@@ -183,9 +184,14 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
     };
   }, [apiKey, loading]);
 
-  // Filter properties based on enabled types and map filters
+  // Filter properties based on enabled types, map filters, and search filter
   const filteredProperties = useMemo(() => {
     let filtered = properties;
+    
+    // Filter by search (if property IDs are provided)
+    if (filteredPropertyIds !== null && filteredPropertyIds !== undefined) {
+      filtered = filtered.filter((p) => filteredPropertyIds.includes(p.id));
+    }
     
     // Filter by property type
     if (enabledTypes) {
@@ -198,7 +204,7 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
     }
     
     return filtered;
-  }, [properties, enabledTypes, selectedMapFilters]);
+  }, [properties, enabledTypes, selectedMapFilters, filteredPropertyIds]);
 
   // Create custom renderer for clusters with weighted dominant colors
   const createClusterRenderer = (colors: Record<string, string> | undefined): Renderer => ({
