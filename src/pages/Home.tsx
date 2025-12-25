@@ -118,7 +118,7 @@ function HomeContent() {
   }, [selectedProperty, searchResults]);
 
   // Get property segments with search filtering
-  const { discoverNewSection, destinationSection, typesSections } = useHomePropertySegments(filteredPropertyIds);
+  const { discoverNewSection, destinationSection, typesSections, allSegmentSections } = useHomePropertySegments(filteredPropertyIds);
   
   // Get filters grouped by category
   const filtersByCategory = useMemo(() => getMapFiltersByCategory(), []);
@@ -435,11 +435,8 @@ function HomeContent() {
         onScrollToMap={handleScrollToMap} 
       />
 
-      {/* Discover New Segment */}
-      {discoverNewSection}
-
-      {/* Destination Segment */}
-      {destinationSection}
+      {/* All Segment Sections with IDs for banner navigation */}
+      {allSegmentSections}
 
       {/* Properties Map Section */}
       <section ref={mapRef} id="map-section" className="py-6 sm:py-10 bg-background">
@@ -521,9 +518,10 @@ function HomeContent() {
         </div>
       </section>
 
-      {/* Type Segments */}
+      {/* Additional Type Segments (random selection) */}
       <div ref={typesRef}>
         {typesSections}
+        {destinationSection}
       </div>
 
       {/* Why RoomsOnline Section */}

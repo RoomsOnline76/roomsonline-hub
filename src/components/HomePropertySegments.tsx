@@ -3,19 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PropertyCard } from "@/components/PropertyCard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BANNER_SEGMENTS } from "@/lib/bannerSegments";
+import { SEGMENT_FILTERS, SegmentFilterId, filterPropertiesBySegment } from "@/lib/segmentFilters";
 
 interface TagCategory {
   tag_name: string;
   category: string;
 }
-
-// Map database tag_name to segment filter IDs
-const TAG_TO_SEGMENT_MAP: Record<string, string> = {
-  "City": "city",
-  "Beach": "beach",
-  "Mountain": "mountain",
-  "Countryside": "countryside",
-};
 
 // Helper to shuffle array
 function shuffleArray<T>(array: T[]): T[] {
@@ -45,31 +39,48 @@ interface PropertyData {
 }
 
 interface SegmentSectionProps {
+  id?: string;
   title: string;
-  tag: string;
+  tag?: string;
+  segmentId?: SegmentFilterId;
   properties: PropertyData[];
   isLoading: boolean;
 }
 
-function SegmentSection({ title, tag, properties, isLoading }: SegmentSectionProps) {
-  const filteredProperties = properties.filter(p => 
-    p.navigation_tags?.includes(tag)
-  );
+function SegmentSection({ id, title, tag, segmentId, properties, isLoading }: SegmentSectionProps) {
+  // Filter by segmentId if provided, otherwise by tag
+  const filteredProperties = useMemo(() => {
+    if (segmentId) {
+      const segmentTags = SEGMENT_FILTERS[segmentId]?.tags as readonly string[];
+      return properties.filter(property => 
+        property.navigation_tags?.some(pTag => segmentTags?.includes(pTag))
+      );
+    }
+    if (tag) {
+      return properties.filter(p => p.navigation_tags?.includes(tag));
+    }
+    return properties;
+  }, [properties, segmentId, tag]);
 
   if (!isLoading && filteredProperties.length === 0) {
     return null;
   }
 
+  const segmentConfig = segmentId ? SEGMENT_FILTERS[segmentId] : null;
+  const displayTags = segmentConfig?.tags || (tag ? [tag] : []);
+
   return (
-    <section className="py-8 sm:py-12">
+    <section id={id} className="py-8 sm:py-12">
       <div className="container mx-auto px-3 sm:px-4">
         <div className="mb-6">
           <h2 className="text-xl sm:text-2xl font-bold text-foreground inline">
             {title}
           </h2>
-          <span className="ml-3 text-xs sm:text-sm text-muted-foreground">
-            TAG: {tag}
-          </span>
+          {displayTags.length > 0 && (
+            <span className="ml-3 text-xs sm:text-sm text-muted-foreground">
+              {displayTags.length === 1 ? `TAG: ${displayTags[0]}` : `TAGS: ${displayTags.join(", ")}`}
+            </span>
+          )}
         </div>
 
         {isLoading && (
@@ -174,11 +185,28 @@ export function useHomePropertySegments(filteredPropertyIds: string[] | null = n
     };
   }, [tagCategories, properties]);
 
+  // Generate all segment sections with proper IDs for banner navigation
+  const allSegmentSections = useMemo(() => {
+    return BANNER_SEGMENTS
+      .filter(segment => segment.filterType !== null) // Skip "ALL"
+      .map(segment => (
+        <SegmentSection
+          key={segment.id}
+          id={`segment-${segment.id}`}
+          title={segment.label}
+          segmentId={segment.filterType as SegmentFilterId}
+          properties={properties || []}
+          isLoading={isLoading}
+        />
+      ));
+  }, [properties, isLoading]);
+
   return { 
     discoverNewSection: (
       <SegmentSection
+        id="segment-discover_new"
         title="Discover New"
-        tag="New"
+        segmentId="discover_new"
         properties={properties || []}
         isLoading={isLoading}
       />
@@ -200,5 +228,7 @@ export function useHomePropertySegments(filteredPropertyIds: string[] | null = n
         isLoading={isLoading}
       />
     )),
+    // All segment sections for banner navigation
+    allSegmentSections,
   };
 }
