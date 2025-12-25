@@ -3,8 +3,9 @@ import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { useHomePropertySegments } from "@/components/HomePropertySegments";
 import { FindBySection } from "@/components/FindBySection";
-import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2, X, Menu, Calendar, ArrowRight, BookOpen, Users, ShieldCheck, FileText, Mail } from "lucide-react";
+import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, X, Menu, Calendar, ArrowRight, BookOpen, Users, ShieldCheck, FileText, Mail } from "lucide-react";
 import heroFallback from "@/assets/hero-hotel.jpg";
+import rolLogo from "@/assets/rol-logo.png";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -292,9 +293,11 @@ function HomeContent() {
           <div className={`flex items-center justify-between gap-4 ${isExpanded ? 'px-4 py-3' : 'px-4 py-4 sm:px-6 sm:py-6'}`}>
             {/* Logo - Left */}
             <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0">
-              <div className={`rounded-lg bg-[var(--hero-gradient)] flex items-center justify-center ${isExpanded ? 'h-8 w-8' : 'h-10 w-10'}`}>
-                <Building2 className={`text-white ${isExpanded ? 'h-5 w-5' : 'h-6 w-6'}`} />
-              </div>
+              <img 
+                src={rolLogo} 
+                alt="RoomsOnline" 
+                className={`object-contain invert brightness-0 filter drop-shadow-lg ${isExpanded ? 'h-8 w-8' : 'h-10 w-10 sm:h-12 sm:w-12'}`}
+              />
               <div className={`${isExpanded ? 'hidden' : 'block'}`}>
                 <h1 className="text-lg sm:text-xl font-bold text-white drop-shadow-lg">RoomsOnline</h1>
                 <p className="text-xs text-white/80 drop-shadow hidden sm:block">Unified Booking Engine</p>
