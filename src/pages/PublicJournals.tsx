@@ -111,7 +111,7 @@ export default function PublicJournals() {
               <article
                 key={journal.id}
                 id={`journal-${journal.slug || journal.id}`}
-                className="border-b border-border pb-16 last:border-b-0 scroll-mt-24"
+                className="border-b border-border pb-16 last:border-b-0 scroll-mt-32"
               >
                 {/* Header Image */}
                 {journal.header_image_url && (
