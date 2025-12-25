@@ -597,10 +597,10 @@ export const SearchForm = () => {
         <button
           type="button"
           onClick={handleFieldFocus}
-          className="w-full bg-card/95 backdrop-blur-md rounded-full shadow-lg border border-border/50 px-4 py-3 flex items-center gap-3"
+          className="w-full bg-white/20 backdrop-blur-xl rounded-full shadow-lg border border-white/30 px-4 py-3 flex items-center gap-3 transition-all duration-200 active:scale-[0.98]"
         >
-          <Search className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-          <span className="text-base text-muted-foreground">Where to?</span>
+          <Search className="h-5 w-5 text-white/80 flex-shrink-0" />
+          <span className="text-base text-white/90 font-medium">Where to?</span>
         </button>
       </div>
     );
