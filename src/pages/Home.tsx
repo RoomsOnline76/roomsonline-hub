@@ -3,7 +3,7 @@ import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { useHomePropertySegments } from "@/components/HomePropertySegments";
 import { FindBySection } from "@/components/FindBySection";
-import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2, X, Menu, Calendar, ArrowRight } from "lucide-react";
+import { Shield, Zap, HeadphonesIcon, BadgeCheck, MapPinned, Lock, Building2, X, Menu, Calendar, ArrowRight, BookOpen, Users, ShieldCheck, FileText, Mail } from "lucide-react";
 import heroFallback from "@/assets/hero-hotel.jpg";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -320,40 +320,45 @@ function HomeContent() {
               
                 {/* Dropdown Menu */}
                 {isMenuOpen && (
-                  <div className="absolute top-12 right-0 w-48 bg-background/95 backdrop-blur-md border border-border rounded-lg shadow-xl py-2 z-50">
+                  <div className="absolute top-12 right-0 w-52 bg-background/95 backdrop-blur-md border border-border rounded-lg shadow-xl py-2 z-50">
                     <Link
                       to="/journals"
-                      className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
                       onClick={() => setIsMenuOpen(false)}
                     >
+                      <BookOpen className="h-4 w-4 text-muted-foreground" />
                       Journal
                     </Link>
                     <Link
                       to="/about"
-                      className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
                       onClick={() => setIsMenuOpen(false)}
                     >
+                      <Users className="h-4 w-4 text-muted-foreground" />
                       About Us
                     </Link>
                     <Link
                       to="/privacy-policy"
-                      className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
                       onClick={() => setIsMenuOpen(false)}
                     >
+                      <ShieldCheck className="h-4 w-4 text-muted-foreground" />
                       Privacy
                     </Link>
                     <Link
                       to="/terms-of-service"
-                      className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
                       onClick={() => setIsMenuOpen(false)}
                     >
+                      <FileText className="h-4 w-4 text-muted-foreground" />
                       Terms & Conditions
                     </Link>
                     <Link
                       to="/contact"
-                      className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
                       onClick={() => setIsMenuOpen(false)}
                     >
+                      <Mail className="h-4 w-4 text-muted-foreground" />
                       Contact Us
                     </Link>
                   </div>
