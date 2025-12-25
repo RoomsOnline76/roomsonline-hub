@@ -60,9 +60,7 @@ const App = () => (
           <Route path="/" element={
             window.location.hostname === 'book.sleepinafrica.roomsonline.co.za' 
               ? <Home /> 
-              : window.location.hostname === 'sleepinafrica.roomsonline.co.za'
-                ? <Home />
-                : <Navigate to="/dashboard/reports" replace />
+              : <Navigate to="/dashboard/reports" replace />
           } />
           <Route path="/book" element={<BookRedirect />} />
           <Route path="/property_listing" element={<PropertyListing />} />
