@@ -1,9 +1,9 @@
-import React, { useState, KeyboardEvent } from 'react';
-import { Sparkles, Loader2, Send } from 'lucide-react';
-import { useAISearch } from '@/contexts/AISearchContext';
+import React, { useState, KeyboardEvent } from "react";
+import { Sparkles, Loader2, Send } from "lucide-react";
+import { useAISearch } from "@/contexts/AISearchContext";
 
 export function AISearchInput() {
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue] = useState("");
   const { performAISearch, isLoading, isAISearchActive } = useAISearch();
 
   const handleSubmit = () => {
@@ -13,7 +13,7 @@ export function AISearchInput() {
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
@@ -27,7 +27,7 @@ export function AISearchInput() {
       <div className="flex items-center gap-3 sm:gap-4">
         {/* External label */}
         <span className="text-white font-medium text-sm sm:text-base whitespace-nowrap drop-shadow-lg">
-          Ask Carike
+          Tell us what you’re dreaming of. Let Carike be your guide
         </span>
 
         {/* Input field container */}
