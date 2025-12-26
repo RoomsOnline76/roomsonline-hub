@@ -85,8 +85,8 @@ function extractPrimaryImageUrl(images: unknown): string | null {
 }
 
 function HomeContent() {
-  const { selectedProperty, searchResults, isExpanded } = useSearch();
-  const { aiResults, isAISearchActive } = useAISearch();
+  const { selectedProperty, searchResults, isExpanded, setSearchQuery, setSelectedProperty, resetSearch: resetSearchContext } = useSearch();
+  const { aiResults, isAISearchActive, resetAISearch } = useAISearch();
 
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
   const [heroImage, setHeroImage] = useState<string>(heroFallback);
@@ -291,19 +291,20 @@ function HomeContent() {
     fetchHeroMedia();
   }, []);
 
-  // Update hero image when a property is selected from search or AI search
+  // Update hero image and search bar when AI search is active
   useEffect(() => {
-    async function updateHeroFromAI() {
+    async function updateFromAISearch() {
       // AI search takes priority
       if (isAISearchActive && aiResults && aiResults.length > 0) {
         try {
           const { data: aiProperty } = await supabase
             .from("properties")
-            .select("images, hero_video_url, name, city, country")
+            .select("id, images, hero_video_url, name, city, country, slug, navigation_tags, external_system")
             .eq("id", aiResults[0])
             .single();
 
           if (aiProperty) {
+            // Update hero image
             const aiImage = extractPrimaryImageUrl(aiProperty.images);
             if (aiImage) {
               setHeroImage(aiImage);
@@ -314,13 +315,27 @@ function HomeContent() {
                 country: aiProperty.country,
               });
             }
+
+            // Update search bar with AI result
+            setSearchQuery(aiProperty.name);
+            setSelectedProperty({
+              id: aiProperty.id,
+              name: aiProperty.name,
+              city: aiProperty.city,
+              country: aiProperty.country,
+              slug: aiProperty.slug,
+              images: aiProperty.images,
+              navigation_tags: aiProperty.navigation_tags,
+              external_system: aiProperty.external_system,
+            });
           }
         } catch (error) {
-          console.error("Error fetching AI property for hero:", error);
+          console.error("Error fetching AI property:", error);
         }
         return;
       }
 
+      // When AI search is not active, handle regular search selection
       if (selectedProperty) {
         const selectedImage = extractPrimaryImageUrl(selectedProperty.images);
         if (selectedImage) {
@@ -332,16 +347,27 @@ function HomeContent() {
             country: selectedProperty.country,
           });
         }
-      } else {
-        // Reset to original when no property selected
+      } else if (!isAISearchActive) {
+        // Reset to original when no property selected and AI not active
         setHeroImage(originalHeroImage);
         setHeroVideoUrl(originalHeroVideoUrl);
         setHeroProperty(originalHeroProperty);
       }
     }
 
-    updateHeroFromAI();
-  }, [selectedProperty, originalHeroImage, originalHeroVideoUrl, originalHeroProperty, isAISearchActive, aiResults]);
+    updateFromAISearch();
+  }, [selectedProperty, originalHeroImage, originalHeroVideoUrl, originalHeroProperty, isAISearchActive, aiResults, setSearchQuery, setSelectedProperty]);
+
+  // Clear search bar when AI search is reset
+  useEffect(() => {
+    if (!isAISearchActive) {
+      // Only reset if we were previously showing AI results
+      // Check if the current selectedProperty is from AI results
+      if (aiResults === null) {
+        resetSearchContext();
+      }
+    }
+  }, [isAISearchActive, aiResults, resetSearchContext]);
 
   const toggleType = (key: string) => {
     setEnabledTypes((prev) => ({ ...prev, [key]: !prev[key] }));
