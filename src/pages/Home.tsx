@@ -646,19 +646,37 @@ function HomeContent() {
           <div className="container mx-auto px-3 sm:px-4">
             <div className="mb-4">
               <h2 className="text-xl sm:text-2xl font-bold text-foreground">
-                Your Perfect Match
+                Your Perfect Match{aiResults.length > 1 ? 'es' : ''}
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Based on your search, we found the ideal property for you
+                {aiResults.length === 1 
+                  ? 'Based on your search, we found the ideal property for you'
+                  : `Found ${aiResults.length} properties that match your criteria`}
               </p>
             </div>
-            <div className="max-w-md">
-              {properties
-                .filter((p) => aiResults.includes(p.id))
-                .map((property) => (
+            
+            {/* Dynamic layout based on result count */}
+            {aiResults.length === 1 ? (
+              <div className="flex justify-center">
+                <div className="w-full max-w-md">
+                  {properties.filter(p => aiResults.includes(p.id)).map(property => (
+                    <PropertyCard key={property.id} property={property} variant="large" />
+                  ))}
+                </div>
+              </div>
+            ) : aiResults.length === 2 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 max-w-4xl mx-auto">
+                {properties.filter(p => aiResults.includes(p.id)).map(property => (
                   <PropertyCard key={property.id} property={property} variant="large" />
                 ))}
-            </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                {properties.filter(p => aiResults.includes(p.id)).map(property => (
+                  <PropertyCard key={property.id} property={property} />
+                ))}
+              </div>
+            )}
           </div>
         </section>
       )}
