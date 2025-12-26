@@ -528,8 +528,63 @@ serve(async (req) => {
         );
       }
 
-      case "get_room_types":
+      case "get_room_types": {
+        const roomTypesRaw = await getRoomTypes(apiKey, cloudbedsPropertyId);
+        const roomTypes = transformRoomTypes(Array.isArray(roomTypesRaw) ? roomTypesRaw : [roomTypesRaw]);
+
+        // Cache room types
+        for (const rt of roomTypes) {
+          await supabaseClient
+            .from("pms_room_types_cache")
+            .upsert({
+              property_id: propertyId,
+              system_type: "cloudbeds",
+              external_room_type_id: rt.room_type_id,
+              name: rt.name,
+              description: rt.description,
+              max_guests: rt.max_guests,
+              min_guests: rt.min_guests,
+              allow_teens: rt.guest_rules?.allow_teens ?? true,
+              teen_min_age: rt.guest_rules?.teen_min_age,
+              teen_max_age: rt.guest_rules?.teen_max_age,
+              allow_children: rt.guest_rules?.allow_children ?? true,
+              child_min_age: rt.guest_rules?.child_min_age,
+              child_max_age: rt.guest_rules?.child_max_age,
+              allow_infants: rt.guest_rules?.allow_infants ?? true,
+              infant_min_age: rt.guest_rules?.infant_min_age,
+              infant_max_age: rt.guest_rules?.infant_max_age,
+              linked_rate_type_ids: rt.linked_rate_type_ids,
+              raw_data: rt.raw_data,
+              fetched_at: new Date().toISOString(),
+            }, {
+              onConflict: "property_id,system_type,external_room_type_id",
+            });
+        }
+
+        return new Response(
+          JSON.stringify(createSuccessResponse({ room_types: roomTypes }, action)),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       case "fetch_property_data": {
+        // ============================================================================
+        // CLOUDBEDS fetch_property_data - per v1.1 pms-implementation-master.json:
+        // - name: authoritative
+        // - description: authoritative
+        // - location: authoritative
+        // - geo: authoritative (unique to Cloudbeds)
+        // - images: authoritative
+        // - amenities: partial
+        // - star_rating: authoritative (per-PMS override)
+        // ============================================================================
+        console.log(`[Cloudbeds] Fetching full property data for ${propertyId}`);
+        
+        // Fetch hotel details for editorial content
+        const hotelDetails = await getHotelDetails(apiKey, cloudbedsPropertyId);
+        console.log(`[Cloudbeds] Hotel details:`, JSON.stringify(hotelDetails).substring(0, 500));
+        
+        // Fetch room types and rate plans
         const roomTypesRaw = await getRoomTypes(apiKey, cloudbedsPropertyId);
         const ratePlansRaw = await getRatePlans(apiKey, cloudbedsPropertyId);
         
@@ -587,10 +642,72 @@ serve(async (req) => {
             });
         }
 
+        // Extract editorial data from hotel details
+        // Cloudbeds API fields vary - handle both camelCase and snake_case
+        const propertyName = hotelDetails.propertyName || hotelDetails.property_name || hotelDetails.name || null;
+        const description = hotelDetails.propertyDescription || hotelDetails.property_description || hotelDetails.description || null;
+        
+        // Location data
+        const location = {
+          address: hotelDetails.propertyAddress || hotelDetails.address1 || hotelDetails.address || null,
+          city: hotelDetails.propertyCity || hotelDetails.city || null,
+          country: hotelDetails.propertyCountry || hotelDetails.country || null,
+          postal_code: hotelDetails.propertyZip || hotelDetails.postalCode || hotelDetails.zip || null,
+        };
+        const hasLocation = location.address || location.city || location.country;
+        
+        // Geo data - Cloudbeds is the only PMS with authoritative geo
+        const latitude = hotelDetails.propertyLatitude || hotelDetails.latitude || hotelDetails.lat;
+        const longitude = hotelDetails.propertyLongitude || hotelDetails.longitude || hotelDetails.lng;
+        const geo = (latitude && longitude) ? {
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
+        } : null;
+        
+        // Images from Cloudbeds
+        const images = hotelDetails.propertyImages || hotelDetails.images || hotelDetails.photos || null;
+        const imageUrls = Array.isArray(images) 
+          ? images.map((img: any) => typeof img === 'string' ? img : (img.url || img.image || img.imageUrl))
+          : null;
+        
+        // Amenities - partial merge per spec
+        const amenities = hotelDetails.propertyAmenities || hotelDetails.amenities || hotelDetails.facilities || null;
+        const amenityList = Array.isArray(amenities)
+          ? amenities.map((a: any) => typeof a === 'string' ? a : (a.name || a.amenityName))
+          : null;
+        
+        // Star rating - authoritative for Cloudbeds per override
+        const starRating = hotelDetails.propertyStars || hotelDetails.starRating || hotelDetails.stars || null;
+        
+        // Check-in/out times
+        const checkInTime = hotelDetails.checkInTime || hotelDetails.checkinTime || null;
+        const checkOutTime = hotelDetails.checkOutTime || hotelDetails.checkoutTime || null;
+        
+        // Max guests from hotel details if available
+        const maxGuests = hotelDetails.maxGuests || hotelDetails.propertyMaxGuests || null;
+
+        // Return PropertyDataResponse per adapter-contract.ts
         return new Response(
           JSON.stringify(createSuccessResponse({
+            // Editorial fields - authoritative for Cloudbeds
+            property_name: propertyName,
+            description: description,
+            location: hasLocation ? location : null,
+            geo: geo,
+            images: imageUrls,
+            amenities: amenityList,
+            
+            // Operational reference data - always authoritative
             room_types: roomTypes,
             rate_types: rateTypes,
+            
+            // Global fields - Cloudbeds provides these
+            charge_types: [],      // Would need separate API call
+            payment_types: [],     // Would need separate API call
+            check_in_time: checkInTime,
+            check_out_time: checkOutTime,
+            star_rating: starRating ? parseFloat(starRating) : null,
+            max_guests: maxGuests ? parseInt(maxGuests) : null,
           }, action)),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );

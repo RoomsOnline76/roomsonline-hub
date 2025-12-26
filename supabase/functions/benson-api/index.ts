@@ -1048,8 +1048,15 @@ serve(async (req) => {
         break;
 
       case "fetch_property_data":
-        // Fetch all data from availability endpoint which contains room types and rate types
-        console.log(`Fetching property data for form population via availability endpoint`);
+        // ============================================================================
+        // BENSON fetch_property_data - per v1.1 pms-implementation-master.json:
+        // - name: authoritative (but not exposed via availability API)
+        // - description: not_available
+        // - location: not_available
+        // - images: not_available
+        // - charge_types/payment_types: authoritative (PMS operational data)
+        // ============================================================================
+        console.log(`[Benson] Fetching property data for ${property_id}`);
         
         // Get availability for 30 days - this returns room types with embedded rate types
         const propStartDate = new Date();
@@ -1065,40 +1072,33 @@ serve(async (req) => {
             propEndDate.toISOString().split("T")[0]
           );
         } catch (availError: any) {
-          console.warn(`Could not fetch availability: ${availError.message}`);
+          console.warn(`[Benson] Could not fetch availability: ${availError.message}`);
         }
         
         // Extract room types from availability response
-        // CONTRACT: Return snake_case fields per adapter-contract.ts
         const extractedRoomTypes: any[] = [];
         const extractedRateTypes: Map<number, any> = new Map();
         
         if (Array.isArray(availabilityData)) {
           availabilityData.forEach((roomType: any) => {
             extractedRoomTypes.push({
-              room_type_id: roomType.roomTypeId,
-              name: roomType.name,
+              room_type_id: roomType.roomTypeId?.toString() || "",
+              name: roomType.name || `Room ${roomType.roomTypeId}`,
+              description: null, // Benson doesn't provide room descriptions
               min_guests: roomType.minPeople || roomType.minGuests || 1,
               max_guests: roomType.maxPeople || roomType.maxGuests || 2,
-              teen_min_age: roomType.teenMinAge,
-              teen_max_age: roomType.teenMaxAge,
-              child_min_age: roomType.childMinAge,
-              child_max_age: roomType.childMaxAge,
-              infant_min_age: roomType.infantMinAge,
-              infant_max_age: roomType.infantMaxAge,
-              allow_teens: roomType.allowTeens ?? true,
-              allow_children: roomType.allowChildren ?? true,
-              allow_infants: roomType.allowInfants ?? true,
-              min_age_category: roomType.minAgeCategory,
-              min_adults_to_offer_non_adult_rates: roomType.minAdultsToOfferNonAdultRates,
-              rate_types: roomType.rateTypes?.map((rt: any) => ({
-                rate_type_id: rt.rateTypeId,
-                name: rt.name,
-                price_type: rt.priceType,
-              })) || [],
-              // Keep raw data for availability array (used for rates)
-              rooms_available_per_night: roomType.roomsAvailablePerNight,
-              linked_rate_type_ids: roomType.rateTypes?.map((rt: any) => rt.rateTypeId) || [],
+              guest_rules: {
+                allow_teens: roomType.allowTeens ?? true,
+                teen_min_age: roomType.teenMinAge ?? null,
+                teen_max_age: roomType.teenMaxAge ?? null,
+                allow_children: roomType.allowChildren ?? true,
+                child_min_age: roomType.childMinAge ?? null,
+                child_max_age: roomType.childMaxAge ?? null,
+                allow_infants: roomType.allowInfants ?? true,
+                infant_min_age: roomType.infantMinAge ?? null,
+                infant_max_age: roomType.infantMaxAge ?? null,
+              },
+              linked_rate_type_ids: roomType.rateTypes?.map((rt: any) => rt.rateTypeId?.toString()) || [],
             });
             
             // Extract rate types for mapping
@@ -1106,16 +1106,14 @@ serve(async (req) => {
               roomType.rateTypes.forEach((rateType: any) => {
                 if (!extractedRateTypes.has(rateType.rateTypeId)) {
                   extractedRateTypes.set(rateType.rateTypeId, {
-                    rate_type_id: rateType.rateTypeId,
-                    name: rateType.name,
-                    price_type: rateType.priceType,
-                    min_advance_days: rateType.minAdvanceDays,
-                    max_advance_days: rateType.maxAdvanceDays,
-                    min_stay_days: rateType.minStayDays,
-                    max_stay_days: rateType.maxStayDays,
-                    stay_pay_stay_nights: rateType.stayPayStayNights,
-                    stay_pay_discount_nights: rateType.stayPayDiscountNights,
-                    stay_pay_discount_percentage: rateType.stayPayDiscountPercentage,
+                    rate_type_id: rateType.rateTypeId?.toString() || "",
+                    name: rateType.name || `Rate ${rateType.rateTypeId}`,
+                    description: null,
+                    price_type: rateType.priceType || null,
+                    min_stay_days: rateType.minStayDays ?? null,
+                    max_stay_days: rateType.maxStayDays ?? null,
+                    min_advance_days: rateType.minAdvanceDays ?? null,
+                    max_advance_days: rateType.maxAdvanceDays ?? null,
                   });
                 }
               });
@@ -1123,14 +1121,37 @@ serve(async (req) => {
           });
         }
         
-        console.log(`Extracted ${extractedRoomTypes.length} room types, ${extractedRateTypes.size} rate types from availability`);
+        console.log(`[Benson] Extracted ${extractedRoomTypes.length} room types, ${extractedRateTypes.size} rate types`);
         
+        // Return PropertyDataResponse per adapter-contract.ts
+        // Benson is operational-only PMS - no editorial content available
         result = {
+          // Editorial fields - all not_available per v1.1 spec (except name which requires dedicated endpoint)
+          property_name: null,       // authoritative but not exposed via availability API
+          description: null,         // not_available
+          location: null,            // not_available
+          geo: null,                 // not_available
+          images: null,              // not_available
+          amenities: null,           // not_available
+          
+          // Operational reference data - always authoritative from PMS
           room_types: extractedRoomTypes,
           rate_types: Array.from(extractedRateTypes.values()),
-          charge_types: [], // Not available from availability endpoint
-          payment_types: [], // Not available from availability endpoint
-          availability: availabilityData, // Raw availability data for rates extraction
+          
+          // Charge types and payment types - TODO: implement when Benson provides endpoint
+          // For now returning empty arrays as endpoint not available
+          charge_types: [],
+          payment_types: [],
+          
+          // Check-in/out times - not available from Benson availability API
+          check_in_time: null,
+          check_out_time: null,
+          
+          // Star rating - not available from Benson
+          star_rating: null,
+          
+          // Property capacity - not available (never auto-derived from room data per spec)
+          max_guests: null,
         };
         break;
 

@@ -465,6 +465,16 @@ serve(async (req) => {
       }
 
       case "fetch_property_data": {
+        // ============================================================================
+        // LITTLE HOTELIER fetch_property_data - per v1.1 pms-implementation-master.json:
+        // - name: authoritative
+        // - description: authoritative
+        // - location: authoritative
+        // - images: partial
+        // - star_rating: authoritative (per-PMS override)
+        // ============================================================================
+        console.log(`[LittleHotelier] Fetching property data for ${propertyId}`);
+        
         // Fetch all property data in one call
         const response = await littleHotelierApiCall(channelCode, region, startDate, endDate);
         
@@ -474,14 +484,55 @@ serve(async (req) => {
         
         const roomTypes = transformToRoomTypes(ratePlans);
         const rateTypes = transformToRateTypes(ratePlans);
-        const availability = transformToAvailability(response, startDate, endDate);
         
+        // Extract editorial data from property response
+        const propertyName = prop?.name || prop?.propertyName || null;
+        const description = prop?.description || prop?.propertyDescription || null;
+        
+        // Location data
+        const location = {
+          address: prop?.address || prop?.streetAddress || null,
+          city: prop?.city || prop?.locality || null,
+          country: prop?.country || prop?.countryCode || null,
+          postal_code: prop?.postalCode || prop?.postcode || null,
+        };
+        const hasLocation = location.address || location.city || location.country;
+        
+        // Images - partial per spec (unreliable)
+        const images = prop?.images || prop?.photos || null;
+        const imageUrls = Array.isArray(images)
+          ? images.map((img: any) => typeof img === 'string' ? img : (img.url || img.imageUrl))
+          : null;
+        
+        // Star rating - authoritative for Little Hotelier per override
+        const starRating = prop?.starRating || prop?.stars || prop?.rating || null;
+        
+        // Check-in/out times if available
+        const checkInTime = prop?.checkInTime || prop?.checkinTime || null;
+        const checkOutTime = prop?.checkOutTime || prop?.checkoutTime || null;
+        
+        // Return PropertyDataResponse per adapter-contract.ts
         return new Response(
           JSON.stringify(createSuccessResponse({
-            property_name: prop?.name || null,
+            // Editorial fields per v1.1 spec
+            property_name: propertyName,
+            description: description,
+            location: hasLocation ? location : null,
+            geo: null,                    // not_available for Little Hotelier
+            images: imageUrls,            // partial
+            amenities: null,              // not_available
+            
+            // Operational reference data
             room_types: roomTypes,
             rate_types: rateTypes,
-            availability: availability,
+            
+            // Global fields
+            charge_types: [],
+            payment_types: [],
+            check_in_time: checkInTime,
+            check_out_time: checkOutTime,
+            star_rating: starRating ? parseFloat(starRating) : null,
+            max_guests: null,
           }, action)),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );

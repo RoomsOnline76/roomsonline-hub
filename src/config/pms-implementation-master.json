@@ -63,7 +63,13 @@
         "cache": "full",
         "amenities_seed": true
       },
-      "notes": "Gold standard PMS. Requires disciplined facilities mapping."
+      "notes": "Gold standard PMS. Requires disciplined facilities mapping.",
+      "overrides": {
+        "star_rating": {
+          "authoritative": true,
+          "ui_locked": true
+        }
+      }
     },
     {
       "pms": "little-hotelier",
@@ -78,7 +84,13 @@
         "cache": "full",
         "amenities_seed": "name_only"
       },
-      "notes": "Room images unreliable. Seed text only."
+      "notes": "Room images unreliable. Seed text only.",
+      "overrides": {
+        "star_rating": {
+          "authoritative": true,
+          "ui_locked": true
+        }
+      }
     }
   ],
   "global_field_rules": {
@@ -123,10 +135,11 @@
     }
   },
   "changelog": [
-    "Added explicit rules for charge_types and payment_types",
-    "Clarified handling of check-in/check-out times",
-    "Defined star_rating as seed-only with PMS exceptions",
-    "Clarified property-level capacity behavior",
-    "Explicitly excluded house_rules and offerings from PMS sync"
+    "v1.1: Added explicit rules for charge_types and payment_types",
+    "v1.1: Clarified handling of check-in/check-out times",
+    "v1.1: Defined star_rating as seed-only with PMS exceptions (Cloudbeds, Little Hotelier)",
+    "v1.1: Clarified property-level capacity behavior",
+    "v1.1: Explicitly excluded house_rules and offerings from PMS sync",
+    "v1.1: Added per-PMS overrides support for global field rules"
   ]
 }

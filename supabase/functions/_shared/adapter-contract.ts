@@ -537,6 +537,92 @@ export interface PropertyDataResponse {
 // ============================================================================
 
 /**
+ * Global field rules that apply across all PMS systems
+ * Some PMS may override these via per-PMS overrides
+ */
+export interface GlobalFieldRule {
+  source: 'PMS' | 'admin_only' | 'PMS_if_available_else_admin' | 'PMS_seed_or_admin' | 'seed_only';
+  authoritative: boolean;
+  authoritative_when_present?: boolean;
+  ui_locked?: boolean;
+  ui_locked_when_pms?: boolean;
+  notes: string;
+}
+
+export type GlobalFieldName = 
+  | 'charge_types'
+  | 'payment_types'
+  | 'check_in_out_times'
+  | 'star_rating'
+  | 'property_capacity'
+  | 'house_rules'
+  | 'offerings';
+
+/**
+ * Global field rules - applies to all PMS unless overridden
+ */
+export const GLOBAL_FIELD_RULES: Record<GlobalFieldName, GlobalFieldRule> = {
+  charge_types: {
+    source: 'PMS',
+    authoritative: true,
+    ui_locked: true,
+    notes: 'Operational reference data. Never editable.',
+  },
+  payment_types: {
+    source: 'PMS',
+    authoritative: true,
+    ui_locked: true,
+    notes: 'Operational reference data. Never editable.',
+  },
+  check_in_out_times: {
+    source: 'PMS_if_available_else_admin',
+    authoritative: false,
+    authoritative_when_present: true,
+    ui_locked_when_pms: true,
+    notes: 'Never overwritten without explicit refresh.',
+  },
+  star_rating: {
+    source: 'seed_only',
+    authoritative: false,
+    ui_locked: false,
+    notes: 'Only authoritative for selected PMS (Cloudbeds, Little Hotelier).',
+  },
+  property_capacity: {
+    source: 'PMS_seed_or_admin',
+    authoritative: false,
+    notes: 'Never auto-derived from room data.',
+  },
+  house_rules: {
+    source: 'admin_only',
+    authoritative: false,
+    notes: 'PMS data ignored due to inconsistency.',
+  },
+  offerings: {
+    source: 'admin_only',
+    authoritative: false,
+    notes: 'Marketing/editorial only.',
+  },
+};
+
+/**
+ * Per-PMS overrides for global field rules
+ */
+export const PMS_GLOBAL_FIELD_OVERRIDES: Partial<Record<PmsSource, Partial<Record<GlobalFieldName, Partial<GlobalFieldRule>>>>> = {
+  cloudbeds: {
+    star_rating: {
+      authoritative: true,
+      ui_locked: true,
+    },
+  },
+  littlehotelier: {
+    star_rating: {
+      authoritative: true,
+      ui_locked: true,
+    },
+  },
+};
+
+/**
  * PMS-specific field rules - adapters should reference this
  */
 export const PMS_EDITORIAL_RULES: Record<PmsSource, {
@@ -661,4 +747,32 @@ export function getSyncableEditorialFields(pms: PmsSource): PropertyEditorialFie
  */
 export function getPmsEditorialNotes(pms: PmsSource): string {
   return PMS_EDITORIAL_RULES[pms]?.notes || 'No configuration notes available.';
+}
+
+/**
+ * Get global field rule with PMS-specific overrides applied
+ */
+export function getGlobalFieldRule(pms: PmsSource, field: GlobalFieldName): GlobalFieldRule {
+  const baseRule = GLOBAL_FIELD_RULES[field];
+  const pmsOverride = PMS_GLOBAL_FIELD_OVERRIDES[pms]?.[field];
+  
+  if (!pmsOverride) return baseRule;
+  
+  return { ...baseRule, ...pmsOverride };
+}
+
+/**
+ * Check if a global field is authoritative for a given PMS
+ */
+export function isGlobalFieldAuthoritative(pms: PmsSource, field: GlobalFieldName): boolean {
+  const rule = getGlobalFieldRule(pms, field);
+  return rule.authoritative || rule.authoritative_when_present === true;
+}
+
+/**
+ * Check if a global field should be UI locked for a given PMS
+ */
+export function isGlobalFieldUILocked(pms: PmsSource, field: GlobalFieldName): boolean {
+  const rule = getGlobalFieldRule(pms, field);
+  return rule.ui_locked === true || rule.ui_locked_when_pms === true;
 }
