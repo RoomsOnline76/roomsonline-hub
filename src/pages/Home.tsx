@@ -449,9 +449,9 @@ function HomeContent() {
           </div>
         )}
 
-        {/* Hero Text Layout - positioned higher to clear AI field */}
+        {/* Hero Text Layout - anchored from top */}
         {/* Hide when AI search is active */}
-        <div className={`absolute inset-0 flex items-end pb-44 sm:pb-48 landscape:pb-28 landscape:sm:pb-32 z-10 transition-opacity duration-500 ${isAISearchActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+        <div className={`absolute inset-0 flex items-start pt-32 sm:pt-36 landscape:pt-24 landscape:sm:pt-28 z-10 transition-opacity duration-500 ${isAISearchActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <div className="w-full px-6 md:px-12 flex flex-col">
             {/* "We are RoomsOnline." - Left-aligned */}
             <p className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl landscape:text-xl landscape:md:text-2xl text-white font-bold tracking-wide drop-shadow-lg mb-4 landscape:mb-2 text-left whitespace-nowrap">
