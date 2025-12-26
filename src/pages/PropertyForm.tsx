@@ -3383,6 +3383,58 @@ export default function PropertyForm() {
                       <CardContent className="py-2 px-4">
                         {!noStreetAddress && (
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                            {/* Street */}
+                            <div className="flex flex-col gap-1">
+                              <Label htmlFor="address" className="text-xs">
+                                Street *
+                              </Label>
+                              <Input
+                                id="address"
+                                value={formData.address}
+                                onChange={(e) => handleInputChange("address", e.target.value)}
+                                placeholder="Street address"
+                                required={!noStreetAddress}
+                                disabled={isFieldPopulatedByPMS("address", selectedPMS)}
+                                className={cn(
+                                  "h-7 text-xs",
+                                  getPMSFieldClass("address", selectedPMS),
+                                  isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed",
+                                )}
+                              />
+                            </div>
+                            {/* Suburb */}
+                            <div className="flex flex-col gap-1">
+                              <Label htmlFor="suburb" className="text-xs">
+                                Suburb
+                              </Label>
+                              <Input
+                                id="suburb"
+                                value={formData.suburb}
+                                onChange={(e) => handleInputChange("suburb", e.target.value)}
+                                placeholder="Suburb"
+                                className="h-7 text-xs"
+                              />
+                            </div>
+                            {/* City */}
+                            <div className="flex flex-col gap-1">
+                              <Label htmlFor="city" className="text-xs">
+                                City *
+                              </Label>
+                              <Input
+                                id="city"
+                                value={formData.city}
+                                onChange={(e) => handleInputChange("city", e.target.value)}
+                                placeholder="City"
+                                required={!noStreetAddress}
+                                disabled={isFieldPopulatedByPMS("city", selectedPMS)}
+                                className={cn(
+                                  "h-7 text-xs",
+                                  getPMSFieldClass("city", selectedPMS),
+                                  isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed",
+                                )}
+                              />
+                            </div>
+                            {/* Country */}
                             <div className="flex flex-col gap-1">
                               <Label htmlFor="country" className="text-xs">
                                 Country *
@@ -3406,57 +3458,10 @@ export default function PropertyForm() {
                                 </SelectContent>
                               </Select>
                             </div>
-                            <div className="flex flex-col gap-1">
-                              <Label htmlFor="city" className="text-xs">
-                                City *
-                              </Label>
-                              <Input
-                                id="city"
-                                value={formData.city}
-                                onChange={(e) => handleInputChange("city", e.target.value)}
-                                placeholder="City"
-                                required={!noStreetAddress}
-                                disabled={isFieldPopulatedByPMS("city", selectedPMS)}
-                                className={cn(
-                                  "h-7 text-xs",
-                                  getPMSFieldClass("city", selectedPMS),
-                                  isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed",
-                                )}
-                              />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <Label htmlFor="address" className="text-xs">
-                                Street *
-                              </Label>
-                              <Input
-                                id="address"
-                                value={formData.address}
-                                onChange={(e) => handleInputChange("address", e.target.value)}
-                                placeholder="Street address"
-                                required={!noStreetAddress}
-                                disabled={isFieldPopulatedByPMS("address", selectedPMS)}
-                                className={cn(
-                                  "h-7 text-xs",
-                                  getPMSFieldClass("address", selectedPMS),
-                                  isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed",
-                                )}
-                              />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <Label htmlFor="suburb" className="text-xs">
-                                Suburb
-                              </Label>
-                              <Input
-                                id="suburb"
-                                value={formData.suburb}
-                                onChange={(e) => handleInputChange("suburb", e.target.value)}
-                                placeholder="Suburb"
-                                className="h-7 text-xs"
-                              />
-                            </div>
+                            {/* Postal Code */}
                             <div className="flex flex-col gap-1">
                               <Label htmlFor="postal_code" className="text-xs">
-                                Postal Code
+                                Code
                               </Label>
                               <Input
                                 id="postal_code"
