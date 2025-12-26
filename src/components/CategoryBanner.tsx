@@ -83,17 +83,27 @@ const CategoryBanner = ({ onSegmentClick, heroRef, selectedProperty }: CategoryB
   }, [propertyTags, selectedProperty]);
 
   // Calculate dynamic segment width to ensure banner is always full
+  // The duplicated segments need to fill the viewport width together
   const segmentMinWidth = useMemo(() => {
     const segmentCount = visibleSegments.length;
     if (segmentCount === 0) return 100;
     
-    // Calculate width needed for each segment to fill at least half the viewport
-    // (since we duplicate segments, this ensures full coverage)
+    // We duplicate segments, so total segments = segmentCount * 2
+    // Each set should fill at least the viewport width for seamless scrolling
+    // So each segment needs: viewportWidth / segmentCount
     const minWidthNeeded = viewportWidth / segmentCount;
     
-    // Mobile: 80px min, Desktop: 100px min, max 180px to prevent overly wide segments
+    // Dynamic max based on segment count: fewer segments = allow wider
+    // This ensures 2-3 segments fill the screen properly
+    const maxWidth = segmentCount <= 2 ? 400 
+                   : segmentCount <= 3 ? 300 
+                   : segmentCount <= 5 ? 220 
+                   : 180;
+    
+    // Mobile: 80px min, Desktop: 100px min
     const minBound = viewportWidth < 640 ? 80 : 100;
-    return Math.max(minBound, Math.min(180, Math.ceil(minWidthNeeded)));
+    
+    return Math.max(minBound, Math.min(maxWidth, Math.ceil(minWidthNeeded)));
   }, [visibleSegments.length, viewportWidth]);
 
   useEffect(() => {
