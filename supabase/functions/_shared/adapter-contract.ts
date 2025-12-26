@@ -47,7 +47,8 @@ export type PmsSource =
   | 'littlehotelier'
   | 'cloudbeds'
   | 'smoobu'
-  | 'hostfully';
+  | 'hostfully'
+  | 'hotelbeds';
 
 /**
  * Standardized error structure

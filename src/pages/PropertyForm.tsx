@@ -327,6 +327,7 @@ export default function PropertyForm() {
   const [cloudbedsPropertyId, setCloudbedsPropertyId] = useState<string>("");
   const [littlehotelierChannelCode, setLittlehotelierChannelCode] = useState<string>("");
   const [littlehotelierRegion, setLittlehotelierRegion] = useState<"apac" | "emea">("apac");
+  const [hotelbedsHotelCode, setHotelbedsHotelCode] = useState<string>("");
   const [isSyncingPms, setIsSyncingPms] = useState(false);
   const [lastPmsSync, setLastPmsSync] = useState<Date | null>(null);
 
@@ -347,6 +348,7 @@ export default function PropertyForm() {
   const [existingCloudbedsPropertyId, setExistingCloudbedsPropertyId] = useState<string | null>(null);
   const [existingLittlehotelierChannelCode, setExistingLittlehotelierChannelCode] = useState<string | null>(null);
   const [existingLittlehotelierRegion, setExistingLittlehotelierRegion] = useState<string | null>(null);
+  const [existingHotelbedsHotelCode, setExistingHotelbedsHotelCode] = useState<string | null>(null);
 
   // Sync room/rate types from PMS (Benson)
   const syncFromBenson = async () => {

@@ -8,8 +8,8 @@ const corsHeaders = {
 
 const requestSchema = z.object({
   property_id: z.string().uuid({ message: 'Invalid property ID format' }),
-  external_system: z.enum(['nightsbridge', 'checkfront', 'littlehotelier'], { 
-    errorMap: () => ({ message: 'External system must be nightsbridge, checkfront, or littlehotelier' }) 
+  external_system: z.enum(['nightsbridge', 'checkfront', 'littlehotelier', 'hotelbeds'], { 
+    errorMap: () => ({ message: 'External system must be nightsbridge, checkfront, littlehotelier, or hotelbeds' }) 
   }),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Start date must be in YYYY-MM-DD format' }),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'End date must be in YYYY-MM-DD format' }),
@@ -255,6 +255,84 @@ Deno.serve(async (req) => {
         min_stay: avail.min_stay,
         close_to_arrival: avail.close_to_arrival,
       }));
+    }
+
+    // Fetch from HotelBeds
+    else if (external_system === 'hotelbeds') {
+      const hotelCode = (property as any).hotelbeds_hotel_code;
+
+      if (!hotelCode) {
+        console.error('HotelBeds hotel code not configured for property:', property_id);
+        return new Response(
+          JSON.stringify({ error: 'Property configuration incomplete' }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      // Call HotelBeds API via our adapter
+      const { data: adapterResponse, error: adapterError } = await supabaseClient.functions.invoke('hotelbeds-api', {
+        body: {
+          action: 'fetch_availability',
+          property_id,
+          start_date,
+          end_date,
+        },
+      });
+
+      if (adapterError) {
+        console.error('HotelBeds adapter error:', adapterError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to sync with external system' }),
+          { 
+            status: 502,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      // Check for adapter-level error
+      if (adapterResponse?.success === false) {
+        console.error('HotelBeds API error:', adapterResponse.error);
+        return new Response(
+          JSON.stringify({ error: adapterResponse.error?.message || 'Failed to fetch from HotelBeds' }),
+          { 
+            status: 502,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      // Transform HotelBeds data to our format
+      const hbData = adapterResponse?.data || {};
+      const roomTypes = hbData.room_types || [];
+
+      // Convert to rates format
+      for (const roomType of roomTypes) {
+        for (const rateType of (roomType.rate_types || [])) {
+          for (const dailyRate of (rateType.daily_rates || [])) {
+            rates.push({
+              room_type: roomType.name || 'Standard',
+              rate_type: rateType.name || 'Standard',
+              date: dailyRate.date,
+              rate: dailyRate.room_amount,
+            });
+          }
+        }
+        
+        // Convert to availability format
+        for (const avail of (roomType.daily_availability || [])) {
+          availability.push({
+            room_type: roomType.name || 'Standard',
+            date: avail.date,
+            available: avail.available_units,
+            stop_sell: avail.restrictions?.stop_sell || false,
+            min_stay: avail.restrictions?.min_stay,
+          });
+        }
+      }
     }
 
     // Insert/update rates in database
