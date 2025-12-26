@@ -480,82 +480,94 @@ function HomeContent() {
         />
       </section>
 
-      {/* Find By Section */}
-      <FindBySection onScrollToTypes={handleScrollToTypes} onScrollToMap={handleScrollToMap} />
+      {/* Find By Section - Hidden during AI search */}
+      {!isAISearchActive && (
+        <FindBySection onScrollToTypes={handleScrollToTypes} onScrollToMap={handleScrollToMap} />
+      )}
 
       {/* Properties Map Section */}
       <section ref={mapRef} id="map-section" className="py-6 sm:py-8 bg-background">
         <div className="container mx-auto px-3 sm:px-4">
           <div className="text-left mb-3 sm:mb-5">
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground">
-              Explore Our World{" "}
-              <span className="font-normal text-muted-foreground">
-                — Toggle or Filter by what calls to you — lodges, rustic vibe, coastal retreat, or something unexpected.
-              </span>
+              {isAISearchActive ? (
+                "Your match is here"
+              ) : (
+                <>
+                  Explore Our World{" "}
+                  <span className="font-normal text-muted-foreground">
+                    — Toggle or Filter by what calls to you — lodges, rustic vibe, coastal retreat, or something unexpected.
+                  </span>
+                </>
+              )}
             </h2>
           </div>
 
-          {/* Property Type Toggles - Horizontal scroll on mobile */}
-          <div className="overflow-x-auto pb-2 -mx-3 px-3 sm:mx-0 sm:px-0 sm:overflow-visible scrollbar-hide">
-            <div className="flex sm:flex-wrap sm:justify-center gap-2 mb-3 sm:mb-5 min-w-max sm:min-w-0">
-              {PROPERTY_TYPES.map((type) => (
-                <button
-                  key={type.key}
-                  onClick={() => toggleType(type.key)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border transition-all touch-manipulation active:scale-95 ${
-                    enabledTypes[type.key] ? "border-primary/30 bg-primary/5" : "border-border bg-background"
-                  }`}
-                >
-                  <span
-                    className={`w-2.5 h-2.5 rounded-full transition-all ${
-                      enabledTypes[type.key] ? type.color : "bg-muted-foreground/30"
-                    }`}
-                  />
-                  <span
-                    className={`text-xs font-medium whitespace-nowrap transition-colors ${
-                      enabledTypes[type.key] ? "text-foreground" : "text-muted-foreground"
+          {/* Property Type Toggles - Hidden during AI search */}
+          {!isAISearchActive && (
+            <div className="overflow-x-auto pb-2 -mx-3 px-3 sm:mx-0 sm:px-0 sm:overflow-visible scrollbar-hide">
+              <div className="flex sm:flex-wrap sm:justify-center gap-2 mb-3 sm:mb-5 min-w-max sm:min-w-0">
+                {PROPERTY_TYPES.map((type) => (
+                  <button
+                    key={type.key}
+                    onClick={() => toggleType(type.key)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border transition-all touch-manipulation active:scale-95 ${
+                      enabledTypes[type.key] ? "border-primary/30 bg-primary/5" : "border-border bg-background"
                     }`}
                   >
-                    {type.label}
-                  </span>
-                </button>
-              ))}
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full transition-all ${
+                        enabledTypes[type.key] ? type.color : "bg-muted-foreground/30"
+                      }`}
+                    />
+                    <span
+                      className={`text-xs font-medium whitespace-nowrap transition-colors ${
+                        enabledTypes[type.key] ? "text-foreground" : "text-muted-foreground"
+                      }`}
+                    >
+                      {type.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Navigation Tag Filter Dropdowns */}
-          <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
-            {MAP_FILTER_CATEGORIES.map((category) => (
-              <Select
-                key={category.id}
-                value={getSelectedFilterForCategory(category.id)}
-                onValueChange={(value) => handleFilterSelect(category.id, value)}
-              >
-                <SelectTrigger className="w-[140px] sm:w-[160px] h-9 text-xs sm:text-sm bg-background border-border">
-                  <SelectValue placeholder={category.label} />
-                </SelectTrigger>
-                <SelectContent className="bg-background border-border z-50">
-                  <SelectItem value="all" className="text-xs sm:text-sm">
-                    All {category.label}
-                  </SelectItem>
-                  {filtersByCategory[category.id].map((filter) => (
-                    <SelectItem key={filter.id} value={filter.id} className="text-xs sm:text-sm">
-                      {filter.label}
+          {/* Navigation Tag Filter Dropdowns - Hidden during AI search */}
+          {!isAISearchActive && (
+            <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+              {MAP_FILTER_CATEGORIES.map((category) => (
+                <Select
+                  key={category.id}
+                  value={getSelectedFilterForCategory(category.id)}
+                  onValueChange={(value) => handleFilterSelect(category.id, value)}
+                >
+                  <SelectTrigger className="w-[140px] sm:w-[160px] h-9 text-xs sm:text-sm bg-background border-border">
+                    <SelectValue placeholder={category.label} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border-border z-50">
+                    <SelectItem value="all" className="text-xs sm:text-sm">
+                      All {category.label}
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ))}
-            {selectedMapFilters.length > 0 && (
-              <button
-                onClick={clearAllFilters}
-                className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="h-3 w-3" />
-                Clear
-              </button>
-            )}
-          </div>
+                    {filtersByCategory[category.id].map((filter) => (
+                      <SelectItem key={filter.id} value={filter.id} className="text-xs sm:text-sm">
+                        {filter.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ))}
+              {selectedMapFilters.length > 0 && (
+                <button
+                  onClick={clearAllFilters}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="h-[250px] sm:h-[350px] md:h-[400px] rounded-lg overflow-hidden border border-border shadow-sm">
             <PropertiesMap
@@ -568,23 +580,25 @@ function HomeContent() {
         </div>
       </section>
 
-      {/* Additional Type Segments - shows selected segment or defaults */}
-      <div ref={typesRef}>
-        {selectedSegment ? (
-          <SegmentSection
-            id={`segment-${selectedSegment.id}`}
-            title={selectedSegment.label}
-            segmentId={selectedSegment.filterType as SegmentFilterId}
-            properties={properties}
-            isLoading={propertiesLoading}
-          />
-        ) : (
-          <>
-            {typesSections}
-            {destinationSection}
-          </>
-        )}
-      </div>
+      {/* Additional Type Segments - Hidden during AI search */}
+      {!isAISearchActive && (
+        <div ref={typesRef}>
+          {selectedSegment ? (
+            <SegmentSection
+              id={`segment-${selectedSegment.id}`}
+              title={selectedSegment.label}
+              segmentId={selectedSegment.filterType as SegmentFilterId}
+              properties={properties}
+              isLoading={propertiesLoading}
+            />
+          ) : (
+            <>
+              {typesSections}
+              {destinationSection}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Why RoomsOnline Section */}
       <section className="py-6 sm:py-8 bg-secondary/30">
