@@ -776,6 +776,179 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Push to HotelBeds
+    else if (externalSystem === 'hotelbeds') {
+      try {
+        const hotelbedsHotelCode = property.hotelbeds_hotel_code;
+        
+        if (!hotelbedsHotelCode) {
+          throw new Error('HotelBeds hotel code not configured');
+        }
+
+        // Get HotelBeds credentials
+        const { data: credentials, error: credError } = await supabaseClient
+          .from('pms_credentials')
+          .select('*')
+          .eq('system_type', 'hotelbeds')
+          .eq('is_active', true)
+          .single();
+
+        if (credError || !credentials) {
+          throw new Error('HotelBeds credentials not configured');
+        }
+
+        const { api_key, password: apiSecret, environment } = credentials;
+        
+        if (!api_key || !apiSecret) {
+          throw new Error('HotelBeds API key and secret not configured');
+        }
+
+        // Generate HotelBeds signature
+        const timestamp = Math.floor(Date.now() / 1000).toString();
+        const signatureData = api_key + apiSecret + timestamp;
+        const encoder = new TextEncoder();
+        const data = encoder.encode(signatureData);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+        const baseUrl = environment === 'production' 
+          ? 'https://api.hotelbeds.com' 
+          : 'https://api.test.hotelbeds.com';
+
+        // Build HotelBeds booking payload
+        // Note: HotelBeds requires a rateKey from availability check - this should be stored in the booking
+        const bookingPayload = {
+          holder: {
+            name: booking.guest_name.split(' ')[0] || 'Guest',
+            surname: booking.guest_name.split(' ').slice(1).join(' ') || 'Guest',
+          },
+          rooms: [{
+            rateKey: (booking as any).rate_key || '', // Should be stored from availability check
+            paxes: [
+              {
+                roomId: 1,
+                type: 'AD',
+                name: booking.guest_name.split(' ')[0] || 'Guest',
+                surname: booking.guest_name.split(' ').slice(1).join(' ') || 'Guest',
+              },
+            ],
+          }],
+          clientReference: booking.id,
+          remark: booking.special_requests || '',
+        };
+
+        console.log('HotelBeds booking payload:', JSON.stringify(bookingPayload, null, 2));
+
+        const response = await fetch(
+          `${baseUrl}/hotel-api/1.0/bookings`,
+          {
+            method: 'POST',
+            headers: {
+              'Api-key': api_key,
+              'X-Signature': signature,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(bookingPayload),
+          }
+        );
+
+        const responseText = await response.text();
+        console.log('HotelBeds response status:', response.status);
+        console.log('HotelBeds response:', responseText);
+
+        if (!response.ok) {
+          throw new Error(`HotelBeds API error: ${response.status} - ${responseText}`);
+        }
+
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch {
+          result = { raw: responseText };
+        }
+
+        // Check for API-level error
+        if (result.error) {
+          throw new Error(result.error.message || 'HotelBeds API returned error');
+        }
+
+        const externalBookingId = result.booking?.reference || result.reference || result.id;
+
+        if (externalBookingId) {
+          externalReservationIds.push(String(externalBookingId));
+          
+          // Update booking with external reservation ID
+          await supabaseClient
+            .from('bookings')
+            .update({ external_reservation_id: String(externalBookingId) })
+            .eq('id', booking_id);
+        }
+
+        // Update sync status
+        await supabaseClient.from('booking_sync_status').upsert({
+          booking_id,
+          external_system: 'hotelbeds',
+          external_booking_id: externalBookingId || null,
+          sync_status: 'synced',
+          sync_attempts: 1,
+          last_sync_at: new Date().toISOString(),
+          error_message: null,
+        }, {
+          onConflict: 'booking_id,external_system',
+        });
+
+        // Log success
+        await supabaseClient.from('sync_logs').insert({
+          booking_id,
+          property_id: property.id,
+          external_system: 'hotelbeds',
+          sync_type: 'booking_push',
+          status: 'success',
+          message: 'Booking pushed successfully to HotelBeds',
+          request_data: bookingPayload,
+          response_data: result,
+        });
+
+        results.push({
+          system: 'hotelbeds',
+          success: true,
+          external_booking_id: externalBookingId,
+        });
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Error pushing to HotelBeds:', errorMessage);
+
+        await supabaseClient.from('booking_sync_status').upsert({
+          booking_id,
+          external_system: 'hotelbeds',
+          sync_status: 'failed',
+          sync_attempts: 1,
+          last_sync_at: new Date().toISOString(),
+          error_message: errorMessage,
+        }, {
+          onConflict: 'booking_id,external_system',
+        });
+
+        await supabaseClient.from('sync_logs').insert({
+          booking_id,
+          property_id: property.id,
+          external_system: 'hotelbeds',
+          sync_type: 'booking_push',
+          status: 'error',
+          message: errorMessage,
+        });
+
+        results.push({
+          system: 'hotelbeds',
+          success: false,
+          error: errorMessage,
+        });
+      }
+    }
+
     // Send booking confirmation email after processing
     const anySuccess = results.some((r: any) => r.success);
     const firstError = results.find((r: any) => !r.success);

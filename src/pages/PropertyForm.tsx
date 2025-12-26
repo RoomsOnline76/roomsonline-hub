@@ -1961,6 +1961,12 @@ export default function PropertyForm() {
           setExistingLittlehotelierChannelCode((data as any).littlehotelier_channel_code || null);
           setExistingLittlehotelierRegion((data as any).littlehotelier_region || null);
           
+          // Set HotelBeds hotel code
+          if ((data as any).hotelbeds_hotel_code) {
+            setHotelbedsHotelCode((data as any).hotelbeds_hotel_code);
+          }
+          setExistingHotelbedsHotelCode((data as any).hotelbeds_hotel_code || null);
+          
           // Load TripAdvisor ID
           if (amenities?.external_ids?.tripadvisor_id) {
             setTripadvisorId(amenities.external_ids.tripadvisor_id);
@@ -2304,6 +2310,8 @@ export default function PropertyForm() {
         // Preserve existing littlehotelier fields if PMS changed, only update if littlehotelier is selected
         littlehotelier_channel_code: selectedPMS === "littlehotelier" ? littlehotelierChannelCode : existingLittlehotelierChannelCode,
         littlehotelier_region: selectedPMS === "littlehotelier" ? littlehotelierRegion : existingLittlehotelierRegion,
+        // Preserve existing hotelbeds_hotel_code if PMS changed, only update if hotelbeds is selected
+        hotelbeds_hotel_code: selectedPMS === "hotelbeds" ? hotelbedsHotelCode : existingHotelbedsHotelCode,
         property_url: formData.property_url || null,
         is_active: true,
         images: uploadedImages,
@@ -2823,6 +2831,20 @@ export default function PropertyForm() {
                             </Select>
                           </div>
                         </>
+                      )}
+
+                      {selectedPMS === "hotelbeds" && (
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="hotelbeds_hotel_code" className="text-xs whitespace-nowrap">Hotel Code *</Label>
+                          <Input
+                            id="hotelbeds_hotel_code"
+                            value={hotelbedsHotelCode}
+                            onChange={(e) => { setHotelbedsHotelCode(e.target.value); setIsDirty(true); }}
+                            placeholder="HotelBeds hotel code"
+                            className="h-7 text-xs w-40"
+                            required
+                          />
+                        </div>
                       )}
 
                       {lastPmsSync && selectedPMS === "benson" && (
