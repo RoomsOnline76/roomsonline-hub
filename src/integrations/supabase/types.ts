@@ -935,6 +935,7 @@ export type Database = {
           benson_property_code: string | null
           checkfront_property_code: string | null
           city: string
+          cloudbeds_property_id: string | null
           country: string
           created_at: string | null
           description: string | null
@@ -976,6 +977,7 @@ export type Database = {
           benson_property_code?: string | null
           checkfront_property_code?: string | null
           city: string
+          cloudbeds_property_id?: string | null
           country: string
           created_at?: string | null
           description?: string | null
@@ -1017,6 +1019,7 @@ export type Database = {
           benson_property_code?: string | null
           checkfront_property_code?: string | null
           city?: string
+          cloudbeds_property_id?: string | null
           country?: string
           created_at?: string | null
           description?: string | null

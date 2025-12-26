@@ -48,6 +48,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     key: 'cloudbeds',
     name: 'Cloudbeds',
     description: 'All-in-one hospitality management platform for hotels and accommodation providers',
+    hasCustomCard: true,
   },
   {
     key: 'smoobu',

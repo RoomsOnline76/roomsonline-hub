@@ -151,6 +151,15 @@ export default function AdminKeys() {
   const [togglingHostfully, setTogglingHostfully] = useState(false);
   const [hostfullyRefreshInterval, setHostfullyRefreshInterval] = useState<number>(60);
 
+  // Cloudbeds-specific state
+  const [cloudbedsCredentials, setCloudbedsCredentials] = useState<PMSCredentials | null>(null);
+  const [cloudbedsApiKey, setCloudbedsApiKey] = useState("");
+  const [cloudbedsEnvironment, setCloudbedsEnvironment] = useState<"sandbox" | "production">("sandbox");
+  const [editingCloudbeds, setEditingCloudbeds] = useState(false);
+  const [savingCloudbeds, setSavingCloudbeds] = useState(false);
+  const [togglingCloudbeds, setTogglingCloudbeds] = useState(false);
+  const [cloudbedsRefreshInterval, setCloudbedsRefreshInterval] = useState<number>(60);
+
   // Benson toggle state
   const [togglingBenson, setTogglingBenson] = useState(false);
 
@@ -188,6 +197,7 @@ export default function AdminKeys() {
     fetchNightsbridgeCredentials();
     fetchCheckfrontCredentials();
     fetchHostfullyCredentials();
+    fetchCloudbedsCredentials();
     fetchResendConfig();
     fetchTripadvisorConfig();
     fetchGlobalSettings();
@@ -506,6 +516,22 @@ export default function AdminKeys() {
     }
   };
 
+  const fetchCloudbedsCredentials = async () => {
+    const { data, error } = await supabase
+      .from("pms_credentials")
+      .select("*")
+      .eq("system_type", "cloudbeds")
+      .maybeSingle();
+
+    if (!error && data) {
+      setCloudbedsCredentials(data);
+      setCloudbedsEnvironment(data.environment as "sandbox" | "production");
+      if (data.refresh_interval_minutes) {
+        setCloudbedsRefreshInterval(data.refresh_interval_minutes);
+      }
+    }
+  };
+
   const handleUpdateKey = async (keyId: string) => {
     const { error } = await supabase.from("api_keys").update({ key_value: editValue }).eq("id", keyId);
 
@@ -742,6 +768,43 @@ export default function AdminKeys() {
     setSavingHostfully(false);
   };
 
+  const handleSaveCloudbedsCredentials = async () => {
+    setSavingCloudbeds(true);
+
+    const credData = {
+      system_type: "cloudbeds",
+      environment: cloudbedsEnvironment,
+      api_key: cloudbedsApiKey || cloudbedsCredentials?.api_key || null,
+      is_active: true,
+    };
+
+    let error;
+    if (cloudbedsCredentials) {
+      const result = await supabase.from("pms_credentials").update(credData).eq("id", cloudbedsCredentials.id);
+      error = result.error;
+    } else {
+      const result = await supabase.from("pms_credentials").insert(credData);
+      error = result.error;
+    }
+
+    if (error) {
+      toast({
+        title: "Error saving credentials",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Credentials saved",
+        description: "Cloudbeds credentials have been updated successfully",
+      });
+      setEditingCloudbeds(false);
+      setCloudbedsApiKey("");
+      fetchCloudbedsCredentials();
+    }
+    setSavingCloudbeds(false);
+  };
+
   // Toggle handlers for PMS credentials
   const handleToggleBenson = async (enabled: boolean) => {
     setTogglingBenson(true);
@@ -797,6 +860,19 @@ export default function AdminKeys() {
     });
     fetchHostfullyCredentials();
     setTogglingHostfully(false);
+  };
+
+  const handleToggleCloudbeds = async (enabled: boolean) => {
+    setTogglingCloudbeds(true);
+    if (cloudbedsCredentials) {
+      await supabase.from("pms_credentials").update({ is_active: enabled }).eq("id", cloudbedsCredentials.id);
+    }
+    toast({
+      title: enabled ? "Cloudbeds enabled" : "Cloudbeds disabled",
+      description: `Cloudbeds integration is now ${enabled ? "active" : "inactive"}`,
+    });
+    fetchCloudbedsCredentials();
+    setTogglingCloudbeds(false);
   };
 
   const handleToggleRoomsonline = async (enabled: boolean) => {
@@ -906,8 +982,113 @@ export default function AdminKeys() {
     if (checkfrontCredentials?.api_key || checkfrontCredentials?.username) count++;
     // Check Hostfully
     if (hostfullyCredentials?.api_key) count++;
+    // Check Cloudbeds
+    if (cloudbedsCredentials?.api_key) count++;
     // RoomsOnline API is always "in development" - count as 0 until implemented
     return count;
+  };
+
+  // Cloudbeds card renderer
+  const renderCloudbedsCard = () => {
+    const isConfigured = !!cloudbedsCredentials?.api_key;
+
+    return (
+      <AccordionItem value="cloudbeds" className={`border rounded-lg px-4 ${!cloudbedsCredentials?.is_active ? "opacity-60" : ""}`}>
+        <AccordionTrigger className="hover:no-underline">
+          <div className="flex items-center justify-between w-full pr-4">
+            <div className="flex items-center gap-3">
+              <BedDouble className="h-5 w-5 text-primary" />
+              <span className="font-semibold">Cloudbeds</span>
+              <Badge variant="outline" className="text-xs">API Key</Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
+                <Switch
+                  checked={cloudbedsCredentials?.is_active ?? false}
+                  onCheckedChange={handleToggleCloudbeds}
+                  disabled={togglingCloudbeds || !isConfigured}
+                  className={!isConfigured ? "opacity-50" : ""}
+                />
+                <span className="text-xs text-muted-foreground">{cloudbedsCredentials?.is_active ? "On" : "Off"}</span>
+              </div>
+              {isConfigured ? (
+                <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Configured
+                </Badge>
+              ) : (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Not Configured
+                </Badge>
+              )}
+            </div>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="pt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              All-in-one hospitality management platform for hotels and accommodation providers
+            </p>
+            <div className="text-xs text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-2 py-1 rounded-md inline-block">
+              ⓘ Uses API Key (Permanent Token) authentication - token starts with cbat_
+            </div>
+
+            {editingCloudbeds ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cloudbeds-apikey">API Key</Label>
+                  <Input
+                    id="cloudbeds-apikey"
+                    type="password"
+                    value={cloudbedsApiKey}
+                    onChange={(e) => setCloudbedsApiKey(e.target.value)}
+                    placeholder={cloudbedsCredentials?.api_key ? "••••••••" : "cbat_..."}
+                  />
+                  <p className="text-xs text-muted-foreground">Find this in Cloudbeds → Settings → API Credentials</p>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveCloudbedsCredentials} disabled={savingCloudbeds}>
+                    {savingCloudbeds ? "Saving..." : "Save"}
+                  </Button>
+                  <Button variant="outline" onClick={() => { setEditingCloudbeds(false); setCloudbedsApiKey(""); }}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <Label className="text-muted-foreground">API Key</Label>
+                    <p className={`font-medium ${cloudbedsCredentials?.api_key ? "text-green-600" : ""}`}>
+                      {cloudbedsCredentials?.api_key ? "Configured" : "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Environment</Label>
+                    <p className="font-medium capitalize">{cloudbedsCredentials?.environment || "Sandbox"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Status</Label>
+                    <p className="font-medium">{cloudbedsCredentials?.is_active ? "Active" : "Inactive"}</p>
+                  </div>
+                </div>
+
+                <ApiMilestones systemType="cloudbeds" className="pt-4 border-t" />
+
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setEditingCloudbeds(true)}>
+                    {isConfigured ? "Update Credentials" : "Configure"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    );
   };
 
   const configuredPMSCount = getConfiguredPMSCount();

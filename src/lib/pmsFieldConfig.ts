@@ -88,7 +88,14 @@ export const pmsPopulatedFields: Record<PMSSystem, string[]> = {
   ],
   // Future integrations - empty until implemented
   littlehotelier: [],
-  cloudbeds: [],
+  cloudbeds: [
+    'name',
+    'description',
+    'room_types',
+    'rate_types',
+    'availability',
+    'rates',
+  ],
   smoobu: [],
   hostfully: [],
 };
