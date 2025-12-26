@@ -34,6 +34,9 @@ import { MAP_FILTER_CATEGORIES, getMapFiltersByCategory, MapFilterCategoryId } f
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import { CurrencySelector } from "@/components/CurrencySelector";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AISearchProvider, useAISearch } from "@/contexts/AISearchContext";
+import { AISearchInput } from "@/components/AISearchInput";
+import { AIExplanationOverlay } from "@/components/AIExplanationOverlay";
 
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
@@ -83,6 +86,7 @@ function extractPrimaryImageUrl(images: unknown): string | null {
 
 function HomeContent() {
   const { selectedProperty, searchResults, isExpanded } = useSearch();
+  const { aiResults, isAISearchActive } = useAISearch();
 
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
   const [heroImage, setHeroImage] = useState<string>(heroFallback);
@@ -124,6 +128,10 @@ function HomeContent() {
 
   // Compute filtered property IDs for map and segments (moved up for hook usage)
   const filteredPropertyIds = useMemo(() => {
+    // AI search takes priority
+    if (isAISearchActive && aiResults && aiResults.length > 0) {
+      return aiResults;
+    }
     if (selectedProperty) {
       return [selectedProperty.id];
     }
@@ -131,7 +139,7 @@ function HomeContent() {
       return searchResults.map((p) => p.id);
     }
     return null; // null means no filter
-  }, [selectedProperty, searchResults]);
+  }, [selectedProperty, searchResults, isAISearchActive, aiResults]);
 
   // Get property segments with search filtering
   const {
@@ -442,7 +450,8 @@ function HomeContent() {
         )}
 
         {/* Hero Text Layout - landscape: reduced padding and text sizes to prevent overlap */}
-        <div className="absolute inset-0 flex items-end pb-32 sm:pb-36 landscape:pb-20 landscape:sm:pb-24 z-10">
+        {/* Hide when AI search is active */}
+        <div className={`absolute inset-0 flex items-end pb-32 sm:pb-36 landscape:pb-20 landscape:sm:pb-24 z-10 transition-opacity duration-500 ${isAISearchActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <div className="w-full px-6 md:px-12 flex flex-col">
             {/* "We are RoomsOnline." - Left-aligned */}
             <p className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl landscape:text-xl landscape:md:text-2xl text-white font-bold tracking-wide drop-shadow-lg mb-4 landscape:mb-2 text-left whitespace-nowrap">
@@ -453,6 +462,14 @@ function HomeContent() {
               {headline}
             </p>
           </div>
+        </div>
+
+        {/* AI Explanation Overlay - shows when AI search is active */}
+        <AIExplanationOverlay />
+
+        {/* AI Search Input - positioned above CategoryBanner */}
+        <div className="absolute bottom-24 sm:bottom-28 left-0 right-0 z-20">
+          <AISearchInput />
         </div>
 
         {/* Auto-scrolling Category Banner */}
@@ -700,7 +717,9 @@ function HomeContent() {
 const Home = () => {
   return (
     <SearchProvider>
-      <HomeContent />
+      <AISearchProvider>
+        <HomeContent />
+      </AISearchProvider>
     </SearchProvider>
   );
 };
