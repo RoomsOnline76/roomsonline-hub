@@ -23,17 +23,17 @@ export function AISearchInput() {
   if (isAISearchActive) return null;
 
   return (
-    <div className="w-full px-4">
+    <div className="w-full sm:w-1/2 px-4">
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
         {/* External label - smaller text, left aligned */}
         <span className="text-white text-xs sm:text-sm drop-shadow-lg text-left shrink-0">
-          <span className="hidden sm:inline">Tell us what you're dreaming of. </span>
+          <span className="hidden sm:inline">What are you dreaming of? </span>
           <span className="sm:hidden">Ask </span>
           <span className="font-bold">Carike</span>
-          <span className="hidden sm:inline"> will guide you</span>
+          <span className="hidden sm:inline"> will help find it</span>
         </span>
 
-        {/* Input field container - bigger */}
+        {/* Input field container */}
         <div className="relative w-full sm:flex-1">
           {/* Frosted glass container */}
           <div className="flex items-center gap-3 px-5 py-4 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-lg transition-all focus-within:bg-white/15 focus-within:border-white/30">
