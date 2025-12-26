@@ -634,6 +634,7 @@ function HomeContent() {
               typeColors={TYPE_COLORS}
               selectedMapFilters={selectedMapFilters}
               filteredPropertyIds={filteredPropertyIds ?? null}
+              autoOpenFirstMarker={isAISearchActive}
             />
           </div>
         </div>

@@ -39,6 +39,7 @@ interface PropertiesMapProps {
   typeColors?: Record<string, string>;
   selectedMapFilters?: string[];
   filteredPropertyIds?: string[] | null;
+  autoOpenFirstMarker?: boolean;
 }
 
 const DEFAULT_COLOR = "#e11d48";
@@ -48,7 +49,7 @@ interface PropertyMarker extends google.maps.Marker {
   propertyType?: string;
 }
 
-export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [], filteredPropertyIds }: PropertiesMapProps) {
+export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [], filteredPropertyIds, autoOpenFirstMarker }: PropertiesMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const clustererRef = useRef<MarkerClusterer | null>(null);
@@ -461,18 +462,25 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
     // Fit map to show all markers
     if (filteredProperties.length > 1) {
       mapInstanceRef.current.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
+      
+      // Auto-open first marker when requested (AI search with multiple results)
+      if (autoOpenFirstMarker && newMarkers.length > 0) {
+        setTimeout(() => {
+          google.maps.event.trigger(newMarkers[0], 'click');
+        }, 500);
+      }
     } else if (filteredProperties.length === 1) {
       mapInstanceRef.current.setCenter(bounds.getCenter());
       mapInstanceRef.current.setZoom(12);
       
-      // Auto-open info window for single result (AI search)
+      // Auto-open info window for single result
       if (newMarkers.length === 1) {
         setTimeout(() => {
           google.maps.event.trigger(newMarkers[0], 'click');
         }, 500);
       }
     }
-  }, [mapReady, filteredProperties, typeColors]);
+  }, [mapReady, filteredProperties, typeColors, autoOpenFirstMarker]);
 
   // Loading state
   if (loading || (apiKey && !mapsLoaded && !mapError)) {

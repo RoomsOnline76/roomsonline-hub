@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Sparkles, X } from 'lucide-react';
+import { Sparkles, X, Lightbulb } from 'lucide-react';
 import { useAISearch } from '@/contexts/AISearchContext';
 
 // Carike's personalized intro phrases - slightly randomized
@@ -13,7 +13,7 @@ const CARIKE_INTROS = [
 ];
 
 export function AIExplanationOverlay() {
-  const { aiExplanation, aiQuery, isAISearchActive, resetAISearch } = useAISearch();
+  const { aiExplanation, aiQuery, isAISearchActive, resetAISearch, aiResults } = useAISearch();
 
   // Pick a random intro phrase (stable per render cycle)
   const carikeIntro = useMemo(() => {
@@ -53,6 +53,16 @@ export function AIExplanationOverlay() {
         <p className="text-sm sm:text-base text-white leading-relaxed">
           {aiExplanation}
         </p>
+
+        {/* Alternative options hint when multiple matches */}
+        {aiResults && aiResults.length > 1 && (
+          <div className="mt-3 flex items-start gap-2 bg-white/10 rounded-lg px-3 py-2">
+            <Lightbulb className="h-4 w-4 text-yellow-300 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-white/80">
+              Found {aiResults.length} options that match! Scroll down to explore alternatives.
+            </p>
+          </div>
+        )}
 
         {/* Hint to scroll */}
         <p className="mt-4 text-xs text-white/50">
