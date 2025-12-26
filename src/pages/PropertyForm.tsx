@@ -2765,15 +2765,19 @@ export default function PropertyForm() {
                         variant="outline"
                         size="sm"
                         className="h-7 text-xs gap-1"
-                        onClick={() => setIsSyncEditorialDialogOpen(true)}
+                        onClick={() => !isSyncingEditorial && setIsSyncEditorialDialogOpen(true)}
+                        disabled={isSyncingEditorial}
                       >
-                        <Cloud className="h-3 w-3" />
-                        Sync Editorial
+                        <Cloud className={cn("h-3 w-3", isSyncingEditorial && "animate-pulse")} />
+                        {isSyncingEditorial ? "Syncing..." : "Sync Editorial"}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
                       <p className="text-xs">
-                        Fetch editorial content from {getPMSDisplayName(selectedPMS)} and populate EDITORIAL fields.
+                        {isSyncingEditorial 
+                          ? "Syncing editorial content..." 
+                          : `Fetch editorial content from ${getPMSDisplayName(selectedPMS)} and populate EDITORIAL fields.`
+                        }
                       </p>
                     </TooltipContent>
                   </Tooltip>
