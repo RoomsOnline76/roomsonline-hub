@@ -384,6 +384,281 @@ export const ACTIONS = {
   SET_AVAILABILITY: 'set_availability',
   /** (Native only) Sets rates directly */
   SET_RATES: 'set_rates',
+  /** Fetches property editorial data for sync - follows pms-implementation-master.json rules */
+  FETCH_PROPERTY_DATA: 'fetch_property_data',
 } as const;
 
 export type ActionName = typeof ACTIONS[keyof typeof ACTIONS];
+
+// ============================================================================
+// EDITORIAL DATA RESPONSE (fetch_property_data action)
+// ============================================================================
+//
+// IMPORTANT: All adapters implementing fetch_property_data MUST:
+// 1. Follow rules defined in src/config/pms-implementation-master.json
+// 2. Only return fields their PMS is configured to provide
+// 3. Use these standardized interfaces for consistency
+//
+// FIELD AUTHORITY LEVELS (from master JSON):
+// ┌─────────────────┬────────────────────────────────────────────────────────┐
+// │ authoritative   │ Always overwrite local data with PMS data              │
+// │ seed_only       │ Only populate if local field is empty/null             │
+// │ partial         │ Merge with existing (arrays concat, objects shallow)   │
+// │ not_available   │ PMS doesn't provide this data - adapter returns null   │
+// └─────────────────┴────────────────────────────────────────────────────────┘
+//
+// PMS CAPABILITY MATRIX (see master JSON for authoritative source):
+// ┌────────────┬────────┬────────────┬──────────┬───────────┬─────────────────┐
+// │ Field      │ Benson │ Checkfront │ Hostfully│ Cloudbeds │ Little Hotelier │
+// ├────────────┼────────┼────────────┼──────────┼───────────┼─────────────────┤
+// │ name       │ ✅ auth │ ✅ auth     │ ✅ auth   │ ✅ auth    │ ✅ auth          │
+// │ description│ ❌ n/a  │ 🌱 seed    │ ✅ auth   │ ✅ auth    │ ✅ auth          │
+// │ location   │ ❌ n/a  │ ❌ n/a      │ ✅ auth   │ ✅ auth    │ ✅ auth          │
+// │ geo        │ ❌ n/a  │ ❌ n/a      │ ❌ n/a    │ ✅ auth    │ ❌ n/a           │
+// │ images     │ ❌ n/a  │ ❌ n/a      │ ✅ auth   │ ✅ auth    │ 🔄 partial       │
+// │ amenities  │ ❌ n/a  │ ❌ n/a      │ 🔄 partial│ 🔄 partial │ ❌ n/a           │
+// └────────────┴────────┴────────────┴──────────┴───────────┴─────────────────┘
+//
+// ============================================================================
+
+/**
+ * Field authority levels - determines how PMS data is applied to local fields
+ */
+export type FieldAuthority = 'authoritative' | 'seed_only' | 'partial' | 'not_available';
+
+/**
+ * Editorial fields that can be synced from PMS
+ */
+export type PropertyEditorialField = 
+  | 'name'
+  | 'description' 
+  | 'location'
+  | 'geo'
+  | 'images'
+  | 'amenities';
+
+/**
+ * Property location data structure
+ */
+export interface PropertyLocation {
+  address?: string;
+  city?: string;
+  country?: string;
+  postal_code?: string;
+}
+
+/**
+ * Geographic coordinates
+ */
+export interface PropertyGeo {
+  latitude: number;
+  longitude: number;
+}
+
+/**
+ * Charge type from PMS (operational data - always authoritative)
+ */
+export interface ChargeType {
+  id: string;
+  name: string;
+  amount?: number;
+  currency?: string;
+  is_percentage?: boolean;
+}
+
+/**
+ * Payment type from PMS (operational data - always authoritative)
+ */
+export interface PaymentType {
+  id: string;
+  name: string;
+  is_active?: boolean;
+}
+
+/**
+ * Property data response - returned by fetch_property_data action
+ * 
+ * ADAPTER IMPLEMENTATION NOTES:
+ * - Return null for fields your PMS doesn't provide (authority = 'not_available')
+ * - The sync-editorial function will apply authority rules from master JSON
+ * - Operational data (room_types, rate_types, charge_types, payment_types) is always authoritative
+ * - Editorial data follows PMS-specific rules from pms-implementation-master.json
+ */
+export interface PropertyDataResponse {
+  // === EDITORIAL FIELDS (authority varies by PMS - see master JSON) ===
+  
+  /** Property name - authoritative for most PMS */
+  property_name: string | null;
+  
+  /** Property description - varies by PMS (authoritative/seed_only/not_available) */
+  description: string | null;
+  
+  /** Location details - varies by PMS */
+  location: PropertyLocation | null;
+  
+  /** Geographic coordinates - only cloudbeds provides this authoritatively */
+  geo: PropertyGeo | null;
+  
+  /** Property images - varies by PMS (authoritative/partial/not_available) */
+  images: string[] | null;
+  
+  /** Amenities list - typically partial merge when available */
+  amenities: string[] | null;
+
+  // === OPERATIONAL REFERENCE DATA (always authoritative from PMS) ===
+  
+  /** Room type definitions - always sync from PMS */
+  room_types: RoomTypeDefinition[];
+  
+  /** Rate type definitions - always sync from PMS */
+  rate_types: RateTypeDefinition[];
+  
+  /** Charge types - operational, always authoritative, UI locked */
+  charge_types?: ChargeType[];
+  
+  /** Payment types - operational, always authoritative, UI locked */
+  payment_types?: PaymentType[];
+  
+  /** Check-in time (HH:MM format) - authoritative when PMS provides */
+  check_in_time?: string | null;
+  
+  /** Check-out time (HH:MM format) - authoritative when PMS provides */
+  check_out_time?: string | null;
+  
+  /** Star rating - seed_only for most PMS, authoritative for Cloudbeds/Little Hotelier */
+  star_rating?: number | null;
+  
+  /** Property capacity - seed only, never auto-derived */
+  max_guests?: number | null;
+}
+
+// ============================================================================
+// PMS IMPLEMENTATION RULES (embedded from master JSON for adapter reference)
+// ============================================================================
+
+/**
+ * PMS-specific field rules - adapters should reference this
+ */
+export const PMS_EDITORIAL_RULES: Record<PmsSource, {
+  property_fields: Partial<Record<PropertyEditorialField, FieldAuthority>>;
+  notes: string;
+}> = {
+  roomsonline: {
+    property_fields: {
+      name: 'authoritative',
+      description: 'authoritative',
+      location: 'authoritative',
+      geo: 'authoritative',
+      images: 'authoritative',
+      amenities: 'authoritative',
+    },
+    notes: 'Native PMS - full editorial control.',
+  },
+  benson: {
+    property_fields: {
+      name: 'authoritative',
+      description: 'not_available',
+      location: 'not_available',
+      images: 'not_available',
+    },
+    notes: 'Operational PMS only. Do not seed editorial content.',
+  },
+  checkfront: {
+    property_fields: {
+      name: 'authoritative',
+      description: 'seed_only',
+      location: 'not_available',
+      images: 'not_available',
+    },
+    notes: 'Descriptions inconsistent. Never overwrite admin content.',
+  },
+  hostfully: {
+    property_fields: {
+      name: 'authoritative',
+      description: 'authoritative',
+      location: 'authoritative',
+      images: 'authoritative',
+      amenities: 'partial',
+    },
+    notes: 'Best hybrid PMS. Guard amenities mapping.',
+  },
+  cloudbeds: {
+    property_fields: {
+      name: 'authoritative',
+      description: 'authoritative',
+      location: 'authoritative',
+      geo: 'authoritative',
+      images: 'authoritative',
+      amenities: 'partial',
+    },
+    notes: 'Gold standard PMS. Requires disciplined facilities mapping.',
+  },
+  littlehotelier: {
+    property_fields: {
+      name: 'authoritative',
+      description: 'authoritative',
+      location: 'authoritative',
+      images: 'partial',
+    },
+    notes: 'Room images unreliable. Seed text only.',
+  },
+  nightsbridge: {
+    property_fields: {
+      name: 'authoritative',
+    },
+    notes: 'Limited editorial support.',
+  },
+  siteminder: {
+    property_fields: {
+      name: 'authoritative',
+    },
+    notes: 'Channel manager - minimal editorial data.',
+  },
+  smoobu: {
+    property_fields: {
+      name: 'authoritative',
+      description: 'seed_only',
+    },
+    notes: 'Limited editorial support.',
+  },
+  hotelbeds: {
+    property_fields: {
+      name: 'authoritative',
+      description: 'authoritative',
+      images: 'authoritative',
+    },
+    notes: 'B2B supplier - rich content available.',
+  },
+};
+
+/**
+ * Get field authority for a specific PMS and field
+ * Utility function for adapters and sync logic
+ */
+export function getEditorialFieldAuthority(
+  pms: PmsSource,
+  field: PropertyEditorialField
+): FieldAuthority {
+  const rules = PMS_EDITORIAL_RULES[pms];
+  if (!rules) return 'not_available';
+  return rules.property_fields[field] || 'not_available';
+}
+
+/**
+ * Get all syncable editorial fields for a PMS
+ */
+export function getSyncableEditorialFields(pms: PmsSource): PropertyEditorialField[] {
+  const rules = PMS_EDITORIAL_RULES[pms];
+  if (!rules) return [];
+  
+  return Object.entries(rules.property_fields)
+    .filter(([_, authority]) => authority !== 'not_available')
+    .map(([field]) => field as PropertyEditorialField);
+}
+
+/**
+ * Get PMS notes/warnings
+ */
+export function getPmsEditorialNotes(pms: PmsSource): string {
+  return PMS_EDITORIAL_RULES[pms]?.notes || 'No configuration notes available.';
+}

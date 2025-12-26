@@ -1,81 +1,23 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  type PmsSource,
+  type FieldAuthority,
+  type PropertyEditorialField,
+  PMS_EDITORIAL_RULES,
+  getEditorialFieldAuthority,
+  getPmsEditorialNotes,
+  ACTIONS,
+} from "../_shared/adapter-contract.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Field authority levels from master JSON
-type FieldAuthority = 'authoritative' | 'seed_only' | 'partial' | 'not_available';
-
-// PMS implementation rules (embedded from pms-implementation-master.json)
-const pmsRules: Record<string, { 
-  property_fields: Record<string, FieldAuthority>;
-  notes: string;
-}> = {
-  'benson': {
-    property_fields: {
-      name: 'authoritative',
-      description: 'not_available',
-      location: 'not_available',
-      images: 'not_available',
-    },
-    notes: 'Operational PMS only. Do not seed editorial content.',
-  },
-  'checkfront': {
-    property_fields: {
-      name: 'authoritative',
-      description: 'seed_only',
-      location: 'not_available',
-      images: 'not_available',
-    },
-    notes: 'Descriptions inconsistent. Never overwrite admin content.',
-  },
-  'hostfully': {
-    property_fields: {
-      name: 'authoritative',
-      description: 'authoritative',
-      location: 'authoritative',
-      images: 'authoritative',
-      amenities: 'partial',
-    },
-    notes: 'Best hybrid PMS. Guard amenities mapping.',
-  },
-  'cloudbeds': {
-    property_fields: {
-      name: 'authoritative',
-      description: 'authoritative',
-      location: 'authoritative',
-      geo: 'authoritative',
-      images: 'authoritative',
-      amenities: 'partial',
-    },
-    notes: 'Gold standard PMS. Requires disciplined facilities mapping.',
-  },
-  'little-hotelier': {
-    property_fields: {
-      name: 'authoritative',
-      description: 'authoritative',
-      location: 'authoritative',
-      images: 'partial',
-    },
-    notes: 'Room images unreliable. Seed text only.',
-  },
-  'littlehotelier': {
-    property_fields: {
-      name: 'authoritative',
-      description: 'authoritative',
-      location: 'authoritative',
-      images: 'partial',
-    },
-    notes: 'Room images unreliable. Seed text only.',
-  },
-};
-
 // Field group to DB column mapping
-const fieldGroupMapping: Record<string, string[]> = {
+const fieldGroupMapping: Record<PropertyEditorialField, string[]> = {
   name: ['name'],
   description: ['description'],
   location: ['address', 'city', 'country'],
@@ -84,26 +26,40 @@ const fieldGroupMapping: Record<string, string[]> = {
   amenities: ['amenities'],
 };
 
-// Normalize PMS key
-const normalizePMSKey = (pmsKey: string): string => {
-  return pmsKey.toLowerCase().replace(/[_\s]/g, '-');
+// Normalize PMS key to match PmsSource type
+const normalizePMSKey = (pmsKey: string): PmsSource | null => {
+  const normalized = pmsKey.toLowerCase().replace(/[_\s-]/g, '');
+  
+  const keyMap: Record<string, PmsSource> = {
+    'benson': 'benson',
+    'checkfront': 'checkfront',
+    'hostfully': 'hostfully',
+    'cloudbeds': 'cloudbeds',
+    'littlehotelier': 'littlehotelier',
+    'nightsbridge': 'nightsbridge',
+    'siteminder': 'siteminder',
+    'smoobu': 'smoobu',
+    'hotelbeds': 'hotelbeds',
+    'roomsonline': 'roomsonline',
+  };
+  
+  return keyMap[normalized] || null;
 };
 
-// Get field authority
+// Get field authority using contract
 const getFieldAuthority = (pmsKey: string, fieldName: string): FieldAuthority => {
-  const normalizedKey = normalizePMSKey(pmsKey);
-  const rule = pmsRules[normalizedKey];
-  if (!rule) return 'not_available';
+  const pms = normalizePMSKey(pmsKey);
+  if (!pms) return 'not_available';
   
-  // Direct lookup
-  if (rule.property_fields[fieldName]) {
-    return rule.property_fields[fieldName];
+  // Direct lookup for editorial fields
+  if (fieldName in fieldGroupMapping) {
+    return getEditorialFieldAuthority(pms, fieldName as PropertyEditorialField);
   }
   
-  // Check field groups
+  // Check field groups for DB column names
   for (const [groupName, dbFields] of Object.entries(fieldGroupMapping)) {
-    if (dbFields.includes(fieldName) && rule.property_fields[groupName]) {
-      return rule.property_fields[groupName];
+    if (dbFields.includes(fieldName)) {
+      return getEditorialFieldAuthority(pms, groupName as PropertyEditorialField);
     }
   }
   
@@ -112,15 +68,23 @@ const getFieldAuthority = (pmsKey: string, fieldName: string): FieldAuthority =>
 
 // Get PMS adapter function name
 const getPMSAdapterFunction = (pmsKey: string): string | null => {
-  const adapterMap: Record<string, string> = {
+  const pms = normalizePMSKey(pmsKey);
+  if (!pms) return null;
+  
+  const adapterMap: Record<PmsSource, string> = {
     'benson': 'benson-api',
     'checkfront': 'checkfront-api',
     'hostfully': 'hostfully-api',
     'cloudbeds': 'cloudbeds-api',
-    'little-hotelier': 'little-hotelier-api',
     'littlehotelier': 'little-hotelier-api',
+    'nightsbridge': 'nightsbridge-api',
+    'siteminder': 'siteminder-api',
+    'smoobu': 'smoobu-api',
+    'hotelbeds': 'hotelbeds-api',
+    'roomsonline': 'roomsonline-pms-api',
   };
-  return adapterMap[normalizePMSKey(pmsKey)] || null;
+  
+  return adapterMap[pms] || null;
 };
 
 serve(async (req) => {
@@ -169,17 +133,18 @@ serve(async (req) => {
       );
     }
 
-    const pmsRule = pmsRules[normalizePMSKey(pmsKey)];
-    if (!pmsRule) {
+    const normalizedPms = normalizePMSKey(pmsKey);
+    if (!normalizedPms || !PMS_EDITORIAL_RULES[normalizedPms]) {
       return new Response(
         JSON.stringify({ 
           success: false, 
           error: `PMS "${pmsKey}" is not configured for editorial sync`,
-          available_pms: Object.keys(pmsRules)
+          available_pms: Object.keys(PMS_EDITORIAL_RULES)
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    const pmsRule = PMS_EDITORIAL_RULES[normalizedPms];
 
     // Call PMS adapter to get property data
     const adapterFunction = getPMSAdapterFunction(pmsKey);
