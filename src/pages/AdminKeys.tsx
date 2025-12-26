@@ -160,6 +160,15 @@ export default function AdminKeys() {
   const [togglingCloudbeds, setTogglingCloudbeds] = useState(false);
   const [cloudbedsRefreshInterval, setCloudbedsRefreshInterval] = useState<number>(60);
 
+  // Little Hotelier-specific state
+  const [littlehotelierCredentials, setLittlehotelierCredentials] = useState<PMSCredentials | null>(null);
+  const [littlehotelierChannelCode, setLittlehotelierChannelCode] = useState("");
+  const [littlehotelierRegion, setLittlehotelierRegion] = useState<"apac" | "emea">("emea");
+  const [editingLittlehotelier, setEditingLittlehotelier] = useState(false);
+  const [savingLittlehotelier, setSavingLittlehotelier] = useState(false);
+  const [togglingLittlehotelier, setTogglingLittlehotelier] = useState(false);
+  const [littlehotelierRefreshInterval, setLittlehotelierRefreshInterval] = useState<number>(60);
+
   // Benson toggle state
   const [togglingBenson, setTogglingBenson] = useState(false);
 
@@ -198,6 +207,7 @@ export default function AdminKeys() {
     fetchCheckfrontCredentials();
     fetchHostfullyCredentials();
     fetchCloudbedsCredentials();
+    fetchLittlehotelierCredentials();
     fetchResendConfig();
     fetchTripadvisorConfig();
     fetchGlobalSettings();
@@ -532,6 +542,23 @@ export default function AdminKeys() {
     }
   };
 
+  const fetchLittlehotelierCredentials = async () => {
+    const { data, error } = await supabase
+      .from("pms_credentials")
+      .select("*")
+      .eq("system_type", "littlehotelier")
+      .maybeSingle();
+
+    if (!error && data) {
+      setLittlehotelierCredentials(data);
+      if (data.agent_code) setLittlehotelierChannelCode(data.agent_code);
+      if (data.base_url) setLittlehotelierRegion(data.base_url as "apac" | "emea");
+      if (data.refresh_interval_minutes) {
+        setLittlehotelierRefreshInterval(data.refresh_interval_minutes);
+      }
+    }
+  };
+
   const handleUpdateKey = async (keyId: string) => {
     const { error } = await supabase.from("api_keys").update({ key_value: editValue }).eq("id", keyId);
 
@@ -805,6 +832,43 @@ export default function AdminKeys() {
     setSavingCloudbeds(false);
   };
 
+  const handleSaveLittlehotelierCredentials = async () => {
+    setSavingLittlehotelier(true);
+
+    const credData = {
+      system_type: "littlehotelier",
+      environment: "production",
+      agent_code: littlehotelierChannelCode || littlehotelierCredentials?.agent_code || null,
+      base_url: littlehotelierRegion,
+      is_active: true,
+    };
+
+    let error;
+    if (littlehotelierCredentials) {
+      const result = await supabase.from("pms_credentials").update(credData).eq("id", littlehotelierCredentials.id);
+      error = result.error;
+    } else {
+      const result = await supabase.from("pms_credentials").insert(credData);
+      error = result.error;
+    }
+
+    if (error) {
+      toast({
+        title: "Error saving credentials",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Credentials saved",
+        description: "Little Hotelier credentials have been updated successfully",
+      });
+      setEditingLittlehotelier(false);
+      fetchLittlehotelierCredentials();
+    }
+    setSavingLittlehotelier(false);
+  };
+
   // Toggle handlers for PMS credentials
   const handleToggleBenson = async (enabled: boolean) => {
     setTogglingBenson(true);
@@ -873,6 +937,19 @@ export default function AdminKeys() {
     });
     fetchCloudbedsCredentials();
     setTogglingCloudbeds(false);
+  };
+
+  const handleToggleLittlehotelier = async (enabled: boolean) => {
+    setTogglingLittlehotelier(true);
+    if (littlehotelierCredentials) {
+      await supabase.from("pms_credentials").update({ is_active: enabled }).eq("id", littlehotelierCredentials.id);
+    }
+    toast({
+      title: enabled ? "Little Hotelier enabled" : "Little Hotelier disabled",
+      description: `Little Hotelier integration is now ${enabled ? "active" : "inactive"}`,
+    });
+    fetchLittlehotelierCredentials();
+    setTogglingLittlehotelier(false);
   };
 
   const handleToggleRoomsonline = async (enabled: boolean) => {
@@ -2238,6 +2315,128 @@ export default function AdminKeys() {
     );
   };
 
+  // Little Hotelier-specific card (read-only Rates API)
+  const renderLittlehotelierCard = () => {
+    const isConfigured = !!littlehotelierCredentials?.agent_code;
+
+    return (
+      <AccordionItem value="littlehotelier" className={`border rounded-lg px-4 ${!littlehotelierCredentials?.is_active ? "opacity-60" : ""}`}>
+        <AccordionTrigger className="hover:no-underline">
+          <div className="flex items-center justify-between w-full pr-4">
+            <div className="flex items-center gap-3">
+              <BedDouble className="h-5 w-5 text-primary" />
+              <span className="font-semibold">Little Hotelier</span>
+              <Badge variant="outline" className="text-xs">Channel Code</Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
+                <Switch
+                  checked={littlehotelierCredentials?.is_active ?? false}
+                  onCheckedChange={handleToggleLittlehotelier}
+                  disabled={togglingLittlehotelier || !isConfigured}
+                  className={!isConfigured ? "opacity-50" : ""}
+                />
+                <span className="text-xs text-muted-foreground">{littlehotelierCredentials?.is_active ? "On" : "Off"}</span>
+              </div>
+              {isConfigured ? (
+                <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Configured
+                </Badge>
+              ) : (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Not Configured
+                </Badge>
+              )}
+            </div>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="pt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Cloud-based property management system designed for small hotels, B&Bs, and guest houses
+            </p>
+            <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded-md inline-block">
+              ⓘ Read-only Rates API — availability and rates only, no reservation creation
+            </div>
+
+            {editingLittlehotelier ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="littlehotelier-channel">Channel Code</Label>
+                  <Input
+                    id="littlehotelier-channel"
+                    value={littlehotelierChannelCode}
+                    onChange={(e) => setLittlehotelierChannelCode(e.target.value)}
+                    placeholder={littlehotelierCredentials?.agent_code || "Enter channel code"}
+                  />
+                  <p className="text-xs text-muted-foreground">Public channel code from Little Hotelier for Rates API access</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Region</Label>
+                  <div className="flex items-center gap-4">
+                    <Button
+                      variant={littlehotelierRegion === "emea" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setLittlehotelierRegion("emea")}
+                    >
+                      EMEA (Europe)
+                    </Button>
+                    <Button
+                      variant={littlehotelierRegion === "apac" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setLittlehotelierRegion("apac")}
+                    >
+                      APAC (Asia-Pacific)
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveLittlehotelierCredentials} disabled={savingLittlehotelier}>
+                    {savingLittlehotelier ? "Saving..." : "Save"}
+                  </Button>
+                  <Button variant="outline" onClick={() => setEditingLittlehotelier(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <Label className="text-muted-foreground">Channel Code</Label>
+                    <p className={`font-medium ${littlehotelierCredentials?.agent_code ? "text-green-600" : ""}`}>
+                      {littlehotelierCredentials?.agent_code || "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Region</Label>
+                    <p className="font-medium uppercase">{littlehotelierCredentials?.base_url || "EMEA"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Status</Label>
+                    <p className="font-medium">{littlehotelierCredentials?.is_active ? "Active" : "Inactive"}</p>
+                  </div>
+                </div>
+
+                <ApiMilestones systemType="littlehotelier" className="pt-4 border-t" />
+
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setEditingLittlehotelier(true)}>
+                    {isConfigured ? "Update Credentials" : "Configure"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    );
+  };
+
   // Hostfully-specific card with sandbox/production toggle
   const renderHostfullyCard = () => {
     const isConfigured = !!hostfullyCredentials?.api_key;
@@ -2560,7 +2759,7 @@ export default function AdminKeys() {
               {renderCheckfrontCard()}
               {renderCloudbedsCard()}
               {renderHostfullyCard()}
-              {renderPlaceholderPMSCard("Little Hotelier", "littlehotelier", "Cloud-based property management system designed for small hotels, B&Bs, and guest houses")}
+              {renderLittlehotelierCard()}
               {renderNightsbridgeCard()}
               {renderPlaceholderPMSCard("Smoobu", "smoobu", "Channel manager and vacation rental software for property managers")}
               {pmsKeys.map(renderKeyCard)}

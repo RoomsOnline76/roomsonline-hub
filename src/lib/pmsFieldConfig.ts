@@ -86,8 +86,14 @@ export const pmsPopulatedFields: Record<PMSSystem, string[]> = {
     'rates',
     'guest_info',
   ],
-  // Future integrations - empty until implemented
-  littlehotelier: [],
+  // Little Hotelier - read-only Rates API (no reservation API)
+  littlehotelier: [
+    'name',
+    'room_types',
+    'rate_types',
+    'availability',
+    'rates',
+  ],
   cloudbeds: [
     'name',
     'description',

@@ -948,6 +948,8 @@ export type Database = {
           images: Json | null
           is_active: boolean | null
           latitude: number | null
+          littlehotelier_channel_code: string | null
+          littlehotelier_region: string | null
           longitude: number | null
           max_guests: number
           name: string
@@ -990,6 +992,8 @@ export type Database = {
           images?: Json | null
           is_active?: boolean | null
           latitude?: number | null
+          littlehotelier_channel_code?: string | null
+          littlehotelier_region?: string | null
           longitude?: number | null
           max_guests?: number
           name: string
@@ -1032,6 +1036,8 @@ export type Database = {
           images?: Json | null
           is_active?: boolean | null
           latitude?: number | null
+          littlehotelier_channel_code?: string | null
+          littlehotelier_region?: string | null
           longitude?: number | null
           max_guests?: number
           name?: string

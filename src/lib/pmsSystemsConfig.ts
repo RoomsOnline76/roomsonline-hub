@@ -43,6 +43,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     key: 'littlehotelier',
     name: 'Little Hotelier',
     description: 'Cloud-based property management system designed for small hotels, B&Bs, and guest houses',
+    hasCustomCard: true,
   },
   {
     key: 'cloudbeds',
