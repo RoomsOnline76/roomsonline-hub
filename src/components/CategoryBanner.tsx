@@ -16,6 +16,9 @@ const CategoryBanner = ({ onSegmentClick, heroRef, selectedProperty }: CategoryB
   const [isDragging, setIsDragging] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [propertyTags, setPropertyTags] = useState<string[]>([]);
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window !== 'undefined' ? window.innerWidth : 1200
+  );
   const bannerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | null>(null);
@@ -24,6 +27,13 @@ const CategoryBanner = ({ onSegmentClick, heroRef, selectedProperty }: CategoryB
   const dragStartScrollRef = useRef(0);
   const lastTimeRef = useRef(0);
   const scrollSpeed = 50; // pixels per second
+
+  // Track viewport width for dynamic segment sizing
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Fetch all unique navigation tags from properties
   useEffect(() => {
@@ -71,6 +81,20 @@ const CategoryBanner = ({ onSegmentClick, heroRef, selectedProperty }: CategoryB
       return segmentConfig.tags.some(tag => propertyTags.includes(tag));
     });
   }, [propertyTags, selectedProperty]);
+
+  // Calculate dynamic segment width to ensure banner is always full
+  const segmentMinWidth = useMemo(() => {
+    const segmentCount = visibleSegments.length;
+    if (segmentCount === 0) return 100;
+    
+    // Calculate width needed for each segment to fill at least half the viewport
+    // (since we duplicate segments, this ensures full coverage)
+    const minWidthNeeded = viewportWidth / segmentCount;
+    
+    // Mobile: 80px min, Desktop: 100px min, max 180px to prevent overly wide segments
+    const minBound = viewportWidth < 640 ? 80 : 100;
+    return Math.max(minBound, Math.min(180, Math.ceil(minWidthNeeded)));
+  }, [visibleSegments.length, viewportWidth]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -219,8 +243,13 @@ const CategoryBanner = ({ onSegmentClick, heroRef, selectedProperty }: CategoryB
             <button
               key={`${segment.id}-${index}`}
               onClick={() => !isDragging && onSegmentClick(segment)}
-              className="flex flex-col items-center px-4 sm:px-6 py-3 min-w-[80px] sm:min-w-[100px] 
+              className="flex flex-col items-center py-3 flex-shrink-0
                          hover:bg-white/10 transition-colors duration-200 group"
+              style={{ 
+                minWidth: `${segmentMinWidth}px`,
+                paddingLeft: '1rem',
+                paddingRight: '1rem'
+              }}
             >
               <segment.icon className="h-4 w-4 sm:h-5 sm:w-5 text-white/80 mb-1 
                                         group-hover:text-white group-hover:scale-110 
