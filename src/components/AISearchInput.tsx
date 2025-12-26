@@ -23,17 +23,20 @@ export function AISearchInput() {
   if (isAISearchActive) return null;
 
   return (
-    <div className="w-full max-w-2xl mx-auto px-4">
-      <div className="flex items-center gap-3 sm:gap-4">
-        {/* External label */}
-        <span className="text-white font-medium text-sm sm:text-base whitespace-nowrap drop-shadow-lg">
-          Tell us what you’re dreaming of. Let Carike be your guide
+    <div className="w-full px-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
+        {/* External label - smaller text, left aligned */}
+        <span className="text-white text-xs sm:text-sm drop-shadow-lg text-left shrink-0">
+          <span className="hidden sm:inline">Tell us what you're dreaming of. </span>
+          <span className="sm:hidden">Ask </span>
+          <span className="font-bold">Carike</span>
+          <span className="hidden sm:inline"> will guide you</span>
         </span>
 
-        {/* Input field container */}
-        <div className="relative flex-1">
+        {/* Input field container - bigger */}
+        <div className="relative w-full sm:flex-1">
           {/* Frosted glass container */}
-          <div className="flex items-center gap-3 px-4 py-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-lg transition-all focus-within:bg-white/15 focus-within:border-white/30">
+          <div className="flex items-center gap-3 px-5 py-4 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-lg transition-all focus-within:bg-white/15 focus-within:border-white/30">
             {/* AI Icon */}
             <div className="flex-shrink-0">
               {isLoading ? (
@@ -51,7 +54,7 @@ export function AISearchInput() {
               onKeyDown={handleKeyDown}
               placeholder="'romantic coastal escape with spa'..."
               disabled={isLoading}
-              className="flex-1 bg-transparent text-white placeholder-white/60 text-sm sm:text-base outline-none disabled:opacity-50"
+              className="flex-1 bg-transparent text-white placeholder-white/60 text-sm sm:text-base outline-none disabled:opacity-50 min-w-0"
             />
 
             {/* Submit button */}
