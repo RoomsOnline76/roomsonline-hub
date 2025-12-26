@@ -52,6 +52,16 @@ import {
 } from "lucide-react";
 import { StarRating } from "@/components/StarRating";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle 
+} from "@/components/ui/alert-dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarIcon } from "lucide-react";
@@ -330,6 +340,7 @@ export default function PropertyForm() {
   const [hotelbedsHotelCode, setHotelbedsHotelCode] = useState<string>("");
   const [isSyncingPms, setIsSyncingPms] = useState(false);
   const [lastPmsSync, setLastPmsSync] = useState<Date | null>(null);
+  const [isSyncEditorialDialogOpen, setIsSyncEditorialDialogOpen] = useState(false);
 
   // Store existing external IDs to preserve when PMS changes
   const [existingExternalIds, setExistingExternalIds] = useState<{
@@ -2495,6 +2506,27 @@ export default function PropertyForm() {
     }
   };
 
+  // Helper to check if PMS has a configured property ID
+  const hasPMSPropertyId = (pms: string): boolean => {
+    switch (pms) {
+      case "benson": return !!bensonPropertyCode;
+      case "cloudbeds": return !!cloudbedsPropertyId;
+      case "littlehotelier": return !!littlehotelierChannelCode;
+      case "hotelbeds": return !!hotelbedsHotelCode;
+      case "nightsbridge": return !!formData.bb_id;
+      default: return false;
+    }
+  };
+
+  // Placeholder handler for syncing editorial content from PMS
+  const handleSyncEditorial = async () => {
+    setIsSyncEditorialDialogOpen(false);
+    toast({
+      title: "Sync Editorial",
+      description: `Editorial sync for ${getPMSDisplayName(selectedPMS)} is not yet implemented. Backend coming soon.`,
+    });
+  };
+
   return (
     <>
       <Navbar />
@@ -2541,6 +2573,30 @@ export default function PropertyForm() {
               )}
             </div>
             <div className="flex gap-2">
+              {/* Sync Editorial button - only visible when PMS is selected and has property ID */}
+              {isEditMode && selectedPMS && hasPMSPropertyId(selectedPMS) && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-7 text-xs gap-1"
+                        onClick={() => setIsSyncEditorialDialogOpen(true)}
+                      >
+                        <Cloud className="h-3 w-3" />
+                        Sync Editorial
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="text-xs">
+                        Fetch editorial content from {getPMSDisplayName(selectedPMS)} and populate ROL Spec fields.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleNavigate("/admin/property-overview")}>
                 Cancel
               </Button>
@@ -7441,6 +7497,33 @@ export default function PropertyForm() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Sync Editorial Confirmation Dialog */}
+      <AlertDialog open={isSyncEditorialDialogOpen} onOpenChange={setIsSyncEditorialDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+              <Cloud className="h-5 w-5" />
+              Sync Editorial from {getPMSDisplayName(selectedPMS)}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                This will fetch editorial content from <strong>{getPMSDisplayName(selectedPMS)}</strong> and 
+                update applicable ROL Spec fields.
+              </p>
+              <p className="text-sm font-medium text-amber-600">
+                ⚠️ This may overwrite existing editorial content in some fields.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSyncEditorial}>
+              Sync Editorial
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
