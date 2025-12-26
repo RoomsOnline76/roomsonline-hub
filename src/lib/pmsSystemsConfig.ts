@@ -72,6 +72,27 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     name: 'Mews',
     description: 'Cloud-based property management system for hotels',
   },
+  // Future PMS systems
+  {
+    key: 'guestly',
+    name: 'Guestly',
+    description: 'Property management and guest experience platform for vacation rentals',
+  },
+  {
+    key: 'hotelbeds',
+    name: 'HotelBeds',
+    description: 'Global bedbank and travel distribution platform for hotels',
+  },
+  {
+    key: 'roomkey',
+    name: 'RoomKey',
+    description: 'Hotel booking platform with direct connections to major hotel chains',
+  },
+  {
+    key: 'roomracoon',
+    name: 'RoomRaccoon',
+    description: 'All-in-one hotel management system with channel manager and booking engine',
+  },
 ];
 
 // Get total count of all systems
