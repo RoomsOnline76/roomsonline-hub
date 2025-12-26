@@ -1,0 +1,337 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// Field authority levels from master JSON
+type FieldAuthority = 'authoritative' | 'seed_only' | 'partial' | 'not_available';
+
+// PMS implementation rules (embedded from pms-implementation-master.json)
+const pmsRules: Record<string, { 
+  property_fields: Record<string, FieldAuthority>;
+  notes: string;
+}> = {
+  'benson': {
+    property_fields: {
+      name: 'authoritative',
+      description: 'not_available',
+      location: 'not_available',
+      images: 'not_available',
+    },
+    notes: 'Operational PMS only. Do not seed editorial content.',
+  },
+  'checkfront': {
+    property_fields: {
+      name: 'authoritative',
+      description: 'seed_only',
+      location: 'not_available',
+      images: 'not_available',
+    },
+    notes: 'Descriptions inconsistent. Never overwrite admin content.',
+  },
+  'hostfully': {
+    property_fields: {
+      name: 'authoritative',
+      description: 'authoritative',
+      location: 'authoritative',
+      images: 'authoritative',
+      amenities: 'partial',
+    },
+    notes: 'Best hybrid PMS. Guard amenities mapping.',
+  },
+  'cloudbeds': {
+    property_fields: {
+      name: 'authoritative',
+      description: 'authoritative',
+      location: 'authoritative',
+      geo: 'authoritative',
+      images: 'authoritative',
+      amenities: 'partial',
+    },
+    notes: 'Gold standard PMS. Requires disciplined facilities mapping.',
+  },
+  'little-hotelier': {
+    property_fields: {
+      name: 'authoritative',
+      description: 'authoritative',
+      location: 'authoritative',
+      images: 'partial',
+    },
+    notes: 'Room images unreliable. Seed text only.',
+  },
+  'littlehotelier': {
+    property_fields: {
+      name: 'authoritative',
+      description: 'authoritative',
+      location: 'authoritative',
+      images: 'partial',
+    },
+    notes: 'Room images unreliable. Seed text only.',
+  },
+};
+
+// Field group to DB column mapping
+const fieldGroupMapping: Record<string, string[]> = {
+  name: ['name'],
+  description: ['description'],
+  location: ['address', 'city', 'country'],
+  geo: ['latitude', 'longitude'],
+  images: ['images'],
+  amenities: ['amenities'],
+};
+
+// Normalize PMS key
+const normalizePMSKey = (pmsKey: string): string => {
+  return pmsKey.toLowerCase().replace(/[_\s]/g, '-');
+};
+
+// Get field authority
+const getFieldAuthority = (pmsKey: string, fieldName: string): FieldAuthority => {
+  const normalizedKey = normalizePMSKey(pmsKey);
+  const rule = pmsRules[normalizedKey];
+  if (!rule) return 'not_available';
+  
+  // Direct lookup
+  if (rule.property_fields[fieldName]) {
+    return rule.property_fields[fieldName];
+  }
+  
+  // Check field groups
+  for (const [groupName, dbFields] of Object.entries(fieldGroupMapping)) {
+    if (dbFields.includes(fieldName) && rule.property_fields[groupName]) {
+      return rule.property_fields[groupName];
+    }
+  }
+  
+  return 'not_available';
+};
+
+// Get PMS adapter function name
+const getPMSAdapterFunction = (pmsKey: string): string | null => {
+  const adapterMap: Record<string, string> = {
+    'benson': 'benson-api',
+    'checkfront': 'checkfront-api',
+    'hostfully': 'hostfully-api',
+    'cloudbeds': 'cloudbeds-api',
+    'little-hotelier': 'little-hotelier-api',
+    'littlehotelier': 'little-hotelier-api',
+  };
+  return adapterMap[normalizePMSKey(pmsKey)] || null;
+};
+
+serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { property_id, pms_system } = await req.json();
+
+    if (!property_id) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'property_id is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[sync-editorial] Starting sync for property ${property_id}, PMS: ${pms_system}`);
+
+    // Get property details
+    const { data: property, error: propError } = await supabase
+      .from('properties')
+      .select('*')
+      .eq('id', property_id)
+      .single();
+
+    if (propError || !property) {
+      console.error('[sync-editorial] Property not found:', propError);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Property not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Determine PMS system
+    const pmsKey = pms_system || property.external_system;
+    if (!pmsKey) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'No PMS system configured for this property' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const pmsRule = pmsRules[normalizePMSKey(pmsKey)];
+    if (!pmsRule) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `PMS "${pmsKey}" is not configured for editorial sync`,
+          available_pms: Object.keys(pmsRules)
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Call PMS adapter to get property data
+    const adapterFunction = getPMSAdapterFunction(pmsKey);
+    if (!adapterFunction) {
+      return new Response(
+        JSON.stringify({ success: false, error: `No adapter found for PMS "${pmsKey}"` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[sync-editorial] Calling adapter: ${adapterFunction}`);
+
+    // Get auth token from request for forwarding
+    const authHeader = req.headers.get('authorization');
+    
+    // Call the PMS adapter
+    const { data: pmsData, error: pmsError } = await supabase.functions.invoke(adapterFunction, {
+      body: {
+        action: 'fetch_property_data',
+        property_id: property_id,
+      },
+      headers: authHeader ? { authorization: authHeader } : undefined,
+    });
+
+    if (pmsError) {
+      console.error('[sync-editorial] PMS adapter error:', pmsError);
+      return new Response(
+        JSON.stringify({ success: false, error: `PMS adapter error: ${pmsError.message}` }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check for adapter-level error
+    if (pmsData?.success === false) {
+      console.error('[sync-editorial] PMS adapter returned error:', pmsData.error);
+      return new Response(
+        JSON.stringify({ success: false, error: pmsData.error?.message || 'PMS sync failed' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Unwrap adapter response
+    const adapterData = pmsData?.data || pmsData;
+    console.log('[sync-editorial] Adapter data received:', JSON.stringify(adapterData).slice(0, 500));
+
+    // Build update object based on field authorities
+    const updates: Record<string, any> = {};
+    const syncSummary: { field: string; action: string; authority: FieldAuthority }[] = [];
+
+    // Process each field group
+    for (const [fieldGroup, dbFields] of Object.entries(fieldGroupMapping)) {
+      const authority = getFieldAuthority(pmsKey, fieldGroup);
+      
+      if (authority === 'not_available') {
+        syncSummary.push({ field: fieldGroup, action: 'skipped (not available)', authority });
+        continue;
+      }
+
+      for (const dbField of dbFields) {
+        // Get value from adapter data (handle both snake_case and camelCase)
+        const camelField = dbField.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+        const pmsValue = adapterData?.[dbField] ?? adapterData?.[camelField] ?? 
+                         adapterData?.property?.[dbField] ?? adapterData?.property?.[camelField];
+
+        if (pmsValue === undefined || pmsValue === null) {
+          syncSummary.push({ field: dbField, action: 'skipped (no PMS value)', authority });
+          continue;
+        }
+
+        const existingValue = property[dbField];
+
+        switch (authority) {
+          case 'authoritative':
+            // Always overwrite
+            updates[dbField] = pmsValue;
+            syncSummary.push({ field: dbField, action: 'overwritten', authority });
+            break;
+
+          case 'seed_only':
+            // Only set if empty
+            if (!existingValue || existingValue === '' || 
+                (Array.isArray(existingValue) && existingValue.length === 0)) {
+              updates[dbField] = pmsValue;
+              syncSummary.push({ field: dbField, action: 'seeded (was empty)', authority });
+            } else {
+              syncSummary.push({ field: dbField, action: 'skipped (has existing value)', authority });
+            }
+            break;
+
+          case 'partial':
+            // Merge arrays, don't remove existing
+            if (Array.isArray(pmsValue) && Array.isArray(existingValue)) {
+              const merged = [...new Set([...existingValue, ...pmsValue])];
+              updates[dbField] = merged;
+              syncSummary.push({ field: dbField, action: 'merged arrays', authority });
+            } else if (typeof pmsValue === 'object' && typeof existingValue === 'object') {
+              updates[dbField] = { ...existingValue, ...pmsValue };
+              syncSummary.push({ field: dbField, action: 'merged objects', authority });
+            } else {
+              // For primitives with partial, only seed if empty
+              if (!existingValue) {
+                updates[dbField] = pmsValue;
+                syncSummary.push({ field: dbField, action: 'seeded (partial, was empty)', authority });
+              } else {
+                syncSummary.push({ field: dbField, action: 'skipped (partial, has value)', authority });
+              }
+            }
+            break;
+        }
+      }
+    }
+
+    // Apply updates if any
+    if (Object.keys(updates).length > 0) {
+      console.log('[sync-editorial] Applying updates:', updates);
+      
+      const { error: updateError } = await supabase
+        .from('properties')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', property_id);
+
+      if (updateError) {
+        console.error('[sync-editorial] Update error:', updateError);
+        return new Response(
+          JSON.stringify({ success: false, error: `Failed to update property: ${updateError.message}` }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    console.log('[sync-editorial] Sync complete:', syncSummary);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        pms: pmsKey,
+        pms_notes: pmsRule.notes,
+        fields_updated: Object.keys(updates),
+        sync_summary: syncSummary,
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error: unknown) {
+    const errMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[sync-editorial] Unexpected error:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: errMessage }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
