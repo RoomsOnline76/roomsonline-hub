@@ -358,16 +358,17 @@ function HomeContent() {
     updateFromAISearch();
   }, [selectedProperty, originalHeroImage, originalHeroVideoUrl, originalHeroProperty, isAISearchActive, aiResults, setSearchQuery, setSelectedProperty]);
 
-  // Clear search bar when AI search is reset
+  // Clear search bar and reset hero when AI search is reset
   useEffect(() => {
-    if (!isAISearchActive) {
-      // Only reset if we were previously showing AI results
-      // Check if the current selectedProperty is from AI results
-      if (aiResults === null) {
-        resetSearchContext();
-      }
+    if (!isAISearchActive && aiResults === null) {
+      // Reset search bar
+      resetSearchContext();
+      // Reset hero to original
+      setHeroImage(originalHeroImage);
+      setHeroVideoUrl(originalHeroVideoUrl);
+      setHeroProperty(originalHeroProperty);
     }
-  }, [isAISearchActive, aiResults, resetSearchContext]);
+  }, [isAISearchActive, aiResults, resetSearchContext, originalHeroImage, originalHeroVideoUrl, originalHeroProperty]);
 
   const toggleType = (key: string) => {
     setEnabledTypes((prev) => ({ ...prev, [key]: !prev[key] }));
