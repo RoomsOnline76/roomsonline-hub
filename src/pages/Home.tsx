@@ -291,26 +291,57 @@ function HomeContent() {
     fetchHeroMedia();
   }, []);
 
-  // Update hero image when a property is selected from search
+  // Update hero image when a property is selected from search or AI search
   useEffect(() => {
-    if (selectedProperty) {
-      const selectedImage = extractPrimaryImageUrl(selectedProperty.images);
-      if (selectedImage) {
-        setHeroImage(selectedImage);
-        setHeroVideoUrl(null); // No video for search-selected property
-        setHeroProperty({
-          name: selectedProperty.name,
-          city: selectedProperty.city,
-          country: selectedProperty.country,
-        });
+    async function updateHeroFromAI() {
+      // AI search takes priority
+      if (isAISearchActive && aiResults && aiResults.length > 0) {
+        try {
+          const { data: aiProperty } = await supabase
+            .from("properties")
+            .select("images, hero_video_url, name, city, country")
+            .eq("id", aiResults[0])
+            .single();
+
+          if (aiProperty) {
+            const aiImage = extractPrimaryImageUrl(aiProperty.images);
+            if (aiImage) {
+              setHeroImage(aiImage);
+              setHeroVideoUrl(aiProperty.hero_video_url || null);
+              setHeroProperty({
+                name: aiProperty.name,
+                city: aiProperty.city,
+                country: aiProperty.country,
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching AI property for hero:", error);
+        }
+        return;
       }
-    } else {
-      // Reset to original when no property selected
-      setHeroImage(originalHeroImage);
-      setHeroVideoUrl(originalHeroVideoUrl);
-      setHeroProperty(originalHeroProperty);
+
+      if (selectedProperty) {
+        const selectedImage = extractPrimaryImageUrl(selectedProperty.images);
+        if (selectedImage) {
+          setHeroImage(selectedImage);
+          setHeroVideoUrl(null); // No video for search-selected property
+          setHeroProperty({
+            name: selectedProperty.name,
+            city: selectedProperty.city,
+            country: selectedProperty.country,
+          });
+        }
+      } else {
+        // Reset to original when no property selected
+        setHeroImage(originalHeroImage);
+        setHeroVideoUrl(originalHeroVideoUrl);
+        setHeroProperty(originalHeroProperty);
+      }
     }
-  }, [selectedProperty, originalHeroImage, originalHeroVideoUrl, originalHeroProperty]);
+
+    updateHeroFromAI();
+  }, [selectedProperty, originalHeroImage, originalHeroVideoUrl, originalHeroProperty, isAISearchActive, aiResults]);
 
   const toggleType = (key: string) => {
     setEnabledTypes((prev) => ({ ...prev, [key]: !prev[key] }));
