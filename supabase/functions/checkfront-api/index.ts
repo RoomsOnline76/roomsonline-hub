@@ -13,7 +13,8 @@ const baseRequestSchema = z.object({
     'get_booking_details',
     'update_booking',
     'cancel_booking',
-    'test_connection'
+    'test_connection',
+    'fetch_property_data'  // Added per v1.1 spec
   ]),
   property_id: z.string().uuid().optional(),
   item_id: z.string().optional(),
@@ -583,6 +584,75 @@ serve(async (req) => {
         // Simple health check - try to get items
         result = await getItems(supabase, creds, { limit: 1 });
         break;
+
+      case "fetch_property_data": {
+        // ============================================================================
+        // CHECKFRONT fetch_property_data - per v1.1 pms-implementation-master.json:
+        // - name: authoritative
+        // - description: seed_only
+        // - location: not_available
+        // - images: not_available
+        // ============================================================================
+        console.log(`[Checkfront] Fetching property data for ${property_id}`);
+        
+        // Get items (room types) from Checkfront
+        const itemsResult = await getItems(supabase, creds, {});
+        const items = itemsResult.success ? (itemsResult.data?.items || []) : [];
+        
+        // Transform items to room types
+        const roomTypes = Object.values(items as Record<string, any>).map((item: any) => ({
+          room_type_id: item.item_id?.toString() || "",
+          name: item.name || `Item ${item.item_id}`,
+          description: item.summary || item.description || null,
+          min_guests: item.param?.min || 1,
+          max_guests: item.param?.max || item.stock || 2,
+          guest_rules: {
+            allow_teens: true,
+            teen_min_age: null,
+            teen_max_age: null,
+            allow_children: true,
+            child_min_age: null,
+            child_max_age: null,
+            allow_infants: true,
+            infant_min_age: null,
+            infant_max_age: null,
+          },
+          linked_rate_type_ids: [],
+        }));
+        
+        // Extract property-level data from account info if available
+        // Checkfront doesn't expose property name via items API
+        // Description is seed_only per spec
+        const firstItem = Object.values(items as Record<string, any>)[0];
+        const propertyDescription = firstItem?.category?.summary || null;
+        
+        // Return PropertyDataResponse per adapter-contract.ts
+        result = {
+          success: true,
+          data: {
+            // Editorial fields per v1.1 spec
+            property_name: null,           // would need separate API call
+            description: propertyDescription, // seed_only
+            location: null,                // not_available
+            geo: null,                     // not_available
+            images: null,                  // not_available
+            amenities: null,               // not_available
+            
+            // Operational reference data
+            room_types: roomTypes,
+            rate_types: [],                // Checkfront uses per-item pricing
+            
+            // Global fields
+            charge_types: [],
+            payment_types: [],
+            check_in_time: null,
+            check_out_time: null,
+            star_rating: null,
+            max_guests: null,
+          }
+        };
+        break;
+      }
 
       default:
         return new Response(

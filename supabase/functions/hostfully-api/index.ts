@@ -108,6 +108,7 @@ const baseRequestSchema = z.object({
     "create_reservation",
     "modify_reservation",
     "cancel_reservation",
+    "fetch_property_data",  // Added per v1.1 spec
   ]),
   property_id: z.string().uuid().optional(),
   propertyUid: z.string().optional(),
@@ -734,6 +735,83 @@ serve(async (req) => {
       case "cancel_reservation":
         response = await handleCancelReservation();
         break;
+
+      case "fetch_property_data": {
+        // ============================================================================
+        // HOSTFULLY fetch_property_data - per v1.1 pms-implementation-master.json:
+        // - name: authoritative
+        // - description: authoritative
+        // - location: authoritative
+        // - images: authoritative
+        // - amenities: partial
+        // ============================================================================
+        if (!body.propertyUid) {
+          return new Response(
+            JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyUid is required", action)),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+          );
+        }
+        
+        const baseUrl = HOSTFULLY_URLS[creds.environment];
+        const propResponse = await hostfullyRequest(`/properties/${body.propertyUid}`, creds.api_key, baseUrl);
+        
+        if (!propResponse.ok) {
+          const error = mapHostfullyHttpError(propResponse.status, await propResponse.text());
+          response = createErrorResponse(error.code, error.message, action);
+          break;
+        }
+        
+        const prop = await propResponse.json();
+        
+        // Extract editorial data
+        const location = {
+          address: prop.address || prop.streetAddress || null,
+          city: prop.city || null,
+          country: prop.country || prop.countryCode || null,
+          postal_code: prop.postalCode || prop.zipCode || null,
+        };
+        
+        // Get images if available
+        let imageUrls: string[] | null = null;
+        if (prop.photos || prop.images) {
+          const images = prop.photos || prop.images;
+          imageUrls = Array.isArray(images) 
+            ? images.map((img: any) => typeof img === 'string' ? img : (img.url || img.original))
+            : null;
+        }
+        
+        // Amenities - partial per spec
+        const amenities = prop.amenities || prop.features || null;
+        const amenityList = Array.isArray(amenities)
+          ? amenities.map((a: any) => typeof a === 'string' ? a : a.name)
+          : null;
+        
+        response = createSuccessResponse({
+          property_name: prop.name || null,
+          description: prop.description || prop.summary || null,
+          location: (location.address || location.city) ? location : null,
+          geo: null,
+          images: imageUrls,
+          amenities: amenityList,
+          room_types: [{
+            room_type_id: body.propertyUid,
+            name: prop.name || "Property",
+            description: prop.description || null,
+            min_guests: prop.minGuests || 1,
+            max_guests: prop.maxGuests || 2,
+            guest_rules: { allow_teens: true, allow_children: true, allow_infants: true },
+            linked_rate_type_ids: [],
+          }],
+          rate_types: [{ rate_type_id: "standard", name: "Standard Rate", description: null, price_type: "per_night" }],
+          charge_types: [],
+          payment_types: [],
+          check_in_time: prop.checkInTime || null,
+          check_out_time: prop.checkOutTime || null,
+          star_rating: null,
+          max_guests: prop.maxGuests || null,
+        }, action);
+        break;
+      }
 
       default:
         response = createErrorResponse(
