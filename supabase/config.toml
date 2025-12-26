@@ -53,3 +53,6 @@ verify_jwt = true
 
 [functions.hotelbeds-api]
 verify_jwt = true
+
+[functions.ai-property-search]
+verify_jwt = false
