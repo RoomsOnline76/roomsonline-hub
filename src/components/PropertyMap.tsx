@@ -14,6 +14,7 @@ declare global {
 
 interface PropertyMapProps {
   address: string;
+  suburb?: string;
   city: string;
   country: string;
   latitude?: number | null;
@@ -23,6 +24,7 @@ interface PropertyMapProps {
 
 export function PropertyMap({ 
   address, 
+  suburb,
   city, 
   country, 
   latitude, 
@@ -159,7 +161,12 @@ export function PropertyMap({
   useEffect(() => {
     if (!map || !marker || !address || !city || !country || !window.google?.maps) return;
 
-    const fullAddress = `${address}, ${city}, ${country}`;
+    // Build full address: Street, Suburb (if present), City, Country
+    const addressParts = [address];
+    if (suburb) addressParts.push(suburb);
+    addressParts.push(city, country);
+    const fullAddress = addressParts.join(", ");
+    
     const geocoder = new window.google.maps.Geocoder();
 
     geocoder.geocode({ address: fullAddress }, (results, status) => {
@@ -175,7 +182,7 @@ export function PropertyMap({
         console.warn("Geocoding failed:", status);
       }
     });
-  }, [address, city, country, map, marker, onLocationUpdate]);
+  }, [address, suburb, city, country, map, marker, onLocationUpdate]);
 
   if (loading || (apiKey && !mapsLoaded)) {
     return (

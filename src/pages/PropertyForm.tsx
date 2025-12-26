@@ -3512,6 +3512,7 @@ export default function PropertyForm() {
                     <Card className="flex-1 flex flex-col p-2">
                       <PropertyMap
                         address={formData.address}
+                        suburb={formData.suburb}
                         city={formData.city}
                         country={formData.country}
                         latitude={latitude}
