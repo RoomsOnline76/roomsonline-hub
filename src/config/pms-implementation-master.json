@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": "1.1",
   "description": "RoomsOnline PMS implementation ruleset",
   "pms_rules": [
     {
@@ -80,5 +80,53 @@
       },
       "notes": "Room images unreliable. Seed text only."
     }
+  ],
+  "global_field_rules": {
+    "charge_types": {
+      "source": "PMS",
+      "authoritative": true,
+      "ui_locked": true,
+      "notes": "Operational reference data. Never editable."
+    },
+    "payment_types": {
+      "source": "PMS",
+      "authoritative": true,
+      "ui_locked": true,
+      "notes": "Operational reference data. Never editable."
+    },
+    "check_in_out_times": {
+      "source": "PMS_if_available_else_admin",
+      "authoritative_when_present": true,
+      "ui_locked_when_pms": true,
+      "notes": "Never overwritten without explicit refresh."
+    },
+    "star_rating": {
+      "source": "seed_only",
+      "authoritative": false,
+      "ui_locked": false,
+      "notes": "Only authoritative for selected PMS (Cloudbeds, Little Hotelier)."
+    },
+    "property_capacity": {
+      "source": "PMS_seed_or_admin",
+      "authoritative": false,
+      "notes": "Never auto-derived from room data."
+    },
+    "house_rules": {
+      "source": "admin_only",
+      "authoritative": false,
+      "notes": "PMS data ignored due to inconsistency."
+    },
+    "offerings": {
+      "source": "admin_only",
+      "authoritative": false,
+      "notes": "Marketing/editorial only."
+    }
+  },
+  "changelog": [
+    "Added explicit rules for charge_types and payment_types",
+    "Clarified handling of check-in/check-out times",
+    "Defined star_rating as seed-only with PMS exceptions",
+    "Clarified property-level capacity behavior",
+    "Explicitly excluded house_rules and offerings from PMS sync"
   ]
 }
