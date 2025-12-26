@@ -1,10 +1,17 @@
-import React, { useState, KeyboardEvent } from "react";
+import React, { useState, useEffect, KeyboardEvent } from "react";
 import { Sparkles, Loader2, Send } from "lucide-react";
 import { useAISearch } from "@/contexts/AISearchContext";
 
 export function AISearchInput() {
   const [inputValue, setInputValue] = useState("");
-  const { performAISearch, isLoading, isAISearchActive } = useAISearch();
+  const { performAISearch, isLoading, isAISearchActive, aiQuery } = useAISearch();
+
+  // Clear input when AI search is reset
+  useEffect(() => {
+    if (!isAISearchActive && aiQuery === '') {
+      setInputValue('');
+    }
+  }, [isAISearchActive, aiQuery]);
 
   const handleSubmit = () => {
     if (inputValue.trim() && !isLoading) {
