@@ -613,6 +613,169 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Push to Cloudbeds
+    else if (externalSystem === 'cloudbeds') {
+      try {
+        const cloudbedsPropertyId = property.cloudbeds_property_id;
+        
+        if (!cloudbedsPropertyId) {
+          throw new Error('Cloudbeds property ID not configured');
+        }
+
+        // Get Cloudbeds credentials
+        const { data: credentials, error: credError } = await supabaseClient
+          .from('pms_credentials')
+          .select('*')
+          .eq('system_type', 'cloudbeds')
+          .eq('is_active', true)
+          .single();
+
+        if (credError || !credentials) {
+          throw new Error('Cloudbeds credentials not configured');
+        }
+
+        const { api_key } = credentials;
+        
+        if (!api_key) {
+          throw new Error('Cloudbeds API key not configured');
+        }
+
+        // Get rooms array or create single room from legacy fields
+        const bookingRooms = booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0
+          ? booking.rooms
+          : [{
+              roomTypeId: booking.room_type_id,
+              numberOfAdults: booking.adults || 1,
+              numberOfChildren: booking.children || 0,
+            }];
+
+        // Build Cloudbeds reservation payload
+        const reservationPayload = {
+          propertyID: cloudbedsPropertyId,
+          startDate: booking.check_in_date,
+          endDate: booking.check_out_date,
+          guestFirstName: booking.guest_name.split(' ')[0] || 'Guest',
+          guestLastName: booking.guest_name.split(' ').slice(1).join(' ') || 'Guest',
+          guestEmail: booking.guest_email,
+          guestPhone: booking.guest_phone || '',
+          rooms: bookingRooms.map((room: any) => ({
+            roomTypeID: room.roomTypeId,
+            adults: room.numberOfAdults || 1,
+            children: room.numberOfChildren || 0,
+          })),
+          thirdPartyIdentifier: booking.voucher || booking.id,
+          sendEmailConfirmation: false,
+        };
+
+        console.log('Cloudbeds reservation payload:', JSON.stringify(reservationPayload, null, 2));
+
+        const response = await fetch(
+          'https://hotels.cloudbeds.com/api/v1.1/postReservation',
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${api_key}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(reservationPayload),
+          }
+        );
+
+        const responseText = await response.text();
+        console.log('Cloudbeds response status:', response.status);
+        console.log('Cloudbeds response:', responseText);
+
+        if (!response.ok) {
+          throw new Error(`Cloudbeds API error: ${response.status} - ${responseText}`);
+        }
+
+        let result;
+        try {
+          result = JSON.parse(responseText);
+        } catch {
+          result = { raw: responseText };
+        }
+
+        // Check for API-level error
+        if (result.success === false) {
+          throw new Error(result.message || 'Cloudbeds API returned error');
+        }
+
+        const externalBookingId = result.data?.reservationID || result.reservationID || result.id;
+
+        if (externalBookingId) {
+          externalReservationIds.push(String(externalBookingId));
+          
+          // Update booking with external reservation ID
+          await supabaseClient
+            .from('bookings')
+            .update({ external_reservation_id: String(externalBookingId) })
+            .eq('id', booking_id);
+        }
+
+        // Update sync status
+        await supabaseClient.from('booking_sync_status').upsert({
+          booking_id,
+          external_system: 'cloudbeds',
+          external_booking_id: externalBookingId || null,
+          sync_status: 'synced',
+          sync_attempts: 1,
+          last_sync_at: new Date().toISOString(),
+          error_message: null,
+        }, {
+          onConflict: 'booking_id,external_system',
+        });
+
+        // Log success
+        await supabaseClient.from('sync_logs').insert({
+          booking_id,
+          property_id: property.id,
+          external_system: 'cloudbeds',
+          sync_type: 'booking_push',
+          status: 'success',
+          message: 'Booking pushed successfully to Cloudbeds',
+          request_data: reservationPayload,
+          response_data: result,
+        });
+
+        results.push({
+          system: 'cloudbeds',
+          success: true,
+          external_booking_id: externalBookingId,
+        });
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Error pushing to Cloudbeds:', errorMessage);
+
+        await supabaseClient.from('booking_sync_status').upsert({
+          booking_id,
+          external_system: 'cloudbeds',
+          sync_status: 'failed',
+          sync_attempts: 1,
+          last_sync_at: new Date().toISOString(),
+          error_message: errorMessage,
+        }, {
+          onConflict: 'booking_id,external_system',
+        });
+
+        await supabaseClient.from('sync_logs').insert({
+          booking_id,
+          property_id: property.id,
+          external_system: 'cloudbeds',
+          sync_type: 'booking_push',
+          status: 'error',
+          message: errorMessage,
+        });
+
+        results.push({
+          system: 'cloudbeds',
+          success: false,
+          error: errorMessage,
+        });
+      }
+    }
+
     // Send booking confirmation email after processing
     const anySuccess = results.some((r: any) => r.success);
     const firstError = results.find((r: any) => !r.success);
