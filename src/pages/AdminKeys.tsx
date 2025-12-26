@@ -47,6 +47,10 @@ const getPMSIcon = (systemType: string | null): LucideIcon => {
     case "cloudbeds":
     case "smoobu":
     case "hostfully":
+    case "guestly":
+    case "hotelbeds":
+    case "roomkey":
+    case "roomracoon":
       return BedDouble;
     case "google":
       return MapPin;
@@ -2758,9 +2762,13 @@ export default function AdminKeys() {
               {renderBensonCard()}
               {renderCheckfrontCard()}
               {renderCloudbedsCard()}
+              {renderPlaceholderPMSCard("Guestly", "guestly", "Property management and guest experience platform for vacation rentals")}
               {renderHostfullyCard()}
+              {renderPlaceholderPMSCard("HotelBeds", "hotelbeds", "Global bedbank and travel distribution platform for hotels")}
               {renderLittlehotelierCard()}
               {renderNightsbridgeCard()}
+              {renderPlaceholderPMSCard("RoomKey", "roomkey", "Hotel booking platform with direct connections to major hotel chains")}
+              {renderPlaceholderPMSCard("RoomRaccoon", "roomracoon", "All-in-one hotel management system with channel manager and booking engine")}
               {renderPlaceholderPMSCard("Smoobu", "smoobu", "Channel manager and vacation rental software for property managers")}
               {pmsKeys.map(renderKeyCard)}
             </Accordion>
