@@ -37,6 +37,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AISearchProvider, useAISearch } from "@/contexts/AISearchContext";
 import { AISearchInput } from "@/components/AISearchInput";
 import { AIExplanationOverlay } from "@/components/AIExplanationOverlay";
+import { PropertyCard } from "@/components/PropertyCard";
 
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
@@ -637,6 +638,29 @@ function HomeContent() {
           </div>
         </div>
       </section>
+
+      {/* AI Search Result Card - shown when AI search is active */}
+      {isAISearchActive && aiResults && aiResults.length > 0 && (
+        <section className="py-6 sm:py-8 bg-secondary/20">
+          <div className="container mx-auto px-3 sm:px-4">
+            <div className="mb-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-foreground">
+                Your Perfect Match
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Based on your search, we found the ideal property for you
+              </p>
+            </div>
+            <div className="max-w-md">
+              {properties
+                .filter((p) => aiResults.includes(p.id))
+                .map((property) => (
+                  <PropertyCard key={property.id} property={property} variant="large" />
+                ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Additional Type Segments - Hidden during AI search */}
       {!isAISearchActive && (

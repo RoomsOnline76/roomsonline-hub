@@ -189,12 +189,13 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
   const filteredProperties = useMemo(() => {
     let filtered = properties;
     
-    // Filter by search (if property IDs are provided)
+    // Filter by explicit property IDs (AI search or regular search)
+    // When filtering by explicit IDs, SKIP other filters to show only the target property
     if (filteredPropertyIds !== null && filteredPropertyIds !== undefined) {
-      filtered = filtered.filter((p) => filteredPropertyIds.includes(p.id));
+      return filtered.filter((p) => filteredPropertyIds.includes(p.id));
     }
     
-    // Filter by property type
+    // Only apply type and tag filters when NOT filtering by explicit IDs
     if (enabledTypes) {
       filtered = filtered.filter((p) => enabledTypes[p.property_type] !== false);
     }
@@ -463,6 +464,13 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
     } else if (filteredProperties.length === 1) {
       mapInstanceRef.current.setCenter(bounds.getCenter());
       mapInstanceRef.current.setZoom(12);
+      
+      // Auto-open info window for single result (AI search)
+      if (newMarkers.length === 1) {
+        setTimeout(() => {
+          google.maps.event.trigger(newMarkers[0], 'click');
+        }, 500);
+      }
     }
   }, [mapReady, filteredProperties, typeColors]);
 
