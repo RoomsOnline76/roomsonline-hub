@@ -42,7 +42,7 @@ export function AISearchInput() {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask AI: 'romantic coastal escape with spa'..."
+            placeholder="Ask Carike: 'romantic coastal escape with spa'..."
             disabled={isLoading}
             className="flex-1 bg-transparent text-white placeholder-white/60 text-sm sm:text-base outline-none disabled:opacity-50"
           />
