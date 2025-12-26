@@ -41,3 +41,15 @@ verify_jwt = true
 
 [functions.bulk-editorial-generate]
 verify_jwt = false
+
+[functions.sync-editorial]
+verify_jwt = true
+
+[functions.cloudbeds-api]
+verify_jwt = true
+
+[functions.little-hotelier-api]
+verify_jwt = true
+
+[functions.hotelbeds-api]
+verify_jwt = true

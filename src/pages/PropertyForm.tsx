@@ -71,7 +71,7 @@ import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { PropertyMap } from "@/components/PropertyMap";
 import { TagInput } from "@/components/TagInput";
-import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS } from "@/lib/pmsFieldConfig";
+import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS, getFieldAuthority, getAuthorityLabel } from "@/lib/pmsFieldConfig";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import RichTextEditor from "@/components/RichTextEditor";
 import { pmsIntegrationStatus } from "@/components/ApiMilestones";
@@ -2629,13 +2629,84 @@ export default function PropertyForm() {
     }
   };
 
-  // Placeholder handler for syncing editorial content from PMS
+  // Handler for syncing editorial content from PMS
+  const [isSyncingEditorial, setIsSyncingEditorial] = useState(false);
+  
   const handleSyncEditorial = async () => {
     setIsSyncEditorialDialogOpen(false);
-    toast({
-      title: "Sync Editorial",
-      description: `Editorial sync for ${getPMSDisplayName(selectedPMS)} is not yet implemented. Backend coming soon.`,
-    });
+    setIsSyncingEditorial(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-editorial", {
+        body: {
+          property_id: propertyId,
+          pms_system: selectedPMS,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success === false) {
+        throw new Error(data.error || "Sync failed");
+      }
+
+      // Show sync summary
+      const fieldsUpdated = data?.fields_updated || [];
+      const summary = data?.sync_summary || [];
+      
+      if (fieldsUpdated.length > 0) {
+        toast({
+          title: "Editorial Sync Complete",
+          description: `Updated ${fieldsUpdated.length} field(s): ${fieldsUpdated.join(", ")}`,
+        });
+        
+        // Reload property data to reflect changes
+        if (propertyId) {
+          const { data: refreshedProperty } = await supabase
+            .from("properties")
+            .select("*")
+            .eq("id", propertyId)
+            .single();
+            
+          if (refreshedProperty) {
+            // Update form data with refreshed values
+            setFormData((prev) => ({
+              ...prev,
+              name: refreshedProperty.name || prev.name,
+              description: refreshedProperty.description || prev.description,
+              address: refreshedProperty.address || prev.address,
+              city: refreshedProperty.city || prev.city,
+              country: refreshedProperty.country || prev.country,
+            }));
+            
+            // Update coordinates if available
+            if (refreshedProperty.latitude) setLatitude(refreshedProperty.latitude);
+            if (refreshedProperty.longitude) setLongitude(refreshedProperty.longitude);
+            
+            // Update images if synced
+            if (refreshedProperty.images && Array.isArray(refreshedProperty.images)) {
+              setUploadedImages(refreshedProperty.images as string[]);
+            }
+          }
+        }
+      } else {
+        // Show what was skipped
+        const skippedFields = summary.filter((s: any) => s.action.includes("skipped")).map((s: any) => s.field);
+        toast({
+          title: "No Changes Made",
+          description: data?.pms_notes || `All fields were already populated or not available from ${getPMSDisplayName(selectedPMS)}.`,
+        });
+      }
+    } catch (err: any) {
+      console.error("Error syncing editorial:", err);
+      toast({
+        title: "Sync Failed",
+        description: err.message || `Failed to sync editorial content from ${getPMSDisplayName(selectedPMS)}.`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncingEditorial(false);
+    }
   };
 
   return (
