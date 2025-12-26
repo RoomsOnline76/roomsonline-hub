@@ -81,6 +81,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
   {
     key: 'hotelbeds',
     name: 'HotelBeds',
+    hasCustomCard: true,
     description: 'Global bedbank and travel distribution platform for hotels',
   },
   {

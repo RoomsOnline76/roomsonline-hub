@@ -173,6 +173,16 @@ export default function AdminKeys() {
   const [togglingLittlehotelier, setTogglingLittlehotelier] = useState(false);
   const [littlehotelierRefreshInterval, setLittlehotelierRefreshInterval] = useState<number>(60);
 
+  // HotelBeds-specific state
+  const [hotelbedsCredentials, setHotelbedsCredentials] = useState<PMSCredentials | null>(null);
+  const [hotelbedsApiKey, setHotelbedsApiKey] = useState("");
+  const [hotelbedsApiSecret, setHotelbedsApiSecret] = useState("");
+  const [hotelbedsEnvironment, setHotelbedsEnvironment] = useState<"test" | "production">("test");
+  const [editingHotelbeds, setEditingHotelbeds] = useState(false);
+  const [savingHotelbeds, setSavingHotelbeds] = useState(false);
+  const [togglingHotelbeds, setTogglingHotelbeds] = useState(false);
+  const [hotelbedsRefreshInterval, setHotelbedsRefreshInterval] = useState<number>(60);
+
   // Benson toggle state
   const [togglingBenson, setTogglingBenson] = useState(false);
 
@@ -212,6 +222,7 @@ export default function AdminKeys() {
     fetchHostfullyCredentials();
     fetchCloudbedsCredentials();
     fetchLittlehotelierCredentials();
+    fetchHotelbedsCredentials();
     fetchResendConfig();
     fetchTripadvisorConfig();
     fetchGlobalSettings();
@@ -563,6 +574,22 @@ export default function AdminKeys() {
     }
   };
 
+  const fetchHotelbedsCredentials = async () => {
+    const { data, error } = await supabase
+      .from("pms_credentials")
+      .select("*")
+      .eq("system_type", "hotelbeds")
+      .maybeSingle();
+
+    if (!error && data) {
+      setHotelbedsCredentials(data);
+      setHotelbedsEnvironment(data.environment as "test" | "production");
+      if (data.refresh_interval_minutes) {
+        setHotelbedsRefreshInterval(data.refresh_interval_minutes);
+      }
+    }
+  };
+
   const handleUpdateKey = async (keyId: string) => {
     const { error } = await supabase.from("api_keys").update({ key_value: editValue }).eq("id", keyId);
 
@@ -873,6 +900,45 @@ export default function AdminKeys() {
     setSavingLittlehotelier(false);
   };
 
+  const handleSaveHotelbedsCredentials = async () => {
+    setSavingHotelbeds(true);
+
+    const credData = {
+      system_type: "hotelbeds",
+      environment: hotelbedsEnvironment,
+      api_key: hotelbedsApiKey || hotelbedsCredentials?.api_key || null,
+      password: hotelbedsApiSecret || hotelbedsCredentials?.password || null,
+      is_active: true,
+    };
+
+    let error;
+    if (hotelbedsCredentials) {
+      const result = await supabase.from("pms_credentials").update(credData).eq("id", hotelbedsCredentials.id);
+      error = result.error;
+    } else {
+      const result = await supabase.from("pms_credentials").insert(credData);
+      error = result.error;
+    }
+
+    if (error) {
+      toast({
+        title: "Error saving credentials",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Credentials saved",
+        description: "HotelBeds credentials have been updated successfully",
+      });
+      setEditingHotelbeds(false);
+      setHotelbedsApiKey("");
+      setHotelbedsApiSecret("");
+      fetchHotelbedsCredentials();
+    }
+    setSavingHotelbeds(false);
+  };
+
   // Toggle handlers for PMS credentials
   const handleToggleBenson = async (enabled: boolean) => {
     setTogglingBenson(true);
@@ -954,6 +1020,19 @@ export default function AdminKeys() {
     });
     fetchLittlehotelierCredentials();
     setTogglingLittlehotelier(false);
+  };
+
+  const handleToggleHotelbeds = async (enabled: boolean) => {
+    setTogglingHotelbeds(true);
+    if (hotelbedsCredentials) {
+      await supabase.from("pms_credentials").update({ is_active: enabled }).eq("id", hotelbedsCredentials.id);
+    }
+    toast({
+      title: enabled ? "HotelBeds enabled" : "HotelBeds disabled",
+      description: `HotelBeds integration is now ${enabled ? "active" : "inactive"}`,
+    });
+    fetchHotelbedsCredentials();
+    setTogglingHotelbeds(false);
   };
 
   const handleToggleRoomsonline = async (enabled: boolean) => {
@@ -2764,7 +2843,126 @@ export default function AdminKeys() {
               {renderCloudbedsCard()}
               {renderPlaceholderPMSCard("Guestly", "guestly", "Property management and guest experience platform for vacation rentals")}
               {renderHostfullyCard()}
-              {renderPlaceholderPMSCard("HotelBeds", "hotelbeds", "Global bedbank and travel distribution platform for hotels")}
+              {/* HotelBeds - Custom card with API key/secret */}
+              <AccordionItem value="hotelbeds" className={`border rounded-lg px-4 ${!hotelbedsCredentials?.is_active ? "opacity-60" : ""}`}>
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center justify-between w-full pr-4">
+                    <div className="flex items-center gap-3">
+                      <BedDouble className="h-5 w-5 text-primary" />
+                      <span className="font-semibold">HotelBeds</span>
+                      <Badge variant="outline" className="text-xs">API Key + Secret</Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
+                        <Switch
+                          checked={hotelbedsCredentials?.is_active ?? false}
+                          onCheckedChange={handleToggleHotelbeds}
+                          disabled={togglingHotelbeds || !hotelbedsCredentials?.api_key}
+                          className={!hotelbedsCredentials?.api_key ? "opacity-50" : ""}
+                        />
+                        <span className="text-xs text-muted-foreground">{hotelbedsCredentials?.is_active ? "On" : "Off"}</span>
+                      </div>
+                      {hotelbedsCredentials?.api_key ? (
+                        <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Configured
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive" className="flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          Not Configured
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-4 space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Global bedbank and travel distribution platform for hotels
+                    </p>
+                    <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded-md inline-block">
+                      ⓘ Test environment: 50 requests/day limit
+                    </div>
+
+                    {editingHotelbeds ? (
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="hotelbeds-apikey">API Key</Label>
+                          <Input
+                            id="hotelbeds-apikey"
+                            value={hotelbedsApiKey}
+                            onChange={(e) => setHotelbedsApiKey(e.target.value)}
+                            placeholder={hotelbedsCredentials?.api_key ? "••••••••" : "Enter API key"}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="hotelbeds-secret">API Secret</Label>
+                          <Input
+                            id="hotelbeds-secret"
+                            type="password"
+                            value={hotelbedsApiSecret}
+                            onChange={(e) => setHotelbedsApiSecret(e.target.value)}
+                            placeholder={hotelbedsCredentials?.password ? "••••••••" : "Enter API secret"}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Environment</Label>
+                          <div className="flex items-center gap-4">
+                            <Button
+                              variant={hotelbedsEnvironment === "test" ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setHotelbedsEnvironment("test")}
+                            >
+                              Test
+                            </Button>
+                            <Button
+                              variant={hotelbedsEnvironment === "production" ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setHotelbedsEnvironment("production")}
+                            >
+                              Production
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button onClick={handleSaveHotelbedsCredentials} disabled={savingHotelbeds}>
+                            {savingHotelbeds ? "Saving..." : "Save"}
+                          </Button>
+                          <Button variant="outline" onClick={() => { setEditingHotelbeds(false); setHotelbedsApiKey(""); setHotelbedsApiSecret(""); }}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <Label className="text-muted-foreground">API Key</Label>
+                            <p className={`font-medium ${hotelbedsCredentials?.api_key ? "text-green-600" : ""}`}>
+                              {hotelbedsCredentials?.api_key ? "Configured" : "Not set"}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-muted-foreground">Environment</Label>
+                            <p className="font-medium capitalize">{hotelbedsCredentials?.environment || "Test"}</p>
+                          </div>
+                          <div>
+                            <Label className="text-muted-foreground">Status</Label>
+                            <p className="font-medium">{hotelbedsCredentials?.is_active ? "Active" : "Inactive"}</p>
+                          </div>
+                        </div>
+                        <ApiMilestones systemType="hotelbeds" className="pt-4 border-t" />
+                        <div className="flex gap-2">
+                          <Button variant="outline" onClick={() => setEditingHotelbeds(true)}>
+                            {hotelbedsCredentials?.api_key ? "Update Credentials" : "Configure"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
               {renderLittlehotelierCard()}
               {renderNightsbridgeCard()}
               {renderPlaceholderPMSCard("RoomKey", "roomkey", "Hotel booking platform with direct connections to major hotel chains")}

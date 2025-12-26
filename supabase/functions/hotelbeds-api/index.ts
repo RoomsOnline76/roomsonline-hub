@@ -1,0 +1,826 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+
+// ============================================================================
+// HOTELBEDS API ADAPTER
+// Follows the standardized adapter contract from adapter-contract.ts
+// 
+// Authentication: Custom signature-based (Api-key + X-Signature)
+// Signature = SHA256(apiKey + secret + timestamp)
+// ============================================================================
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+// ============================================================================
+// STANDARDIZED ERROR CODES (from adapter-contract.ts)
+// ============================================================================
+
+const ERROR_CODES = {
+  INVALID_REQUEST: 'INVALID_REQUEST',
+  AUTH_FAILED: 'AUTH_FAILED',
+  ACCESS_DENIED: 'ACCESS_DENIED',
+  NOT_FOUND: 'NOT_FOUND',
+  AVAILABILITY_CHANGED: 'AVAILABILITY_CHANGED',
+  BOOKING_REJECTED: 'BOOKING_REJECTED',
+  MODIFICATION_NOT_SUPPORTED: 'MODIFICATION_NOT_SUPPORTED',
+  CANCELLATION_NOT_SUPPORTED: 'CANCELLATION_NOT_SUPPORTED',
+  INTERNAL_ADAPTER_ERROR: 'INTERNAL_ADAPTER_ERROR',
+  PMS_UNAVAILABLE: 'PMS_UNAVAILABLE',
+} as const;
+
+// ============================================================================
+// CAPABILITY DECLARATION
+// ============================================================================
+
+const CAPABILITIES = {
+  supports_live_availability: true,
+  supports_rate_fetch: true,
+  supports_create_booking: true,
+  supports_modify_booking: false,
+  supports_webhooks: false,
+};
+
+// Base URLs for different environments
+const BASE_URLS = {
+  test: 'https://api.test.hotelbeds.com',
+  production: 'https://api.hotelbeds.com',
+};
+
+// Standardized response wrapper
+interface AdapterResponse<T = unknown> {
+  success: boolean;
+  data: T | null;
+  error: { code: string; message: string; details?: unknown } | null;
+  source: string;
+  fetched_at: string;
+  action: string;
+}
+
+function createSuccessResponse<T>(data: T, action: string): AdapterResponse<T> {
+  return {
+    success: true,
+    data,
+    error: null,
+    source: "hotelbeds",
+    fetched_at: new Date().toISOString(),
+    action,
+  };
+}
+
+function createErrorResponse(
+  code: string,
+  message: string,
+  action: string,
+  details?: unknown
+): AdapterResponse<null> {
+  return {
+    success: false,
+    data: null,
+    error: { code, message, details },
+    source: "hotelbeds",
+    fetched_at: new Date().toISOString(),
+    action,
+  };
+}
+
+// Input validation schemas
+const baseRequestSchema = z.object({
+  action: z.enum([
+    "get_capabilities",
+    "health_check",
+    "fetch_availability",
+    "create_reservation",
+    "get_reservations",
+    "get_room_types",
+    "get_rate_types",
+  ]),
+  property_id: z.string().uuid({ message: "Invalid property ID format" }),
+});
+
+const fetchAvailabilitySchema = baseRequestSchema.extend({
+  action: z.literal("fetch_availability"),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Start date must be YYYY-MM-DD format" }),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "End date must be YYYY-MM-DD format" }),
+  occupancy: z.object({
+    rooms: z.number().min(1).default(1),
+    adults: z.number().min(1).default(2),
+    children: z.number().min(0).default(0),
+  }).optional(),
+});
+
+const createReservationSchema = baseRequestSchema.extend({
+  action: z.literal("create_reservation"),
+  reservation_data: z.object({
+    rateKey: z.string().min(1, "Rate key is required from availability check"),
+    holder: z.object({
+      name: z.string().min(1),
+      surname: z.string().min(1),
+    }),
+    rooms: z.array(z.object({
+      rateKey: z.string(),
+      paxes: z.array(z.object({
+        roomId: z.number(),
+        type: z.enum(["AD", "CH"]),
+        name: z.string().optional(),
+        surname: z.string().optional(),
+        age: z.number().optional(),
+      })),
+    })),
+    clientReference: z.string().optional(),
+    remark: z.string().optional(),
+  }),
+});
+
+// ============================================================================
+// SIGNATURE GENERATION
+// ============================================================================
+
+async function generateSignature(apiKey: string, secret: string): Promise<string> {
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const signatureData = apiKey + secret + timestamp;
+  
+  const encoder = new TextEncoder();
+  const data = encoder.encode(signatureData);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function getAuthHeaders(apiKey: string, signature: string): Record<string, string> {
+  return {
+    'Api-key': apiKey,
+    'X-Signature': signature,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Accept-Encoding': 'gzip',
+  };
+}
+
+// ============================================================================
+// API CALL HELPER
+// ============================================================================
+
+async function hotelbedsApiCall(
+  endpoint: string,
+  apiKey: string,
+  secret: string,
+  environment: string,
+  method: string = "GET",
+  body?: unknown
+): Promise<any> {
+  const baseUrl = environment === 'production' ? BASE_URLS.production : BASE_URLS.test;
+  const url = `${baseUrl}${endpoint}`;
+  
+  console.log(`[HotelBeds] ${method} ${url}`);
+  
+  const signature = await generateSignature(apiKey, secret);
+  const headers = getAuthHeaders(apiKey, signature);
+
+  const options: RequestInit = {
+    method,
+    headers,
+  };
+
+  if (body && (method === "POST" || method === "PUT")) {
+    options.body = JSON.stringify(body);
+    console.log(`[HotelBeds] Request body:`, JSON.stringify(body, null, 2));
+  }
+
+  const response = await fetch(url, options);
+  const responseText = await response.text();
+
+  console.log(`[HotelBeds] Response status: ${response.status}`);
+  console.log(`[HotelBeds] Response (first 500 chars): ${responseText.substring(0, 500)}`);
+
+  if (!response.ok) {
+    // Handle specific HotelBeds errors
+    if (response.status === 401) {
+      throw { code: ERROR_CODES.AUTH_FAILED, message: "Authentication failed - check API key and secret" };
+    }
+    if (response.status === 403) {
+      throw { code: ERROR_CODES.PMS_UNAVAILABLE, message: "API quota exceeded or access denied" };
+    }
+    console.error(`[HotelBeds] API error: ${response.status} - ${responseText}`);
+    throw { code: ERROR_CODES.INTERNAL_ADAPTER_ERROR, message: `HotelBeds API error: ${response.status}` };
+  }
+
+  try {
+    return JSON.parse(responseText);
+  } catch (e) {
+    console.error(`[HotelBeds] Failed to parse JSON:`, e);
+    throw { code: ERROR_CODES.INTERNAL_ADAPTER_ERROR, message: "Invalid JSON response from HotelBeds API" };
+  }
+}
+
+// ============================================================================
+// API OPERATIONS
+// ============================================================================
+
+// Get availability and rates
+async function getAvailability(
+  apiKey: string,
+  secret: string,
+  environment: string,
+  hotelCode: string,
+  startDate: string,
+  endDate: string,
+  occupancy: { rooms: number; adults: number; children: number }
+): Promise<any> {
+  const requestBody = {
+    stay: {
+      checkIn: startDate,
+      checkOut: endDate,
+    },
+    occupancies: [{
+      rooms: occupancy.rooms,
+      adults: occupancy.adults,
+      children: occupancy.children,
+    }],
+    hotels: {
+      hotel: [parseInt(hotelCode) || hotelCode],
+    },
+  };
+
+  return hotelbedsApiCall(
+    '/hotel-api/1.0/hotels',
+    apiKey,
+    secret,
+    environment,
+    'POST',
+    requestBody
+  );
+}
+
+// Check API status (health check)
+async function checkStatus(
+  apiKey: string,
+  secret: string,
+  environment: string
+): Promise<any> {
+  return hotelbedsApiCall(
+    '/hotel-api/1.0/status',
+    apiKey,
+    secret,
+    environment,
+    'GET'
+  );
+}
+
+// Create booking
+async function createBooking(
+  apiKey: string,
+  secret: string,
+  environment: string,
+  bookingData: {
+    holder: { name: string; surname: string };
+    rooms: Array<{
+      rateKey: string;
+      paxes: Array<{
+        roomId: number;
+        type: string;
+        name?: string;
+        surname?: string;
+        age?: number;
+      }>;
+    }>;
+    clientReference?: string;
+    remark?: string;
+  }
+): Promise<any> {
+  const requestBody = {
+    holder: bookingData.holder,
+    rooms: bookingData.rooms,
+    clientReference: bookingData.clientReference || "",
+    remark: bookingData.remark || "",
+  };
+
+  return hotelbedsApiCall(
+    '/hotel-api/1.0/bookings',
+    apiKey,
+    secret,
+    environment,
+    'POST',
+    requestBody
+  );
+}
+
+// Get booking details
+async function getBooking(
+  apiKey: string,
+  secret: string,
+  environment: string,
+  bookingReference: string
+): Promise<any> {
+  return hotelbedsApiCall(
+    `/hotel-api/1.0/bookings/${bookingReference}`,
+    apiKey,
+    secret,
+    environment,
+    'GET'
+  );
+}
+
+// ============================================================================
+// TRANSFORM FUNCTIONS
+// ============================================================================
+
+function transformAvailability(hotelbedsData: any, startDate: string, endDate: string): any {
+  const roomTypes: any[] = [];
+  
+  const hotels = hotelbedsData?.hotels?.hotels || [];
+  
+  for (const hotel of hotels) {
+    const rooms = hotel.rooms || [];
+    
+    for (const room of rooms) {
+      const dailyAvailability: any[] = [];
+      const rateTypes: any[] = [];
+      
+      // Generate daily entries for the date range
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        dailyAvailability.push({
+          date: dateStr,
+          available_units: room.rates?.length > 0 ? 1 : 0,
+          restrictions: {
+            stop_sell: false,
+            closed_to_arrival: false,
+            closed_to_departure: false,
+            min_stay: null,
+            max_stay: null,
+            min_advance: null,
+            max_advance: null,
+          },
+        });
+      }
+      
+      // Process rates
+      for (const rate of (room.rates || [])) {
+        const dailyRates: any[] = [];
+        const netAmount = parseFloat(rate.net) || 0;
+        const nights = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        const perNightRate = nights > 0 ? netAmount / nights : netAmount;
+        
+        // Create daily rate entries
+        for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          dailyRates.push({
+            date: dateStr,
+            room_amount: perNightRate,
+            adult_amount_1: perNightRate,
+            adult_amount_2: perNightRate,
+            teen_amount: 0,
+            child_amount: 0,
+            infant_amount: 0,
+            currency: hotelbedsData?.hotels?.currency || "EUR",
+          });
+        }
+        
+        rateTypes.push({
+          rate_type_id: rate.rateKey?.substring(0, 50) || `rate_${rateTypes.length}`,
+          name: rate.boardName || rate.rateClass || "Standard",
+          rate_key: rate.rateKey, // Store full rateKey for booking
+          board_code: rate.boardCode,
+          board_name: rate.boardName,
+          cancellation_policies: rate.cancellationPolicies || [],
+          daily_rates: dailyRates,
+          net_total: netAmount,
+        });
+      }
+      
+      roomTypes.push({
+        room_type_id: room.code?.toString() || `room_${roomTypes.length}`,
+        name: room.name || "Room",
+        description: room.description || "",
+        daily_availability: dailyAvailability,
+        rate_types: rateTypes,
+      });
+    }
+  }
+  
+  return {
+    room_types: roomTypes,
+    currency: hotelbedsData?.hotels?.currency || "EUR",
+    fetched_at: new Date().toISOString(),
+  };
+}
+
+function transformRoomTypes(hotelbedsData: any): any[] {
+  const roomTypes: any[] = [];
+  const hotels = hotelbedsData?.hotels?.hotels || [];
+  
+  for (const hotel of hotels) {
+    for (const room of (hotel.rooms || [])) {
+      roomTypes.push({
+        room_type_id: room.code?.toString() || `room_${roomTypes.length}`,
+        name: room.name || "Room",
+        description: room.description || "",
+        max_guests: 4, // HotelBeds doesn't always provide this
+        min_guests: 1,
+        guest_rules: {
+          allow_teens: true,
+          teen_min_age: 13,
+          teen_max_age: 17,
+          allow_children: true,
+          child_min_age: 2,
+          child_max_age: 12,
+          allow_infants: true,
+          infant_min_age: 0,
+          infant_max_age: 1,
+        },
+        linked_rate_type_ids: room.rates?.map((r: any) => r.rateKey?.substring(0, 50)) || [],
+      });
+    }
+  }
+  
+  return roomTypes;
+}
+
+function transformRateTypes(hotelbedsData: any): any[] {
+  const rateTypes: any[] = [];
+  const seenRates = new Set<string>();
+  const hotels = hotelbedsData?.hotels?.hotels || [];
+  
+  for (const hotel of hotels) {
+    for (const room of (hotel.rooms || [])) {
+      for (const rate of (room.rates || [])) {
+        const rateId = rate.boardCode || rate.rateClass || `rate_${rateTypes.length}`;
+        if (!seenRates.has(rateId)) {
+          seenRates.add(rateId);
+          rateTypes.push({
+            rate_type_id: rateId,
+            name: rate.boardName || rate.rateClass || "Standard",
+            description: `${rate.boardName || ""} - ${rate.rateClass || ""}`.trim(),
+            price_type: "per_room",
+            min_stay_days: null,
+            max_stay_days: null,
+            min_advance_days: null,
+            max_advance_days: null,
+          });
+        }
+      }
+    }
+  }
+  
+  return rateTypes;
+}
+
+// ============================================================================
+// MAIN HANDLER
+// ============================================================================
+
+serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  let action = "unknown";
+
+  try {
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    const body = await req.json();
+    console.log(`[HotelBeds] Request:`, JSON.stringify(body, null, 2));
+
+    // Validate base request
+    const baseValidation = baseRequestSchema.safeParse(body);
+    if (!baseValidation.success) {
+      console.error(`[HotelBeds] Validation error:`, baseValidation.error);
+      return new Response(
+        JSON.stringify(createErrorResponse(
+          ERROR_CODES.INVALID_REQUEST,
+          "Invalid request parameters",
+          action,
+          baseValidation.error.issues
+        )),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    action = body.action;
+    const propertyId = body.property_id;
+
+    // Handle get_capabilities without needing credentials
+    if (action === "get_capabilities") {
+      return new Response(
+        JSON.stringify(createSuccessResponse(CAPABILITIES, action)),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get property details to find HotelBeds hotel code
+    const { data: property, error: propError } = await supabaseClient
+      .from("properties")
+      .select("hotelbeds_hotel_code, external_system")
+      .eq("id", propertyId)
+      .single();
+
+    if (propError || !property) {
+      console.error(`[HotelBeds] Property lookup failed:`, propError);
+      return new Response(
+        JSON.stringify(createErrorResponse(
+          ERROR_CODES.NOT_FOUND,
+          "Property not found",
+          action
+        )),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const hotelCode = (property as any).hotelbeds_hotel_code;
+    if (!hotelCode) {
+      return new Response(
+        JSON.stringify(createErrorResponse(
+          ERROR_CODES.INVALID_REQUEST,
+          "HotelBeds hotel code not configured for this property",
+          action
+        )),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get HotelBeds credentials from pms_credentials
+    const { data: credentials, error: credError } = await supabaseClient
+      .from("pms_credentials")
+      .select("*")
+      .eq("system_type", "hotelbeds")
+      .eq("is_active", true)
+      .single();
+
+    if (credError || !credentials) {
+      console.error(`[HotelBeds] Credentials lookup failed:`, credError);
+      return new Response(
+        JSON.stringify(createErrorResponse(
+          ERROR_CODES.AUTH_FAILED,
+          "HotelBeds credentials not configured or inactive",
+          action
+        )),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { api_key: apiKey, password: apiSecret, environment } = credentials;
+
+    if (!apiKey || !apiSecret) {
+      return new Response(
+        JSON.stringify(createErrorResponse(
+          ERROR_CODES.AUTH_FAILED,
+          "HotelBeds API key or secret not configured",
+          action
+        )),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ========================================================================
+    // HANDLE ACTIONS
+    // ========================================================================
+
+    // Health check
+    if (action === "health_check") {
+      try {
+        const status = await checkStatus(apiKey, apiSecret, environment || "test");
+        return new Response(
+          JSON.stringify(createSuccessResponse({ 
+            status: "ok", 
+            api_status: status,
+            environment: environment || "test",
+          }, action)),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error: any) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            error.code || ERROR_CODES.PMS_UNAVAILABLE,
+            error.message || "Health check failed",
+            action
+          )),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Fetch availability
+    if (action === "fetch_availability") {
+      const validation = fetchAvailabilitySchema.safeParse(body);
+      if (!validation.success) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            ERROR_CODES.INVALID_REQUEST,
+            "Invalid fetch_availability parameters",
+            action,
+            validation.error.issues
+          )),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { start_date, end_date, occupancy } = validation.data;
+      const occ = occupancy || { rooms: 1, adults: 2, children: 0 };
+
+      try {
+        const availabilityData = await getAvailability(
+          apiKey,
+          apiSecret,
+          environment || "test",
+          hotelCode,
+          start_date,
+          end_date,
+          occ
+        );
+
+        const transformed = transformAvailability(availabilityData, start_date, end_date);
+        
+        return new Response(
+          JSON.stringify(createSuccessResponse(transformed, action)),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error: any) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            error.code || ERROR_CODES.INTERNAL_ADAPTER_ERROR,
+            error.message || "Failed to fetch availability",
+            action
+          )),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Get room types
+    if (action === "get_room_types") {
+      try {
+        // Use availability endpoint to get room data
+        const today = new Date();
+        const startDate = today.toISOString().split('T')[0];
+        const endDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const availabilityData = await getAvailability(
+          apiKey,
+          apiSecret,
+          environment || "test",
+          hotelCode,
+          startDate,
+          endDate,
+          { rooms: 1, adults: 2, children: 0 }
+        );
+
+        const roomTypes = transformRoomTypes(availabilityData);
+        
+        return new Response(
+          JSON.stringify(createSuccessResponse({ room_types: roomTypes }, action)),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error: any) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            error.code || ERROR_CODES.INTERNAL_ADAPTER_ERROR,
+            error.message || "Failed to fetch room types",
+            action
+          )),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Get rate types
+    if (action === "get_rate_types") {
+      try {
+        // Use availability endpoint to get rate data
+        const today = new Date();
+        const startDate = today.toISOString().split('T')[0];
+        const endDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const availabilityData = await getAvailability(
+          apiKey,
+          apiSecret,
+          environment || "test",
+          hotelCode,
+          startDate,
+          endDate,
+          { rooms: 1, adults: 2, children: 0 }
+        );
+
+        const rateTypes = transformRateTypes(availabilityData);
+        
+        return new Response(
+          JSON.stringify(createSuccessResponse({ rate_types: rateTypes }, action)),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error: any) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            error.code || ERROR_CODES.INTERNAL_ADAPTER_ERROR,
+            error.message || "Failed to fetch rate types",
+            action
+          )),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Create reservation
+    if (action === "create_reservation") {
+      const validation = createReservationSchema.safeParse(body);
+      if (!validation.success) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            ERROR_CODES.INVALID_REQUEST,
+            "Invalid create_reservation parameters",
+            action,
+            validation.error.issues
+          )),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { reservation_data } = validation.data;
+
+      try {
+        const bookingResult = await createBooking(
+          apiKey,
+          apiSecret,
+          environment || "test",
+          reservation_data
+        );
+
+        const booking = bookingResult?.booking;
+        
+        return new Response(
+          JSON.stringify(createSuccessResponse({
+            reservation_id: booking?.reference || booking?.bookingReference,
+            confirmation_number: booking?.reference,
+            status: booking?.status || "confirmed",
+            raw_response: bookingResult,
+          }, action)),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error: any) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            error.code || ERROR_CODES.BOOKING_REJECTED,
+            error.message || "Failed to create reservation",
+            action
+          )),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Get reservations
+    if (action === "get_reservations") {
+      try {
+        // HotelBeds doesn't have a list endpoint, need booking reference
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            ERROR_CODES.INVALID_REQUEST,
+            "get_reservations requires a booking reference - use booking lookup instead",
+            action
+          )),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error: any) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            error.code || ERROR_CODES.INTERNAL_ADAPTER_ERROR,
+            error.message || "Failed to fetch reservations",
+            action
+          )),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Unknown action
+    return new Response(
+      JSON.stringify(createErrorResponse(
+        ERROR_CODES.INVALID_REQUEST,
+        `Unknown action: ${action}`,
+        action
+      )),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+
+  } catch (error) {
+    console.error(`[HotelBeds] Unhandled error:`, error);
+    return new Response(
+      JSON.stringify(createErrorResponse(
+        ERROR_CODES.INTERNAL_ADAPTER_ERROR,
+        error instanceof Error ? error.message : "An unexpected error occurred",
+        action
+      )),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
