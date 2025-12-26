@@ -2558,7 +2558,7 @@ export default function AdminKeys() {
             <Accordion type="multiple" className="space-y-4">
               {renderBensonCard()}
               {renderCheckfrontCard()}
-              {renderPlaceholderPMSCard("Cloudbeds", "cloudbeds", "All-in-one hospitality management platform for hotels and accommodation providers")}
+              {renderCloudbedsCard()}
               {renderHostfullyCard()}
               {renderPlaceholderPMSCard("Little Hotelier", "littlehotelier", "Cloud-based property management system designed for small hotels, B&Bs, and guest houses")}
               {renderNightsbridgeCard()}

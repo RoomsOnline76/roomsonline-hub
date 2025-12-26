@@ -324,6 +324,7 @@ export default function PropertyForm() {
   >([]);
   const [bensonPropertyCode, setBensonPropertyCode] = useState<string>("");
   const [bensonEnvironment, setBensonEnvironment] = useState<"staging" | "production">("staging");
+  const [cloudbedsPropertyId, setCloudbedsPropertyId] = useState<string>("");
   const [isSyncingPms, setIsSyncingPms] = useState(false);
   const [lastPmsSync, setLastPmsSync] = useState<Date | null>(null);
 
@@ -341,6 +342,7 @@ export default function PropertyForm() {
   }>({});
   const [tripadvisorId, setTripadvisorId] = useState<string>("");
   const [existingBensonPropertyCode, setExistingBensonPropertyCode] = useState<string | null>(null);
+  const [existingCloudbedsPropertyId, setExistingCloudbedsPropertyId] = useState<string | null>(null);
 
   // Sync room/rate types from PMS (Benson)
   const syncFromBenson = async () => {
@@ -1937,6 +1939,12 @@ export default function PropertyForm() {
           setExistingExternalIds(amenities?.external_ids || {});
           setExistingBensonPropertyCode(data.benson_property_code || null);
           
+          // Set Cloudbeds property ID
+          if ((data as any).cloudbeds_property_id) {
+            setCloudbedsPropertyId((data as any).cloudbeds_property_id);
+          }
+          setExistingCloudbedsPropertyId((data as any).cloudbeds_property_id || null);
+          
           // Load TripAdvisor ID
           if (amenities?.external_ids?.tripadvisor_id) {
             setTripadvisorId(amenities.external_ids.tripadvisor_id);
@@ -2275,6 +2283,8 @@ export default function PropertyForm() {
         // Preserve existing benson_property_code if PMS changed, only update if benson is selected
         benson_property_code: selectedPMS === "benson" ? bensonPropertyCode : existingBensonPropertyCode,
         benson_environment: selectedPMS === "benson" ? bensonEnvironment : null,
+        // Preserve existing cloudbeds_property_id if PMS changed, only update if cloudbeds is selected
+        cloudbeds_property_id: selectedPMS === "cloudbeds" ? cloudbedsPropertyId : existingCloudbedsPropertyId,
         property_url: formData.property_url || null,
         is_active: true,
         images: uploadedImages,
@@ -2752,6 +2762,20 @@ export default function PropertyForm() {
                             </Button>
                           )}
                         </>
+                      )}
+
+                      {selectedPMS === "cloudbeds" && (
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="cloudbeds_property_id" className="text-xs whitespace-nowrap">Cloudbeds Property ID *</Label>
+                          <Input
+                            id="cloudbeds_property_id"
+                            value={cloudbedsPropertyId}
+                            onChange={(e) => { setCloudbedsPropertyId(e.target.value); setIsDirty(true); }}
+                            placeholder="Property ID"
+                            className="h-7 text-xs w-40"
+                            required
+                          />
+                        </div>
                       )}
 
                       {lastPmsSync && selectedPMS === "benson" && (
