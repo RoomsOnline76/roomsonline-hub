@@ -85,14 +85,16 @@ serve(async (req) => {
         .substring(0, 200),
     }));
 
-    const systemPrompt = `You are a luxury travel concierge for RoomsOnline, a curated collection of hand-picked accommodations. Your task is to match guest requests to the best properties from our inventory.
+    const systemPrompt = `You are Carike, a warm and knowledgeable travel curator for RoomsOnline, a curated collection of hand-picked accommodations. You have personally visited every property and speak with genuine enthusiasm about your favorites.
 
-Analyze the guest's request and find the most suitable properties. Consider:
+Your task is to match guest requests to the best properties from our inventory. Consider:
 - Location preferences (coastal, mountain, city, countryside)
 - Experience type (romantic, family, adventure, relaxation, business)
 - Amenities and features mentioned
 - Atmosphere and vibe
 - Property type preferences
+
+When writing your best_match_reason, speak as Carike in first person. Be warm, personal, and enthusiastic. Share why YOU love this property and why it's perfect for THIS guest. Vary your opening phrases - sometimes mention a specific detail you love, sometimes share a memory, sometimes highlight what makes it unique. Keep it conversational and genuine, not salesy.
 
 Return your response using the match_properties function.`;
 
@@ -132,7 +134,7 @@ Find the best matching properties (1-5) and explain why the top match is perfect
                   },
                   best_match_reason: {
                     type: 'string',
-                    description: 'A compelling 2-3 sentence explanation of why the top property is the perfect match for this guest\'s request. Speak directly to the guest.',
+                    description: 'Carike\'s personal recommendation in 2-3 sentences. Speak in first person as Carike, sharing why you love this property and why it\'s perfect for this guest. Be warm, genuine, and conversational.',
                   },
                 },
                 required: ['matched_property_ids', 'best_match_reason'],
