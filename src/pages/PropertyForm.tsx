@@ -52,15 +52,15 @@ import {
 } from "lucide-react";
 import { StarRating } from "@/components/StarRating";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { 
-  AlertDialog, 
-  AlertDialogAction, 
-  AlertDialogCancel, 
-  AlertDialogContent, 
-  AlertDialogDescription, 
-  AlertDialogFooter, 
-  AlertDialogHeader, 
-  AlertDialogTitle 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -83,19 +83,19 @@ import { ROLSpecTab } from "@/components/property/ROLSpecTab";
 const isPMSFullyIntegrated = (systemType: string): boolean => {
   const status = pmsIntegrationStatus[systemType];
   if (!status) return false;
-  return Object.values(status).every(v => v === true);
+  return Object.values(status).every((v) => v === true);
 };
 
 // Check if a PMS has any integration progress
-const getPMSIntegrationLevel = (systemType: string): 'none' | 'partial' | 'full' => {
+const getPMSIntegrationLevel = (systemType: string): "none" | "partial" | "full" => {
   const status = pmsIntegrationStatus[systemType];
-  if (!status) return 'none';
+  if (!status) return "none";
   const values = Object.values(status);
-  const completeCount = values.filter(v => v === true).length;
-  const pendingCount = values.filter(v => v === 'pending').length;
-  if (completeCount === values.length) return 'full';
-  if (completeCount > 0 || pendingCount > 0) return 'partial';
-  return 'none';
+  const completeCount = values.filter((v) => v === true).length;
+  const pendingCount = values.filter((v) => v === "pending").length;
+  if (completeCount === values.length) return "full";
+  if (completeCount > 0 || pendingCount > 0) return "partial";
+  return "none";
 };
 
 // Map PMS system types to icons
@@ -272,7 +272,7 @@ export default function PropertyForm() {
         .select("key_value")
         .eq("key_name", "HOME_ICON_OPEN_NEW_TAB")
         .maybeSingle();
-      
+
       if (data?.key_value) {
         setHomeIconOpenNewTab(data.key_value === "true");
       }
@@ -385,7 +385,7 @@ export default function PropertyForm() {
 
       // Check for adapter-level error
       if (data?.success === false && data?.error) {
-        throw new Error(data.error.message || 'Unknown error');
+        throw new Error(data.error.message || "Unknown error");
       }
 
       // Unwrap adapter response - data is in data.data per adapter contract
@@ -399,11 +399,11 @@ export default function PropertyForm() {
       if (Array.isArray(roomTypesArray) && roomTypesArray.length > 0) {
         const pmsRoomTypes = roomTypesArray.map((rt: any) => {
           // Track which fields are populated from PMS
-          const pmsSyncedFields: string[] = ['name', 'pmsRoomId'];
-          
+          const pmsSyncedFields: string[] = ["name", "pmsRoomId"];
+
           // Get room type ID - handle both snake_case (contract) and camelCase (legacy)
           const roomTypeId = rt.room_type_id ?? rt.id;
-          
+
           const roomData: any = {
             id: roomTypeId?.toString() || Date.now().toString(),
             name: rt.name || `Room Type ${roomTypeId}`,
@@ -413,111 +413,112 @@ export default function PropertyForm() {
             pmsRoomId: roomTypeId?.toString() || "",
             pms_synced: true,
           };
-          
+
           // Map description
           if (rt.description) {
             roomData.description = rt.description;
-            pmsSyncedFields.push('description');
+            pmsSyncedFields.push("description");
           }
-          
+
           // Map guest capacity - handle both snake_case (contract) and camelCase (legacy)
           const maxGuests = rt.max_guests ?? rt.maxGuests ?? rt.maxPeople;
           const minGuests = rt.min_guests ?? rt.minGuests ?? rt.minPeople;
-          
+
           if (maxGuests !== undefined) {
             roomData.maxPeople = maxGuests;
             roomData.maxAdults = maxGuests;
-            pmsSyncedFields.push('maxPeople', 'maxAdults');
+            pmsSyncedFields.push("maxPeople", "maxAdults");
           }
           if (minGuests !== undefined) {
             roomData.minGuests = minGuests;
-            pmsSyncedFields.push('minGuests');
+            pmsSyncedFields.push("minGuests");
           }
-          
+
           // Map children settings - handle both formats
           const allowChildren = rt.allow_children ?? rt.allowChildren;
           const childMinAge = rt.child_min_age ?? rt.childMinAge;
           const childMaxAge = rt.child_max_age ?? rt.childMaxAge;
-          
+
           if (allowChildren !== undefined) {
             roomData.allowChildren = allowChildren;
-            pmsSyncedFields.push('allowChildren');
+            pmsSyncedFields.push("allowChildren");
             if (allowChildren && childMaxAge) {
               roomData.maxChildren = Math.min(maxGuests || 2, 4);
-              pmsSyncedFields.push('maxChildren');
+              pmsSyncedFields.push("maxChildren");
             }
             if (childMinAge !== undefined) {
               roomData.childMinAge = childMinAge;
-              pmsSyncedFields.push('childMinAge');
+              pmsSyncedFields.push("childMinAge");
             }
             if (childMaxAge !== undefined) {
               roomData.childMaxAge = childMaxAge;
-              pmsSyncedFields.push('childMaxAge');
+              pmsSyncedFields.push("childMaxAge");
             }
           }
-          
+
           // Map teen settings - handle both formats
           const allowTeens = rt.allow_teens ?? rt.allowTeens;
           const teenMinAge = rt.teen_min_age ?? rt.teenMinAge;
           const teenMaxAge = rt.teen_max_age ?? rt.teenMaxAge;
-          
+
           if (allowTeens !== undefined) {
             roomData.allowTeens = allowTeens;
-            pmsSyncedFields.push('allowTeens');
+            pmsSyncedFields.push("allowTeens");
             if (teenMinAge !== undefined) {
               roomData.teenMinAge = teenMinAge;
-              pmsSyncedFields.push('teenMinAge');
+              pmsSyncedFields.push("teenMinAge");
             }
             if (teenMaxAge !== undefined) {
               roomData.teenMaxAge = teenMaxAge;
-              pmsSyncedFields.push('teenMaxAge');
+              pmsSyncedFields.push("teenMaxAge");
             }
           }
-          
+
           // Map infant settings - handle both formats
           const allowInfants = rt.allow_infants ?? rt.allowInfants;
           const infantMinAge = rt.infant_min_age ?? rt.infantMinAge;
           const infantMaxAge = rt.infant_max_age ?? rt.infantMaxAge;
-          
+
           if (allowInfants !== undefined) {
             roomData.allowInfants = allowInfants;
-            pmsSyncedFields.push('allowInfants');
+            pmsSyncedFields.push("allowInfants");
             if (infantMinAge !== undefined) {
               roomData.infantMinAge = infantMinAge;
-              pmsSyncedFields.push('infantMinAge');
+              pmsSyncedFields.push("infantMinAge");
             }
             if (infantMaxAge !== undefined) {
               roomData.infantMaxAge = infantMaxAge;
-              pmsSyncedFields.push('infantMaxAge');
+              pmsSyncedFields.push("infantMaxAge");
             }
           }
-          
+
           // Map additional Benson fields - handle both formats
           const minAgeCategory = rt.min_age_category ?? rt.minAgeCategory;
-          const minAdultsToOfferNonAdultRates = rt.min_adults_to_offer_non_adult_rates ?? rt.minAdultsToOfferNonAdultRates;
-          
+          const minAdultsToOfferNonAdultRates =
+            rt.min_adults_to_offer_non_adult_rates ?? rt.minAdultsToOfferNonAdultRates;
+
           if (minAgeCategory) {
             roomData.minAgeCategory = minAgeCategory;
-            pmsSyncedFields.push('minAgeCategory');
+            pmsSyncedFields.push("minAgeCategory");
           }
           if (minAdultsToOfferNonAdultRates !== undefined) {
             roomData.minAdultsToOfferNonAdultRates = minAdultsToOfferNonAdultRates;
-            pmsSyncedFields.push('minAdultsToOfferNonAdultRates');
+            pmsSyncedFields.push("minAdultsToOfferNonAdultRates");
           }
-          
+
           // Include nested arrays from PMS API for exploration in configurator
           const roomsAvailablePerNight = rt.rooms_available_per_night ?? rt.roomsAvailablePerNight;
           const rateTypes = rt.rate_types ?? rt.rateTypes;
-          
+
           if (roomsAvailablePerNight && Array.isArray(roomsAvailablePerNight)) {
             roomData.roomsAvailablePerNight = roomsAvailablePerNight;
-            pmsSyncedFields.push('roomsAvailablePerNight');
+            pmsSyncedFields.push("roomsAvailablePerNight");
           }
           if (rateTypes && Array.isArray(rateTypes)) {
             roomData.rateTypes = rateTypes;
-            pmsSyncedFields.push('rateTypes');
+            pmsSyncedFields.push("rateTypes");
           }
-          
+
           // Store linked rate type IDs - handle both formats
           const linkedRateTypeIds = rt.linked_rate_type_ids ?? rt.linkedRateTypeIds;
           if (linkedRateTypeIds && Array.isArray(linkedRateTypeIds)) {
@@ -526,10 +527,10 @@ export default function PropertyForm() {
             // Extract linked rate type IDs from nested rateTypes array
             roomData.linkedRateTypeIds = rateTypes.map((rate: any) => rate.rate_type_id ?? rate.rateTypeId);
           }
-          
+
           // Store the list of PMS-synced fields
           roomData.pms_synced_fields = pmsSyncedFields;
-          
+
           return roomData;
         });
 
@@ -546,13 +547,13 @@ export default function PropertyForm() {
           if (existingIndex >= 0) {
             // Update existing room - merge PMS data while preserving local-only fields
             const existing = updatedRoomTypes[existingIndex];
-            
+
             // Determine linked rate types - use existing if manually configured, otherwise use PMS data
             const existingLinked = existing.linkedRateTypes;
             const pmsLinkedIds = pmsRoom.linkedRateTypeIds || [];
             // Only preserve existing if it has values AND they're valid (not just an empty array)
             const shouldPreserveExisting = Array.isArray(existingLinked) && existingLinked.length > 0;
-            
+
             updatedRoomTypes[existingIndex] = {
               ...existing,
               ...pmsRoom,
@@ -612,7 +613,7 @@ export default function PropertyForm() {
       const rateTypesArray = responseData?.rate_types || responseData?.rateTypes || [];
       if (Array.isArray(rateTypesArray) && rateTypesArray.length > 0) {
         console.log("Rate types from PMS:", rateTypesArray);
-        
+
         const importedRateTypes = rateTypesArray.map((rt: any) => ({
           id: rt.rate_type_id ?? rt.id,
           name: rt.name || `Rate Type ${rt.rate_type_id ?? rt.id}`,
@@ -627,17 +628,17 @@ export default function PropertyForm() {
           stayPayDiscountPercentage: rt.stay_pay_discount_percentage ?? rt.stayPayDiscountPercentage ?? null,
           pms_synced: true,
         }));
-        
+
         // Merge with existing rate types (update existing, add new)
         const updatedRateTypes = [...pmsRateTypes];
         let newRateTypeCount = 0;
         let updatedRateTypeCount = 0;
-        
+
         importedRateTypes.forEach((imported: any) => {
           const existingIndex = updatedRateTypes.findIndex(
-            (rt) => rt.id === imported.id || rt.name.toLowerCase() === imported.name.toLowerCase()
+            (rt) => rt.id === imported.id || rt.name.toLowerCase() === imported.name.toLowerCase(),
           );
-          
+
           if (existingIndex >= 0) {
             updatedRateTypes[existingIndex] = { ...updatedRateTypes[existingIndex], ...imported };
             updatedRateTypeCount++;
@@ -646,7 +647,7 @@ export default function PropertyForm() {
             newRateTypeCount++;
           }
         });
-        
+
         setPmsRateTypes(updatedRateTypes);
         hasChanges = true;
         toast({
@@ -660,7 +661,7 @@ export default function PropertyForm() {
       const availabilityData = responseData?.availability || [];
       if (Array.isArray(availabilityData) && availabilityData.length > 0) {
         console.log("Availability data from PMS:", availabilityData.length, "room type entries");
-        
+
         // Extract rates from availability data
         // Each room type has rateTypes[] with rates[] inside
         const allRates: any[] = [];
@@ -685,7 +686,7 @@ export default function PropertyForm() {
             });
           });
         });
-        
+
         if (allRates.length > 0) {
           // Group rates by roomTypeId
           const ratesByRoomType: Record<number, any[]> = {};
@@ -695,20 +696,22 @@ export default function PropertyForm() {
             }
             ratesByRoomType[rate.roomTypeId].push(rate);
           });
-          
+
           // Update room types with their rates
-          setRoomTypes(prev => prev.map(room => {
-            const pmsId = room.pms_id;
-            if (pmsId && ratesByRoomType[pmsId]) {
-              return {
-                ...room,
-                pms_rates: ratesByRoomType[pmsId],
-                pms_rates_synced_at: new Date().toISOString(),
-              };
-            }
-            return room;
-          }));
-          
+          setRoomTypes((prev) =>
+            prev.map((room) => {
+              const pmsId = room.pms_id;
+              if (pmsId && ratesByRoomType[pmsId]) {
+                return {
+                  ...room,
+                  pms_rates: ratesByRoomType[pmsId],
+                  pms_rates_synced_at: new Date().toISOString(),
+                };
+              }
+              return room;
+            }),
+          );
+
           hasChanges = true;
           toast({
             title: "Rates Synced",
@@ -756,8 +759,8 @@ export default function PropertyForm() {
         .eq("key_name", "ROOMSONLINE_ACTIVE")
         .single();
 
-      const activeSystemTypes = new Set(activeCredentials?.map(c => c.system_type) || []);
-      
+      const activeSystemTypes = new Set(activeCredentials?.map((c) => c.system_type) || []);
+
       // Add roomsonline if active
       if (roomsonlineKey?.key_value === "true") {
         activeSystemTypes.add("roomsonline");
@@ -766,8 +769,8 @@ export default function PropertyForm() {
       // Import and filter PMS systems
       const { getPropertyFormPMSSystems } = await import("@/lib/pmsSystemsConfig");
       const allSystems = getPropertyFormPMSSystems();
-      const filteredSystems = allSystems.filter(s => activeSystemTypes.has(s.system_type));
-      
+      const filteredSystems = allSystems.filter((s) => activeSystemTypes.has(s.system_type));
+
       setAvailablePMSSystems(filteredSystems);
     };
 
@@ -1003,25 +1006,25 @@ export default function PropertyForm() {
 
   // Toggle rate type link for a room
   const toggleRoomRateTypeLink = (roomId: string, rateTypeId: number) => {
-    setRoomTypes(roomTypes.map(room => {
-      if (room.id === roomId) {
-        const linked = room.linkedRateTypes || [];
-        const isLinked = linked.includes(rateTypeId);
-        return {
-          ...room,
-          linkedRateTypes: isLinked 
-            ? linked.filter((id: number) => id !== rateTypeId)
-            : [...linked, rateTypeId]
-        };
-      }
-      return room;
-    }));
+    setRoomTypes(
+      roomTypes.map((room) => {
+        if (room.id === roomId) {
+          const linked = room.linkedRateTypes || [];
+          const isLinked = linked.includes(rateTypeId);
+          return {
+            ...room,
+            linkedRateTypes: isLinked ? linked.filter((id: number) => id !== rateTypeId) : [...linked, rateTypeId],
+          };
+        }
+        return room;
+      }),
+    );
     setIsDirty(true);
   };
 
   // Get linked rate types for a room
   const getRoomLinkedRateTypes = (roomId: string): number[] => {
-    const room = roomTypes.find(r => r.id === roomId);
+    const room = roomTypes.find((r) => r.id === roomId);
     return room?.linkedRateTypes || [];
   };
 
@@ -1052,7 +1055,7 @@ export default function PropertyForm() {
   // Helper to ensure a value is an array (handles JSON object vs array edge cases)
   const ensureArray = (value: any): string[] => {
     if (Array.isArray(value)) return value;
-    if (!value || typeof value !== 'object') return [];
+    if (!value || typeof value !== "object") return [];
     return [];
   };
 
@@ -1131,28 +1134,28 @@ export default function PropertyForm() {
   const [editingSeason, setEditingSeason] = useState<any>(null);
   const [expandedSeasons, setExpandedSeasons] = useState<Record<string, boolean>>({});
   const [expandedMealTypes, setExpandedMealTypes] = useState<Record<string, boolean>>({});
-  const [rateBreakdownGroupBy, setRateBreakdownGroupBy] = useState<'season' | 'mealType'>('season');
+  const [rateBreakdownGroupBy, setRateBreakdownGroupBy] = useState<"season" | "mealType">("season");
 
   // Toggle season expand/collapse
   const toggleSeasonExpanded = (seasonId: string) => {
-    setExpandedSeasons(prev => ({ ...prev, [seasonId]: !prev[seasonId] }));
+    setExpandedSeasons((prev) => ({ ...prev, [seasonId]: !prev[seasonId] }));
   };
 
   // Toggle meal type expand/collapse
   const toggleMealTypeExpanded = (mealType: string) => {
-    setExpandedMealTypes(prev => ({ ...prev, [mealType]: !prev[mealType] }));
+    setExpandedMealTypes((prev) => ({ ...prev, [mealType]: !prev[mealType] }));
   };
 
   // Calculate min/max rates for a season across all meal types (room-specific)
   const getSeasonRateSummary = (seasonId: string, roomId: string) => {
-    const rateFields = ['roomAmount', 'adultAmount', 'teenAmount', 'childAmount', 'infantAmount'] as const;
+    const rateFields = ["roomAmount", "adultAmount", "teenAmount", "childAmount", "infantAmount"] as const;
     let minRate = Infinity;
     let maxRate = -Infinity;
 
     // Use room-specific meal types
-    const room = roomTypes.find(r => r.id === roomId);
+    const room = roomTypes.find((r) => r.id === roomId);
     const roomMealTypes = room?.mealTypes || [];
-    
+
     roomMealTypes.forEach((mealType: string) => {
       const key = `${seasonId}-${mealType}`;
       rateFields.forEach((field) => {
@@ -1166,13 +1169,13 @@ export default function PropertyForm() {
 
     return {
       min: minRate === Infinity ? 0 : minRate,
-      max: maxRate === -Infinity ? 0 : maxRate
+      max: maxRate === -Infinity ? 0 : maxRate,
     };
   };
 
   // Calculate min/max rates for a meal type across all seasons
   const getMealTypeRateSummary = (mealType: string, roomId: string) => {
-    const rateFields = ['roomAmount', 'adultAmount', 'teenAmount', 'childAmount', 'infantAmount'] as const;
+    const rateFields = ["roomAmount", "adultAmount", "teenAmount", "childAmount", "infantAmount"] as const;
     let minRate = Infinity;
     let maxRate = -Infinity;
 
@@ -1189,7 +1192,7 @@ export default function PropertyForm() {
 
     return {
       min: minRate === Infinity ? 0 : minRate,
-      max: maxRate === -Infinity ? 0 : maxRate
+      max: maxRate === -Infinity ? 0 : maxRate,
     };
   };
   const [seasonForm, setSeasonForm] = useState({
@@ -1201,32 +1204,42 @@ export default function PropertyForm() {
   });
 
   // Season rates state: { [roomId]: { [seasonId]: { roomAmount, adultAmount, teenAmount, childAmount, infantAmount } } }
-  const [seasonRates, setSeasonRates] = useState<Record<string, Record<string, { 
-    roomAmount: number; 
-    adultAmount: number; 
-    teenAmount: number; 
-    childAmount: number; 
-    infantAmount: number;
-  }>>>({});
+  const [seasonRates, setSeasonRates] = useState<
+    Record<
+      string,
+      Record<
+        string,
+        {
+          roomAmount: number;
+          adultAmount: number;
+          teenAmount: number;
+          childAmount: number;
+          infantAmount: number;
+        }
+      >
+    >
+  >({});
 
   // PMS Rate Types state (imported from Benson/other PMS) - full Benson API spec
-  const [pmsRateTypes, setPmsRateTypes] = useState<{
-    id: number;
-    name: string;
-    description?: string | null;
-    priceType?: string | null;
-    minAdvanceDays?: number | null;
-    maxAdvanceDays?: number | null;
-    minStayDays?: number | null;
-    maxStayDays?: number | null;
-    // Legacy field names (for backward compatibility)
-    minNights?: number | null;
-    maxNights?: number | null;
-    stayPayStayNights?: number | null;
-    stayPayDiscountNights?: number | null;
-    stayPayDiscountPercentage?: number | null;
-    pms_synced?: boolean;
-  }[]>([]);
+  const [pmsRateTypes, setPmsRateTypes] = useState<
+    {
+      id: number;
+      name: string;
+      description?: string | null;
+      priceType?: string | null;
+      minAdvanceDays?: number | null;
+      maxAdvanceDays?: number | null;
+      minStayDays?: number | null;
+      maxStayDays?: number | null;
+      // Legacy field names (for backward compatibility)
+      minNights?: number | null;
+      maxNights?: number | null;
+      stayPayStayNights?: number | null;
+      stayPayDiscountNights?: number | null;
+      stayPayDiscountPercentage?: number | null;
+      pms_synced?: boolean;
+    }[]
+  >([]);
 
   // Season CRUD functions
   const openAddSeasonDialog = () => {
@@ -1264,15 +1277,21 @@ export default function PropertyForm() {
 
     if (editingSeason) {
       // Update existing season
-      setSeasons(seasons.map(s => s.id === editingSeason.id ? {
-        ...s,
-        name: seasonForm.name,
-        title,
-        from: seasonForm.from,
-        to: seasonForm.to,
-        minStay: seasonForm.minStay,
-        maxStay: seasonForm.maxStay,
-      } : s));
+      setSeasons(
+        seasons.map((s) =>
+          s.id === editingSeason.id
+            ? {
+                ...s,
+                name: seasonForm.name,
+                title,
+                from: seasonForm.from,
+                to: seasonForm.to,
+                minStay: seasonForm.minStay,
+                maxStay: seasonForm.maxStay,
+              }
+            : s,
+        ),
+      );
       toast({ title: "Season updated", description: "Season has been updated successfully." });
     } else {
       // Add new season
@@ -1340,10 +1359,10 @@ export default function PropertyForm() {
   };
 
   const deleteSeason = (seasonId: string) => {
-    setSeasons(seasons.filter(s => s.id !== seasonId));
+    setSeasons(seasons.filter((s) => s.id !== seasonId));
     // Also clean up rates for this season
     const updatedRates = { ...seasonRates };
-    Object.keys(updatedRates).forEach(roomId => {
+    Object.keys(updatedRates).forEach((roomId) => {
       if (updatedRates[roomId][seasonId]) {
         delete updatedRates[roomId][seasonId];
       }
@@ -1354,9 +1373,9 @@ export default function PropertyForm() {
   };
 
   // Rate update function
-  type RateField = 'roomAmount' | 'adultAmount' | 'teenAmount' | 'childAmount' | 'infantAmount';
+  type RateField = "roomAmount" | "adultAmount" | "teenAmount" | "childAmount" | "infantAmount";
   const updateSeasonRate = (roomId: string, seasonId: string, field: RateField, value: number) => {
-    setSeasonRates(prev => ({
+    setSeasonRates((prev) => ({
       ...prev,
       [roomId]: {
         ...prev[roomId],
@@ -1955,13 +1974,13 @@ export default function PropertyForm() {
           // Store existing external IDs to preserve when PMS changes
           setExistingExternalIds(amenities?.external_ids || {});
           setExistingBensonPropertyCode(data.benson_property_code || null);
-          
+
           // Set Cloudbeds property ID
           if ((data as any).cloudbeds_property_id) {
             setCloudbedsPropertyId((data as any).cloudbeds_property_id);
           }
           setExistingCloudbedsPropertyId((data as any).cloudbeds_property_id || null);
-          
+
           // Set Little Hotelier fields
           if ((data as any).littlehotelier_channel_code) {
             setLittlehotelierChannelCode((data as any).littlehotelier_channel_code);
@@ -1971,13 +1990,13 @@ export default function PropertyForm() {
           }
           setExistingLittlehotelierChannelCode((data as any).littlehotelier_channel_code || null);
           setExistingLittlehotelierRegion((data as any).littlehotelier_region || null);
-          
+
           // Set HotelBeds hotel code
           if ((data as any).hotelbeds_hotel_code) {
             setHotelbedsHotelCode((data as any).hotelbeds_hotel_code);
           }
           setExistingHotelbedsHotelCode((data as any).hotelbeds_hotel_code || null);
-          
+
           // Load TripAdvisor ID
           if (amenities?.external_ids?.tripadvisor_id) {
             setTripadvisorId(amenities.external_ids.tripadvisor_id);
@@ -2034,7 +2053,8 @@ export default function PropertyForm() {
           // Load other saved data
           if (amenities?.star_rating) setStarRating(amenities.star_rating);
           if (amenities?.facilities && Array.isArray(amenities.facilities)) setSelectedFacilities(amenities.facilities);
-          if (amenities?.breakfast_options && Array.isArray(amenities.breakfast_options)) setSelectedBreakfastOptions(amenities.breakfast_options);
+          if (amenities?.breakfast_options && Array.isArray(amenities.breakfast_options))
+            setSelectedBreakfastOptions(amenities.breakfast_options);
           if (amenities?.cancellation_policies) setCancellationPolicies(amenities.cancellation_policies);
           if (amenities?.seasons) setSeasons(amenities.seasons);
           if (amenities?.season_rates) setSeasonRates(amenities.season_rates);
@@ -2265,17 +2285,101 @@ export default function PropertyForm() {
   };
 
   const facilities = {
-    general: ["Wheelchair Accessible", "Non-Smoking Rooms", "Designated Smoking Area", "Garden", "Terrace/Patio", "Fireplace Lounge", "Lift/Elevator"],
-    businessReception: ["24-Hour Front Desk", "Wake-Up Service", "Safety Deposit Box", "Currency Exchange", "Ticket Service", "Porter/Bell Service", "Express Check-Out", "Concierge Service"],
-    conferenceEvents: ["Banquet Hall", "Event Space", "Wedding Facilities", "Audio-Visual Equipment", "Projector", "Screen", "Event Catering"],
-    mealsDining: ["Breakfast Available (Paid)", "Lunch Available", "Dinner Available", "Special Diet Menus on Request", "BBQ/Braai Facilities", "Packed Lunches", "Restaurant", "Bar", "Wine Cellar", "Room Service"],
-    utilityRoom: ["Backup Power Generator", "Solar Power", "Inverter Power", "Iron & Ironing Board", "In-Room Safe", "Desk/Workspace", "Wardrobe/Closet", "Free WiFi", "Air Conditioning", "Heating", "Laundry Service", "Electric Kettle"],
-    wellnessFitness: ["Fitness Centre", "Sauna", "Steam Room", "Hot Tub/Jacuzzi", "Yoga Classes", "Spa", "Outdoor Swimming Pool", "Indoor Swimming Pool", "Full Body Massage", "Couples Massage"],
-    activitiesExperiences: ["Game Drives (Morning)", "Game Drives (Evening)", "Guided Safari Walks", "Bird Watching", "Cycling", "Fishing", "Cultural Tours", "Hiking Trails", "Airport Transfer", "Walking Tours", "Live Music/Performance"],
-    familyServices: ["Children Play Area", "Kids Meals", "Child-Friendly Activities", "Family Rooms", "Babysitting/Child Services"],
+    general: [
+      "Wheelchair Accessible",
+      "Non-Smoking Rooms",
+      "Designated Smoking Area",
+      "Garden",
+      "Terrace/Patio",
+      "Fireplace Lounge",
+      "Lift/Elevator",
+    ],
+    businessReception: [
+      "24-Hour Front Desk",
+      "Wake-Up Service",
+      "Safety Deposit Box",
+      "Currency Exchange",
+      "Ticket Service",
+      "Porter/Bell Service",
+      "Express Check-Out",
+      "Concierge Service",
+    ],
+    conferenceEvents: [
+      "Banquet Hall",
+      "Event Space",
+      "Wedding Facilities",
+      "Audio-Visual Equipment",
+      "Projector",
+      "Screen",
+      "Event Catering",
+    ],
+    mealsDining: [
+      "Breakfast Available (Paid)",
+      "Lunch Available",
+      "Dinner Available",
+      "Special Diet Menus on Request",
+      "BBQ/Braai Facilities",
+      "Packed Lunches",
+      "Restaurant",
+      "Bar",
+      "Wine Cellar",
+      "Room Service",
+    ],
+    utilityRoom: [
+      "Backup Power Generator",
+      "Solar Power",
+      "Inverter Power",
+      "Iron & Ironing Board",
+      "In-Room Safe",
+      "Desk/Workspace",
+      "Wardrobe/Closet",
+      "Free WiFi",
+      "Air Conditioning",
+      "Heating",
+      "Laundry Service",
+      "Electric Kettle",
+    ],
+    wellnessFitness: [
+      "Fitness Centre",
+      "Sauna",
+      "Steam Room",
+      "Hot Tub/Jacuzzi",
+      "Yoga Classes",
+      "Spa",
+      "Outdoor Swimming Pool",
+      "Indoor Swimming Pool",
+      "Full Body Massage",
+      "Couples Massage",
+    ],
+    activitiesExperiences: [
+      "Game Drives (Morning)",
+      "Game Drives (Evening)",
+      "Guided Safari Walks",
+      "Bird Watching",
+      "Cycling",
+      "Fishing",
+      "Cultural Tours",
+      "Hiking Trails",
+      "Airport Transfer",
+      "Walking Tours",
+      "Live Music/Performance",
+    ],
+    familyServices: [
+      "Children Play Area",
+      "Kids Meals",
+      "Child-Friendly Activities",
+      "Family Rooms",
+      "Babysitting/Child Services",
+    ],
     safetySecurity: ["24-Hour Security", "CCTV", "Fire Extinguishers", "First Aid Kit"],
     languagesSpoken: ["English", "Afrikaans", "Other Languages"],
-    transportParking: ["On-Site Parking", "Free Secure Parking", "Nearby Parking", "Car Hire Assistance", "Airport Shuttle"],
+    transportParking: [
+      "On-Site Parking",
+      "Free Secure Parking",
+      "Nearby Parking",
+      "Car Hire Assistance",
+      "Airport Shuttle",
+    ],
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -2319,7 +2423,8 @@ export default function PropertyForm() {
         // Preserve existing cloudbeds_property_id if PMS changed, only update if cloudbeds is selected
         cloudbeds_property_id: selectedPMS === "cloudbeds" ? cloudbedsPropertyId : existingCloudbedsPropertyId,
         // Preserve existing littlehotelier fields if PMS changed, only update if littlehotelier is selected
-        littlehotelier_channel_code: selectedPMS === "littlehotelier" ? littlehotelierChannelCode : existingLittlehotelierChannelCode,
+        littlehotelier_channel_code:
+          selectedPMS === "littlehotelier" ? littlehotelierChannelCode : existingLittlehotelierChannelCode,
         littlehotelier_region: selectedPMS === "littlehotelier" ? littlehotelierRegion : existingLittlehotelierRegion,
         // Preserve existing hotelbeds_hotel_code if PMS changed, only update if hotelbeds is selected
         hotelbeds_hotel_code: selectedPMS === "hotelbeds" ? hotelbedsHotelCode : existingHotelbedsHotelCode,
@@ -2509,12 +2614,18 @@ export default function PropertyForm() {
   // Helper to check if PMS has a configured property ID
   const hasPMSPropertyId = (pms: string): boolean => {
     switch (pms) {
-      case "benson": return !!bensonPropertyCode;
-      case "cloudbeds": return !!cloudbedsPropertyId;
-      case "littlehotelier": return !!littlehotelierChannelCode;
-      case "hotelbeds": return !!hotelbedsHotelCode;
-      case "nightsbridge": return !!formData.bb_id;
-      default: return false;
+      case "benson":
+        return !!bensonPropertyCode;
+      case "cloudbeds":
+        return !!cloudbedsPropertyId;
+      case "littlehotelier":
+        return !!littlehotelierChannelCode;
+      case "hotelbeds":
+        return !!hotelbedsHotelCode;
+      case "nightsbridge":
+        return !!formData.bb_id;
+      default:
+        return false;
     }
   };
 
@@ -2578,10 +2689,10 @@ export default function PropertyForm() {
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
                         className="h-7 text-xs gap-1"
                         onClick={() => setIsSyncEditorialDialogOpen(true)}
                       >
@@ -2591,13 +2702,18 @@ export default function PropertyForm() {
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
                       <p className="text-xs">
-                        Fetch editorial content from {getPMSDisplayName(selectedPMS)} and populate ROL Spec fields.
+                        Fetch editorial content from {getPMSDisplayName(selectedPMS)} and populate EDITORIAL fields.
                       </p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               )}
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleNavigate("/admin/property-overview")}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => handleNavigate("/admin/property-overview")}
+              >
                 Cancel
               </Button>
               {isDirty && (
@@ -2625,46 +2741,54 @@ export default function PropertyForm() {
                 { value: "packages", icon: Package, label: "Packages", highlight: false },
                 { value: "announcements", icon: Bell, label: "Announcements", highlight: false },
               ]
-                .filter((tab) => selectedPMS !== 'nightsbridge' || tab.value === 'general' || tab.value === 'rol-spec' || tab.value === 'images' || tab.value === 'rooms')
+                .filter(
+                  (tab) =>
+                    selectedPMS !== "nightsbridge" ||
+                    tab.value === "general" ||
+                    tab.value === "rol-spec" ||
+                    tab.value === "images" ||
+                    tab.value === "rooms",
+                )
                 .map((tab) => {
-                const isActive = activeTab === tab.value;
-                const Icon = tab.icon;
-                
-                if (isActive) {
-                  return (
-                    <TabsTrigger 
-                      key={tab.value} 
-                      value={tab.value} 
-                      className={cn(
-                        "gap-1 text-xs py-1",
-                        tab.highlight && "bg-primary/10 text-primary border border-primary/30 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                      )}
-                    >
-                      <Icon className="h-3 w-3" />
-                      {tab.label}
-                    </TabsTrigger>
-                  );
-                }
-                
-                return (
-                  <Tooltip key={tab.value}>
-                    <TooltipTrigger asChild>
-                      <TabsTrigger 
-                        value={tab.value} 
+                  const isActive = activeTab === tab.value;
+                  const Icon = tab.icon;
+
+                  if (isActive) {
+                    return (
+                      <TabsTrigger
+                        key={tab.value}
+                        value={tab.value}
                         className={cn(
-                          "px-2 py-1",
-                          tab.highlight && "bg-primary/10 text-primary border border-primary/30"
+                          "gap-1 text-xs py-1",
+                          tab.highlight &&
+                            "bg-primary/10 text-primary border border-primary/30 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
                         )}
                       >
                         <Icon className="h-3 w-3" />
+                        {tab.label}
                       </TabsTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-xs">{tab.label}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              })}
+                    );
+                  }
+
+                  return (
+                    <Tooltip key={tab.value}>
+                      <TooltipTrigger asChild>
+                        <TabsTrigger
+                          value={tab.value}
+                          className={cn(
+                            "px-2 py-1",
+                            tab.highlight && "bg-primary/10 text-primary border border-primary/30",
+                          )}
+                        >
+                          <Icon className="h-3 w-3" />
+                        </TabsTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">{tab.label}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
             </TabsList>
 
             <TabsContent value="general">
@@ -2672,10 +2796,12 @@ export default function PropertyForm() {
                 {/* Offerings Section */}
                 <Card>
                   <CardHeader className="py-2 px-4">
-                    <CardTitle className="text-sm">{selectedPMS === 'nightsbridge' ? 'PMS Connection' : 'Offerings'}</CardTitle>
+                    <CardTitle className="text-sm">
+                      {selectedPMS === "nightsbridge" ? "PMS Connection" : "Offerings"}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="py-2 px-4">
-                    {selectedPMS !== 'nightsbridge' && (
+                    {selectedPMS !== "nightsbridge" && (
                       <>
                         <div className="flex flex-wrap items-center gap-4">
                           <div className="flex items-center space-x-2">
@@ -2729,7 +2855,9 @@ export default function PropertyForm() {
 
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2">
-                        <Label htmlFor="pms_system" className="text-xs whitespace-nowrap">PMS</Label>
+                        <Label htmlFor="pms_system" className="text-xs whitespace-nowrap">
+                          PMS
+                        </Label>
                         <Select
                           value={selectedPMS || "none"}
                           onValueChange={(value) => {
@@ -2768,10 +2896,9 @@ export default function PropertyForm() {
                               </TooltipTrigger>
                               <TooltipContent side="right" className="max-w-xs">
                                 <p className="text-xs">
-                                  {getPMSIntegrationLevel(selectedPMS) === 'partial' 
+                                  {getPMSIntegrationLevel(selectedPMS) === "partial"
                                     ? `${getPMSDisplayName(selectedPMS)} integration is partially implemented. Some features may not work.`
-                                    : `${getPMSDisplayName(selectedPMS)} integration has not been implemented yet.`
-                                  }
+                                    : `${getPMSDisplayName(selectedPMS)} integration has not been implemented yet.`}
                                 </p>
                               </TooltipContent>
                             </Tooltip>
@@ -2781,7 +2908,9 @@ export default function PropertyForm() {
 
                       {selectedPMS === "nightsbridge" && (
                         <div className="flex items-center gap-2">
-                          <Label htmlFor="bb_id" className="text-xs">BBID</Label>
+                          <Label htmlFor="bb_id" className="text-xs">
+                            BBID
+                          </Label>
                           <Input
                             id="bb_id"
                             value={formData.bb_id}
@@ -2795,20 +2924,52 @@ export default function PropertyForm() {
                       {selectedPMS === "semper" && (
                         <>
                           <div className="flex items-center gap-2">
-                            <Label htmlFor="venue_id" className="text-xs">Venue</Label>
-                            <Input id="venue_id" value={formData.venue_id} onChange={(e) => handleInputChange("venue_id", e.target.value)} placeholder="ID" className="h-7 text-xs w-20" />
+                            <Label htmlFor="venue_id" className="text-xs">
+                              Venue
+                            </Label>
+                            <Input
+                              id="venue_id"
+                              value={formData.venue_id}
+                              onChange={(e) => handleInputChange("venue_id", e.target.value)}
+                              placeholder="ID"
+                              className="h-7 text-xs w-20"
+                            />
                           </div>
                           <div className="flex items-center gap-2">
-                            <Label htmlFor="channel_id" className="text-xs">Channel</Label>
-                            <Input id="channel_id" value={formData.channel_id} onChange={(e) => handleInputChange("channel_id", e.target.value)} placeholder="ID" className="h-7 text-xs w-20" />
+                            <Label htmlFor="channel_id" className="text-xs">
+                              Channel
+                            </Label>
+                            <Input
+                              id="channel_id"
+                              value={formData.channel_id}
+                              onChange={(e) => handleInputChange("channel_id", e.target.value)}
+                              placeholder="ID"
+                              className="h-7 text-xs w-20"
+                            />
                           </div>
                           <div className="flex items-center gap-2">
-                            <Label htmlFor="account_id" className="text-xs">Account</Label>
-                            <Input id="account_id" value={formData.account_id} onChange={(e) => handleInputChange("account_id", e.target.value)} placeholder="ID" className="h-7 text-xs w-20" />
+                            <Label htmlFor="account_id" className="text-xs">
+                              Account
+                            </Label>
+                            <Input
+                              id="account_id"
+                              value={formData.account_id}
+                              onChange={(e) => handleInputChange("account_id", e.target.value)}
+                              placeholder="ID"
+                              className="h-7 text-xs w-20"
+                            />
                           </div>
                           <div className="flex items-center gap-2">
-                            <Label htmlFor="agent_id" className="text-xs">Agent</Label>
-                            <Input id="agent_id" value={formData.agent_id} onChange={(e) => handleInputChange("agent_id", e.target.value)} placeholder="ID" className="h-7 text-xs w-20" />
+                            <Label htmlFor="agent_id" className="text-xs">
+                              Agent
+                            </Label>
+                            <Input
+                              id="agent_id"
+                              value={formData.agent_id}
+                              onChange={(e) => handleInputChange("agent_id", e.target.value)}
+                              placeholder="ID"
+                              className="h-7 text-xs w-20"
+                            />
                           </div>
                         </>
                       )}
@@ -2816,19 +2977,32 @@ export default function PropertyForm() {
                       {selectedPMS === "benson" && (
                         <>
                           <div className="flex items-center gap-2">
-                            <Label htmlFor="benson_property_code" className="text-xs whitespace-nowrap">Benson Code *</Label>
+                            <Label htmlFor="benson_property_code" className="text-xs whitespace-nowrap">
+                              Benson Code *
+                            </Label>
                             <Input
                               id="benson_property_code"
                               value={bensonPropertyCode}
-                              onChange={(e) => { setBensonPropertyCode(e.target.value); setIsDirty(true); }}
+                              onChange={(e) => {
+                                setBensonPropertyCode(e.target.value);
+                                setIsDirty(true);
+                              }}
                               placeholder="Property code"
                               className="h-7 text-xs w-40"
                               required
                             />
                           </div>
                           <div className="flex items-center gap-2">
-                            <Label htmlFor="benson_environment" className="text-xs whitespace-nowrap">Env</Label>
-                            <Select value={bensonEnvironment} onValueChange={(v) => { setBensonEnvironment(v as "staging" | "production"); setIsDirty(true); }}>
+                            <Label htmlFor="benson_environment" className="text-xs whitespace-nowrap">
+                              Env
+                            </Label>
+                            <Select
+                              value={bensonEnvironment}
+                              onValueChange={(v) => {
+                                setBensonEnvironment(v as "staging" | "production");
+                                setIsDirty(true);
+                              }}
+                            >
                               <SelectTrigger className="h-7 text-xs w-24">
                                 <SelectValue />
                               </SelectTrigger>
@@ -2839,7 +3013,14 @@ export default function PropertyForm() {
                             </Select>
                           </div>
                           {bensonPropertyCode && (
-                            <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={syncFromBenson} disabled={isSyncingPms}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1"
+                              onClick={syncFromBenson}
+                              disabled={isSyncingPms}
+                            >
                               <RefreshCw className={cn("h-3 w-3", isSyncingPms && "animate-spin")} />
                               {isSyncingPms ? "Syncing..." : "Sync"}
                             </Button>
@@ -2849,11 +3030,16 @@ export default function PropertyForm() {
 
                       {selectedPMS === "cloudbeds" && (
                         <div className="flex items-center gap-2">
-                          <Label htmlFor="cloudbeds_property_id" className="text-xs whitespace-nowrap">Cloudbeds Property ID *</Label>
+                          <Label htmlFor="cloudbeds_property_id" className="text-xs whitespace-nowrap">
+                            Cloudbeds Property ID *
+                          </Label>
                           <Input
                             id="cloudbeds_property_id"
                             value={cloudbedsPropertyId}
-                            onChange={(e) => { setCloudbedsPropertyId(e.target.value); setIsDirty(true); }}
+                            onChange={(e) => {
+                              setCloudbedsPropertyId(e.target.value);
+                              setIsDirty(true);
+                            }}
                             placeholder="Property ID"
                             className="h-7 text-xs w-40"
                             required
@@ -2864,19 +3050,32 @@ export default function PropertyForm() {
                       {selectedPMS === "littlehotelier" && (
                         <>
                           <div className="flex items-center gap-2">
-                            <Label htmlFor="littlehotelier_channel_code" className="text-xs whitespace-nowrap">Channel Code *</Label>
+                            <Label htmlFor="littlehotelier_channel_code" className="text-xs whitespace-nowrap">
+                              Channel Code *
+                            </Label>
                             <Input
                               id="littlehotelier_channel_code"
                               value={littlehotelierChannelCode}
-                              onChange={(e) => { setLittlehotelierChannelCode(e.target.value); setIsDirty(true); }}
+                              onChange={(e) => {
+                                setLittlehotelierChannelCode(e.target.value);
+                                setIsDirty(true);
+                              }}
                               placeholder="Channel code"
                               className="h-7 text-xs w-32"
                               required
                             />
                           </div>
                           <div className="flex items-center gap-2">
-                            <Label htmlFor="littlehotelier_region" className="text-xs whitespace-nowrap">Region</Label>
-                            <Select value={littlehotelierRegion} onValueChange={(v) => { setLittlehotelierRegion(v as "apac" | "emea"); setIsDirty(true); }}>
+                            <Label htmlFor="littlehotelier_region" className="text-xs whitespace-nowrap">
+                              Region
+                            </Label>
+                            <Select
+                              value={littlehotelierRegion}
+                              onValueChange={(v) => {
+                                setLittlehotelierRegion(v as "apac" | "emea");
+                                setIsDirty(true);
+                              }}
+                            >
                               <SelectTrigger className="h-7 text-xs w-24">
                                 <SelectValue />
                               </SelectTrigger>
@@ -2891,11 +3090,16 @@ export default function PropertyForm() {
 
                       {selectedPMS === "hotelbeds" && (
                         <div className="flex items-center gap-2">
-                          <Label htmlFor="hotelbeds_hotel_code" className="text-xs whitespace-nowrap">Hotel Code *</Label>
+                          <Label htmlFor="hotelbeds_hotel_code" className="text-xs whitespace-nowrap">
+                            Hotel Code *
+                          </Label>
                           <Input
                             id="hotelbeds_hotel_code"
                             value={hotelbedsHotelCode}
-                            onChange={(e) => { setHotelbedsHotelCode(e.target.value); setIsDirty(true); }}
+                            onChange={(e) => {
+                              setHotelbedsHotelCode(e.target.value);
+                              setIsDirty(true);
+                            }}
                             placeholder="HotelBeds hotel code"
                             className="h-7 text-xs w-40"
                             required
@@ -2915,10 +3119,21 @@ export default function PropertyForm() {
                                 TripAdvisor <Info className="h-3 w-3 text-muted-foreground" />
                               </Label>
                             </TooltipTrigger>
-                            <TooltipContent><p className="text-xs">Number after "d/" in TripAdvisor URL</p></TooltipContent>
+                            <TooltipContent>
+                              <p className="text-xs">Number after "d/" in TripAdvisor URL</p>
+                            </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-                        <Input id="tripadvisor_id" value={tripadvisorId} onChange={(e) => { setTripadvisorId(e.target.value); setIsDirty(true); }} placeholder="123456" className="h-7 text-xs w-24" />
+                        <Input
+                          id="tripadvisor_id"
+                          value={tripadvisorId}
+                          onChange={(e) => {
+                            setTripadvisorId(e.target.value);
+                            setIsDirty(true);
+                          }}
+                          placeholder="123456"
+                          className="h-7 text-xs w-24"
+                        />
                       </div>
                     </div>
                   </CardContent>
@@ -2946,13 +3161,34 @@ export default function PropertyForm() {
                         {/* Row 1 */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="name" className="text-xs">Name *</Label>
-                            <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Property name" required disabled={isFieldPopulatedByPMS("name", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("name", selectedPMS), isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")} />
+                            <Label htmlFor="name" className="text-xs">
+                              Name *
+                            </Label>
+                            <Input
+                              id="name"
+                              value={formData.name}
+                              onChange={(e) => handleInputChange("name", e.target.value)}
+                              placeholder="Property name"
+                              required
+                              disabled={isFieldPopulatedByPMS("name", selectedPMS)}
+                              className={cn(
+                                "h-7 text-xs",
+                                getPMSFieldClass("name", selectedPMS),
+                                isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed",
+                              )}
+                            />
                           </div>
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="property_type" className="text-xs">Type *</Label>
-                            <Select value={formData.property_type} onValueChange={(value) => handleInputChange("property_type", value)}>
-                              <SelectTrigger id="property_type" className="h-7 text-xs"><SelectValue placeholder="Select" /></SelectTrigger>
+                            <Label htmlFor="property_type" className="text-xs">
+                              Type *
+                            </Label>
+                            <Select
+                              value={formData.property_type}
+                              onValueChange={(value) => handleInputChange("property_type", value)}
+                            >
+                              <SelectTrigger id="property_type" className="h-7 text-xs">
+                                <SelectValue placeholder="Select" />
+                              </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="hotel">Hotel</SelectItem>
                                 <SelectItem value="guesthouse">Guest House</SelectItem>
@@ -2965,20 +3201,45 @@ export default function PropertyForm() {
                             </Select>
                           </div>
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="telephone" className="text-xs">Telephone</Label>
-                            <Input id="telephone" value={formData.telephone} onChange={(e) => handleInputChange("telephone", e.target.value)} placeholder="+27..." className="h-7 text-xs" />
+                            <Label htmlFor="telephone" className="text-xs">
+                              Telephone
+                            </Label>
+                            <Input
+                              id="telephone"
+                              value={formData.telephone}
+                              onChange={(e) => handleInputChange("telephone", e.target.value)}
+                              placeholder="+27..."
+                              className="h-7 text-xs"
+                            />
                           </div>
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="contact_email" className="text-xs">Contact Email *</Label>
-                            <Input id="contact_email" type="email" value={formData.contact_email} onChange={(e) => handleInputChange("contact_email", e.target.value)} placeholder="email@example.com" required className="h-7 text-xs" />
+                            <Label htmlFor="contact_email" className="text-xs">
+                              Contact Email *
+                            </Label>
+                            <Input
+                              id="contact_email"
+                              type="email"
+                              value={formData.contact_email}
+                              onChange={(e) => handleInputChange("contact_email", e.target.value)}
+                              placeholder="email@example.com"
+                              required
+                              className="h-7 text-xs"
+                            />
                           </div>
                         </div>
                         {/* Row 2 */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="currency" className="text-xs">Currency *</Label>
-                            <Select value={formData.currency} onValueChange={(value) => handleInputChange("currency", value)}>
-                              <SelectTrigger id="currency" className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                            <Label htmlFor="currency" className="text-xs">
+                              Currency *
+                            </Label>
+                            <Select
+                              value={formData.currency}
+                              onValueChange={(value) => handleInputChange("currency", value)}
+                            >
+                              <SelectTrigger id="currency" className="h-7 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="ZAR">ZAR</SelectItem>
                                 <SelectItem value="USD">USD</SelectItem>
@@ -2988,17 +3249,41 @@ export default function PropertyForm() {
                             </Select>
                           </div>
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="owner_email" className="text-xs">Owner</Label>
-                            <Select value={formData.owner_email} onValueChange={(value) => { const selectedOwner = owners.find((o) => o.email === value); handleInputChange("owner_email", value); handleInputChange("owner_name", selectedOwner?.full_name || ""); }}>
-                              <SelectTrigger id="owner_email" className="h-7 text-xs"><SelectValue placeholder="Select owner" /></SelectTrigger>
+                            <Label htmlFor="owner_email" className="text-xs">
+                              Owner
+                            </Label>
+                            <Select
+                              value={formData.owner_email}
+                              onValueChange={(value) => {
+                                const selectedOwner = owners.find((o) => o.email === value);
+                                handleInputChange("owner_email", value);
+                                handleInputChange("owner_name", selectedOwner?.full_name || "");
+                              }}
+                            >
+                              <SelectTrigger id="owner_email" className="h-7 text-xs">
+                                <SelectValue placeholder="Select owner" />
+                              </SelectTrigger>
                               <SelectContent>
-                                {owners.map((owner) => (<SelectItem key={owner.id} value={owner.email}>{owner.full_name || owner.email}</SelectItem>))}
+                                {owners.map((owner) => (
+                                  <SelectItem key={owner.id} value={owner.email}>
+                                    {owner.full_name || owner.email}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="flex flex-col gap-1 col-span-2">
-                            <Label htmlFor="property_url" className="text-xs">Property Website</Label>
-                            <Input id="property_url" type="url" value={formData.property_url} onChange={(e) => handleInputChange("property_url", e.target.value)} placeholder="https://www.explorersclub.co.za/" className="h-7 text-xs" />
+                            <Label htmlFor="property_url" className="text-xs">
+                              Property Website
+                            </Label>
+                            <Input
+                              id="property_url"
+                              type="url"
+                              value={formData.property_url}
+                              onChange={(e) => handleInputChange("property_url", e.target.value)}
+                              placeholder="https://www.explorersclub.co.za/"
+                              className="h-7 text-xs"
+                            />
                           </div>
                         </div>
                       </CardContent>
@@ -3010,8 +3295,17 @@ export default function PropertyForm() {
                         <CardTitle className="text-sm flex items-center justify-between">
                           <span>Address</span>
                           <div className="flex items-center gap-2">
-                            <Label htmlFor="no_street_address" className="text-xs text-muted-foreground font-normal">No street address?</Label>
-                            <Switch id="no_street_address" checked={noStreetAddress} onCheckedChange={(checked) => { setNoStreetAddress(checked); setIsDirty(true); }} />
+                            <Label htmlFor="no_street_address" className="text-xs text-muted-foreground font-normal">
+                              No street address?
+                            </Label>
+                            <Switch
+                              id="no_street_address"
+                              checked={noStreetAddress}
+                              onCheckedChange={(checked) => {
+                                setNoStreetAddress(checked);
+                                setIsDirty(true);
+                              }}
+                            />
                           </div>
                         </CardTitle>
                       </CardHeader>
@@ -3019,9 +3313,18 @@ export default function PropertyForm() {
                         {!noStreetAddress && (
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                             <div className="flex flex-col gap-1">
-                              <Label htmlFor="country" className="text-xs">Country *</Label>
-                              <Select value={formData.country} onValueChange={(value) => handleInputChange("country", value)}>
-                                <SelectTrigger id="country" className={cn("h-7 text-xs", getPMSFieldClass("country", selectedPMS))} disabled={isFieldPopulatedByPMS("country", selectedPMS)}>
+                              <Label htmlFor="country" className="text-xs">
+                                Country *
+                              </Label>
+                              <Select
+                                value={formData.country}
+                                onValueChange={(value) => handleInputChange("country", value)}
+                              >
+                                <SelectTrigger
+                                  id="country"
+                                  className={cn("h-7 text-xs", getPMSFieldClass("country", selectedPMS))}
+                                  disabled={isFieldPopulatedByPMS("country", selectedPMS)}
+                                >
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -3033,20 +3336,69 @@ export default function PropertyForm() {
                               </Select>
                             </div>
                             <div className="flex flex-col gap-1">
-                              <Label htmlFor="city" className="text-xs">City *</Label>
-                              <Input id="city" value={formData.city} onChange={(e) => handleInputChange("city", e.target.value)} placeholder="City" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("city", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("city", selectedPMS), isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed")} />
+                              <Label htmlFor="city" className="text-xs">
+                                City *
+                              </Label>
+                              <Input
+                                id="city"
+                                value={formData.city}
+                                onChange={(e) => handleInputChange("city", e.target.value)}
+                                placeholder="City"
+                                required={!noStreetAddress}
+                                disabled={isFieldPopulatedByPMS("city", selectedPMS)}
+                                className={cn(
+                                  "h-7 text-xs",
+                                  getPMSFieldClass("city", selectedPMS),
+                                  isFieldPopulatedByPMS("city", selectedPMS) && "cursor-not-allowed",
+                                )}
+                              />
                             </div>
                             <div className="flex flex-col gap-1">
-                              <Label htmlFor="address" className="text-xs">Street *</Label>
-                              <Input id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} placeholder="Street address" required={!noStreetAddress} disabled={isFieldPopulatedByPMS("address", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("address", selectedPMS), isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed")} />
+                              <Label htmlFor="address" className="text-xs">
+                                Street *
+                              </Label>
+                              <Input
+                                id="address"
+                                value={formData.address}
+                                onChange={(e) => handleInputChange("address", e.target.value)}
+                                placeholder="Street address"
+                                required={!noStreetAddress}
+                                disabled={isFieldPopulatedByPMS("address", selectedPMS)}
+                                className={cn(
+                                  "h-7 text-xs",
+                                  getPMSFieldClass("address", selectedPMS),
+                                  isFieldPopulatedByPMS("address", selectedPMS) && "cursor-not-allowed",
+                                )}
+                              />
                             </div>
                             <div className="flex flex-col gap-1">
-                              <Label htmlFor="suburb" className="text-xs">Suburb</Label>
-                              <Input id="suburb" value={formData.suburb} onChange={(e) => handleInputChange("suburb", e.target.value)} placeholder="Suburb" className="h-7 text-xs" />
+                              <Label htmlFor="suburb" className="text-xs">
+                                Suburb
+                              </Label>
+                              <Input
+                                id="suburb"
+                                value={formData.suburb}
+                                onChange={(e) => handleInputChange("suburb", e.target.value)}
+                                placeholder="Suburb"
+                                className="h-7 text-xs"
+                              />
                             </div>
                             <div className="flex flex-col gap-1">
-                              <Label htmlFor="postal_code" className="text-xs">Postal Code</Label>
-                              <Input id="postal_code" value={formData.postal_code} onChange={(e) => handleInputChange("postal_code", e.target.value)} placeholder="Postal code" disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("postal_code", selectedPMS), isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed")} />
+                              <Label htmlFor="postal_code" className="text-xs">
+                                Postal Code
+                              </Label>
+                              <Input
+                                id="postal_code"
+                                value={formData.postal_code}
+                                onChange={(e) => handleInputChange("postal_code", e.target.value)}
+                                placeholder="Postal code"
+                                disabled={isFieldPopulatedByPMS("postal_code", selectedPMS)}
+                                className={cn(
+                                  "h-7 text-xs",
+                                  getPMSFieldClass("postal_code", selectedPMS),
+                                  isFieldPopulatedByPMS("postal_code", selectedPMS) && "cursor-not-allowed",
+                                )}
+                              />
                             </div>
                           </div>
                         )}
@@ -3055,9 +3407,23 @@ export default function PropertyForm() {
                           <div className="p-2 border rounded-lg border-primary/20 bg-primary/5">
                             <div className="flex items-center gap-2">
                               <MapPin className="h-3 w-3 text-primary" />
-                              <Label htmlFor="google_maps_link" className="text-xs">Google Maps Link *</Label>
-                              <Input id="google_maps_link" value={googleMapsLink} onChange={(e) => handleGoogleMapsLinkChange(e.target.value)} placeholder="Paste Google Maps link" className="flex-1 h-7 text-xs font-mono" required />
-                              {googleMapsLink && latitude && longitude && <span className="text-xs text-green-600 flex items-center gap-1"><Check className="h-3 w-3" />{latitude.toFixed(4)}, {longitude.toFixed(4)}</span>}
+                              <Label htmlFor="google_maps_link" className="text-xs">
+                                Google Maps Link *
+                              </Label>
+                              <Input
+                                id="google_maps_link"
+                                value={googleMapsLink}
+                                onChange={(e) => handleGoogleMapsLinkChange(e.target.value)}
+                                placeholder="Paste Google Maps link"
+                                className="flex-1 h-7 text-xs font-mono"
+                                required
+                              />
+                              {googleMapsLink && latitude && longitude && (
+                                <span className="text-xs text-green-600 flex items-center gap-1">
+                                  <Check className="h-3 w-3" />
+                                  {latitude.toFixed(4)}, {longitude.toFixed(4)}
+                                </span>
+                              )}
                             </div>
                           </div>
                         )}
@@ -3068,7 +3434,17 @@ export default function PropertyForm() {
                   {/* Right side - Map (25%) */}
                   <div className="w-1/4 min-w-[200px] flex">
                     <Card className="flex-1 flex flex-col p-2">
-                      <PropertyMap address={formData.address} city={formData.city} country={formData.country} latitude={latitude} longitude={longitude} onLocationUpdate={(lat, lng) => { setLatitude(lat); setLongitude(lng); }} />
+                      <PropertyMap
+                        address={formData.address}
+                        city={formData.city}
+                        country={formData.country}
+                        latitude={latitude}
+                        longitude={longitude}
+                        onLocationUpdate={(lat, lng) => {
+                          setLatitude(lat);
+                          setLongitude(lng);
+                        }}
+                      />
                     </Card>
                   </div>
                 </div>
@@ -3082,7 +3458,9 @@ export default function PropertyForm() {
                     {/* Restaurants & Cafes */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="flex flex-col gap-1">
-                        <Label htmlFor="restaurants_cafes" className="text-xs text-muted-foreground">Restaurants & Cafes</Label>
+                        <Label htmlFor="restaurants_cafes" className="text-xs text-muted-foreground">
+                          Restaurants & Cafes
+                        </Label>
                         <Input
                           id="restaurants_cafes"
                           value={formData.restaurants_cafes}
@@ -3092,7 +3470,9 @@ export default function PropertyForm() {
                         />
                       </div>
                       <div className="flex flex-col gap-1">
-                        <Label htmlFor="restaurants_cafes_distance" className="text-xs text-muted-foreground">Distance</Label>
+                        <Label htmlFor="restaurants_cafes_distance" className="text-xs text-muted-foreground">
+                          Distance
+                        </Label>
                         <Input
                           id="restaurants_cafes_distance"
                           value={formData.restaurants_cafes_distance}
@@ -3106,7 +3486,9 @@ export default function PropertyForm() {
                     {/* Public Transport */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="flex flex-col gap-1">
-                        <Label htmlFor="public_transport" className="text-xs text-muted-foreground">Public Transport</Label>
+                        <Label htmlFor="public_transport" className="text-xs text-muted-foreground">
+                          Public Transport
+                        </Label>
                         <Input
                           id="public_transport"
                           value={formData.public_transport}
@@ -3116,7 +3498,9 @@ export default function PropertyForm() {
                         />
                       </div>
                       <div className="flex flex-col gap-1">
-                        <Label htmlFor="public_transport_distance" className="text-xs text-muted-foreground">Distance</Label>
+                        <Label htmlFor="public_transport_distance" className="text-xs text-muted-foreground">
+                          Distance
+                        </Label>
                         <Input
                           id="public_transport_distance"
                           value={formData.public_transport_distance}
@@ -3130,7 +3514,9 @@ export default function PropertyForm() {
                     {/* Closest Airport */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="flex flex-col gap-1">
-                        <Label htmlFor="closest_airport" className="text-xs text-muted-foreground">Closest Airport</Label>
+                        <Label htmlFor="closest_airport" className="text-xs text-muted-foreground">
+                          Closest Airport
+                        </Label>
                         <Input
                           id="closest_airport"
                           value={formData.closest_airport}
@@ -3140,7 +3526,9 @@ export default function PropertyForm() {
                         />
                       </div>
                       <div className="flex flex-col gap-1">
-                        <Label htmlFor="closest_airport_distance" className="text-xs text-muted-foreground">Distance</Label>
+                        <Label htmlFor="closest_airport_distance" className="text-xs text-muted-foreground">
+                          Distance
+                        </Label>
                         <Input
                           id="closest_airport_distance"
                           value={formData.closest_airport_distance}
@@ -3150,19 +3538,24 @@ export default function PropertyForm() {
                         />
                       </div>
                     </div>
-
                   </CardContent>
                 </Card>
 
                 {/* Property and Banking Details - Hidden for NightsBridge */}
-                {selectedPMS !== 'nightsbridge' && (
+                {selectedPMS !== "nightsbridge" && (
                   <Card>
                     <CardHeader className="py-2 px-4">
                       <CardTitle className="text-sm flex items-center justify-between">
                         <span>Banking Details</span>
                         <div className="flex items-center gap-2">
-                          <Label htmlFor="has_vat" className="text-xs text-muted-foreground font-normal">VAT Registered?</Label>
-                          <Switch id="has_vat" checked={formData.has_vat} onCheckedChange={(checked) => handleInputChange("has_vat", checked)} />
+                          <Label htmlFor="has_vat" className="text-xs text-muted-foreground font-normal">
+                            VAT Registered?
+                          </Label>
+                          <Switch
+                            id="has_vat"
+                            checked={formData.has_vat}
+                            onCheckedChange={(checked) => handleInputChange("has_vat", checked)}
+                          />
                         </div>
                       </CardTitle>
                     </CardHeader>
@@ -3171,52 +3564,130 @@ export default function PropertyForm() {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         {formData.has_vat && (
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="vat_number" className="text-xs">VAT #</Label>
-                            <Input id="vat_number" value={formData.vat_number} onChange={(e) => handleInputChange("vat_number", e.target.value)} placeholder="VAT number" className="h-7 text-xs" />
+                            <Label htmlFor="vat_number" className="text-xs">
+                              VAT #
+                            </Label>
+                            <Input
+                              id="vat_number"
+                              value={formData.vat_number}
+                              onChange={(e) => handleInputChange("vat_number", e.target.value)}
+                              placeholder="VAT number"
+                              className="h-7 text-xs"
+                            />
                           </div>
                         )}
                         <div className="flex flex-col gap-1">
-                          <Label htmlFor="property_registration" className="text-xs">Reg #</Label>
-                          <Input id="property_registration" value={formData.property_registration} onChange={(e) => handleInputChange("property_registration", e.target.value)} placeholder="Registration" className="h-7 text-xs" />
+                          <Label htmlFor="property_registration" className="text-xs">
+                            Reg #
+                          </Label>
+                          <Input
+                            id="property_registration"
+                            value={formData.property_registration}
+                            onChange={(e) => handleInputChange("property_registration", e.target.value)}
+                            placeholder="Registration"
+                            className="h-7 text-xs"
+                          />
                         </div>
                         <div className="flex flex-col gap-1">
-                          <Label htmlFor="bank_name" className="text-xs">Bank</Label>
-                          <Input id="bank_name" value={formData.bank_name} onChange={(e) => handleInputChange("bank_name", e.target.value)} placeholder="Bank name" className="h-7 text-xs" />
+                          <Label htmlFor="bank_name" className="text-xs">
+                            Bank
+                          </Label>
+                          <Input
+                            id="bank_name"
+                            value={formData.bank_name}
+                            onChange={(e) => handleInputChange("bank_name", e.target.value)}
+                            placeholder="Bank name"
+                            className="h-7 text-xs"
+                          />
                         </div>
                         <div className="flex flex-col gap-1">
-                          <Label htmlFor="branch_code" className="text-xs">Branch</Label>
-                          <Input id="branch_code" value={formData.branch_code} onChange={(e) => handleInputChange("branch_code", e.target.value)} placeholder="Code" className="h-7 text-xs" />
+                          <Label htmlFor="branch_code" className="text-xs">
+                            Branch
+                          </Label>
+                          <Input
+                            id="branch_code"
+                            value={formData.branch_code}
+                            onChange={(e) => handleInputChange("branch_code", e.target.value)}
+                            placeholder="Code"
+                            className="h-7 text-xs"
+                          />
                         </div>
                       </div>
                       {/* Row 2: Account Details */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div className="flex flex-col gap-1">
-                          <Label htmlFor="account_holder" className="text-xs">Holder</Label>
-                          <Input id="account_holder" value={formData.account_holder} onChange={(e) => handleInputChange("account_holder", e.target.value)} placeholder="Name" className="h-7 text-xs" />
+                          <Label htmlFor="account_holder" className="text-xs">
+                            Holder
+                          </Label>
+                          <Input
+                            id="account_holder"
+                            value={formData.account_holder}
+                            onChange={(e) => handleInputChange("account_holder", e.target.value)}
+                            placeholder="Name"
+                            className="h-7 text-xs"
+                          />
                         </div>
                         <div className="flex flex-col gap-1">
-                          <Label htmlFor="account_number" className="text-xs">Account #</Label>
-                          <Input id="account_number" value={formData.account_number} onChange={(e) => handleInputChange("account_number", e.target.value)} placeholder="Number" className="h-7 text-xs" />
+                          <Label htmlFor="account_number" className="text-xs">
+                            Account #
+                          </Label>
+                          <Input
+                            id="account_number"
+                            value={formData.account_number}
+                            onChange={(e) => handleInputChange("account_number", e.target.value)}
+                            placeholder="Number"
+                            className="h-7 text-xs"
+                          />
                         </div>
                         <div className="flex flex-col gap-1">
-                          <Label htmlFor="account_type" className="text-xs">Type</Label>
-                          <Input id="account_type" value={formData.account_type} onChange={(e) => handleInputChange("account_type", e.target.value)} placeholder="Type" className="h-7 text-xs" />
+                          <Label htmlFor="account_type" className="text-xs">
+                            Type
+                          </Label>
+                          <Input
+                            id="account_type"
+                            value={formData.account_type}
+                            onChange={(e) => handleInputChange("account_type", e.target.value)}
+                            placeholder="Type"
+                            className="h-7 text-xs"
+                          />
                         </div>
                         <div className="flex flex-col gap-1">
-                          <Label htmlFor="swift_code" className="text-xs">SWIFT</Label>
-                          <Input id="swift_code" value={formData.swift_code} onChange={(e) => handleInputChange("swift_code", e.target.value)} placeholder="Code" className="h-7 text-xs" />
+                          <Label htmlFor="swift_code" className="text-xs">
+                            SWIFT
+                          </Label>
+                          <Input
+                            id="swift_code"
+                            value={formData.swift_code}
+                            onChange={(e) => handleInputChange("swift_code", e.target.value)}
+                            placeholder="Code"
+                            className="h-7 text-xs"
+                          />
                         </div>
                       </div>
                       {/* Row 3: Bitcoin */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-border">
                         <div className="flex items-center gap-2">
-                          <Switch id="accepts_bitcoin" checked={formData.accepts_bitcoin} onCheckedChange={(checked) => handleInputChange("accepts_bitcoin", checked)} />
-                          <Label htmlFor="accepts_bitcoin" className="text-xs">Bitcoin</Label>
+                          <Switch
+                            id="accepts_bitcoin"
+                            checked={formData.accepts_bitcoin}
+                            onCheckedChange={(checked) => handleInputChange("accepts_bitcoin", checked)}
+                          />
+                          <Label htmlFor="accepts_bitcoin" className="text-xs">
+                            Bitcoin
+                          </Label>
                         </div>
                         {formData.accepts_bitcoin && (
                           <div className="flex flex-col gap-1 col-span-3">
-                            <Label htmlFor="bitcoin_wallet_address" className="text-xs">Wallet Address</Label>
-                            <Input id="bitcoin_wallet_address" value={formData.bitcoin_wallet_address} onChange={(e) => handleInputChange("bitcoin_wallet_address", e.target.value)} placeholder="Bitcoin wallet address" className="h-7 text-xs font-mono" />
+                            <Label htmlFor="bitcoin_wallet_address" className="text-xs">
+                              Wallet Address
+                            </Label>
+                            <Input
+                              id="bitcoin_wallet_address"
+                              value={formData.bitcoin_wallet_address}
+                              onChange={(e) => handleInputChange("bitcoin_wallet_address", e.target.value)}
+                              placeholder="Bitcoin wallet address"
+                              className="h-7 text-xs font-mono"
+                            />
                           </div>
                         )}
                       </div>
@@ -3225,7 +3696,15 @@ export default function PropertyForm() {
                 )}
 
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleNavigate("/admin/property-overview")}>Cancel</Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => handleNavigate("/admin/property-overview")}
+                  >
+                    Cancel
+                  </Button>
                   {isDirty && (
                     <Button type="submit" size="sm" className="h-7 text-xs" disabled={loading}>
                       <Save className="mr-1 h-3 w-3" />
@@ -3553,14 +4032,14 @@ export default function PropertyForm() {
                   check_in_from: formData.check_in_from,
                   check_out_to: formData.check_out_to,
                   facilities: selectedFacilities,
-                  rooms: roomTypes.map(r => ({
+                  rooms: roomTypes.map((r) => ({
                     name: r.name,
                     description: r.description,
                     maxPeople: r.maxPeople,
-                    bedConfiguration: Array.isArray(r.bedConfiguration) 
-                      ? r.bedConfiguration.map(b => `${b.count} ${b.type}`).join(', ')
-                      : undefined
-                  }))
+                    bedConfiguration: Array.isArray(r.bedConfiguration)
+                      ? r.bedConfiguration.map((b) => `${b.count} ${b.type}`).join(", ")
+                      : undefined,
+                  })),
                 }}
                 onDirty={() => setIsDirty(true)}
               />
@@ -3585,7 +4064,9 @@ export default function PropertyForm() {
                           >
                             <StarRating
                               rating={starRating}
-                              onRatingChange={isFieldPopulatedByPMS("star_rating", selectedPMS) ? () => {} : setStarRating}
+                              onRatingChange={
+                                isFieldPopulatedByPMS("star_rating", selectedPMS) ? () => {} : setStarRating
+                              }
                             />
                           </div>
                         </div>
@@ -3612,7 +4093,9 @@ export default function PropertyForm() {
                   </CardHeader>
                   <CardContent className="py-2 px-4">
                     <div className="space-y-1">
-                      <Label htmlFor="description" className="text-xs">Description</Label>
+                      <Label htmlFor="description" className="text-xs">
+                        Description
+                      </Label>
                       <Textarea
                         id="description"
                         value={formData.description}
@@ -3893,7 +4376,15 @@ export default function PropertyForm() {
                   </CardHeader>
                   <CardContent className="py-2 px-4">
                     <div className="flex flex-wrap gap-3">
-                      {['Continental', 'Full English/Irish', 'Vegetarian', 'Vegan', 'Halal', 'Gluten-free', 'Buffet'].map((option) => (
+                      {[
+                        "Continental",
+                        "Full English/Irish",
+                        "Vegetarian",
+                        "Vegan",
+                        "Halal",
+                        "Gluten-free",
+                        "Buffet",
+                      ].map((option) => (
                         <div key={option} className="flex items-center space-x-1.5">
                           <Checkbox
                             id={`breakfast-${option}`}
@@ -3902,13 +4393,15 @@ export default function PropertyForm() {
                               if (checked) {
                                 setSelectedBreakfastOptions([...selectedBreakfastOptions, option]);
                               } else {
-                                setSelectedBreakfastOptions(selectedBreakfastOptions.filter(o => o !== option));
+                                setSelectedBreakfastOptions(selectedBreakfastOptions.filter((o) => o !== option));
                               }
                               setIsDirty(true);
                             }}
                             className="h-3.5 w-3.5"
                           />
-                          <Label htmlFor={`breakfast-${option}`} className="cursor-pointer text-xs">{option}</Label>
+                          <Label htmlFor={`breakfast-${option}`} className="cursor-pointer text-xs">
+                            {option}
+                          </Label>
                         </div>
                       ))}
                     </div>
@@ -3916,7 +4409,13 @@ export default function PropertyForm() {
                 </Card>
 
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleNavigate("/admin/property-overview")}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => handleNavigate("/admin/property-overview")}
+                  >
                     Cancel
                   </Button>
                   {isDirty && (
@@ -3953,11 +4452,11 @@ export default function PropertyForm() {
                           </div>
                           <Separator orientation="vertical" className="h-5" />
                           {[
-                            { key: 'smoking_allowed', label: 'Smoking' },
-                            { key: 'pets_allowed', label: 'Pets' },
-                            { key: 'children_allowed', label: 'Children' },
-                            { key: 'parties_allowed', label: 'Parties' },
-                            { key: 'check_in_24h', label: '24h Check-in' },
+                            { key: "smoking_allowed", label: "Smoking" },
+                            { key: "pets_allowed", label: "Pets" },
+                            { key: "children_allowed", label: "Children" },
+                            { key: "parties_allowed", label: "Parties" },
+                            { key: "check_in_24h", label: "24h Check-in" },
                           ].map(({ key, label }) => (
                             <div key={key} className="flex items-center gap-1.5">
                               <div
@@ -4003,8 +4502,12 @@ export default function PropertyForm() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent className="bg-background z-50">
-                                <SelectItem value="% of Total" className="text-xs">% of Total</SelectItem>
-                                <SelectItem value="Fixed Amount" className="text-xs">Fixed Amount</SelectItem>
+                                <SelectItem value="% of Total" className="text-xs">
+                                  % of Total
+                                </SelectItem>
+                                <SelectItem value="Fixed Amount" className="text-xs">
+                                  Fixed Amount
+                                </SelectItem>
                               </SelectContent>
                             </Select>
                             <span className="whitespace-nowrap">if cancels</span>
@@ -4014,11 +4517,23 @@ export default function PropertyForm() {
                               onChange={(e) => updateCancellationPolicy(index, "days", e.target.value)}
                             />
                             <span className="whitespace-nowrap">days before</span>
-                            <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeCancellationPolicy(index)}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5"
+                              onClick={() => removeCancellationPolicy(index)}
+                            >
                               <Minus className="h-3 w-3" />
                             </Button>
                             {index === cancellationPolicies.length - 1 && (
-                              <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={addCancellationPolicy}>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5"
+                                onClick={addCancellationPolicy}
+                              >
                                 <Plus className="h-3 w-3" />
                               </Button>
                             )}
@@ -4046,11 +4561,21 @@ export default function PropertyForm() {
                         </CardHeader>
                         <CardContent className="py-1.5 px-3 space-y-1">
                           <div className="flex items-center gap-1">
-                            <Input placeholder="50" value={formData.deposit_percentage} onChange={(e) => handleInputChange("deposit_percentage", e.target.value)} className="h-6 text-xs" />
+                            <Input
+                              placeholder="50"
+                              value={formData.deposit_percentage}
+                              onChange={(e) => handleInputChange("deposit_percentage", e.target.value)}
+                              className="h-6 text-xs"
+                            />
                             <span className="text-xs text-muted-foreground">%</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <Input placeholder="2" value={formData.deposit_days} onChange={(e) => handleInputChange("deposit_days", e.target.value)} className="h-6 text-xs" />
+                            <Input
+                              placeholder="2"
+                              value={formData.deposit_days}
+                              onChange={(e) => handleInputChange("deposit_days", e.target.value)}
+                              className="h-6 text-xs"
+                            />
                             <span className="text-xs text-muted-foreground">days</span>
                           </div>
                         </CardContent>
@@ -4074,7 +4599,12 @@ export default function PropertyForm() {
                         <CardContent className="py-1.5 px-3">
                           <div className="flex items-center gap-1">
                             <Label className="text-xs text-muted-foreground">Cutoff</Label>
-                            <Input type="time" value={formData.same_day_cutoff} onChange={(e) => handleInputChange("same_day_cutoff", e.target.value)} className="h-6 text-xs flex-1" />
+                            <Input
+                              type="time"
+                              value={formData.same_day_cutoff}
+                              onChange={(e) => handleInputChange("same_day_cutoff", e.target.value)}
+                              className="h-6 text-xs flex-1"
+                            />
                           </div>
                         </CardContent>
                       </Card>
@@ -4087,11 +4617,23 @@ export default function PropertyForm() {
                         <CardContent className="py-1.5 px-3 space-y-1">
                           <div className="flex items-center gap-1">
                             <Label className="text-xs text-muted-foreground w-8">From</Label>
-                            <Input type="time" value={formData.check_in_from} onChange={(e) => handleInputChange("check_in_from", e.target.value)} disabled={isFieldPopulatedByPMS("check_in_from", selectedPMS)} className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_in_from", selectedPMS))} />
+                            <Input
+                              type="time"
+                              value={formData.check_in_from}
+                              onChange={(e) => handleInputChange("check_in_from", e.target.value)}
+                              disabled={isFieldPopulatedByPMS("check_in_from", selectedPMS)}
+                              className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_in_from", selectedPMS))}
+                            />
                           </div>
                           <div className="flex items-center gap-1">
                             <Label className="text-xs text-muted-foreground w-8">To</Label>
-                            <Input type="time" value={formData.check_in_to} onChange={(e) => handleInputChange("check_in_to", e.target.value)} disabled={isFieldPopulatedByPMS("check_in_to", selectedPMS)} className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_in_to", selectedPMS))} />
+                            <Input
+                              type="time"
+                              value={formData.check_in_to}
+                              onChange={(e) => handleInputChange("check_in_to", e.target.value)}
+                              disabled={isFieldPopulatedByPMS("check_in_to", selectedPMS)}
+                              className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_in_to", selectedPMS))}
+                            />
                           </div>
                         </CardContent>
                       </Card>
@@ -4104,11 +4646,23 @@ export default function PropertyForm() {
                         <CardContent className="py-1.5 px-3 space-y-1">
                           <div className="flex items-center gap-1">
                             <Label className="text-xs text-muted-foreground w-8">From</Label>
-                            <Input type="time" value={formData.check_out_from} onChange={(e) => handleInputChange("check_out_from", e.target.value)} disabled={isFieldPopulatedByPMS("check_out_from", selectedPMS)} className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_out_from", selectedPMS))} />
+                            <Input
+                              type="time"
+                              value={formData.check_out_from}
+                              onChange={(e) => handleInputChange("check_out_from", e.target.value)}
+                              disabled={isFieldPopulatedByPMS("check_out_from", selectedPMS)}
+                              className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_out_from", selectedPMS))}
+                            />
                           </div>
                           <div className="flex items-center gap-1">
                             <Label className="text-xs text-muted-foreground w-8">To</Label>
-                            <Input type="time" value={formData.check_out_to} onChange={(e) => handleInputChange("check_out_to", e.target.value)} disabled={isFieldPopulatedByPMS("check_out_to", selectedPMS)} className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_out_to", selectedPMS))} />
+                            <Input
+                              type="time"
+                              value={formData.check_out_to}
+                              onChange={(e) => handleInputChange("check_out_to", e.target.value)}
+                              disabled={isFieldPopulatedByPMS("check_out_to", selectedPMS)}
+                              className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_out_to", selectedPMS))}
+                            />
                           </div>
                         </CardContent>
                       </Card>
@@ -4118,12 +4672,24 @@ export default function PropertyForm() {
                         <CardHeader className="py-1.5 px-3">
                           <CardTitle className="text-xs flex items-center gap-1">
                             Infant
-                            {selectedPMS === 'benson' && <Cloud className="h-3 w-3 text-primary" />}
+                            {selectedPMS === "benson" && <Cloud className="h-3 w-3 text-primary" />}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="py-1.5 px-3 flex gap-1">
-                          <Input value={formData.infant_age_from} onChange={(e) => handleInputChange("infant_age_from", e.target.value)} disabled={selectedPMS === 'benson'} className={cn("h-6 text-xs", selectedPMS === 'benson' && 'bg-muted')} placeholder="From" />
-                          <Input value={formData.infant_age_to} onChange={(e) => handleInputChange("infant_age_to", e.target.value)} disabled={selectedPMS === 'benson'} className={cn("h-6 text-xs", selectedPMS === 'benson' && 'bg-muted')} placeholder="To" />
+                          <Input
+                            value={formData.infant_age_from}
+                            onChange={(e) => handleInputChange("infant_age_from", e.target.value)}
+                            disabled={selectedPMS === "benson"}
+                            className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
+                            placeholder="From"
+                          />
+                          <Input
+                            value={formData.infant_age_to}
+                            onChange={(e) => handleInputChange("infant_age_to", e.target.value)}
+                            disabled={selectedPMS === "benson"}
+                            className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
+                            placeholder="To"
+                          />
                         </CardContent>
                       </Card>
 
@@ -4132,12 +4698,24 @@ export default function PropertyForm() {
                         <CardHeader className="py-1.5 px-3">
                           <CardTitle className="text-xs flex items-center gap-1">
                             Teen
-                            {selectedPMS === 'benson' && <Cloud className="h-3 w-3 text-primary" />}
+                            {selectedPMS === "benson" && <Cloud className="h-3 w-3 text-primary" />}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="py-1.5 px-3 flex gap-1">
-                          <Input value={(formData as any).teen_age_from || ''} onChange={(e) => handleInputChange("teen_age_from" as any, e.target.value)} disabled={selectedPMS === 'benson'} className={cn("h-6 text-xs", selectedPMS === 'benson' && 'bg-muted')} placeholder="From" />
-                          <Input value={(formData as any).teen_age_to || ''} onChange={(e) => handleInputChange("teen_age_to" as any, e.target.value)} disabled={selectedPMS === 'benson'} className={cn("h-6 text-xs", selectedPMS === 'benson' && 'bg-muted')} placeholder="To" />
+                          <Input
+                            value={(formData as any).teen_age_from || ""}
+                            onChange={(e) => handleInputChange("teen_age_from" as any, e.target.value)}
+                            disabled={selectedPMS === "benson"}
+                            className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
+                            placeholder="From"
+                          />
+                          <Input
+                            value={(formData as any).teen_age_to || ""}
+                            onChange={(e) => handleInputChange("teen_age_to" as any, e.target.value)}
+                            disabled={selectedPMS === "benson"}
+                            className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
+                            placeholder="To"
+                          />
                         </CardContent>
                       </Card>
 
@@ -4146,12 +4724,24 @@ export default function PropertyForm() {
                         <CardHeader className="py-1.5 px-3">
                           <CardTitle className="text-xs flex items-center gap-1">
                             Children
-                            {selectedPMS === 'benson' && <Cloud className="h-3 w-3 text-primary" />}
+                            {selectedPMS === "benson" && <Cloud className="h-3 w-3 text-primary" />}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="py-1.5 px-3 flex gap-1">
-                          <Input value={formData.children_age_from} onChange={(e) => handleInputChange("children_age_from", e.target.value)} disabled={selectedPMS === 'benson'} className={cn("h-6 text-xs", selectedPMS === 'benson' && 'bg-muted')} placeholder="From" />
-                          <Input value={formData.children_age_to} onChange={(e) => handleInputChange("children_age_to", e.target.value)} disabled={selectedPMS === 'benson'} className={cn("h-6 text-xs", selectedPMS === 'benson' && 'bg-muted')} placeholder="To" />
+                          <Input
+                            value={formData.children_age_from}
+                            onChange={(e) => handleInputChange("children_age_from", e.target.value)}
+                            disabled={selectedPMS === "benson"}
+                            className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
+                            placeholder="From"
+                          />
+                          <Input
+                            value={formData.children_age_to}
+                            onChange={(e) => handleInputChange("children_age_to", e.target.value)}
+                            disabled={selectedPMS === "benson"}
+                            className={cn("h-6 text-xs", selectedPMS === "benson" && "bg-muted")}
+                            placeholder="To"
+                          />
                         </CardContent>
                       </Card>
                     </div>
@@ -4166,7 +4756,12 @@ export default function PropertyForm() {
                         <CardContent className="py-1.5 px-3">
                           <div className="flex items-center gap-1">
                             <Label className="text-xs text-muted-foreground whitespace-nowrap">Min Age</Label>
-                            <Input value={formData.min_check_in_age} onChange={(e) => handleInputChange("min_check_in_age", e.target.value)} className="h-6 text-xs flex-1" placeholder="18" />
+                            <Input
+                              value={formData.min_check_in_age}
+                              onChange={(e) => handleInputChange("min_check_in_age", e.target.value)}
+                              className="h-6 text-xs flex-1"
+                              placeholder="18"
+                            />
                           </div>
                         </CardContent>
                       </Card>
@@ -4179,7 +4774,12 @@ export default function PropertyForm() {
                         <CardContent className="py-1.5 px-3">
                           <div className="flex items-center gap-1">
                             <Label className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
-                            <Input value={formData.child_adult_age} onChange={(e) => handleInputChange("child_adult_age", e.target.value)} className="h-6 text-xs flex-1" placeholder="12" />
+                            <Input
+                              value={formData.child_adult_age}
+                              onChange={(e) => handleInputChange("child_adult_age", e.target.value)}
+                              className="h-6 text-xs flex-1"
+                              placeholder="12"
+                            />
                             <span className="text-xs text-muted-foreground">yrs</span>
                           </div>
                         </CardContent>
@@ -4192,7 +4792,9 @@ export default function PropertyForm() {
                             <Checkbox
                               id="cot_available"
                               checked={formData.cot_available}
-                              onCheckedChange={(checked) => setFormData({ ...formData, cot_available: checked as boolean })}
+                              onCheckedChange={(checked) =>
+                                setFormData({ ...formData, cot_available: checked as boolean })
+                              }
                               className="h-3 w-3"
                             />
                             Cot Available
@@ -4200,12 +4802,27 @@ export default function PropertyForm() {
                         </CardHeader>
                         <CardContent className="py-1.5 px-3 space-y-1">
                           <div className="flex items-center gap-1">
-                            <Input value={formData.cot_age_from} onChange={(e) => handleInputChange("cot_age_from", e.target.value)} className="h-6 text-xs" placeholder="0" />
+                            <Input
+                              value={formData.cot_age_from}
+                              onChange={(e) => handleInputChange("cot_age_from", e.target.value)}
+                              className="h-6 text-xs"
+                              placeholder="0"
+                            />
                             <span className="text-xs">-</span>
-                            <Input value={formData.cot_age_to} onChange={(e) => handleInputChange("cot_age_to", e.target.value)} className="h-6 text-xs" placeholder="2" />
+                            <Input
+                              value={formData.cot_age_to}
+                              onChange={(e) => handleInputChange("cot_age_to", e.target.value)}
+                              className="h-6 text-xs"
+                              placeholder="2"
+                            />
                             <span className="text-xs text-muted-foreground">yrs</span>
                           </div>
-                          <Input value={formData.cot_price} onChange={(e) => handleInputChange("cot_price", e.target.value)} className="h-6 text-xs" placeholder="Free" />
+                          <Input
+                            value={formData.cot_price}
+                            onChange={(e) => handleInputChange("cot_price", e.target.value)}
+                            className="h-6 text-xs"
+                            placeholder="Free"
+                          />
                         </CardContent>
                       </Card>
 
@@ -4216,7 +4833,9 @@ export default function PropertyForm() {
                             <Checkbox
                               id="extra_beds_available"
                               checked={formData.extra_beds_available}
-                              onCheckedChange={(checked) => setFormData({ ...formData, extra_beds_available: checked as boolean })}
+                              onCheckedChange={(checked) =>
+                                setFormData({ ...formData, extra_beds_available: checked as boolean })
+                              }
                               className="h-3 w-3"
                             />
                             Extra Beds
@@ -4225,7 +4844,13 @@ export default function PropertyForm() {
                         <CardContent className="py-1.5 px-3">
                           <div className="flex items-center gap-1">
                             <Label className="text-xs text-muted-foreground">Price</Label>
-                            <Input value={formData.extra_bed_price} onChange={(e) => handleInputChange("extra_bed_price", e.target.value)} className="h-6 text-xs flex-1" placeholder="Amount" disabled={!formData.extra_beds_available} />
+                            <Input
+                              value={formData.extra_bed_price}
+                              onChange={(e) => handleInputChange("extra_bed_price", e.target.value)}
+                              className="h-6 text-xs flex-1"
+                              placeholder="Amount"
+                              disabled={!formData.extra_beds_available}
+                            />
                           </div>
                         </CardContent>
                       </Card>
@@ -4237,7 +4862,9 @@ export default function PropertyForm() {
                             <Checkbox
                               id="advance_notice_required"
                               checked={formData.advance_notice_required}
-                              onCheckedChange={(checked) => setFormData({ ...formData, advance_notice_required: checked as boolean })}
+                              onCheckedChange={(checked) =>
+                                setFormData({ ...formData, advance_notice_required: checked as boolean })
+                              }
                               className="h-3 w-3"
                             />
                             Advance Notice
@@ -4254,7 +4881,12 @@ export default function PropertyForm() {
                           <CardTitle className="text-xs">Pets Policy</CardTitle>
                         </CardHeader>
                         <CardContent className="py-1.5 px-3">
-                          <Input value={formData.pets_policy} onChange={(e) => handleInputChange("pets_policy", e.target.value)} className="h-6 text-xs" placeholder="e.g., Pets are not allowed" />
+                          <Input
+                            value={formData.pets_policy}
+                            onChange={(e) => handleInputChange("pets_policy", e.target.value)}
+                            className="h-6 text-xs"
+                            placeholder="e.g., Pets are not allowed"
+                          />
                         </CardContent>
                       </Card>
                     </div>
@@ -4313,7 +4945,13 @@ export default function PropertyForm() {
                 </div>
 
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleNavigate("/admin/property-overview")}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => handleNavigate("/admin/property-overview")}
+                  >
                     Cancel
                   </Button>
                   {isDirty && (
@@ -4345,14 +4983,24 @@ export default function PropertyForm() {
                     >
                       <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                       <p className="text-xs text-muted-foreground text-center">Click or drag to upload</p>
-                      <input id="image-upload" type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleImageUpload(e.target.files)} />
+                      <input
+                        id="image-upload"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => handleImageUpload(e.target.files)}
+                      />
                     </div>
 
                     {/* Image Grid */}
                     <div className="lg:col-span-4">
                       <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                         {uploadedImages.map((imageUrl, index) => (
-                          <div key={index} className="relative aspect-square rounded-md overflow-hidden border border-border group">
+                          <div
+                            key={index}
+                            className="relative aspect-square rounded-md overflow-hidden border border-border group"
+                          >
                             <img src={imageUrl} alt={`Property ${index + 1}`} className="w-full h-full object-cover" />
                             {/* Primary badge or set as primary button */}
                             {index === 0 ? (
@@ -4376,13 +5024,20 @@ export default function PropertyForm() {
                                 <Heart className="h-3 w-3 text-white" />
                               </button>
                             )}
-                            <button type="button" onClick={() => removeImage(index)} className="absolute top-1 right-1 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => removeImage(index)}
+                              className="absolute top-1 right-1 bg-muted-foreground/80 hover:bg-destructive rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
                               <X className="h-3 w-3 text-white" />
                             </button>
                           </div>
                         ))}
                         {Array.from({ length: Math.max(0, 12 - uploadedImages.length) }, (_, index) => (
-                          <div key={`empty-${index}`} className="relative aspect-square rounded-md border-2 border-dashed border-border bg-muted/20 flex items-center justify-center">
+                          <div
+                            key={`empty-${index}`}
+                            className="relative aspect-square rounded-md border-2 border-dashed border-border bg-muted/20 flex items-center justify-center"
+                          >
                             <X className="h-3 w-3 text-muted-foreground" />
                           </div>
                         ))}
@@ -4393,7 +5048,13 @@ export default function PropertyForm() {
               </Card>
 
               <div className="flex justify-end gap-2 mt-3">
-                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleNavigate("/admin/property-overview")}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => handleNavigate("/admin/property-overview")}
+                >
                   Cancel
                 </Button>
                 {isDirty && (
@@ -4435,7 +5096,10 @@ export default function PropertyForm() {
                     <Label className="text-xs">Template (supports formatting, images, and links)</Label>
                     <RichTextEditor
                       content={templateContent}
-                      onChange={(html) => { setTemplateContent(html); setIsDirty(true); }}
+                      onChange={(html) => {
+                        setTemplateContent(html);
+                        setIsDirty(true);
+                      }}
                       placeholder="Enter your email template content here..."
                     />
                   </div>
@@ -4444,16 +5108,54 @@ export default function PropertyForm() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Label className="text-xs">Pre Mailer:</Label>
-                      <Input type="number" value={preMailerDays} onChange={(e) => { setPreMailerDays(Number(e.target.value)); setIsDirty(true); }} className="w-14 h-6 text-xs" min="0" />
+                      <Input
+                        type="number"
+                        value={preMailerDays}
+                        onChange={(e) => {
+                          setPreMailerDays(Number(e.target.value));
+                          setIsDirty(true);
+                        }}
+                        className="w-14 h-6 text-xs"
+                        min="0"
+                      />
                       <span className="text-xs text-muted-foreground">days</span>
-                      <Input type="number" value={preMailerHours} onChange={(e) => { setPreMailerHours(Number(e.target.value)); setIsDirty(true); }} className="w-14 h-6 text-xs" min="0" max="23" />
+                      <Input
+                        type="number"
+                        value={preMailerHours}
+                        onChange={(e) => {
+                          setPreMailerHours(Number(e.target.value));
+                          setIsDirty(true);
+                        }}
+                        className="w-14 h-6 text-xs"
+                        min="0"
+                        max="23"
+                      />
                       <span className="text-xs text-muted-foreground">hrs before</span>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <Label className="text-xs">Post Mailer:</Label>
-                      <Input type="number" value={postMailerDays} onChange={(e) => { setPostMailerDays(Number(e.target.value)); setIsDirty(true); }} className="w-14 h-6 text-xs" min="0" />
+                      <Input
+                        type="number"
+                        value={postMailerDays}
+                        onChange={(e) => {
+                          setPostMailerDays(Number(e.target.value));
+                          setIsDirty(true);
+                        }}
+                        className="w-14 h-6 text-xs"
+                        min="0"
+                      />
                       <span className="text-xs text-muted-foreground">days</span>
-                      <Input type="number" value={postMailerHours} onChange={(e) => { setPostMailerHours(Number(e.target.value)); setIsDirty(true); }} className="w-14 h-6 text-xs" min="0" max="23" />
+                      <Input
+                        type="number"
+                        value={postMailerHours}
+                        onChange={(e) => {
+                          setPostMailerHours(Number(e.target.value));
+                          setIsDirty(true);
+                        }}
+                        className="w-14 h-6 text-xs"
+                        min="0"
+                        max="23"
+                      />
                       <span className="text-xs text-muted-foreground">hrs after</span>
                     </div>
                   </div>
@@ -4461,7 +5163,13 @@ export default function PropertyForm() {
               </Card>
 
               <div className="flex justify-end gap-2 mt-3">
-                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleNavigate("/admin/property-overview")}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => handleNavigate("/admin/property-overview")}
+                >
                   Cancel
                 </Button>
                 {isDirty && (
@@ -4492,26 +5200,52 @@ export default function PropertyForm() {
 
                       <Tabs value={addonDialogTab} onValueChange={setAddonDialogTab}>
                         <TabsList className="h-7">
-                          <TabsTrigger value="addon" className="text-xs h-6">Addon</TabsTrigger>
-                          <TabsTrigger value="addon-images" className="text-xs h-6">Images</TabsTrigger>
+                          <TabsTrigger value="addon" className="text-xs h-6">
+                            Addon
+                          </TabsTrigger>
+                          <TabsTrigger value="addon-images" className="text-xs h-6">
+                            Images
+                          </TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="addon" className="space-y-2 mt-2">
                           <div className="grid grid-cols-2 gap-2">
                             <div className="space-y-1">
                               <Label className="text-xs">Name</Label>
-                              <Input value={addonForm.name} onChange={(e) => setAddonForm({ ...addonForm, name: e.target.value })} className="h-7 text-xs" />
+                              <Input
+                                value={addonForm.name}
+                                onChange={(e) => setAddonForm({ ...addonForm, name: e.target.value })}
+                                className="h-7 text-xs"
+                              />
                             </div>
                             <div className="space-y-1">
                               <Label className="text-xs">Offerings for:</Label>
                               <div className="flex gap-3">
                                 <div className="flex items-center gap-1">
-                                  <Checkbox id="addon-accommodation" checked={addonForm.offeringsAccommodation} onCheckedChange={(checked) => setAddonForm({ ...addonForm, offeringsAccommodation: checked as boolean })} className="h-3 w-3" />
-                                  <Label htmlFor="addon-accommodation" className="cursor-pointer text-xs">Accommodation</Label>
+                                  <Checkbox
+                                    id="addon-accommodation"
+                                    checked={addonForm.offeringsAccommodation}
+                                    onCheckedChange={(checked) =>
+                                      setAddonForm({ ...addonForm, offeringsAccommodation: checked as boolean })
+                                    }
+                                    className="h-3 w-3"
+                                  />
+                                  <Label htmlFor="addon-accommodation" className="cursor-pointer text-xs">
+                                    Accommodation
+                                  </Label>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                  <Checkbox id="addon-venue" checked={addonForm.offeringsVenue} onCheckedChange={(checked) => setAddonForm({ ...addonForm, offeringsVenue: checked as boolean })} className="h-3 w-3" />
-                                  <Label htmlFor="addon-venue" className="cursor-pointer text-xs">Venue</Label>
+                                  <Checkbox
+                                    id="addon-venue"
+                                    checked={addonForm.offeringsVenue}
+                                    onCheckedChange={(checked) =>
+                                      setAddonForm({ ...addonForm, offeringsVenue: checked as boolean })
+                                    }
+                                    className="h-3 w-3"
+                                  />
+                                  <Label htmlFor="addon-venue" className="cursor-pointer text-xs">
+                                    Venue
+                                  </Label>
                                 </div>
                               </div>
                             </div>
@@ -4519,30 +5253,66 @@ export default function PropertyForm() {
 
                           <div className="space-y-1">
                             <Label className="text-xs">Description</Label>
-                            <Textarea rows={2} value={addonForm.description} onChange={(e) => setAddonForm({ ...addonForm, description: e.target.value })} className="text-xs" />
+                            <Textarea
+                              rows={2}
+                              value={addonForm.description}
+                              onChange={(e) => setAddonForm({ ...addonForm, description: e.target.value })}
+                              className="text-xs"
+                            />
                           </div>
 
                           <div className="grid grid-cols-4 gap-2">
                             <div className="space-y-1">
                               <Label className="text-xs">Price Type</Label>
-                              <Select value={addonForm.priceType} onValueChange={(value) => setAddonForm({ ...addonForm, priceType: value })}>
-                                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                              <Select
+                                value={addonForm.priceType}
+                                onValueChange={(value) => setAddonForm({ ...addonForm, priceType: value })}
+                              >
+                                <SelectTrigger className="h-7 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="Price Per Item" className="text-xs">Per Item</SelectItem>
-                                  <SelectItem value="Price Per Person" className="text-xs">Per Person</SelectItem>
-                                  <SelectItem value="Price Per Night" className="text-xs">Per Night</SelectItem>
+                                  <SelectItem value="Price Per Item" className="text-xs">
+                                    Per Item
+                                  </SelectItem>
+                                  <SelectItem value="Price Per Person" className="text-xs">
+                                    Per Person
+                                  </SelectItem>
+                                  <SelectItem value="Price Per Night" className="text-xs">
+                                    Per Night
+                                  </SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
                             <div className="space-y-1">
                               <Label className="text-xs">Price</Label>
-                              <Input type="number" value={addonForm.price} onChange={(e) => setAddonForm({ ...addonForm, price: Number(e.target.value) })} min="0" className="h-7 text-xs" />
+                              <Input
+                                type="number"
+                                value={addonForm.price}
+                                onChange={(e) => setAddonForm({ ...addonForm, price: Number(e.target.value) })}
+                                min="0"
+                                className="h-7 text-xs"
+                              />
                             </div>
                             <div className="col-span-2 space-y-1">
                               <Label className="text-xs">Capacity</Label>
                               <div className="flex items-center gap-1.5">
-                                <Checkbox id="addon-capacity" checked={addonForm.hasCapacity} onCheckedChange={(checked) => setAddonForm({ ...addonForm, hasCapacity: checked as boolean })} className="h-3 w-3" />
-                                <Input type="number" className="w-20 h-7 text-xs" value={addonForm.capacity} onChange={(e) => setAddonForm({ ...addonForm, capacity: Number(e.target.value) })} min="0" disabled={!addonForm.hasCapacity} />
+                                <Checkbox
+                                  id="addon-capacity"
+                                  checked={addonForm.hasCapacity}
+                                  onCheckedChange={(checked) =>
+                                    setAddonForm({ ...addonForm, hasCapacity: checked as boolean })
+                                  }
+                                  className="h-3 w-3"
+                                />
+                                <Input
+                                  type="number"
+                                  className="w-20 h-7 text-xs"
+                                  value={addonForm.capacity}
+                                  onChange={(e) => setAddonForm({ ...addonForm, capacity: Number(e.target.value) })}
+                                  min="0"
+                                  disabled={!addonForm.hasCapacity}
+                                />
                               </div>
                             </div>
                           </div>
@@ -4551,15 +5321,41 @@ export default function PropertyForm() {
                             <Label className="text-xs">Days</Label>
                             <div className="flex flex-wrap gap-2">
                               <div className="flex items-center gap-1">
-                                <Checkbox id="addon-all-days" checked={addonForm.allDays} onCheckedChange={(checked) => setAddonForm({ ...addonForm, allDays: checked as boolean })} className="h-3 w-3" />
-                                <Label htmlFor="addon-all-days" className="cursor-pointer text-xs">All</Label>
+                                <Checkbox
+                                  id="addon-all-days"
+                                  checked={addonForm.allDays}
+                                  onCheckedChange={(checked) =>
+                                    setAddonForm({ ...addonForm, allDays: checked as boolean })
+                                  }
+                                  className="h-3 w-3"
+                                />
+                                <Label htmlFor="addon-all-days" className="cursor-pointer text-xs">
+                                  All
+                                </Label>
                               </div>
                               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, i) => {
-                                const fullDay = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][i];
+                                const fullDay = [
+                                  "sunday",
+                                  "monday",
+                                  "tuesday",
+                                  "wednesday",
+                                  "thursday",
+                                  "friday",
+                                  "saturday",
+                                ][i];
                                 return (
                                   <div key={fullDay} className="flex items-center gap-1">
-                                    <Checkbox id={`addon-${fullDay}`} checked={addonForm[fullDay as keyof typeof addonForm] as boolean} onCheckedChange={(checked) => setAddonForm({ ...addonForm, [fullDay]: checked as boolean })} className="h-3 w-3" />
-                                    <Label htmlFor={`addon-${fullDay}`} className="cursor-pointer text-xs">{day}</Label>
+                                    <Checkbox
+                                      id={`addon-${fullDay}`}
+                                      checked={addonForm[fullDay as keyof typeof addonForm] as boolean}
+                                      onCheckedChange={(checked) =>
+                                        setAddonForm({ ...addonForm, [fullDay]: checked as boolean })
+                                      }
+                                      className="h-3 w-3"
+                                    />
+                                    <Label htmlFor={`addon-${fullDay}`} className="cursor-pointer text-xs">
+                                      {day}
+                                    </Label>
                                   </div>
                                 );
                               })}
@@ -4567,7 +5363,9 @@ export default function PropertyForm() {
                           </div>
 
                           <div className="flex justify-end pt-2">
-                            <Button size="sm" className="h-7 text-xs" onClick={handleAddAddon}>Create</Button>
+                            <Button size="sm" className="h-7 text-xs" onClick={handleAddAddon}>
+                              Create
+                            </Button>
                           </div>
                         </TabsContent>
 
@@ -4576,18 +5374,35 @@ export default function PropertyForm() {
                             <div
                               className={`border-2 border-dashed rounded-md p-3 flex flex-col items-center justify-center cursor-pointer transition-colors ${isAddonImageDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary"}`}
                               onDrop={handleAddonImageDrop}
-                              onDragOver={(e) => { e.preventDefault(); setIsAddonImageDragging(true); }}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                setIsAddonImageDragging(true);
+                              }}
                               onDragLeave={() => setIsAddonImageDragging(false)}
                               onClick={() => document.getElementById("addon-image-upload")?.click()}
                             >
                               <Upload className="h-6 w-6 text-muted-foreground mb-1" />
                               <p className="text-xs text-muted-foreground text-center">Upload</p>
-                              <input id="addon-image-upload" type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleAddonImageUpload(e.target.files)} />
+                              <input
+                                id="addon-image-upload"
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                className="hidden"
+                                onChange={(e) => handleAddonImageUpload(e.target.files)}
+                              />
                             </div>
                             {addonImages.slice(0, 8).map((imageUrl, index) => (
-                              <div key={index} className="relative aspect-square rounded-md overflow-hidden border border-border group">
+                              <div
+                                key={index}
+                                className="relative aspect-square rounded-md overflow-hidden border border-border group"
+                              >
                                 <img src={imageUrl} alt={`Addon ${index + 1}`} className="w-full h-full object-cover" />
-                                <button type="button" onClick={() => removeAddonImage(index)} className="absolute top-1 right-1 bg-muted-foreground/80 hover:bg-destructive rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  onClick={() => removeAddonImage(index)}
+                                  className="absolute top-1 right-1 bg-muted-foreground/80 hover:bg-destructive rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
                                   <X className="h-3 w-3 text-white" />
                                 </button>
                               </div>
@@ -4613,19 +5428,34 @@ export default function PropertyForm() {
                       </thead>
                       <tbody>
                         {addons.length === 0 ? (
-                          <tr><td colSpan={6} className="py-4 text-center text-xs text-muted-foreground">No addons yet</td></tr>
+                          <tr>
+                            <td colSpan={6} className="py-4 text-center text-xs text-muted-foreground">
+                              No addons yet
+                            </td>
+                          </tr>
                         ) : (
                           addons.map((addon) => (
                             <tr key={addon.id} className="border-t hover:bg-muted/50">
                               <td className="py-1.5 px-2 text-xs">{addon.name}</td>
-                              <td className="py-1.5 px-2 text-xs text-muted-foreground truncate max-w-[200px]">{addon.description}</td>
+                              <td className="py-1.5 px-2 text-xs text-muted-foreground truncate max-w-[200px]">
+                                {addon.description}
+                              </td>
                               <td className="py-1.5 px-2 text-xs">{addon.priceType}</td>
                               <td className="py-1.5 px-2 text-xs">{addon.hasCapacity ? addon.capacity : "-"}</td>
                               <td className="py-1.5 px-2 text-xs">{addon.price}</td>
                               <td className="py-1.5 px-2">
                                 <div className="flex gap-1">
-                                  <Button size="sm" variant="ghost" className="h-5 w-5 p-0"><Edit className="h-3 w-3" /></Button>
-                                  <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-destructive" onClick={() => deleteAddon(addon.id)}><Trash2 className="h-3 w-3" /></Button>
+                                  <Button size="sm" variant="ghost" className="h-5 w-5 p-0">
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-5 w-5 p-0 text-destructive"
+                                    onClick={() => deleteAddon(addon.id)}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
                                 </div>
                               </td>
                             </tr>
@@ -4644,9 +5474,19 @@ export default function PropertyForm() {
                 <CardHeader className="py-2 px-4">
                   <Tabs value={specialsCategory} onValueChange={setSpecialsCategory}>
                     <TabsList className="h-7">
-                      <TabsTrigger value="accommodations" className="text-xs h-6">Accommodations</TabsTrigger>
-                      {isEvent && <TabsTrigger value="event-wedding" className="text-xs h-6">Event/Wedding</TabsTrigger>}
-                      {isConference && <TabsTrigger value="conference" className="text-xs h-6">Conference</TabsTrigger>}
+                      <TabsTrigger value="accommodations" className="text-xs h-6">
+                        Accommodations
+                      </TabsTrigger>
+                      {isEvent && (
+                        <TabsTrigger value="event-wedding" className="text-xs h-6">
+                          Event/Wedding
+                        </TabsTrigger>
+                      )}
+                      {isConference && (
+                        <TabsTrigger value="conference" className="text-xs h-6">
+                          Conference
+                        </TabsTrigger>
+                      )}
                     </TabsList>
                   </Tabs>
                 </CardHeader>
@@ -4665,15 +5505,32 @@ export default function PropertyForm() {
                           <div
                             key={special.id}
                             className={`flex items-center justify-between py-1.5 px-2 rounded transition-colors text-xs ${
-                              selectedSpecial === special.id ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80"
+                              selectedSpecial === special.id
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted hover:bg-muted/80"
                             }`}
                           >
-                            <span className="flex-1 cursor-pointer truncate" onClick={() => setSelectedSpecial(special.id)}>{special.name}</span>
+                            <span
+                              className="flex-1 cursor-pointer truncate"
+                              onClick={() => setSelectedSpecial(special.id)}
+                            >
+                              {special.name}
+                            </span>
                             <div className="flex gap-0.5">
-                              <Button size="sm" variant="ghost" className="h-4 w-4 p-0" onClick={() => setIsEditSpecialOpen(true)}>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-4 w-4 p-0"
+                                onClick={() => setIsEditSpecialOpen(true)}
+                              >
                                 <Edit className="h-2.5 w-2.5" />
                               </Button>
-                              <Button size="sm" variant="ghost" className="h-4 w-4 p-0" onClick={() => deleteSpecial(special.id)}>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-4 w-4 p-0"
+                                onClick={() => deleteSpecial(special.id)}
+                              >
                                 <Trash2 className="h-2.5 w-2.5" />
                               </Button>
                             </div>
@@ -4699,7 +5556,11 @@ export default function PropertyForm() {
                             <div className="flex items-center justify-between">
                               <DialogTitle className="text-sm">Edit Special</DialogTitle>
                               <div className="flex items-center gap-1.5">
-                                <Switch checked={specialForm.isPublic} onCheckedChange={(checked) => setSpecialForm({ ...specialForm, isPublic: checked })} className="scale-75" />
+                                <Switch
+                                  checked={specialForm.isPublic}
+                                  onCheckedChange={(checked) => setSpecialForm({ ...specialForm, isPublic: checked })}
+                                  className="scale-75"
+                                />
                                 <Label className="text-xs">Public</Label>
                               </div>
                             </div>
@@ -4707,29 +5568,50 @@ export default function PropertyForm() {
 
                           <Tabs value={specialDialogTab} onValueChange={setSpecialDialogTab}>
                             <TabsList className="h-7">
-                              <TabsTrigger value="edit-special" className="text-xs h-6">Edit Special</TabsTrigger>
-                              <TabsTrigger value="special-images" className="text-xs h-6">Images</TabsTrigger>
+                              <TabsTrigger value="edit-special" className="text-xs h-6">
+                                Edit Special
+                              </TabsTrigger>
+                              <TabsTrigger value="special-images" className="text-xs h-6">
+                                Images
+                              </TabsTrigger>
                             </TabsList>
 
                             <TabsContent value="edit-special" className="space-y-3 mt-2">
                               <div className="grid grid-cols-3 gap-2">
                                 <div className="space-y-1">
                                   <Label className="text-xs">Name*</Label>
-                                  <Input value={specialForm.name} onChange={(e) => setSpecialForm({ ...specialForm, name: e.target.value })} className="h-7 text-xs" />
+                                  <Input
+                                    value={specialForm.name}
+                                    onChange={(e) => setSpecialForm({ ...specialForm, name: e.target.value })}
+                                    className="h-7 text-xs"
+                                  />
                                 </div>
                                 <div className="space-y-1">
                                   <Label className="text-xs">Season</Label>
-                                  <Select value={specialForm.season} onValueChange={(value) => setSpecialForm({ ...specialForm, season: value })}>
-                                    <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                                  <Select
+                                    value={specialForm.season}
+                                    onValueChange={(value) => setSpecialForm({ ...specialForm, season: value })}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="08/05/2025-30/09/2025" className="text-xs">08/05/2025-30/09/2025</SelectItem>
-                                      <SelectItem value="01/10/2025-30/09/2026" className="text-xs">01/10/2025-30/09/2026</SelectItem>
+                                      <SelectItem value="08/05/2025-30/09/2025" className="text-xs">
+                                        08/05/2025-30/09/2025
+                                      </SelectItem>
+                                      <SelectItem value="01/10/2025-30/09/2026" className="text-xs">
+                                        01/10/2025-30/09/2026
+                                      </SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </div>
                                 <div className="space-y-1">
                                   <Label className="text-xs">Description</Label>
-                                  <Input value={specialForm.description} onChange={(e) => setSpecialForm({ ...specialForm, description: e.target.value })} className="h-7 text-xs" />
+                                  <Input
+                                    value={specialForm.description}
+                                    onChange={(e) => setSpecialForm({ ...specialForm, description: e.target.value })}
+                                    className="h-7 text-xs"
+                                  />
                                 </div>
                               </div>
 
@@ -4738,13 +5620,24 @@ export default function PropertyForm() {
                                   <Label className="text-xs">From</Label>
                                   <Popover>
                                     <PopoverTrigger asChild>
-                                      <Button variant="outline" className={cn("w-full h-7 justify-start text-left text-xs", !specialForm.periodFrom && "text-muted-foreground")}>
+                                      <Button
+                                        variant="outline"
+                                        className={cn(
+                                          "w-full h-7 justify-start text-left text-xs",
+                                          !specialForm.periodFrom && "text-muted-foreground",
+                                        )}
+                                      >
                                         <CalendarIcon className="mr-1 h-3 w-3" />
                                         {specialForm.periodFrom ? format(specialForm.periodFrom, "MM/dd/yy") : "Pick"}
                                       </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-auto p-0" align="start">
-                                      <CalendarComponent mode="single" selected={specialForm.periodFrom} onSelect={(date) => setSpecialForm({ ...specialForm, periodFrom: date })} initialFocus />
+                                      <CalendarComponent
+                                        mode="single"
+                                        selected={specialForm.periodFrom}
+                                        onSelect={(date) => setSpecialForm({ ...specialForm, periodFrom: date })}
+                                        initialFocus
+                                      />
                                     </PopoverContent>
                                   </Popover>
                                 </div>
@@ -4752,30 +5645,53 @@ export default function PropertyForm() {
                                   <Label className="text-xs">To</Label>
                                   <Popover>
                                     <PopoverTrigger asChild>
-                                      <Button variant="outline" className={cn("w-full h-7 justify-start text-left text-xs", !specialForm.periodTo && "text-muted-foreground")}>
+                                      <Button
+                                        variant="outline"
+                                        className={cn(
+                                          "w-full h-7 justify-start text-left text-xs",
+                                          !specialForm.periodTo && "text-muted-foreground",
+                                        )}
+                                      >
                                         <CalendarIcon className="mr-1 h-3 w-3" />
                                         {specialForm.periodTo ? format(specialForm.periodTo, "MM/dd/yy") : "Pick"}
                                       </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-auto p-0" align="start">
-                                      <CalendarComponent mode="single" selected={specialForm.periodTo} onSelect={(date) => setSpecialForm({ ...specialForm, periodTo: date })} initialFocus />
+                                      <CalendarComponent
+                                        mode="single"
+                                        selected={specialForm.periodTo}
+                                        onSelect={(date) => setSpecialForm({ ...specialForm, periodTo: date })}
+                                        initialFocus
+                                      />
                                     </PopoverContent>
                                   </Popover>
                                 </div>
                                 <div className="col-span-2 space-y-1">
                                   <Label className="text-xs">Pricing</Label>
-                                  <RadioGroup value={specialForm.pricingConfig} onValueChange={(value: any) => setSpecialForm({ ...specialForm, pricingConfig: value })} className="flex gap-3">
+                                  <RadioGroup
+                                    value={specialForm.pricingConfig}
+                                    onValueChange={(value: any) =>
+                                      setSpecialForm({ ...specialForm, pricingConfig: value })
+                                    }
+                                    className="flex gap-3"
+                                  >
                                     <div className="flex items-center space-x-1">
                                       <RadioGroupItem value="discount" id="discount" className="h-3 w-3" />
-                                      <Label htmlFor="discount" className="text-xs">Discount %</Label>
+                                      <Label htmlFor="discount" className="text-xs">
+                                        Discount %
+                                      </Label>
                                     </div>
                                     <div className="flex items-center space-x-1">
                                       <RadioGroupItem value="fixed-off" id="fixed-off" className="h-3 w-3" />
-                                      <Label htmlFor="fixed-off" className="text-xs">Fixed Off</Label>
+                                      <Label htmlFor="fixed-off" className="text-xs">
+                                        Fixed Off
+                                      </Label>
                                     </div>
                                     <div className="flex items-center space-x-1">
                                       <RadioGroupItem value="fixed-price" id="fixed-price" className="h-3 w-3" />
-                                      <Label htmlFor="fixed-price" className="text-xs">Fixed Price</Label>
+                                      <Label htmlFor="fixed-price" className="text-xs">
+                                        Fixed Price
+                                      </Label>
                                     </div>
                                   </RadioGroup>
                                 </div>
@@ -4849,7 +5765,8 @@ export default function PropertyForm() {
                     <TabsContent value="rate-types" className="p-6 space-y-4">
                       <div className="flex justify-between items-center">
                         <p className="text-sm text-muted-foreground">
-                          Rate types imported from your PMS system. Use the "Sync from PMS" button to import or update rate types.
+                          Rate types imported from your PMS system. Use the "Sync from PMS" button to import or update
+                          rate types.
                         </p>
                       </div>
 
@@ -4873,7 +5790,8 @@ export default function PropertyForm() {
                                   </div>
                                   {rateType.pms_synced && (
                                     <Badge variant="outline" className="text-xs bg-primary/10">
-                                      <Cloud className="h-3 w-3 mr-1" />PMS
+                                      <Cloud className="h-3 w-3 mr-1" />
+                                      PMS
                                     </Badge>
                                   )}
                                 </div>
@@ -4888,7 +5806,7 @@ export default function PropertyForm() {
                                     <Label className="text-xs text-muted-foreground">Price Type</Label>
                                     <p className="font-medium">{rateType.priceType || "-"}</p>
                                   </div>
-                                  
+
                                   {/* Stay Requirements */}
                                   <div className="space-y-1">
                                     <Label className="text-xs text-muted-foreground">Min Stay (Days)</Label>
@@ -4897,12 +5815,12 @@ export default function PropertyForm() {
                                   <div className="space-y-1">
                                     <Label className="text-xs text-muted-foreground">Max Stay (Days)</Label>
                                     <p className="font-medium">
-                                      {(rateType.maxStayDays ?? rateType.maxNights) 
-                                        ? (rateType.maxStayDays ?? rateType.maxNights) 
+                                      {(rateType.maxStayDays ?? rateType.maxNights)
+                                        ? (rateType.maxStayDays ?? rateType.maxNights)
                                         : "-"}
                                     </p>
                                   </div>
-                                  
+
                                   {/* Advance Booking Requirements */}
                                   <div className="space-y-1">
                                     <Label className="text-xs text-muted-foreground">Min Advance (Days)</Label>
@@ -4913,11 +5831,13 @@ export default function PropertyForm() {
                                     <p className="font-medium">{rateType.maxAdvanceDays ?? "-"}</p>
                                   </div>
                                 </div>
-                                
+
                                 {/* Stay Pay Discount Section - Always show */}
                                 <Separator className="my-4" />
                                 <div className="space-y-2">
-                                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Stay/Pay Discount</Label>
+                                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                    Stay/Pay Discount
+                                  </Label>
                                   <div className="grid grid-cols-3 gap-4">
                                     <div className="space-y-1">
                                       <Label className="text-xs text-muted-foreground">Stay Nights</Label>
@@ -4930,8 +5850,8 @@ export default function PropertyForm() {
                                     <div className="space-y-1">
                                       <Label className="text-xs text-muted-foreground">Discount %</Label>
                                       <p className="font-medium">
-                                        {rateType.stayPayDiscountPercentage != null 
-                                          ? `${rateType.stayPayDiscountPercentage}%` 
+                                        {rateType.stayPayDiscountPercentage != null
+                                          ? `${rateType.stayPayDiscountPercentage}%`
                                           : "-"}
                                       </p>
                                     </div>
@@ -4948,7 +5868,8 @@ export default function PropertyForm() {
                     <TabsContent value="season" className="p-6 space-y-4">
                       <div className="flex justify-between items-center">
                         <p className="text-sm text-muted-foreground">
-                          Manually define seasonal periods with custom stay requirements. Seasons are not imported from PMS.
+                          Manually define seasonal periods with custom stay requirements. Seasons are not imported from
+                          PMS.
                         </p>
                         <div className="flex gap-2">
                           {seasons.length === 0 && (
@@ -4968,7 +5889,9 @@ export default function PropertyForm() {
                         <div className="border rounded-lg p-8 text-center text-muted-foreground">
                           <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
                           <p>No seasons defined.</p>
-                          <p className="text-sm mb-4">Seasons are optional. Add them manually if you need different rate periods.</p>
+                          <p className="text-sm mb-4">
+                            Seasons are optional. Add them manually if you need different rate periods.
+                          </p>
                           <Button variant="secondary" onClick={createDefaultSeasons} className="gap-2">
                             <Calendar className="h-4 w-4" />
                             Create Southern Hemisphere Seasons
@@ -5052,14 +5975,18 @@ export default function PropertyForm() {
                                   <PopoverTrigger asChild>
                                     <Button variant="outline" className="w-full justify-start text-left font-normal">
                                       <CalendarIcon className="mr-2 h-4 w-4" />
-                                      {seasonForm.from ? format(new Date(seasonForm.from), "dd MMM yyyy") : "Select date"}
+                                      {seasonForm.from
+                                        ? format(new Date(seasonForm.from), "dd MMM yyyy")
+                                        : "Select date"}
                                     </Button>
                                   </PopoverTrigger>
                                   <PopoverContent className="w-auto p-0" align="start">
                                     <CalendarComponent
                                       mode="single"
                                       selected={seasonForm.from ? new Date(seasonForm.from) : undefined}
-                                      onSelect={(date) => setSeasonForm({ ...seasonForm, from: date ? format(date, "yyyy-MM-dd") : "" })}
+                                      onSelect={(date) =>
+                                        setSeasonForm({ ...seasonForm, from: date ? format(date, "yyyy-MM-dd") : "" })
+                                      }
                                       className="pointer-events-auto"
                                     />
                                   </PopoverContent>
@@ -5078,7 +6005,9 @@ export default function PropertyForm() {
                                     <CalendarComponent
                                       mode="single"
                                       selected={seasonForm.to ? new Date(seasonForm.to) : undefined}
-                                      onSelect={(date) => setSeasonForm({ ...seasonForm, to: date ? format(date, "yyyy-MM-dd") : "" })}
+                                      onSelect={(date) =>
+                                        setSeasonForm({ ...seasonForm, to: date ? format(date, "yyyy-MM-dd") : "" })
+                                      }
                                       className="pointer-events-auto"
                                     />
                                   </PopoverContent>
@@ -5093,7 +6022,9 @@ export default function PropertyForm() {
                                   type="number"
                                   min="1"
                                   value={seasonForm.minStay}
-                                  onChange={(e) => setSeasonForm({ ...seasonForm, minStay: parseInt(e.target.value) || 1 })}
+                                  onChange={(e) =>
+                                    setSeasonForm({ ...seasonForm, minStay: parseInt(e.target.value) || 1 })
+                                  }
                                 />
                               </div>
                               <div className="space-y-2">
@@ -5102,7 +6033,9 @@ export default function PropertyForm() {
                                   type="number"
                                   min="0"
                                   value={seasonForm.maxStay}
-                                  onChange={(e) => setSeasonForm({ ...seasonForm, maxStay: parseInt(e.target.value) || 0 })}
+                                  onChange={(e) =>
+                                    setSeasonForm({ ...seasonForm, maxStay: parseInt(e.target.value) || 0 })
+                                  }
                                 />
                                 <p className="text-xs text-muted-foreground">0 = No limit</p>
                               </div>
@@ -5112,9 +6045,7 @@ export default function PropertyForm() {
                               <Button variant="outline" onClick={() => setIsSeasonDialogOpen(false)}>
                                 Cancel
                               </Button>
-                              <Button onClick={saveSeason}>
-                                {editingSeason ? "Update Season" : "Add Season"}
-                              </Button>
+                              <Button onClick={saveSeason}>{editingSeason ? "Update Season" : "Add Season"}</Button>
                             </div>
                           </div>
                         </DialogContent>
@@ -5125,14 +6056,18 @@ export default function PropertyForm() {
                     <TabsContent value="rate-breakdown" className="p-6 space-y-6">
                       {seasons.length === 0 ? (
                         (() => {
-                          const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
+                          const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
                           const linkedRateTypes = currentRoom?.linkedRateTypes || [];
-                          const availableRateTypes = (pmsRateTypes || []) as Array<{id: number | string; name: string; priceType?: string}>;
+                          const availableRateTypes = (pmsRateTypes || []) as Array<{
+                            id: number | string;
+                            name: string;
+                            priceType?: string;
+                          }>;
                           // Handle both number and string comparisons for linkedRateTypes
-                          const roomLinkedRateTypes = availableRateTypes.filter(rt => 
-                            linkedRateTypes.some((linked: number | string) => String(linked) === String(rt.id))
+                          const roomLinkedRateTypes = availableRateTypes.filter((rt) =>
+                            linkedRateTypes.some((linked: number | string) => String(linked) === String(rt.id)),
                           );
-                          
+
                           if (roomLinkedRateTypes.length === 0) {
                             return (
                               <div className="border rounded-lg p-8 text-center text-muted-foreground">
@@ -5148,38 +6083,47 @@ export default function PropertyForm() {
                               <p className="text-sm text-muted-foreground">
                                 Set base rates for <strong>{currentRoom?.name}</strong> (no seasons defined).
                               </p>
-                              
+
                               {roomLinkedRateTypes.map((rateType) => {
-                                const priceType = rateType.priceType || 'Per Unit';
-                                const isPerPerson = priceType.toLowerCase().includes('person');
-                                
-                                  // Get today's rate from PMS cache
-                                  const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
-                                  const roomRateTypes = currentRoom?.rateTypes || [];
-                                  const rateTypeData = roomRateTypes.find((rt: any) => rt.rateTypeId === rateType.id);
-                                  const todayStr = format(new Date(), 'yyyy-MM-dd');
-                                  const todayRateData = rateTypeData?.rates?.find((r: any) => r.date === todayStr);
-                                  
-                                  return (
-                                    <div key={rateType.id} className="border rounded-lg overflow-hidden">
+                                const priceType = rateType.priceType || "Per Unit";
+                                const isPerPerson = priceType.toLowerCase().includes("person");
+
+                                // Get today's rate from PMS cache
+                                const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
+                                const roomRateTypes = currentRoom?.rateTypes || [];
+                                const rateTypeData = roomRateTypes.find((rt: any) => rt.rateTypeId === rateType.id);
+                                const todayStr = format(new Date(), "yyyy-MM-dd");
+                                const todayRateData = rateTypeData?.rates?.find((r: any) => r.date === todayStr);
+
+                                return (
+                                  <div key={rateType.id} className="border rounded-lg overflow-hidden">
                                     <div className="p-4 bg-muted/50">
                                       <div className="flex items-center gap-2">
                                         <h3 className="font-semibold">{rateType.name}</h3>
-                                        <Badge variant="outline" className="text-xs">{priceType}</Badge>
-                                        {selectedPMS === 'benson' && (
-                                          <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />Benson</Badge>
+                                        <Badge variant="outline" className="text-xs">
+                                          {priceType}
+                                        </Badge>
+                                        {selectedPMS === "benson" && (
+                                          <Badge variant="outline" className="text-xs bg-primary/10">
+                                            <Cloud className="h-3 w-3 mr-1" />
+                                            Benson
+                                          </Badge>
                                         )}
                                       </div>
-                                      {selectedPMS === 'benson' && (
-                                        <p className="text-xs text-muted-foreground mt-1">Today's rate from Benson ({todayStr})</p>
+                                      {selectedPMS === "benson" && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          Today's rate from Benson ({todayStr})
+                                        </p>
                                       )}
                                     </div>
-                                    
+
                                     <div className="p-4">
                                       {isPerPerson ? (
                                         <div className="grid grid-cols-5 gap-4">
                                           <div className="space-y-2">
-                                            <Label className="text-xs font-medium text-muted-foreground">Room Amount</Label>
+                                            <Label className="text-xs font-medium text-muted-foreground">
+                                              Room Amount
+                                            </Label>
                                             <Input
                                               type="number"
                                               min="0"
@@ -5190,7 +6134,9 @@ export default function PropertyForm() {
                                             />
                                           </div>
                                           <div className="space-y-2">
-                                            <Label className="text-xs font-medium text-muted-foreground">Adult Amount</Label>
+                                            <Label className="text-xs font-medium text-muted-foreground">
+                                              Adult Amount
+                                            </Label>
                                             <Input
                                               type="number"
                                               min="0"
@@ -5201,7 +6147,9 @@ export default function PropertyForm() {
                                             />
                                           </div>
                                           <div className="space-y-2">
-                                            <Label className="text-xs font-medium text-muted-foreground">Teen Amount</Label>
+                                            <Label className="text-xs font-medium text-muted-foreground">
+                                              Teen Amount
+                                            </Label>
                                             <Input
                                               type="number"
                                               min="0"
@@ -5212,7 +6160,9 @@ export default function PropertyForm() {
                                             />
                                           </div>
                                           <div className="space-y-2">
-                                            <Label className="text-xs font-medium text-muted-foreground">Child Amount</Label>
+                                            <Label className="text-xs font-medium text-muted-foreground">
+                                              Child Amount
+                                            </Label>
                                             <Input
                                               type="number"
                                               min="0"
@@ -5223,7 +6173,9 @@ export default function PropertyForm() {
                                             />
                                           </div>
                                           <div className="space-y-2">
-                                            <Label className="text-xs font-medium text-muted-foreground">Infant Amount</Label>
+                                            <Label className="text-xs font-medium text-muted-foreground">
+                                              Infant Amount
+                                            </Label>
                                             <Input
                                               type="number"
                                               min="0"
@@ -5237,7 +6189,9 @@ export default function PropertyForm() {
                                       ) : (
                                         <div className="max-w-xs">
                                           <div className="space-y-2">
-                                            <Label className="text-xs font-medium text-muted-foreground">Room Amount</Label>
+                                            <Label className="text-xs font-medium text-muted-foreground">
+                                              Room Amount
+                                            </Label>
                                             <Input
                                               type="number"
                                               min="0"
@@ -5251,8 +6205,8 @@ export default function PropertyForm() {
                                       )}
                                     </div>
                                   </div>
-                                  );
-                                })}
+                                );
+                              })}
                             </div>
                           );
                         })()
@@ -5260,330 +6214,471 @@ export default function PropertyForm() {
                         <>
                           <div className="flex items-center justify-between mb-4">
                             <p className="text-sm text-muted-foreground">
-                              Set rates for <strong>{roomTypes.find(r => r.id === selectedRoomType)?.name}</strong> across all seasons.
+                              Set rates for <strong>{roomTypes.find((r) => r.id === selectedRoomType)?.name}</strong>{" "}
+                              across all seasons.
                             </p>
-                            
+
                             {/* Group By Toggle */}
                             <div className="flex items-center gap-2 bg-muted rounded-lg p-1">
                               <button
                                 type="button"
-                                onClick={() => setRateBreakdownGroupBy('season')}
+                                onClick={() => setRateBreakdownGroupBy("season")}
                                 className={cn(
                                   "px-3 py-1.5 text-sm rounded-md transition-colors",
-                                  rateBreakdownGroupBy === 'season' 
-                                    ? "bg-background shadow text-foreground" 
-                                    : "text-muted-foreground hover:text-foreground"
+                                  rateBreakdownGroupBy === "season"
+                                    ? "bg-background shadow text-foreground"
+                                    : "text-muted-foreground hover:text-foreground",
                                 )}
                               >
                                 By Season
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setRateBreakdownGroupBy('mealType')}
+                                onClick={() => setRateBreakdownGroupBy("mealType")}
                                 className={cn(
                                   "px-3 py-1.5 text-sm rounded-md transition-colors",
-                                  rateBreakdownGroupBy === 'mealType' 
-                                    ? "bg-background shadow text-foreground" 
-                                    : "text-muted-foreground hover:text-foreground"
+                                  rateBreakdownGroupBy === "mealType"
+                                    ? "bg-background shadow text-foreground"
+                                    : "text-muted-foreground hover:text-foreground",
                                 )}
                               >
                                 By Rate Type
                               </button>
                             </div>
                           </div>
-                          
+
                           {/* Group by Season View */}
-                          {rateBreakdownGroupBy === 'season' && seasons.map((season) => {
-                            const isExpanded = expandedSeasons[season.id] ?? true;
-                            const rateSummary = getSeasonRateSummary(season.id, selectedRoomType);
-                            const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
-                            const linkedRateTypes = currentRoom?.linkedRateTypes || [];
-                            const availableRateTypes = (pmsRateTypes || []) as Array<{id: number | string; name: string; priceType?: string}>;
-                            const roomLinkedRateTypes = availableRateTypes.filter(rt => 
-                              linkedRateTypes.some((linked: number | string) => String(linked) === String(rt.id))
-                            );
-                            
-                            return (
-                              <div key={season.id} className="border rounded-lg overflow-hidden">
-                                {/* Collapsible Header */}
-                                <button
-                                  type="button"
-                                  onClick={() => toggleSeasonExpanded(season.id)}
-                                  className="w-full flex items-center justify-between p-4 bg-muted/50 hover:bg-muted transition-colors text-left"
-                                >
-                                  <div className="flex items-center gap-3">
-                                    {isExpanded ? (
-                                      <Minus className="h-4 w-4 text-primary" />
-                                    ) : (
-                                      <Plus className="h-4 w-4 text-primary" />
-                                    )}
-                                    <div>
-                                      <h3 className="font-semibold">
-                                        {season.name || season.title}
-                                      </h3>
-                                      <span className="text-sm text-muted-foreground">
-                                        {season.from ? format(new Date(season.from), "dd MMM yyyy") : ""} - {season.to ? format(new Date(season.to), "dd MMM yyyy") : ""}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Min/Max Rate Summary - shown when collapsed */}
-                                  {!isExpanded && (
-                                    <div className="flex items-center gap-4 text-sm">
-                                      <div className="text-right">
-                                        <div className="text-muted-foreground text-xs">Min Rate</div>
-                                        <div className="font-mono font-medium">{rateSummary.min > 0 ? rateSummary.min.toFixed(2) : "—"}</div>
-                                      </div>
-                                      <div className="text-right">
-                                        <div className="text-muted-foreground text-xs">Max Rate</div>
-                                        <div className="font-mono font-medium">{rateSummary.max > 0 ? rateSummary.max.toFixed(2) : "—"}</div>
+                          {rateBreakdownGroupBy === "season" &&
+                            seasons.map((season) => {
+                              const isExpanded = expandedSeasons[season.id] ?? true;
+                              const rateSummary = getSeasonRateSummary(season.id, selectedRoomType);
+                              const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
+                              const linkedRateTypes = currentRoom?.linkedRateTypes || [];
+                              const availableRateTypes = (pmsRateTypes || []) as Array<{
+                                id: number | string;
+                                name: string;
+                                priceType?: string;
+                              }>;
+                              const roomLinkedRateTypes = availableRateTypes.filter((rt) =>
+                                linkedRateTypes.some((linked: number | string) => String(linked) === String(rt.id)),
+                              );
+
+                              return (
+                                <div key={season.id} className="border rounded-lg overflow-hidden">
+                                  {/* Collapsible Header */}
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleSeasonExpanded(season.id)}
+                                    className="w-full flex items-center justify-between p-4 bg-muted/50 hover:bg-muted transition-colors text-left"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      {isExpanded ? (
+                                        <Minus className="h-4 w-4 text-primary" />
+                                      ) : (
+                                        <Plus className="h-4 w-4 text-primary" />
+                                      )}
+                                      <div>
+                                        <h3 className="font-semibold">{season.name || season.title}</h3>
+                                        <span className="text-sm text-muted-foreground">
+                                          {season.from ? format(new Date(season.from), "dd MMM yyyy") : ""} -{" "}
+                                          {season.to ? format(new Date(season.to), "dd MMM yyyy") : ""}
+                                        </span>
                                       </div>
                                     </div>
-                                  )}
-                                </button>
 
-                                {/* Collapsible Content */}
-                                {isExpanded && (
-                                  <div className="p-4 space-y-4">
-                                    {roomLinkedRateTypes.length === 0 ? (
-                                      <div className="border rounded-lg p-4 text-center text-muted-foreground text-sm">
-                                        No rate types linked to this room. Link rate types in the Room Type tab.
-                                      </div>
-                                    ) : (
-                                      roomLinkedRateTypes.map((rateType) => {
-                                        const priceType = rateType.priceType || 'Per Unit';
-                                        const isPerPerson = priceType.toLowerCase().includes('person');
-                                        
-                                        return (
-                                          <div key={rateType.id} className="border rounded-lg p-4 bg-card">
-                                            <div className="flex items-center gap-2 mb-4">
-                                              <span className="text-sm font-medium">{rateType.name}</span>
-                                              <Badge variant="outline" className="text-xs">{priceType}</Badge>
-                                            </div>
-
-                                            {isPerPerson ? (
-                                              <div className="grid grid-cols-5 gap-4">
-                                                <div className="space-y-2">
-                                                  <Label className="text-xs font-medium text-muted-foreground">Room Amount</Label>
-                                                  <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'roomAmount')}
-                                                    className="text-center bg-muted cursor-not-allowed"
-                                                    placeholder="—"
-                                                    disabled
-                                                  />
-                                                </div>
-                                                <div className="space-y-2">
-                                                  <Label className="text-xs font-medium">Adult Amount</Label>
-                                                  <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'adultAmount')}
-                                                    onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'adultAmount', parseFloat(e.target.value) || 0)}
-                                                    className="text-center"
-                                                    placeholder="0.00"
-                                                  />
-                                                </div>
-                                                <div className="space-y-2">
-                                                  <Label className="text-xs font-medium">Teen Amount</Label>
-                                                  <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'teenAmount')}
-                                                    onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'teenAmount', parseFloat(e.target.value) || 0)}
-                                                    className="text-center"
-                                                    placeholder="0.00"
-                                                  />
-                                                </div>
-                                                <div className="space-y-2">
-                                                  <Label className="text-xs font-medium">Child Amount</Label>
-                                                  <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'childAmount')}
-                                                    onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'childAmount', parseFloat(e.target.value) || 0)}
-                                                    className="text-center"
-                                                    placeholder="0.00"
-                                                  />
-                                                </div>
-                                                <div className="space-y-2">
-                                                  <Label className="text-xs font-medium">Infant Amount</Label>
-                                                  <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'infantAmount')}
-                                                    onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'infantAmount', parseFloat(e.target.value) || 0)}
-                                                    className="text-center"
-                                                    placeholder="0.00"
-                                                  />
-                                                </div>
-                                              </div>
-                                            ) : (
-                                              <div className="max-w-xs">
-                                                <div className="space-y-2">
-                                                  <Label className="text-xs font-medium">Room Amount</Label>
-                                                  <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'roomAmount')}
-                                                    onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'roomAmount', parseFloat(e.target.value) || 0)}
-                                                    className="text-center"
-                                                    placeholder="0.00"
-                                                  />
-                                                </div>
-                                              </div>
-                                            )}
+                                    {/* Min/Max Rate Summary - shown when collapsed */}
+                                    {!isExpanded && (
+                                      <div className="flex items-center gap-4 text-sm">
+                                        <div className="text-right">
+                                          <div className="text-muted-foreground text-xs">Min Rate</div>
+                                          <div className="font-mono font-medium">
+                                            {rateSummary.min > 0 ? rateSummary.min.toFixed(2) : "—"}
                                           </div>
-                                        );
-                                      })
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-
-                          {/* Group by Rate Type View */}
-                          {rateBreakdownGroupBy === 'mealType' && (() => {
-                            const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
-                            const linkedRateTypes = currentRoom?.linkedRateTypes || [];
-                            const availableRateTypes = (pmsRateTypes || []) as Array<{id: number | string; name: string; priceType?: string}>;
-                            const roomLinkedRateTypes = availableRateTypes.filter(rt => 
-                              linkedRateTypes.some((linked: number | string) => String(linked) === String(rt.id))
-                            );
-                            
-                            return roomLinkedRateTypes.length === 0 ? (
-                              <div className="border rounded-lg p-8 text-center text-muted-foreground">
-                                <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                                <p>No rate types linked to this room.</p>
-                                <p className="text-sm">Link rate types in the Room Type tab first.</p>
-                              </div>
-                            ) : (
-                              roomLinkedRateTypes.map((rateType) => {
-                                const isExpanded = expandedMealTypes[String(rateType.id)] ?? true;
-                                const priceType = rateType.priceType || 'Per Unit';
-                                const isPerPerson = priceType.toLowerCase().includes('person');
-                                
-                                return (
-                                  <div key={rateType.id} className="border rounded-lg overflow-hidden">
-                                    {/* Collapsible Header */}
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleMealTypeExpanded(String(rateType.id))}
-                                      className="w-full flex items-center justify-between p-4 bg-muted/50 hover:bg-muted transition-colors text-left"
-                                    >
-                                      <div className="flex items-center gap-3">
-                                        {isExpanded ? (
-                                          <Minus className="h-4 w-4 text-primary" />
-                                        ) : (
-                                          <Plus className="h-4 w-4 text-primary" />
-                                        )}
-                                        <div className="flex items-center gap-2">
-                                          <h3 className="font-semibold">{rateType.name}</h3>
-                                          <Badge variant="outline" className="text-xs">{priceType}</Badge>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="text-muted-foreground text-xs">Max Rate</div>
+                                          <div className="font-mono font-medium">
+                                            {rateSummary.max > 0 ? rateSummary.max.toFixed(2) : "—"}
+                                          </div>
                                         </div>
                                       </div>
-                                      
-                                      <span className="text-sm text-muted-foreground">
-                                        {seasons.length} season{seasons.length !== 1 ? 's' : ''}
-                                      </span>
-                                    </button>
-
-                                    {/* Collapsible Content - Seasons as sub-categories */}
-                                    {isExpanded && (
-                                      <div className="p-4 space-y-4">
-                                        {seasons.map((season) => (
-                                          <div key={season.id} className="border rounded-lg p-4 bg-card">
-                                            <div className="text-sm font-medium text-muted-foreground mb-4">
-                                              {season.name || season.title}
-                                              <span className="ml-2 text-xs">
-                                                ({season.from ? format(new Date(season.from), "dd MMM") : ""} - {season.to ? format(new Date(season.to), "dd MMM") : ""})
-                                              </span>
-                                            </div>
-
-                                            {isPerPerson ? (
-                                              <div className="grid grid-cols-5 gap-4">
-                                                <div className="space-y-2">
-                                                  <Label className="text-xs font-medium text-muted-foreground">Room Amount</Label>
-                                                  <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'roomAmount')}
-                                                    className="text-center bg-muted cursor-not-allowed"
-                                                    placeholder="—"
-                                                    disabled
-                                                  />
-                                                </div>
-                                                <div className="space-y-2">
-                                                  <Label className="text-xs font-medium">Adult Amount</Label>
-                                                  <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'adultAmount')}
-                                                    onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'adultAmount', parseFloat(e.target.value) || 0)}
-                                                    className="text-center"
-                                                    placeholder="0.00"
-                                                  />
-                                                </div>
-                                                <div className="space-y-2">
-                                                  <Label className="text-xs font-medium">Teen Amount</Label>
-                                                  <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'teenAmount')}
-                                                    onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'teenAmount', parseFloat(e.target.value) || 0)}
-                                                    className="text-center"
-                                                    placeholder="0.00"
-                                                  />
-                                                </div>
-                                                <div className="space-y-2">
-                                                  <Label className="text-xs font-medium">Child Amount</Label>
-                                                  <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'childAmount')}
-                                                    onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'childAmount', parseFloat(e.target.value) || 0)}
-                                                    className="text-center"
-                                                    placeholder="0.00"
-                                                  />
-                                                </div>
-                                                <div className="space-y-2">
-                                                  <Label className="text-xs font-medium">Infant Amount</Label>
-                                                  <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'infantAmount')}
-                                                    onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'infantAmount', parseFloat(e.target.value) || 0)}
-                                                    className="text-center"
-                                                    placeholder="0.00"
-                                                  />
-                                                </div>
-                                              </div>
-                                            ) : (
-                                              <div className="max-w-xs">
-                                                <div className="space-y-2">
-                                                  <Label className="text-xs font-medium">Room Amount</Label>
-                                                  <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={getSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'roomAmount')}
-                                                    onChange={(e) => updateSeasonRate(selectedRoomType, `${season.id}-${rateType.id}`, 'roomAmount', parseFloat(e.target.value) || 0)}
-                                                    className="text-center"
-                                                    placeholder="0.00"
-                                                  />
-                                                </div>
-                                              </div>
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
                                     )}
-                                  </div>
-                                );
-                              })
-                            );
-                          })()}
+                                  </button>
+
+                                  {/* Collapsible Content */}
+                                  {isExpanded && (
+                                    <div className="p-4 space-y-4">
+                                      {roomLinkedRateTypes.length === 0 ? (
+                                        <div className="border rounded-lg p-4 text-center text-muted-foreground text-sm">
+                                          No rate types linked to this room. Link rate types in the Room Type tab.
+                                        </div>
+                                      ) : (
+                                        roomLinkedRateTypes.map((rateType) => {
+                                          const priceType = rateType.priceType || "Per Unit";
+                                          const isPerPerson = priceType.toLowerCase().includes("person");
+
+                                          return (
+                                            <div key={rateType.id} className="border rounded-lg p-4 bg-card">
+                                              <div className="flex items-center gap-2 mb-4">
+                                                <span className="text-sm font-medium">{rateType.name}</span>
+                                                <Badge variant="outline" className="text-xs">
+                                                  {priceType}
+                                                </Badge>
+                                              </div>
+
+                                              {isPerPerson ? (
+                                                <div className="grid grid-cols-5 gap-4">
+                                                  <div className="space-y-2">
+                                                    <Label className="text-xs font-medium text-muted-foreground">
+                                                      Room Amount
+                                                    </Label>
+                                                    <Input
+                                                      type="number"
+                                                      min="0"
+                                                      value={getSeasonRate(
+                                                        selectedRoomType,
+                                                        `${season.id}-${rateType.id}`,
+                                                        "roomAmount",
+                                                      )}
+                                                      className="text-center bg-muted cursor-not-allowed"
+                                                      placeholder="—"
+                                                      disabled
+                                                    />
+                                                  </div>
+                                                  <div className="space-y-2">
+                                                    <Label className="text-xs font-medium">Adult Amount</Label>
+                                                    <Input
+                                                      type="number"
+                                                      min="0"
+                                                      value={getSeasonRate(
+                                                        selectedRoomType,
+                                                        `${season.id}-${rateType.id}`,
+                                                        "adultAmount",
+                                                      )}
+                                                      onChange={(e) =>
+                                                        updateSeasonRate(
+                                                          selectedRoomType,
+                                                          `${season.id}-${rateType.id}`,
+                                                          "adultAmount",
+                                                          parseFloat(e.target.value) || 0,
+                                                        )
+                                                      }
+                                                      className="text-center"
+                                                      placeholder="0.00"
+                                                    />
+                                                  </div>
+                                                  <div className="space-y-2">
+                                                    <Label className="text-xs font-medium">Teen Amount</Label>
+                                                    <Input
+                                                      type="number"
+                                                      min="0"
+                                                      value={getSeasonRate(
+                                                        selectedRoomType,
+                                                        `${season.id}-${rateType.id}`,
+                                                        "teenAmount",
+                                                      )}
+                                                      onChange={(e) =>
+                                                        updateSeasonRate(
+                                                          selectedRoomType,
+                                                          `${season.id}-${rateType.id}`,
+                                                          "teenAmount",
+                                                          parseFloat(e.target.value) || 0,
+                                                        )
+                                                      }
+                                                      className="text-center"
+                                                      placeholder="0.00"
+                                                    />
+                                                  </div>
+                                                  <div className="space-y-2">
+                                                    <Label className="text-xs font-medium">Child Amount</Label>
+                                                    <Input
+                                                      type="number"
+                                                      min="0"
+                                                      value={getSeasonRate(
+                                                        selectedRoomType,
+                                                        `${season.id}-${rateType.id}`,
+                                                        "childAmount",
+                                                      )}
+                                                      onChange={(e) =>
+                                                        updateSeasonRate(
+                                                          selectedRoomType,
+                                                          `${season.id}-${rateType.id}`,
+                                                          "childAmount",
+                                                          parseFloat(e.target.value) || 0,
+                                                        )
+                                                      }
+                                                      className="text-center"
+                                                      placeholder="0.00"
+                                                    />
+                                                  </div>
+                                                  <div className="space-y-2">
+                                                    <Label className="text-xs font-medium">Infant Amount</Label>
+                                                    <Input
+                                                      type="number"
+                                                      min="0"
+                                                      value={getSeasonRate(
+                                                        selectedRoomType,
+                                                        `${season.id}-${rateType.id}`,
+                                                        "infantAmount",
+                                                      )}
+                                                      onChange={(e) =>
+                                                        updateSeasonRate(
+                                                          selectedRoomType,
+                                                          `${season.id}-${rateType.id}`,
+                                                          "infantAmount",
+                                                          parseFloat(e.target.value) || 0,
+                                                        )
+                                                      }
+                                                      className="text-center"
+                                                      placeholder="0.00"
+                                                    />
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                <div className="max-w-xs">
+                                                  <div className="space-y-2">
+                                                    <Label className="text-xs font-medium">Room Amount</Label>
+                                                    <Input
+                                                      type="number"
+                                                      min="0"
+                                                      value={getSeasonRate(
+                                                        selectedRoomType,
+                                                        `${season.id}-${rateType.id}`,
+                                                        "roomAmount",
+                                                      )}
+                                                      onChange={(e) =>
+                                                        updateSeasonRate(
+                                                          selectedRoomType,
+                                                          `${season.id}-${rateType.id}`,
+                                                          "roomAmount",
+                                                          parseFloat(e.target.value) || 0,
+                                                        )
+                                                      }
+                                                      className="text-center"
+                                                      placeholder="0.00"
+                                                    />
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+
+                          {/* Group by Rate Type View */}
+                          {rateBreakdownGroupBy === "mealType" &&
+                            (() => {
+                              const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
+                              const linkedRateTypes = currentRoom?.linkedRateTypes || [];
+                              const availableRateTypes = (pmsRateTypes || []) as Array<{
+                                id: number | string;
+                                name: string;
+                                priceType?: string;
+                              }>;
+                              const roomLinkedRateTypes = availableRateTypes.filter((rt) =>
+                                linkedRateTypes.some((linked: number | string) => String(linked) === String(rt.id)),
+                              );
+
+                              return roomLinkedRateTypes.length === 0 ? (
+                                <div className="border rounded-lg p-8 text-center text-muted-foreground">
+                                  <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                  <p>No rate types linked to this room.</p>
+                                  <p className="text-sm">Link rate types in the Room Type tab first.</p>
+                                </div>
+                              ) : (
+                                roomLinkedRateTypes.map((rateType) => {
+                                  const isExpanded = expandedMealTypes[String(rateType.id)] ?? true;
+                                  const priceType = rateType.priceType || "Per Unit";
+                                  const isPerPerson = priceType.toLowerCase().includes("person");
+
+                                  return (
+                                    <div key={rateType.id} className="border rounded-lg overflow-hidden">
+                                      {/* Collapsible Header */}
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleMealTypeExpanded(String(rateType.id))}
+                                        className="w-full flex items-center justify-between p-4 bg-muted/50 hover:bg-muted transition-colors text-left"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          {isExpanded ? (
+                                            <Minus className="h-4 w-4 text-primary" />
+                                          ) : (
+                                            <Plus className="h-4 w-4 text-primary" />
+                                          )}
+                                          <div className="flex items-center gap-2">
+                                            <h3 className="font-semibold">{rateType.name}</h3>
+                                            <Badge variant="outline" className="text-xs">
+                                              {priceType}
+                                            </Badge>
+                                          </div>
+                                        </div>
+
+                                        <span className="text-sm text-muted-foreground">
+                                          {seasons.length} season{seasons.length !== 1 ? "s" : ""}
+                                        </span>
+                                      </button>
+
+                                      {/* Collapsible Content - Seasons as sub-categories */}
+                                      {isExpanded && (
+                                        <div className="p-4 space-y-4">
+                                          {seasons.map((season) => (
+                                            <div key={season.id} className="border rounded-lg p-4 bg-card">
+                                              <div className="text-sm font-medium text-muted-foreground mb-4">
+                                                {season.name || season.title}
+                                                <span className="ml-2 text-xs">
+                                                  ({season.from ? format(new Date(season.from), "dd MMM") : ""} -{" "}
+                                                  {season.to ? format(new Date(season.to), "dd MMM") : ""})
+                                                </span>
+                                              </div>
+
+                                              {isPerPerson ? (
+                                                <div className="grid grid-cols-5 gap-4">
+                                                  <div className="space-y-2">
+                                                    <Label className="text-xs font-medium text-muted-foreground">
+                                                      Room Amount
+                                                    </Label>
+                                                    <Input
+                                                      type="number"
+                                                      min="0"
+                                                      value={getSeasonRate(
+                                                        selectedRoomType,
+                                                        `${season.id}-${rateType.id}`,
+                                                        "roomAmount",
+                                                      )}
+                                                      className="text-center bg-muted cursor-not-allowed"
+                                                      placeholder="—"
+                                                      disabled
+                                                    />
+                                                  </div>
+                                                  <div className="space-y-2">
+                                                    <Label className="text-xs font-medium">Adult Amount</Label>
+                                                    <Input
+                                                      type="number"
+                                                      min="0"
+                                                      value={getSeasonRate(
+                                                        selectedRoomType,
+                                                        `${season.id}-${rateType.id}`,
+                                                        "adultAmount",
+                                                      )}
+                                                      onChange={(e) =>
+                                                        updateSeasonRate(
+                                                          selectedRoomType,
+                                                          `${season.id}-${rateType.id}`,
+                                                          "adultAmount",
+                                                          parseFloat(e.target.value) || 0,
+                                                        )
+                                                      }
+                                                      className="text-center"
+                                                      placeholder="0.00"
+                                                    />
+                                                  </div>
+                                                  <div className="space-y-2">
+                                                    <Label className="text-xs font-medium">Teen Amount</Label>
+                                                    <Input
+                                                      type="number"
+                                                      min="0"
+                                                      value={getSeasonRate(
+                                                        selectedRoomType,
+                                                        `${season.id}-${rateType.id}`,
+                                                        "teenAmount",
+                                                      )}
+                                                      onChange={(e) =>
+                                                        updateSeasonRate(
+                                                          selectedRoomType,
+                                                          `${season.id}-${rateType.id}`,
+                                                          "teenAmount",
+                                                          parseFloat(e.target.value) || 0,
+                                                        )
+                                                      }
+                                                      className="text-center"
+                                                      placeholder="0.00"
+                                                    />
+                                                  </div>
+                                                  <div className="space-y-2">
+                                                    <Label className="text-xs font-medium">Child Amount</Label>
+                                                    <Input
+                                                      type="number"
+                                                      min="0"
+                                                      value={getSeasonRate(
+                                                        selectedRoomType,
+                                                        `${season.id}-${rateType.id}`,
+                                                        "childAmount",
+                                                      )}
+                                                      onChange={(e) =>
+                                                        updateSeasonRate(
+                                                          selectedRoomType,
+                                                          `${season.id}-${rateType.id}`,
+                                                          "childAmount",
+                                                          parseFloat(e.target.value) || 0,
+                                                        )
+                                                      }
+                                                      className="text-center"
+                                                      placeholder="0.00"
+                                                    />
+                                                  </div>
+                                                  <div className="space-y-2">
+                                                    <Label className="text-xs font-medium">Infant Amount</Label>
+                                                    <Input
+                                                      type="number"
+                                                      min="0"
+                                                      value={getSeasonRate(
+                                                        selectedRoomType,
+                                                        `${season.id}-${rateType.id}`,
+                                                        "infantAmount",
+                                                      )}
+                                                      onChange={(e) =>
+                                                        updateSeasonRate(
+                                                          selectedRoomType,
+                                                          `${season.id}-${rateType.id}`,
+                                                          "infantAmount",
+                                                          parseFloat(e.target.value) || 0,
+                                                        )
+                                                      }
+                                                      className="text-center"
+                                                      placeholder="0.00"
+                                                    />
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                <div className="max-w-xs">
+                                                  <div className="space-y-2">
+                                                    <Label className="text-xs font-medium">Room Amount</Label>
+                                                    <Input
+                                                      type="number"
+                                                      min="0"
+                                                      value={getSeasonRate(
+                                                        selectedRoomType,
+                                                        `${season.id}-${rateType.id}`,
+                                                        "roomAmount",
+                                                      )}
+                                                      onChange={(e) =>
+                                                        updateSeasonRate(
+                                                          selectedRoomType,
+                                                          `${season.id}-${rateType.id}`,
+                                                          "roomAmount",
+                                                          parseFloat(e.target.value) || 0,
+                                                        )
+                                                      }
+                                                      className="text-center"
+                                                      placeholder="0.00"
+                                                    />
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })
+                              );
+                            })()}
                         </>
                       )}
                     </TabsContent>
@@ -5591,18 +6686,18 @@ export default function PropertyForm() {
                     {/* Overview Sub-tab */}
                     <TabsContent value="overview" className="p-6 space-y-6">
                       {(() => {
-                        const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
+                        const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
                         // Use linkedRateTypes if manually set, otherwise fall back to availableRateTypes
                         let linkedRateTypes = getRoomLinkedRateTypes(selectedRoomType);
                         if (linkedRateTypes.length === 0 && currentRoom?.availableRateTypes?.length > 0) {
                           linkedRateTypes = currentRoom.availableRateTypes;
                         }
-                        const linkedRateTypeData = pmsRateTypes.filter(rt => linkedRateTypes.includes(rt.id));
-                        
+                        const linkedRateTypeData = pmsRateTypes.filter((rt) => linkedRateTypes.includes(rt.id));
+
                         // Check if PMS rates exist for this room
                         const pmsRates = currentRoom?.pms_rates || [];
                         const hasPmsRates = pmsRates.length > 0;
-                        
+
                         // Group PMS rates by rateTypeId
                         const pmsRatesByType: Record<number, any[]> = {};
                         pmsRates.forEach((rate: any) => {
@@ -5611,7 +6706,7 @@ export default function PropertyForm() {
                           }
                           pmsRatesByType[rate.rateTypeId].push(rate);
                         });
-                        
+
                         // Helper to get first non-null rate value from PMS rates for a rate type
                         const getPmsRateValue = (rateTypeId: number, field: string) => {
                           const rates = pmsRatesByType[rateTypeId] || [];
@@ -5622,29 +6717,32 @@ export default function PropertyForm() {
                           }
                           return null;
                         };
-                        
+
                         if (linkedRateTypeData.length === 0 && !hasPmsRates) {
                           return (
                             <div className="border rounded-lg p-8 text-center text-muted-foreground">
                               <Info className="h-12 w-12 mx-auto mb-4 opacity-50" />
                               <p>No rate types linked to this room.</p>
-                              <p className="text-sm">Link rate types in the "Rate Types" tab or sync from PMS to see the overview.</p>
+                              <p className="text-sm">
+                                Link rate types in the "Rate Types" tab or sync from PMS to see the overview.
+                              </p>
                             </div>
                           );
                         }
 
                         // If we have PMS rates but no linked rate types, use the PMS rate types
-                        const displayRateTypes = linkedRateTypeData.length > 0 
-                          ? linkedRateTypeData 
-                          : Object.keys(pmsRatesByType).map(id => {
-                              const rates = pmsRatesByType[Number(id)];
-                              return {
-                                id: Number(id),
-                                name: rates[0]?.rateTypeName || `Rate Type ${id}`,
-                                priceType: null,
-                                description: null,
-                              };
-                            });
+                        const displayRateTypes =
+                          linkedRateTypeData.length > 0
+                            ? linkedRateTypeData
+                            : Object.keys(pmsRatesByType).map((id) => {
+                                const rates = pmsRatesByType[Number(id)];
+                                return {
+                                  id: Number(id),
+                                  name: rates[0]?.rateTypeName || `Rate Type ${id}`,
+                                  priceType: null,
+                                  description: null,
+                                };
+                              });
 
                         return (
                           <>
@@ -5661,30 +6759,28 @@ export default function PropertyForm() {
                             {displayRateTypes.slice(0, 5).map((rateType) => {
                               const typeRates = pmsRatesByType[rateType.id] || [];
                               // Get today's date in YYYY-MM-DD format
-                              const today = format(new Date(), 'yyyy-MM-dd');
+                              const today = format(new Date(), "yyyy-MM-dd");
                               const todayRate = typeRates.find((r: any) => r.date === today);
-                              
-                              const roomAmount = todayRate?.roomAmount ?? '—';
-                              const adultAmount1 = todayRate?.adultAmount1 ?? '—';
-                              const adultAmount2 = todayRate?.adultAmount2 ?? '—';
-                              const teenAmount = todayRate?.teenAmount ?? '—';
-                              const childAmount = todayRate?.childAmount ?? '—';
-                              const infantAmount = todayRate?.infantAmount ?? '—';
-                              
+
+                              const roomAmount = todayRate?.roomAmount ?? "—";
+                              const adultAmount1 = todayRate?.adultAmount1 ?? "—";
+                              const adultAmount2 = todayRate?.adultAmount2 ?? "—";
+                              const teenAmount = todayRate?.teenAmount ?? "—";
+                              const childAmount = todayRate?.childAmount ?? "—";
+                              const infantAmount = todayRate?.infantAmount ?? "—";
+
                               return (
                                 <div key={rateType.id} className="border rounded-lg overflow-hidden">
                                   <div className="bg-primary/10 px-4 py-3 border-b">
                                     <div className="flex items-center justify-between">
                                       <h4 className="font-semibold">{rateType.name}</h4>
-                                      {rateType.priceType && (
-                                        <Badge variant="secondary">{rateType.priceType}</Badge>
-                                      )}
+                                      {rateType.priceType && <Badge variant="secondary">{rateType.priceType}</Badge>}
                                     </div>
                                     {rateType.description && (
                                       <p className="text-xs text-muted-foreground mt-1">{rateType.description}</p>
                                     )}
                                   </div>
-                                  
+
                                   {/* Today's PMS Rates Display */}
                                   {typeRates.length > 0 ? (
                                     <div className="p-4">
@@ -5717,7 +6813,7 @@ export default function PropertyForm() {
                                           <div className="font-mono font-semibold">{infantAmount}</div>
                                         </div>
                                       </div>
-                                      
+
                                       {/* First 5 date-specific rates */}
                                       <div className="mt-4">
                                         <div className="overflow-x-auto">
@@ -5726,12 +6822,12 @@ export default function PropertyForm() {
                                               {typeRates.slice(0, 5).map((rate: any, idx: number) => (
                                                 <tr key={idx} className="border-t hover:bg-muted/20">
                                                   <td className="p-2 font-mono">{rate.date}</td>
-                                                  <td className="p-2 text-right">{rate.roomAmount ?? '—'}</td>
-                                                  <td className="p-2 text-right">{rate.adultAmount1 ?? '—'}</td>
-                                                  <td className="p-2 text-right">{rate.adultAmount2 ?? '—'}</td>
-                                                  <td className="p-2 text-right">{rate.teenAmount ?? '—'}</td>
-                                                  <td className="p-2 text-right">{rate.childAmount ?? '—'}</td>
-                                                  <td className="p-2 text-right">{rate.infantAmount ?? '—'}</td>
+                                                  <td className="p-2 text-right">{rate.roomAmount ?? "—"}</td>
+                                                  <td className="p-2 text-right">{rate.adultAmount1 ?? "—"}</td>
+                                                  <td className="p-2 text-right">{rate.adultAmount2 ?? "—"}</td>
+                                                  <td className="p-2 text-right">{rate.teenAmount ?? "—"}</td>
+                                                  <td className="p-2 text-right">{rate.childAmount ?? "—"}</td>
+                                                  <td className="p-2 text-right">{rate.infantAmount ?? "—"}</td>
                                                 </tr>
                                               ))}
                                             </tbody>
@@ -5765,32 +6861,59 @@ export default function PropertyForm() {
                                             const roomMealTypes = currentRoom?.mealTypes || [];
                                             return roomMealTypes.length > 0 ? (
                                               roomMealTypes.map((mealType: string, idx: number) => (
-                                                <tr key={`${rateType.id}-${season.id}-${mealType}`} className="border-t hover:bg-muted/50">
+                                                <tr
+                                                  key={`${rateType.id}-${season.id}-${mealType}`}
+                                                  className="border-t hover:bg-muted/50"
+                                                >
                                                   {idx === 0 && (
                                                     <>
                                                       <td className="p-3 font-medium" rowSpan={roomMealTypes.length}>
                                                         {season.name || season.title}
                                                       </td>
-                                                      <td className="p-3 text-muted-foreground text-sm" rowSpan={roomMealTypes.length}>
-                                                        {season.from ? format(new Date(season.from), "dd MMM") : ""} - {season.to ? format(new Date(season.to), "dd MMM") : ""}
+                                                      <td
+                                                        className="p-3 text-muted-foreground text-sm"
+                                                        rowSpan={roomMealTypes.length}
+                                                      >
+                                                        {season.from ? format(new Date(season.from), "dd MMM") : ""} -{" "}
+                                                        {season.to ? format(new Date(season.to), "dd MMM") : ""}
                                                       </td>
                                                     </>
                                                   )}
                                                   <td className="p-3">{mealType}</td>
                                                   <td className="p-3 text-right font-mono">
-                                                    {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'roomAmount') || "—"}
+                                                    {getSeasonRate(
+                                                      selectedRoomType,
+                                                      `${season.id}-${mealType}`,
+                                                      "roomAmount",
+                                                    ) || "—"}
                                                   </td>
                                                   <td className="p-3 text-right font-mono">
-                                                    {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'adultAmount') || "—"}
+                                                    {getSeasonRate(
+                                                      selectedRoomType,
+                                                      `${season.id}-${mealType}`,
+                                                      "adultAmount",
+                                                    ) || "—"}
                                                   </td>
                                                   <td className="p-3 text-right font-mono">
-                                                    {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'teenAmount') || "—"}
+                                                    {getSeasonRate(
+                                                      selectedRoomType,
+                                                      `${season.id}-${mealType}`,
+                                                      "teenAmount",
+                                                    ) || "—"}
                                                   </td>
                                                   <td className="p-3 text-right font-mono">
-                                                    {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'childAmount') || "—"}
+                                                    {getSeasonRate(
+                                                      selectedRoomType,
+                                                      `${season.id}-${mealType}`,
+                                                      "childAmount",
+                                                    ) || "—"}
                                                   </td>
                                                   <td className="p-3 text-right font-mono">
-                                                    {getSeasonRate(selectedRoomType, `${season.id}-${mealType}`, 'infantAmount') || "—"}
+                                                    {getSeasonRate(
+                                                      selectedRoomType,
+                                                      `${season.id}-${mealType}`,
+                                                      "infantAmount",
+                                                    ) || "—"}
                                                   </td>
                                                 </tr>
                                               ))
@@ -5798,9 +6921,13 @@ export default function PropertyForm() {
                                               <tr key={`${rateType.id}-${season.id}`} className="border-t">
                                                 <td className="p-3 font-medium">{season.name || season.title}</td>
                                                 <td className="p-3 text-muted-foreground text-sm">
-                                                  {season.from ? format(new Date(season.from), "dd MMM") : ""} - {season.to ? format(new Date(season.to), "dd MMM") : ""}
+                                                  {season.from ? format(new Date(season.from), "dd MMM") : ""} -{" "}
+                                                  {season.to ? format(new Date(season.to), "dd MMM") : ""}
                                                 </td>
-                                                <td colSpan={6} className="p-3 text-center text-muted-foreground text-sm">
+                                                <td
+                                                  colSpan={6}
+                                                  className="p-3 text-center text-muted-foreground text-sm"
+                                                >
                                                   No meal types configured for this room
                                                 </td>
                                               </tr>
@@ -5828,7 +6955,7 @@ export default function PropertyForm() {
                     {isDev && (
                       <TabsContent value="data-explorer" className="p-6 space-y-4">
                         {(() => {
-                          const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
+                          const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
                           if (!currentRoom) {
                             return (
                               <div className="border rounded-lg p-8 text-center text-muted-foreground">
@@ -5895,7 +7022,7 @@ export default function PropertyForm() {
                         {room.pms_synced && <Cloud className="inline h-2.5 w-2.5 ml-1 opacity-50" />}
                       </span>
                       <div className="flex gap-0.5">
-                        {selectedPMS !== 'nightsbridge' && (
+                        {selectedPMS !== "nightsbridge" && (
                           <>
                             <Button
                               size="sm"
@@ -5952,17 +7079,29 @@ export default function PropertyForm() {
                 <div className="flex-1 overflow-auto">
                   <Tabs defaultValue="room-type" className="w-full">
                     <TabsList className="h-8">
-                      <TabsTrigger value="room-type" className="text-xs h-7">Room Type</TabsTrigger>
-                      {selectedPMS !== 'nightsbridge' && (
-                        <TabsTrigger value="rate-types" className="text-xs h-7">Rate Types</TabsTrigger>
+                      <TabsTrigger value="room-type" className="text-xs h-7">
+                        Room Type
+                      </TabsTrigger>
+                      {selectedPMS !== "nightsbridge" && (
+                        <TabsTrigger value="rate-types" className="text-xs h-7">
+                          Rate Types
+                        </TabsTrigger>
                       )}
-                      <TabsTrigger value="facilities" className="text-xs h-7">Facilities</TabsTrigger>
-                      <TabsTrigger value="amenities" className="text-xs h-7">Amenities</TabsTrigger>
-                      {selectedPMS !== 'nightsbridge' && (
-                        <TabsTrigger value="room-images" className="text-xs h-7">Images</TabsTrigger>
+                      <TabsTrigger value="facilities" className="text-xs h-7">
+                        Facilities
+                      </TabsTrigger>
+                      <TabsTrigger value="amenities" className="text-xs h-7">
+                        Amenities
+                      </TabsTrigger>
+                      {selectedPMS !== "nightsbridge" && (
+                        <TabsTrigger value="room-images" className="text-xs h-7">
+                          Images
+                        </TabsTrigger>
                       )}
-                      {selectedPMS !== 'nightsbridge' && (
-                        <TabsTrigger value="agreement" className="text-xs h-7">Agreement</TabsTrigger>
+                      {selectedPMS !== "nightsbridge" && (
+                        <TabsTrigger value="agreement" className="text-xs h-7">
+                          Agreement
+                        </TabsTrigger>
                       )}
                     </TabsList>
 
@@ -5972,15 +7111,17 @@ export default function PropertyForm() {
                         <div className="col-span-2 flex items-center gap-2">
                           <Label className="text-xs whitespace-nowrap flex items-center gap-1">
                             Name
-                            {isRoomFieldPmsSynced(selectedRoomType, 'name') && (
-                              <Badge variant="outline" className="text-[10px] h-4 px-1 bg-primary/10"><Cloud className="h-2.5 w-2.5" /></Badge>
+                            {isRoomFieldPmsSynced(selectedRoomType, "name") && (
+                              <Badge variant="outline" className="text-[10px] h-4 px-1 bg-primary/10">
+                                <Cloud className="h-2.5 w-2.5" />
+                              </Badge>
                             )}
                           </Label>
                           <Input
                             value={roomTypes.find((r) => r.id === selectedRoomType)?.name || ""}
                             onChange={(e) => updateRoomTypeName(selectedRoomType, e.target.value)}
-                            className={cn("h-7 text-xs", getRoomPmsFieldClass(selectedRoomType, 'name'))}
-                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'name')}
+                            className={cn("h-7 text-xs", getRoomPmsFieldClass(selectedRoomType, "name"))}
+                            disabled={isRoomFieldPmsSynced(selectedRoomType, "name")}
                           />
                         </div>
                         <div className="flex items-center gap-2">
@@ -6021,7 +7162,7 @@ export default function PropertyForm() {
                       </div>
 
                       {/* NightsBridge-specific fields */}
-                      {selectedPMS === 'nightsbridge' && (
+                      {selectedPMS === "nightsbridge" && (
                         <div className="space-y-2 pt-2 border-t">
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1">
@@ -6055,20 +7196,20 @@ export default function PropertyForm() {
                               className="text-xs min-h-[60px]"
                               placeholder="Room description..."
                               value={roomTypes.find((r) => r.id === selectedRoomType)?.description || ""}
-                              onChange={(e) =>
-                                updateRoomTypeField(selectedRoomType, "description", e.target.value)
-                              }
+                              onChange={(e) => updateRoomTypeField(selectedRoomType, "description", e.target.value)}
                             />
                           </div>
                         </div>
                       )}
 
-                      {selectedPMS !== 'nightsbridge' && (
+                      {selectedPMS !== "nightsbridge" && (
                         <>
                           {selectedPMS && (
                             <div className="grid grid-cols-2 gap-2 items-end">
                               <div className="flex items-center gap-2">
-                                <Label className="text-xs whitespace-nowrap">{selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} Type</Label>
+                                <Label className="text-xs whitespace-nowrap">
+                                  {selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} Type
+                                </Label>
                                 <Input
                                   className="h-7 text-xs"
                                   value={roomTypes.find((r) => r.id === selectedRoomType)?.pmsRoomType || ""}
@@ -6077,7 +7218,9 @@ export default function PropertyForm() {
                                 />
                               </div>
                               <div className="flex items-center gap-2">
-                                <Label className="text-xs whitespace-nowrap">{selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} ID</Label>
+                                <Label className="text-xs whitespace-nowrap">
+                                  {selectedPMS.charAt(0).toUpperCase() + selectedPMS.slice(1)} ID
+                                </Label>
                                 <Input
                                   className="h-7 text-xs"
                                   value={roomTypes.find((r) => r.id === selectedRoomType)?.pmsRoomId || ""}
@@ -6088,475 +7231,597 @@ export default function PropertyForm() {
                             </div>
                           )}
 
-                      {!selectedPMS && (
-                        <div className="bg-muted/50 border border-border rounded-md p-2">
-                          <p className="text-xs text-muted-foreground">
-                            No PMS connected. Select a PMS in General tab.
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="flex items-start gap-2">
-                        <Label className="text-xs whitespace-nowrap pt-1.5 flex items-center gap-1">
-                          Description
-                          {isRoomFieldPmsSynced(selectedRoomType, 'description') && (
-                            <Badge variant="outline" className="text-[10px] h-4 px-1 bg-primary/10"><Cloud className="h-2.5 w-2.5" /></Badge>
-                          )}
-                        </Label>
-                        <Textarea
-                          rows={2}
-                          className={cn("text-xs flex-1", getRoomPmsFieldClass(selectedRoomType, 'description'))}
-                          value={roomTypes.find((r) => r.id === selectedRoomType)?.description || ""}
-                          onChange={(e) => updateRoomTypeField(selectedRoomType, "description", e.target.value)}
-                          disabled={isRoomFieldPmsSynced(selectedRoomType, 'description')}
-                        />
-                      </div>
-
-                      <div className="flex items-start gap-2">
-                        <Label className="text-xs whitespace-nowrap pt-1.5">Extra Person Policy</Label>
-                        <Textarea
-                          rows={1}
-                          className="text-xs flex-1"
-                          value={roomTypes.find((r) => r.id === selectedRoomType)?.extraPersonPolicy || ""}
-                          onChange={(e) => updateRoomTypeField(selectedRoomType, "extraPersonPolicy", e.target.value)}
-                        />
-                      </div>
-
-                      {/* Bed Configuration Section */}
-                      <div className="flex items-start gap-2">
-                        <Label className="text-xs whitespace-nowrap pt-1">Beds</Label>
-                        <div className="border rounded-md p-2 flex-1 flex flex-wrap gap-2 items-center">
-                          {(() => {
-                            const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
-                            const bedConfig = parseBedConfiguration(currentRoom?.bedConfiguration);
-                            
-                            return (
-                              <>
-                                {bedConfig.map((bed, index) => (
-                                  <div key={index} className="flex items-center gap-1 bg-muted/50 rounded px-2 py-1">
-                                    <Select
-                                      value={bed.type}
-                                      onValueChange={(value) => {
-                                        const newConfig = [...bedConfig];
-                                        newConfig[index] = { ...bed, type: value };
-                                        updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
-                                      }}
-                                    >
-                                      <SelectTrigger className="w-[100px] h-6 text-xs border-0 bg-transparent">
-                                        <SelectValue placeholder="Bed type" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {BED_TYPES.map((bt) => (
-                                          <SelectItem key={bt.value} value={bt.value}>{bt.label}</SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-5 w-5"
-                                      onClick={() => {
-                                        const newConfig = [...bedConfig];
-                                        newConfig[index] = { ...bed, count: Math.max(1, bed.count - 1) };
-                                        updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
-                                      }}
-                                      disabled={bed.count <= 1}
-                                    >
-                                      <Minus className="h-3 w-3" />
-                                    </Button>
-                                    <span className="w-4 text-center text-xs font-medium">{bed.count}</span>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-5 w-5"
-                                      onClick={() => {
-                                        const newConfig = [...bedConfig];
-                                        newConfig[index] = { ...bed, count: bed.count + 1 };
-                                        updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
-                                      }}
-                                    >
-                                      <Plus className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-5 w-5 text-destructive hover:text-destructive"
-                                      onClick={() => {
-                                        const newConfig = bedConfig.filter((_, i) => i !== index);
-                                        updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
-                                      }}
-                                    >
-                                      <X className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                ))}
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-6 text-xs"
-                                  onClick={() => {
-                                    const newConfig = [...bedConfig, { type: "king", count: 1 }];
-                                    updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
-                                  }}
-                                >
-                                  <Plus className="h-3 w-3 mr-1" />
-                                  Add
-                                </Button>
-                              </>
-                            );
-                          })()}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-6 gap-2 items-end">
-                        <div className="flex items-center gap-1">
-                          <Label className="text-xs whitespace-nowrap">Size (m²)</Label>
-                          <Input
-                            type="number"
-                            className="h-7 text-xs w-16"
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.roomSize || 0}
-                            onChange={(e) =>
-                              updateRoomTypeField(selectedRoomType, "roomSize", parseInt(e.target.value) || 0)
-                            }
-                          />
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Label className="text-xs whitespace-nowrap">Baths</Label>
-                          <Input
-                            type="number"
-                            className="h-7 text-xs w-14"
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.bathrooms || 1}
-                            onChange={(e) =>
-                              updateRoomTypeField(selectedRoomType, "bathrooms", parseInt(e.target.value) || 0)
-                            }
-                          />
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
-                            Max
-                            {isRoomFieldPmsSynced(selectedRoomType, 'maxPeople') && <Cloud className="h-2.5 w-2.5 text-primary" />}
-                          </Label>
-                          <Input
-                            type="number"
-                            className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, 'maxPeople'))}
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.maxPeople || 2}
-                            onChange={(e) =>
-                              updateRoomTypeField(selectedRoomType, "maxPeople", parseInt(e.target.value) || 1)
-                            }
-                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'maxPeople')}
-                          />
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
-                            Adults
-                            {isRoomFieldPmsSynced(selectedRoomType, 'maxAdults') && <Cloud className="h-2.5 w-2.5 text-primary" />}
-                          </Label>
-                          <Input
-                            type="number"
-                            className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, 'maxAdults'))}
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.maxAdults || 2}
-                            onChange={(e) =>
-                              updateRoomTypeField(selectedRoomType, "maxAdults", parseInt(e.target.value) || 1)
-                            }
-                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'maxAdults')}
-                          />
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
-                            Children
-                            {isRoomFieldPmsSynced(selectedRoomType, 'maxChildren') && <Cloud className="h-2.5 w-2.5 text-primary" />}
-                          </Label>
-                          <Input
-                            type="number"
-                            className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, 'maxChildren'))}
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.maxChildren || 0}
-                            onChange={(e) =>
-                              updateRoomTypeField(selectedRoomType, "maxChildren", parseInt(e.target.value) || 0)
-                            }
-                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'maxChildren')}
-                          />
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
-                            Min
-                            {isRoomFieldPmsSynced(selectedRoomType, 'minGuests') && <Cloud className="h-2.5 w-2.5 text-primary" />}
-                          </Label>
-                          <Input
-                            type="number"
-                            className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, 'minGuests'))}
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.minGuests || 1}
-                            onChange={(e) =>
-                              updateRoomTypeField(selectedRoomType, "minGuests", parseInt(e.target.value) || 1)
-                            }
-                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'minGuests')}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Guest Policies - Compact Row */}
-                      <div className="grid grid-cols-3 gap-2">
-                        {/* Teens */}
-                        <div className="border rounded-md p-2 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-xs font-medium flex items-center gap-1">
-                              Teens
-                              {isRoomFieldPmsSynced(selectedRoomType, 'allowTeens') && <Cloud className="h-2.5 w-2.5 text-primary" />}
-                            </Label>
-                            <Switch
-                              className="scale-75"
-                              checked={roomTypes.find((r) => r.id === selectedRoomType)?.allowTeens || false}
-                              onCheckedChange={(checked) => updateRoomTypeField(selectedRoomType, "allowTeens", checked)}
-                              disabled={isRoomFieldPmsSynced(selectedRoomType, 'allowTeens')}
-                            />
-                          </div>
-                          {roomTypes.find((r) => r.id === selectedRoomType)?.allowTeens && (
-                            <div className="flex gap-2">
-                              <div className="flex items-center gap-1 flex-1">
-                                <Label className="text-[10px] text-muted-foreground">Min</Label>
-                                <Input
-                                  type="number"
-                                  className={cn("h-6 text-xs", getRoomPmsFieldClass(selectedRoomType, 'teenMinAge'))}
-                                  value={roomTypes.find((r) => r.id === selectedRoomType)?.teenMinAge || 13}
-                                  onChange={(e) => updateRoomTypeField(selectedRoomType, "teenMinAge", parseInt(e.target.value) || 13)}
-                                  disabled={isRoomFieldPmsSynced(selectedRoomType, 'teenMinAge')}
-                                />
-                              </div>
-                              <div className="flex items-center gap-1 flex-1">
-                                <Label className="text-[10px] text-muted-foreground">Max</Label>
-                                <Input
-                                  type="number"
-                                  className={cn("h-6 text-xs", getRoomPmsFieldClass(selectedRoomType, 'teenMaxAge'))}
-                                  value={roomTypes.find((r) => r.id === selectedRoomType)?.teenMaxAge || 17}
-                                  onChange={(e) => updateRoomTypeField(selectedRoomType, "teenMaxAge", parseInt(e.target.value) || 17)}
-                                  disabled={isRoomFieldPmsSynced(selectedRoomType, 'teenMaxAge')}
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Children */}
-                        <div className="border rounded-md p-2 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-xs font-medium flex items-center gap-1">
-                              Children
-                              {isRoomFieldPmsSynced(selectedRoomType, 'allowChildren') && <Cloud className="h-2.5 w-2.5 text-primary" />}
-                            </Label>
-                            <Switch
-                              className="scale-75"
-                              checked={roomTypes.find((r) => r.id === selectedRoomType)?.allowChildren || false}
-                              onCheckedChange={(checked) => updateRoomTypeField(selectedRoomType, "allowChildren", checked)}
-                              disabled={isRoomFieldPmsSynced(selectedRoomType, 'allowChildren')}
-                            />
-                          </div>
-                          {roomTypes.find((r) => r.id === selectedRoomType)?.allowChildren && (
-                            <div className="flex gap-2">
-                              <div className="flex items-center gap-1 flex-1">
-                                <Label className="text-[10px] text-muted-foreground">Min</Label>
-                                <Input
-                                  type="number"
-                                  className={cn("h-6 text-xs", getRoomPmsFieldClass(selectedRoomType, 'childMinAge'))}
-                                  value={roomTypes.find((r) => r.id === selectedRoomType)?.childMinAge || 2}
-                                  onChange={(e) => updateRoomTypeField(selectedRoomType, "childMinAge", parseInt(e.target.value) || 2)}
-                                  disabled={isRoomFieldPmsSynced(selectedRoomType, 'childMinAge')}
-                                />
-                              </div>
-                              <div className="flex items-center gap-1 flex-1">
-                                <Label className="text-[10px] text-muted-foreground">Max</Label>
-                                <Input
-                                  type="number"
-                                  className={cn("h-6 text-xs", getRoomPmsFieldClass(selectedRoomType, 'childMaxAge'))}
-                                  value={roomTypes.find((r) => r.id === selectedRoomType)?.childMaxAge || 12}
-                                  onChange={(e) => updateRoomTypeField(selectedRoomType, "childMaxAge", parseInt(e.target.value) || 12)}
-                                  disabled={isRoomFieldPmsSynced(selectedRoomType, 'childMaxAge')}
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Infants */}
-                        <div className="border rounded-md p-2 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-xs font-medium flex items-center gap-1">
-                              Infants
-                              {isRoomFieldPmsSynced(selectedRoomType, 'allowInfants') && <Cloud className="h-2.5 w-2.5 text-primary" />}
-                            </Label>
-                            <Switch
-                              className="scale-75"
-                              checked={roomTypes.find((r) => r.id === selectedRoomType)?.allowInfants || false}
-                              onCheckedChange={(checked) => updateRoomTypeField(selectedRoomType, "allowInfants", checked)}
-                              disabled={isRoomFieldPmsSynced(selectedRoomType, 'allowInfants')}
-                            />
-                          </div>
-                          {roomTypes.find((r) => r.id === selectedRoomType)?.allowInfants && (
-                            <div className="flex gap-2">
-                              <div className="flex items-center gap-1 flex-1">
-                                <Label className="text-[10px] text-muted-foreground">Min</Label>
-                                <Input
-                                  type="number"
-                                  className={cn("h-6 text-xs", getRoomPmsFieldClass(selectedRoomType, 'infantMinAge'))}
-                                  value={roomTypes.find((r) => r.id === selectedRoomType)?.infantMinAge || 0}
-                                  onChange={(e) => updateRoomTypeField(selectedRoomType, "infantMinAge", parseInt(e.target.value) || 0)}
-                                  disabled={isRoomFieldPmsSynced(selectedRoomType, 'infantMinAge')}
-                                />
-                              </div>
-                              <div className="flex items-center gap-1 flex-1">
-                                <Label className="text-[10px] text-muted-foreground">Max</Label>
-                                <Input
-                                  type="number"
-                                  className={cn("h-6 text-xs", getRoomPmsFieldClass(selectedRoomType, 'infantMaxAge'))}
-                                  value={roomTypes.find((r) => r.id === selectedRoomType)?.infantMaxAge || 2}
-                                  onChange={(e) => updateRoomTypeField(selectedRoomType, "infantMaxAge", parseInt(e.target.value) || 2)}
-                                  disabled={isRoomFieldPmsSynced(selectedRoomType, 'infantMaxAge')}
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Additional PMS Fields - Inline */}
-                      <div className="grid grid-cols-4 gap-2 items-end">
-                        <div className="flex items-center gap-1">
-                          <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
-                            Age Cat
-                            {isRoomFieldPmsSynced(selectedRoomType, 'minAgeCategory') && <Cloud className="h-2.5 w-2.5 text-primary" />}
-                          </Label>
-                          <Select
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.minAgeCategory || ""}
-                            onValueChange={(value) => updateRoomTypeField(selectedRoomType, "minAgeCategory", value)}
-                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'minAgeCategory')}
-                          >
-                            <SelectTrigger className={cn("h-7 text-xs", getRoomPmsFieldClass(selectedRoomType, 'minAgeCategory'))}>
-                              <SelectValue placeholder="Select" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="ADULT">Adult</SelectItem>
-                              <SelectItem value="TEEN">Teen</SelectItem>
-                              <SelectItem value="CHILD">Child</SelectItem>
-                              <SelectItem value="INFANT">Infant</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
-                            Min Adults
-                            {isRoomFieldPmsSynced(selectedRoomType, 'minAdultsToOfferNonAdultRates') && <Cloud className="h-2.5 w-2.5 text-primary" />}
-                          </Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, 'minAdultsToOfferNonAdultRates'))}
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.minAdultsToOfferNonAdultRates || 0}
-                            onChange={(e) =>
-                              updateRoomTypeField(selectedRoomType, "minAdultsToOfferNonAdultRates", parseInt(e.target.value) || 0)
-                            }
-                            disabled={isRoomFieldPmsSynced(selectedRoomType, 'minAdultsToOfferNonAdultRates')}
-                          />
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Label className="text-xs whitespace-nowrap">Min Stay</Label>
-                          <Input
-                            type="number"
-                            className="h-7 text-xs w-14"
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.minStay || 1}
-                            onChange={(e) =>
-                              updateRoomTypeField(selectedRoomType, "minStay", parseInt(e.target.value) || 1)
-                            }
-                          />
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Label className="text-xs whitespace-nowrap">Max Stay</Label>
-                          <Input
-                            type="number"
-                            className="h-7 text-xs w-14"
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.maxStay || 0}
-                            onChange={(e) =>
-                              updateRoomTypeField(selectedRoomType, "maxStay", parseInt(e.target.value) || 0)
-                            }
-                          />
-                        </div>
-                      </div>
-
-                      <div className="bg-blue-50 border border-blue-200 rounded-md p-2">
-                        <p className="text-xs text-blue-700">
-                          <strong>INFO:</strong> Align "Max adult" with rate type if Person Rate is applied.
-                        </p>
-                      </div>
-
-                      <div className="space-y-4">
-                        <h3 className="font-semibold">Rate Info</h3>
-                        {(() => {
-                          const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
-                          const linkedRateTypeIds = currentRoom?.linkedRateTypes || currentRoom?.availableRateTypes || [];
-                          const linkedRateTypesData = pmsRateTypes.filter(rt => linkedRateTypeIds.includes(rt.id));
-                          
-                          if (linkedRateTypesData.length > 0) {
-                            // Get unique price types from linked rate types
-                            const priceTypes = [...new Set(linkedRateTypesData.map(rt => rt.priceType).filter(Boolean))];
-                            return (
-                              <div className="space-y-2">
-                                <Label className="flex items-center gap-2">
-                                  Price Type (from linked Rate Types)
-                                  <Badge variant="outline" className="text-xs bg-primary/10"><Cloud className="h-3 w-3 mr-1" />PMS</Badge>
-                                </Label>
-                                <div className="flex flex-wrap gap-2">
-                                  {priceTypes.length > 0 ? priceTypes.map((pt, idx) => (
-                                    <Badge key={idx} variant="secondary">{pt}</Badge>
-                                  )) : (
-                                    <span className="text-sm text-muted-foreground">No price types defined in linked rate types</span>
-                                  )}
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                  Price types are determined by the rate types linked to this room. Manage linked rate types in the "Rate Types" tab.
-                                </p>
-                              </div>
-                            );
-                          }
-                          
-                          // Fallback for rooms without linked rate types
-                          return (
-                            <div className="space-y-2">
-                              <Label>Rate Type (Manual)</Label>
-                              <Select
-                                value={currentRoom?.rateType || "per-unit"}
-                                onValueChange={(value) => updateRoomTypeField(selectedRoomType, "rateType", value)}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="per-unit">Per Unit</SelectItem>
-                                  <SelectItem value="per-person">Per Person</SelectItem>
-                                </SelectContent>
-                              </Select>
+                          {!selectedPMS && (
+                            <div className="bg-muted/50 border border-border rounded-md p-2">
                               <p className="text-xs text-muted-foreground">
-                                Link rate types in the "Rate Types" tab to use PMS price types instead.
+                                No PMS connected. Select a PMS in General tab.
                               </p>
                             </div>
-                          );
-                        })()}
-                        <div className="space-y-2">
-                          <Label>Meal Types (for this room)</Label>
-                          <TagInput
-                            value={roomTypes.find((r) => r.id === selectedRoomType)?.mealTypes || []}
-                            onChange={(newMealTypes) => {
-                              updateRoomTypeField(selectedRoomType, "mealTypes", newMealTypes);
-                            }}
-                            suggestions={mealTypeSuggestions}
-                            placeholder="Type meal type and press Enter..."
-                            onNewTag={handleNewMealType}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Meal types are manual entry. Add meal types specific to this room (e.g., Self Catering, Bed & Breakfast, Full Board).
-                          </p>
-                        </div>
-                      </div>
+                          )}
+
+                          <div className="flex items-start gap-2">
+                            <Label className="text-xs whitespace-nowrap pt-1.5 flex items-center gap-1">
+                              Description
+                              {isRoomFieldPmsSynced(selectedRoomType, "description") && (
+                                <Badge variant="outline" className="text-[10px] h-4 px-1 bg-primary/10">
+                                  <Cloud className="h-2.5 w-2.5" />
+                                </Badge>
+                              )}
+                            </Label>
+                            <Textarea
+                              rows={2}
+                              className={cn("text-xs flex-1", getRoomPmsFieldClass(selectedRoomType, "description"))}
+                              value={roomTypes.find((r) => r.id === selectedRoomType)?.description || ""}
+                              onChange={(e) => updateRoomTypeField(selectedRoomType, "description", e.target.value)}
+                              disabled={isRoomFieldPmsSynced(selectedRoomType, "description")}
+                            />
+                          </div>
+
+                          <div className="flex items-start gap-2">
+                            <Label className="text-xs whitespace-nowrap pt-1.5">Extra Person Policy</Label>
+                            <Textarea
+                              rows={1}
+                              className="text-xs flex-1"
+                              value={roomTypes.find((r) => r.id === selectedRoomType)?.extraPersonPolicy || ""}
+                              onChange={(e) =>
+                                updateRoomTypeField(selectedRoomType, "extraPersonPolicy", e.target.value)
+                              }
+                            />
+                          </div>
+
+                          {/* Bed Configuration Section */}
+                          <div className="flex items-start gap-2">
+                            <Label className="text-xs whitespace-nowrap pt-1">Beds</Label>
+                            <div className="border rounded-md p-2 flex-1 flex flex-wrap gap-2 items-center">
+                              {(() => {
+                                const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
+                                const bedConfig = parseBedConfiguration(currentRoom?.bedConfiguration);
+
+                                return (
+                                  <>
+                                    {bedConfig.map((bed, index) => (
+                                      <div
+                                        key={index}
+                                        className="flex items-center gap-1 bg-muted/50 rounded px-2 py-1"
+                                      >
+                                        <Select
+                                          value={bed.type}
+                                          onValueChange={(value) => {
+                                            const newConfig = [...bedConfig];
+                                            newConfig[index] = { ...bed, type: value };
+                                            updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
+                                          }}
+                                        >
+                                          <SelectTrigger className="w-[100px] h-6 text-xs border-0 bg-transparent">
+                                            <SelectValue placeholder="Bed type" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {BED_TYPES.map((bt) => (
+                                              <SelectItem key={bt.value} value={bt.value}>
+                                                {bt.label}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-5 w-5"
+                                          onClick={() => {
+                                            const newConfig = [...bedConfig];
+                                            newConfig[index] = { ...bed, count: Math.max(1, bed.count - 1) };
+                                            updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
+                                          }}
+                                          disabled={bed.count <= 1}
+                                        >
+                                          <Minus className="h-3 w-3" />
+                                        </Button>
+                                        <span className="w-4 text-center text-xs font-medium">{bed.count}</span>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-5 w-5"
+                                          onClick={() => {
+                                            const newConfig = [...bedConfig];
+                                            newConfig[index] = { ...bed, count: bed.count + 1 };
+                                            updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
+                                          }}
+                                        >
+                                          <Plus className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-5 w-5 text-destructive hover:text-destructive"
+                                          onClick={() => {
+                                            const newConfig = bedConfig.filter((_, i) => i !== index);
+                                            updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
+                                          }}
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    ))}
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-6 text-xs"
+                                      onClick={() => {
+                                        const newConfig = [...bedConfig, { type: "king", count: 1 }];
+                                        updateRoomTypeField(selectedRoomType, "bedConfiguration", newConfig);
+                                      }}
+                                    >
+                                      <Plus className="h-3 w-3 mr-1" />
+                                      Add
+                                    </Button>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-6 gap-2 items-end">
+                            <div className="flex items-center gap-1">
+                              <Label className="text-xs whitespace-nowrap">Size (m²)</Label>
+                              <Input
+                                type="number"
+                                className="h-7 text-xs w-16"
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.roomSize || 0}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "roomSize", parseInt(e.target.value) || 0)
+                                }
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Label className="text-xs whitespace-nowrap">Baths</Label>
+                              <Input
+                                type="number"
+                                className="h-7 text-xs w-14"
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.bathrooms || 1}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "bathrooms", parseInt(e.target.value) || 0)
+                                }
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
+                                Max
+                                {isRoomFieldPmsSynced(selectedRoomType, "maxPeople") && (
+                                  <Cloud className="h-2.5 w-2.5 text-primary" />
+                                )}
+                              </Label>
+                              <Input
+                                type="number"
+                                className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, "maxPeople"))}
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.maxPeople || 2}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "maxPeople", parseInt(e.target.value) || 1)
+                                }
+                                disabled={isRoomFieldPmsSynced(selectedRoomType, "maxPeople")}
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
+                                Adults
+                                {isRoomFieldPmsSynced(selectedRoomType, "maxAdults") && (
+                                  <Cloud className="h-2.5 w-2.5 text-primary" />
+                                )}
+                              </Label>
+                              <Input
+                                type="number"
+                                className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, "maxAdults"))}
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.maxAdults || 2}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "maxAdults", parseInt(e.target.value) || 1)
+                                }
+                                disabled={isRoomFieldPmsSynced(selectedRoomType, "maxAdults")}
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
+                                Children
+                                {isRoomFieldPmsSynced(selectedRoomType, "maxChildren") && (
+                                  <Cloud className="h-2.5 w-2.5 text-primary" />
+                                )}
+                              </Label>
+                              <Input
+                                type="number"
+                                className={cn(
+                                  "h-7 text-xs w-14",
+                                  getRoomPmsFieldClass(selectedRoomType, "maxChildren"),
+                                )}
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.maxChildren || 0}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "maxChildren", parseInt(e.target.value) || 0)
+                                }
+                                disabled={isRoomFieldPmsSynced(selectedRoomType, "maxChildren")}
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
+                                Min
+                                {isRoomFieldPmsSynced(selectedRoomType, "minGuests") && (
+                                  <Cloud className="h-2.5 w-2.5 text-primary" />
+                                )}
+                              </Label>
+                              <Input
+                                type="number"
+                                className={cn("h-7 text-xs w-14", getRoomPmsFieldClass(selectedRoomType, "minGuests"))}
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.minGuests || 1}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "minGuests", parseInt(e.target.value) || 1)
+                                }
+                                disabled={isRoomFieldPmsSynced(selectedRoomType, "minGuests")}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Guest Policies - Compact Row */}
+                          <div className="grid grid-cols-3 gap-2">
+                            {/* Teens */}
+                            <div className="border rounded-md p-2 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs font-medium flex items-center gap-1">
+                                  Teens
+                                  {isRoomFieldPmsSynced(selectedRoomType, "allowTeens") && (
+                                    <Cloud className="h-2.5 w-2.5 text-primary" />
+                                  )}
+                                </Label>
+                                <Switch
+                                  className="scale-75"
+                                  checked={roomTypes.find((r) => r.id === selectedRoomType)?.allowTeens || false}
+                                  onCheckedChange={(checked) =>
+                                    updateRoomTypeField(selectedRoomType, "allowTeens", checked)
+                                  }
+                                  disabled={isRoomFieldPmsSynced(selectedRoomType, "allowTeens")}
+                                />
+                              </div>
+                              {roomTypes.find((r) => r.id === selectedRoomType)?.allowTeens && (
+                                <div className="flex gap-2">
+                                  <div className="flex items-center gap-1 flex-1">
+                                    <Label className="text-[10px] text-muted-foreground">Min</Label>
+                                    <Input
+                                      type="number"
+                                      className={cn(
+                                        "h-6 text-xs",
+                                        getRoomPmsFieldClass(selectedRoomType, "teenMinAge"),
+                                      )}
+                                      value={roomTypes.find((r) => r.id === selectedRoomType)?.teenMinAge || 13}
+                                      onChange={(e) =>
+                                        updateRoomTypeField(
+                                          selectedRoomType,
+                                          "teenMinAge",
+                                          parseInt(e.target.value) || 13,
+                                        )
+                                      }
+                                      disabled={isRoomFieldPmsSynced(selectedRoomType, "teenMinAge")}
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1 flex-1">
+                                    <Label className="text-[10px] text-muted-foreground">Max</Label>
+                                    <Input
+                                      type="number"
+                                      className={cn(
+                                        "h-6 text-xs",
+                                        getRoomPmsFieldClass(selectedRoomType, "teenMaxAge"),
+                                      )}
+                                      value={roomTypes.find((r) => r.id === selectedRoomType)?.teenMaxAge || 17}
+                                      onChange={(e) =>
+                                        updateRoomTypeField(
+                                          selectedRoomType,
+                                          "teenMaxAge",
+                                          parseInt(e.target.value) || 17,
+                                        )
+                                      }
+                                      disabled={isRoomFieldPmsSynced(selectedRoomType, "teenMaxAge")}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Children */}
+                            <div className="border rounded-md p-2 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs font-medium flex items-center gap-1">
+                                  Children
+                                  {isRoomFieldPmsSynced(selectedRoomType, "allowChildren") && (
+                                    <Cloud className="h-2.5 w-2.5 text-primary" />
+                                  )}
+                                </Label>
+                                <Switch
+                                  className="scale-75"
+                                  checked={roomTypes.find((r) => r.id === selectedRoomType)?.allowChildren || false}
+                                  onCheckedChange={(checked) =>
+                                    updateRoomTypeField(selectedRoomType, "allowChildren", checked)
+                                  }
+                                  disabled={isRoomFieldPmsSynced(selectedRoomType, "allowChildren")}
+                                />
+                              </div>
+                              {roomTypes.find((r) => r.id === selectedRoomType)?.allowChildren && (
+                                <div className="flex gap-2">
+                                  <div className="flex items-center gap-1 flex-1">
+                                    <Label className="text-[10px] text-muted-foreground">Min</Label>
+                                    <Input
+                                      type="number"
+                                      className={cn(
+                                        "h-6 text-xs",
+                                        getRoomPmsFieldClass(selectedRoomType, "childMinAge"),
+                                      )}
+                                      value={roomTypes.find((r) => r.id === selectedRoomType)?.childMinAge || 2}
+                                      onChange={(e) =>
+                                        updateRoomTypeField(
+                                          selectedRoomType,
+                                          "childMinAge",
+                                          parseInt(e.target.value) || 2,
+                                        )
+                                      }
+                                      disabled={isRoomFieldPmsSynced(selectedRoomType, "childMinAge")}
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1 flex-1">
+                                    <Label className="text-[10px] text-muted-foreground">Max</Label>
+                                    <Input
+                                      type="number"
+                                      className={cn(
+                                        "h-6 text-xs",
+                                        getRoomPmsFieldClass(selectedRoomType, "childMaxAge"),
+                                      )}
+                                      value={roomTypes.find((r) => r.id === selectedRoomType)?.childMaxAge || 12}
+                                      onChange={(e) =>
+                                        updateRoomTypeField(
+                                          selectedRoomType,
+                                          "childMaxAge",
+                                          parseInt(e.target.value) || 12,
+                                        )
+                                      }
+                                      disabled={isRoomFieldPmsSynced(selectedRoomType, "childMaxAge")}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Infants */}
+                            <div className="border rounded-md p-2 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-xs font-medium flex items-center gap-1">
+                                  Infants
+                                  {isRoomFieldPmsSynced(selectedRoomType, "allowInfants") && (
+                                    <Cloud className="h-2.5 w-2.5 text-primary" />
+                                  )}
+                                </Label>
+                                <Switch
+                                  className="scale-75"
+                                  checked={roomTypes.find((r) => r.id === selectedRoomType)?.allowInfants || false}
+                                  onCheckedChange={(checked) =>
+                                    updateRoomTypeField(selectedRoomType, "allowInfants", checked)
+                                  }
+                                  disabled={isRoomFieldPmsSynced(selectedRoomType, "allowInfants")}
+                                />
+                              </div>
+                              {roomTypes.find((r) => r.id === selectedRoomType)?.allowInfants && (
+                                <div className="flex gap-2">
+                                  <div className="flex items-center gap-1 flex-1">
+                                    <Label className="text-[10px] text-muted-foreground">Min</Label>
+                                    <Input
+                                      type="number"
+                                      className={cn(
+                                        "h-6 text-xs",
+                                        getRoomPmsFieldClass(selectedRoomType, "infantMinAge"),
+                                      )}
+                                      value={roomTypes.find((r) => r.id === selectedRoomType)?.infantMinAge || 0}
+                                      onChange={(e) =>
+                                        updateRoomTypeField(
+                                          selectedRoomType,
+                                          "infantMinAge",
+                                          parseInt(e.target.value) || 0,
+                                        )
+                                      }
+                                      disabled={isRoomFieldPmsSynced(selectedRoomType, "infantMinAge")}
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1 flex-1">
+                                    <Label className="text-[10px] text-muted-foreground">Max</Label>
+                                    <Input
+                                      type="number"
+                                      className={cn(
+                                        "h-6 text-xs",
+                                        getRoomPmsFieldClass(selectedRoomType, "infantMaxAge"),
+                                      )}
+                                      value={roomTypes.find((r) => r.id === selectedRoomType)?.infantMaxAge || 2}
+                                      onChange={(e) =>
+                                        updateRoomTypeField(
+                                          selectedRoomType,
+                                          "infantMaxAge",
+                                          parseInt(e.target.value) || 2,
+                                        )
+                                      }
+                                      disabled={isRoomFieldPmsSynced(selectedRoomType, "infantMaxAge")}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Additional PMS Fields - Inline */}
+                          <div className="grid grid-cols-4 gap-2 items-end">
+                            <div className="flex items-center gap-1">
+                              <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
+                                Age Cat
+                                {isRoomFieldPmsSynced(selectedRoomType, "minAgeCategory") && (
+                                  <Cloud className="h-2.5 w-2.5 text-primary" />
+                                )}
+                              </Label>
+                              <Select
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.minAgeCategory || ""}
+                                onValueChange={(value) =>
+                                  updateRoomTypeField(selectedRoomType, "minAgeCategory", value)
+                                }
+                                disabled={isRoomFieldPmsSynced(selectedRoomType, "minAgeCategory")}
+                              >
+                                <SelectTrigger
+                                  className={cn(
+                                    "h-7 text-xs",
+                                    getRoomPmsFieldClass(selectedRoomType, "minAgeCategory"),
+                                  )}
+                                >
+                                  <SelectValue placeholder="Select" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="ADULT">Adult</SelectItem>
+                                  <SelectItem value="TEEN">Teen</SelectItem>
+                                  <SelectItem value="CHILD">Child</SelectItem>
+                                  <SelectItem value="INFANT">Infant</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
+                                Min Adults
+                                {isRoomFieldPmsSynced(selectedRoomType, "minAdultsToOfferNonAdultRates") && (
+                                  <Cloud className="h-2.5 w-2.5 text-primary" />
+                                )}
+                              </Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                className={cn(
+                                  "h-7 text-xs w-14",
+                                  getRoomPmsFieldClass(selectedRoomType, "minAdultsToOfferNonAdultRates"),
+                                )}
+                                value={
+                                  roomTypes.find((r) => r.id === selectedRoomType)?.minAdultsToOfferNonAdultRates || 0
+                                }
+                                onChange={(e) =>
+                                  updateRoomTypeField(
+                                    selectedRoomType,
+                                    "minAdultsToOfferNonAdultRates",
+                                    parseInt(e.target.value) || 0,
+                                  )
+                                }
+                                disabled={isRoomFieldPmsSynced(selectedRoomType, "minAdultsToOfferNonAdultRates")}
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Label className="text-xs whitespace-nowrap">Min Stay</Label>
+                              <Input
+                                type="number"
+                                className="h-7 text-xs w-14"
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.minStay || 1}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "minStay", parseInt(e.target.value) || 1)
+                                }
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Label className="text-xs whitespace-nowrap">Max Stay</Label>
+                              <Input
+                                type="number"
+                                className="h-7 text-xs w-14"
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.maxStay || 0}
+                                onChange={(e) =>
+                                  updateRoomTypeField(selectedRoomType, "maxStay", parseInt(e.target.value) || 0)
+                                }
+                              />
+                            </div>
+                          </div>
+
+                          <div className="bg-blue-50 border border-blue-200 rounded-md p-2">
+                            <p className="text-xs text-blue-700">
+                              <strong>INFO:</strong> Align "Max adult" with rate type if Person Rate is applied.
+                            </p>
+                          </div>
+
+                          <div className="space-y-4">
+                            <h3 className="font-semibold">Rate Info</h3>
+                            {(() => {
+                              const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
+                              const linkedRateTypeIds =
+                                currentRoom?.linkedRateTypes || currentRoom?.availableRateTypes || [];
+                              const linkedRateTypesData = pmsRateTypes.filter((rt) =>
+                                linkedRateTypeIds.includes(rt.id),
+                              );
+
+                              if (linkedRateTypesData.length > 0) {
+                                // Get unique price types from linked rate types
+                                const priceTypes = [
+                                  ...new Set(linkedRateTypesData.map((rt) => rt.priceType).filter(Boolean)),
+                                ];
+                                return (
+                                  <div className="space-y-2">
+                                    <Label className="flex items-center gap-2">
+                                      Price Type (from linked Rate Types)
+                                      <Badge variant="outline" className="text-xs bg-primary/10">
+                                        <Cloud className="h-3 w-3 mr-1" />
+                                        PMS
+                                      </Badge>
+                                    </Label>
+                                    <div className="flex flex-wrap gap-2">
+                                      {priceTypes.length > 0 ? (
+                                        priceTypes.map((pt, idx) => (
+                                          <Badge key={idx} variant="secondary">
+                                            {pt}
+                                          </Badge>
+                                        ))
+                                      ) : (
+                                        <span className="text-sm text-muted-foreground">
+                                          No price types defined in linked rate types
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      Price types are determined by the rate types linked to this room. Manage linked
+                                      rate types in the "Rate Types" tab.
+                                    </p>
+                                  </div>
+                                );
+                              }
+
+                              // Fallback for rooms without linked rate types
+                              return (
+                                <div className="space-y-2">
+                                  <Label>Rate Type (Manual)</Label>
+                                  <Select
+                                    value={currentRoom?.rateType || "per-unit"}
+                                    onValueChange={(value) => updateRoomTypeField(selectedRoomType, "rateType", value)}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="per-unit">Per Unit</SelectItem>
+                                      <SelectItem value="per-person">Per Person</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <p className="text-xs text-muted-foreground">
+                                    Link rate types in the "Rate Types" tab to use PMS price types instead.
+                                  </p>
+                                </div>
+                              );
+                            })()}
+                            <div className="space-y-2">
+                              <Label>Meal Types (for this room)</Label>
+                              <TagInput
+                                value={roomTypes.find((r) => r.id === selectedRoomType)?.mealTypes || []}
+                                onChange={(newMealTypes) => {
+                                  updateRoomTypeField(selectedRoomType, "mealTypes", newMealTypes);
+                                }}
+                                suggestions={mealTypeSuggestions}
+                                placeholder="Type meal type and press Enter..."
+                                onNewTag={handleNewMealType}
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Meal types are manual entry. Add meal types specific to this room (e.g., Self Catering,
+                                Bed & Breakfast, Full Board).
+                              </p>
+                            </div>
+                          </div>
                         </>
                       )}
                     </TabsContent>
@@ -6564,17 +7829,22 @@ export default function PropertyForm() {
                     {/* Rate Types Sub-tab */}
                     <TabsContent value="rate-types" className="p-3 space-y-2">
                       {(() => {
-                        const currentRoom = roomTypes.find(r => r.id === selectedRoomType);
-                        const availableRateTypeIds = currentRoom?.availableRateTypes || currentRoom?.linkedRateTypes || [];
-                        const availableRateTypesForRoom = pmsRateTypes.filter(rt => availableRateTypeIds.includes(rt.id));
-                        
+                        const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
+                        const availableRateTypeIds =
+                          currentRoom?.availableRateTypes || currentRoom?.linkedRateTypes || [];
+                        const availableRateTypesForRoom = pmsRateTypes.filter((rt) =>
+                          availableRateTypeIds.includes(rt.id),
+                        );
+
                         return (
                           <>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-medium">Link Rate Types to {currentRoom?.name}</span>
                                 {availableRateTypesForRoom.length > 0 && (
-                                  <Badge variant="outline" className="text-[10px] h-4">{availableRateTypesForRoom.length} available</Badge>
+                                  <Badge variant="outline" className="text-[10px] h-4">
+                                    {availableRateTypesForRoom.length} available
+                                  </Badge>
                                 )}
                               </div>
                               <Badge variant="secondary" className="text-[10px] h-4">
@@ -6611,7 +7881,8 @@ export default function PropertyForm() {
                     <TabsContent value="facilities" className="p-6 space-y-4">
                       <div className="bg-amber-50 border border-amber-200 rounded-md p-2 mb-4">
                         <p className="text-sm text-amber-700">
-                          <strong>Manual Entry:</strong> Facilities are not available from the PMS API. Select the facilities available in this room type.
+                          <strong>Manual Entry:</strong> Facilities are not available from the PMS API. Select the
+                          facilities available in this room type.
                         </p>
                       </div>
 
@@ -6634,14 +7905,22 @@ export default function PropertyForm() {
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`facility-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(item)}
+                                checked={ensureArray(
+                                  roomTypes.find((r) => r.id === selectedRoomType)?.facilities,
+                                ).includes(item)}
                                 onCheckedChange={(checked) => {
-                                  const currentFacilities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
-                                  const newFacilities = checked ? [...currentFacilities, item] : currentFacilities.filter((f: string) => f !== item);
+                                  const currentFacilities = ensureArray(
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities,
+                                  );
+                                  const newFacilities = checked
+                                    ? [...currentFacilities, item]
+                                    : currentFacilities.filter((f: string) => f !== item);
                                   updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
                                 }}
                               />
-                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
                             </div>
                           ))}
                         </div>
@@ -6669,14 +7948,22 @@ export default function PropertyForm() {
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`facility-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(item)}
+                                checked={ensureArray(
+                                  roomTypes.find((r) => r.id === selectedRoomType)?.facilities,
+                                ).includes(item)}
                                 onCheckedChange={(checked) => {
-                                  const currentFacilities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
-                                  const newFacilities = checked ? [...currentFacilities, item] : currentFacilities.filter((f: string) => f !== item);
+                                  const currentFacilities = ensureArray(
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities,
+                                  );
+                                  const newFacilities = checked
+                                    ? [...currentFacilities, item]
+                                    : currentFacilities.filter((f: string) => f !== item);
                                   updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
                                 }}
                               />
-                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
                             </div>
                           ))}
                         </div>
@@ -6699,14 +7986,22 @@ export default function PropertyForm() {
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`facility-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(item)}
+                                checked={ensureArray(
+                                  roomTypes.find((r) => r.id === selectedRoomType)?.facilities,
+                                ).includes(item)}
                                 onCheckedChange={(checked) => {
-                                  const currentFacilities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
-                                  const newFacilities = checked ? [...currentFacilities, item] : currentFacilities.filter((f: string) => f !== item);
+                                  const currentFacilities = ensureArray(
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities,
+                                  );
+                                  const newFacilities = checked
+                                    ? [...currentFacilities, item]
+                                    : currentFacilities.filter((f: string) => f !== item);
                                   updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
                                 }}
                               />
-                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
                             </div>
                           ))}
                         </div>
@@ -6714,40 +8009,52 @@ export default function PropertyForm() {
                         {/* Security & Safety */}
                         <div className="space-y-3">
                           <h4 className="font-semibold text-sm">Security & Safety</h4>
-                          {[
-                            "Safe",
-                            "Safety deposit box",
-                            "Fire extinguishers",
-                            "Key access",
-                            "24-hour security",
-                          ].map((item) => (
-                            <div key={item} className="flex items-center gap-2">
-                              <Checkbox
-                                id={`facility-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(item)}
-                                onCheckedChange={(checked) => {
-                                  const currentFacilities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
-                                  const newFacilities = checked ? [...currentFacilities, item] : currentFacilities.filter((f: string) => f !== item);
-                                  updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
-                                }}
-                              />
-                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
-                            </div>
-                          ))}
+                          {["Safe", "Safety deposit box", "Fire extinguishers", "Key access", "24-hour security"].map(
+                            (item) => (
+                              <div key={item} className="flex items-center gap-2">
+                                <Checkbox
+                                  id={`facility-${item}`}
+                                  checked={ensureArray(
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities,
+                                  ).includes(item)}
+                                  onCheckedChange={(checked) => {
+                                    const currentFacilities = ensureArray(
+                                      roomTypes.find((r) => r.id === selectedRoomType)?.facilities,
+                                    );
+                                    const newFacilities = checked
+                                      ? [...currentFacilities, item]
+                                      : currentFacilities.filter((f: string) => f !== item);
+                                    updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
+                                  }}
+                                />
+                                <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
+                                  {item}
+                                </Label>
+                              </div>
+                            ),
+                          )}
 
                           <h4 className="font-semibold text-sm pt-4">View</h4>
                           {["Garden view", "Landmark view", "Mountain view", "Pool view"].map((item) => (
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`facility-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities).includes(item)}
+                                checked={ensureArray(
+                                  roomTypes.find((r) => r.id === selectedRoomType)?.facilities,
+                                ).includes(item)}
                                 onCheckedChange={(checked) => {
-                                  const currentFacilities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.facilities);
-                                  const newFacilities = checked ? [...currentFacilities, item] : currentFacilities.filter((f: string) => f !== item);
+                                  const currentFacilities = ensureArray(
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.facilities,
+                                  );
+                                  const newFacilities = checked
+                                    ? [...currentFacilities, item]
+                                    : currentFacilities.filter((f: string) => f !== item);
                                   updateRoomTypeField(selectedRoomType, "facilities", newFacilities);
                                 }}
                               />
-                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <Label htmlFor={`facility-${item}`} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
                             </div>
                           ))}
                         </div>
@@ -6758,7 +8065,8 @@ export default function PropertyForm() {
                     <TabsContent value="amenities" className="p-6 space-y-4">
                       <div className="bg-amber-50 border border-amber-200 rounded-md p-2 mb-4">
                         <p className="text-sm text-amber-700">
-                          <strong>Manual Entry:</strong> Amenities are not available from the PMS API. Select the amenities available in this room type.
+                          <strong>Manual Entry:</strong> Amenities are not available from the PMS API. Select the
+                          amenities available in this room type.
                         </p>
                       </div>
 
@@ -6766,18 +8074,35 @@ export default function PropertyForm() {
                         {/* Bathroom */}
                         <div className="space-y-3">
                           <h4 className="font-semibold text-sm">Bathroom</h4>
-                          {["Bathroom amenities", "Hand wash", "Towels", "Bathrobe", "Slippers", "Toiletries", "Toilet paper", "Shower cap"].map((item) => (
+                          {[
+                            "Bathroom amenities",
+                            "Hand wash",
+                            "Towels",
+                            "Bathrobe",
+                            "Slippers",
+                            "Toiletries",
+                            "Toilet paper",
+                            "Shower cap",
+                          ].map((item) => (
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`amenity-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
+                                checked={ensureArray(
+                                  roomTypes.find((r) => r.id === selectedRoomType)?.amenities,
+                                ).includes(item)}
                                 onCheckedChange={(checked) => {
-                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
-                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
+                                  const currentAmenities = ensureArray(
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.amenities,
+                                  );
+                                  const newAmenities = checked
+                                    ? [...currentAmenities, item]
+                                    : currentAmenities.filter((a: string) => a !== item);
                                   updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
                                 }}
                               />
-                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
                             </div>
                           ))}
                         </div>
@@ -6785,18 +8110,35 @@ export default function PropertyForm() {
                         {/* Bedroom */}
                         <div className="space-y-3">
                           <h4 className="font-semibold text-sm">Bedroom</h4>
-                          {["Extra pillows", "Extra blankets", "Linen", "Blackout curtains", "Reading lamp", "Wake up call", "Socket near bed", "Clothes rack"].map((item) => (
+                          {[
+                            "Extra pillows",
+                            "Extra blankets",
+                            "Linen",
+                            "Blackout curtains",
+                            "Reading lamp",
+                            "Wake up call",
+                            "Socket near bed",
+                            "Clothes rack",
+                          ].map((item) => (
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`amenity-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
+                                checked={ensureArray(
+                                  roomTypes.find((r) => r.id === selectedRoomType)?.amenities,
+                                ).includes(item)}
                                 onCheckedChange={(checked) => {
-                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
-                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
+                                  const currentAmenities = ensureArray(
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.amenities,
+                                  );
+                                  const newAmenities = checked
+                                    ? [...currentAmenities, item]
+                                    : currentAmenities.filter((a: string) => a !== item);
                                   updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
                                 }}
                               />
-                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
                             </div>
                           ))}
                         </div>
@@ -6820,18 +8162,25 @@ export default function PropertyForm() {
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`amenity-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
+                                checked={ensureArray(
+                                  roomTypes.find((r) => r.id === selectedRoomType)?.amenities,
+                                ).includes(item)}
                                 onCheckedChange={(checked) => {
-                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
-                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
+                                  const currentAmenities = ensureArray(
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.amenities,
+                                  );
+                                  const newAmenities = checked
+                                    ? [...currentAmenities, item]
+                                    : currentAmenities.filter((a: string) => a !== item);
                                   updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
                                 }}
                               />
-                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
                             </div>
                           ))}
                         </div>
-
 
                         {/* Internet */}
                         <div className="space-y-3">
@@ -6840,14 +8189,22 @@ export default function PropertyForm() {
                             <div key={item} className="flex items-center gap-2">
                               <Checkbox
                                 id={`amenity-${item}`}
-                                checked={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).includes(item)}
+                                checked={ensureArray(
+                                  roomTypes.find((r) => r.id === selectedRoomType)?.amenities,
+                                ).includes(item)}
                                 onCheckedChange={(checked) => {
-                                  const currentAmenities = ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities);
-                                  const newAmenities = checked ? [...currentAmenities, item] : currentAmenities.filter((a: string) => a !== item);
+                                  const currentAmenities = ensureArray(
+                                    roomTypes.find((r) => r.id === selectedRoomType)?.amenities,
+                                  );
+                                  const newAmenities = checked
+                                    ? [...currentAmenities, item]
+                                    : currentAmenities.filter((a: string) => a !== item);
                                   updateRoomTypeField(selectedRoomType, "amenities", newAmenities);
                                 }}
                               />
-                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">{item}</Label>
+                              <Label htmlFor={`amenity-${item}`} className="text-sm cursor-pointer flex-1">
+                                {item}
+                              </Label>
                             </div>
                           ))}
                         </div>
@@ -6944,9 +8301,19 @@ export default function PropertyForm() {
             <TabsContent value="packages" className="space-y-2">
               <Tabs value={packagesCategory} onValueChange={(v) => setPackagesCategory(v as any)} className="w-full">
                 <TabsList className="h-7">
-                  <TabsTrigger value="accommodations" className="text-xs h-6">Accommodations</TabsTrigger>
-                  {isEvent && <TabsTrigger value="event" className="text-xs h-6">Event/Wedding</TabsTrigger>}
-                  {isConference && <TabsTrigger value="conference" className="text-xs h-6">Conference</TabsTrigger>}
+                  <TabsTrigger value="accommodations" className="text-xs h-6">
+                    Accommodations
+                  </TabsTrigger>
+                  {isEvent && (
+                    <TabsTrigger value="event" className="text-xs h-6">
+                      Event/Wedding
+                    </TabsTrigger>
+                  )}
+                  {isConference && (
+                    <TabsTrigger value="conference" className="text-xs h-6">
+                      Conference
+                    </TabsTrigger>
+                  )}
                 </TabsList>
 
                 {["accommodations", "event", "conference"].map((cat) => (
@@ -6955,7 +8322,12 @@ export default function PropertyForm() {
                       <Card>
                         <CardHeader className="py-1.5 px-3 flex flex-row items-center justify-between">
                           <CardTitle className="text-xs font-medium uppercase">{cat}</CardTitle>
-                          <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={() => setIsEditPackageOpen(true)}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-5 w-5 p-0"
+                            onClick={() => setIsEditPackageOpen(true)}
+                          >
                             <Plus className="h-3 w-3" />
                           </Button>
                         </CardHeader>
@@ -6963,27 +8335,50 @@ export default function PropertyForm() {
                           {packages.filter((p) => p.category === cat).length === 0 ? (
                             <p className="text-xs text-muted-foreground">No items...</p>
                           ) : (
-                            packages.filter((p) => p.category === cat).map((pkg) => (
-                              <div
-                                key={pkg.id}
-                                className={cn("py-1 px-1.5 rounded cursor-pointer hover:bg-accent flex items-center justify-between text-xs", selectedPackage?.id === pkg.id && "bg-accent")}
-                                onClick={() => setSelectedPackage(pkg)}
-                              >
-                                <span className="truncate">{pkg.name}</span>
-                                <Button size="sm" variant="ghost" className="h-4 w-4 p-0" onClick={(e) => { e.stopPropagation(); deletePackage(pkg.id); }}>
-                                  <Trash2 className="h-2.5 w-2.5" />
-                                </Button>
-                              </div>
-                            ))
+                            packages
+                              .filter((p) => p.category === cat)
+                              .map((pkg) => (
+                                <div
+                                  key={pkg.id}
+                                  className={cn(
+                                    "py-1 px-1.5 rounded cursor-pointer hover:bg-accent flex items-center justify-between text-xs",
+                                    selectedPackage?.id === pkg.id && "bg-accent",
+                                  )}
+                                  onClick={() => setSelectedPackage(pkg)}
+                                >
+                                  <span className="truncate">{pkg.name}</span>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-4 w-4 p-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deletePackage(pkg.id);
+                                    }}
+                                  >
+                                    <Trash2 className="h-2.5 w-2.5" />
+                                  </Button>
+                                </div>
+                              ))
                           )}
                         </CardContent>
                       </Card>
 
                       <div className="flex gap-1.5">
-                        <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => setIsEditPackageOpen(true)}>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="h-7 text-xs"
+                          onClick={() => setIsEditPackageOpen(true)}
+                        >
                           Edit Package
                         </Button>
-                        <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => setIsPackageImagesOpen(true)}>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="h-7 text-xs"
+                          onClick={() => setIsPackageImagesOpen(true)}
+                        >
                           Package Images
                         </Button>
                       </div>
@@ -7023,14 +8418,27 @@ export default function PropertyForm() {
                           {announcements.map((announcement) => (
                             <tr key={announcement.id} className="border-b hover:bg-muted/50">
                               <td className="py-1 px-2">
-                                <Switch checked={announcement.enabled} onCheckedChange={() => toggleAnnouncementEnabled(announcement.id)} className="scale-75" />
+                                <Switch
+                                  checked={announcement.enabled}
+                                  onCheckedChange={() => toggleAnnouncementEnabled(announcement.id)}
+                                  className="scale-75"
+                                />
                               </td>
                               <td className="py-1 px-2 text-xs truncate max-w-[200px]">{announcement.announcement}</td>
-                              <td className="py-1 px-2 text-xs">{announcement.startDate ? format(announcement.startDate, "MM/dd/yy") : "-"}</td>
-                              <td className="py-1 px-2 text-xs">{announcement.endDate ? format(announcement.endDate, "MM/dd/yy") : "-"}</td>
+                              <td className="py-1 px-2 text-xs">
+                                {announcement.startDate ? format(announcement.startDate, "MM/dd/yy") : "-"}
+                              </td>
+                              <td className="py-1 px-2 text-xs">
+                                {announcement.endDate ? format(announcement.endDate, "MM/dd/yy") : "-"}
+                              </td>
                               <td className="py-1 px-2 text-xs">{announcement.order}</td>
                               <td className="py-1 px-2">
-                                <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={() => deleteAnnouncement(announcement.id)}>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-5 w-5 p-0"
+                                  onClick={() => deleteAnnouncement(announcement.id)}
+                                >
                                   <Trash2 className="h-3 w-3" />
                                 </Button>
                               </td>
@@ -7508,8 +8916,8 @@ export default function PropertyForm() {
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-3">
               <p>
-                This will fetch editorial content from <strong>{getPMSDisplayName(selectedPMS)}</strong> and 
-                update applicable ROL Spec fields.
+                This will fetch editorial content from <strong>{getPMSDisplayName(selectedPMS)}</strong> and update
+                applicable ROL Spec fields.
               </p>
               <p className="text-sm font-medium text-amber-600">
                 ⚠️ This may overwrite existing editorial content in some fields.
@@ -7518,9 +8926,7 @@ export default function PropertyForm() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSyncEditorial}>
-              Sync Editorial
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleSyncEditorial}>Sync Editorial</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
