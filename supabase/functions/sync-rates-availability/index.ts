@@ -8,8 +8,8 @@ const corsHeaders = {
 
 const requestSchema = z.object({
   property_id: z.string().uuid({ message: 'Invalid property ID format' }),
-  external_system: z.enum(['nightsbridge', 'checkfront'], { 
-    errorMap: () => ({ message: 'External system must be nightsbridge or checkfront' }) 
+  external_system: z.enum(['nightsbridge', 'checkfront', 'littlehotelier'], { 
+    errorMap: () => ({ message: 'External system must be nightsbridge, checkfront, or littlehotelier' }) 
   }),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Start date must be in YYYY-MM-DD format' }),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'End date must be in YYYY-MM-DD format' }),
@@ -181,6 +181,80 @@ Deno.serve(async (req) => {
       const data = await response.json();
       rates = data.rates || [];
       availability = data.availability || [];
+    }
+
+    // Fetch from Little Hotelier
+    else if (external_system === 'littlehotelier') {
+      const channelCode = (property as any).littlehotelier_channel_code;
+      const region = (property as any).littlehotelier_region || 'apac';
+
+      if (!channelCode) {
+        console.error('Little Hotelier channel code not configured for property:', property_id);
+        return new Response(
+          JSON.stringify({ error: 'Property configuration incomplete' }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      // Call Little Hotelier API via our adapter
+      const { data: adapterResponse, error: adapterError } = await supabaseClient.functions.invoke('little-hotelier-api', {
+        body: {
+          action: 'fetch_availability',
+          channel_code: channelCode,
+          region: region,
+          start_date,
+          end_date,
+        },
+      });
+
+      if (adapterError) {
+        console.error('Little Hotelier adapter error:', adapterError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to sync with external system' }),
+          { 
+            status: 502,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      // Check for adapter-level error
+      if (adapterResponse?.success === false) {
+        console.error('Little Hotelier API error:', adapterResponse.error);
+        return new Response(
+          JSON.stringify({ error: adapterResponse.error?.message || 'Failed to fetch from Little Hotelier' }),
+          { 
+            status: 502,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      // Transform Little Hotelier data to our format
+      const lhData = adapterResponse?.data || {};
+      const dailyAvailability = lhData.daily_availability || [];
+      const dailyRates = lhData.daily_rates || [];
+
+      // Convert to rates format
+      rates = dailyRates.map((rate: any) => ({
+        room_type: rate.room_name || 'Standard',
+        rate_type: rate.rate_plan_name || 'Standard',
+        date: rate.date,
+        rate: rate.rate,
+      }));
+
+      // Convert to availability format
+      availability = dailyAvailability.map((avail: any) => ({
+        room_type: avail.room_name || 'Standard',
+        date: avail.date,
+        available: avail.available,
+        stop_sell: avail.stop_sell,
+        min_stay: avail.min_stay,
+        close_to_arrival: avail.close_to_arrival,
+      }));
     }
 
     // Insert/update rates in database

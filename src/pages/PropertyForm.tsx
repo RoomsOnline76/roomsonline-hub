@@ -325,6 +325,8 @@ export default function PropertyForm() {
   const [bensonPropertyCode, setBensonPropertyCode] = useState<string>("");
   const [bensonEnvironment, setBensonEnvironment] = useState<"staging" | "production">("staging");
   const [cloudbedsPropertyId, setCloudbedsPropertyId] = useState<string>("");
+  const [littlehotelierChannelCode, setLittlehotelierChannelCode] = useState<string>("");
+  const [littlehotelierRegion, setLittlehotelierRegion] = useState<"apac" | "emea">("apac");
   const [isSyncingPms, setIsSyncingPms] = useState(false);
   const [lastPmsSync, setLastPmsSync] = useState<Date | null>(null);
 
@@ -343,6 +345,8 @@ export default function PropertyForm() {
   const [tripadvisorId, setTripadvisorId] = useState<string>("");
   const [existingBensonPropertyCode, setExistingBensonPropertyCode] = useState<string | null>(null);
   const [existingCloudbedsPropertyId, setExistingCloudbedsPropertyId] = useState<string | null>(null);
+  const [existingLittlehotelierChannelCode, setExistingLittlehotelierChannelCode] = useState<string | null>(null);
+  const [existingLittlehotelierRegion, setExistingLittlehotelierRegion] = useState<string | null>(null);
 
   // Sync room/rate types from PMS (Benson)
   const syncFromBenson = async () => {
@@ -1945,6 +1949,16 @@ export default function PropertyForm() {
           }
           setExistingCloudbedsPropertyId((data as any).cloudbeds_property_id || null);
           
+          // Set Little Hotelier fields
+          if ((data as any).littlehotelier_channel_code) {
+            setLittlehotelierChannelCode((data as any).littlehotelier_channel_code);
+          }
+          if ((data as any).littlehotelier_region) {
+            setLittlehotelierRegion((data as any).littlehotelier_region as "apac" | "emea");
+          }
+          setExistingLittlehotelierChannelCode((data as any).littlehotelier_channel_code || null);
+          setExistingLittlehotelierRegion((data as any).littlehotelier_region || null);
+          
           // Load TripAdvisor ID
           if (amenities?.external_ids?.tripadvisor_id) {
             setTripadvisorId(amenities.external_ids.tripadvisor_id);
@@ -2285,6 +2299,9 @@ export default function PropertyForm() {
         benson_environment: selectedPMS === "benson" ? bensonEnvironment : null,
         // Preserve existing cloudbeds_property_id if PMS changed, only update if cloudbeds is selected
         cloudbeds_property_id: selectedPMS === "cloudbeds" ? cloudbedsPropertyId : existingCloudbedsPropertyId,
+        // Preserve existing littlehotelier fields if PMS changed, only update if littlehotelier is selected
+        littlehotelier_channel_code: selectedPMS === "littlehotelier" ? littlehotelierChannelCode : existingLittlehotelierChannelCode,
+        littlehotelier_region: selectedPMS === "littlehotelier" ? littlehotelierRegion : existingLittlehotelierRegion,
         property_url: formData.property_url || null,
         is_active: true,
         images: uploadedImages,
@@ -2776,6 +2793,34 @@ export default function PropertyForm() {
                             required
                           />
                         </div>
+                      )}
+
+                      {selectedPMS === "littlehotelier" && (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="littlehotelier_channel_code" className="text-xs whitespace-nowrap">Channel Code *</Label>
+                            <Input
+                              id="littlehotelier_channel_code"
+                              value={littlehotelierChannelCode}
+                              onChange={(e) => { setLittlehotelierChannelCode(e.target.value); setIsDirty(true); }}
+                              placeholder="Channel code"
+                              className="h-7 text-xs w-32"
+                              required
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="littlehotelier_region" className="text-xs whitespace-nowrap">Region</Label>
+                            <Select value={littlehotelierRegion} onValueChange={(v) => { setLittlehotelierRegion(v as "apac" | "emea"); setIsDirty(true); }}>
+                              <SelectTrigger className="h-7 text-xs w-24">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="apac">APAC</SelectItem>
+                                <SelectItem value="emea">EMEA</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </>
                       )}
 
                       {lastPmsSync && selectedPMS === "benson" && (
