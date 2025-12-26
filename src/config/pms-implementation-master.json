@@ -1,0 +1,84 @@
+{
+  "version": "1.0",
+  "description": "RoomsOnline PMS implementation ruleset",
+  "pms_rules": [
+    {
+      "pms": "benson",
+      "safe_as_is": true,
+      "property_fields": {
+        "name": "authoritative",
+        "description": "not_available",
+        "location": "not_available",
+        "images": "not_available"
+      },
+      "room_types": {
+        "cache": "full",
+        "amenities_seed": false
+      },
+      "notes": "Operational PMS only. Do not seed editorial content."
+    },
+    {
+      "pms": "checkfront",
+      "safe_as_is": true,
+      "property_fields": {
+        "name": "authoritative",
+        "description": "seed_only",
+        "location": "not_available",
+        "images": "not_available"
+      },
+      "room_types": {
+        "cache": "full",
+        "amenities_seed": "limited"
+      },
+      "notes": "Descriptions inconsistent. Never overwrite admin content."
+    },
+    {
+      "pms": "hostfully",
+      "safe_as_is": true,
+      "property_fields": {
+        "name": "authoritative",
+        "description": "authoritative",
+        "location": "authoritative",
+        "images": "authoritative",
+        "amenities": "partial"
+      },
+      "room_types": {
+        "cache": "full",
+        "amenities_seed": true
+      },
+      "notes": "Best hybrid PMS. Guard amenities mapping."
+    },
+    {
+      "pms": "cloudbeds",
+      "safe_as_is": true,
+      "property_fields": {
+        "name": "authoritative",
+        "description": "authoritative",
+        "location": "authoritative",
+        "geo": "authoritative",
+        "images": "authoritative",
+        "amenities": "partial"
+      },
+      "room_types": {
+        "cache": "full",
+        "amenities_seed": true
+      },
+      "notes": "Gold standard PMS. Requires disciplined facilities mapping."
+    },
+    {
+      "pms": "little-hotelier",
+      "safe_as_is": true,
+      "property_fields": {
+        "name": "authoritative",
+        "description": "authoritative",
+        "location": "authoritative",
+        "images": "partial"
+      },
+      "room_types": {
+        "cache": "full",
+        "amenities_seed": "name_only"
+      },
+      "notes": "Room images unreliable. Seed text only."
+    }
+  ]
+}
