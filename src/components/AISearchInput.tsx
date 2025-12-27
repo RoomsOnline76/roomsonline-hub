@@ -32,8 +32,8 @@ export function AISearchInput() {
   return (
     <div className="w-full sm:w-1/2 px-6 md:px-12">
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
-        {/* External label - smaller text, left aligned */}
-        <span className="text-rol-pink text-xs sm:text-sm drop-shadow-lg text-left shrink-0">
+        {/* External label - same font size as property name in hero overlay */}
+        <span className="text-rol-pink text-sm sm:text-base font-medium drop-shadow-lg text-left shrink-0">
           <span className="hidden sm:inline">What are you dreaming of? </span>
           <span className="sm:hidden">Ask </span>
           <span className="font-bold">Carike</span>
