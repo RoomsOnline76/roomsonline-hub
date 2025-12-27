@@ -30,18 +30,17 @@ export function AISearchInput() {
   if (isAISearchActive) return null;
 
   return (
-    <div className="w-full sm:w-1/2 px-6 md:px-12">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
-        {/* External label - same font size as property name in hero overlay */}
-        <span className="text-white text-sm sm:text-base font-medium drop-shadow-lg text-left shrink-0">
+    <div className="w-full sm:w-1/2 lg:max-w-[45%] xl:max-w-[40%] px-6 md:px-12">
+      <div className="flex flex-col items-start gap-2">
+        {/* External label - wraps and stacks above input to prevent overlap with property name */}
+        <span className="text-white text-sm sm:text-base font-medium drop-shadow-lg text-left">
           <span className="hidden sm:inline">What are you dreaming of? </span>
           <span className="sm:hidden">Ask </span>
           <span className="font-bold">Carike</span>
           <span className="hidden sm:inline"> will help find it</span>
         </span>
-
-        {/* Input field container */}
-        <div className="relative w-full sm:flex-1">
+        {/* Input field container - full width below label */}
+        <div className="relative w-full">
           {/* Frosted glass container */}
           <div className="flex items-center gap-3 px-5 py-4 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-lg transition-all focus-within:bg-white/15 focus-within:border-white/30">
             {/* AI Icon */}
