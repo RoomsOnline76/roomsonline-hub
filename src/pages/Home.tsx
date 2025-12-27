@@ -526,8 +526,8 @@ function HomeContent() {
         {/* AI Explanation Overlay - shows when AI search is active */}
         <AIExplanationOverlay />
 
-        {/* AI Search Input - positioned close to CategoryBanner */}
-        <div className="absolute bottom-16 sm:bottom-20 left-0 right-0 z-20">
+        {/* AI Search Input - positioned at same height as property name */}
+        <div className="absolute bottom-24 sm:bottom-28 left-0 right-0 z-20">
           <AISearchInput />
         </div>
 
