@@ -2563,26 +2563,43 @@ export default function PropertyForm() {
         },
       };
 
-      const { error } = isEditMode
-        ? await supabase.from("properties").update(propertyData).eq("id", propertyId)
-        : await supabase.from("properties").insert([propertyData]);
+      const { data: savedProperty, error } = isEditMode
+        ? await supabase.from("properties").update(propertyData).eq("id", propertyId).select("id, slug").single()
+        : await supabase.from("properties").insert([propertyData]).select("id, slug").single();
 
       if (error) throw error;
 
-      // For new properties, navigate to the slug-based URL
-      if (!isEditMode) {
-        // Fetch the newly created property to get its slug
-        const { data: newProperty } = await supabase
-          .from("properties")
-          .select("slug")
-          .eq("name", formData.name)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
+      const savedPropertyId = savedProperty?.id || propertyId;
 
-        if (newProperty?.slug) {
-          navigate(`/admin/properties/${newProperty.slug}`, { replace: true });
-        }
+      // Trigger geocoding if coordinates are missing and we have address data
+      if ((!latitude || !longitude) && formData.address && formData.city && formData.country) {
+        // Fire and forget - don't block the save
+        supabase.functions.invoke("geocode-property", {
+          body: {
+            property_id: savedPropertyId,
+            address: formData.address,
+            city: formData.city,
+            country: formData.country,
+            suburb: formData.suburb,
+          },
+        }).then(({ data: geocodeResult, error: geocodeError }) => {
+          if (geocodeError) {
+            console.warn("Geocoding failed:", geocodeError);
+          } else if (geocodeResult?.success) {
+            // Update local state with new coordinates
+            setLatitude(geocodeResult.latitude);
+            setLongitude(geocodeResult.longitude);
+            toast({
+              title: "Location Updated",
+              description: `Map pin set to: ${geocodeResult.formatted_address}`,
+            });
+          }
+        });
+      }
+
+      // For new properties, navigate to the slug-based URL
+      if (!isEditMode && savedProperty?.slug) {
+        navigate(`/admin/properties/${savedProperty.slug}`, { replace: true });
       }
 
       toast({
