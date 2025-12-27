@@ -2755,8 +2755,8 @@ export default function PropertyForm() {
               )}
             </div>
             <div className="flex gap-2">
-              {/* Sync Editorial button - only visible when PMS is selected and has property ID */}
-              {isEditMode && selectedPMS && hasPMSPropertyId(selectedPMS) && (
+              {/* Sync Editorial button - only visible when PMS is selected (except NightsBridge) and has property ID */}
+              {isEditMode && selectedPMS && selectedPMS !== "nightsbridge" && hasPMSPropertyId(selectedPMS) && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
