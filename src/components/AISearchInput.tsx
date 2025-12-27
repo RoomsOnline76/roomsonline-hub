@@ -33,7 +33,7 @@ export function AISearchInput() {
     <div className="w-full sm:w-1/2 px-6 md:px-12">
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
         {/* External label - smaller text, left aligned */}
-        <span className="text-white text-xs sm:text-sm drop-shadow-lg text-left shrink-0">
+        <span className="text-rol-pink text-xs sm:text-sm drop-shadow-lg text-left shrink-0">
           <span className="hidden sm:inline">What are you dreaming of? </span>
           <span className="sm:hidden">Ask </span>
           <span className="font-bold">Carike</span>
