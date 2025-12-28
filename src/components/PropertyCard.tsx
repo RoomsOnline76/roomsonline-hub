@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { MapPin } from "lucide-react";
 import { EditorialRatingBadge } from "@/components/EditorialRatingBadge";
+import { WhoItsNotForBadge } from "@/components/WhoItsNotForBadge";
 import { useMemo } from "react";
 
 interface PropertyCardProps {
@@ -21,6 +22,7 @@ interface PropertyCardProps {
     description?: string | null;
   };
   variant?: "default" | "large";
+  showCautionBadge?: boolean;
 }
 
 function getRandomEditorialBlurb(property: PropertyCardProps["property"]): string | null {
@@ -55,7 +57,7 @@ function getPrimaryImage(images: unknown): string {
   return fallback;
 }
 
-export function PropertyCard({ property, variant = "default" }: PropertyCardProps) {
+export function PropertyCard({ property, variant = "default", showCautionBadge = false }: PropertyCardProps) {
   const blurb = useMemo(() => getRandomEditorialBlurb(property), [property.id]);
   const imageUrl = getPrimaryImage(property.images);
   const propertyLink = `/property/${property.slug || property.id}`;
@@ -75,10 +77,17 @@ export function PropertyCard({ property, variant = "default" }: PropertyCardProp
           {/* Gradient overlay for better badge visibility */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
           
-          {/* Editorial Rating Badge */}
+          {/* Editorial Rating Badge - Top Left */}
           {property.editorial_rating && (
             <div className="absolute top-3 left-3">
               <EditorialRatingBadge rating={property.editorial_rating} />
+            </div>
+          )}
+
+          {/* Who It's Not For Badge - Bottom Left (only when filtered) */}
+          {showCautionBadge && property.who_its_not_for && (
+            <div className="absolute bottom-3 left-3">
+              <WhoItsNotForBadge content={property.who_its_not_for} />
             </div>
           )}
         </div>

@@ -12,12 +12,14 @@ interface PropertySegmentSectionProps {
   segmentId: SegmentFilterId;
   title?: string;
   limit?: number;
+  showCautionBadge?: boolean;
 }
 
 export function PropertySegmentSection({ 
   segmentId, 
   title, 
-  limit 
+  limit,
+  showCautionBadge = false
 }: PropertySegmentSectionProps) {
   const segmentConfig = SEGMENT_FILTERS[segmentId];
   const sectionTitle = title || segmentConfig?.label || "Properties";
@@ -83,7 +85,7 @@ export function PropertySegmentSection({
         {!isLoading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {displayProperties.map((property) => (
-              <PropertyCard key={property.id} property={property} />
+              <PropertyCard key={property.id} property={property} showCautionBadge={showCautionBadge} />
             ))}
           </div>
         )}

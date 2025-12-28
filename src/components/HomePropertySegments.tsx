@@ -45,9 +45,10 @@ export interface SegmentSectionProps {
   segmentId?: SegmentFilterId;
   properties: PropertyData[];
   isLoading: boolean;
+  isFiltered?: boolean;
 }
 
-export function SegmentSection({ id, title, tag, segmentId, properties, isLoading }: SegmentSectionProps) {
+export function SegmentSection({ id, title, tag, segmentId, properties, isLoading, isFiltered = false }: SegmentSectionProps) {
   // Filter by segmentId if provided, otherwise by tag
   const filteredProperties = useMemo(() => {
     if (segmentId) {
@@ -99,7 +100,7 @@ export function SegmentSection({ id, title, tag, segmentId, properties, isLoadin
         {/* 1 property - centered, enlarged */}
         {!isLoading && filteredProperties.length === 1 && (
           <div className="max-w-2xl mx-auto">
-            <PropertyCard property={filteredProperties[0]} variant="large" />
+            <PropertyCard property={filteredProperties[0]} variant="large" showCautionBadge={isFiltered} />
           </div>
         )}
 
@@ -107,7 +108,7 @@ export function SegmentSection({ id, title, tag, segmentId, properties, isLoadin
         {!isLoading && filteredProperties.length === 2 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {filteredProperties.map((property) => (
-              <PropertyCard key={property.id} property={property} variant="large" />
+              <PropertyCard key={property.id} property={property} variant="large" showCautionBadge={isFiltered} />
             ))}
           </div>
         )}
@@ -116,7 +117,7 @@ export function SegmentSection({ id, title, tag, segmentId, properties, isLoadin
         {!isLoading && filteredProperties.length >= 3 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {filteredProperties.map((property) => (
-              <PropertyCard key={property.id} property={property} />
+              <PropertyCard key={property.id} property={property} showCautionBadge={isFiltered} />
             ))}
           </div>
         )}
@@ -125,7 +126,7 @@ export function SegmentSection({ id, title, tag, segmentId, properties, isLoadin
   );
 }
 
-export function useHomePropertySegments(filteredPropertyIds: string[] | null = null) {
+export function useHomePropertySegments(filteredPropertyIds: string[] | null = null, isFiltered: boolean = false) {
   // Fetch tag categories from database
   const { data: tagCategories } = useQuery({
     queryKey: ["navigation-tag-categories"],
@@ -214,9 +215,10 @@ export function useHomePropertySegments(filteredPropertyIds: string[] | null = n
           segmentId={segment.filterType as SegmentFilterId}
           properties={properties || []}
           isLoading={isLoading}
+          isFiltered={isFiltered}
         />
       ));
-  }, [properties, isLoading]);
+  }, [properties, isLoading, isFiltered]);
 
   return { 
     discoverNewSection: (
@@ -226,6 +228,7 @@ export function useHomePropertySegments(filteredPropertyIds: string[] | null = n
         segmentId="discover_new"
         properties={properties || []}
         isLoading={isLoading}
+        isFiltered={isFiltered}
       />
     ),
     destinationSection: randomDestination ? (
@@ -234,6 +237,7 @@ export function useHomePropertySegments(filteredPropertyIds: string[] | null = n
         tag={randomDestination}
         properties={properties || []}
         isLoading={isLoading}
+        isFiltered={isFiltered}
       />
     ) : null,
     typesSections: randomTypes.map((tag) => (
@@ -243,6 +247,7 @@ export function useHomePropertySegments(filteredPropertyIds: string[] | null = n
         tag={tag}
         properties={properties || []}
         isLoading={isLoading}
+        isFiltered={isFiltered}
       />
     )),
     // All segment sections for banner navigation
