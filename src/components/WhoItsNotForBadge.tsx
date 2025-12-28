@@ -5,7 +5,20 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+
+const TOOLTIP_TITLES = [
+  "Who this might not suit",
+  "Not ideal for",
+  "Consider if you're",
+  "May not be for you if",
+  "Think twice if",
+  "Might not match",
+  "Worth knowing",
+  "Heads up for",
+  "A gentle note",
+  "Before you book",
+];
 
 interface WhoItsNotForBadgeProps {
   content: string;
@@ -14,6 +27,12 @@ interface WhoItsNotForBadgeProps {
 
 export function WhoItsNotForBadge({ content, className = "" }: WhoItsNotForBadgeProps) {
   const [isOpen, setIsOpen] = useState(false);
+
+  // Consistent random title based on content hash
+  const title = useMemo(() => {
+    const hash = content.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return TOOLTIP_TITLES[hash % TOOLTIP_TITLES.length];
+  }, [content]);
 
   if (!content || !content.trim()) {
     return null;
@@ -43,7 +62,7 @@ export function WhoItsNotForBadge({ content, className = "" }: WhoItsNotForBadge
           className="max-w-xs bg-background border-border text-foreground"
           onClick={(e) => e.stopPropagation()}
         >
-          <p className="font-medium text-sm mb-1 text-muted-foreground">Who this might not suit</p>
+          <p className="font-medium text-sm mb-1 text-muted-foreground">{title}</p>
           <p className="text-xs leading-relaxed">{content}</p>
         </TooltipContent>
       </Tooltip>
