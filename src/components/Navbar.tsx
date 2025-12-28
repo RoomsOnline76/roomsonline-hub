@@ -15,7 +15,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Building2, Key, LogOut, User, ChevronDown, Shield, Calendar, Megaphone, BookOpen, PieChart, UserPlus, Activity, Newspaper } from "lucide-react";
+import { Building2, Key, LogOut, User, ChevronDown, Shield, Calendar, Megaphone, BookOpen, PieChart, UserPlus, Activity, Newspaper, Sparkles } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -272,6 +272,12 @@ export const Navbar = () => {
                       <PieChart className="mr-2 h-4 w-4" />
                       Reports
                     </DropdownMenuItem>
+                    {(isAdmin || isDev) && (
+                      <DropdownMenuItem onClick={() => navigate('/dashboard/insights')}>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Insights
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </>
