@@ -10,7 +10,7 @@ import { useState, useMemo } from "react";
 const TOOLTIP_TITLES = [
   "Who this might not suit",
   "Not ideal for",
-  "Consider if you're",
+  "Reconsider if you're",
   "May not be for you if",
   "Think twice if",
   "Might not match",
