@@ -663,20 +663,20 @@ function HomeContent() {
               <div className="flex justify-center">
                 <div className="w-full max-w-md">
                   {properties.filter(p => aiResults.includes(p.id)).map(property => (
-                    <PropertyCard key={property.id} property={property} variant="large" />
+                    <PropertyCard key={property.id} property={property} variant="large" showCautionBadge={true} />
                   ))}
                 </div>
               </div>
             ) : aiResults.length === 2 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 max-w-4xl mx-auto">
                 {properties.filter(p => aiResults.includes(p.id)).map(property => (
-                  <PropertyCard key={property.id} property={property} variant="large" />
+                  <PropertyCard key={property.id} property={property} variant="large" showCautionBadge={true} />
                 ))}
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {properties.filter(p => aiResults.includes(p.id)).map(property => (
-                  <PropertyCard key={property.id} property={property} />
+                  <PropertyCard key={property.id} property={property} showCautionBadge={true} />
                 ))}
               </div>
             )}
@@ -694,6 +694,7 @@ function HomeContent() {
               segmentId={selectedSegment.filterType as SegmentFilterId}
               properties={properties}
               isLoading={propertiesLoading}
+              isFiltered={isFiltered}
             />
           ) : (
             <>
