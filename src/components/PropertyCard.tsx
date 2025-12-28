@@ -107,7 +107,7 @@ export function PropertyCard({ property, variant = "default", showCautionBadge =
                 "{blurb}"
               </p>
             )}
-            {showCautionBadge && property.who_its_not_for && (
+            {showCautionBadge && property.who_its_not_for?.trim() && (
               <WhoItsNotForBadge content={property.who_its_not_for} className="shrink-0" />
             )}
           </div>
