@@ -14,6 +14,7 @@ import CalendarConference from "./pages/CalendarConference";
 import Promotion from "./pages/Promotion";
 import Bookings from "./pages/Bookings";
 import Dashboard from "./pages/Dashboard";
+import Insights from "./pages/Insights";
 import AdminKeys from "./pages/AdminKeys";
 import AdminUsers from "./pages/AdminUsers";
 import AdminAccessRequests from "./pages/AdminAccessRequests";
@@ -196,6 +197,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/insights"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <Insights />
               </ProtectedRoute>
             }
           />
