@@ -143,7 +143,7 @@ function HomeContent() {
   }, [selectedProperty, searchResults, isAISearchActive, aiResults]);
 
   // Determine if filters are active (for showing caution badges)
-  const isFiltered = filteredPropertyIds !== null || selectedMapFilters.length > 0;
+  const isFiltered = filteredPropertyIds !== null || selectedMapFilters.length > 0 || selectedSegment !== null;
 
   // Get property segments with search filtering
   const {
