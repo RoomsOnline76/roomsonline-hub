@@ -142,6 +142,9 @@ function HomeContent() {
     return null; // null means no filter
   }, [selectedProperty, searchResults, isAISearchActive, aiResults]);
 
+  // Determine if filters are active (for showing caution badges)
+  const isFiltered = filteredPropertyIds !== null || selectedMapFilters.length > 0;
+
   // Get property segments with search filtering
   const {
     discoverNewSection,
@@ -150,7 +153,7 @@ function HomeContent() {
     allSegmentSections,
     properties,
     isLoading: propertiesLoading,
-  } = useHomePropertySegments(filteredPropertyIds);
+  } = useHomePropertySegments(filteredPropertyIds, isFiltered);
 
   // Get filters grouped by category
   const filtersByCategory = useMemo(() => getMapFiltersByCategory(), []);
