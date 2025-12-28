@@ -188,6 +188,29 @@ Find the best matching properties (1-5) and explain why the top match is perfect
 
     console.log(`Matched ${validatedIds.length} properties`);
 
+    // Log the search query anonymously (no user identification)
+    try {
+      await fetch(
+        `${supabaseUrl}/rest/v1/ai_search_logs`,
+        {
+          method: 'POST',
+          headers: {
+            'apikey': supabaseServiceKey,
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify({
+            query: query,
+            matched_count: validatedIds.length,
+          }),
+        }
+      );
+    } catch (logError) {
+      // Don't fail the request if logging fails
+      console.error('Failed to log search query:', logError);
+    }
+
     return new Response(
       JSON.stringify({
         matched_property_ids: validatedIds,
