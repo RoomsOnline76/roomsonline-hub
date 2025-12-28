@@ -84,12 +84,6 @@ export function PropertyCard({ property, variant = "default", showCautionBadge =
             </div>
           )}
 
-          {/* Who It's Not For Badge - Bottom Left (only when filtered) */}
-          {showCautionBadge && property.who_its_not_for && (
-            <div className="absolute bottom-3 left-3">
-              <WhoItsNotForBadge content={property.who_its_not_for} />
-            </div>
-          )}
         </div>
 
         <CardContent className={isLarge ? "p-5" : "p-4"}>
@@ -106,12 +100,17 @@ export function PropertyCard({ property, variant = "default", showCautionBadge =
             </span>
           </div>
 
-          {/* Random Editorial Blurb */}
-          {blurb && (
-            <p className={`text-muted-foreground italic leading-relaxed ${isLarge ? "text-base" : "text-sm"}`}>
-              "{blurb}"
-            </p>
-          )}
+          {/* Random Editorial Blurb + Caution Badge */}
+          <div className="flex items-end gap-2">
+            {blurb && (
+              <p className={`text-muted-foreground italic leading-relaxed flex-1 ${isLarge ? "text-base" : "text-sm"}`}>
+                "{blurb}"
+              </p>
+            )}
+            {showCautionBadge && property.who_its_not_for && (
+              <WhoItsNotForBadge content={property.who_its_not_for} className="shrink-0" />
+            )}
+          </div>
         </CardContent>
       </Card>
     </Link>
