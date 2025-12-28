@@ -50,6 +50,27 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_search_logs: {
+        Row: {
+          created_at: string
+          id: string
+          matched_count: number | null
+          query: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          matched_count?: number | null
+          query: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          matched_count?: number | null
+          query?: string
+        }
+        Relationships: []
+      }
       api_keys: {
         Row: {
           created_at: string | null
