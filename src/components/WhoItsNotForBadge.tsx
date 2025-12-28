@@ -32,18 +32,18 @@ export function WhoItsNotForBadge({ content, className = "" }: WhoItsNotForBadge
         <TooltipTrigger asChild>
           <button
             onClick={handleClick}
-            className={`w-8 h-8 rounded-full bg-amber-100/90 backdrop-blur-sm flex items-center justify-center shadow-md hover:bg-amber-200/90 transition-colors ${className}`}
+            className={`w-7 h-7 rounded-full bg-muted/80 backdrop-blur-sm flex items-center justify-center shadow-sm hover:bg-muted transition-colors ${className}`}
             aria-label="Who this might not suit"
           >
-            <CircleHelp className="w-5 h-5 text-amber-700" />
+            <CircleHelp className="w-4 h-4 text-muted-foreground" />
           </button>
         </TooltipTrigger>
         <TooltipContent 
           side="top" 
-          className="max-w-xs bg-amber-50 border-amber-200 text-amber-900"
+          className="max-w-xs bg-background border-border text-foreground"
           onClick={(e) => e.stopPropagation()}
         >
-          <p className="font-medium text-sm mb-1">Who this might not suit</p>
+          <p className="font-medium text-sm mb-1 text-muted-foreground">Who this might not suit</p>
           <p className="text-xs leading-relaxed">{content}</p>
         </TooltipContent>
       </Tooltip>
