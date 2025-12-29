@@ -15,12 +15,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Building2, Key, LogOut, User, ChevronDown, Shield, Calendar, Megaphone, BookOpen, PieChart, UserPlus, Activity, Newspaper, Sparkles } from "lucide-react";
+import { Key, LogOut, User, ChevronDown, Shield, Calendar, Megaphone, BookOpen, PieChart, UserPlus, Activity, Newspaper, Sparkles, Home } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { pmsIntegrationStatus, getCompletedMilestoneCount, getTotalMilestoneCount } from "@/components/ApiMilestones";
 import { ProfileModal } from "@/components/ProfileModal";
+import rolLogo from "@/assets/rol-logo.png";
 
 interface HealthIssue {
   system: string;
@@ -204,9 +205,7 @@ export const Navbar = () => {
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           <Link to="/dashboard/reports" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="h-10 w-10 rounded-lg bg-[var(--hero-gradient)] flex items-center justify-center">
-              <Building2 className="h-6 w-6 text-primary-foreground" />
-            </div>
+            <img src={rolLogo} alt="RoomsOnline" className="h-10 w-auto" />
             <div>
               <h1 className="text-xl font-bold text-foreground">RoomsOnline</h1>
               <p className="text-xs text-muted-foreground">Unified Booking Engine</p>
@@ -242,7 +241,7 @@ export const Navbar = () => {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-56 bg-background">
                     <DropdownMenuItem onClick={() => navigate('/admin/property-overview')}>
-                      <Building2 className="mr-2 h-4 w-4" />
+                      <Home className="mr-2 h-4 w-4" />
                       Property overview
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate('/admin/calendar/accommodation')}>
