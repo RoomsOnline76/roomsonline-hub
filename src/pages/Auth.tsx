@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Send, ShieldCheck, CheckCircle2, ArrowLeft, Loader2 } from "lucide-react";
+import { Send, ShieldCheck, CheckCircle2, ArrowLeft, Loader2, KeyRound } from "lucide-react";
 import rolLogo from "@/assets/rol-logo.png";
 
 export default function Auth() {
@@ -27,6 +27,11 @@ export default function Auth() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotEmailSent, setForgotEmailSent] = useState(false);
   
+  // Password reset state
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  
   // Honeypot field (should remain empty)
   const [honeypot, setHoneypot] = useState("");
   
@@ -39,16 +44,19 @@ export default function Auth() {
   }, []);
 
   useEffect(() => {
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate("/");
-      }
-    });
-
-    // Listen for auth state changes (handles magic link login)
+    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
+      console.log('Auth event:', event);
+      
+      if (event === 'PASSWORD_RECOVERY') {
+        // User clicked the password reset link - show password reset form
+        setIsRecoveryMode(true);
+        toast({
+          title: "Set your new password",
+          description: "Please enter a new password below",
+        });
+      } else if (event === 'SIGNED_IN' && session && !isRecoveryMode) {
+        // Normal sign in (not during password recovery)
         toast({
           title: "Welcome back!",
           description: "Successfully logged in",
@@ -57,8 +65,15 @@ export default function Auth() {
       }
     });
 
+    // Check for existing session (but not if we're in recovery mode)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session && !isRecoveryMode) {
+        navigate("/");
+      }
+    });
+
     return () => subscription.unsubscribe();
-  }, [navigate, toast]);
+  }, [navigate, toast, isRecoveryMode]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,12 +115,62 @@ export default function Auth() {
       setForgotEmailSent(true);
       toast({
         title: "Email sent",
-        description: "Check your inbox for a login link",
+        description: "Check your inbox for a password reset link",
       });
     } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Unable to send reset email",
+        variant: "destructive",
+      });
+    }
+
+    setLoading(false);
+  };
+
+  const handleSetNewPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Passwords don't match",
+        description: "Please make sure both passwords are the same",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (newPassword.length < 6) {
+      toast({
+        title: "Password too short",
+        description: "Password must be at least 6 characters",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Password updated",
+        description: "Your password has been reset successfully",
+      });
+      
+      setIsRecoveryMode(false);
+      setNewPassword("");
+      setConfirmPassword("");
+      navigate("/");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Unable to update password",
         variant: "destructive",
       });
     }
@@ -174,6 +239,75 @@ export default function Auth() {
     setForgotEmailSent(false);
   };
 
+  // Password Recovery Mode - User clicked reset link from email
+  if (isRecoveryMode) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center gap-3 mb-4">
+              <img src={rolLogo} alt="RoomsOnline" className="h-12 w-auto" />
+              <h1 className="text-3xl font-bold text-foreground">RoomsOnline</h1>
+            </div>
+            <p className="text-muted-foreground">Unified Booking Engine</p>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <KeyRound className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>Set New Password</CardTitle>
+                  <CardDescription>Enter your new password below</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSetNewPassword} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">New Password</Label>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    placeholder="Enter new password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm Password</Label>
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    placeholder="Confirm new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    "Set Password & Login"
+                  )}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   // Forgot Password View
   if (showForgotPassword) {
     return (
@@ -192,8 +326,8 @@ export default function Auth() {
               <CardTitle>Reset Password</CardTitle>
               <CardDescription>
                 {forgotEmailSent 
-                  ? "Check your email for a login link"
-                  : "Enter your email to receive a login link"
+                  ? "Check your email for a password reset link"
+                  : "Enter your email to receive a password reset link"
                 }
               </CardDescription>
             </CardHeader>
@@ -205,7 +339,7 @@ export default function Auth() {
                       <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
                     </div>
                     <p className="text-center text-muted-foreground">
-                      If an account exists for <strong>{forgotEmail}</strong>, you'll receive an email with a link to log in directly.
+                      If an account exists for <strong>{forgotEmail}</strong>, you'll receive an email with a password reset link.
                     </p>
                   </div>
                   <Button 
@@ -237,7 +371,7 @@ export default function Auth() {
                         Sending...
                       </>
                     ) : (
-                      "Send Login Link"
+                      "Send Reset Link"
                     )}
                   </Button>
                   <Button 
