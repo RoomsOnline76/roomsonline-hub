@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FormattedPrice } from "@/components/FormattedPrice";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 import TripAdvisorReviews from "@/components/TripAdvisorReviews";
 import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
@@ -177,6 +178,7 @@ export default function PropertyShowcase() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { currency } = useCurrency();
   const [property, setProperty] = useState<Property | null>(null);
   const [availability, setAvailability] = useState<Map<string, AvailabilityData>>(new Map());
   const [nightsBridgeAgentCode, setNightsBridgeAgentCode] = useState<string | null>(null);
@@ -524,7 +526,8 @@ export default function PropertyShowcase() {
   });
   
   if (property.external_system === "nightsbridge" && bbid && nightsBridgeAgentCode) {
-    const iframeUrl = `https://nightsbridge.co.za/bridge/book?bbid=${bbid}&source=${nightsBridgeAgentCode}`;
+    const currencyParam = currency !== 'ZAR' ? `&currency=${currency}` : '';
+    const iframeUrl = `https://nightsbridge.co.za/bridge/book?bbid=${bbid}&source=${nightsBridgeAgentCode}${currencyParam}`;
     
     return (
       <div className="min-h-screen bg-background flex flex-col">
