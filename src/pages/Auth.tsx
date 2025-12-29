@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Send, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { Send, ShieldCheck, CheckCircle2, ArrowLeft, Loader2 } from "lucide-react";
+import rolLogo from "@/assets/rol-logo.png";
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -22,6 +23,9 @@ export default function Auth() {
   const [contactMessage, setContactMessage] = useState("");
   const [activeTab, setActiveTab] = useState("login");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotEmailSent, setForgotEmailSent] = useState(false);
   
   // Honeypot field (should remain empty)
   const [honeypot, setHoneypot] = useState("");
@@ -35,12 +39,26 @@ export default function Auth() {
   }, []);
 
   useEffect(() => {
+    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         navigate("/");
       }
     });
-  }, [navigate]);
+
+    // Listen for auth state changes (handles magic link login)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        toast({
+          title: "Welcome back!",
+          description: "Successfully logged in",
+        });
+        navigate("/");
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate, toast]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +81,33 @@ export default function Auth() {
         description: "Successfully logged in",
       });
       navigate("/");
+    }
+
+    setLoading(false);
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.functions.invoke("forgot-password", {
+        body: { email: forgotEmail.trim() },
+      });
+
+      if (error) throw error;
+
+      setForgotEmailSent(true);
+      toast({
+        title: "Email sent",
+        description: "Check your inbox for a login link",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Unable to send reset email",
+        variant: "destructive",
+      });
     }
 
     setLoading(false);
@@ -123,14 +168,102 @@ export default function Auth() {
     setActiveTab("login");
   };
 
+  const handleBackToLogin = () => {
+    setShowForgotPassword(false);
+    setForgotEmail("");
+    setForgotEmailSent(false);
+  };
+
+  // Forgot Password View
+  if (showForgotPassword) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center gap-3 mb-4">
+              <img src={rolLogo} alt="RoomsOnline" className="h-12 w-auto" />
+              <h1 className="text-3xl font-bold text-foreground">RoomsOnline</h1>
+            </div>
+            <p className="text-muted-foreground">Unified Booking Engine</p>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Reset Password</CardTitle>
+              <CardDescription>
+                {forgotEmailSent 
+                  ? "Check your email for a login link"
+                  : "Enter your email to receive a login link"
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {forgotEmailSent ? (
+                <div className="space-y-4">
+                  <div className="flex flex-col items-center py-6">
+                    <div className="h-16 w-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
+                      <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
+                    </div>
+                    <p className="text-center text-muted-foreground">
+                      If an account exists for <strong>{forgotEmail}</strong>, you'll receive an email with a link to log in directly.
+                    </p>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    onClick={handleBackToLogin}
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back to Login
+                  </Button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="forgot-email">Email</Label>
+                    <Input
+                      id="forgot-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      "Send Login Link"
+                    )}
+                  </Button>
+                  <Button 
+                    type="button"
+                    variant="ghost" 
+                    className="w-full" 
+                    onClick={handleBackToLogin}
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back to Login
+                  </Button>
+                </form>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <div className="h-12 w-12 rounded-lg bg-[var(--hero-gradient)] flex items-center justify-center">
-              <Building2 className="h-7 w-7 text-primary-foreground" />
-            </div>
+          <div className="inline-flex items-center gap-3 mb-4">
+            <img src={rolLogo} alt="RoomsOnline" className="h-12 w-auto" />
             <h1 className="text-3xl font-bold text-foreground">RoomsOnline</h1>
           </div>
           <p className="text-muted-foreground">Unified Booking Engine</p>
@@ -174,6 +307,15 @@ export default function Auth() {
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "Logging in..." : "Log In"}
                   </Button>
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(true)}
+                      className="text-sm text-muted-foreground hover:text-primary underline-offset-4 hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
                 </form>
               </TabsContent>
               
