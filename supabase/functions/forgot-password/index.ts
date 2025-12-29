@@ -62,21 +62,21 @@ serve(async (req) => {
 
     const userName = profile?.full_name || 'User';
 
-    // Generate magic link for immediate login (not password reset)
-    const redirectUrl = 'https://sleepinafrica.roomsonline.co.za/';
+    // Generate password recovery link
+    const redirectUrl = 'https://sleepinafrica.roomsonline.co.za/auth';
     
-    const { data: magicLinkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
+    const { data: recoveryData, error: recoveryError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
       email: email,
       options: {
         redirectTo: redirectUrl,
       }
     });
 
-    if (magicLinkError) {
-      console.error('Generate magic link error:', magicLinkError);
+    if (recoveryError) {
+      console.error('Generate recovery link error:', recoveryError);
       return new Response(
-        JSON.stringify({ error: 'Unable to generate login link' }),
+        JSON.stringify({ error: 'Unable to generate password reset link' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -91,7 +91,7 @@ serve(async (req) => {
     const fromEmail = fromEmailConfig || "RoomsOnline <noreply@notify.roomsonline.co.za>";
 
     // The action link from Supabase
-    const magicLink = magicLinkData.properties.action_link;
+    const resetLink = recoveryData.properties.action_link;
 
     console.log('Sending password reset email to:', email);
 
@@ -108,18 +108,15 @@ serve(async (req) => {
           
           <h2 style="color: #333; text-align: center;">Password Reset Request</h2>
           <p>Hi ${userName},</p>
-          <p>We received a request to reset your password for your RoomsOnline account. Click the button below to log in directly:</p>
+          <p>We received a request to reset your password for your RoomsOnline account. Click the button below to set a new password:</p>
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${magicLink}" 
+            <a href="${resetLink}" 
                style="display: inline-block; background: #e91e63; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-              Log In Now
+              Reset Password
             </a>
           </div>
           
-          <p style="color: #666; font-size: 14px;">
-            Once logged in, you can change your password in your profile settings if needed.
-          </p>
           
           <p style="color: #666; font-size: 14px;">
             If you didn't request this, you can safely ignore this email.
