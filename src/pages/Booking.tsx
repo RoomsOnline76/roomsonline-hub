@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Users, ArrowLeft, Minus, Plus, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Calendar, Users, ArrowLeft, Minus, Plus, Loader2, CheckCircle, AlertCircle, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { getPropertyUrl } from "@/lib/config";
 import { cn } from "@/lib/utils";
@@ -495,6 +496,17 @@ const Booking = () => {
   const isFormValid = guestName.trim().length >= 2 && 
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail) && 
     guestPhone.trim().length >= 10;
+
+  // Get list of missing required fields for tooltip
+  const getMissingFields = (): string[] => {
+    const missing: string[] = [];
+    if (guestName.trim().length < 2) missing.push("Full name (min 2 characters)");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)) missing.push("Valid email address");
+    if (guestPhone.trim().length < 10) missing.push("Phone number (min 10 digits)");
+    return missing;
+  };
+
+  const missingFields = getMissingFields();
 
   // Add room - navigate back to property page to select another room
   const addRoom = () => {
@@ -1165,26 +1177,41 @@ const Booking = () => {
                     {nights} night{nights !== 1 ? 's' : ''} • {totalGuests} guest{totalGuests !== 1 ? 's' : ''}
                   </p>
                 </div>
-                <Button 
-                  className="h-12 px-6 text-base flex-shrink-0" 
-                  onClick={() => createBookingMutation.mutate()}
-                  disabled={createBookingMutation.isPending || !isFormValid}
-                >
-                  {createBookingMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Processing
-                    </>
-                  ) : (
-                    'Confirm'
-                  )}
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="flex-shrink-0">
+                        <Button 
+                          className="h-12 px-6 text-base" 
+                          onClick={() => createBookingMutation.mutate()}
+                          disabled={createBookingMutation.isPending || !isFormValid}
+                        >
+                          {createBookingMutation.isPending ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Processing
+                            </>
+                          ) : (
+                            'Confirm'
+                          )}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {!isFormValid && missingFields.length > 0 && (
+                      <TooltipContent side="top" className="max-w-xs">
+                        <div className="space-y-1">
+                          <p className="font-medium text-xs">Missing required fields:</p>
+                          <ul className="text-xs list-disc pl-3 space-y-0.5">
+                            {missingFields.map((field, i) => (
+                              <li key={i}>{field}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
               </div>
-              {!isFormValid && (
-                <p className="text-xs text-muted-foreground mt-2 text-center">
-                  Please fill in all required fields above
-                </p>
-              )}
             </div>
             {/* Spacer for mobile sticky footer */}
             <div className="lg:hidden h-24" />
@@ -1318,26 +1345,41 @@ const Booking = () => {
 
                 {/* Submit Button (Desktop) */}
                 <div className="hidden lg:block pt-2">
-                  <Button 
-                    className="w-full" 
-                    size="lg"
-                    onClick={() => createBookingMutation.mutate()}
-                    disabled={createBookingMutation.isPending || !isFormValid}
-                  >
-                    {createBookingMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      'Confirm Booking'
-                    )}
-                  </Button>
-                  {!isFormValid && (
-                    <p className="text-xs text-muted-foreground mt-2 text-center">
-                      Please fill in all required fields
-                    </p>
-                  )}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="block">
+                          <Button 
+                            className="w-full" 
+                            size="lg"
+                            onClick={() => createBookingMutation.mutate()}
+                            disabled={createBookingMutation.isPending || !isFormValid}
+                          >
+                            {createBookingMutation.isPending ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Processing...
+                              </>
+                            ) : (
+                              'Confirm Booking'
+                            )}
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {!isFormValid && missingFields.length > 0 && (
+                        <TooltipContent side="top" className="max-w-xs">
+                          <div className="space-y-1">
+                            <p className="font-medium text-xs">Missing required fields:</p>
+                            <ul className="text-xs list-disc pl-3 space-y-0.5">
+                              {missingFields.map((field, i) => (
+                                <li key={i}>{field}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
 
                 {createBookingMutation.isError && (
