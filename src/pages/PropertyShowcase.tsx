@@ -115,6 +115,7 @@ const NightsBridgeBookingContent = ({
         {/* Full-height iframe for mobile */}
         <div className="flex-1 relative" style={{ minHeight: 'calc(100vh - 120px)' }}>
           <iframe
+            key={iframeUrl}
             src={iframeUrl}
             title={`Book ${propertyName} on NightsBridge`}
             className="absolute inset-0 w-full h-full border-0"
@@ -150,6 +151,7 @@ const NightsBridgeBookingContent = ({
       {/* NightsBridge iframe - takes most space */}
       <div className="flex-1 relative min-h-[calc(100vh-100px)]">
         <iframe
+          key={iframeUrl}
           src={iframeUrl}
           title={`Book ${propertyName} on NightsBridge`}
           className="absolute inset-0 w-full h-full border-0"
