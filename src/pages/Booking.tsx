@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { FormattedPrice } from "@/components/FormattedPrice";
 
 // Booking form validation schema
 const bookingSchema = z.object({
@@ -1171,7 +1172,7 @@ const Booking = () => {
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">
-                    {totalCost > 0 ? `R ${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'Price on request'}
+                    {totalCost > 0 ? <FormattedPrice amount={totalCost} /> : 'Price on request'}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {nights} night{nights !== 1 ? 's' : ''} • {totalGuests} guest{totalGuests !== 1 ? 's' : ''}
@@ -1300,9 +1301,9 @@ const Booking = () => {
                           <div key={idx} className="flex justify-between text-sm">
                             <div className="text-muted-foreground">
                               <p>{item.description}</p>
-                              <p className="text-xs">{item.nights} nights × R{item.unitPrice.toFixed(2)}</p>
+                              <p className="text-xs">{item.nights} nights × <FormattedPrice amount={item.unitPrice} /></p>
                             </div>
-                            <span className="font-medium">R{item.total.toFixed(2)}</span>
+                            <span className="font-medium"><FormattedPrice amount={item.total} /></span>
                           </div>
                         ))}
                       </div>
@@ -1312,7 +1313,7 @@ const Booking = () => {
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Other Charges</p>
                         <div className="flex justify-between text-sm text-muted-foreground">
                           <span>Service fee</span>
-                          <span>R0.00</span>
+                          <span><FormattedPrice amount={0} /></span>
                         </div>
                         <div className="flex justify-between text-sm text-muted-foreground">
                           <span>Tourism levy</span>
@@ -1323,7 +1324,7 @@ const Booking = () => {
                       {/* Total */}
                       <div className="border-t pt-3 flex justify-between items-center">
                         <span className="font-semibold">Total</span>
-                        <span className="text-xl font-bold">R {totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span className="text-xl font-bold"><FormattedPrice amount={totalCost} /></span>
                       </div>
                     </>
                   ) : (
@@ -1331,7 +1332,7 @@ const Booking = () => {
                       <span className="text-muted-foreground">Total</span>
                       <span className="text-xl font-bold">
                         {preSelectedTotalCost !== null 
-                          ? `R ${preSelectedTotalCost.toLocaleString()}` 
+                          ? <FormattedPrice amount={preSelectedTotalCost} />
                           : 'On request'}
                       </span>
                     </div>

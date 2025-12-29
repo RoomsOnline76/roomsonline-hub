@@ -805,7 +805,7 @@ export default function PropertyShowcase() {
                         <div className="text-right">
                           <span className="text-xs text-muted-foreground uppercase">From</span>
                           <div className="text-2xl md:text-3xl font-bold text-primary">
-                            R{lowestOverallRate.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <FormattedPrice amount={lowestOverallRate} />
                           </div>
                           <span className="text-xs text-muted-foreground">per night</span>
                         </div>
