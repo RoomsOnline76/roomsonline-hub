@@ -32,7 +32,8 @@ import {
   Clock,
   Calendar,
   ArrowRight,
-  ExternalLink
+  ExternalLink,
+  Info
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -100,20 +101,35 @@ const slugifyRoomName = (name: string) => {
 const NightsBridgeBookingContent = ({ 
   iframeUrl, 
   propertyName,
-  tripadvisorId 
+  tripadvisorId,
+  currency 
 }: { 
   iframeUrl: string; 
   propertyName: string;
   tripadvisorId?: string;
+  currency: string;
 }) => {
   const isMobile = useIsMobile();
+  
+  // Currency indicator component
+  const CurrencyIndicator = () => (
+    <div className="bg-muted/50 border-b border-border px-4 py-1.5 flex items-center justify-center gap-2">
+      <Info className="h-3 w-3 text-muted-foreground" />
+      <span className="text-xs text-muted-foreground">
+        Requesting prices in <span className="font-medium text-foreground">{currency}</span> — display depends on property configuration
+      </span>
+    </div>
+  );
   
   if (isMobile) {
     // Mobile: Full-screen iframe with collapsible TripAdvisor at bottom
     return (
       <div className="flex-1 flex flex-col w-full">
+        {/* Currency indicator */}
+        <CurrencyIndicator />
+        
         {/* Full-height iframe for mobile */}
-        <div className="flex-1 relative" style={{ minHeight: 'calc(100vh - 120px)' }}>
+        <div className="flex-1 relative" style={{ minHeight: 'calc(100vh - 150px)' }}>
           <iframe
             key={iframeUrl}
             src={iframeUrl}
@@ -147,24 +163,29 @@ const NightsBridgeBookingContent = ({
   
   // Desktop: Side-by-side layout
   return (
-    <div className="flex-1 flex flex-row max-w-7xl mx-auto w-full">
-      {/* NightsBridge iframe - takes most space */}
-      <div className="flex-1 relative min-h-[calc(100vh-100px)]">
-        <iframe
-          key={iframeUrl}
-          src={iframeUrl}
-          title={`Book ${propertyName} on NightsBridge`}
-          className="absolute inset-0 w-full h-full border-0"
-          allow="payment"
-        />
-      </div>
+    <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full">
+      {/* Currency indicator */}
+      <CurrencyIndicator />
       
-      {/* TripAdvisor Reviews sidebar */}
-      {tripadvisorId && (
-        <div className="w-80 xl:w-96 border-l border-border bg-muted/30 p-4 overflow-y-auto">
-          <TripAdvisorReviews tripadvisorId={tripadvisorId} />
+      <div className="flex-1 flex flex-row">
+        {/* NightsBridge iframe - takes most space */}
+        <div className="flex-1 relative min-h-[calc(100vh-130px)]">
+          <iframe
+            key={iframeUrl}
+            src={iframeUrl}
+            title={`Book ${propertyName} on NightsBridge`}
+            className="absolute inset-0 w-full h-full border-0"
+            allow="payment"
+          />
         </div>
-      )}
+        
+        {/* TripAdvisor Reviews sidebar */}
+        {tripadvisorId && (
+          <div className="w-80 xl:w-96 border-l border-border bg-muted/30 p-4 overflow-y-auto">
+            <TripAdvisorReviews tripadvisorId={tripadvisorId} />
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -575,6 +596,7 @@ export default function PropertyShowcase() {
           iframeUrl={iframeUrl} 
           propertyName={property.name}
           tripadvisorId={property.amenities?.tripadvisor_id}
+          currency={currency}
         />
       </div>
     );
