@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { FormattedPrice } from "@/components/FormattedPrice";
 import { 
   Bed, 
   Bath, 
@@ -681,7 +682,7 @@ export default function RoomShowcase() {
                 {lowestRate && (
                   <div className="text-center mb-4">
                     <span className="text-sm text-muted-foreground">From </span>
-                    <span className="text-3xl font-bold text-primary">R {lowestRate.toLocaleString()}</span>
+                    <FormattedPrice amount={lowestRate} className="text-3xl font-bold text-primary" />
                     <span className="text-sm text-muted-foreground"> / night</span>
                   </div>
                 )}

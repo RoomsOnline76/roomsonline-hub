@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { FormattedPrice } from "@/components/FormattedPrice";
 import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 import TripAdvisorReviews from "@/components/TripAdvisorReviews";
 import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
@@ -984,9 +985,7 @@ export default function PropertyShowcase() {
                         {lowestRate !== null ? (
                           <div className="flex items-baseline gap-1">
                             <span className="text-[10px] text-muted-foreground uppercase">From</span>
-                            <span className="text-lg font-bold text-primary">
-                              R{lowestRate.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
+                            <FormattedPrice amount={lowestRate} className="text-lg font-bold text-primary" />
                             <span className="text-[10px] text-muted-foreground uppercase">per night</span>
                           </div>
                         ) : (
