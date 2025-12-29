@@ -528,8 +528,7 @@ export default function PropertyShowcase() {
   });
   
   if (property.external_system === "nightsbridge" && bbid && nightsBridgeAgentCode) {
-    const currencyParam = currency !== 'ZAR' ? `&currency=${currency}` : '';
-    const iframeUrl = `https://nightsbridge.co.za/bridge/book?bbid=${bbid}&source=${nightsBridgeAgentCode}${currencyParam}`;
+    const iframeUrl = getNightsBridgeBookingUrl(bbid, nightsBridgeAgentCode, undefined, undefined, currency);
     
     return (
       <div className="min-h-screen bg-background flex flex-col">

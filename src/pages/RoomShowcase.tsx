@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getPropertyUrl, getNightsBridgeBookingUrl } from "@/lib/config";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { formatBedConfiguration, hasBedConfiguration } from "@/lib/bedConfig";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -117,6 +118,7 @@ const facilityIcons: Record<string, any> = {
 export default function RoomShowcase() {
   const navigate = useNavigate();
   const { propertySlug, roomSlug } = useParams<{ propertySlug: string; roomSlug: string }>();
+  const { currency } = useCurrency();
   const [property, setProperty] = useState<Property | null>(null);
   const [room, setRoom] = useState<RoomType | null>(null);
   const [rates, setRates] = useState<RateData[]>([]);
@@ -254,7 +256,7 @@ export default function RoomShowcase() {
     if (isNightsBridgeProperty) {
       const bbid = getNightsBridgeBBID();
       if (bbid && nightsBridgeAgentCode) {
-        const bookingUrl = getNightsBridgeBookingUrl(bbid, nightsBridgeAgentCode);
+        const bookingUrl = getNightsBridgeBookingUrl(bbid, nightsBridgeAgentCode, undefined, undefined, currency);
         setExternalBookingUrl(bookingUrl);
         setShowLeavingModal(true);
         return;
