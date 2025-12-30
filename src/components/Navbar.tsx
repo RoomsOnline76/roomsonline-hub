@@ -281,46 +281,6 @@ export const Navbar = () => {
                 </DropdownMenu>
               </>
             )}
-            {isDev && !isBookPage && (
-              <>
-                <Link to="/admin-keys">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" className="flex items-center gap-2 relative">
-                        <Key className="h-4 w-4" />
-                        API Keys
-                        {apiHealthStatus.unhealthy > 0 ? (
-                          <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1 text-xs flex items-center gap-0.5">
-                            <Activity className="h-3 w-3" />
-                            {apiHealthStatus.unhealthy}
-                          </Badge>
-                        ) : apiHealthStatus.healthy > 0 ? (
-                          <Badge className="ml-1 h-5 min-w-5 px-1 text-xs bg-green-500 hover:bg-green-600 flex items-center gap-0.5">
-                            <Activity className="h-3 w-3" />
-                            {apiHealthStatus.healthy}
-                          </Badge>
-                        ) : null}
-                      </Button>
-                    </TooltipTrigger>
-                    {apiHealthStatus.issues.length > 0 && (
-                      <TooltipContent side="bottom" className="max-w-xs">
-                        <div className="space-y-1">
-                          <p className="font-medium text-destructive">Unhealthy APIs:</p>
-                          {apiHealthStatus.issues.map((issue, idx) => (
-                            <p key={idx} className="text-xs">
-                              <span className="capitalize font-medium">{issue.system}</span>: {issue.reason}
-                            </p>
-                          ))}
-                        </div>
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
-                </Link>
-                <Link to="/nb">
-                  <Button variant="ghost">NB</Button>
-                </Link>
-              </>
-            )}
             {(isAdmin || isDev) && isSleepInAfricaDomain && !isBookPage && (
               <Link to="/admin/journals">
                 <Button variant="ghost" className="flex items-center gap-2">
@@ -349,6 +309,41 @@ export const Navbar = () => {
                   </Button>
                 </Link>
               </>
+            )}
+            {isDev && !isBookPage && (
+              <Link to="/admin-keys">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" className="flex items-center gap-2 relative">
+                      <Key className="h-4 w-4" />
+                      API Keys
+                      {apiHealthStatus.unhealthy > 0 ? (
+                        <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1 text-xs flex items-center gap-0.5">
+                          <Activity className="h-3 w-3" />
+                          {apiHealthStatus.unhealthy}
+                        </Badge>
+                      ) : apiHealthStatus.healthy > 0 ? (
+                        <Badge className="ml-1 h-5 min-w-5 px-1 text-xs bg-green-500 hover:bg-green-600 flex items-center gap-0.5">
+                          <Activity className="h-3 w-3" />
+                          {apiHealthStatus.healthy}
+                        </Badge>
+                      ) : null}
+                    </Button>
+                  </TooltipTrigger>
+                  {apiHealthStatus.issues.length > 0 && (
+                    <TooltipContent side="bottom" className="max-w-xs">
+                      <div className="space-y-1">
+                        <p className="font-medium text-destructive">Unhealthy APIs:</p>
+                        {apiHealthStatus.issues.map((issue, idx) => (
+                          <p key={idx} className="text-xs">
+                            <span className="capitalize font-medium">{issue.system}</span>: {issue.reason}
+                          </p>
+                        ))}
+                      </div>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </Link>
             )}
             {user && !isBookPage ? (
               <DropdownMenu>
