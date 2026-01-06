@@ -56,3 +56,6 @@ verify_jwt = true
 
 [functions.ai-property-search]
 verify_jwt = false
+
+[functions.addpay-api]
+verify_jwt = false
