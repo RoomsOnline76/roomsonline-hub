@@ -197,7 +197,11 @@ export type Database = {
           guest_phone: string | null
           id: string
           infants: number | null
+          paid_at: string | null
           payment_intent_id: string | null
+          payment_method: string | null
+          payment_reference: string | null
+          payment_status: string | null
           property_id: string
           rate_type_id: string | null
           room_type_id: string | null
@@ -222,7 +226,11 @@ export type Database = {
           guest_phone?: string | null
           id?: string
           infants?: number | null
+          paid_at?: string | null
           payment_intent_id?: string | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          payment_status?: string | null
           property_id: string
           rate_type_id?: string | null
           room_type_id?: string | null
@@ -247,7 +255,11 @@ export type Database = {
           guest_phone?: string | null
           id?: string
           infants?: number | null
+          paid_at?: string | null
           payment_intent_id?: string | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          payment_status?: string | null
           property_id?: string
           rate_type_id?: string | null
           room_type_id?: string | null
@@ -429,6 +441,53 @@ export type Database = {
           tag_name?: string
         }
         Relationships: []
+      }
+      payment_transactions: {
+        Row: {
+          addpay_response: Json | null
+          amount: number
+          booking_id: string | null
+          created_at: string | null
+          currency: string | null
+          id: string
+          payment_method: string | null
+          psn: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          addpay_response?: Json | null
+          amount: number
+          booking_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          payment_method?: string | null
+          psn?: string | null
+          status: string
+          updated_at?: string | null
+        }
+        Update: {
+          addpay_response?: Json | null
+          amount?: number
+          booking_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          payment_method?: string | null
+          psn?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_transactions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pms_availability_cache: {
         Row: {
