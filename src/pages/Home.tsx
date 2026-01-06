@@ -514,6 +514,10 @@ function HomeContent() {
         {/* Hide when AI search is active */}
         <div className={`absolute inset-0 flex items-start pt-32 sm:pt-36 landscape:pt-24 landscape:sm:pt-28 z-10 transition-opacity duration-500 ${isAISearchActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <div className="w-full px-6 md:px-12 flex flex-col">
+            {/* Hero Banner */}
+            <p className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl landscape:text-xl landscape:md:text-2xl text-white font-bold tracking-wide drop-shadow-lg mb-4 landscape:mb-2 text-left whitespace-nowrap">
+              Sleep in Africa with RoomsOnline.
+            </p>
             {/* Main hero text */}
             <p className="text-xl md:text-2xl lg:text-3xl xl:text-4xl landscape:text-lg landscape:md:text-xl text-white font-medium tracking-wide drop-shadow-lg leading-relaxed landscape:leading-snug text-right max-w-[50%] self-center mr-auto">
               {headline}
