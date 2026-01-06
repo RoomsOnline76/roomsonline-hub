@@ -2,8 +2,8 @@ import React, { useMemo } from 'react';
 import { Sparkles, X, Lightbulb } from 'lucide-react';
 import { useAISearch } from '@/contexts/AISearchContext';
 
-// Carike's personalized intro phrases - slightly randomized
-const CARIKE_INTROS = [
+// RoomsOnline personalized intro phrases - slightly randomized
+const ROOMSONLINE_INTROS = [
   "I found something special for you...",
   "Here's my pick just for you...",
   "I think you'll love this...",
@@ -16,8 +16,8 @@ export function AIExplanationOverlay() {
   const { aiExplanation, aiQuery, isAISearchActive, resetAISearch, aiResults } = useAISearch();
 
   // Pick a random intro phrase (stable per render cycle)
-  const carikeIntro = useMemo(() => {
-    return CARIKE_INTROS[Math.floor(Math.random() * CARIKE_INTROS.length)];
+  const introPhrase = useMemo(() => {
+    return ROOMSONLINE_INTROS[Math.floor(Math.random() * ROOMSONLINE_INTROS.length)];
   }, [aiExplanation]);
 
   if (!isAISearchActive || !aiExplanation) return null;
@@ -35,16 +35,16 @@ export function AIExplanationOverlay() {
           <X className="h-4 w-4 text-white" />
         </button>
 
-        {/* Carike's personalized intro */}
+        {/* RoomsOnline personalized intro */}
         <div className="flex items-center gap-2 mb-3">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/30 border border-primary/40">
             <Sparkles className="h-3.5 w-3.5 text-primary-foreground" />
-            <span className="text-xs font-medium text-primary-foreground">Carike</span>
+            <span className="text-xs font-medium text-primary-foreground">RoomsOnline</span>
           </div>
         </div>
 
-        {/* Carike's intro phrase */}
-        <p className="text-sm font-medium text-white mb-2">{carikeIntro}</p>
+        {/* RoomsOnline intro phrase */}
+        <p className="text-sm font-medium text-white mb-2">{introPhrase}</p>
 
         {/* Query echo */}
         <p className="text-xs text-white/60 mb-2 italic">"{aiQuery}"</p>

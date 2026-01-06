@@ -36,7 +36,7 @@ export function AISearchInput() {
         <span className="text-white text-sm sm:text-base font-medium drop-shadow-lg text-left">
           <span className="hidden sm:inline">What are you dreaming of? </span>
           <span className="sm:hidden">Ask </span>
-          <span className="font-bold">Carike</span>
+          <span className="font-bold">RoomsOnline</span>
           <span className="hidden sm:inline"> will help find it</span>
         </span>
         {/* Input field container - full width below label */}
