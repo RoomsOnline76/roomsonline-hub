@@ -422,7 +422,6 @@ function HomeContent() {
               />
               <div className={`${isExpanded ? "hidden" : "block"}`}>
                 <h1 className="text-lg sm:text-xl font-bold text-white drop-shadow-lg">RoomsOnline</h1>
-                <p className="text-xs text-white/80 drop-shadow hidden sm:block">Unified Booking Engine</p>
               </div>
             </Link>
 
@@ -739,7 +738,7 @@ function HomeContent() {
               },
               {
                 icon: HeadphonesIcon,
-                title: "24/7 Support",
+                title: "Personalized Support",
                 description: "Round-the-clock assistance whenever you need it. Average reply time under 5 minutes.",
               },
               {
