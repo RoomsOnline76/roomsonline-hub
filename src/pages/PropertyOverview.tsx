@@ -477,34 +477,7 @@ const PropertyOverview = () => {
                             />
                           </TableCell>
                           <TableCell className="font-medium py-1 text-xs">
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => {
-                                  const url = getPropertyUrl(property.slug || property.id);
-                                  if (homeIconOpenNewTab) {
-                                    window.open(url, "_blank");
-                                  } else {
-                                    navigate(`/property/${property.slug || property.id}`);
-                                  }
-                                }}
-                                title="View Property Showcase"
-                              >
-                                <Home className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => navigate(`/admin/properties/${property.slug || property.id}`)}
-                                title="Edit Property"
-                              >
-                                <Edit className="h-3 w-3" />
-                              </Button>
-                              <span>{property.name}</span>
-                            </div>
+                            <span>{property.name}</span>
                           </TableCell>
                           <TableCell className="py-1 text-xs">
                             {property.external_system ? (
@@ -551,15 +524,42 @@ const PropertyOverview = () => {
                             })()}
                           </TableCell>
                           <TableCell className="text-right py-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => handleDeleteProperty(property.id)}
-                              title="Delete Property"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => {
+                                  const url = getPropertyUrl(property.slug || property.id);
+                                  if (homeIconOpenNewTab) {
+                                    window.open(url, "_blank");
+                                  } else {
+                                    navigate(`/property/${property.slug || property.id}`);
+                                  }
+                                }}
+                                title="View Property Showcase"
+                              >
+                                <Home className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => navigate(`/admin/properties/${property.slug || property.id}`)}
+                                title="Edit Property"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => handleDeleteProperty(property.id)}
+                                title="Delete Property"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}

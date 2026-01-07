@@ -14,7 +14,7 @@ import {
   LogOut,
   KeyRound,
   Bell,
-  Megaphone,
+  Newspaper,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -39,12 +39,12 @@ const workspaceItems: NavItem[] = [
   { title: "Properties", icon: Building2, href: "/admin/property-overview" },
   { title: "Calendar", icon: CalendarDays, href: "/admin/calendar/accommodation" },
   { title: "Bookings", icon: BookOpen, href: "/admin/bookings" },
-  { title: "Promotions", icon: Megaphone, href: "/admin/promotion" },
 ];
 
 const insightsItems: NavItem[] = [
   { title: "Revenue Pulse", icon: BarChart3, href: "/dashboard/reports" },
   { title: "Search Intelligence", icon: Search, href: "/dashboard/insights", requireAdmin: true },
+  { title: "Journals", icon: Newspaper, href: "/admin/journals", requireAdmin: true },
 ];
 
 const settingsItems: NavItem[] = [

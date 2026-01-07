@@ -64,7 +64,7 @@ export function PublicHeader({
                   transparent ? "text-white/70" : "text-muted-foreground"
                 )}
               >
-                Curated Stays
+                Rooms done Right
               </span>
             </div>
           </Link>

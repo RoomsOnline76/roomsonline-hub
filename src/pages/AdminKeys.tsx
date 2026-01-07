@@ -1928,14 +1928,10 @@ export default function AdminKeys() {
                 />
                 <span className="text-xs text-muted-foreground">{isBensonActive ? "On" : "Off"}</span>
               </div>
-              {isAnyConfigured ? (
+              {isProductionConfigured ? (
                 <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
                   <CheckCircle2 className="h-3 w-3" />
-                  {isStagingConfigured && isProductionConfigured
-                    ? "Both"
-                    : isStagingConfigured
-                      ? "Staging"
-                      : "Production"}
+                  Configured
                 </Badge>
               ) : (
                 <Badge variant="destructive" className="flex items-center gap-1">
@@ -1951,51 +1947,6 @@ export default function AdminKeys() {
             <p className="text-sm text-muted-foreground">
               Property Management System integration using username/password authentication
             </p>
-
-            {/* Active Environment Toggle */}
-            <div className="flex items-center justify-between p-4 rounded-lg border bg-primary/5 border-primary/20">
-              <div className="space-y-1">
-                <Label className="text-sm font-medium">Active Environment</Label>
-                <p className="text-xs text-muted-foreground">API calls will use {bensonActiveEnvironment} credentials</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`text-sm ${bensonActiveEnvironment === "staging" ? "font-semibold text-primary" : "text-muted-foreground"}`}
-                >
-                  Staging
-                </span>
-                <Switch
-                  checked={bensonActiveEnvironment === "production"}
-                  onCheckedChange={(checked) => handleSaveBensonActiveEnvironment(checked ? "production" : "staging")}
-                  disabled={savingBensonActiveEnv}
-                />
-                <span
-                  className={`text-sm ${bensonActiveEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}
-                >
-                  Production
-                </span>
-              </div>
-            </div>
-
-            {renderEnvironmentSection(
-              "staging",
-              bensonStagingCredentials,
-              !!isStagingConfigured,
-              editingBensonStaging,
-              setEditingBensonStaging,
-              savingBensonStaging,
-              handleSaveBensonStagingCredentials,
-              bensonStagingUsername,
-              setBensonStagingUsername,
-              bensonStagingPassword,
-              setBensonStagingPassword,
-              bensonStagingPropertyCode,
-              setBensonStagingPropertyCode,
-              bensonStagingPropertyName,
-              setBensonStagingPropertyName,
-              bensonStagingUrl,
-              setBensonStagingUrl,
-            )}
 
             {renderEnvironmentSection(
               "production",

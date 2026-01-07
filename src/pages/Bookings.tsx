@@ -304,7 +304,7 @@ const Bookings = () => {
           const property = properties.find(p => p.id === booking.property_id);
           return {
             ...booking,
-            property_name: property?.name || "Unknown Property",
+            property_name: property?.name || "(Deleted Property)",
             source: "internal" as const
           };
         });
@@ -326,7 +326,7 @@ const Bookings = () => {
           return {
             id: res.id,
             property_id: res.property_id,
-            property_name: property?.name || "Unknown Property",
+            property_name: property?.name || "(Deleted Property)",
             check_in_date: res.arrival_date,
             check_out_date: res.departure_date,
             guest_name: res.contact_name || "Unknown Guest",
