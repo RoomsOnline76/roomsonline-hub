@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -6,105 +8,143 @@
   --rol-pink: 330 100% 77%;
 }
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* =============================================
+   PARIS FASHION WEEK DESIGN SYSTEM
+   Phase 2.1 Foundation
+   ============================================= */
 
 @layer base {
   :root {
-    --background: 220 14% 96%;
-    --background-soft: 220 14% 94%;
-    --foreground: 222.2 47% 11%;
+    /* Foundation - Warm Neutrals */
+    --background: 40 6% 97%;
+    --background-soft: 40 6% 95%;
+    --foreground: 220 20% 12%;
 
-    --card: 220 14% 98%;
-    --card-foreground: 222.2 47% 11%;
+    /* Cards & Surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 12%;
 
-    --popover: 220 14% 98%;
-    --popover-foreground: 222.2 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 12%;
 
-    --primary: 338 82% 52%;
+    /* Primary - Deep Burgundy */
+    --primary: 345 60% 38%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 222.2 47% 11%;
+    /* Secondary */
+    --secondary: 40 6% 94%;
+    --secondary-foreground: 220 20% 12%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
+    /* Muted */
+    --muted: 40 6% 94%;
+    --muted-foreground: 220 10% 46%;
 
-    --accent: 199 89% 48%;
-    --accent-foreground: 0 0% 100%;
+    /* Accent - Brushed Gold */
+    --accent: 38 70% 52%;
+    --accent-foreground: 220 20% 12%;
 
-    --destructive: 0 84% 60%;
+    /* Midnight Blue - for special elements */
+    --midnight: 220 45% 22%;
+
+    /* Destructive */
+    --destructive: 0 65% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 338 82% 52%;
+    /* Borders & Inputs */
+    --border: 40 6% 90%;
+    --input: 40 6% 90%;
+    --ring: 345 60% 38%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
     
-    --hero-gradient: linear-gradient(135deg, hsl(338 82% 52%) 0%, hsl(320 70% 45%) 100%);
-    --accent-gradient: linear-gradient(135deg, hsl(199 89% 48%) 0%, hsl(199 89% 58%) 100%);
+    /* Status Colors - Semantic */
+    --status-healthy: 158 60% 42%;
+    --status-warning: 38 70% 52%;
+    --status-error: 0 65% 50%;
+    --status-stale: 220 10% 60%;
+    --status-syncing: 199 89% 48%;
     
-    --shadow-soft: 0 2px 8px -2px hsl(220 9% 46% / 0.15);
-    --shadow-medium: 0 4px 16px -4px hsl(220 9% 46% / 0.2);
-    --shadow-strong: 0 8px 32px -8px hsl(220 9% 46% / 0.3);
+    /* Gradients */
+    --hero-gradient: linear-gradient(135deg, hsl(345 60% 38%) 0%, hsl(345 50% 32%) 100%);
+    --accent-gradient: linear-gradient(135deg, hsl(38 70% 52%) 0%, hsl(38 80% 58%) 100%);
+    --gold-shimmer: linear-gradient(90deg, hsl(38 70% 52%) 0%, hsl(42 80% 60%) 50%, hsl(38 70% 52%) 100%);
+    
+    /* Shadows - Warm tinted */
+    --shadow-soft: 0 2px 8px -2px hsl(220 20% 12% / 0.08);
+    --shadow-medium: 0 4px 16px -4px hsl(220 20% 12% / 0.12);
+    --shadow-strong: 0 8px 32px -8px hsl(220 20% 12% / 0.16);
+    --shadow-glow: 0 0 20px hsl(345 60% 38% / 0.15);
     
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar - Refined */
+    --sidebar-background: 40 6% 98%;
+    --sidebar-foreground: 220 20% 12%;
+    --sidebar-primary: 345 60% 38%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 40 6% 94%;
+    --sidebar-accent-foreground: 220 20% 12%;
+    --sidebar-border: 40 6% 90%;
+    --sidebar-ring: 345 60% 38%;
   }
 
   .dark {
-    --background: 222.2 47% 11%;
-    --foreground: 210 40% 98%;
+    /* Dark mode - Deep & Sophisticated */
+    --background: 220 20% 8%;
+    --background-soft: 220 18% 10%;
+    --foreground: 40 6% 95%;
 
-    --card: 222.2 40% 15%;
-    --card-foreground: 210 40% 98%;
+    --card: 220 18% 12%;
+    --card-foreground: 40 6% 95%;
 
-    --popover: 222.2 40% 15%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 220 18% 12%;
+    --popover-foreground: 40 6% 95%;
 
-    --primary: 338 82% 52%;
+    /* Primary - Lighter burgundy for dark mode */
+    --primary: 345 55% 55%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 217.2 32% 18%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 40 6% 95%;
 
-    --muted: 217.2 32% 18%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 220 15% 18%;
+    --muted-foreground: 220 10% 60%;
 
-    --accent: 199 89% 48%;
-    --accent-foreground: 0 0% 100%;
+    /* Accent - Brighter gold for dark mode */
+    --accent: 38 75% 55%;
+    --accent-foreground: 220 20% 12%;
 
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
+    --midnight: 220 40% 35%;
 
-    --border: 217.2 32% 22%;
-    --input: 217.2 32% 22%;
-    --ring: 338 82% 52%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --destructive: 0 60% 45%;
+    --destructive-foreground: 40 6% 95%;
+
+    --border: 220 15% 20%;
+    --input: 220 15% 20%;
+    --ring: 345 55% 55%;
+
+    /* Status Colors - Adjusted for dark */
+    --status-healthy: 158 55% 48%;
+    --status-warning: 38 75% 55%;
+    --status-error: 0 60% 55%;
+    --status-stale: 220 10% 50%;
+    --status-syncing: 199 85% 55%;
+
+    /* Shadows - Dark mode */
+    --shadow-soft: 0 2px 8px -2px hsl(0 0% 0% / 0.3);
+    --shadow-medium: 0 4px 16px -4px hsl(0 0% 0% / 0.4);
+    --shadow-strong: 0 8px 32px -8px hsl(0 0% 0% / 0.5);
+    --shadow-glow: 0 0 20px hsl(345 55% 55% / 0.2);
+
+    /* Sidebar - Dark */
+    --sidebar-background: 220 18% 10%;
+    --sidebar-foreground: 40 6% 95%;
+    --sidebar-primary: 345 55% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 220 15% 16%;
+    --sidebar-accent-foreground: 40 6% 95%;
+    --sidebar-border: 220 15% 18%;
+    --sidebar-ring: 345 55% 55%;
   }
 }
 
