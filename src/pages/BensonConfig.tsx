@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -9,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, RefreshCw, CheckCircle2, AlertCircle, Loader2, Save, ChevronDown, ChevronRight, Database, ArrowRight, Eye } from "lucide-react";
+import { RefreshCw, CheckCircle2, AlertCircle, Loader2, Save, ChevronDown, ChevronRight, Database, ArrowRight, Eye, FlaskConical } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RoomTypeDataViewer, ExpandableDataViewer, RateTypeItem } from "@/components/ExpandableDataViewer";
@@ -416,34 +417,28 @@ export default function BensonConfig() {
 
   if (loading) {
     return (
-      <>
-        <Navbar />
-        <div className="container mx-auto px-4 py-8">
-          <p className="text-muted-foreground">Loading...</p>
+      <AppLayout>
+        <PageHeader title="Benson Field Mappings" subtitle="Loading..." />
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      </>
+      </AppLayout>
     );
   }
 
   return (
-    <>
-      <Navbar />
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate("/admin/api-keys")}>
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div className="flex items-baseline gap-2">
-                <h1 className="text-xl font-bold text-foreground">Benson Field Mappings</h1>
-                <span className="text-xs text-muted-foreground">— Map Benson data to internal fields</span>
-              </div>
-            </div>
-            <Button onClick={() => navigate("/admin/test-booking-benson")} variant="outline">
-              Test Booking
-            </Button>
-          </div>
+    <AppLayout>
+      <PageHeader
+        title="Benson Field Mappings"
+        subtitle="Map Benson data to internal fields"
+        actions={
+          <Button onClick={() => navigate("/admin/test-booking-benson")} variant="outline" size="sm" className="gap-1">
+            <FlaskConical className="h-3.5 w-3.5" />
+            Test Booking
+          </Button>
+        }
+      />
+      <div className="max-w-5xl mx-auto">
 
           {/* Connection Status */}
           <Card className="mb-6">
@@ -888,7 +883,6 @@ export default function BensonConfig() {
             </Tabs>
           )}
         </div>
-      </div>
-    </>
+    </AppLayout>
   );
 }

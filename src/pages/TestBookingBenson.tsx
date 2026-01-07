@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ExpandableDataViewer } from "@/components/ExpandableDataViewer";
 import { 
   CalendarDays, Users, Loader2, Send, Calculator, 
-  ArrowLeft, Plus, Minus, CheckCircle2, AlertCircle, RefreshCw, Trash2, BedDouble, ChevronDown
+  Plus, Minus, CheckCircle2, AlertCircle, RefreshCw, Trash2, BedDouble, ChevronDown, Settings
 } from "lucide-react";
 import { format, addDays, differenceInDays, startOfDay, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -742,25 +743,18 @@ const TestBookingBenson = () => {
   // selectedRoomType is defined above with other validations
 
   return (
-    <>
-      <Navbar />
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto">
-          {/* Header */}
-          <div className="flex items-center gap-4 mb-6">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/admin/benson-config")}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-3xl font-bold">Test Booking - Benson</h1>
-                <Badge variant="outline" className="text-xs">Dev Only</Badge>
-              </div>
-              <p className="text-muted-foreground">
-                Create test bookings to Benson API and analyze responses
-              </p>
-            </div>
-          </div>
+    <AppLayout>
+      <PageHeader
+        title="Test Booking — Benson"
+        subtitle="Create test bookings and analyze API responses"
+        actions={
+          <Button variant="outline" size="sm" className="gap-1" onClick={() => navigate("/admin/benson-config")}>
+            <Settings className="h-3.5 w-3.5" />
+            Field Mappings
+          </Button>
+        }
+      />
+      <div className="max-w-6xl mx-auto">
 
           <Tabs defaultValue="create" className="space-y-6">
             <TabsList>
@@ -1608,8 +1602,7 @@ const TestBookingBenson = () => {
             </TabsContent>
           </Tabs>
         </div>
-      </div>
-    </>
+    </AppLayout>
   );
 };
 
