@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type SortDirection = "asc" | "desc" | null;
-type SortColumn = "name" | "external_system" | "hero_listing" | "property_type" | "total_bookings" | null;
+type SortColumn = "name" | "external_system" | "hero_listing" | "has_images" | "property_type" | "total_bookings" | null;
 
 const PropertyOverview = () => {
   const navigate = useNavigate();
@@ -223,6 +223,13 @@ const PropertyOverview = () => {
     // Apply sorting
     if (sortColumn && sortDirection) {
       filtered = [...filtered].sort((a, b) => {
+        // Special handling for has_images
+        if (sortColumn === "has_images") {
+          const aHasImages = Array.isArray(a.images) && a.images.length > 0 ? 1 : 0;
+          const bHasImages = Array.isArray(b.images) && b.images.length > 0 ? 1 : 0;
+          return sortDirection === "asc" ? aHasImages - bHasImages : bHasImages - aHasImages;
+        }
+
         let aVal: any = a[sortColumn];
         let bVal: any = b[sortColumn];
 
@@ -380,6 +387,15 @@ const PropertyOverview = () => {
                           </div>
                         </TableHead>
                         <TableHead 
+                          className="cursor-pointer hover:bg-muted/50 select-none py-1 text-xs w-12"
+                          onClick={() => handleSort("has_images")}
+                        >
+                          <div className="flex items-center">
+                            IMG
+                            {getSortIcon("has_images")}
+                          </div>
+                        </TableHead>
+                        <TableHead 
                           className="cursor-pointer hover:bg-muted/50 select-none py-1 text-xs"
                           onClick={() => handleSort("property_type")}
                         >
@@ -428,6 +444,7 @@ const PropertyOverview = () => {
                             className="h-6 text-xs"
                           />
                         </TableCell>
+                        <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1">
                           <Input
                             placeholder="Search"
@@ -445,7 +462,7 @@ const PropertyOverview = () => {
                     <TableBody>
                       {activeProperties.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={9} className="text-center py-6">
+                          <TableCell colSpan={10} className="text-center py-6">
                             {(searchName || searchPms || searchHero || searchPropertyType) ? (
                               <div>
                                 <AlertTriangle className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
@@ -491,6 +508,13 @@ const PropertyOverview = () => {
                           <TableCell className="py-1 text-xs">
                             {property.hero_listing ? (
                               <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="py-1 text-xs">
+                            {Array.isArray(property.images) && property.images.length > 0 ? (
+                              <Image className="h-4 w-4 text-green-600" />
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
