@@ -1065,6 +1065,28 @@ export default function AdminKeys() {
     setTogglingHostfully(false);
   };
 
+  const handleHostfullyEnvironmentChange = async (newEnv: "sandbox" | "production") => {
+    setHostfullyEnvironment(newEnv);
+    if (hostfullyCredentials) {
+      const { error } = await supabase
+        .from("pms_credentials")
+        .update({ environment: newEnv })
+        .eq("id", hostfullyCredentials.id);
+      if (error) {
+        toast({
+          title: "Error updating environment",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Environment updated",
+          description: `Hostfully now using ${newEnv} endpoint`,
+        });
+      }
+    }
+  };
+
   const handleToggleCloudbeds = async (enabled: boolean) => {
     setTogglingCloudbeds(true);
     if (cloudbedsCredentials) {
@@ -1076,6 +1098,94 @@ export default function AdminKeys() {
     });
     fetchCloudbedsCredentials();
     setTogglingCloudbeds(false);
+  };
+
+  const handleCloudbedsEnvironmentChange = async (newEnv: "sandbox" | "production") => {
+    setCloudbedsEnvironment(newEnv);
+    if (cloudbedsCredentials) {
+      const { error } = await supabase
+        .from("pms_credentials")
+        .update({ environment: newEnv })
+        .eq("id", cloudbedsCredentials.id);
+      if (error) {
+        toast({
+          title: "Error updating environment",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Environment updated",
+          description: `Cloudbeds now using ${newEnv} endpoint`,
+        });
+      }
+    }
+  };
+
+  const handleNightsbridgeEnvironmentChange = async (newEnv: "staging" | "production") => {
+    setNightsbridgeEnvironment(newEnv);
+    if (nightsbridgeCredentials) {
+      const { error } = await supabase
+        .from("pms_credentials")
+        .update({ environment: newEnv })
+        .eq("id", nightsbridgeCredentials.id);
+      if (error) {
+        toast({
+          title: "Error updating environment",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Environment updated",
+          description: `NightsBridge now using ${newEnv} endpoint`,
+        });
+      }
+    }
+  };
+
+  const handleCheckfrontEnvironmentChange = async (newEnv: "staging" | "production") => {
+    setCheckfrontEnvironment(newEnv);
+    if (checkfrontCredentials) {
+      const { error } = await supabase
+        .from("pms_credentials")
+        .update({ environment: newEnv })
+        .eq("id", checkfrontCredentials.id);
+      if (error) {
+        toast({
+          title: "Error updating environment",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Environment updated",
+          description: `Checkfront now using ${newEnv} endpoint`,
+        });
+      }
+    }
+  };
+
+  const handleHotelbedsEnvironmentChange = async (newEnv: "test" | "production") => {
+    setHotelbedsEnvironment(newEnv);
+    if (hotelbedsCredentials) {
+      const { error } = await supabase
+        .from("pms_credentials")
+        .update({ environment: newEnv })
+        .eq("id", hotelbedsCredentials.id);
+      if (error) {
+        toast({
+          title: "Error updating environment",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Environment updated",
+          description: `HotelBeds now using ${newEnv} endpoint`,
+        });
+      }
+    }
   };
 
   const handleToggleLittlehotelier = async (enabled: boolean) => {
@@ -1261,6 +1371,26 @@ export default function AdminKeys() {
             </p>
             <div className="text-xs text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-2 py-1 rounded-md inline-block">
               ⓘ Uses API Key (Permanent Token) authentication - token starts with cbat_
+            </div>
+
+            {/* Active Environment Toggle */}
+            <div className="flex items-center justify-between p-4 rounded-lg border bg-primary/5 border-primary/20">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">Active Environment</Label>
+                <p className="text-xs text-muted-foreground">API calls will use {cloudbedsEnvironment} endpoint</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm ${cloudbedsEnvironment === "sandbox" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
+                  Sandbox
+                </span>
+                <Switch
+                  checked={cloudbedsEnvironment === "production"}
+                  onCheckedChange={(checked) => handleCloudbedsEnvironmentChange(checked ? "production" : "sandbox")}
+                />
+                <span className={`text-sm ${cloudbedsEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
+                  Production
+                </span>
+              </div>
             </div>
 
             {editingCloudbeds ? (
@@ -2109,7 +2239,7 @@ export default function AdminKeys() {
                     </span>
                     <Switch
                       checked={nightsbridgeEnvironment === "production"}
-                      onCheckedChange={(checked) => setNightsbridgeEnvironment(checked ? "production" : "staging")}
+                      onCheckedChange={(checked) => handleNightsbridgeEnvironmentChange(checked ? "production" : "staging")}
                     />
                     <span
                       className={`text-sm ${nightsbridgeEnvironment === "production" ? "font-medium" : "text-muted-foreground"}`}
@@ -2364,7 +2494,7 @@ export default function AdminKeys() {
                       </span>
                       <Switch
                         checked={checkfrontEnvironment === "production"}
-                        onCheckedChange={(checked) => setCheckfrontEnvironment(checked ? "production" : "staging")}
+                        onCheckedChange={(checked) => handleCheckfrontEnvironmentChange(checked ? "production" : "staging")}
                       />
                       <span
                         className={`text-sm ${checkfrontEnvironment === "production" ? "font-medium" : "text-muted-foreground"}`}
@@ -2686,7 +2816,7 @@ export default function AdminKeys() {
                 </span>
                 <Switch
                   checked={hostfullyEnvironment === "production"}
-                  onCheckedChange={(checked) => setHostfullyEnvironment(checked ? "production" : "sandbox")}
+                  onCheckedChange={(checked) => handleHostfullyEnvironmentChange(checked ? "production" : "sandbox")}
                 />
                 <span className={`text-sm ${hostfullyEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
                   Production
@@ -3102,14 +3232,14 @@ export default function AdminKeys() {
                             <Button
                               variant={hotelbedsEnvironment === "test" ? "default" : "outline"}
                               size="sm"
-                              onClick={() => setHotelbedsEnvironment("test")}
+                              onClick={() => handleHotelbedsEnvironmentChange("test")}
                             >
                               Test
                             </Button>
                             <Button
                               variant={hotelbedsEnvironment === "production" ? "default" : "outline"}
                               size="sm"
-                              onClick={() => setHotelbedsEnvironment("production")}
+                              onClick={() => handleHotelbedsEnvironmentChange("production")}
                             >
                               Production
                             </Button>
