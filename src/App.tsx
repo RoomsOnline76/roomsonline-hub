@@ -22,6 +22,7 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminAccessRequests from "./pages/AdminAccessRequests";
 import PropertyForm from "./pages/PropertyForm";
 import BensonConfig from "./pages/BensonConfig";
+import PMSConfig from "./pages/PMSConfig";
 import TestBookingBenson from "./pages/TestBookingBenson";
 import PropertyShowcase from "./pages/PropertyShowcase";
 import RoomShowcase from "./pages/RoomShowcase";
@@ -113,6 +114,14 @@ const App = () => (
             element={
               <ProtectedRoute requireAdmin={true}>
                 <BensonConfig />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/pms-config/:systemType"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <PMSConfig />
               </ProtectedRoute>
             }
           />
