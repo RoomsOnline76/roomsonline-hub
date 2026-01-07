@@ -46,7 +46,6 @@ export type PmsSource =
   | 'siteminder'
   | 'littlehotelier'
   | 'cloudbeds'
-  | 'smoobu'
   | 'hostfully'
   | 'hotelbeds';
 
@@ -699,13 +698,6 @@ export const PMS_EDITORIAL_RULES: Record<PmsSource, {
       name: 'authoritative',
     },
     notes: 'Channel manager - minimal editorial data.',
-  },
-  smoobu: {
-    property_fields: {
-      name: 'authoritative',
-      description: 'seed_only',
-    },
-    notes: 'Limited editorial support.',
   },
   hotelbeds: {
     property_fields: {

@@ -28,7 +28,7 @@ export interface PMSRulesConfig {
 const pmsRules = pmsRulesData as PMSRulesConfig;
 
 // Supported PMS system types
-export type PMSSystem = 'roomsonline' | 'benson' | 'nightsbridge' | 'checkfront' | 'semper' | 'siteminder' | 'mews' | 'opera' | 'littlehotelier' | 'cloudbeds' | 'smoobu' | 'hostfully' | 'hotelbeds';
+export type PMSSystem = 'roomsonline' | 'benson' | 'nightsbridge' | 'checkfront' | 'semper' | 'siteminder' | 'mews' | 'opera' | 'littlehotelier' | 'cloudbeds' | 'hostfully' | 'hotelbeds';
 
 // Normalize PMS key for lookups (handle variants like littlehotelier vs little-hotelier)
 const normalizePMSKey = (pmsKey: string): string => {
@@ -153,7 +153,6 @@ const generatePMSPopulatedFields = (): Record<PMSSystem, string[]> => {
     siteminder: ['name', 'room_types', 'rate_types', 'availability', 'rates'],
     mews: ['name', 'description', 'room_types', 'rate_types', 'availability', 'rates', 'facilities'],
     opera: ['name', 'description', 'room_types', 'rate_types', 'availability', 'rates', 'guest_info'],
-    smoobu: [],
     hotelbeds: ['name', 'description', 'room_types', 'rate_types', 'availability', 'rates'],
   };
   
@@ -252,7 +251,6 @@ export const getPMSDisplayName = (pmsKey: string): string => {
     littlehotelier: 'Little Hotelier',
     'little-hotelier': 'Little Hotelier',
     cloudbeds: 'Cloudbeds',
-    smoobu: 'Smoobu',
     hostfully: 'Hostfully',
     hotelbeds: 'HotelBeds',
   };

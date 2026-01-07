@@ -52,11 +52,6 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     hasCustomCard: true,
   },
   {
-    key: 'smoobu',
-    name: 'Smoobu',
-    description: 'Channel manager and vacation rental software for property managers',
-  },
-  {
     key: 'hostfully',
     name: 'Hostfully',
     description: 'Property management platform for vacation rental managers',

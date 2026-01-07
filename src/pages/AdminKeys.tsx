@@ -45,7 +45,6 @@ const getPMSIcon = (systemType: string | null): LucideIcon => {
       return Layers;
     case "littlehotelier":
     case "cloudbeds":
-    case "smoobu":
     case "hostfully":
     case "guestly":
     case "hotelbeds":
@@ -2967,7 +2966,6 @@ export default function AdminKeys() {
               {renderNightsbridgeCard()}
               {renderPlaceholderPMSCard("RoomKey", "roomkey", "Hotel booking platform with direct connections to major hotel chains")}
               {renderPlaceholderPMSCard("RoomRaccoon", "roomracoon", "All-in-one hotel management system with channel manager and booking engine")}
-              {renderPlaceholderPMSCard("Smoobu", "smoobu", "Channel manager and vacation rental software for property managers")}
               {pmsKeys.map(renderKeyCard)}
             </Accordion>
           </div>
