@@ -1300,6 +1300,20 @@ export default function AdminKeys() {
 
                 <ApiMilestones systemType="cloudbeds" className="pt-4 border-t" />
 
+                {/* PMS IT Contact */}
+                <PMSContactDetails 
+                  systemType="cloudbeds"
+                  initialData={{
+                    contact_name: trackerData['cloudbeds']?.contact_name,
+                    contact_tel: trackerData['cloudbeds']?.contact_tel,
+                    contact_email: trackerData['cloudbeds']?.contact_email,
+                  }}
+                  onUpdated={() => fetchTrackerData()}
+                />
+
+                {/* Dev Notes */}
+                <PMSDevNotes systemType="cloudbeds" />
+
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setEditingCloudbeds(true)}>
                     {isConfigured ? "Update Credentials" : "Configure"}
@@ -2005,6 +2019,20 @@ export default function AdminKeys() {
 
             <ApiMilestones systemType="benson" className="pt-4 border-t" />
 
+            {/* PMS IT Contact */}
+            <PMSContactDetails 
+              systemType="benson"
+              initialData={{
+                contact_name: trackerData['benson']?.contact_name,
+                contact_tel: trackerData['benson']?.contact_tel,
+                contact_email: trackerData['benson']?.contact_email,
+              }}
+              onUpdated={() => fetchTrackerData()}
+            />
+
+            {/* Dev Notes */}
+            <PMSDevNotes systemType="benson" />
+
             <div className="flex gap-2 pt-2">
               <Button variant="default" onClick={() => navigate("/admin/benson-config")} disabled={!isAnyConfigured}>
                 <Settings className="h-4 w-4 mr-2" />
@@ -2182,6 +2210,20 @@ export default function AdminKeys() {
                 </div>
 
                 <ApiMilestones systemType="nightsbridge" className="pt-4 border-t" />
+
+                {/* PMS IT Contact */}
+                <PMSContactDetails 
+                  systemType="nightsbridge"
+                  initialData={{
+                    contact_name: trackerData['nightsbridge']?.contact_name,
+                    contact_tel: trackerData['nightsbridge']?.contact_tel,
+                    contact_email: trackerData['nightsbridge']?.contact_email,
+                  }}
+                  onUpdated={() => fetchTrackerData()}
+                />
+
+                {/* Dev Notes */}
+                <PMSDevNotes systemType="nightsbridge" />
 
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setEditingNightsbridge(true)}>
@@ -2433,6 +2475,20 @@ export default function AdminKeys() {
 
                   <ApiMilestones systemType="checkfront" className="pt-4 border-t" />
 
+                  {/* PMS IT Contact */}
+                  <PMSContactDetails 
+                    systemType="checkfront"
+                    initialData={{
+                      contact_name: trackerData['checkfront']?.contact_name,
+                      contact_tel: trackerData['checkfront']?.contact_tel,
+                      contact_email: trackerData['checkfront']?.contact_email,
+                    }}
+                    onUpdated={() => fetchTrackerData()}
+                  />
+
+                  {/* Dev Notes */}
+                  <PMSDevNotes systemType="checkfront" />
+
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={() => setEditingCheckfront(true)}>
                       {isConfigured ? "Update Credentials" : "Configure"}
@@ -2568,6 +2624,20 @@ export default function AdminKeys() {
                 </div>
 
                 <ApiMilestones systemType="littlehotelier" className="pt-4 border-t" />
+
+                {/* PMS IT Contact */}
+                <PMSContactDetails 
+                  systemType="littlehotelier"
+                  initialData={{
+                    contact_name: trackerData['littlehotelier']?.contact_name,
+                    contact_tel: trackerData['littlehotelier']?.contact_tel,
+                    contact_email: trackerData['littlehotelier']?.contact_email,
+                  }}
+                  onUpdated={() => fetchTrackerData()}
+                />
+
+                {/* Dev Notes */}
+                <PMSDevNotes systemType="littlehotelier" />
 
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setEditingLittlehotelier(true)}>
@@ -2722,6 +2792,20 @@ export default function AdminKeys() {
                 </div>
 
                 <ApiMilestones systemType="hostfully" className="pt-4 border-t" />
+
+                {/* PMS IT Contact */}
+                <PMSContactDetails 
+                  systemType="hostfully"
+                  initialData={{
+                    contact_name: trackerData['hostfully']?.contact_name,
+                    contact_tel: trackerData['hostfully']?.contact_tel,
+                    contact_email: trackerData['hostfully']?.contact_email,
+                  }}
+                  onUpdated={() => fetchTrackerData()}
+                />
+
+                {/* Dev Notes */}
+                <PMSDevNotes systemType="hostfully" />
 
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setEditingHostfully(true)}>
@@ -2910,6 +2994,22 @@ export default function AdminKeys() {
                         Development in progress. This API will follow the standardized adapter contract.
                       </p>
                     </div>
+
+                    <ApiMilestones systemType="roomsonline" className="pt-4 border-t" />
+
+                    {/* PMS IT Contact */}
+                    <PMSContactDetails 
+                      systemType="roomsonline"
+                      initialData={{
+                        contact_name: trackerData['roomsonline']?.contact_name,
+                        contact_tel: trackerData['roomsonline']?.contact_tel,
+                        contact_email: trackerData['roomsonline']?.contact_email,
+                      }}
+                      onUpdated={() => fetchTrackerData()}
+                    />
+
+                    {/* Dev Notes */}
+                    <PMSDevNotes systemType="roomsonline" />
                   </div>
                 </AccordionContent>
               </AccordionItem>
@@ -3051,6 +3151,21 @@ export default function AdminKeys() {
                           </div>
                         </div>
                         <ApiMilestones systemType="hotelbeds" className="pt-4 border-t" />
+
+                        {/* PMS IT Contact */}
+                        <PMSContactDetails 
+                          systemType="hotelbeds"
+                          initialData={{
+                            contact_name: trackerData['hotelbeds']?.contact_name,
+                            contact_tel: trackerData['hotelbeds']?.contact_tel,
+                            contact_email: trackerData['hotelbeds']?.contact_email,
+                          }}
+                          onUpdated={() => fetchTrackerData()}
+                        />
+
+                        {/* Dev Notes */}
+                        <PMSDevNotes systemType="hotelbeds" />
+
                         <div className="flex gap-2">
                           <Button variant="outline" onClick={() => setEditingHotelbeds(true)}>
                             {hotelbedsCredentials?.api_key ? "Update Credentials" : "Configure"}
