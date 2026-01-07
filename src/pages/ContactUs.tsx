@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Building2, Send, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { PublicLayout } from "@/components/layout/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
+import { Mail, Phone, MapPin, Send, CheckCircle, Loader2 } from "lucide-react";
 
 const contactSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
@@ -37,13 +38,11 @@ const ContactUs = () => {
     e.preventDefault();
     setErrors({});
 
-    // Validate captcha
     if (!captchaChecked) {
       setErrors({ captcha: "Please confirm you are not a robot" });
       return;
     }
 
-    // Validate form data
     const result = contactSchema.safeParse({ name, email, message });
     if (!result.success) {
       const fieldErrors: Record<string, string> = {};
@@ -59,7 +58,7 @@ const ContactUs = () => {
     setIsSubmitting(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("send-contact-email", {
+      const { error } = await supabase.functions.invoke("send-contact-email", {
         body: {
           name: result.data.name,
           email: result.data.email,
@@ -70,10 +69,7 @@ const ContactUs = () => {
 
       if (error) throw error;
 
-      // Show success modal
       setShowSuccessModal(true);
-      
-      // Reset form
       setName("");
       setEmail("");
       setMessage("");
@@ -87,131 +83,176 @@ const ContactUs = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="h-9 w-9 rounded-lg bg-[var(--hero-gradient)] flex items-center justify-center">
-              <Building2 className="h-5 w-5 text-white" />
-            </div>
+    <PublicLayout backLabel="Back to Home" backTo="/">
+      <div className="container mx-auto px-4 sm:px-6 py-12 sm:py-16">
+        {/* Page title */}
+        <div className="max-w-3xl mx-auto text-center mb-12 sm:mb-16">
+          <h1 className="font-display text-3xl sm:text-4xl font-light text-foreground mb-4">
+            Get in Touch
+          </h1>
+          <p className="text-muted-foreground text-lg">
+            We would love to hear from you
+          </p>
+        </div>
+
+        <div className="max-w-4xl mx-auto grid gap-12 lg:grid-cols-5">
+          {/* Contact info */}
+          <div className="lg:col-span-2 space-y-8">
             <div>
-              <h1 className="text-lg font-bold text-foreground">RoomsOnline</h1>
-              <p className="text-xs text-muted-foreground">Unified Booking Engine</p>
+              <h2 className="font-display text-xl font-light text-foreground mb-6">
+                Contact Information
+              </h2>
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <Mail className="h-5 w-5 text-primary mt-0.5" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Email</p>
+                    <a
+                      href="mailto:info@roomsonline.co.za"
+                      className="text-foreground hover:text-primary transition-colors"
+                    >
+                      info@roomsonline.co.za
+                    </a>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Phone className="h-5 w-5 text-primary mt-0.5" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Phone</p>
+                    <a
+                      href="tel:+27214180022"
+                      className="text-foreground hover:text-primary transition-colors"
+                    >
+                      +27 21 418 0022
+                    </a>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <MapPin className="h-5 w-5 text-primary mt-0.5" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Address</p>
+                    <p className="text-foreground">
+                      Cape Town, South Africa
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
-          </Link>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/" className="flex items-center gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Home
-            </Link>
-          </Button>
-        </div>
-      </header>
 
-      {/* Content */}
-      <main className="container mx-auto px-4 py-12 max-w-lg">
-        <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">Contact Us</h1>
-        <p className="text-muted-foreground mb-8">
-          Have a question or feedback? We'd love to hear from you.
-        </p>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Name */}
-          <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
-            <Input
-              id="name"
-              type="text"
-              placeholder="Your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className={errors.name ? "border-destructive" : ""}
-            />
-            {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
-          </div>
-
-          {/* Email */}
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="your@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={errors.email ? "border-destructive" : ""}
-            />
-            {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
-          </div>
-
-          {/* Message */}
-          <div className="space-y-2">
-            <Label htmlFor="message">Message</Label>
-            <Textarea
-              id="message"
-              placeholder="Your message..."
-              rows={5}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className={errors.message ? "border-destructive" : ""}
-            />
-            {errors.message && <p className="text-sm text-destructive">{errors.message}</p>}
-          </div>
-
-          {/* Honeypot - hidden from users, only bots fill it */}
-          <input
-            type="text"
-            name="website"
-            value={honeypot}
-            onChange={(e) => setHoneypot(e.target.value)}
-            className="absolute opacity-0 pointer-events-none"
-            tabIndex={-1}
-            autoComplete="off"
-            aria-hidden="true"
-          />
-
-          {/* Simple Captcha */}
-          <div className="flex items-start space-x-3 p-4 bg-secondary/30 rounded-lg border border-border">
-            <Checkbox
-              id="captcha"
-              checked={captchaChecked}
-              onCheckedChange={(checked) => setCaptchaChecked(checked === true)}
-            />
-            <div className="space-y-1">
-              <Label htmlFor="captcha" className="cursor-pointer">
-                I'm not a robot
-              </Label>
-              {errors.captcha && <p className="text-sm text-destructive">{errors.captcha}</p>}
+            <div className="p-6 rounded-lg bg-muted/30 border border-border/50">
+              <h3 className="font-medium text-foreground mb-2">Office Hours</h3>
+              <p className="text-sm text-muted-foreground">
+                Monday – Friday: 9:00 AM – 5:00 PM (SAST)
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Saturday – Sunday: Closed
+              </p>
             </div>
           </div>
 
-          {/* Submit Button */}
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Sending...
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4 mr-2" />
-                Send Message
-              </>
-            )}
-          </Button>
-        </form>
+          {/* Contact form */}
+          <div className="lg:col-span-3">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="p-6 sm:p-8 rounded-lg bg-card border border-border shadow-sm">
+                <h2 className="font-display text-xl font-light text-foreground mb-6">
+                  Send a Message
+                </h2>
 
-        {/* Back Button */}
-        <div className="mt-8 pt-6 border-t border-border">
-          <Button variant="outline" asChild>
-            <Link to="/" className="flex items-center gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Home
-            </Link>
-          </Button>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name" className="text-sm text-foreground">
+                      Name <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className={errors.name ? "border-destructive" : ""}
+                      placeholder="Your name"
+                    />
+                    {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-sm text-foreground">
+                      Email <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className={errors.email ? "border-destructive" : ""}
+                      placeholder="you@example.com"
+                    />
+                    {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="message" className="text-sm text-foreground">
+                      Message <span className="text-destructive">*</span>
+                    </Label>
+                    <Textarea
+                      id="message"
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      rows={5}
+                      className={`resize-none ${errors.message ? "border-destructive" : ""}`}
+                      placeholder="Tell us more..."
+                    />
+                    {errors.message && <p className="text-sm text-destructive">{errors.message}</p>}
+                  </div>
+
+                  {/* Honeypot */}
+                  <input
+                    type="text"
+                    name="website"
+                    value={honeypot}
+                    onChange={(e) => setHoneypot(e.target.value)}
+                    className="absolute opacity-0 pointer-events-none"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    aria-hidden="true"
+                  />
+
+                  <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border border-border/50">
+                    <Checkbox
+                      id="captcha"
+                      checked={captchaChecked}
+                      onCheckedChange={(checked) => setCaptchaChecked(checked === true)}
+                    />
+                    <Label
+                      htmlFor="captcha"
+                      className="text-sm text-muted-foreground cursor-pointer"
+                    >
+                      I am not a robot
+                    </Label>
+                  </div>
+                  {errors.captcha && <p className="text-sm text-destructive">{errors.captcha}</p>}
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full mt-6 gap-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" />
+                      Send Message
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
-      </main>
+      </div>
 
       {/* Success Modal */}
       <Dialog open={showSuccessModal} onOpenChange={(open) => {
@@ -219,24 +260,29 @@ const ContactUs = () => {
         if (!open) navigate("/");
       }}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Message Sent</DialogTitle>
-            <DialogDescription className="pt-4 text-base space-y-4">
+          <DialogHeader className="text-center">
+            <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-status-healthy/10 flex items-center justify-center">
+              <CheckCircle className="h-6 w-6 text-status-healthy" />
+            </div>
+            <DialogTitle className="font-display text-xl font-light">
+              Message Sent
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground pt-4 space-y-3">
               <p>Thank you for reaching out.</p>
-              <p>Your message has been received and is with the RoomsOnline team.</p>
-              <p>We read every enquiry properly (no auto-replies pretending to be people), and we'll get back to you as soon as we can — usually within one business day.</p>
-              <p>In the meantime, feel free to keep exploring. Great places have a way of finding you.</p>
+              <p>Your message has been received and is with the RoomsOnline team. We read every enquiry properly and will get back to you as soon as we can—usually within one business day.</p>
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end pt-4">
+          <div className="flex justify-center pt-4">
             <Button onClick={() => {
               setShowSuccessModal(false);
               navigate("/");
-            }}>Close</Button>
+            }}>
+              Close
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </PublicLayout>
   );
 };
 

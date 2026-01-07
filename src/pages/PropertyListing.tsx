@@ -4,6 +4,8 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PropertySegmentSection } from "@/components/PropertySegmentSection";
 import { SegmentFilterId } from "@/lib/segmentFilters";
+import { PublicFooter } from "@/components/layout/PublicFooter";
+import rolLogo from "@/assets/rol-logo.png";
 
 const HERO_SENTENCES = [
   "Discover hand-picked extraordinary escapes and places that spark the wanderlust",
@@ -16,7 +18,7 @@ const HERO_SENTENCES = [
 // Segment ordering: Luxury | Style first, then type segments, then destination segments
 // Excludes "discover_new" (New) segment
 const TYPE_SEGMENTS: SegmentFilterId[] = [
-  "luxury_style",      // First
+  "luxury_style",
   "wow_epic",
   "seclusion_escape",
   "romance",
@@ -47,16 +49,17 @@ export default function PropertyListing() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen flex flex-col bg-background">
       {/* Header with Back Button */}
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
-        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
-          <div className="flex items-center gap-4">
+        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-4">
+            {/* Left: Back button */}
             <Button
               variant="ghost"
               size="sm"
               asChild
-              className="gap-2"
+              className="gap-2 font-normal"
             >
               <Link to="/">
                 <ArrowLeft className="h-4 w-4" />
@@ -64,15 +67,33 @@ export default function PropertyListing() {
                 <span className="sm:hidden">Back</span>
               </Link>
             </Button>
-            <h1 className="text-base sm:text-lg font-medium text-foreground/80 italic">
-              {heroSentence}
-            </h1>
+
+            {/* Center: Logo */}
+            <Link to="/" className="absolute left-1/2 -translate-x-1/2">
+              <img
+                src={rolLogo}
+                alt="RoomsOnline"
+                className="h-8 sm:h-10 w-auto"
+              />
+            </Link>
+
+            {/* Right: Placeholder for balance */}
+            <div className="w-24" />
           </div>
         </div>
       </header>
 
+      {/* Hero Sentence */}
+      <div className="bg-muted/30 border-b border-border">
+        <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
+          <p className="font-display text-lg sm:text-xl md:text-2xl font-light text-foreground/80 text-center italic max-w-3xl mx-auto">
+            {heroSentence}
+          </p>
+        </div>
+      </div>
+
       {/* Property Segments */}
-      <main>
+      <main className="flex-1">
         {ALL_SEGMENTS.map((segmentId) => (
           <PropertySegmentSection
             key={segmentId}
@@ -82,15 +103,7 @@ export default function PropertyListing() {
       </main>
 
       {/* Footer */}
-      <footer className="py-4 sm:py-6 border-t border-border mt-auto bg-background">
-        <div className="container mx-auto px-3 sm:px-4">
-          <div className="flex justify-end">
-            <p className="text-[10px] sm:text-xs text-muted-foreground">
-              © 2025 RoomsOnline
-            </p>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

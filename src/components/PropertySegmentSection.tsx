@@ -53,29 +53,29 @@ export function PropertySegmentSection({
   }
 
   return (
-    <section className="py-8 sm:py-12">
-      <div className="container mx-auto px-3 sm:px-4">
+    <section className="py-10 sm:py-14">
+      <div className="container mx-auto px-4 sm:px-6">
         {/* Section Header */}
-        <div className="mb-6">
-          <h2 className="text-xl sm:text-2xl font-bold text-foreground inline">
+        <div className="mb-8">
+          <h2 className="font-display text-2xl sm:text-3xl font-light text-foreground">
             {sectionTitle}
           </h2>
           {segmentTags.length > 0 && (
-            <span className="ml-3 text-xs sm:text-sm text-muted-foreground">
-              TAGS: {segmentTags.join(", ")}
-            </span>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {segmentTags.join(" · ")}
+            </p>
           )}
         </div>
 
         {/* Loading State */}
         {isLoading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="space-y-3">
-                <Skeleton className="h-48 sm:h-52 w-full rounded-lg" />
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-1/2" />
-                <Skeleton className="h-12 w-full" />
+                <Skeleton className="aspect-[4/3] w-full rounded-lg" />
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-16 w-full" />
               </div>
             ))}
           </div>
@@ -83,7 +83,7 @@ export function PropertySegmentSection({
 
         {/* Properties Grid */}
         {!isLoading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {displayProperties.map((property) => (
               <PropertyCard key={property.id} property={property} showCautionBadge={showCautionBadge} />
             ))}
