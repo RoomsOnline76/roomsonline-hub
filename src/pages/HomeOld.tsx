@@ -29,7 +29,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format, subYears } from "date-fns";
 import { composeHeadline, composeMapSubheadline } from "@/lib/headlineComposer";
 import CategoryBanner from "@/components/CategoryBanner";
-import { BannerSegment } from "@/lib/bannerSegments";
+import { BannerSegment, BANNER_SEGMENTS } from "@/lib/bannerSegments";
 import { MAP_FILTER_CATEGORIES, getMapFiltersByCategory, MapFilterCategoryId } from "@/lib/mapFilters";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import { CurrencySelector } from "@/components/CurrencySelector";
@@ -38,7 +38,6 @@ import { AISearchProvider, useAISearch } from "@/contexts/AISearchContext";
 import { AISearchInput } from "@/components/AISearchInput";
 import { AIExplanationOverlay } from "@/components/AIExplanationOverlay";
 import { PropertyCard } from "@/components/PropertyCard";
-import { PublicFooter } from "@/components/layout/PublicFooter";
 
 // Keys match database property_type values (lowercase)
 const PROPERTY_TYPES = [
@@ -88,7 +87,7 @@ function extractPrimaryImageUrl(images: unknown): string | null {
 
 function HomeContent() {
   const { selectedProperty, searchResults, isExpanded, setSearchQuery, setSelectedProperty, resetSearch: resetSearchContext } = useSearch();
-  const { aiResults, isAISearchActive } = useAISearch();
+  const { aiResults, isAISearchActive, resetAISearch } = useAISearch();
 
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
   const [heroImage, setHeroImage] = useState<string>(heroFallback);
@@ -128,8 +127,9 @@ function HomeContent() {
     },
   });
 
-  // Compute filtered property IDs for map and segments
+  // Compute filtered property IDs for map and segments (moved up for hook usage)
   const filteredPropertyIds = useMemo(() => {
+    // AI search takes priority
     if (isAISearchActive && aiResults && aiResults.length > 0) {
       return aiResults;
     }
@@ -139,20 +139,26 @@ function HomeContent() {
     if (searchResults.length > 0) {
       return searchResults.map((p) => p.id);
     }
-    return null;
+    return null; // null means no filter
   }, [selectedProperty, searchResults, isAISearchActive, aiResults]);
 
+  // Determine if filters are active (for showing caution badges)
   const isFiltered = filteredPropertyIds !== null || selectedMapFilters.length > 0 || selectedSegment !== null;
 
+  // Get property segments with search filtering
   const {
+    discoverNewSection,
     destinationSection,
     typesSections,
+    allSegmentSections,
     properties,
     isLoading: propertiesLoading,
   } = useHomePropertySegments(filteredPropertyIds, isFiltered);
 
+  // Get filters grouped by category
   const filtersByCategory = useMemo(() => getMapFiltersByCategory(), []);
 
+  // Scroll handlers for FindBy section
   const handleScrollToTypes = useCallback(() => {
     typesRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
@@ -180,8 +186,10 @@ function HomeContent() {
 
   const handleFilterSelect = (categoryId: MapFilterCategoryId, filterId: string) => {
     if (filterId === "all") {
+      // Remove filters from this category
       setSelectedMapFilters((prev) => prev.filter((id) => !filtersByCategory[categoryId].some((f) => f.id === id)));
     } else {
+      // Replace any existing filter from this category with the new one
       setSelectedMapFilters((prev) => {
         const withoutCategory = prev.filter((id) => !filtersByCategory[categoryId].some((f) => f.id === id));
         return [...withoutCategory, filterId];
@@ -199,10 +207,13 @@ function HomeContent() {
     return selected || "all";
   };
 
+  // Generate headlines once on mount (lazy initialization)
   const headline = useMemo(() => composeHeadline(), []);
+  const mapSubheadline = useMemo(() => composeMapSubheadline(), []);
 
   const handleSegmentClick = (segment: BannerSegment) => {
     if (segment.filterType === null) {
+      // "ALL" - clear selection, scroll to map
       setSelectedSegment(null);
       setTimeout(() => {
         const mapSection = document.getElementById("map-section");
@@ -212,10 +223,12 @@ function HomeContent() {
       }, 50);
       setEnabledTypes(INITIAL_ENABLED_TYPES);
     } else {
+      // Set selected segment, scroll will happen via useEffect
       setSelectedSegment(segment);
     }
   };
 
+  // Scroll to selected segment after it renders
   useEffect(() => {
     if (selectedSegment) {
       setTimeout(() => {
@@ -238,6 +251,7 @@ function HomeContent() {
           .eq("is_active", true);
 
         if (heroProperties && heroProperties.length > 0) {
+          // Collect all valid hero properties with their media
           const validProperties: {
             imageUrl: string;
             videoUrl: string | null;
@@ -258,12 +272,14 @@ function HomeContent() {
             }
           }
 
+          // Randomly select one
           if (validProperties.length > 0) {
             const randomIndex = Math.floor(Math.random() * validProperties.length);
             const selected = validProperties[randomIndex];
             setHeroImage(selected.imageUrl);
             setHeroVideoUrl(selected.videoUrl);
             setHeroProperty({ name: selected.name, city: selected.city, country: selected.country });
+            // Store original values
             setOriginalHeroImage(selected.imageUrl);
             setOriginalHeroVideoUrl(selected.videoUrl);
             setOriginalHeroProperty({ name: selected.name, city: selected.city, country: selected.country });
@@ -279,9 +295,10 @@ function HomeContent() {
     fetchHeroMedia();
   }, []);
 
-  // Update hero image when AI or regular search is active
+  // Update hero image and search bar when AI search is active
   useEffect(() => {
     async function updateFromAISearch() {
+      // AI search takes priority
       if (isAISearchActive && aiResults && aiResults.length > 0) {
         try {
           const { data: aiProperty } = await supabase
@@ -291,6 +308,7 @@ function HomeContent() {
             .single();
 
           if (aiProperty) {
+            // Update hero image
             const aiImage = extractPrimaryImageUrl(aiProperty.images);
             if (aiImage) {
               setHeroImage(aiImage);
@@ -302,6 +320,7 @@ function HomeContent() {
               });
             }
 
+            // Update search bar with AI result
             setSearchQuery(aiProperty.name);
             setSelectedProperty({
               id: aiProperty.id,
@@ -320,11 +339,12 @@ function HomeContent() {
         return;
       }
 
+      // When AI search is not active, handle regular search selection
       if (selectedProperty) {
         const selectedImage = extractPrimaryImageUrl(selectedProperty.images);
         if (selectedImage) {
           setHeroImage(selectedImage);
-          setHeroVideoUrl(null);
+          setHeroVideoUrl(null); // No video for search-selected property
           setHeroProperty({
             name: selectedProperty.name,
             city: selectedProperty.city,
@@ -332,6 +352,7 @@ function HomeContent() {
           });
         }
       } else if (!isAISearchActive) {
+        // Reset to original when no property selected and AI not active
         setHeroImage(originalHeroImage);
         setHeroVideoUrl(originalHeroVideoUrl);
         setHeroProperty(originalHeroProperty);
@@ -341,10 +362,12 @@ function HomeContent() {
     updateFromAISearch();
   }, [selectedProperty, originalHeroImage, originalHeroVideoUrl, originalHeroProperty, isAISearchActive, aiResults, setSearchQuery, setSelectedProperty]);
 
-  // Reset hero when AI search is cleared
+  // Clear search bar and reset hero when AI search is reset
   useEffect(() => {
     if (!isAISearchActive && aiResults === null) {
+      // Reset search bar
       resetSearchContext();
+      // Reset hero to original
       setHeroImage(originalHeroImage);
       setHeroVideoUrl(originalHeroVideoUrl);
       setHeroProperty(originalHeroProperty);
@@ -357,10 +380,13 @@ function HomeContent() {
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
-      {/* Hero Section */}
+      {/* Hero Section - Full Bleed, uses dvh on mobile to fit viewport including banner */}
+      {/* landscape: uses min-h to prevent overlap when viewport is short and wide */}
       <section ref={heroRef} className="relative h-[100dvh] sm:h-screen w-full flex-shrink-0 landscape:min-h-[500px]">
-        {/* Background media */}
-        <div className={`absolute inset-0 transition-opacity duration-700 ${isLoadingHero ? "opacity-0" : "opacity-100"}`}>
+        {/* Full-bleed background - video if available, image as fallback */}
+        <div
+          className={`absolute inset-0 transition-opacity duration-700 ${isLoadingHero ? "opacity-0" : "opacity-100"}`}
+        >
           {heroVideoUrl ? (
             <video
               autoPlay
@@ -375,115 +401,139 @@ function HomeContent() {
           ) : (
             <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${heroImage})` }} />
           )}
-          {/* Refined gradient overlay - 35% for elegance */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/40" />
+          {/* Subtle gradient overlay for text readability */}
+          <div className="absolute inset-0 bg-black/40" />
         </div>
 
-        {/* Navigation Header */}
-        <div className={`absolute top-0 left-0 right-0 z-20 transition-all duration-300 ${isExpanded ? "bg-background/95 backdrop-blur-md border-b border-border shadow-lg" : ""}`}>
-          <div className={`flex items-center justify-between gap-4 ${isExpanded ? "px-4 py-3" : "px-4 py-4 sm:px-8 sm:py-6"}`}>
-            {/* Logo */}
-            <Link to="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity flex-shrink-0 group">
+        {/* Top Bar - Logo, Search, Menu */}
+        <div
+          className={`absolute top-0 left-0 right-0 z-20 transition-all duration-300 ${isExpanded ? "bg-background border-b border-border shadow-lg" : ""}`}
+        >
+          {/* Row 1: Navigation - Logo, Currency, Menu */}
+          <div
+            className={`flex items-center justify-between gap-4 ${isExpanded ? "px-4 py-3" : "px-4 py-4 sm:px-6 sm:py-6"}`}
+          >
+            {/* Logo - Left */}
+            <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0">
               <img
                 src={rolLogo}
                 alt="RoomsOnline"
-                className={`object-contain invert brightness-0 filter drop-shadow-lg transition-transform group-hover:scale-105 ${isExpanded ? "h-8 w-8" : "h-10 w-10 sm:h-12 sm:w-12"}`}
+                className={`object-contain invert brightness-0 filter drop-shadow-lg ${isExpanded ? "h-8 w-8" : "h-10 w-10 sm:h-12 sm:w-12"}`}
               />
               <div className={`${isExpanded ? "hidden" : "block"}`}>
-                <h1 className="font-display text-xl sm:text-2xl text-white drop-shadow-lg tracking-wide">
-                  RoomsOnline
-                </h1>
-                <p className="hidden sm:block text-[10px] uppercase tracking-[0.2em] text-white/70 mt-0.5">
-                  Curated Stays
-                </p>
+                <h1 className="text-lg sm:text-xl font-bold text-white drop-shadow-lg">RoomsOnline</h1>
               </div>
             </Link>
 
-            {/* Desktop Search */}
-            <div className={`hidden sm:flex flex-1 max-w-xl mx-4 transition-opacity ${isExpanded ? "opacity-100" : "opacity-60 hover:opacity-90"}`}>
+            {/* Desktop: Search Bar inline - hidden on mobile */}
+            <div
+              className={`hidden sm:flex flex-1 max-w-xl mx-4 transition-opacity ${isExpanded ? "opacity-100" : "opacity-50 hover:opacity-75"}`}
+            >
               <SearchForm />
             </div>
 
-            {/* Controls */}
-            <div className="flex items-center gap-3 flex-shrink-0">
+            {/* Currency Selector & Hamburger Menu - Right */}
+            <div className="flex items-center gap-2 flex-shrink-0">
               <CurrencySelector compact className="hero" />
 
               <div className="relative" ref={menuRef}>
                 <button
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className={`rounded-lg flex items-center justify-center transition-all ${
-                    isExpanded 
-                      ? "h-9 w-9 bg-muted hover:bg-muted/80" 
-                      : "h-10 w-10 bg-white/10 backdrop-blur-sm hover:bg-white/20 border border-white/20"
-                  }`}
+                  className={`rounded-lg flex items-center justify-center transition-colors ${isExpanded ? "h-8 w-8 bg-muted hover:bg-muted/80" : "h-10 w-10 bg-white/10 backdrop-blur-sm hover:bg-white/20"}`}
                   aria-label="Open menu"
                 >
-                  <Menu className={`${isExpanded ? "h-5 w-5 text-foreground" : "h-5 w-5 text-white"}`} />
+                  <Menu className={`${isExpanded ? "h-5 w-5 text-foreground" : "h-6 w-6 text-white"}`} />
                 </button>
 
                 {/* Dropdown Menu */}
                 {isMenuOpen && (
-                  <div className="absolute top-12 right-0 w-56 bg-card/98 backdrop-blur-md border border-border rounded-xl shadow-2xl py-2 z-50 animate-fade-in">
-                    {[
-                      { to: "/journals", icon: BookOpen, label: "Journal" },
-                      { to: "/about", icon: Users, label: "About Us" },
-                      { to: "/privacy-policy", icon: ShieldCheck, label: "Privacy" },
-                      { to: "/terms-of-service", icon: FileText, label: "Terms" },
-                      { to: "/contact", icon: Mail, label: "Contact Us" },
-                    ].map((item) => (
-                      <Link
-                        key={item.to}
-                        to={item.to}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted/60 transition-colors"
-                        onClick={() => setIsMenuOpen(false)}
-                      >
-                        <item.icon className="h-4 w-4 text-muted-foreground" />
-                        {item.label}
-                      </Link>
-                    ))}
+                  <div className="absolute top-12 right-0 w-52 bg-background/95 backdrop-blur-md border border-border rounded-lg shadow-xl py-2 z-50">
+                    <Link
+                      to="/journals"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <BookOpen className="h-4 w-4 text-muted-foreground" />
+                      Journal
+                    </Link>
+                    <Link
+                      to="/about"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      About Us
+                    </Link>
+                    <Link
+                      to="/privacy-policy"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                      Privacy
+                    </Link>
+                    <Link
+                      to="/terms-of-service"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      Terms & Conditions
+                    </Link>
+                    <Link
+                      to="/contact"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      Contact Us
+                    </Link>
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Mobile Search */}
-          <div className={`sm:hidden px-4 pb-4 transition-opacity ${isExpanded ? "opacity-100" : "opacity-60"}`}>
+          {/* Row 2: Mobile Search Bar - hidden on desktop */}
+          <div className={`sm:hidden px-4 pb-4 transition-opacity ${isExpanded ? "opacity-100" : "opacity-50"}`}>
             <SearchForm />
           </div>
         </div>
 
-        {/* Property Attribution - Frosted glass badge */}
+        {/* Property Attribution - Bottom Right */}
         {heroProperty && (
-          <div className="absolute bottom-24 sm:bottom-28 right-4 sm:right-8 z-20">
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-lg px-4 py-2.5 text-right">
-              <p className="font-display text-sm sm:text-base text-white drop-shadow-sm">{heroProperty.name}</p>
-              <p className="text-xs sm:text-sm text-white/80">
-                {heroProperty.city}, {heroProperty.country}
-              </p>
-            </div>
+          <div className="absolute bottom-24 sm:bottom-28 right-6 z-20 text-right">
+            <p className="text-sm sm:text-base font-medium text-white drop-shadow-lg">{heroProperty.name}</p>
+            <p className="text-xs sm:text-sm text-white/80 drop-shadow">
+              {heroProperty.city}, {heroProperty.country}
+            </p>
           </div>
         )}
 
-        {/* Hero Text */}
-        <div className={`absolute inset-0 flex items-start pt-32 sm:pt-40 landscape:pt-24 z-10 transition-opacity duration-500 ${isAISearchActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-          <div className="w-full px-4 sm:px-8 md:px-12 flex flex-col">
-            <h2 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white drop-shadow-lg mb-4 sm:mb-6 tracking-wide">
-              Sleep in Africa
-            </h2>
-            <p className="font-display text-lg sm:text-xl md:text-2xl lg:text-3xl text-white/90 drop-shadow-md leading-relaxed max-w-2xl italic">
+        {/* Hero Text Layout - anchored from top */}
+        {/* Hide when AI search is active */}
+        <div className={`absolute inset-0 flex items-start pt-32 sm:pt-36 landscape:pt-24 landscape:sm:pt-28 z-10 transition-opacity duration-500 ${isAISearchActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          <div className="w-full px-6 md:px-12 flex flex-col">
+            {/* Hero Banner */}
+            <p className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl landscape:text-xl landscape:md:text-2xl text-white font-bold tracking-wide drop-shadow-lg mb-4 landscape:mb-2 text-left whitespace-nowrap">
+              Sleep in Africa with RoomsOnline.
+            </p>
+            {/* Main hero text */}
+            <p className="text-xl md:text-2xl lg:text-3xl xl:text-4xl landscape:text-lg landscape:md:text-xl text-white font-medium tracking-wide drop-shadow-lg leading-relaxed landscape:leading-snug text-right max-w-[50%] self-center mr-auto">
               {headline}
             </p>
           </div>
         </div>
 
-        {/* AI Overlays */}
+        {/* AI Explanation Overlay - shows when AI search is active */}
         <AIExplanationOverlay />
 
+        {/* AI Search Input - positioned at same height as property name */}
         <div className="absolute bottom-24 sm:bottom-28 left-0 right-0 z-20">
           <AISearchInput />
         </div>
 
+        {/* Auto-scrolling Category Banner */}
         <CategoryBanner
           onSegmentClick={handleSegmentClick}
           heroRef={heroRef}
@@ -491,37 +541,39 @@ function HomeContent() {
         />
       </section>
 
-      {/* Find By Section */}
+      {/* Find By Section - Hidden during AI search */}
       {!isAISearchActive && (
         <FindBySection onScrollToTypes={handleScrollToTypes} onScrollToMap={handleScrollToMap} />
       )}
 
-      {/* Map Section */}
-      <section ref={mapRef} id="map-section" className="py-12 sm:py-16 bg-background">
-        <div className="container mx-auto px-4 sm:px-6">
-          <div className="mb-8 sm:mb-10">
-            <h2 className="font-display text-2xl sm:text-3xl text-foreground mb-2">
-              {isAISearchActive ? "Your Match" : "Explore Our World"}
+      {/* Properties Map Section */}
+      <section ref={mapRef} id="map-section" className="py-6 sm:py-8 bg-background">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="text-left mb-3 sm:mb-5">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground">
+              {isAISearchActive ? (
+                "Your match is here"
+              ) : (
+                <>
+                  Explore Our World{" "}
+                  <span className="font-normal text-muted-foreground">
+                    — Toggle or Filter by what calls to you — lodges, rustic vibe, coastal retreat, or something unexpected.
+                  </span>
+                </>
+              )}
             </h2>
-            {!isAISearchActive && (
-              <p className="text-muted-foreground text-sm sm:text-base max-w-2xl">
-                Toggle or filter by what calls to you — lodges, coastal retreats, or something unexpected.
-              </p>
-            )}
           </div>
 
-          {/* Property Type Toggles */}
+          {/* Property Type Toggles - Hidden during AI search */}
           {!isAISearchActive && (
-            <div className="overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:overflow-visible scrollbar-hide mb-6">
-              <div className="flex sm:flex-wrap sm:justify-start gap-2 min-w-max sm:min-w-0">
+            <div className="overflow-x-auto pb-2 -mx-3 px-3 sm:mx-0 sm:px-0 sm:overflow-visible scrollbar-hide">
+              <div className="flex sm:flex-wrap sm:justify-center gap-2 mb-3 sm:mb-5 min-w-max sm:min-w-0">
                 {PROPERTY_TYPES.map((type) => (
                   <button
                     key={type.key}
                     onClick={() => toggleType(type.key)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-full border transition-all touch-manipulation active:scale-95 ${
-                      enabledTypes[type.key] 
-                        ? "border-primary/40 bg-primary/5 shadow-sm" 
-                        : "border-border bg-background hover:border-muted-foreground/30"
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border transition-all touch-manipulation active:scale-95 ${
+                      enabledTypes[type.key] ? "border-primary/30 bg-primary/5" : "border-border bg-background"
                     }`}
                   >
                     <span
@@ -529,7 +581,11 @@ function HomeContent() {
                         enabledTypes[type.key] ? type.color : "bg-muted-foreground/30"
                       }`}
                     />
-                    <span className={`text-sm transition-colors ${enabledTypes[type.key] ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                    <span
+                      className={`text-xs font-medium whitespace-nowrap transition-colors ${
+                        enabledTypes[type.key] ? "text-foreground" : "text-muted-foreground"
+                      }`}
+                    >
                       {type.label}
                     </span>
                   </button>
@@ -538,24 +594,24 @@ function HomeContent() {
             </div>
           )}
 
-          {/* Filter Dropdowns */}
+          {/* Navigation Tag Filter Dropdowns - Hidden during AI search */}
           {!isAISearchActive && (
-            <div className="flex flex-wrap items-center gap-3 mb-6">
+            <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
               {MAP_FILTER_CATEGORIES.map((category) => (
                 <Select
                   key={category.id}
                   value={getSelectedFilterForCategory(category.id)}
                   onValueChange={(value) => handleFilterSelect(category.id, value)}
                 >
-                  <SelectTrigger className="w-[140px] sm:w-[160px] h-10 text-sm bg-background border-border hover:border-primary/30 transition-colors">
+                  <SelectTrigger className="w-[140px] sm:w-[160px] h-9 text-xs sm:text-sm bg-background border-border">
                     <SelectValue placeholder={category.label} />
                   </SelectTrigger>
-                  <SelectContent className="bg-card border-border z-50">
-                    <SelectItem value="all" className="text-sm">
+                  <SelectContent className="bg-background border-border z-50">
+                    <SelectItem value="all" className="text-xs sm:text-sm">
                       All {category.label}
                     </SelectItem>
                     {filtersByCategory[category.id].map((filter) => (
-                      <SelectItem key={filter.id} value={filter.id} className="text-sm">
+                      <SelectItem key={filter.id} value={filter.id} className="text-xs sm:text-sm">
                         {filter.label}
                       </SelectItem>
                     ))}
@@ -565,16 +621,16 @@ function HomeContent() {
               {selectedMapFilters.length > 0 && (
                 <button
                   onClick={clearAllFilters}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <X className="h-3.5 w-3.5" />
-                  Clear filters
+                  <X className="h-3 w-3" />
+                  Clear
                 </button>
               )}
             </div>
           )}
 
-          <div className="h-[300px] sm:h-[400px] md:h-[500px] rounded-xl overflow-hidden border border-border shadow-sm">
+          <div className="h-[250px] sm:h-[350px] md:h-[400px] rounded-lg overflow-hidden border border-border shadow-sm">
             <PropertiesMap
               enabledTypes={enabledTypes}
               typeColors={TYPE_COLORS}
@@ -586,21 +642,22 @@ function HomeContent() {
         </div>
       </section>
 
-      {/* AI Search Results */}
+      {/* AI Search Result Card - shown when AI search is active */}
       {isAISearchActive && aiResults && aiResults.length > 0 && (
-        <section className="py-12 sm:py-16 bg-muted/30">
-          <div className="container mx-auto px-4 sm:px-6">
-            <div className="mb-8">
-              <h2 className="font-display text-2xl sm:text-3xl text-foreground mb-2">
+        <section className="py-6 sm:py-8 bg-secondary/20">
+          <div className="container mx-auto px-3 sm:px-4">
+            <div className="mb-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-foreground">
                 Your Perfect Match{aiResults.length > 1 ? 'es' : ''}
               </h2>
-              <p className="text-muted-foreground">
+              <p className="text-sm text-muted-foreground mt-1">
                 {aiResults.length === 1 
                   ? 'Based on your search, we found the ideal property for you'
                   : `Found ${aiResults.length} properties that match your criteria`}
               </p>
             </div>
             
+            {/* Dynamic layout based on result count */}
             {aiResults.length === 1 ? (
               <div className="flex justify-center">
                 <div className="w-full max-w-md">
@@ -610,13 +667,13 @@ function HomeContent() {
                 </div>
               </div>
             ) : aiResults.length === 2 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-4xl mx-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 max-w-4xl mx-auto">
                 {properties.filter(p => aiResults.includes(p.id)).map(property => (
                   <PropertyCard key={property.id} property={property} variant="large" showCautionBadge={true} />
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                 {properties.filter(p => aiResults.includes(p.id)).map(property => (
                   <PropertyCard key={property.id} property={property} showCautionBadge={true} />
                 ))}
@@ -626,7 +683,7 @@ function HomeContent() {
         </section>
       )}
 
-      {/* Property Segments */}
+      {/* Additional Type Segments - Hidden during AI search */}
       {!isAISearchActive && (
         <div ref={typesRef}>
           {selectedSegment ? (
@@ -648,23 +705,25 @@ function HomeContent() {
       )}
 
       {/* Why RoomsOnline Section */}
-      <section className="py-12 sm:py-16 bg-muted/30">
-        <div className="container mx-auto px-4 sm:px-6">
-          <div className="mb-8 sm:mb-10">
-            <h2 className="font-display text-2xl sm:text-3xl text-foreground">Why RoomsOnline</h2>
+      <section className="py-6 sm:py-8 bg-secondary/30">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="text-left mb-3 sm:mb-5">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground">Why RoomsOnline</h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             {[
               {
                 icon: BadgeCheck,
                 title: "Hand-Picked Stays",
-                description: "Every property is personally vetted — no surprises on arrival, only quality-assured accommodations.",
+                description:
+                  "Every property is personally vetted — no surprises on arrival, only quality-assured accommodations.",
               },
               {
                 icon: Zap,
                 title: "Instant Confirmation",
-                description: "Book with confidence. Receive immediate confirmation and detailed reservation info in seconds.",
+                description:
+                  "Book with confidence. Receive immediate confirmation and detailed reservation info in seconds.",
               },
               {
                 icon: Lock,
@@ -674,7 +733,8 @@ function HomeContent() {
               {
                 icon: MapPinned,
                 title: "Local Experts",
-                description: "We know the owners, the towns, the hidden gems. Real insider knowledge at your fingertips.",
+                description:
+                  "We know the owners, the towns, the hidden gems. Real insider knowledge at your fingertips.",
               },
               {
                 icon: HeadphonesIcon,
@@ -689,16 +749,16 @@ function HomeContent() {
             ].map((item, index) => (
               <div
                 key={index}
-                className="flex gap-4 p-5 sm:p-6 rounded-xl bg-card border border-border hover:border-primary/30 hover:shadow-md transition-all"
+                className="flex gap-2.5 sm:gap-3 p-3 sm:p-4 rounded-lg bg-background border border-border/50 hover:border-primary/30 transition-colors"
               >
-                <div className="flex-shrink-0 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <item.icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <item.icon className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                 </div>
-                <div>
-                  <h3 className="font-medium text-sm sm:text-base text-foreground mb-1">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-xs sm:text-sm text-foreground leading-tight mb-0.5">
                     {item.title}
                   </h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">{item.description}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed">{item.description}</p>
                 </div>
               </div>
             ))}
@@ -706,47 +766,49 @@ function HomeContent() {
         </div>
       </section>
 
-      {/* Journal Preview */}
+      {/* Journal Preview Section */}
       {latestJournals && latestJournals.length > 0 && (
-        <section className="py-12 sm:py-16 bg-background">
-          <div className="container mx-auto px-4 sm:px-6">
-            <div className="flex items-center justify-between mb-8 sm:mb-10">
-              <h2 className="font-display text-2xl sm:text-3xl text-foreground">From the Journal</h2>
-              <Link to="/journals" className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors group">
+        <section className="py-6 sm:py-8 bg-background">
+          <div className="container mx-auto px-3 sm:px-4">
+            <div className="flex items-center justify-between mb-3 sm:mb-5">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground">From the Journal</h2>
+              <Link to="/journals" className="flex items-center gap-1 text-sm text-primary hover:underline">
                 View all
-                <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
+                <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               {latestJournals.map((journal) => (
                 <Link
                   key={journal.id}
                   to={`/journals#journal-${journal.slug || journal.id}`}
-                  className="group block bg-card rounded-xl border border-border overflow-hidden hover:border-primary/30 hover:shadow-lg transition-all"
+                  className="group block bg-card rounded-lg border border-border overflow-hidden hover:border-primary/30 transition-colors"
                 >
+                  {/* Image */}
                   {(journal.featured_image_url || journal.header_image_url) && (
                     <div className="aspect-[16/9] overflow-hidden">
                       <img
                         src={journal.featured_image_url || journal.header_image_url || ""}
                         alt={journal.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                     </div>
                   )}
 
-                  <div className="p-5 sm:p-6">
-                    <h3 className="font-display text-base sm:text-lg text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+                  {/* Content */}
+                  <div className="p-4">
+                    <h3 className="font-semibold text-sm sm:text-base text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
                       {journal.title}
                     </h3>
                     {journal.excerpt && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mb-4">{journal.excerpt}</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 mb-3">{journal.excerpt}</p>
                     )}
                     {journal.publish_date && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Calendar className="h-3.5 w-3.5" />
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
                         <time dateTime={journal.publish_date}>
-                          {format(new Date(journal.publish_date), "MMMM d, yyyy")}
+                          {format(new Date(journal.publish_date), "MMM d, yyyy")}
                         </time>
                       </div>
                     )}
@@ -758,13 +820,19 @@ function HomeContent() {
         </section>
       )}
 
-      {/* Footer */}
-      <PublicFooter />
+      {/* Footer - Compact */}
+      <footer className="py-4 sm:py-6 border-t border-border mt-auto bg-background">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="flex justify-end">
+            <p className="text-[10px] sm:text-xs text-muted-foreground">© 2025 RoomsOnline</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
 
-const Home = () => {
+const HomeOld = () => {
   return (
     <SearchProvider>
       <AISearchProvider>
@@ -774,4 +842,4 @@ const Home = () => {
   );
 };
 
-export default Home;
+export default HomeOld;
