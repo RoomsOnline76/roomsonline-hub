@@ -1,0 +1,597 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema_version": "1.0.0",
+  "export_date": "2025-01-07T00:00:00.000Z",
+  "description": "Complete registry of PMS adapters, their capabilities, and integration specifications",
+  "adapter_contract": {
+    "description": "Mandatory response shape for all PMS adapters",
+    "reference_file": "supabase/functions/_shared/adapter-contract.ts",
+    "response_shape": {
+      "success": {
+        "type": "boolean",
+        "required": true,
+        "description": "Whether the operation succeeded"
+      },
+      "data": {
+        "type": "T | null",
+        "required": true,
+        "description": "Response payload, null on error"
+      },
+      "error": {
+        "type": "AdapterError | null",
+        "required": true,
+        "description": "Error details, null on success",
+        "shape": {
+          "code": "string (from ERROR_CODES)",
+          "message": "string",
+          "details": "unknown (optional)"
+        }
+      },
+      "source": {
+        "type": "PmsSource",
+        "required": true,
+        "description": "Identifier of the PMS system"
+      },
+      "fetched_at": {
+        "type": "string (ISO8601)",
+        "required": true,
+        "description": "Timestamp when data was fetched"
+      },
+      "action": {
+        "type": "string",
+        "required": true,
+        "description": "Action that was performed"
+      }
+    },
+    "naming_convention": {
+      "rule": "snake_case",
+      "enforcement": "All field names in data payload must use snake_case",
+      "rationale": "Consistent parsing and mapping across adapters",
+      "examples": {
+        "correct": ["room_type_id", "available_units", "check_in_date"],
+        "incorrect": ["roomTypeId", "availableUnits", "checkInDate"]
+      }
+    },
+    "helper_functions": {
+      "createSuccessResponse": {
+        "signature": "<T>(data: T, source: PmsSource, action: string) => AdapterResponse<T>",
+        "usage": "Wrap successful responses"
+      },
+      "createErrorResponse": {
+        "signature": "(error: AdapterError, source: PmsSource, action: string) => AdapterResponse<null>",
+        "usage": "Wrap error responses"
+      }
+    }
+  },
+  "error_codes": {
+    "description": "Standardized error codes for all adapters",
+    "codes": {
+      "INVALID_REQUEST": {
+        "description": "Request validation failed",
+        "http_equivalent": 400
+      },
+      "AUTH_FAILED": {
+        "description": "Authentication with PMS failed",
+        "http_equivalent": 401
+      },
+      "ACCESS_DENIED": {
+        "description": "Insufficient permissions",
+        "http_equivalent": 403
+      },
+      "NOT_FOUND": {
+        "description": "Requested resource not found in PMS",
+        "http_equivalent": 404
+      },
+      "AVAILABILITY_CHANGED": {
+        "description": "Availability changed during booking attempt",
+        "http_equivalent": 409
+      },
+      "BOOKING_REJECTED": {
+        "description": "PMS rejected the booking for business reasons",
+        "http_equivalent": 422
+      },
+      "MODIFICATION_NOT_SUPPORTED": {
+        "description": "PMS does not support booking modification",
+        "http_equivalent": 501
+      },
+      "CANCELLATION_NOT_SUPPORTED": {
+        "description": "PMS does not support booking cancellation",
+        "http_equivalent": 501
+      },
+      "INTERNAL_ADAPTER_ERROR": {
+        "description": "Unexpected error in adapter code",
+        "http_equivalent": 500
+      },
+      "PMS_UNAVAILABLE": {
+        "description": "PMS API is unreachable or timing out",
+        "http_equivalent": 503
+      }
+    }
+  },
+  "standard_actions": {
+    "description": "All possible actions an adapter can implement",
+    "actions": {
+      "health_check": {
+        "description": "Verify PMS connectivity and credentials",
+        "required": true,
+        "request_params": [],
+        "response_type": "HealthCheckResponse"
+      },
+      "get_capabilities": {
+        "description": "Return adapter capability flags",
+        "required": true,
+        "request_params": [],
+        "response_type": "CapabilitiesResponse"
+      },
+      "fetch_availability": {
+        "description": "Get live availability for date range",
+        "required": true,
+        "request_params": ["property_code", "start_date", "end_date", "room_type_id?"],
+        "response_type": "AvailabilityResponse"
+      },
+      "get_room_types": {
+        "description": "Get all room types for property",
+        "required": true,
+        "request_params": ["property_code"],
+        "response_type": "RoomTypesResponse"
+      },
+      "get_rate_types": {
+        "description": "Get all rate types for property",
+        "required": true,
+        "request_params": ["property_code"],
+        "response_type": "RateTypesResponse"
+      },
+      "get_reservations": {
+        "description": "Get reservations for date range",
+        "required": false,
+        "request_params": ["property_code", "start_date", "end_date", "status?"],
+        "response_type": "ReservationsResponse"
+      },
+      "create_reservation": {
+        "description": "Create new reservation in PMS",
+        "required": false,
+        "request_params": ["reservation_payload"],
+        "response_type": "CreateReservationResponse"
+      },
+      "modify_reservation": {
+        "description": "Modify existing reservation",
+        "required": false,
+        "request_params": ["reservation_id", "modifications"],
+        "response_type": "ModifyReservationResponse"
+      },
+      "cancel_reservation": {
+        "description": "Cancel existing reservation",
+        "required": false,
+        "request_params": ["reservation_id", "reason?"],
+        "response_type": "CancelReservationResponse"
+      },
+      "set_availability": {
+        "description": "Update availability in PMS",
+        "required": false,
+        "request_params": ["availability_updates"],
+        "response_type": "SetAvailabilityResponse"
+      },
+      "set_rates": {
+        "description": "Update rates in PMS",
+        "required": false,
+        "request_params": ["rate_updates"],
+        "response_type": "SetRatesResponse"
+      },
+      "fetch_property_data": {
+        "description": "Get editorial/property data",
+        "required": false,
+        "request_params": ["property_code"],
+        "response_type": "PropertyDataResponse"
+      }
+    }
+  },
+  "adapters": {
+    "benson": {
+      "name": "Benson",
+      "system_key": "benson",
+      "edge_function": "supabase/functions/benson-api/index.ts",
+      "description": "Full-featured hospitality PMS with comprehensive API",
+      "is_internal": false,
+      "api_type": "REST",
+      "authentication": {
+        "type": "API Key + Property Code",
+        "credentials_table": "pms_credentials",
+        "required_fields": ["api_key", "property_code", "environment"]
+      },
+      "environments": {
+        "staging": {
+          "base_url": "https://staging-api.benson.com"
+        },
+        "production": {
+          "base_url": "https://api.benson.com"
+        }
+      },
+      "capabilities": {
+        "supports_live_availability": true,
+        "supports_rate_fetch": true,
+        "supports_create_booking": true,
+        "supports_modify_booking": true,
+        "supports_cancel_booking": true,
+        "supports_webhooks": false
+      },
+      "implemented_actions": [
+        "health_check",
+        "get_capabilities",
+        "fetch_availability",
+        "get_room_types",
+        "get_rate_types",
+        "get_reservations",
+        "create_reservation",
+        "fetch_property_data"
+      ],
+      "field_authority": {
+        "reference": "src/config/pms-implementation-master.json#/pms_rules/benson",
+        "property_fields": {
+          "name": "authoritative",
+          "description": "authoritative",
+          "address": "authoritative",
+          "city": "authoritative",
+          "country": "authoritative",
+          "latitude": "authoritative",
+          "longitude": "authoritative",
+          "star_rating": "authoritative",
+          "images": "authoritative",
+          "amenities": "authoritative",
+          "check_in_time": "authoritative",
+          "check_out_time": "authoritative"
+        },
+        "room_types": {
+          "cache": true,
+          "amenities_seed": true
+        }
+      },
+      "notes": "Primary PMS for ROL. Most complete integration."
+    },
+    "nightsbridge": {
+      "name": "NightsBridge",
+      "system_key": "nightsbridge",
+      "edge_function": null,
+      "description": "South African PMS with widget-based booking",
+      "is_internal": false,
+      "api_type": "Widget + Limited API",
+      "authentication": {
+        "type": "Agent Code",
+        "credentials_table": "api_keys",
+        "required_fields": ["nightsbridge_agent_code"]
+      },
+      "capabilities": {
+        "supports_live_availability": false,
+        "supports_rate_fetch": false,
+        "supports_create_booking": false,
+        "supports_modify_booking": false,
+        "supports_cancel_booking": false,
+        "supports_webhooks": false,
+        "widget_booking": true
+      },
+      "implemented_actions": [],
+      "booking_method": {
+        "type": "external_widget",
+        "widget_package": "@nightsbridge/widget",
+        "notes": "Bookings created via NightsBridge widget, not API"
+      },
+      "field_authority": {
+        "notes": "NightsBridge does not provide editorial data sync"
+      },
+      "notes": "Widget-based only. No direct API integration for bookings."
+    },
+    "checkfront": {
+      "name": "Checkfront",
+      "system_key": "checkfront",
+      "edge_function": "supabase/functions/checkfront-api/index.ts",
+      "description": "Booking platform with OAuth integration",
+      "is_internal": false,
+      "api_type": "REST + OAuth",
+      "authentication": {
+        "type": "OAuth 2.0",
+        "credentials_table": "checkfront_connections",
+        "required_fields": ["host", "access_token", "refresh_token"]
+      },
+      "capabilities": {
+        "supports_live_availability": true,
+        "supports_rate_fetch": true,
+        "supports_create_booking": true,
+        "supports_modify_booking": false,
+        "supports_cancel_booking": false,
+        "supports_webhooks": false
+      },
+      "implemented_actions": [
+        "health_check",
+        "fetch_availability",
+        "get_room_types",
+        "get_rate_types"
+      ],
+      "field_authority": {
+        "reference": "src/config/pms-implementation-master.json#/pms_rules/checkfront",
+        "property_fields": {
+          "name": "seed_only",
+          "description": "seed_only",
+          "images": "seed_only"
+        },
+        "room_types": {
+          "cache": true,
+          "amenities_seed": false
+        }
+      },
+      "notes": "Uses OAuth flow. Token refresh required."
+    },
+    "cloudbeds": {
+      "name": "Cloudbeds",
+      "system_key": "cloudbeds",
+      "edge_function": "supabase/functions/cloudbeds-api/index.ts",
+      "description": "Cloud-based hospitality PMS",
+      "is_internal": false,
+      "api_type": "REST",
+      "authentication": {
+        "type": "API Key",
+        "credentials_table": "pms_credentials",
+        "required_fields": ["api_key", "property_code"]
+      },
+      "capabilities": {
+        "supports_live_availability": true,
+        "supports_rate_fetch": true,
+        "supports_create_booking": true,
+        "supports_modify_booking": false,
+        "supports_cancel_booking": false,
+        "supports_webhooks": false
+      },
+      "implemented_actions": [
+        "health_check",
+        "fetch_availability",
+        "get_room_types",
+        "get_rate_types"
+      ],
+      "field_authority": {
+        "reference": "src/config/pms-implementation-master.json#/pms_rules/cloudbeds",
+        "property_fields": {
+          "name": "authoritative",
+          "description": "seed_only",
+          "address": "authoritative",
+          "star_rating": "not_available"
+        },
+        "overrides": {
+          "star_rating": "not_available"
+        },
+        "room_types": {
+          "cache": true,
+          "amenities_seed": true
+        }
+      },
+      "notes": "Good API coverage. Star rating not available."
+    },
+    "little-hotelier": {
+      "name": "Little Hotelier",
+      "system_key": "little-hotelier",
+      "edge_function": "supabase/functions/little-hotelier-api/index.ts",
+      "description": "Small property PMS by SiteMinder",
+      "is_internal": false,
+      "api_type": "REST",
+      "authentication": {
+        "type": "Channel Code + Credentials",
+        "credentials_table": "pms_credentials",
+        "required_fields": ["username", "password", "agent_code"]
+      },
+      "environments": {
+        "regions": ["AU", "EU", "US"]
+      },
+      "capabilities": {
+        "supports_live_availability": true,
+        "supports_rate_fetch": true,
+        "supports_create_booking": true,
+        "supports_modify_booking": false,
+        "supports_cancel_booking": false,
+        "supports_webhooks": false
+      },
+      "implemented_actions": [
+        "health_check",
+        "fetch_availability",
+        "get_room_types",
+        "get_rate_types"
+      ],
+      "field_authority": {
+        "reference": "src/config/pms-implementation-master.json#/pms_rules/little-hotelier",
+        "property_fields": {
+          "name": "authoritative",
+          "description": "seed_only",
+          "star_rating": "seed_only"
+        },
+        "room_types": {
+          "cache": true,
+          "amenities_seed": false
+        }
+      },
+      "notes": "Regional endpoints. Part of SiteMinder group."
+    },
+    "hotelbeds": {
+      "name": "HotelBeds",
+      "system_key": "hotelbeds",
+      "edge_function": "supabase/functions/hotelbeds-api/index.ts",
+      "description": "B2B hotel distribution platform",
+      "is_internal": false,
+      "api_type": "REST",
+      "authentication": {
+        "type": "API Key + Secret",
+        "credentials_table": "pms_credentials",
+        "required_fields": ["api_key", "api_secret"]
+      },
+      "capabilities": {
+        "supports_live_availability": true,
+        "supports_rate_fetch": true,
+        "supports_create_booking": true,
+        "supports_modify_booking": false,
+        "supports_cancel_booking": true,
+        "supports_webhooks": false
+      },
+      "implemented_actions": [
+        "health_check",
+        "fetch_availability",
+        "get_room_types"
+      ],
+      "notes": "Distribution platform, not traditional PMS."
+    },
+    "hostfully": {
+      "name": "Hostfully",
+      "system_key": "hostfully",
+      "edge_function": "supabase/functions/hostfully-api/index.ts",
+      "description": "Vacation rental PMS",
+      "is_internal": false,
+      "api_type": "REST",
+      "authentication": {
+        "type": "API Key",
+        "credentials_table": "pms_credentials",
+        "required_fields": ["api_key"]
+      },
+      "capabilities": {
+        "supports_live_availability": true,
+        "supports_rate_fetch": true,
+        "supports_create_booking": false,
+        "supports_modify_booking": false,
+        "supports_cancel_booking": false,
+        "supports_webhooks": false
+      },
+      "implemented_actions": [
+        "health_check",
+        "fetch_availability"
+      ],
+      "field_authority": {
+        "reference": "src/config/pms-implementation-master.json#/pms_rules/hostfully",
+        "property_fields": {
+          "name": "authoritative",
+          "description": "authoritative",
+          "images": "authoritative",
+          "amenities": "authoritative"
+        },
+        "room_types": {
+          "cache": true,
+          "amenities_seed": true
+        }
+      },
+      "notes": "Good for vacation rentals. Read-heavy integration."
+    },
+    "roomsonline": {
+      "name": "RoomsOnline Native",
+      "system_key": "roomsonline",
+      "edge_function": "supabase/functions/roomsonline-pms-api/index.ts",
+      "description": "Native ROL booking without external PMS",
+      "is_internal": true,
+      "api_type": "Internal",
+      "authentication": {
+        "type": "Service Role Key",
+        "credentials_table": null
+      },
+      "capabilities": {
+        "supports_live_availability": true,
+        "supports_rate_fetch": true,
+        "supports_create_booking": true,
+        "supports_modify_booking": true,
+        "supports_cancel_booking": true,
+        "supports_webhooks": false
+      },
+      "implemented_actions": [
+        "health_check",
+        "fetch_availability",
+        "get_room_types",
+        "get_rate_types",
+        "create_reservation",
+        "modify_reservation",
+        "cancel_reservation",
+        "set_availability",
+        "set_rates"
+      ],
+      "data_source": {
+        "availability": "property_availability table",
+        "rates": "property_rates table",
+        "room_types": "pms_room_types_cache table",
+        "rate_types": "pms_rate_types_cache table"
+      },
+      "notes": "For properties without external PMS. ROL is the PMS."
+    }
+  },
+  "capability_matrix": {
+    "description": "Quick reference for adapter capabilities",
+    "matrix": {
+      "headers": ["Adapter", "Live Avail", "Rates", "Create", "Modify", "Cancel", "Webhooks"],
+      "rows": [
+        ["benson", true, true, true, true, true, false],
+        ["nightsbridge", false, false, false, false, false, false],
+        ["checkfront", true, true, true, false, false, false],
+        ["cloudbeds", true, true, true, false, false, false],
+        ["little-hotelier", true, true, true, false, false, false],
+        ["hotelbeds", true, true, true, false, true, false],
+        ["hostfully", true, true, false, false, false, false],
+        ["roomsonline", true, true, true, true, true, false]
+      ]
+    }
+  },
+  "adapter_not_allowed_to": {
+    "description": "Actions adapters must never perform",
+    "rules": [
+      "Store PMS credentials in code or logs",
+      "Cache availability and use it for booking decisions",
+      "Return camelCase field names in data payloads",
+      "Modify ROL database directly (only via return values)",
+      "Expose raw PMS error messages to end users",
+      "Retry failed booking creation automatically",
+      "Make booking decisions without live availability check"
+    ]
+  },
+  "adding_new_adapter": {
+    "description": "Step-by-step guide for adding a new PMS adapter",
+    "steps": [
+      {
+        "step": 1,
+        "title": "Create Edge Function",
+        "action": "Create new folder supabase/functions/{pms-name}-api/",
+        "files": ["index.ts"]
+      },
+      {
+        "step": 2,
+        "title": "Import Contract",
+        "action": "Import types and helpers from adapter-contract.ts",
+        "code": "import { AdapterResponse, createSuccessResponse, createErrorResponse, ERROR_CODES, ACTIONS } from '../_shared/adapter-contract.ts'"
+      },
+      {
+        "step": 3,
+        "title": "Implement Required Actions",
+        "action": "Implement at minimum: health_check, fetch_availability, get_room_types",
+        "validation": "All responses must pass contract validation"
+      },
+      {
+        "step": 4,
+        "title": "Add to System Config",
+        "action": "Add entry to src/lib/pmsSystemsConfig.ts",
+        "fields": ["key", "name", "description", "isInternal", "hasCustomCard"]
+      },
+      {
+        "step": 5,
+        "title": "Add Field Rules",
+        "action": "Add rules to src/config/pms-implementation-master.json",
+        "sections": ["pms_rules.{pms-name}"]
+      },
+      {
+        "step": 6,
+        "title": "Add Credential Support",
+        "action": "Define credential requirements in pms_credentials table"
+      },
+      {
+        "step": 7,
+        "title": "Add to Booking Flow",
+        "action": "Add handler branch in push-booking/index.ts switch statement"
+      },
+      {
+        "step": 8,
+        "title": "Add Tracker Entry",
+        "action": "Insert row in pms_tracker_status for monitoring"
+      },
+      {
+        "step": 9,
+        "title": "Test",
+        "action": "Test health_check first, then progressive action testing"
+      }
+    ]
+  }
+}

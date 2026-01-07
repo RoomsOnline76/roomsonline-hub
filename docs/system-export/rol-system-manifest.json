@@ -1,0 +1,604 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema_version": "1.0.0",
+  "export_date": "2025-01-07T00:00:00.000Z",
+  "system_identity": {
+    "system_name": "RoomsOnline (ROL)",
+    "system_role": "PMS-agnostic booking orchestration platform",
+    "primary_responsibilities": [
+      "Multi-room booking creation and management",
+      "PMS integration and adapter abstraction",
+      "Availability validation and caching",
+      "Rate synchronization from external PMS systems",
+      "Property management and editorial content",
+      "Guest booking flow and payment orchestration"
+    ],
+    "non_responsibilities": [
+      "Acting as source of truth for availability (PMS is authority)",
+      "Replacing external PMS systems",
+      "Offline booking reconciliation",
+      "Direct payment processing (delegated to AddPay/external)",
+      "Channel management",
+      "Revenue management / dynamic pricing"
+    ]
+  },
+  "architecture": {
+    "frontend": {
+      "framework": "React 18.3.1",
+      "build_tool": "Vite",
+      "language": "TypeScript",
+      "styling": {
+        "primary": "Tailwind CSS",
+        "component_library": "shadcn/ui",
+        "design_tokens": "CSS custom properties in index.css"
+      },
+      "state_management": {
+        "server_state": "TanStack Query (React Query) v5",
+        "client_state": "React Context API",
+        "form_state": "React Hook Form + Zod"
+      },
+      "routing": "React Router DOM v6",
+      "key_contexts": [
+        {
+          "name": "CurrencyContext",
+          "purpose": "Global currency selection and formatting"
+        },
+        {
+          "name": "SearchContext",
+          "purpose": "Property search state persistence"
+        },
+        {
+          "name": "AISearchContext",
+          "purpose": "AI-powered property search state"
+        }
+      ]
+    },
+    "backend": {
+      "platform": "Supabase (Lovable Cloud)",
+      "database": {
+        "type": "PostgreSQL",
+        "security": "Row Level Security (RLS) on all tables",
+        "version": "15.x"
+      },
+      "authentication": {
+        "provider": "Supabase Auth",
+        "methods": ["email/password"],
+        "auto_confirm": true
+      },
+      "edge_functions": {
+        "runtime": "Deno",
+        "deployment": "Automatic via Lovable",
+        "count": 26
+      }
+    },
+    "edge_functions_registry": [
+      {
+        "name": "addpay-api",
+        "purpose": "Payment gateway integration",
+        "category": "payments"
+      },
+      {
+        "name": "ai-property-search",
+        "purpose": "AI-powered natural language property search",
+        "category": "ai"
+      },
+      {
+        "name": "benson-api",
+        "purpose": "Benson PMS adapter",
+        "category": "pms_adapter"
+      },
+      {
+        "name": "bulk-editorial-generate",
+        "purpose": "Batch AI editorial content generation",
+        "category": "ai"
+      },
+      {
+        "name": "checkfront-api",
+        "purpose": "Checkfront PMS adapter",
+        "category": "pms_adapter"
+      },
+      {
+        "name": "cloudbeds-api",
+        "purpose": "Cloudbeds PMS adapter",
+        "category": "pms_adapter"
+      },
+      {
+        "name": "create-user",
+        "purpose": "Admin user creation with role assignment",
+        "category": "auth"
+      },
+      {
+        "name": "dashboard-insights",
+        "purpose": "Analytics and dashboard data aggregation",
+        "category": "analytics"
+      },
+      {
+        "name": "editorial-ai-assist",
+        "purpose": "AI-assisted property description generation",
+        "category": "ai"
+      },
+      {
+        "name": "forgot-password",
+        "purpose": "Password reset email trigger",
+        "category": "auth"
+      },
+      {
+        "name": "geocode-property",
+        "purpose": "Address to coordinates conversion",
+        "category": "utility"
+      },
+      {
+        "name": "hostfully-api",
+        "purpose": "Hostfully PMS adapter",
+        "category": "pms_adapter"
+      },
+      {
+        "name": "hotelbeds-api",
+        "purpose": "HotelBeds distribution adapter",
+        "category": "pms_adapter"
+      },
+      {
+        "name": "little-hotelier-api",
+        "purpose": "Little Hotelier PMS adapter",
+        "category": "pms_adapter"
+      },
+      {
+        "name": "push-booking",
+        "purpose": "CRITICAL: Booking creation orchestrator",
+        "category": "booking",
+        "notes": "Contains hard rules for booking validation"
+      },
+      {
+        "name": "reset-user-password",
+        "purpose": "Admin password reset for users",
+        "category": "auth"
+      },
+      {
+        "name": "roomsonline-pms-api",
+        "purpose": "Native ROL PMS operations",
+        "category": "pms_adapter"
+      },
+      {
+        "name": "send-access-request",
+        "purpose": "Access request email notification",
+        "category": "email"
+      },
+      {
+        "name": "send-booking-email",
+        "purpose": "Booking confirmation emails",
+        "category": "email"
+      },
+      {
+        "name": "send-contact-email",
+        "purpose": "Contact form email handler",
+        "category": "email"
+      },
+      {
+        "name": "send-pms-status-report",
+        "purpose": "PMS integration status reports",
+        "category": "email"
+      },
+      {
+        "name": "sync-editorial",
+        "purpose": "Pull editorial data from PMS",
+        "category": "sync"
+      },
+      {
+        "name": "sync-rates-availability",
+        "purpose": "Pull rates and availability from PMS",
+        "category": "sync"
+      },
+      {
+        "name": "tripadvisor-api",
+        "purpose": "TripAdvisor reviews integration",
+        "category": "integration"
+      }
+    ],
+    "data_authority_model": {
+      "description": "Defines what system is authoritative for each data type",
+      "reference": "data-authority-model.json",
+      "summary": {
+        "availability": "External PMS (never cache)",
+        "rates": "External PMS (cached for display)",
+        "room_types": "External PMS (cached)",
+        "rate_types": "External PMS (cached)",
+        "reservations": "External PMS (synced to local)",
+        "properties": "ROL (with PMS seed capability)",
+        "editorial": "ROL (with PMS seed for some fields)"
+      }
+    }
+  },
+  "hard_rules": {
+    "description": "CRITICAL: These rules must NEVER be violated. They are architectural invariants.",
+    "rules": [
+      {
+        "rule_id": "NO_BOOKING_FROM_CACHE",
+        "severity": "CRITICAL",
+        "description": "No booking may be created using cached availability data alone. Live PMS verification is mandatory.",
+        "enforcement_points": [
+          "supabase/functions/push-booking/index.ts"
+        ],
+        "failure_behavior": "reject_booking_with_error",
+        "code_marker": "ASCII art banner in push-booking lines 159-173",
+        "rationale": "Prevents overbooking and ensures PMS is always source of truth"
+      },
+      {
+        "rule_id": "CACHE_NEVER_AUTHORITATIVE",
+        "severity": "CRITICAL",
+        "description": "Cache entries in pms_*_cache tables are read-optimization only. External PMS is always source of truth.",
+        "enforcement_points": [
+          "All booking validation logic",
+          "All sync functions"
+        ],
+        "cache_tables": [
+          "pms_availability_cache",
+          "pms_room_types_cache",
+          "pms_rate_types_cache"
+        ],
+        "rationale": "PMS systems are the booking authority; ROL is an orchestration layer"
+      },
+      {
+        "rule_id": "ADAPTER_CONTRACT_MANDATORY",
+        "severity": "CRITICAL",
+        "description": "All PMS adapters must return responses conforming to adapter-contract.ts",
+        "reference_file": "supabase/functions/_shared/adapter-contract.ts",
+        "required_fields": [
+          "success",
+          "data",
+          "error",
+          "source",
+          "fetched_at",
+          "action"
+        ],
+        "rationale": "Ensures consistent error handling and response parsing across all PMS integrations"
+      },
+      {
+        "rule_id": "SNAKE_CASE_ONLY",
+        "severity": "HIGH",
+        "description": "All adapter response fields must use snake_case naming convention",
+        "enforcement_points": [
+          "All adapter edge functions",
+          "src/lib/pmsUtils.ts"
+        ],
+        "rationale": "Consistent field naming prevents data mapping errors"
+      },
+      {
+        "rule_id": "RLS_MANDATORY",
+        "severity": "CRITICAL",
+        "description": "All database tables must have Row Level Security enabled with appropriate policies",
+        "enforcement_points": [
+          "Database migrations",
+          "Supabase configuration"
+        ],
+        "rationale": "Prevents unauthorized data access"
+      },
+      {
+        "rule_id": "MULTI_ROOM_ORCHESTRATION",
+        "severity": "HIGH",
+        "description": "Multi-room bookings must be processed as atomic operations with proper rollback on partial failure",
+        "enforcement_points": [
+          "supabase/functions/push-booking/index.ts"
+        ],
+        "logic": "Group rooms by date range, process each group, track sync status per room",
+        "rationale": "Prevents inconsistent booking states"
+      },
+      {
+        "rule_id": "NO_DIRECT_AUTH_TABLE_ACCESS",
+        "severity": "CRITICAL",
+        "description": "Never query auth.users directly. Use profiles table for user data.",
+        "enforcement_points": [
+          "All edge functions",
+          "All frontend queries"
+        ],
+        "rationale": "auth.users is managed by Supabase and not accessible via client"
+      }
+    ]
+  },
+  "ui_structure": {
+    "description": "Functional zones of the application, not pixel-level details",
+    "zones": {
+      "public_booking": {
+        "routes": [
+          "/",
+          "/property/:id",
+          "/property/:propertySlug/room/:roomSlug",
+          "/booking/:id",
+          "/about-us",
+          "/contact-us",
+          "/privacy-policy",
+          "/terms-of-service"
+        ],
+        "purpose": "Guest-facing property discovery, search, and booking",
+        "protection": "none",
+        "allowed_actions": [
+          "view_properties",
+          "search_properties",
+          "view_availability",
+          "view_rates",
+          "initiate_booking",
+          "complete_payment",
+          "view_booking_confirmation"
+        ],
+        "forbidden_actions": [
+          "write_availability",
+          "modify_rates",
+          "access_admin_data",
+          "view_other_bookings",
+          "modify_properties"
+        ],
+        "data_dependencies": [
+          "public_properties (view)",
+          "pms_room_types_cache",
+          "pms_rate_types_cache",
+          "pms_availability_cache",
+          "property_rates"
+        ]
+      },
+      "owner_portal": {
+        "routes": [
+          "/dashboard",
+          "/calendar",
+          "/calendar-accommodation",
+          "/calendar-conference",
+          "/calendar-event-wedding",
+          "/bookings",
+          "/room-availability"
+        ],
+        "purpose": "Property owner self-service for viewing bookings and availability",
+        "protection": "ProtectedRoute component",
+        "roles_required": ["user", "admin", "dev"],
+        "allowed_actions": [
+          "view_own_property_bookings",
+          "view_own_property_availability",
+          "view_calendar"
+        ],
+        "forbidden_actions": [
+          "modify_other_owner_data",
+          "access_system_configuration",
+          "delete_properties"
+        ]
+      },
+      "admin_console": {
+        "routes": [
+          "/admin/properties",
+          "/admin/properties/new",
+          "/admin/properties/:id",
+          "/admin/journals",
+          "/admin/journals/:id",
+          "/admin-access-requests",
+          "/admin-users"
+        ],
+        "purpose": "Property management, user administration, content management",
+        "protection": "ProtectedRoute with admin check",
+        "roles_required": ["admin", "dev"],
+        "allowed_actions": [
+          "manage_all_properties",
+          "manage_users",
+          "manage_content",
+          "view_access_requests",
+          "approve_access_requests"
+        ],
+        "forbidden_actions": [
+          "delete_dev_users",
+          "bypass_rls_policies"
+        ]
+      },
+      "dev_tools": {
+        "routes": [
+          "/admin-keys",
+          "/test-booking-benson",
+          "/nb",
+          "/insights",
+          "/benson-config"
+        ],
+        "purpose": "Developer-only debugging and configuration tools",
+        "protection": "ProtectedRoute with requireDev=true",
+        "roles_required": ["dev"],
+        "allowed_actions": [
+          "manage_api_keys",
+          "test_pms_connections",
+          "view_pms_tracker",
+          "view_sync_logs",
+          "access_debug_tools"
+        ],
+        "notes": "These routes expose sensitive system configuration"
+      }
+    },
+    "route_registry": [
+      { "path": "/", "component": "Home", "protection": "public" },
+      { "path": "/auth", "component": "Auth", "protection": "public" },
+      { "path": "/property/:id", "component": "PropertyShowcase", "protection": "public" },
+      { "path": "/property/:propertySlug/room/:roomSlug", "component": "RoomShowcase", "protection": "public" },
+      { "path": "/booking/:id", "component": "Booking", "protection": "public" },
+      { "path": "/about-us", "component": "AboutUs", "protection": "public" },
+      { "path": "/contact-us", "component": "ContactUs", "protection": "public" },
+      { "path": "/privacy-policy", "component": "PrivacyPolicy", "protection": "public" },
+      { "path": "/terms-of-service", "component": "TermsOfService", "protection": "public" },
+      { "path": "/journals", "component": "PublicJournals", "protection": "public" },
+      { "path": "/journals/:slug", "component": "PublicJournals", "protection": "public" },
+      { "path": "/dashboard", "component": "Dashboard", "protection": "authenticated" },
+      { "path": "/calendar", "component": "Calendar", "protection": "authenticated" },
+      { "path": "/calendar-accommodation", "component": "CalendarAccommodation", "protection": "authenticated" },
+      { "path": "/bookings", "component": "Bookings", "protection": "authenticated" },
+      { "path": "/room-availability", "component": "RoomAvailability", "protection": "authenticated" },
+      { "path": "/admin/properties", "component": "PropertyOverview", "protection": "admin" },
+      { "path": "/admin/properties/new", "component": "PropertyForm", "protection": "admin" },
+      { "path": "/admin/properties/:id", "component": "PropertyListing", "protection": "admin" },
+      { "path": "/admin/journals", "component": "AdminJournals", "protection": "admin" },
+      { "path": "/admin/journals/:id", "component": "JournalEditor", "protection": "admin" },
+      { "path": "/admin-access-requests", "component": "AdminAccessRequests", "protection": "admin" },
+      { "path": "/admin-users", "component": "AdminUsers", "protection": "admin" },
+      { "path": "/admin-keys", "component": "AdminKeys", "protection": "dev" },
+      { "path": "/insights", "component": "Insights", "protection": "dev" },
+      { "path": "/nb", "component": "NB", "protection": "dev" },
+      { "path": "/benson-config", "component": "BensonConfig", "protection": "dev" },
+      { "path": "/test-booking-benson", "component": "TestBookingBenson", "protection": "dev" },
+      { "path": "/staging-book/:id", "component": "StagingBook", "protection": "dev" }
+    ]
+  },
+  "integration_mechanisms": {
+    "sync_patterns": {
+      "pull_sync": {
+        "description": "Fetch data from external PMS into ROL cache/tables",
+        "functions": [
+          "sync-rates-availability",
+          "sync-editorial"
+        ],
+        "trigger": "Manual or scheduled",
+        "destination_tables": [
+          "pms_availability_cache",
+          "pms_room_types_cache",
+          "pms_rate_types_cache",
+          "property_rates",
+          "property_availability"
+        ]
+      },
+      "push_sync": {
+        "description": "Push booking data from ROL to external PMS",
+        "functions": [
+          "push-booking"
+        ],
+        "trigger": "Booking creation",
+        "source_table": "bookings",
+        "sync_tracking": "booking_sync_status"
+      }
+    },
+    "timing_assumptions": {
+      "cache_staleness": {
+        "pms_availability_cache": "60 minutes default (configurable via pms_credentials.refresh_interval_minutes)",
+        "pms_room_types_cache": "24 hours (room types rarely change)",
+        "pms_rate_types_cache": "24 hours (rate types rarely change)"
+      },
+      "stale_data_indicators": [
+        "fetched_at timestamp",
+        "source_timestamp (when provided by PMS)"
+      ]
+    },
+    "race_condition_mitigation": {
+      "booking_flow": "Live availability check immediately before PMS booking creation",
+      "sync_operations": "Last-write-wins with timestamp comparison",
+      "cache_updates": "Upsert with conflict on unique keys"
+    },
+    "audit_logging": {
+      "table": "sync_logs",
+      "captured_data": [
+        "property_id",
+        "booking_id",
+        "external_system",
+        "sync_type",
+        "status",
+        "message",
+        "request_data",
+        "response_data",
+        "timestamp"
+      ]
+    }
+  },
+  "extensibility_guidelines": {
+    "safe_to_extend": [
+      "Add new PMS adapters following adapter-contract.ts pattern",
+      "Add new UI components in src/components/",
+      "Add new pages in src/pages/",
+      "Add new edge functions for integrations",
+      "Extend pms-implementation-master.json for new PMS rules",
+      "Add new database tables with proper RLS",
+      "Add new API integrations",
+      "Extend navigation_tags taxonomy"
+    ],
+    "never_modify": [
+      "supabase/functions/_shared/adapter-contract.ts base response shape",
+      "Hard rules in push-booking (ASCII art banner section)",
+      "Auto-generated files: client.ts, types.ts, .env",
+      "supabase/config.toml",
+      "Core authentication flow",
+      "RLS policy patterns without security review"
+    ],
+    "adapter_addition_steps": [
+      {
+        "step": 1,
+        "action": "Create edge function",
+        "path": "supabase/functions/{pms-name}-api/index.ts"
+      },
+      {
+        "step": 2,
+        "action": "Import and implement adapter-contract.ts interfaces",
+        "required_actions": ["health_check", "fetch_availability", "get_room_types"]
+      },
+      {
+        "step": 3,
+        "action": "Add PMS to system config",
+        "path": "src/lib/pmsSystemsConfig.ts"
+      },
+      {
+        "step": 4,
+        "action": "Add field authority rules",
+        "path": "src/config/pms-implementation-master.json"
+      },
+      {
+        "step": 5,
+        "action": "Add capability flags",
+        "table": "pms_credentials"
+      },
+      {
+        "step": 6,
+        "action": "Add handler branch in push-booking",
+        "path": "supabase/functions/push-booking/index.ts"
+      },
+      {
+        "step": 7,
+        "action": "Test with health_check action first"
+      },
+      {
+        "step": 8,
+        "action": "Add to PMS tracker for status monitoring",
+        "table": "pms_tracker_status"
+      }
+    ]
+  },
+  "environment_secrets": {
+    "required": [
+      {
+        "name": "SUPABASE_URL",
+        "source": "auto-configured",
+        "usage": "All edge functions"
+      },
+      {
+        "name": "SUPABASE_SERVICE_ROLE_KEY",
+        "source": "auto-configured",
+        "usage": "Edge functions requiring elevated access"
+      },
+      {
+        "name": "RESEND_API_KEY",
+        "source": "manual configuration",
+        "usage": "Email sending functions"
+      },
+      {
+        "name": "GOOGLE_MAPS_API_KEY",
+        "source": "api_keys table",
+        "usage": "Geocoding and maps"
+      },
+      {
+        "name": "LOVABLE_API_KEY",
+        "source": "auto-configured",
+        "usage": "AI functions (editorial-ai-assist, ai-property-search)"
+      }
+    ],
+    "pms_specific": {
+      "storage": "pms_credentials table",
+      "fields": [
+        "api_key",
+        "username",
+        "password",
+        "agent_code",
+        "property_code",
+        "base_url"
+      ],
+      "notes": "Each PMS has different credential requirements"
+    }
+  },
+  "references": {
+    "booking_flow": "booking-flow-state-machine.json",
+    "pms_adapters": "pms-adapter-registry.json",
+    "data_model": "data-authority-model.json"
+  }
+}

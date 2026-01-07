@@ -1,0 +1,467 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema_version": "1.0.0",
+  "export_date": "2025-01-07T00:00:00.000Z",
+  "description": "State machine representation of ROL booking flows with guards, transitions, and failure modes",
+  "flows": {
+    "single_room_booking": {
+      "flow_id": "single_room_booking",
+      "description": "Standard booking flow for a single room reservation",
+      "entry_point": "supabase/functions/push-booking/index.ts",
+      "trigger": "POST request with booking_id",
+      "states": [
+        {
+          "state_id": "S0_INIT",
+          "name": "Initialize",
+          "action": "Parse request body",
+          "guards": [],
+          "transitions": {
+            "success": "S1_VALIDATE",
+            "failure": "ERROR_INVALID_REQUEST"
+          }
+        },
+        {
+          "state_id": "S1_VALIDATE",
+          "name": "Validate Input",
+          "action": "Zod schema validation of booking_id",
+          "guards": [
+            {
+              "condition": "booking_id is valid UUID",
+              "failure_code": "400"
+            }
+          ],
+          "transitions": {
+            "success": "S2_FETCH_BOOKING",
+            "failure": "ERROR_INVALID_BOOKING_ID"
+          }
+        },
+        {
+          "state_id": "S2_FETCH_BOOKING",
+          "name": "Fetch Booking Details",
+          "action": "Query bookings table with property join",
+          "query": {
+            "table": "bookings",
+            "select": "*, properties!inner(*)",
+            "filter": "id.eq.booking_id"
+          },
+          "guards": [
+            {
+              "condition": "booking exists",
+              "failure_code": "404"
+            },
+            {
+              "condition": "booking.property exists",
+              "failure_code": "404"
+            }
+          ],
+          "transitions": {
+            "success": "S3_DETERMINE_SYSTEM",
+            "failure": "ERROR_BOOKING_NOT_FOUND"
+          }
+        },
+        {
+          "state_id": "S3_DETERMINE_SYSTEM",
+          "name": "Determine External System",
+          "action": "Read property.external_system field",
+          "decision_tree": {
+            "field": "property.external_system",
+            "branches": {
+              "benson": "S4_BENSON_FLOW",
+              "nightsbridge": "S4_NIGHTSBRIDGE_FLOW",
+              "checkfront": "S4_CHECKFRONT_FLOW",
+              "cloudbeds": "S4_CLOUDBEDS_FLOW",
+              "hotelbeds": "S4_HOTELBEDS_FLOW",
+              "roomsonline": "S4_NATIVE_FLOW",
+              "null": "S4_NATIVE_FLOW",
+              "default": "ERROR_UNSUPPORTED_SYSTEM"
+            }
+          },
+          "transitions": {
+            "success": "S4_*_FLOW",
+            "failure": "ERROR_UNSUPPORTED_SYSTEM"
+          }
+        },
+        {
+          "state_id": "S4_BENSON_FLOW",
+          "name": "Benson PMS Flow",
+          "sub_states": [
+            {
+              "state_id": "S4.1_FETCH_CREDENTIALS",
+              "action": "Query pms_credentials for benson system_type",
+              "guards": [
+                {
+                  "condition": "credentials exist and is_active",
+                  "failure_code": "500"
+                }
+              ]
+            },
+            {
+              "state_id": "S4.2_FETCH_LIVE_AVAILABILITY",
+              "action": "Call Benson API for real-time availability",
+              "critical": true,
+              "api_call": {
+                "function": "benson-api",
+                "action": "fetch_availability",
+                "params": ["property_code", "start_date", "end_date", "room_type_id"]
+              },
+              "guards": [
+                {
+                  "condition": "API returns success",
+                  "failure_code": "503"
+                }
+              ],
+              "notes": "THIS IS CRITICAL - Must verify live, not from cache"
+            },
+            {
+              "state_id": "S4.3_VALIDATE_AVAILABILITY",
+              "action": "Compare requested rooms against live PMS data",
+              "logic": {
+                "for_each_room": "Check available_units >= requested_quantity",
+                "check_restrictions": ["minimum_stay", "maximum_stay", "stop_sell"]
+              },
+              "guards": [
+                {
+                  "condition": "sufficient availability for all rooms",
+                  "failure_code": "409"
+                }
+              ]
+            },
+            {
+              "state_id": "S4.4_CREATE_RESERVATION",
+              "action": "POST reservation to Benson API",
+              "api_call": {
+                "function": "benson-api",
+                "action": "create_reservation",
+                "payload": {
+                  "property_code": "from credentials",
+                  "room_type_id": "from booking.room_type_id",
+                  "rate_type_id": "from booking.rate_type_id",
+                  "arrival_date": "booking.check_in_date",
+                  "departure_date": "booking.check_out_date",
+                  "guest": {
+                    "name": "booking.guest_name",
+                    "email": "booking.guest_email",
+                    "phone": "booking.guest_phone"
+                  },
+                  "adults": "booking.adults",
+                  "children": "booking.children",
+                  "infants": "booking.infants",
+                  "total_amount": "booking.total_price"
+                }
+              },
+              "output": "external_reservation_id"
+            }
+          ],
+          "transitions": {
+            "success": "S5_UPDATE_BOOKING",
+            "failure": "ERROR_PMS_REJECTION"
+          }
+        },
+        {
+          "state_id": "S4_NIGHTSBRIDGE_FLOW",
+          "name": "NightsBridge PMS Flow",
+          "notes": "NightsBridge uses widget-based booking, different flow",
+          "sub_states": [
+            {
+              "state_id": "S4.1_VERIFY_WIDGET_BOOKING",
+              "action": "Verify booking was created via NightsBridge widget",
+              "guards": [
+                {
+                  "condition": "external_reservation_id exists from widget",
+                  "failure_code": "400"
+                }
+              ]
+            }
+          ],
+          "transitions": {
+            "success": "S5_UPDATE_BOOKING",
+            "failure": "ERROR_WIDGET_REQUIRED"
+          }
+        },
+        {
+          "state_id": "S4_NATIVE_FLOW",
+          "name": "Native ROL Flow",
+          "sub_states": [
+            {
+              "state_id": "S4.1_CHECK_LOCAL_AVAILABILITY",
+              "action": "Query property_availability table",
+              "guards": [
+                {
+                  "condition": "available_units >= requested",
+                  "failure_code": "409"
+                }
+              ]
+            },
+            {
+              "state_id": "S4.2_DECREMENT_AVAILABILITY",
+              "action": "Update property_availability.available_units",
+              "atomic": true
+            }
+          ],
+          "transitions": {
+            "success": "S5_UPDATE_BOOKING",
+            "failure": "ERROR_INSUFFICIENT_AVAILABILITY"
+          }
+        },
+        {
+          "state_id": "S5_UPDATE_BOOKING",
+          "name": "Update Booking Record",
+          "action": "Store external_reservation_id in bookings table",
+          "query": {
+            "table": "bookings",
+            "operation": "update",
+            "set": {
+              "external_reservation_id": "from PMS response",
+              "status": "confirmed"
+            },
+            "filter": "id.eq.booking_id"
+          },
+          "transitions": {
+            "success": "S6_UPDATE_SYNC_STATUS",
+            "failure": "ERROR_DB_UPDATE_FAILED"
+          }
+        },
+        {
+          "state_id": "S6_UPDATE_SYNC_STATUS",
+          "name": "Update Sync Status",
+          "action": "Upsert to booking_sync_status table",
+          "query": {
+            "table": "booking_sync_status",
+            "operation": "upsert",
+            "conflict_on": ["booking_id", "external_system"],
+            "set": {
+              "sync_status": "synced",
+              "external_booking_id": "external_reservation_id",
+              "last_sync_at": "now()",
+              "sync_attempts": "increment"
+            }
+          },
+          "transitions": {
+            "success": "S7_LOG_SYNC",
+            "failure": "S7_LOG_SYNC"
+          },
+          "notes": "Continue even if sync status update fails"
+        },
+        {
+          "state_id": "S7_LOG_SYNC",
+          "name": "Log Sync Result",
+          "action": "Insert to sync_logs table",
+          "query": {
+            "table": "sync_logs",
+            "operation": "insert",
+            "values": {
+              "property_id": "booking.property_id",
+              "booking_id": "booking.id",
+              "external_system": "property.external_system",
+              "sync_type": "booking_creation",
+              "status": "success|error",
+              "message": "descriptive message",
+              "request_data": "sanitized request",
+              "response_data": "PMS response"
+            }
+          },
+          "transitions": {
+            "success": "S8_SEND_EMAIL",
+            "failure": "S8_SEND_EMAIL"
+          },
+          "notes": "Continue even if logging fails"
+        },
+        {
+          "state_id": "S8_SEND_EMAIL",
+          "name": "Send Confirmation Email",
+          "action": "Call send-booking-email edge function",
+          "api_call": {
+            "function": "send-booking-email",
+            "payload": {
+              "booking_id": "booking.id"
+            }
+          },
+          "blocking": false,
+          "transitions": {
+            "success": "S9_COMPLETE",
+            "failure": "S9_COMPLETE"
+          },
+          "notes": "Email failure is non-blocking - booking still succeeds"
+        },
+        {
+          "state_id": "S9_COMPLETE",
+          "name": "Complete",
+          "action": "Return success response",
+          "response": {
+            "success": true,
+            "booking_id": "booking.id",
+            "external_reservation_id": "from PMS",
+            "message": "Booking confirmed successfully"
+          }
+        }
+      ],
+      "error_states": [
+        {
+          "state_id": "ERROR_INVALID_REQUEST",
+          "http_code": 400,
+          "message": "Invalid request body"
+        },
+        {
+          "state_id": "ERROR_INVALID_BOOKING_ID",
+          "http_code": 400,
+          "message": "Invalid booking ID format"
+        },
+        {
+          "state_id": "ERROR_BOOKING_NOT_FOUND",
+          "http_code": 404,
+          "message": "Unable to find booking or associated property"
+        },
+        {
+          "state_id": "ERROR_UNSUPPORTED_SYSTEM",
+          "http_code": 400,
+          "message": "Unsupported external system"
+        },
+        {
+          "state_id": "ERROR_PMS_REJECTION",
+          "http_code": 502,
+          "message": "PMS rejected the booking request"
+        },
+        {
+          "state_id": "ERROR_INSUFFICIENT_AVAILABILITY",
+          "http_code": 409,
+          "message": "Insufficient availability for requested dates"
+        },
+        {
+          "state_id": "ERROR_DB_UPDATE_FAILED",
+          "http_code": 500,
+          "message": "Failed to update booking record"
+        }
+      ]
+    },
+    "multi_room_booking": {
+      "flow_id": "multi_room_booking",
+      "description": "Booking flow for multiple rooms, potentially with different date ranges",
+      "trigger": "booking.rooms array contains multiple entries",
+      "orchestration_logic": {
+        "step_1": {
+          "name": "Parse Room Groups",
+          "action": "Group rooms by date range",
+          "logic": "groupRoomsByDateRange(booking.rooms)",
+          "output": "Array of { dateRange, rooms[] }"
+        },
+        "step_2": {
+          "name": "Process Each Group",
+          "action": "For each room group, execute single_room_booking flow",
+          "parallel": false,
+          "order": "sequential by arrival date"
+        },
+        "step_3": {
+          "name": "Aggregate Results",
+          "action": "Collect all external_reservation_ids",
+          "output": "Array of reservation confirmations"
+        }
+      },
+      "failure_handling": {
+        "partial_failure": {
+          "description": "Some rooms booked, others failed",
+          "action": "Return partial success with details",
+          "rollback": false,
+          "notes": "Already-created PMS reservations cannot be automatically cancelled"
+        },
+        "complete_failure": {
+          "description": "All room bookings failed",
+          "action": "Return error with first failure reason"
+        }
+      },
+      "sync_tracking": {
+        "per_room": true,
+        "table": "booking_sync_status",
+        "notes": "Each room gets its own sync status entry"
+      }
+    },
+    "payment_flow": {
+      "flow_id": "payment_flow",
+      "description": "Payment processing flow (separate from booking creation)",
+      "entry_point": "supabase/functions/addpay-api/index.ts",
+      "states": [
+        {
+          "state_id": "P1_INITIATE",
+          "name": "Initiate Payment",
+          "action": "Create payment transaction record",
+          "table": "payment_transactions",
+          "initial_status": "pending"
+        },
+        {
+          "state_id": "P2_REDIRECT",
+          "name": "Redirect to Payment Gateway",
+          "action": "Generate AddPay redirect URL",
+          "external": true
+        },
+        {
+          "state_id": "P3_CALLBACK",
+          "name": "Process Callback",
+          "action": "Receive AddPay webhook/redirect",
+          "verify": "PSN and signature validation"
+        },
+        {
+          "state_id": "P4_UPDATE",
+          "name": "Update Payment Status",
+          "action": "Update payment_transactions and booking",
+          "fields": {
+            "payment_transactions.status": "completed|failed",
+            "bookings.payment_status": "paid|failed",
+            "bookings.paid_at": "timestamp if paid"
+          }
+        },
+        {
+          "state_id": "P5_TRIGGER_BOOKING",
+          "name": "Trigger Booking Push",
+          "action": "Call push-booking if payment successful",
+          "condition": "payment_status === 'paid'"
+        }
+      ]
+    }
+  },
+  "invariants": {
+    "description": "Conditions that must always hold true during booking flow",
+    "rules": [
+      {
+        "invariant_id": "INV_LIVE_CHECK",
+        "description": "Live availability must be verified before any PMS booking creation",
+        "enforcement": "Mandatory step in all PMS flows",
+        "violation_action": "Reject booking"
+      },
+      {
+        "invariant_id": "INV_IDEMPOTENCY",
+        "description": "Re-submitting the same booking should not create duplicate PMS reservations",
+        "enforcement": "Check external_reservation_id before creating",
+        "violation_action": "Return existing confirmation"
+      },
+      {
+        "invariant_id": "INV_AUDIT_TRAIL",
+        "description": "All booking attempts must be logged to sync_logs",
+        "enforcement": "Always insert sync_log, even on failure",
+        "violation_action": "Log and continue"
+      }
+    ]
+  },
+  "timeouts": {
+    "pms_api_call": {
+      "default": "30 seconds",
+      "configurable": false
+    },
+    "edge_function": {
+      "max": "60 seconds",
+      "notes": "Supabase/Deno limit"
+    },
+    "database_query": {
+      "default": "10 seconds"
+    }
+  },
+  "retry_policy": {
+    "pms_api_calls": {
+      "enabled": false,
+      "notes": "PMS calls are not automatically retried to prevent duplicate bookings"
+    },
+    "database_operations": {
+      "enabled": true,
+      "max_retries": 3,
+      "backoff": "exponential"
+    }
+  }
+}
