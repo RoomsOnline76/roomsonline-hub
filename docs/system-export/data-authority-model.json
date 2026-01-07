@@ -1,0 +1,594 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema_version": "1.0.0",
+  "export_date": "2025-01-07T00:00:00.000Z",
+  "description": "Data authority boundaries, table purposes, and access control rules for the ROL system",
+  "authority_levels": {
+    "description": "Defines the four levels of data authority",
+    "levels": {
+      "authoritative": {
+        "description": "Always overwrite local with PMS data",
+        "behavior": "PMS value replaces ROL value unconditionally",
+        "use_case": "Core property identifiers like name, address"
+      },
+      "seed_only": {
+        "description": "Only populate if local field is empty/null",
+        "behavior": "PMS value used only when ROL has no value",
+        "use_case": "Description, images when manual curation preferred"
+      },
+      "partial": {
+        "description": "Merge with existing data",
+        "behavior": "Arrays concatenate, objects shallow merge",
+        "use_case": "Amenities lists that may be enhanced locally"
+      },
+      "not_available": {
+        "description": "PMS does not provide this data",
+        "behavior": "Field is managed exclusively by ROL",
+        "use_case": "Editorial content, ROL-specific fields"
+      }
+    }
+  },
+  "tables": {
+    "core_entities": {
+      "properties": {
+        "purpose": "Master property records with editorial and operational data",
+        "authoritative": true,
+        "authority_notes": "ROL is master, but some fields can be seeded from PMS",
+        "schema": {
+          "id": "uuid (primary key)",
+          "name": "text (required)",
+          "description": "text",
+          "property_type": "text (required)",
+          "address": "text (required)",
+          "city": "text (required)",
+          "country": "text (required)",
+          "latitude": "numeric",
+          "longitude": "numeric",
+          "price_per_night": "numeric (required)",
+          "max_guests": "integer (default 2)",
+          "bedrooms": "integer",
+          "bathrooms": "integer",
+          "amenities": "jsonb (array)",
+          "images": "jsonb (array)",
+          "is_active": "boolean (default true)",
+          "hero_listing": "boolean (default false)",
+          "navigation_tags": "text[]",
+          "external_system": "text (PMS identifier)",
+          "external_id": "text (PMS property ID)",
+          "benson_property_code": "text",
+          "checkfront_property_code": "text",
+          "cloudbeds_property_id": "text",
+          "littlehotelier_channel_code": "text",
+          "hotelbeds_hotel_code": "text",
+          "owner_name": "text",
+          "owner_email": "text",
+          "editorial_rating": "text",
+          "why_we_chose_this_place": "text",
+          "who_this_suits": "text",
+          "what_its_really_like": "text",
+          "why_this_place_matters": "text",
+          "who_its_not_for": "text",
+          "slug": "text (unique, auto-generated)"
+        },
+        "write_paths": [
+          "Admin UI (PropertyForm)",
+          "sync-editorial edge function",
+          "editorial-ai-assist edge function"
+        ],
+        "read_paths": [
+          "Public property pages",
+          "Admin dashboard",
+          "Search and filtering"
+        ],
+        "rls_policies": {
+          "select": [
+            "Anyone can view active properties",
+            "Admins and devs can view all properties",
+            "Owners can view own properties"
+          ],
+          "insert": ["Admins and devs can insert properties"],
+          "update": [
+            "Admins and devs can update properties",
+            "Owners can update own properties"
+          ],
+          "delete": ["Admins and devs can delete properties"]
+        },
+        "soft_delete": {
+          "field": "permanently_deleted_at",
+          "behavior": "Set timestamp instead of hard delete"
+        }
+      },
+      "bookings": {
+        "purpose": "Guest booking records",
+        "authoritative": true,
+        "authority_notes": "ROL creates bookings, syncs to external PMS",
+        "schema": {
+          "id": "uuid (primary key)",
+          "property_id": "uuid (foreign key to properties)",
+          "user_id": "uuid (nullable, for logged-in users)",
+          "check_in_date": "date (required)",
+          "check_out_date": "date (required)",
+          "guest_name": "text (required)",
+          "guest_email": "text (required)",
+          "guest_phone": "text",
+          "adults": "integer (default 1)",
+          "children": "integer (default 0)",
+          "teens": "integer (default 0)",
+          "infants": "integer (default 0)",
+          "rooms": "jsonb (array of room bookings)",
+          "room_type_id": "text",
+          "rate_type_id": "text",
+          "total_price": "numeric (required)",
+          "status": "text (pending|confirmed|cancelled)",
+          "payment_status": "text (unpaid|paid|refunded)",
+          "payment_reference": "text",
+          "payment_method": "text",
+          "paid_at": "timestamp",
+          "external_reservation_id": "text (from PMS)",
+          "special_requests": "text",
+          "voucher": "text"
+        },
+        "write_paths": [
+          "Public booking flow",
+          "push-booking edge function (status updates)"
+        ],
+        "read_paths": [
+          "Guest booking confirmation",
+          "Owner dashboard",
+          "Admin booking management"
+        ],
+        "rls_policies": {
+          "select": [
+            "Admins and devs can view all bookings",
+            "Owners can view bookings for their properties",
+            "Users can view own bookings"
+          ],
+          "insert": ["Anyone can create bookings"],
+          "update": ["Users can update own bookings"],
+          "delete": []
+        }
+      },
+      "profiles": {
+        "purpose": "User profile data (extended from auth.users)",
+        "authoritative": true,
+        "authority_notes": "ROL manages all profile data",
+        "schema": {
+          "id": "uuid (primary key, matches auth.users.id)",
+          "email": "text (required, unique)",
+          "full_name": "text",
+          "phone": "text",
+          "avatar_url": "text",
+          "role": "text (legacy, use user_roles instead)"
+        },
+        "write_paths": [
+          "User profile update",
+          "Admin user management",
+          "Auth trigger on signup"
+        ],
+        "read_paths": [
+          "User profile display",
+          "Admin user list",
+          "Property owner lookup"
+        ],
+        "rls_policies": {
+          "select": [
+            "Admins and devs can view all profiles",
+            "Users can view own profile"
+          ],
+          "insert": ["Users can insert own profile"],
+          "update": ["Users can update own profile"],
+          "delete": ["Admins and devs can delete profiles"]
+        }
+      },
+      "user_roles": {
+        "purpose": "Role assignments for RBAC",
+        "authoritative": true,
+        "schema": {
+          "id": "uuid (primary key)",
+          "user_id": "uuid (foreign key)",
+          "role": "app_role enum (admin|user|dev)"
+        },
+        "write_paths": ["Admin user management", "create-user edge function"],
+        "read_paths": ["Auth checks", "UI permission gates"],
+        "rls_policies": {
+          "all": ["Admins and devs can manage all roles"],
+          "select": ["Users can view their own roles"]
+        }
+      }
+    },
+    "pms_cache_tables": {
+      "description": "CRITICAL: These tables are CACHE ONLY. Never use for booking decisions.",
+      "pms_availability_cache": {
+        "purpose": "Cached availability from external PMS (display only)",
+        "authoritative": false,
+        "source": "External PMS via sync-rates-availability",
+        "schema": {
+          "id": "uuid (primary key)",
+          "property_id": "uuid (foreign key)",
+          "system_type": "text (PMS identifier)",
+          "external_room_type_id": "text",
+          "date": "date",
+          "available_units": "integer",
+          "rates": "jsonb",
+          "restrictions": "jsonb",
+          "raw_data": "jsonb",
+          "fetched_at": "timestamp",
+          "source_timestamp": "timestamp"
+        },
+        "staleness_indicator": ["fetched_at", "source_timestamp"],
+        "write_paths": [
+          "sync-rates-availability",
+          "roomsonline-pms-api",
+          "Individual PMS adapters"
+        ],
+        "read_paths": [
+          "Booking UI display",
+          "Calendar views",
+          "Availability widgets"
+        ],
+        "rls_policies": {
+          "select": ["Anyone can view for active properties"],
+          "all": ["Admins and devs can manage"]
+        },
+        "critical_rule": "NEVER use this data to validate bookings. Always fetch live."
+      },
+      "pms_room_types_cache": {
+        "purpose": "Cached room type definitions from PMS",
+        "authoritative": false,
+        "source": "External PMS",
+        "schema": {
+          "id": "uuid",
+          "property_id": "uuid",
+          "system_type": "text",
+          "external_room_type_id": "text",
+          "name": "text",
+          "description": "text",
+          "min_guests": "integer",
+          "max_guests": "integer",
+          "allow_teens": "boolean",
+          "allow_children": "boolean",
+          "allow_infants": "boolean",
+          "teen_min_age": "integer",
+          "teen_max_age": "integer",
+          "child_min_age": "integer",
+          "child_max_age": "integer",
+          "infant_min_age": "integer",
+          "infant_max_age": "integer",
+          "linked_rate_type_ids": "jsonb (array)",
+          "raw_data": "jsonb",
+          "fetched_at": "timestamp"
+        },
+        "refresh_frequency": "Daily or on-demand",
+        "write_paths": ["PMS adapter sync operations"],
+        "read_paths": ["Room selection UI", "Booking form"],
+        "rls_policies": {
+          "select": ["Anyone can view for active properties"],
+          "all": ["Admins and devs can manage"]
+        }
+      },
+      "pms_rate_types_cache": {
+        "purpose": "Cached rate type definitions from PMS",
+        "authoritative": false,
+        "source": "External PMS",
+        "schema": {
+          "id": "uuid",
+          "property_id": "uuid",
+          "system_type": "text",
+          "external_rate_type_id": "text",
+          "name": "text",
+          "description": "text",
+          "price_type": "text",
+          "min_stay_days": "integer",
+          "max_stay_days": "integer",
+          "min_advance_days": "integer",
+          "max_advance_days": "integer",
+          "raw_data": "jsonb",
+          "fetched_at": "timestamp"
+        },
+        "write_paths": ["PMS adapter sync operations"],
+        "read_paths": ["Rate selection UI", "Booking form"],
+        "rls_policies": {
+          "select": ["Anyone can view for active properties"],
+          "all": ["Admins and devs can manage"]
+        }
+      },
+      "pms_reservations": {
+        "purpose": "Synced reservations from external PMS",
+        "authoritative": false,
+        "source": "External PMS",
+        "schema": {
+          "id": "uuid",
+          "property_id": "uuid",
+          "system_type": "text",
+          "external_reservation_id": "text",
+          "status": "text",
+          "arrival_date": "date",
+          "departure_date": "date",
+          "contact_name": "text",
+          "contact_email": "text",
+          "contact_phone": "text",
+          "total_amount": "numeric",
+          "currency": "text",
+          "rooms": "jsonb",
+          "guests": "jsonb",
+          "charges": "jsonb",
+          "payments": "jsonb",
+          "raw_data": "jsonb",
+          "synced_at": "timestamp"
+        },
+        "write_paths": ["PMS reservation sync"],
+        "read_paths": ["Admin reservation view", "Calendar"],
+        "rls_policies": {
+          "all": ["Admins and devs can manage"],
+          "select": ["Owners can view own property reservations"]
+        }
+      }
+    },
+    "operational_tables": {
+      "property_availability": {
+        "purpose": "Availability data for ROL-native properties",
+        "authoritative": true,
+        "authority_notes": "For properties without external PMS",
+        "schema": {
+          "id": "uuid",
+          "property_id": "uuid",
+          "room_type": "text",
+          "date": "date",
+          "available_units": "integer",
+          "is_stop_sell": "boolean",
+          "minimum_stay": "integer",
+          "maximum_stay": "integer",
+          "lead_days_advance": "integer",
+          "lead_days_post": "integer",
+          "external_system": "text"
+        },
+        "write_paths": [
+          "sync-rates-availability",
+          "Admin availability management"
+        ],
+        "read_paths": ["Booking validation", "Availability display"],
+        "rls_policies": {
+          "select": ["Anyone can view for active properties"],
+          "all": ["Admins and devs can manage"]
+        }
+      },
+      "property_rates": {
+        "purpose": "Rate data for display and ROL-native properties",
+        "authoritative": true,
+        "schema": {
+          "id": "uuid",
+          "property_id": "uuid",
+          "room_type": "text",
+          "rate_type": "text",
+          "date": "date",
+          "amount": "numeric",
+          "currency": "text",
+          "meal_type": "text",
+          "external_system": "text",
+          "external_rate_id": "text"
+        },
+        "write_paths": ["sync-rates-availability", "Admin rate management"],
+        "read_paths": ["Pricing display", "Booking calculation"],
+        "rls_policies": {
+          "select": ["Anyone can view for active properties"],
+          "all": ["Admins and devs can manage"]
+        }
+      },
+      "pms_credentials": {
+        "purpose": "Secure storage for PMS API credentials",
+        "authoritative": true,
+        "sensitive": true,
+        "schema": {
+          "id": "uuid",
+          "system_type": "text",
+          "environment": "text (staging|production)",
+          "username": "text",
+          "password": "text",
+          "api_key": "text",
+          "agent_code": "text",
+          "property_code": "text",
+          "property_name": "text",
+          "base_url": "text",
+          "is_active": "boolean",
+          "capabilities": "jsonb",
+          "refresh_interval_minutes": "integer"
+        },
+        "write_paths": ["Admin configuration UI"],
+        "read_paths": ["Edge functions (service role only)"],
+        "rls_policies": {
+          "all": ["Admins and devs only"]
+        },
+        "notes": "Credentials never exposed to frontend"
+      },
+      "pms_mappings": {
+        "purpose": "Map external PMS IDs to internal IDs",
+        "authoritative": true,
+        "schema": {
+          "id": "uuid",
+          "property_id": "uuid",
+          "system_type": "text",
+          "mapping_type": "text (room_type|rate_type|etc)",
+          "external_id": "text",
+          "external_name": "text",
+          "internal_id": "text",
+          "internal_name": "text",
+          "is_active": "boolean",
+          "metadata": "jsonb"
+        },
+        "write_paths": ["Admin mapping configuration", "Auto-sync"],
+        "read_paths": ["Booking flow", "Sync operations"],
+        "rls_policies": {
+          "all": ["Admins and devs can manage"],
+          "select": ["Owners can view own property mappings"]
+        }
+      }
+    },
+    "sync_and_audit": {
+      "sync_logs": {
+        "purpose": "Audit trail for all sync operations",
+        "authoritative": true,
+        "schema": {
+          "id": "uuid",
+          "property_id": "uuid",
+          "booking_id": "uuid",
+          "external_system": "text",
+          "sync_type": "text",
+          "status": "text (success|error)",
+          "message": "text",
+          "request_data": "jsonb",
+          "response_data": "jsonb",
+          "created_at": "timestamp"
+        },
+        "write_paths": ["All sync edge functions"],
+        "read_paths": ["Admin debugging", "Dev tools"],
+        "rls_policies": {
+          "select": ["Admins and devs can view"]
+        },
+        "retention": "30 days recommended"
+      },
+      "booking_sync_status": {
+        "purpose": "Track sync status per booking",
+        "authoritative": true,
+        "schema": {
+          "id": "uuid",
+          "booking_id": "uuid",
+          "external_system": "text",
+          "sync_status": "text (pending|synced|failed)",
+          "external_booking_id": "text",
+          "sync_attempts": "integer",
+          "last_sync_at": "timestamp",
+          "error_message": "text"
+        },
+        "write_paths": ["push-booking edge function"],
+        "read_paths": ["Booking status display", "Admin"],
+        "rls_policies": {
+          "select": [
+            "Admins and devs can view all",
+            "Users can view their own"
+          ]
+        }
+      }
+    },
+    "supporting_tables": {
+      "api_keys": {
+        "purpose": "Storage for API keys and configuration",
+        "sensitive": true,
+        "schema": {
+          "id": "uuid",
+          "name": "text",
+          "key_name": "text",
+          "key_value": "text",
+          "description": "text",
+          "system_type": "text",
+          "is_required": "boolean"
+        },
+        "rls_policies": {
+          "all": ["Admins and devs only"],
+          "select_public": ["google_maps_api_key", "nightsbridge_agent_code"]
+        }
+      },
+      "journals": {
+        "purpose": "Blog/journal content management",
+        "authoritative": true,
+        "rls_policies": {
+          "select": ["Anyone can view published journals"],
+          "all": ["Admins and devs can manage"]
+        }
+      },
+      "access_requests": {
+        "purpose": "User access request queue",
+        "rls_policies": {
+          "insert": ["Anyone can submit"],
+          "select": ["Admins and devs can view"],
+          "update": ["Admins and devs can update"]
+        }
+      },
+      "pms_tracker_status": {
+        "purpose": "Track PMS integration development status",
+        "write_paths": ["Admin dev tools"],
+        "read_paths": ["Dev dashboard"],
+        "rls_policies": {
+          "all": ["Admins and devs only"]
+        }
+      },
+      "navigation_tag_categories": {
+        "purpose": "Taxonomy for property navigation tags",
+        "rls_policies": {
+          "select": ["Anyone can view"],
+          "all": ["Admins and devs can manage"]
+        }
+      }
+    }
+  },
+  "views": {
+    "public_properties": {
+      "purpose": "Security view exposing only public property fields",
+      "base_table": "properties",
+      "exposed_fields": [
+        "id", "name", "description", "property_type", "address", "city", "country",
+        "latitude", "longitude", "price_per_night", "max_guests", "bedrooms", "bathrooms",
+        "amenities", "images", "is_active", "hero_listing", "navigation_tags", "slug",
+        "external_system", "benson_property_code", "checkfront_property_code"
+      ],
+      "excluded_fields": [
+        "owner_name", "owner_email", "owner_notes", "editorial_rating",
+        "why_we_chose_this_place", "who_this_suits", "what_its_really_like",
+        "why_this_place_matters", "who_its_not_for", "permanently_deleted_at"
+      ],
+      "filter": "is_active = true AND permanently_deleted_at IS NULL"
+    },
+    "public_nightsbridge_config": {
+      "purpose": "Expose only NightsBridge agent code publicly",
+      "exposed_fields": ["agent_code"]
+    }
+  },
+  "functions": {
+    "has_role": {
+      "signature": "(role: app_role, user_id: uuid) -> boolean",
+      "purpose": "Check if user has specific role",
+      "usage": "RLS policies"
+    },
+    "is_property_active": {
+      "signature": "(prop_id: uuid) -> boolean",
+      "purpose": "Check if property is active and not deleted",
+      "usage": "RLS policies for related tables"
+    },
+    "generate_property_slug": {
+      "signature": "(property_id: uuid, property_name: text) -> text",
+      "purpose": "Generate unique URL slug for property"
+    },
+    "generate_journal_slug": {
+      "signature": "(journal_id: uuid, journal_title: text) -> text",
+      "purpose": "Generate unique URL slug for journal"
+    }
+  },
+  "data_flow_patterns": {
+    "pms_to_rol_sync": {
+      "description": "Pull data from external PMS to ROL cache/tables",
+      "trigger": "Manual or scheduled",
+      "flow": [
+        "1. Edge function called with property_id",
+        "2. Fetch credentials from pms_credentials",
+        "3. Call PMS API via adapter",
+        "4. Transform response to ROL schema",
+        "5. Upsert to cache tables",
+        "6. Log to sync_logs"
+      ]
+    },
+    "rol_to_pms_push": {
+      "description": "Push booking from ROL to external PMS",
+      "trigger": "Booking creation",
+      "flow": [
+        "1. push-booking called with booking_id",
+        "2. Fetch booking and property details",
+        "3. Fetch LIVE availability from PMS",
+        "4. Validate availability",
+        "5. Create reservation in PMS",
+        "6. Store external_reservation_id",
+        "7. Update booking_sync_status",
+        "8. Log to sync_logs"
+      ],
+      "critical_invariant": "Step 3 must fetch LIVE data, never from cache"
+    }
+  }
+}
