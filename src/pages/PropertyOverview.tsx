@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Building2, Edit, Trash2, Home, CheckCircle2, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star } from "lucide-react";
+import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star } from "lucide-react";
+import { StatusIndicator } from "@/components/ui/status-indicator";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -350,6 +351,7 @@ const PropertyOverview = () => {
                   <Table>
                     <TableHeader>
                       <TableRow className="h-8">
+                        <TableHead className="py-1 text-xs w-12">STATUS</TableHead>
                         <TableHead 
                           className="cursor-pointer hover:bg-muted/50 select-none py-1 text-xs"
                           onClick={() => handleSort("name")}
@@ -401,6 +403,7 @@ const PropertyOverview = () => {
                       </TableRow>
                       {/* Search row */}
                       <TableRow className="hover:bg-transparent h-7">
+                        <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1">
                           <Input
                             placeholder="Search"
@@ -442,7 +445,7 @@ const PropertyOverview = () => {
                     <TableBody>
                       {activeProperties.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center py-6">
+                          <TableCell colSpan={9} className="text-center py-6">
                             {(searchName || searchPms || searchHero || searchPropertyType) ? (
                               <div>
                                 <AlertTriangle className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
@@ -464,7 +467,15 @@ const PropertyOverview = () => {
                           </TableCell>
                         </TableRow>
                       ) : activeProperties.map((property) => (
-                        <TableRow key={property.id} className="h-8">
+                        <TableRow key={property.id} className="h-8 group">
+                          <TableCell className="py-1">
+                            <StatusIndicator 
+                              status={property.external_system ? "healthy" : "stale"}
+                              showLabel={false}
+                              size="sm"
+                              tooltip={property.external_system ? `Connected: ${property.external_system}` : "No PMS connected"}
+                            />
+                          </TableCell>
                           <TableCell className="font-medium py-1 text-xs">
                             <div className="flex items-center gap-1">
                               <Button
