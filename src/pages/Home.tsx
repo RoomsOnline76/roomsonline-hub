@@ -468,10 +468,10 @@ function HomeContent() {
         {/* Hero Text */}
         <div className={`absolute inset-0 flex items-start pt-32 sm:pt-40 landscape:pt-24 z-10 transition-opacity duration-500 ${isAISearchActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <div className="w-full px-4 sm:px-8 md:px-12 flex flex-col">
-            <h2 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white drop-shadow-lg mb-4 sm:mb-6 tracking-wide">
+            <h2 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white drop-shadow-lg mb-4 sm:mb-6 tracking-tight leading-tight">
               Sleep in Africa
             </h2>
-            <p className="font-display text-lg sm:text-xl md:text-2xl lg:text-3xl text-white/90 drop-shadow-md leading-relaxed max-w-2xl italic">
+            <p className="font-display text-lg sm:text-xl md:text-2xl lg:text-3xl text-white/90 drop-shadow-md leading-relaxed max-w-2xl italic tracking-normal">
               {headline}
             </p>
           </div>
@@ -499,12 +499,12 @@ function HomeContent() {
       {/* Map Section */}
       <section ref={mapRef} id="map-section" className="py-12 sm:py-16 bg-background">
         <div className="container mx-auto px-4 sm:px-6">
-          <div className="mb-8 sm:mb-10">
-            <h2 className="font-display text-2xl sm:text-3xl text-foreground mb-2">
+          <div className="mb-6">
+            <h2 className="font-sans text-2xl sm:text-3xl font-medium text-foreground tracking-tight leading-tight mb-2">
               {isAISearchActive ? "Your Match" : "Explore Our World"}
             </h2>
             {!isAISearchActive && (
-              <p className="text-muted-foreground text-sm sm:text-base max-w-2xl">
+              <p className="text-muted-foreground text-sm sm:text-base max-w-2xl leading-relaxed">
                 Toggle or filter by what calls to you — lodges, coastal retreats, or something unexpected.
               </p>
             )}
@@ -518,18 +518,18 @@ function HomeContent() {
                   <button
                     key={type.key}
                     onClick={() => toggleType(type.key)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-full border transition-all touch-manipulation active:scale-95 ${
+                    className={`flex items-center gap-2 px-3 py-2 rounded-full border transition-all duration-200 touch-manipulation active:scale-95 ${
                       enabledTypes[type.key] 
                         ? "border-primary/40 bg-primary/5 shadow-sm" 
                         : "border-border bg-background hover:border-muted-foreground/30"
                     }`}
                   >
                     <span
-                      className={`w-2.5 h-2.5 rounded-full transition-all ${
+                      className={`w-2.5 h-2.5 rounded-full transition-all duration-200 ${
                         enabledTypes[type.key] ? type.color : "bg-muted-foreground/30"
                       }`}
                     />
-                    <span className={`text-sm transition-colors ${enabledTypes[type.key] ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                    <span className={`text-sm transition-colors duration-200 ${enabledTypes[type.key] ? "text-foreground font-medium" : "text-muted-foreground"}`}>
                       {type.label}
                     </span>
                   </button>
@@ -590,11 +590,11 @@ function HomeContent() {
       {isAISearchActive && aiResults && aiResults.length > 0 && (
         <section className="py-12 sm:py-16 bg-muted/30">
           <div className="container mx-auto px-4 sm:px-6">
-            <div className="mb-8">
-              <h2 className="font-display text-2xl sm:text-3xl text-foreground mb-2">
+            <div className="mb-6">
+              <h2 className="font-sans text-2xl sm:text-3xl font-medium text-foreground tracking-tight leading-tight mb-2">
                 Your Perfect Match{aiResults.length > 1 ? 'es' : ''}
               </h2>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground leading-relaxed">
                 {aiResults.length === 1 
                   ? 'Based on your search, we found the ideal property for you'
                   : `Found ${aiResults.length} properties that match your criteria`}
@@ -616,7 +616,7 @@ function HomeContent() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6 sm:gap-8">
                 {properties.filter(p => aiResults.includes(p.id)).map(property => (
                   <PropertyCard key={property.id} property={property} showCautionBadge={true} />
                 ))}
@@ -650,11 +650,11 @@ function HomeContent() {
       {/* Why RoomsOnline Section */}
       <section className="py-12 sm:py-16 bg-muted/30">
         <div className="container mx-auto px-4 sm:px-6">
-          <div className="mb-8 sm:mb-10">
-            <h2 className="font-display text-2xl sm:text-3xl text-foreground">Why RoomsOnline</h2>
+          <div className="mb-6">
+            <h2 className="font-sans text-2xl sm:text-3xl font-medium text-foreground tracking-tight leading-tight">Why RoomsOnline</h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {[
               {
                 icon: BadgeCheck,
@@ -689,13 +689,13 @@ function HomeContent() {
             ].map((item, index) => (
               <div
                 key={index}
-                className="flex gap-4 p-5 sm:p-6 rounded-xl bg-card border border-border hover:border-primary/30 hover:shadow-md transition-all"
+                className="flex gap-4 p-5 sm:p-6 rounded-xl bg-card border border-border hover:border-primary/30 hover:shadow-sm transition-all duration-200"
               >
                 <div className="flex-shrink-0 h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-primary/10 flex items-center justify-center">
                   <item.icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-medium text-sm sm:text-base text-foreground mb-1">
+                  <h3 className="font-medium text-sm sm:text-base text-foreground mb-1 tracking-tight">
                     {item.title}
                   </h3>
                   <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">{item.description}</p>
@@ -710,9 +710,9 @@ function HomeContent() {
       {latestJournals && latestJournals.length > 0 && (
         <section className="py-12 sm:py-16 bg-background">
           <div className="container mx-auto px-4 sm:px-6">
-            <div className="flex items-center justify-between mb-8 sm:mb-10">
-              <h2 className="font-display text-2xl sm:text-3xl text-foreground">From the Journal</h2>
-              <Link to="/journals" className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors group">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-sans text-2xl sm:text-3xl font-medium text-foreground tracking-tight leading-tight">From the Journal</h2>
+              <Link to="/journals" className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors duration-200 group">
                 View all
                 <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
@@ -723,7 +723,7 @@ function HomeContent() {
                 <Link
                   key={journal.id}
                   to={`/journals#journal-${journal.slug || journal.id}`}
-                  className="group block bg-card rounded-xl border border-border overflow-hidden hover:border-primary/30 hover:shadow-lg transition-all"
+                  className="group block bg-card rounded-xl border border-border overflow-hidden hover:border-primary/30 hover:shadow-sm transition-all duration-200"
                 >
                   {(journal.featured_image_url || journal.header_image_url) && (
                     <div className="aspect-[16/9] overflow-hidden">
@@ -736,14 +736,14 @@ function HomeContent() {
                   )}
 
                   <div className="p-5 sm:p-6">
-                    <h3 className="font-display text-base sm:text-lg text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+                    <h3 className="font-display text-base sm:text-lg text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors duration-200 tracking-tight leading-tight">
                       {journal.title}
                     </h3>
                     {journal.excerpt && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mb-4">{journal.excerpt}</p>
+                      <p className="text-sm text-muted-foreground line-clamp-2 mb-4 leading-relaxed">{journal.excerpt}</p>
                     )}
                     {journal.publish_date && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
                         <Calendar className="h-3.5 w-3.5" />
                         <time dateTime={journal.publish_date}>
                           {format(new Date(journal.publish_date), "MMMM d, yyyy")}

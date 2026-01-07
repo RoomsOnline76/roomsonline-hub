@@ -27,10 +27,10 @@ function FindByCard({ title, subtitle, description, imageUrl, onClick, href }: F
       
       {/* Content */}
       <div className="relative flex flex-col justify-end p-4 sm:p-6 min-h-[16rem] sm:min-h-[18rem]">
-        <span className="text-xs font-semibold text-primary/90 uppercase tracking-wider mb-1">
+        <span className="text-xs font-medium text-primary uppercase tracking-wider mb-1.5">
           {subtitle}
         </span>
-        <h3 className="text-lg sm:text-xl font-bold text-white mb-2">
+        <h3 className="font-display text-lg sm:text-xl font-medium text-white mb-2 tracking-tight leading-tight">
           {title}
         </h3>
         <p className="text-xs sm:text-sm text-white/80 leading-relaxed">
@@ -146,12 +146,12 @@ export function FindBySection({ onScrollToTypes, onScrollToMap }: FindBySectionP
 
   if (isLoading) {
     return (
-      <section className="py-6 sm:py-8 bg-background">
-        <div className="container mx-auto px-3 sm:px-4">
-          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-4 sm:mb-5">
-            FIND BY...
+      <section className="py-12 sm:py-16 bg-background">
+        <div className="container mx-auto px-4 sm:px-6">
+          <h2 className="font-sans text-xl sm:text-2xl font-medium text-foreground tracking-tight leading-tight mb-6 sm:mb-8">
+            Find By...
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
             {[1, 2, 3].map((i) => (
               <Skeleton key={i} className="min-h-[16rem] sm:min-h-[18rem] rounded-lg" />
             ))}
@@ -162,12 +162,12 @@ export function FindBySection({ onScrollToTypes, onScrollToMap }: FindBySectionP
   }
 
   return (
-    <section className="py-6 sm:py-8 bg-background">
-      <div className="container mx-auto px-3 sm:px-4">
-        <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground mb-4 sm:mb-5">
-          FIND BY...
+    <section className="py-12 sm:py-16 bg-background">
+      <div className="container mx-auto px-4 sm:px-6">
+        <h2 className="font-sans text-xl sm:text-2xl font-medium text-foreground tracking-tight leading-tight mb-6 sm:mb-8">
+          Find By...
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
           {cards.map((card, index) => (
             <FindByCard
               key={card.subtitle}
