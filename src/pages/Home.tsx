@@ -394,7 +394,7 @@ function HomeContent() {
                   RoomsOnline
                 </h1>
                 <p className="hidden sm:block text-[10px] uppercase tracking-[0.2em] text-white/70 mt-0.5">
-                  Curated Stays
+                  Rooms done Right
                 </p>
               </div>
             </Link>
