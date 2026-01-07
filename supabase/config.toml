@@ -59,3 +59,6 @@ verify_jwt = false
 
 [functions.addpay-api]
 verify_jwt = false
+
+[functions.send-pms-status-report]
+verify_jwt = true

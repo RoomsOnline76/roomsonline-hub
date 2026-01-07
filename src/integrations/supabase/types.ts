@@ -972,6 +972,57 @@ export type Database = {
           },
         ]
       }
+      pms_tracker_status: {
+        Row: {
+          additional_info: Json | null
+          contact_person: string | null
+          created_at: string | null
+          has_access: boolean | null
+          has_docs: boolean | null
+          has_edge: boolean | null
+          has_get: boolean | null
+          has_post: boolean | null
+          id: string
+          is_production: boolean | null
+          notes: string | null
+          status: string | null
+          system_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          additional_info?: Json | null
+          contact_person?: string | null
+          created_at?: string | null
+          has_access?: boolean | null
+          has_docs?: boolean | null
+          has_edge?: boolean | null
+          has_get?: boolean | null
+          has_post?: boolean | null
+          id?: string
+          is_production?: boolean | null
+          notes?: string | null
+          status?: string | null
+          system_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          additional_info?: Json | null
+          contact_person?: string | null
+          created_at?: string | null
+          has_access?: boolean | null
+          has_docs?: boolean | null
+          has_edge?: boolean | null
+          has_get?: boolean | null
+          has_post?: boolean | null
+          id?: string
+          is_production?: boolean | null
+          notes?: string | null
+          status?: string | null
+          system_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
