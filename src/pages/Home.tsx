@@ -468,10 +468,10 @@ function HomeContent() {
         {/* Hero Text */}
         <div className={`absolute inset-0 flex items-start pt-32 sm:pt-40 landscape:pt-24 z-10 transition-opacity duration-500 ${isAISearchActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <div className="w-full px-4 sm:px-8 md:px-12 flex flex-col">
-            <h2 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white drop-shadow-lg mb-4 sm:mb-6 tracking-tight leading-tight">
+            <h2 className="font-display text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-white drop-shadow-lg mb-4 sm:mb-6 tracking-tight leading-tight">
               Sleep in Africa with RoomsOnline.
             </h2>
-            <p className="font-display text-lg sm:text-xl md:text-2xl lg:text-3xl text-white/90 drop-shadow-md leading-relaxed max-w-2xl italic tracking-normal">
+            <p className="font-display text-base sm:text-lg md:text-xl lg:text-2xl text-white/90 drop-shadow-md leading-relaxed max-w-2xl italic tracking-normal">
               {headline}
             </p>
           </div>
