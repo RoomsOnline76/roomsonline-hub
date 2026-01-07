@@ -67,13 +67,13 @@ export default function PublicJournals() {
 
   return (
     <PublicLayout backLabel="Back to Home" backTo="/">
-      <div className="container mx-auto px-4 sm:px-6 py-12 sm:py-16">
+      <div className="container mx-auto px-4 sm:px-6 py-16 sm:py-20">
         {/* Page title */}
-        <div className="max-w-3xl mx-auto text-center mb-12 sm:mb-16">
-          <h1 className="font-display text-3xl sm:text-4xl font-light text-foreground mb-4">
+        <div className="max-w-3xl mx-auto text-center mb-12">
+          <h1 className="font-display text-3xl sm:text-4xl font-light tracking-tight leading-tight text-foreground mb-4">
             Journal
           </h1>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground text-lg leading-relaxed">
             Stories & Inspiration
           </p>
         </div>
@@ -87,14 +87,14 @@ export default function PublicJournals() {
               placeholder="Search articles..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-background"
+              className="pl-10 bg-background focus-visible:ring-primary/30"
             />
           </div>
         </div>
 
         {/* Loading state */}
         {isLoading && (
-          <div className="max-w-4xl mx-auto space-y-12">
+          <div className="max-w-3xl mx-auto space-y-12">
             {[1, 2, 3].map((i) => (
               <div key={i} className="space-y-4">
                 <Skeleton className="h-64 w-full rounded-lg" />
@@ -109,7 +109,7 @@ export default function PublicJournals() {
         {/* Empty state */}
         {!isLoading && filteredJournals.length === 0 && (
           <div className="max-w-md mx-auto text-center py-16">
-            <p className="text-muted-foreground">
+            <p className="font-display text-xl text-muted-foreground">
               {searchQuery
                 ? "No articles match your search."
                 : "No articles published yet. Check back soon!"}
@@ -119,7 +119,7 @@ export default function PublicJournals() {
 
         {/* Journal list */}
         {!isLoading && filteredJournals.length > 0 && (
-          <div className="max-w-4xl mx-auto space-y-16">
+          <div className="max-w-3xl mx-auto space-y-12">
             {filteredJournals.map((journal) => (
               <article
                 key={journal.id}
@@ -138,14 +138,17 @@ export default function PublicJournals() {
                 )}
 
                 {/* Title & Meta */}
-                <h2 className="font-display text-2xl sm:text-3xl font-light text-foreground mb-3">
+                <h2 className="font-display text-2xl sm:text-3xl font-light tracking-tight leading-tight text-foreground mb-3">
                   {journal.title}
                 </h2>
                 
                 {journal.publish_date && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
-                    <Calendar className="h-4 w-4" />
-                    <time dateTime={journal.publish_date}>
+                  <div className="flex items-center gap-2 mb-6">
+                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                    <time 
+                      dateTime={journal.publish_date}
+                      className="text-xs uppercase tracking-wider text-muted-foreground"
+                    >
                       {format(parseISO(journal.publish_date), "MMMM d, yyyy")}
                     </time>
                   </div>
@@ -162,16 +165,16 @@ export default function PublicJournals() {
                 {journal.content && (
                   <div
                     className="prose prose-lg max-w-none dark:prose-invert 
-                      prose-headings:font-display prose-headings:font-light
-                      prose-headings:text-foreground prose-p:text-foreground/80 
+                      prose-headings:font-sans prose-headings:font-medium prose-headings:tracking-tight
+                      prose-headings:text-foreground prose-p:text-foreground/80 prose-p:leading-relaxed
                       prose-strong:text-foreground prose-a:text-primary
-                      prose-img:rounded-lg"
+                      prose-img:rounded-lg prose-li:marker:text-primary/50"
                     dangerouslySetInnerHTML={{ __html: journal.content }}
                   />
                 )}
 
                 {/* Separator */}
-                <div className="mt-12 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+                <div className="mt-12 border-t border-border" />
               </article>
             ))}
           </div>

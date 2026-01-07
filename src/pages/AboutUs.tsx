@@ -1,15 +1,17 @@
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { Button } from "@/components/ui/button";
+import { ArrowRight } from "lucide-react";
 
 const AboutUs = () => {
   return (
     <PublicLayout backLabel="Back to Home" backTo="/">
-      <div className="container mx-auto px-4 sm:px-6 py-12 sm:py-16">
+      <div className="container mx-auto px-4 sm:px-6 py-16 sm:py-20">
         {/* Page title */}
-        <div className="max-w-3xl mx-auto text-center mb-12 sm:mb-16">
-          <h1 className="font-display text-3xl sm:text-4xl font-light text-foreground mb-4">
+        <div className="max-w-3xl mx-auto text-center mb-12">
+          <h1 className="font-display text-3xl sm:text-4xl font-light tracking-tight leading-tight text-foreground mb-4">
             About RoomsOnline
           </h1>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground text-lg leading-relaxed">
             Curating extraordinary stays since 2010
           </p>
         </div>
@@ -18,7 +20,7 @@ const AboutUs = () => {
         <div className="max-w-3xl mx-auto space-y-12">
           {/* Mission section */}
           <section className="space-y-6">
-            <h2 className="font-display text-xl sm:text-2xl font-light text-foreground">
+            <h2 className="font-sans text-xl sm:text-2xl font-medium tracking-tight leading-tight text-foreground">
               Our Mission
             </h2>
             <p className="text-foreground/80 leading-relaxed">
@@ -28,8 +30,8 @@ const AboutUs = () => {
             </p>
             
             {/* Pull quote */}
-            <blockquote className="border-l-2 border-primary/50 pl-6 py-2 my-8">
-              <p className="font-display text-lg italic text-foreground/90">
+            <blockquote className="border-l-2 border-muted-foreground/30 pl-6 py-2 my-8">
+              <p className="font-display text-lg italic text-foreground/90 leading-relaxed">
                 "Every property we feature has been personally visited and thoughtfully 
                 evaluated against our exacting standards."
               </p>
@@ -38,7 +40,7 @@ const AboutUs = () => {
 
           {/* What we do section */}
           <section className="space-y-6">
-            <h2 className="font-display text-xl sm:text-2xl font-light text-foreground">
+            <h2 className="font-sans text-xl sm:text-2xl font-medium tracking-tight leading-tight text-foreground">
               What We Do
             </h2>
             <p className="text-foreground/80 leading-relaxed">
@@ -57,7 +59,7 @@ const AboutUs = () => {
 
           {/* A more thoughtful way section */}
           <section className="space-y-6">
-            <h2 className="font-display text-xl sm:text-2xl font-light text-foreground">
+            <h2 className="font-sans text-xl sm:text-2xl font-medium tracking-tight leading-tight text-foreground">
               A More Thoughtful Way to Book
             </h2>
             <p className="text-foreground/80 leading-relaxed">
@@ -75,25 +77,25 @@ const AboutUs = () => {
 
           {/* Our approach section */}
           <section className="space-y-6">
-            <h2 className="font-display text-xl sm:text-2xl font-light text-foreground">
+            <h2 className="font-sans text-xl sm:text-2xl font-medium tracking-tight leading-tight text-foreground">
               Our Approach
             </h2>
-            <div className="grid gap-6 sm:grid-cols-3">
-              <div className="p-6 rounded-lg bg-muted/30 border border-border/50">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="p-6 rounded-lg bg-card border border-border hover:border-primary/20 transition-colors duration-200">
                 <h3 className="font-medium text-foreground mb-2">Curated</h3>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground leading-relaxed">
                   Every property is personally vetted—no pay-to-play, no algorithmic rankings.
                 </p>
               </div>
-              <div className="p-6 rounded-lg bg-muted/30 border border-border/50">
+              <div className="p-6 rounded-lg bg-card border border-border hover:border-primary/20 transition-colors duration-200">
                 <h3 className="font-medium text-foreground mb-2">Honest</h3>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground leading-relaxed">
                   Our editorial ratings reflect genuine assessment, including candid caveats.
                 </p>
               </div>
-              <div className="p-6 rounded-lg bg-muted/30 border border-border/50">
+              <div className="p-6 rounded-lg bg-card border border-border hover:border-primary/20 transition-colors duration-200">
                 <h3 className="font-medium text-foreground mb-2">Seamless</h3>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground leading-relaxed">
                   Real-time availability and instant booking—no waiting, no uncertainty.
                 </p>
               </div>
@@ -102,7 +104,7 @@ const AboutUs = () => {
 
           {/* Who we are for */}
           <section className="space-y-6">
-            <h2 className="font-display text-xl sm:text-2xl font-light text-foreground">
+            <h2 className="font-sans text-xl sm:text-2xl font-medium tracking-tight leading-tight text-foreground">
               Who RoomsOnline Is For
             </h2>
             <p className="text-foreground/80 leading-relaxed">
@@ -118,16 +120,16 @@ const AboutUs = () => {
           </section>
 
           {/* Contact prompt */}
-          <section className="text-center pt-8 border-t border-border">
-            <p className="text-muted-foreground mb-4">
+          <section className="text-center pt-16 border-t border-border">
+            <p className="text-muted-foreground mb-6 leading-relaxed">
               Have questions or want to learn more?
             </p>
-            <a
-              href="/contact"
-              className="inline-flex items-center justify-center px-6 py-3 rounded-md bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
-            >
-              Get in Touch
-            </a>
+            <Button asChild size="lg" className="text-lg px-8 py-6 gap-2">
+              <a href="/contact">
+                Get in Touch
+                <ArrowRight className="h-4 w-4" />
+              </a>
+            </Button>
           </section>
         </div>
       </div>

@@ -3,21 +3,21 @@ import { PublicLayout } from "@/components/layout/PublicLayout";
 const TermsOfService = () => {
   return (
     <PublicLayout backLabel="Back to Home" backTo="/">
-      <div className="container mx-auto px-4 sm:px-6 py-12 sm:py-16">
+      <div className="container mx-auto px-4 sm:px-6 py-16 sm:py-20">
         {/* Page title */}
         <div className="max-w-3xl mx-auto text-center mb-12">
-          <h1 className="font-display text-3xl sm:text-4xl font-light text-foreground mb-4">
+          <h1 className="font-display text-3xl sm:text-4xl font-light tracking-tight leading-tight text-foreground mb-4">
             Terms of Service
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">
             Last updated: January 2025
           </p>
         </div>
 
         {/* Content */}
-        <div className="max-w-3xl mx-auto space-y-8">
+        <div className="max-w-3xl mx-auto space-y-12">
           <section className="space-y-4">
-            <h2 className="font-display text-xl font-light text-foreground border-b border-border pb-2">
+            <h2 className="font-sans text-xl font-medium tracking-tight leading-tight text-foreground mb-4">
               1. Acceptance of Terms
             </h2>
             <p className="text-foreground/80 leading-relaxed">
@@ -28,7 +28,7 @@ const TermsOfService = () => {
           </section>
 
           <section className="space-y-4">
-            <h2 className="font-display text-xl font-light text-foreground border-b border-border pb-2">
+            <h2 className="font-sans text-xl font-medium tracking-tight leading-tight text-foreground mb-4">
               2. Description of Service
             </h2>
             <p className="text-foreground/80 leading-relaxed">
@@ -40,11 +40,11 @@ const TermsOfService = () => {
           </section>
 
           <section className="space-y-4">
-            <h2 className="font-display text-xl font-light text-foreground border-b border-border pb-2">
+            <h2 className="font-sans text-xl font-medium tracking-tight leading-tight text-foreground mb-4">
               3. User Accounts
             </h2>
             <p className="text-foreground/80 leading-relaxed">When creating an account, you agree to:</p>
-            <ul className="list-disc list-inside text-foreground/80 space-y-1 ml-4">
+            <ul className="list-disc list-inside text-foreground/80 space-y-1 ml-4 marker:text-primary/50">
               <li>Provide accurate and complete information</li>
               <li>Maintain the security of your account credentials</li>
               <li>Notify us immediately of any unauthorized access</li>
@@ -54,7 +54,7 @@ const TermsOfService = () => {
           </section>
 
           <section className="space-y-4">
-            <h2 className="font-display text-xl font-light text-foreground border-b border-border pb-2">
+            <h2 className="font-sans text-xl font-medium tracking-tight leading-tight text-foreground mb-4">
               4. Booking Terms
             </h2>
             <h3 className="font-medium text-foreground">4.1 Reservations</h3>
@@ -64,14 +64,14 @@ const TermsOfService = () => {
               booking process.
             </p>
 
-            <h3 className="font-medium text-foreground mt-4">4.2 Pricing</h3>
+            <h3 className="font-medium text-foreground mt-6">4.2 Pricing</h3>
             <p className="text-foreground/80 leading-relaxed">
               All prices displayed are provided by the accommodation providers and may be 
               subject to change. Additional taxes, fees, or charges may apply as indicated 
               during the booking process.
             </p>
 
-            <h3 className="font-medium text-foreground mt-4">4.3 Cancellations</h3>
+            <h3 className="font-medium text-foreground mt-6">4.3 Cancellations</h3>
             <p className="text-foreground/80 leading-relaxed">
               Cancellation and modification policies are set by individual accommodation 
               providers and will be displayed during the booking process. Please review 
@@ -80,11 +80,11 @@ const TermsOfService = () => {
           </section>
 
           <section className="space-y-4">
-            <h2 className="font-display text-xl font-light text-foreground border-b border-border pb-2">
+            <h2 className="font-sans text-xl font-medium tracking-tight leading-tight text-foreground mb-4">
               5. User Responsibilities
             </h2>
             <p className="text-foreground/80 leading-relaxed">You agree not to:</p>
-            <ul className="list-disc list-inside text-foreground/80 space-y-1 ml-4">
+            <ul className="list-disc list-inside text-foreground/80 space-y-1 ml-4 marker:text-primary/50">
               <li>Use the Platform for any unlawful purpose</li>
               <li>Provide false or misleading information</li>
               <li>Interfere with the proper functioning of the Platform</li>
@@ -94,7 +94,7 @@ const TermsOfService = () => {
           </section>
 
           <section className="space-y-4">
-            <h2 className="font-display text-xl font-light text-foreground border-b border-border pb-2">
+            <h2 className="font-sans text-xl font-medium tracking-tight leading-tight text-foreground mb-4">
               6. Intellectual Property
             </h2>
             <p className="text-foreground/80 leading-relaxed">
@@ -106,7 +106,7 @@ const TermsOfService = () => {
           </section>
 
           <section className="space-y-4">
-            <h2 className="font-display text-xl font-light text-foreground border-b border-border pb-2">
+            <h2 className="font-sans text-xl font-medium tracking-tight leading-tight text-foreground mb-4">
               7. Limitation of Liability
             </h2>
             <p className="text-foreground/80 leading-relaxed">
@@ -118,7 +118,7 @@ const TermsOfService = () => {
           </section>
 
           <section className="space-y-4">
-            <h2 className="font-display text-xl font-light text-foreground border-b border-border pb-2">
+            <h2 className="font-sans text-xl font-medium tracking-tight leading-tight text-foreground mb-4">
               8. Governing Law
             </h2>
             <p className="text-foreground/80 leading-relaxed">
@@ -129,7 +129,7 @@ const TermsOfService = () => {
           </section>
 
           <section className="space-y-4">
-            <h2 className="font-display text-xl font-light text-foreground border-b border-border pb-2">
+            <h2 className="font-sans text-xl font-medium tracking-tight leading-tight text-foreground mb-4">
               9. Changes to Terms
             </h2>
             <p className="text-foreground/80 leading-relaxed">
@@ -140,18 +140,18 @@ const TermsOfService = () => {
           </section>
 
           <section className="space-y-4">
-            <h2 className="font-display text-xl font-light text-foreground border-b border-border pb-2">
+            <h2 className="font-sans text-xl font-medium tracking-tight leading-tight text-foreground mb-4">
               10. Contact Information
             </h2>
             <p className="text-foreground/80 leading-relaxed">
               For questions about these Terms of Service, please contact us:
             </p>
-            <div className="p-4 rounded-lg bg-muted/30 border border-border/50 mt-4">
+            <div className="p-6 rounded-lg bg-card border border-border mt-4">
               <p className="text-foreground">
-                Email: <a href="mailto:legal@roomsonline.co.za" className="text-primary hover:underline">legal@roomsonline.co.za</a>
+                Email: <a href="mailto:legal@roomsonline.co.za" className="text-primary hover:underline transition-colors duration-200">legal@roomsonline.co.za</a>
               </p>
-              <p className="text-foreground mt-1">
-                Phone: <a href="tel:+27214180022" className="text-primary hover:underline">+27 21 418 0022</a>
+              <p className="text-foreground mt-2">
+                Phone: <a href="tel:+27214180022" className="text-primary hover:underline transition-colors duration-200">+27 21 418 0022</a>
               </p>
             </div>
           </section>

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
-import { Mail, Phone, MapPin, Send, CheckCircle, Loader2 } from "lucide-react";
+import { Mail, Phone, MapPin, Send, CheckCircle, Loader2, Clock } from "lucide-react";
 
 const contactSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
@@ -84,13 +84,13 @@ const ContactUs = () => {
 
   return (
     <PublicLayout backLabel="Back to Home" backTo="/">
-      <div className="container mx-auto px-4 sm:px-6 py-12 sm:py-16">
+      <div className="container mx-auto px-4 sm:px-6 py-16 sm:py-20">
         {/* Page title */}
-        <div className="max-w-3xl mx-auto text-center mb-12 sm:mb-16">
-          <h1 className="font-display text-3xl sm:text-4xl font-light text-foreground mb-4">
+        <div className="max-w-3xl mx-auto text-center mb-12">
+          <h1 className="font-display text-3xl sm:text-4xl font-light tracking-tight leading-tight text-foreground mb-4">
             Get in Touch
           </h1>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground text-lg leading-relaxed">
             We would love to hear from you
           </p>
         </div>
@@ -99,38 +99,44 @@ const ContactUs = () => {
           {/* Contact info */}
           <div className="lg:col-span-2 space-y-8">
             <div>
-              <h2 className="font-display text-xl font-light text-foreground mb-6">
+              <h2 className="font-sans text-xl font-medium tracking-tight leading-tight text-foreground mb-6">
                 Contact Information
               </h2>
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <Mail className="h-5 w-5 text-primary mt-0.5" />
+              <div className="space-y-5">
+                <div className="flex items-start gap-4">
+                  <div className="bg-primary/5 rounded-full p-2.5">
+                    <Mail className="h-4 w-4 text-primary" />
+                  </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Email</p>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Email</p>
                     <a
                       href="mailto:info@roomsonline.co.za"
-                      className="text-foreground hover:text-primary transition-colors"
+                      className="text-foreground hover:text-primary transition-colors duration-200"
                     >
                       info@roomsonline.co.za
                     </a>
                   </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <Phone className="h-5 w-5 text-primary mt-0.5" />
+                <div className="flex items-start gap-4">
+                  <div className="bg-primary/5 rounded-full p-2.5">
+                    <Phone className="h-4 w-4 text-primary" />
+                  </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Phone</p>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Phone</p>
                     <a
                       href="tel:+27214180022"
-                      className="text-foreground hover:text-primary transition-colors"
+                      className="text-foreground hover:text-primary transition-colors duration-200"
                     >
                       +27 21 418 0022
                     </a>
                   </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <MapPin className="h-5 w-5 text-primary mt-0.5" />
+                <div className="flex items-start gap-4">
+                  <div className="bg-primary/5 rounded-full p-2.5">
+                    <MapPin className="h-4 w-4 text-primary" />
+                  </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Address</p>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Address</p>
                     <p className="text-foreground">
                       Cape Town, South Africa
                     </p>
@@ -139,12 +145,15 @@ const ContactUs = () => {
               </div>
             </div>
 
-            <div className="p-6 rounded-lg bg-muted/30 border border-border/50">
-              <h3 className="font-medium text-foreground mb-2">Office Hours</h3>
-              <p className="text-sm text-muted-foreground">
+            <div className="p-6 rounded-lg bg-card border border-border">
+              <div className="flex items-center gap-3 mb-3">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <h3 className="font-medium text-foreground">Office Hours</h3>
+              </div>
+              <p className="text-sm text-muted-foreground leading-relaxed">
                 Monday – Friday: 9:00 AM – 5:00 PM (SAST)
               </p>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-sm text-muted-foreground leading-relaxed mt-1">
                 Saturday – Sunday: Closed
               </p>
             </div>
@@ -153,12 +162,12 @@ const ContactUs = () => {
           {/* Contact form */}
           <div className="lg:col-span-3">
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="p-6 sm:p-8 rounded-lg bg-card border border-border shadow-sm">
-                <h2 className="font-display text-xl font-light text-foreground mb-6">
+              <div className="p-6 sm:p-8 rounded-lg bg-card border border-border">
+                <h2 className="font-sans text-xl font-medium tracking-tight leading-tight text-foreground mb-6">
                   Send a Message
                 </h2>
 
-                <div className="space-y-4">
+                <div className="space-y-5">
                   <div className="space-y-2">
                     <Label htmlFor="name" className="text-sm text-foreground">
                       Name <span className="text-destructive">*</span>
@@ -167,7 +176,7 @@ const ContactUs = () => {
                       id="name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className={errors.name ? "border-destructive" : ""}
+                      className={`h-12 ${errors.name ? "border-destructive" : ""}`}
                       placeholder="Your name"
                     />
                     {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
@@ -182,7 +191,7 @@ const ContactUs = () => {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className={errors.email ? "border-destructive" : ""}
+                      className={`h-12 ${errors.email ? "border-destructive" : ""}`}
                       placeholder="you@example.com"
                     />
                     {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
@@ -215,7 +224,7 @@ const ContactUs = () => {
                     aria-hidden="true"
                   />
 
-                  <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border border-border/50">
+                  <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border border-border">
                     <Checkbox
                       id="captcha"
                       checked={captchaChecked}
@@ -234,7 +243,8 @@ const ContactUs = () => {
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full mt-6 gap-2"
+                  size="lg"
+                  className="w-full mt-6 gap-2 h-12"
                 >
                   {isSubmitting ? (
                     <>
@@ -264,10 +274,10 @@ const ContactUs = () => {
             <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-status-healthy/10 flex items-center justify-center">
               <CheckCircle className="h-6 w-6 text-status-healthy" />
             </div>
-            <DialogTitle className="font-display text-xl font-light">
+            <DialogTitle className="font-display text-xl font-light tracking-tight">
               Message Sent
             </DialogTitle>
-            <DialogDescription className="text-muted-foreground pt-4 space-y-3">
+            <DialogDescription className="text-muted-foreground pt-4 space-y-3 leading-relaxed">
               <p>Thank you for reaching out.</p>
               <p>Your message has been received and is with the RoomsOnline team. We read every enquiry properly and will get back to you as soon as we can—usually within one business day.</p>
             </DialogDescription>
