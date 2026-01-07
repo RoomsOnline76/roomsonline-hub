@@ -40,12 +40,11 @@ const getPMSDisplayName = (key: string): string => {
     hostfully: 'Hostfully',
     hotelbeds: 'HotelBeds',
     littlehotelier: 'Little Hotelier',
-    mews: 'Mews',
     nightsbridge: 'NightsBridge',
     roomkey: 'RoomKey',
     roomracoon: 'RoomRaccoon',
+    semper: 'Semper',
     siteminder: 'SiteMinder',
-    smoobu: 'Smoobu',
     roomsonline: 'RoomsOnline PMS',
   };
   return names[key] || key.charAt(0).toUpperCase() + key.slice(1);
@@ -56,7 +55,7 @@ const getStatusColor = (status: string): string => {
   if (normalized === 'complete') return '#22c55e';
   if (normalized.includes('wait') || normalized.includes('access')) return '#f59e0b';
   if (normalized === 'register' || normalized === 'to apply' || normalized === 'researching') return '#3b82f6';
-  if (normalized === 'in progress') return '#a855f7';
+  if (normalized === 'in progress' || normalized === 'in dev') return '#a855f7';
   return '#6b7280';
 };
 
