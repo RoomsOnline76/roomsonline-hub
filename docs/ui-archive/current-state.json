@@ -1,0 +1,534 @@
+{
+  "metadata": {
+    "archive_version": "1.0.0",
+    "created_at": "2025-01-07",
+    "purpose": "Pre-transformation UI state capture for Phase 2 redesign",
+    "total_routes": 32,
+    "total_components": 42,
+    "total_pages": 27,
+    "longest_file": {
+      "path": "src/pages/AdminKeys.tsx",
+      "lines": 3231
+    },
+    "design_system": "Tailwind CSS + shadcn/ui",
+    "color_primary": "hsl(338 82% 52%)",
+    "typography": "System fonts, text-xs dominant in admin"
+  },
+
+  "routes": [
+    { "path": "/", "component": "Home", "protection": "none", "role": null, "notes": "Redirects based on domain" },
+    { "path": "/book", "component": "BookRedirect", "protection": "none", "role": null },
+    { "path": "/property_listing", "component": "PropertyListing", "protection": "none", "role": null },
+    { "path": "/staging", "component": "StagingBook", "protection": "none", "role": null },
+    { "path": "/auth", "component": "Auth", "protection": "none", "role": null },
+    { "path": "/admin", "component": "Redirect", "protection": "auth", "role": null, "redirect_to": "/admin/property-overview" },
+    { "path": "/admin-keys", "component": "AdminKeys", "protection": "auth", "role": "dev" },
+    { "path": "/admin-users", "component": "AdminUsers", "protection": "auth", "role": "admin" },
+    { "path": "/admin/access-requests", "component": "AdminAccessRequests", "protection": "auth", "role": "admin" },
+    { "path": "/admin/api-keys", "component": "AdminKeys", "protection": "auth", "role": "dev" },
+    { "path": "/admin/benson-config", "component": "BensonConfig", "protection": "auth", "role": "admin" },
+    { "path": "/admin/test-booking-benson", "component": "TestBookingBenson", "protection": "auth", "role": "dev" },
+    { "path": "/admin/properties/new", "component": "PropertyForm", "protection": "auth", "role": null },
+    { "path": "/admin/properties/:id", "component": "PropertyForm", "protection": "auth", "role": null },
+    { "path": "/admin/property-overview", "component": "PropertyOverview", "protection": "auth", "role": null },
+    { "path": "/admin/calendar", "component": "Calendar", "protection": "auth", "role": null },
+    { "path": "/admin/calendar/accommodation", "component": "CalendarAccommodation", "protection": "auth", "role": null },
+    { "path": "/admin/calendar/event-wedding", "component": "CalendarEventWedding", "protection": "auth", "role": null },
+    { "path": "/admin/calendar/conference", "component": "CalendarConference", "protection": "auth", "role": null },
+    { "path": "/admin/promotion", "component": "Promotion", "protection": "auth", "role": null },
+    { "path": "/admin/bookings", "component": "Bookings", "protection": "auth", "role": null },
+    { "path": "/dashboard/reports", "component": "Dashboard", "protection": "auth", "role": null },
+    { "path": "/dashboard/insights", "component": "Insights", "protection": "auth", "role": "admin" },
+    { "path": "/property/:id", "component": "PropertyShowcase", "protection": "none", "role": null },
+    { "path": "/property/:propertySlug/room/:roomSlug", "component": "RoomShowcase", "protection": "none", "role": null },
+    { "path": "/property/:propertySlug/room/:roomSlug/availability", "component": "RoomAvailability", "protection": "none", "role": null },
+    { "path": "/booking/:id", "component": "Booking", "protection": "none", "role": null },
+    { "path": "/nb", "component": "NB", "protection": "auth", "role": "dev" },
+    { "path": "/admin/journals", "component": "AdminJournals", "protection": "auth", "role": "admin" },
+    { "path": "/admin/journals/:id", "component": "JournalEditor", "protection": "auth", "role": "admin" },
+    { "path": "/journals", "component": "PublicJournals", "protection": "none", "role": null },
+    { "path": "*", "component": "NotFound", "protection": "none", "role": null }
+  ],
+
+  "navigation": {
+    "pattern": "horizontal_navbar_with_dropdowns",
+    "component": "src/components/Navbar.tsx",
+    "lines": 395,
+    "elements": [
+      {
+        "type": "logo",
+        "position": "left",
+        "link": "/dashboard/reports",
+        "content": ["ROL logo (h-10)", "RoomsOnline title", "Unified Booking Engine subtitle"]
+      },
+      {
+        "type": "button",
+        "label": "Book",
+        "behavior": "Opens external booking domain",
+        "visibility": "always"
+      },
+      {
+        "type": "dropdown",
+        "label": "Admin",
+        "visibility": "authenticated",
+        "items": [
+          { "label": "Property overview", "path": "/admin/property-overview" },
+          { "label": "Calendar", "path": "/admin/calendar/accommodation" },
+          { "label": "Promotion", "path": "/admin/promotion" },
+          { "label": "Bookings", "path": "/admin/bookings" }
+        ]
+      },
+      {
+        "type": "dropdown",
+        "label": "Dashboard",
+        "visibility": "authenticated",
+        "items": [
+          { "label": "Reports", "path": "/dashboard/reports" },
+          { "label": "Insights", "path": "/dashboard/insights", "role": "admin" }
+        ]
+      },
+      {
+        "type": "button",
+        "label": "Journal",
+        "path": "/admin/journals",
+        "visibility": "admin_dev_specific_domains"
+      },
+      {
+        "type": "button",
+        "label": "Users",
+        "path": "/admin-users",
+        "visibility": "admin"
+      },
+      {
+        "type": "button",
+        "label": "Access Requests",
+        "path": "/admin/access-requests",
+        "visibility": "admin",
+        "badge": "pending_count"
+      },
+      {
+        "type": "button",
+        "label": "API Keys",
+        "path": "/admin-keys",
+        "visibility": "dev",
+        "badge": "health_status"
+      },
+      {
+        "type": "avatar_dropdown",
+        "position": "right",
+        "items": [
+          { "label": "Profile name and role", "type": "display" },
+          { "label": "Your profile", "action": "open_profile_modal" },
+          { "label": "Sign out", "action": "sign_out" }
+        ]
+      }
+    ]
+  },
+
+  "pages": [
+    {
+      "path": "/dashboard/reports",
+      "component": "Dashboard.tsx",
+      "lines": 1560,
+      "pattern": "full_page_dashboard",
+      "sections": [
+        { "name": "header", "content": "Page title, period selector, date picker, Y-o-Y toggle" },
+        { "name": "filters", "content": "Property, Owner, Type dropdowns" },
+        { "name": "kpi_cards", "content": "5 stat cards (Revenue, Occupancy, ADR, RevPAR, Bookings)" },
+        { "name": "charts", "content": "Area chart, Bar chart, Pie charts" },
+        { "name": "ai_panel", "content": "AI insight input" },
+        { "name": "export", "content": "CSV export button" }
+      ],
+      "density": "high",
+      "complexity": "high"
+    },
+    {
+      "path": "/admin/property-overview",
+      "component": "PropertyOverview.tsx",
+      "lines": 756,
+      "pattern": "tabbed_table_view",
+      "sections": [
+        { "name": "header", "content": "Page title, subtitle, Add Property button" },
+        { "name": "tabs", "content": "Active | Deleted | Book Page" },
+        { "name": "search_row", "content": "Per-column search inputs" },
+        { "name": "table", "content": "Sortable columns: Name, PMS, Hero, Type, Bookings, Ext ID, TA ID, Action" }
+      ],
+      "density": "medium",
+      "complexity": "medium"
+    },
+    {
+      "path": "/admin-users",
+      "component": "AdminUsers.tsx",
+      "lines": 455,
+      "pattern": "stats_cards_plus_table",
+      "sections": [
+        { "name": "stats_cards", "content": "3 cards (Total Users, Admins, Owners) with Add buttons" },
+        { "name": "search", "content": "Single search input" },
+        { "name": "table", "content": "Columns: User (avatar+name+email), Role, Properties, Joined, Actions" }
+      ],
+      "density": "medium",
+      "complexity": "medium"
+    },
+    {
+      "path": "/admin/calendar/accommodation",
+      "component": "CalendarAccommodation.tsx",
+      "lines": 2279,
+      "pattern": "complex_calendar_grid",
+      "sections": [
+        { "name": "header", "content": "Property selector, View toggle, Month navigation" },
+        { "name": "display_options", "content": "Checkboxes for Rates, Stop Sell, Min Stay, Max Stay, Lead Days" },
+        { "name": "room_filters", "content": "Room type checkboxes" },
+        { "name": "rate_filters", "content": "Rate type checkboxes" },
+        { "name": "sync_status", "content": "Indicator with timestamp" },
+        { "name": "calendar_grid", "content": "Cells with availability, rates, restriction icons" },
+        { "name": "legend", "content": "Color/icon explanations" },
+        { "name": "bulk_dialogs", "content": "7 different bulk operation dialogs" }
+      ],
+      "density": "very_high",
+      "complexity": "very_high"
+    },
+    {
+      "path": "/admin/bookings",
+      "component": "Bookings.tsx",
+      "lines": 903,
+      "pattern": "filterable_expandable_table",
+      "sections": [
+        { "name": "stats_row", "content": "Total, Confirmed, Pending, Cancelled, Revenue" },
+        { "name": "filters", "content": "Property dropdown, Date From/To, Search, Status, Show Cancelled" },
+        { "name": "sync_button", "content": "Conditional Benson sync" },
+        { "name": "table", "content": "Expandable rows with booking details" }
+      ],
+      "density": "high",
+      "complexity": "high"
+    },
+    {
+      "path": "/admin-keys",
+      "component": "AdminKeys.tsx",
+      "lines": 3231,
+      "pattern": "accordion_configuration_panels",
+      "sections": [
+        { "name": "milestones", "content": "API Milestones progress bar" },
+        { "name": "pms_accordions", "content": "Accordion per PMS: Benson, NightsBridge, Checkfront, Hostfully, Cloudbeds, Little Hotelier, HotelBeds" },
+        { "name": "email_config", "content": "Resend configuration" },
+        { "name": "tripadvisor_config", "content": "TripAdvisor configuration" },
+        { "name": "global_settings", "content": "Global settings section" },
+        { "name": "status_report", "content": "Send Status Report button" }
+      ],
+      "density": "very_high",
+      "complexity": "very_high",
+      "notes": "Monolithic file, hard to navigate"
+    },
+    {
+      "path": "/dashboard/insights",
+      "component": "Insights.tsx",
+      "lines": 299,
+      "pattern": "two_column_analytics",
+      "sections": [
+        { "name": "header", "content": "Stats (searches, unique, avg matches), Quick date buttons" },
+        { "name": "ai_input", "content": "AI analysis input" },
+        { "name": "left_column", "content": "Correlation data with progress bars" },
+        { "name": "right_column", "content": "Search log table with pagination" }
+      ],
+      "density": "medium",
+      "complexity": "low"
+    }
+  ],
+
+  "components": {
+    "ui_library": "shadcn/ui",
+    "ui_component_count": 40,
+    "custom_components": [
+      { "name": "Navbar.tsx", "lines": 395, "purpose": "Main navigation" },
+      { "name": "ProtectedRoute.tsx", "lines": 40, "purpose": "Auth wrapper" },
+      { "name": "AddUserModal.tsx", "purpose": "User creation dialog" },
+      { "name": "ProfileModal.tsx", "purpose": "User profile editor" },
+      { "name": "PropertyCard.tsx", "purpose": "Property display card" },
+      { "name": "PropertyMap.tsx", "purpose": "Google Maps single property" },
+      { "name": "PropertiesMap.tsx", "purpose": "Google Maps multiple properties" },
+      { "name": "SearchForm.tsx", "purpose": "Property search form" },
+      { "name": "SearchResultsDropdown.tsx", "purpose": "Search autocomplete" },
+      { "name": "AISearchInput.tsx", "purpose": "AI-powered search" },
+      { "name": "AIExplanationOverlay.tsx", "purpose": "AI explanation display" },
+      { "name": "RichTextEditor.tsx", "purpose": "TipTap editor wrapper" },
+      { "name": "RoomAvailabilityCalendar.tsx", "purpose": "Booking calendar widget" },
+      { "name": "StarRating.tsx", "purpose": "Star rating display" },
+      { "name": "TripAdvisorReviews.tsx", "purpose": "TA integration widget" },
+      { "name": "FormattedPrice.tsx", "purpose": "Currency-aware price display" },
+      { "name": "CurrencySelector.tsx", "purpose": "Currency switcher" },
+      { "name": "EditorialRatingBadge.tsx", "purpose": "Editorial rating badge" },
+      { "name": "WhoItsNotForBadge.tsx", "purpose": "Editorial exclusion badge" },
+      { "name": "TagInput.tsx", "purpose": "Multi-value tag input" },
+      { "name": "PMSProgressToggles.tsx", "purpose": "PMS milestone tracking" },
+      { "name": "PMSTrackerStatus.tsx", "purpose": "PMS status display" },
+      { "name": "PMSDevNotes.tsx", "purpose": "PMS developer notes" },
+      { "name": "PMSContactDetails.tsx", "purpose": "PMS contact info" },
+      { "name": "BulkAvailabilityRuleDialog.tsx", "purpose": "Bulk availability edit" },
+      { "name": "BulkRateRuleDialog.tsx", "purpose": "Bulk rate edit" },
+      { "name": "BulkStopSellDialog.tsx", "purpose": "Bulk stop sell" },
+      { "name": "BulkMinimumStayDialog.tsx", "purpose": "Bulk min stay" },
+      { "name": "BulkMaximumStayDialog.tsx", "purpose": "Bulk max stay" },
+      { "name": "BulkLeadDaysAdvanceDialog.tsx", "purpose": "Bulk lead days advance" },
+      { "name": "BulkLeadDaysPostDialog.tsx", "purpose": "Bulk lead days post" }
+    ]
+  },
+
+  "design_language": {
+    "typography": {
+      "font_stack": "ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji'",
+      "custom_fonts": null,
+      "scale": {
+        "text-xs": "12px",
+        "text-sm": "14px",
+        "text-base": "16px",
+        "text-lg": "18px",
+        "text-xl": "20px",
+        "text-2xl": "24px"
+      },
+      "dominant_size_in_admin": "text-xs"
+    },
+    "colors": {
+      "light": {
+        "background": "220 14% 96%",
+        "background-soft": "220 14% 94%",
+        "foreground": "222.2 47% 11%",
+        "card": "220 14% 98%",
+        "primary": "338 82% 52%",
+        "accent": "199 89% 48%",
+        "destructive": "0 84% 60%",
+        "muted-foreground": "220 9% 46%",
+        "border": "220 13% 91%"
+      },
+      "dark": {
+        "background": "222.2 47% 11%",
+        "card": "222.2 40% 15%",
+        "primary": "338 82% 52%"
+      },
+      "custom": {
+        "rol-pink": "330 100% 77%"
+      }
+    },
+    "spacing": {
+      "card_padding": "py-2 px-3 to py-3 px-4",
+      "table_rows": "h-8 to h-10",
+      "icon_sizes": "h-3 w-3 to h-4 w-4",
+      "gaps": "gap-1 to gap-2",
+      "density": "compressed"
+    },
+    "border_radius": "0.75rem",
+    "shadows": "Default Tailwind shadows"
+  },
+
+  "backend_dependencies": [
+    {
+      "page": "Dashboard",
+      "tables": ["bookings", "pms_reservations", "properties"],
+      "edge_functions": ["dashboard-insights"],
+      "uses_cache": false
+    },
+    {
+      "page": "PropertyOverview",
+      "tables": ["properties", "profiles", "bookings", "book_page_images"],
+      "edge_functions": [],
+      "uses_cache": false
+    },
+    {
+      "page": "AdminUsers",
+      "tables": ["profiles", "user_roles", "properties"],
+      "edge_functions": ["reset-user-password", "create-user"],
+      "uses_cache": false
+    },
+    {
+      "page": "Bookings",
+      "tables": ["bookings", "pms_reservations", "properties"],
+      "edge_functions": ["benson-api"],
+      "uses_cache": false
+    },
+    {
+      "page": "CalendarAccommodation",
+      "tables": ["properties", "pms_availability_cache", "pms_room_types_cache"],
+      "edge_functions": ["benson-api", "nightsbridge-api", "checkfront-api", "cloudbeds-api", "hostfully-api", "little-hotelier-api", "hotelbeds-api"],
+      "uses_cache": true
+    },
+    {
+      "page": "AdminKeys",
+      "tables": ["api_keys", "pms_credentials", "pms_tracker_status"],
+      "edge_functions": ["send-pms-status-report"],
+      "uses_cache": false
+    },
+    {
+      "page": "Insights",
+      "tables": ["ai_search_logs", "bookings", "properties"],
+      "edge_functions": ["dashboard-insights"],
+      "uses_cache": false
+    },
+    {
+      "page": "PropertyForm",
+      "tables": ["properties", "pms_mappings", "pms_room_types_cache", "pms_rate_types_cache"],
+      "edge_functions": ["geocode-property", "editorial-ai-assist"],
+      "uses_cache": true
+    }
+  ],
+
+  "data_authority": {
+    "read_only_from_pms": [
+      "pms_availability_cache.available_units",
+      "pms_availability_cache.rates",
+      "pms_room_types_cache.*",
+      "pms_rate_types_cache.*",
+      "pms_reservations.*"
+    ],
+    "writable_by_admin": [
+      "properties.*",
+      "profiles.*",
+      "user_roles.*",
+      "bookings.*",
+      "api_keys.*",
+      "pms_credentials.*",
+      "pms_tracker_status.*"
+    ],
+    "critical_rule": "NEVER_BOOK_FROM_CACHE"
+  },
+
+  "constraints": {
+    "immutable_files": [
+      "supabase/functions/_shared/adapter-contract.ts",
+      "supabase/functions/push-booking/index.ts",
+      "src/integrations/supabase/client.ts",
+      "src/integrations/supabase/types.ts",
+      ".env",
+      "supabase/config.toml"
+    ],
+    "booking_flow_invariants": [
+      { "step": 1, "action": "validate_input", "notes": "Zod schema validation" },
+      { "step": 2, "action": "fetch_booking_details", "notes": "Get booking from DB" },
+      { "step": 3, "action": "determine_external_system", "notes": "Check property.external_system" },
+      { "step": 4, "action": "fetch_live_availability", "notes": "MANDATORY PMS API call", "critical": true },
+      { "step": 5, "action": "validate_room_availability", "notes": "Compare against live data" },
+      { "step": 6, "action": "create_reservation", "notes": "POST to PMS" },
+      { "step": 7, "action": "update_booking_record", "notes": "Store external_reservation_id" },
+      { "step": 8, "action": "update_sync_status", "notes": "Track in booking_sync_status" },
+      { "step": 9, "action": "send_confirmation_email", "notes": "Non-blocking" }
+    ],
+    "adapter_contract": {
+      "response_interface": "AdapterResponse<T>",
+      "required_fields": ["success", "data", "error", "source", "fetched_at", "action"],
+      "field_naming": "snake_case",
+      "required_actions": ["health_check", "fetch_availability", "get_room_types", "get_rate_types", "get_reservations", "create_reservation"]
+    },
+    "role_boundaries": {
+      "dev": ["full_access", "api_keys", "test_pages", "nb_debug"],
+      "admin": ["user_management", "access_requests", "full_property_access", "insights", "journals"],
+      "user": ["own_properties_only", "limited_dashboard"]
+    },
+    "enforcement_points": [
+      "ProtectedRoute component",
+      "useAuth hook (isAdmin, isDev)",
+      "RLS policies on all tables"
+    ]
+  },
+
+  "pain_points": [
+    {
+      "id": 1,
+      "description": "AdminKeys.tsx is 3231 lines - monolithic, hard to navigate",
+      "severity": "high",
+      "category": "maintainability"
+    },
+    {
+      "id": 2,
+      "description": "CalendarAccommodation.tsx is 2279 lines - complex state management",
+      "severity": "high",
+      "category": "complexity"
+    },
+    {
+      "id": 3,
+      "description": "Dashboard.tsx is 1560 lines - many nested useMemo calculations",
+      "severity": "medium",
+      "category": "performance"
+    },
+    {
+      "id": 4,
+      "description": "Per-column search inputs require user to understand table structure",
+      "severity": "medium",
+      "category": "ux"
+    },
+    {
+      "id": 5,
+      "description": "Accordion-based PMS config requires expanding each system individually",
+      "severity": "medium",
+      "category": "ux"
+    },
+    {
+      "id": 6,
+      "description": "No visual status summary - must check each PMS to see overall health",
+      "severity": "medium",
+      "category": "ux"
+    },
+    {
+      "id": 7,
+      "description": "Bulk dialogs are triggered from dropdowns, not contextual",
+      "severity": "low",
+      "category": "ux"
+    },
+    {
+      "id": 8,
+      "description": "Calendar cell density - many data points crammed into small cells",
+      "severity": "medium",
+      "category": "visual"
+    },
+    {
+      "id": 9,
+      "description": "No breadcrumb navigation - deep pages lack context",
+      "severity": "low",
+      "category": "navigation"
+    },
+    {
+      "id": 10,
+      "description": "Role indicators use text badges, not visual icons",
+      "severity": "low",
+      "category": "visual"
+    },
+    {
+      "id": 11,
+      "description": "Inconsistent loading states across pages",
+      "severity": "medium",
+      "category": "consistency"
+    },
+    {
+      "id": 12,
+      "description": "No custom fonts - relies entirely on system fonts",
+      "severity": "low",
+      "category": "branding"
+    }
+  ],
+
+  "ux_flows": {
+    "admin_login": [
+      "Visit protected route",
+      "Redirect to /auth",
+      "Login",
+      "Redirect to /dashboard/reports"
+    ],
+    "property_management": [
+      "Navigate to Admin → Property Overview",
+      "View table with filters",
+      "Click Edit → PropertyForm (edit mode)",
+      "Or Add Property → PropertyForm (create mode)",
+      "Save → Return to overview"
+    ],
+    "calendar_management": [
+      "Navigate to Admin → Calendar",
+      "Select property from dropdown",
+      "View defaults to Month mode",
+      "PMS sync happens automatically if external_system set",
+      "Use bulk dialogs to modify rates/availability"
+    ],
+    "booking_management": [
+      "Navigate to Admin → Bookings",
+      "Default date range: -30 to +60 days",
+      "Filter by property, status, search",
+      "Click row to expand details",
+      "Sync button pulls latest from Benson"
+    ]
+  }
+}
