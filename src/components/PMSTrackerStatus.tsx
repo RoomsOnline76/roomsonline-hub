@@ -75,7 +75,7 @@ const PMSTrackerStatusDisplay = ({ tracker, compact = false }: PMSTrackerStatusP
               <TooltipTrigger asChild>
                 <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
                   item.value 
-                    ? 'bg-green-500/20 text-green-700 dark:text-green-400' 
+                    ? 'bg-status-healthy/20 text-status-healthy' 
                     : 'bg-muted text-muted-foreground'
                 }`}>
                   {item.value ? (

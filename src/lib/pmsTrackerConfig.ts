@@ -44,16 +44,16 @@ export const getStatusColor = (status: string): { bg: string; text: string } => 
   const normalizedStatus = status?.toLowerCase() || '';
   
   if (normalizedStatus === 'complete') {
-    return { bg: 'bg-green-500/20', text: 'text-green-700 dark:text-green-400' };
+    return { bg: 'bg-status-healthy/20', text: 'text-status-healthy' };
   }
   if (normalizedStatus.includes('wait') || normalizedStatus.includes('access')) {
-    return { bg: 'bg-amber-500/20', text: 'text-amber-700 dark:text-amber-400' };
+    return { bg: 'bg-status-warning/20', text: 'text-status-warning' };
   }
   if (normalizedStatus === 'register' || normalizedStatus === 'review') {
-    return { bg: 'bg-blue-500/20', text: 'text-blue-700 dark:text-blue-400' };
+    return { bg: 'bg-status-syncing/20', text: 'text-status-syncing' };
   }
   if (normalizedStatus === 'in progress') {
-    return { bg: 'bg-purple-500/20', text: 'text-purple-700 dark:text-purple-400' };
+    return { bg: 'bg-primary/20', text: 'text-primary' };
   }
   // No Action or unknown
   return { bg: 'bg-muted', text: 'text-muted-foreground' };

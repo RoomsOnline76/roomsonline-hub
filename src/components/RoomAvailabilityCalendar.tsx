@@ -434,7 +434,7 @@ export default function RoomAvailabilityCalendar({
                 {/* Legend */}
                 <div className="flex gap-6 mt-6 justify-center text-xs">
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded bg-green-500/20 border border-green-500/30" />
+                    <div className="w-3 h-3 rounded bg-status-healthy/20 border border-status-healthy/30" />
                     <span>Available</span>
                   </div>
                   <div className="flex items-center gap-2">
