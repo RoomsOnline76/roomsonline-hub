@@ -251,7 +251,6 @@ export default function Auth() {
                 <img src={rolLogo} alt="RoomsOnline" className="h-12 w-auto" />
                 <h1 className="font-display text-3xl font-light text-foreground">RoomsOnline</h1>
               </Link>
-              <p className="text-muted-foreground">Unified Booking Engine</p>
             </div>
 
           <Card>
@@ -322,7 +321,6 @@ export default function Auth() {
                 <img src={rolLogo} alt="RoomsOnline" className="h-12 w-auto" />
                 <h1 className="font-display text-3xl font-light text-foreground">RoomsOnline</h1>
               </Link>
-              <p className="text-muted-foreground">Unified Booking Engine</p>
             </div>
 
           <Card>
@@ -406,7 +404,6 @@ export default function Auth() {
               <img src={rolLogo} alt="RoomsOnline" className="h-12 w-auto" />
               <h1 className="font-display text-3xl font-light text-foreground">RoomsOnline</h1>
             </Link>
-            <p className="text-muted-foreground">Unified Booking Engine</p>
           </div>
 
         <Card>

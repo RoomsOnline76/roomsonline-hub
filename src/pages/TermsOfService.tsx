@@ -32,10 +32,9 @@ const TermsOfService = () => {
               2. Description of Service
             </h2>
             <p className="text-foreground/80 leading-relaxed">
-              RoomsOnline is a unified booking engine that connects guests with accommodation 
-              providers, including hotels, vacation rentals, and bed & breakfasts. We facilitate 
-              bookings between guests and property owners/managers but are not the accommodation 
-              provider.
+              RoomsOnline connects guests with accommodation providers, including hotels, 
+              vacation rentals, and bed & breakfasts. We facilitate bookings between guests 
+              and property owners/managers but are not the accommodation provider.
             </p>
           </section>
 

@@ -171,10 +171,7 @@ export function AppSidebar() {
       <div className={cn("flex items-center gap-3 p-4 border-b border-sidebar-border", collapsed && "justify-center")}>
         <img src={rolLogo} alt="ROL" className="h-8 w-8 object-contain" />
         {!collapsed && (
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold text-sidebar-foreground">RoomsOnline</span>
-            <span className="text-[10px] text-sidebar-foreground/50">Unified Booking</span>
-          </div>
+          <span className="text-sm font-semibold text-sidebar-foreground">RoomsOnline</span>
         )}
       </div>
 

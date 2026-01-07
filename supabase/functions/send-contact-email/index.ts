@@ -81,7 +81,7 @@ const getUserConfirmationHtml = (name: string, message: string) => `
                       RoomsOnline
                     </p>
                     <p style="margin: 0 0 16px; color: #718096; font-size: 13px;">
-                      Unified Booking Engine for Africa's Finest Stays
+                      Africa's Finest Stays
                     </p>
                     <p style="margin: 0; color: #a0aec0; font-size: 12px;">
                       © ${new Date().getFullYear()} RoomsOnline. All rights reserved.
