@@ -14,6 +14,7 @@ import { ApiMilestones } from "@/components/ApiMilestones";
 import { TOTAL_PMS_SYSTEMS_COUNT, ALL_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
 import PMSTrackerStatusDisplay from "@/components/PMSTrackerStatus";
 import PMSDevNotes from "@/components/PMSDevNotes";
+import PMSContactDetails from "@/components/PMSContactDetails";
 import { PMSTrackerStatus } from "@/lib/pmsTrackerConfig";
 import {
   Key,
@@ -250,6 +251,9 @@ export default function AdminKeys() {
           system_type: row.system_type,
           status: row.status || 'Unknown',
           contact_person: row.contact_person || undefined,
+          contact_name: row.contact_name || undefined,
+          contact_tel: row.contact_tel || undefined,
+          contact_email: row.contact_email || undefined,
           has_access: row.has_access || false,
           has_docs: row.has_docs || false,
           has_edge: row.has_edge || false,
@@ -2760,6 +2764,17 @@ export default function AdminKeys() {
             
             {/* Tracker Status */}
             <PMSTrackerStatusDisplay tracker={tracker} />
+            
+            {/* PMS IT Contact */}
+            <PMSContactDetails 
+              systemType={systemType}
+              initialData={{
+                contact_name: tracker?.contact_name,
+                contact_tel: tracker?.contact_tel,
+                contact_email: tracker?.contact_email,
+              }}
+              onUpdated={() => fetchTrackerData()}
+            />
             
             <div className="p-4 rounded-lg border bg-muted/50 text-center">
               <p className="text-sm text-muted-foreground">
