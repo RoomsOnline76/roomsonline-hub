@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -153,45 +154,21 @@ const Insights = () => {
   const avgMatches = searchLogs.length > 0 ? Math.round(searchLogs.reduce((sum, l) => sum + (l.matched_count || 0), 0) / searchLogs.length * 10) / 10 : 0;
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <div className="container mx-auto px-4 py-4">
-        {/* Header row with title, stats, date filter - all inline */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-6">
-            <h1 className="text-2xl font-bold">Search Insights</h1>
-            <div className="flex items-center gap-4 text-sm">
-              <span><strong className="text-lg text-primary">{searchLogs.length}</strong> searches</span>
-              <span className="text-muted-foreground">•</span>
-              <span><strong className="text-lg text-primary">{searchTermStats.length}</strong> unique</span>
-              <span className="text-muted-foreground">•</span>
-              <span><strong className="text-lg text-primary">{avgMatches}</strong> avg matches</span>
-            </div>
-          </div>
+    <AppLayout>
+      <PageHeader
+        title="Search Analytics"
+        subtitle={`${searchLogs.length} searches · ${searchTermStats.length} unique · ${avgMatches} avg matches`}
+        actions={
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => setDateRange({ from: subDays(new Date(), 7), to: new Date() })}>7d</Button>
             <Button variant="ghost" size="sm" onClick={() => setDateRange({ from: subDays(new Date(), 30), to: new Date() })}>30d</Button>
             <Button variant="ghost" size="sm" onClick={() => setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>Month</Button>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="w-[200px] justify-start text-left font-normal">
-                  <CalendarIcon className="mr-2 h-3 w-3" />
-                  {dateRange?.from ? (
-                    dateRange.to ? (
-                      <span className="text-xs">{format(dateRange.from, "MMM dd")} - {format(dateRange.to, "MMM dd, yy")}</span>
-                    ) : format(dateRange.from, "MMM dd, yy")
-                  ) : "Pick dates"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} className="pointer-events-auto" />
-              </PopoverContent>
-            </Popover>
           </div>
-        </div>
+        }
+      />
 
-        {/* AI Analysis - compact inline */}
-        <Card className="mb-4">
+      {/* AI Analysis - compact inline */}
+      <Card className="mb-4">
           <CardContent className="py-3">
             <div className="flex items-center gap-3">
               <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -288,11 +265,10 @@ const Insights = () => {
                   </TableBody>
                 </Table>
               )}
-            </CardContent>
-          </Card>
-        </div>
+          </CardContent>
+        </Card>
       </div>
-    </div>
+    </AppLayout>
   );
 };
 

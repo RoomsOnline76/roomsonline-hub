@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -294,14 +295,17 @@ const PropertyOverview = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-
-      <div className="container mx-auto px-4 py-3">
-        <div className="flex items-baseline gap-2 mb-3">
-          <h1 className="text-xl font-bold text-foreground">Property Overview</h1>
-          <span className="text-xs text-muted-foreground">— Manage your properties</span>
-        </div>
+    <AppLayout>
+      <PageHeader
+        title="Properties"
+        subtitle="Manage your portfolio"
+        actions={
+          <Button onClick={() => navigate("/admin/properties/new")} size="sm" className="gap-1">
+            <Building2 className="h-3.5 w-3.5" />
+            Add Property
+          </Button>
+        }
+      />
 
         <Tabs defaultValue="active" className="space-y-2">
           <TabsList className="bg-secondary h-8">
@@ -746,10 +750,9 @@ const PropertyOverview = () => {
                 Permanently Delete
               </AlertDialogAction>
             </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
-    </div>
+        </AlertDialogContent>
+      </AlertDialog>
+    </AppLayout>
   );
 };
 
