@@ -2913,18 +2913,28 @@ export default function AdminKeys() {
     <AppLayout>
       <PageHeader
         title="Integrations"
-        subtitle="PMS connections and API configuration"
+        subtitle={`${configuredPMSCount} of ${totalPMSCount} systems configured`}
         actions={
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">{configuredPMSCount}/{totalPMSCount}</span>
-              <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-primary transition-all" 
+                  className="h-full bg-status-healthy transition-all" 
                   style={{ width: `${(configuredPMSCount / totalPMSCount) * 100}%` }}
                 />
               </div>
+              <span className="text-xs text-muted-foreground">{Math.round((configuredPMSCount / totalPMSCount) * 100)}%</span>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={sendStatusReport}
+              disabled={sendingStatusReport}
+              className="gap-1"
+            >
+              {sendingStatusReport ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              Status Report
+            </Button>
           </div>
         }
       />
