@@ -38,7 +38,6 @@ const normalizePMSKey = (pmsKey: string): PmsSource | null => {
     'littlehotelier': 'littlehotelier',
     'nightsbridge': 'nightsbridge',
     'siteminder': 'siteminder',
-    'smoobu': 'smoobu',
     'hotelbeds': 'hotelbeds',
     'roomsonline': 'roomsonline',
   };
@@ -79,7 +78,6 @@ const getPMSAdapterFunction = (pmsKey: string): string | null => {
     'littlehotelier': 'little-hotelier-api',
     'nightsbridge': 'nightsbridge-api',
     'siteminder': 'siteminder-api',
-    'smoobu': 'smoobu-api',
     'hotelbeds': 'hotelbeds-api',
     'roomsonline': 'roomsonline-pms-api',
   };

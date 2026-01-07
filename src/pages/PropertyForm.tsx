@@ -115,7 +115,6 @@ const getPMSIcon = (systemType: string): LucideIcon => {
       return Layers;
     case "littlehotelier":
     case "cloudbeds":
-    case "smoobu":
     case "hostfully":
     case "mews":
     case "opera":
