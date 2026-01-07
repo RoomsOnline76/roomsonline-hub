@@ -209,9 +209,9 @@ export function ApiMilestones({ systemType, className }: ApiMilestonesProps) {
                   className={cn(
                     "p-1.5 rounded-md transition-colors cursor-help",
                     isComplete
-                      ? "bg-green-100 text-green-600 dark:bg-green-950 dark:text-green-400"
+                      ? "bg-status-healthy/20 text-status-healthy"
                       : isPending
-                      ? "bg-orange-100 text-orange-600 dark:bg-orange-950 dark:text-orange-400"
+                      ? "bg-status-warning/20 text-status-warning"
                       : "bg-muted text-muted-foreground"
                   )}
                 >
