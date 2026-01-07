@@ -19,8 +19,9 @@ const corsHeaders = {
 
 const SOURCE = "hostfully";
 
-const HOSTFULLY_URLS = {
+const HOSTFULLY_URLS: Record<string, string> = {
   sandbox: "https://sandbox.hostfully.com/api/v3",
+  staging: "https://sandbox.hostfully.com/api/v3", // staging maps to sandbox
   production: "https://api.hostfully.com/api/v3",
 };
 
@@ -150,7 +151,7 @@ const createReservationSchema = baseRequestSchema.extend({
 
 interface HostfullyCredentials {
   api_key: string;
-  environment: "sandbox" | "production";
+  environment: "sandbox" | "staging" | "production";
   is_active: boolean;
   refresh_interval_minutes: number;
 }
