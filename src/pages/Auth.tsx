@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Send, ShieldCheck, CheckCircle2, ArrowLeft, Loader2, KeyRound } from "lucide-react";
+import { Send, ShieldCheck, CheckCircle2, ArrowLeft, Loader2, KeyRound, Home } from "lucide-react";
+import { PublicLayout } from "@/components/layout/PublicLayout";
 import rolLogo from "@/assets/rol-logo.png";
 
 export default function Auth() {
@@ -242,15 +243,16 @@ export default function Auth() {
   // Password Recovery Mode - User clicked reset link from email
   if (isRecoveryMode) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <img src={rolLogo} alt="RoomsOnline" className="h-12 w-auto" />
-              <h1 className="text-3xl font-bold text-foreground">RoomsOnline</h1>
+      <PublicLayout hideFooter>
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="w-full max-w-md">
+            <div className="text-center mb-8">
+              <Link to="/" className="inline-flex items-center justify-center gap-3 mb-4 hover:opacity-80 transition-opacity">
+                <img src={rolLogo} alt="RoomsOnline" className="h-12 w-auto" />
+                <h1 className="font-display text-3xl font-light text-foreground">RoomsOnline</h1>
+              </Link>
+              <p className="text-muted-foreground">Unified Booking Engine</p>
             </div>
-            <p className="text-muted-foreground">Unified Booking Engine</p>
-          </div>
 
           <Card>
             <CardHeader>
@@ -302,24 +304,26 @@ export default function Auth() {
                 </Button>
               </form>
             </CardContent>
-          </Card>
+            </Card>
+          </div>
         </div>
-      </div>
+      </PublicLayout>
     );
   }
 
   // Forgot Password View
   if (showForgotPassword) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <img src={rolLogo} alt="RoomsOnline" className="h-12 w-auto" />
-              <h1 className="text-3xl font-bold text-foreground">RoomsOnline</h1>
+      <PublicLayout hideFooter>
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="w-full max-w-md">
+            <div className="text-center mb-8">
+              <Link to="/" className="inline-flex items-center justify-center gap-3 mb-4 hover:opacity-80 transition-opacity">
+                <img src={rolLogo} alt="RoomsOnline" className="h-12 w-auto" />
+                <h1 className="font-display text-3xl font-light text-foreground">RoomsOnline</h1>
+              </Link>
+              <p className="text-muted-foreground">Unified Booking Engine</p>
             </div>
-            <p className="text-muted-foreground">Unified Booking Engine</p>
-          </div>
 
           <Card>
             <CardHeader>
@@ -386,22 +390,24 @@ export default function Auth() {
                 </form>
               )}
             </CardContent>
-          </Card>
+            </Card>
+          </div>
         </div>
-      </div>
+      </PublicLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <img src={rolLogo} alt="RoomsOnline" className="h-12 w-auto" />
-            <h1 className="text-3xl font-bold text-foreground">RoomsOnline</h1>
+    <PublicLayout hideFooter>
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <Link to="/" className="inline-flex items-center justify-center gap-3 mb-4 hover:opacity-80 transition-opacity">
+              <img src={rolLogo} alt="RoomsOnline" className="h-12 w-auto" />
+              <h1 className="font-display text-3xl font-light text-foreground">RoomsOnline</h1>
+            </Link>
+            <p className="text-muted-foreground">Unified Booking Engine</p>
           </div>
-          <p className="text-muted-foreground">Unified Booking Engine</p>
-        </div>
 
         <Card>
           <CardHeader>
@@ -554,7 +560,8 @@ export default function Auth() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
-    </div>
+    </PublicLayout>
   );
 }

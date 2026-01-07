@@ -318,7 +318,7 @@ export default function RoomAvailabilityCalendar({
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <>
       {/* Header */}
       <div className="border-b bg-card">
         <div className="container mx-auto px-4 py-4">
@@ -328,7 +328,7 @@ export default function RoomAvailabilityCalendar({
             </Button>
             <div>
               <p className="text-sm text-muted-foreground">{propertyName}</p>
-              <h1 className="text-xl font-bold">{roomName}</h1>
+              <h1 className="font-display text-xl font-light">{roomName}</h1>
             </div>
           </div>
         </div>
@@ -341,10 +341,10 @@ export default function RoomAvailabilityCalendar({
           <div className="lg:col-span-2">
             <Card>
               <CardContent className="p-6">
-                <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-primary" />
-                  Select your dates
-                </h2>
+        <h2 className="font-display text-lg font-light mb-4 flex items-center gap-2">
+          <Calendar className="h-5 w-5 text-primary" />
+          Select your dates
+        </h2>
                 
                 {/* Date Display */}
                 <div className="flex items-center gap-4 mb-6 p-4 bg-muted/50 rounded-lg">
@@ -681,6 +681,6 @@ export default function RoomAvailabilityCalendar({
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

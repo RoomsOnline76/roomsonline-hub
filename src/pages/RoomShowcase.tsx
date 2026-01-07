@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { FormattedPrice } from "@/components/FormattedPrice";
+import { PublicLayout } from "@/components/layout/PublicLayout";
 import { 
   Bed, 
   Bath, 
@@ -280,7 +281,7 @@ export default function RoomShowcase() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <PublicLayout>
         <div className="h-[50vh] bg-muted animate-pulse" />
         <div className="container mx-auto px-4 py-8">
           <Skeleton className="h-10 w-1/3 mb-4" />
@@ -290,22 +291,24 @@ export default function RoomShowcase() {
             <Skeleton className="h-48" />
           </div>
         </div>
-      </div>
+      </PublicLayout>
     );
   }
 
   if (!property || !room) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Bed className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
-          <h1 className="text-2xl font-bold mb-4">Room Not Found</h1>
-          <p className="text-muted-foreground mb-6">The room you're looking for doesn't exist.</p>
-          <Link to="/">
-            <Button>Return Home</Button>
-          </Link>
+      <PublicLayout>
+        <div className="flex-1 flex items-center justify-center py-16">
+          <div className="text-center">
+            <Bed className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
+            <h1 className="font-display text-2xl font-light mb-4">Room Not Found</h1>
+            <p className="text-muted-foreground mb-6">The room you're looking for doesn't exist.</p>
+            <Link to="/">
+              <Button>Return Home</Button>
+            </Link>
+          </div>
         </div>
-      </div>
+      </PublicLayout>
     );
   }
 
@@ -360,7 +363,12 @@ export default function RoomShowcase() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <PublicLayout 
+      transparentHeader 
+      backLabel={`Back to ${property.name}`} 
+      backTo={`/property/${property.slug || property.id}`}
+      hideHeader
+    >
       {/* Hero Section with Image Gallery - shorter on mobile */}
       <section className="relative h-[40vh] sm:h-[45vh] md:h-[50vh] min-h-[250px] sm:min-h-[300px] max-h-[500px] bg-muted overflow-hidden">
         {images.length > 0 ? (
@@ -815,6 +823,6 @@ export default function RoomShowcase() {
         externalUrl={externalBookingUrl}
         propertyName={property.name}
       />
-    </div>
+    </PublicLayout>
   );
 }

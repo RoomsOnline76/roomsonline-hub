@@ -11,7 +11,7 @@ import { FormattedPrice } from "@/components/FormattedPrice";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 import TripAdvisorReviews from "@/components/TripAdvisorReviews";
-import { PublicFooter } from "@/components/layout/PublicFooter";
+import { PublicLayout } from "@/components/layout/PublicLayout";
 import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
 import rolLogo from "@/assets/rol-logo.png";
 import { 
@@ -511,7 +511,7 @@ export default function PropertyShowcase() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <PublicLayout hideHeader>
         <div className="h-[60vh] bg-muted animate-pulse" />
         <div className="container mx-auto px-4 py-8">
           <Skeleton className="h-12 w-1/2 mb-4" />
@@ -522,20 +522,22 @@ export default function PropertyShowcase() {
             <Skeleton className="h-64" />
           </div>
         </div>
-      </div>
+      </PublicLayout>
     );
   }
 
   if (!property) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Property Not Found</h1>
-          <Link to="/">
-            <Button>Return Home</Button>
-          </Link>
+      <PublicLayout>
+        <div className="flex-1 flex items-center justify-center py-16">
+          <div className="text-center">
+            <h1 className="font-display text-2xl font-light mb-4">Property Not Found</h1>
+            <Link to="/">
+              <Button>Return Home</Button>
+            </Link>
+          </div>
         </div>
-      </div>
+      </PublicLayout>
     );
   }
 
@@ -616,7 +618,7 @@ export default function PropertyShowcase() {
   const defaultCheckOut = searchParams.get('checkOut');
 
   return (
-    <div className="min-h-screen bg-background">
+    <PublicLayout hideHeader hideFooter>
       {/* Back Button */}
       <div className="absolute top-4 left-4 z-20">
         {isBookDomain ? (
@@ -1196,9 +1198,6 @@ export default function PropertyShowcase() {
         </section>
       </div>
 
-      {/* Footer */}
-      <PublicFooter />
-
       {/* NightsBridge Leaving Modal */}
       <LeavingRoomsOnlineModal
         open={showLeavingModal}
@@ -1206,6 +1205,6 @@ export default function PropertyShowcase() {
         externalUrl={externalBookingUrl}
         propertyName={property?.name}
       />
-    </div>
+    </PublicLayout>
   );
 }
