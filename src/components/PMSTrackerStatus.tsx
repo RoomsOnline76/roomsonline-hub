@@ -1,12 +1,22 @@
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CheckCircle2, Circle, ExternalLink, User, Phone, Mail, Info } from "lucide-react";
-import { PMSTrackerStatus as TrackerType, getStatusColor, getProgressCount } from "@/lib/pmsTrackerConfig";
+import { PMSTrackerStatus as TrackerType, getProgressCount } from "@/lib/pmsTrackerConfig";
+import { StatusIndicator } from "@/components/ui/status-indicator";
 
 interface PMSTrackerStatusProps {
   tracker: TrackerType | null;
   compact?: boolean;
 }
+
+// Map PMS status strings to StatusIndicator status types
+const getStatusType = (status: string): "healthy" | "warning" | "error" | "stale" | "syncing" => {
+  const normalized = status?.toLowerCase() || '';
+  if (normalized === 'complete') return 'healthy';
+  if (normalized.includes('wait') || normalized.includes('access')) return 'warning';
+  if (normalized === 'in progress') return 'syncing';
+  if (normalized === 'register' || normalized === 'review') return 'warning';
+  return 'stale';
+};
 
 const PMSTrackerStatusDisplay = ({ tracker, compact = false }: PMSTrackerStatusProps) => {
   if (!tracker) {
@@ -17,7 +27,6 @@ const PMSTrackerStatusDisplay = ({ tracker, compact = false }: PMSTrackerStatusP
     );
   }
 
-  const statusColors = getStatusColor(tracker.status);
   const progress = getProgressCount(tracker);
 
   const progressItems = [
@@ -32,9 +41,11 @@ const PMSTrackerStatusDisplay = ({ tracker, compact = false }: PMSTrackerStatusP
   if (compact) {
     return (
       <div className="flex items-center gap-2">
-        <Badge className={`${statusColors.bg} ${statusColors.text} border-0 text-xs`}>
-          {tracker.status}
-        </Badge>
+        <StatusIndicator 
+          status={getStatusType(tracker.status)} 
+          label={tracker.status} 
+          size="sm" 
+        />
         <span className="text-xs text-muted-foreground">
           {progress.current}/{progress.total}
         </span>
@@ -44,11 +55,13 @@ const PMSTrackerStatusDisplay = ({ tracker, compact = false }: PMSTrackerStatusP
 
   return (
     <div className="space-y-3">
-      {/* Status Badge */}
+      {/* Status Indicator */}
       <div className="flex items-center gap-2 flex-wrap">
-        <Badge className={`${statusColors.bg} ${statusColors.text} border-0`}>
-          {tracker.status}
-        </Badge>
+        <StatusIndicator 
+          status={getStatusType(tracker.status)} 
+          label={tracker.status} 
+          size="md" 
+        />
         <span className="text-xs text-muted-foreground">
           Progress: {progress.current}/{progress.total}
         </span>
