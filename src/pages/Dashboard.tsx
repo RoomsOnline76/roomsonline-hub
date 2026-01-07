@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -950,17 +951,11 @@ const Dashboard = () => {
   }, [bookings, prevYearBookings, dateRange, comparePrevYear, shouldAggregateByMonth]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-
-      <div className="container mx-auto px-4 py-4">
-        {/* Header with period selector - compact */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
-          <div className="flex items-baseline gap-2">
-            <h1 className="text-lg font-bold text-foreground">Dashboard</h1>
-            <span className="text-[10px] text-muted-foreground">— {isAdmin ? "All properties" : "Your properties"}</span>
-          </div>
-          
+    <AppLayout>
+      <PageHeader
+        title="Reports"
+        subtitle={isAdmin ? "All properties" : "Your properties"}
+        actions={
           <div className="flex flex-wrap items-center gap-2">
             {/* Compare toggle */}
             <div className="flex items-center gap-1.5 bg-secondary/50 rounded px-2 py-1">
@@ -1020,10 +1015,11 @@ const Dashboard = () => {
               CSV
             </Button>
           </div>
-        </div>
+        }
+      />
 
-        {/* Filters Row - compact inline */}
-        <div className="flex flex-wrap items-center gap-2 mb-3">
+      {/* Filters Row - compact inline */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
           <Label className="text-xs font-medium text-muted-foreground">Type:</Label>
           <Select value={selectedType} onValueChange={(value) => {
             setSelectedType(value);
@@ -1552,8 +1548,7 @@ const Dashboard = () => {
             </Card>
           </div>
         )}
-      </div>
-    </div>
+    </AppLayout>
   );
 };
 

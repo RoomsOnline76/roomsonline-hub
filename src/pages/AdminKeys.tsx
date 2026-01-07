@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2900,27 +2901,20 @@ export default function AdminKeys() {
 
   if (loading) {
     return (
-      <>
-        <Navbar />
-        <div className="container mx-auto px-4 py-8">
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
           <p className="text-muted-foreground">Loading...</p>
         </div>
-      </>
+      </AppLayout>
     );
   }
 
   return (
-    <>
-      <Navbar />
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center gap-2 mb-3">
-            <h1 className="text-xl font-bold text-foreground">API Keys Management</h1>
-            <span className="text-xs text-muted-foreground">— Manage integration keys</span>
-            <Badge variant={configuredPMSCount === totalPMSCount ? "default" : "secondary"} className="ml-auto">
-              {configuredPMSCount} / {totalPMSCount} PMS/API Configured
-            </Badge>
-          </div>
+    <AppLayout>
+      <PageHeader
+        title="Integrations"
+        subtitle={`${configuredPMSCount}/${totalPMSCount} configured`}
+      />
 
           {/* Global Settings Section */}
           <div className="mb-8">
@@ -3222,10 +3216,8 @@ export default function AdminKeys() {
                   k.key_name !== "HOME_ICON_OPEN_NEW_TAB"
                 )
                 .map(renderKeyCard)}
-            </Accordion>
-          </div>
+          </Accordion>
         </div>
-      </div>
-    </>
+    </AppLayout>
   );
 }

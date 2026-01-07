@@ -2,13 +2,15 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { Check, X, Clock, UserPlus, ArrowLeft } from "lucide-react";
+import { Check, X, Clock, UserPlus } from "lucide-react";
 import { AddUserModal } from "@/components/AddUserModal";
 
 interface AccessRequest {
@@ -125,26 +127,22 @@ export default function AdminAccessRequests() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Loading...</p>
-      </div>
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </AppLayout>
     );
   }
 
   if (!isAdmin) return null;
 
   return (
-    <div className="min-h-screen bg-background p-3">
-      <div className="max-w-6xl mx-auto space-y-3">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate("/admin/property-overview")}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex items-baseline gap-2">
-            <h1 className="text-xl font-bold text-foreground">Access Requests</h1>
-            <span className="text-xs text-muted-foreground">— Manage pending access requests</span>
-          </div>
-        </div>
+    <AppLayout>
+      <PageHeader
+        title="Access Requests"
+        subtitle={`${pendingCount} pending`}
+      />
 
         <div className="grid grid-cols-3 gap-2 mb-3">
           <Card>
@@ -232,9 +230,8 @@ export default function AdminAccessRequests() {
                 </TableBody>
               </Table>
             )}
-          </CardContent>
-        </Card>
-      </div>
+        </CardContent>
+      </Card>
 
       <AddUserModal
         open={addUserOpen}
@@ -244,6 +241,6 @@ export default function AdminAccessRequests() {
         defaultEmail={selectedRequest?.email}
         defaultName={selectedRequest?.full_name}
       />
-    </div>
+    </AppLayout>
   );
 }

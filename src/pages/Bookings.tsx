@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -523,16 +524,12 @@ const Bookings = () => {
     selectedPropertyData?.benson_property_code;
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex justify-between items-center mb-3">
-          <div className="flex items-baseline gap-2">
-            <h1 className="text-xl font-bold text-foreground">Bookings</h1>
-            <span className="text-xs text-muted-foreground">— Manage reservations</span>
-          </div>
-          {canSyncBenson && (
+    <AppLayout>
+      <PageHeader
+        title="Bookings"
+        subtitle="Manage reservations"
+        actions={
+          canSyncBenson && (
             <Button 
               onClick={syncBensonBookings} 
               disabled={syncingBookings}
@@ -546,8 +543,9 @@ const Bookings = () => {
               )}
               Sync Benson
             </Button>
-          )}
-        </div>
+          )
+        }
+      />
 
         {/* Stats Cards */}
         <div className="grid grid-cols-5 gap-2 mb-3">
@@ -893,10 +891,9 @@ const Bookings = () => {
                 </Table>
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+        </CardContent>
+      </Card>
+    </AppLayout>
   );
 };
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1215,11 +1216,11 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-
-      <div className="container mx-auto px-4 py-3">
-        {/* Property Indicator */}
+    <AppLayout>
+      <PageHeader
+        title="Calendar"
+        subtitle={selectedPropertyData ? selectedPropertyData.name : "Select a property"}
+      />
         {selectedPropertyData && (
           <div className="mb-2 p-2 bg-primary/10 border border-primary/20 rounded-lg flex items-center gap-2">
             <Building2 className="h-4 w-4 text-primary" />
@@ -2262,8 +2263,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
               </>
             )}
           </CardContent>
-        </Card>
-      </div>
+      </Card>
 
       <BulkRateRuleDialog open={bulkRateOpen} onOpenChange={setBulkRateOpen} />
       <BulkAvailabilityRuleDialog open={bulkAvailabilityOpen} onOpenChange={setBulkAvailabilityOpen} />
@@ -2272,7 +2272,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       <BulkMaximumStayDialog open={maxStayOpen} onOpenChange={setMaxStayOpen} />
       <BulkLeadDaysAdvanceDialog open={leadDaysAdvanceOpen} onOpenChange={setLeadDaysAdvanceOpen} />
       <BulkLeadDaysPostDialog open={leadDaysPostOpen} onOpenChange={setLeadDaysPostOpen} />
-    </div>
+    </AppLayout>
   );
 };
 
