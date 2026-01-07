@@ -11,7 +11,9 @@ import { FormattedPrice } from "@/components/FormattedPrice";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 import TripAdvisorReviews from "@/components/TripAdvisorReviews";
+import { PublicFooter } from "@/components/layout/PublicFooter";
 import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
+import rolLogo from "@/assets/rol-logo.png";
 import { 
   Star, 
   MapPin, 
@@ -706,7 +708,7 @@ export default function PropertyShowcase() {
                     ))}
                   </div>
                 )}
-                <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-foreground mb-1.5 sm:mb-2">
+                <h1 className="font-display text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-light text-foreground mb-1.5 sm:mb-2">
                   {property.name}
                 </h1>
                 <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
@@ -765,7 +767,7 @@ export default function PropertyShowcase() {
         {/* Description */}
         {property.description && (
           <section className="mb-6 sm:mb-12">
-            <h2 className="text-lg sm:text-xl md:text-2xl font-semibold mb-2 sm:mb-4">About this property</h2>
+            <h2 className="font-display text-xl sm:text-2xl md:text-3xl font-light mb-3 sm:mb-4">About this property</h2>
             <p className="text-sm sm:text-base text-muted-foreground leading-relaxed max-w-3xl">
               {property.description}
             </p>
@@ -873,7 +875,7 @@ export default function PropertyShowcase() {
 
         {/* Rooms Section */}
         <section id="rooms-section" className="mb-12 scroll-mt-20">
-          <h2 className="text-2xl font-semibold mb-6 uppercase tracking-wide text-foreground/80">Rooms</h2>
+          <h2 className="font-display text-xl sm:text-2xl font-light mb-6 text-foreground/80">Rooms</h2>
           
           {/* Add Room Banner */}
           {isAddRoomMode && (
@@ -1034,7 +1036,7 @@ export default function PropertyShowcase() {
         {/* Amenities & Facilities */}
         {facilities.length > 0 && (
           <section className="mb-12">
-            <h2 className="text-2xl font-semibold mb-6">Amenities & Facilities</h2>
+            <h2 className="font-display text-xl sm:text-2xl font-light mb-6">Amenities & Facilities</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {facilities.map((facility, idx) => {
                 const IconComponent = amenityIcons[facility.toLowerCase()] || Check;
@@ -1060,7 +1062,7 @@ export default function PropertyShowcase() {
         {/* House Rules */}
         {Object.keys(houseRules).length > 0 && (
           <section className="mb-12">
-            <h2 className="text-2xl font-semibold mb-6">House Rules</h2>
+            <h2 className="font-display text-xl sm:text-2xl font-light mb-6">House Rules</h2>
             <Card>
               <CardContent className="p-6">
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1137,7 +1139,7 @@ export default function PropertyShowcase() {
         {/* Image Gallery Thumbnails */}
         {property.images.length > 1 && (
           <section className="mb-12">
-            <h2 className="text-2xl font-semibold mb-6">Gallery</h2>
+            <h2 className="font-display text-xl sm:text-2xl font-light mb-6">Gallery</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {property.images.map((img, idx) => (
                 <button
@@ -1164,7 +1166,7 @@ export default function PropertyShowcase() {
         {/* CTA Footer */}
         <section className="mt-16 text-center">
           <Card className="p-8 bg-primary/5 border-primary/20">
-            <h2 className="text-2xl font-bold mb-2">Ready to book your stay?</h2>
+            <h2 className="font-display text-2xl font-light mb-2">Ready to book your stay?</h2>
             <p className="text-muted-foreground mb-6">
               Experience exceptional hospitality at {property.name}
             </p>
@@ -1195,11 +1197,7 @@ export default function PropertyShowcase() {
       </div>
 
       {/* Footer */}
-      <footer className="border-t py-8 mt-10">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} RoomsOnline. All rights reserved.</p>
-        </div>
-      </footer>
+      <PublicFooter />
 
       {/* NightsBridge Leaving Modal */}
       <LeavingRoomsOnlineModal
