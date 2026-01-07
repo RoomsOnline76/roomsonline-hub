@@ -222,7 +222,7 @@ const NB = () => {
                 </Button>
               </div>
               
-              <div className="border rounded-lg overflow-hidden bg-white" style={{ height: "700px" }}>
+              <div className="border rounded-lg overflow-hidden bg-background" style={{ height: "700px" }}>
                 <iframe
                   key={iframeKey}
                   src={getIframeUrl()}
