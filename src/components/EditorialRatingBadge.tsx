@@ -106,7 +106,7 @@ export function EditorialRatingBadge({ rating, className }: EditorialRatingBadge
         <div
           onClick={handleClick}
           className={cn(
-            "inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-200/80 backdrop-blur-sm cursor-help",
+            "inline-flex items-center justify-center w-8 h-8 rounded-full bg-muted/80 backdrop-blur-sm cursor-help",
             className
           )}
         >

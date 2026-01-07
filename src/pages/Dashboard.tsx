@@ -19,8 +19,17 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 
-// Colors for pie charts
-const PIE_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+// Colors for pie charts - using HSL values that work in both light/dark modes
+const PIE_COLORS = [
+  'hsl(142, 71%, 45%)', // green
+  'hsl(217, 91%, 60%)', // blue  
+  'hsl(38, 92%, 50%)',  // amber
+  'hsl(0, 84%, 60%)',   // red
+  'hsl(258, 90%, 66%)', // purple
+  'hsl(330, 81%, 60%)', // pink
+  'hsl(186, 94%, 41%)', // cyan
+  'hsl(84, 81%, 44%)',  // lime
+];
 
 const Dashboard = () => {
   const { user, isAdmin } = useAuth();
