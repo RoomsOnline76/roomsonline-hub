@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format, addDays, parse } from "date-fns";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -124,13 +125,13 @@ const NB = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-foreground mb-2">NightsBridge Widget</h1>
-        <p className="text-muted-foreground mb-6">Dev-only testing page for NightsBridge widget integration</p>
+    <AppLayout>
+      <PageHeader
+        title="NightsBridge Widget"
+        subtitle="Dev testing for iframe integration"
+      />
 
-        <div className="grid gap-6">
+      <div className="grid gap-6">
           {/* Embedded NightsBridge Booking */}
           <Card>
             <CardHeader className="pb-3">
@@ -251,10 +252,9 @@ const NB = () => {
                 Check Availability ({nights} nights)
               </Button>
             </CardContent>
-          </Card>
-        </div>
+        </Card>
       </div>
-    </div>
+    </AppLayout>
   );
 };
 
