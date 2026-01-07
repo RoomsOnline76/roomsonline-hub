@@ -20,8 +20,8 @@ const corsHeaders = {
 const SOURCE = "hostfully";
 
 const HOSTFULLY_URLS = {
-  sandbox: "https://sandbox.hostfully.com/api/v2",
-  production: "https://api.hostfully.com/api/v2",
+  sandbox: "https://sandbox.hostfully.com/api/v3",
+  production: "https://api.hostfully.com/api/v3",
 };
 
 // ============================================================================
