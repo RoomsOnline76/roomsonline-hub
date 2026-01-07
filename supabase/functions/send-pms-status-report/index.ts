@@ -247,7 +247,7 @@ const handler = async (req: Request): Promise<Response> => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "RoomsOnline <onboarding@resend.dev>",
+        from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
         to: ["dev@roomsonline.co.za"],
         subject: `PMS Integration Status Report - ${new Date().toLocaleDateString('en-ZA')}`,
         html: emailHtml,
