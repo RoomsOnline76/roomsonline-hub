@@ -2913,7 +2913,20 @@ export default function AdminKeys() {
     <AppLayout>
       <PageHeader
         title="Integrations"
-        subtitle={`${configuredPMSCount}/${totalPMSCount} configured`}
+        subtitle="PMS connections and API configuration"
+        actions={
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">{configuredPMSCount}/{totalPMSCount}</span>
+              <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-primary transition-all" 
+                  style={{ width: `${(configuredPMSCount / totalPMSCount) * 100}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        }
       />
 
           {/* Global Settings Section */}

@@ -41,8 +41,8 @@ const workspaceItems: NavItem[] = [
 ];
 
 const insightsItems: NavItem[] = [
-  { title: "Reports", icon: BarChart3, href: "/dashboard/reports" },
-  { title: "Search Analytics", icon: Search, href: "/dashboard/insights", requireAdmin: true },
+  { title: "Revenue Pulse", icon: BarChart3, href: "/dashboard/reports" },
+  { title: "Search Intelligence", icon: Search, href: "/dashboard/insights", requireAdmin: true },
 ];
 
 const settingsItems: NavItem[] = [
