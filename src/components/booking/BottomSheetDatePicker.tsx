@@ -1,0 +1,312 @@
+import { useState, useEffect, useRef } from "react";
+import { format, addDays, isBefore, isAfter, isSameDay, startOfDay, eachDayOfInterval } from "date-fns";
+import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerFooter,
+  DrawerClose,
+} from "@/components/ui/drawer";
+
+interface BottomSheetDatePickerProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  checkIn: Date | null;
+  checkOut: Date | null;
+  onDatesChange: (checkIn: Date, checkOut: Date) => void;
+  minDate?: Date;
+  availabilityMap?: Map<string, { available: boolean; rate?: number }>;
+}
+
+export function BottomSheetDatePicker({
+  open,
+  onOpenChange,
+  checkIn,
+  checkOut,
+  onDatesChange,
+  minDate = new Date(),
+  availabilityMap,
+}: BottomSheetDatePickerProps) {
+  const [tempCheckIn, setTempCheckIn] = useState<Date | null>(checkIn);
+  const [tempCheckOut, setTempCheckOut] = useState<Date | null>(checkOut);
+  const [currentMonth, setCurrentMonth] = useState(() => checkIn || new Date());
+  const [selectingCheckOut, setSelectingCheckOut] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Reset temp dates when drawer opens
+  useEffect(() => {
+    if (open) {
+      setTempCheckIn(checkIn);
+      setTempCheckOut(checkOut);
+      setSelectingCheckOut(false);
+      if (checkIn) {
+        setCurrentMonth(checkIn);
+      }
+    }
+  }, [open, checkIn, checkOut]);
+
+  // Generate 14 days for horizontal scroll
+  const today = startOfDay(new Date());
+  const quickDates = eachDayOfInterval({
+    start: today,
+    end: addDays(today, 13),
+  });
+
+  // Get days for current month
+  const getDaysInMonth = (month: Date) => {
+    const year = month.getFullYear();
+    const monthIndex = month.getMonth();
+    const firstDay = new Date(year, monthIndex, 1);
+    const lastDay = new Date(year, monthIndex + 1, 0);
+    const startPadding = firstDay.getDay();
+    
+    const days: (Date | null)[] = [];
+    
+    // Add padding for days before first of month
+    for (let i = 0; i < startPadding; i++) {
+      days.push(null);
+    }
+    
+    // Add days of month
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      days.push(new Date(year, monthIndex, d));
+    }
+    
+    return days;
+  };
+
+  const handleDateClick = (date: Date) => {
+    if (isBefore(date, startOfDay(minDate))) return;
+
+    if (!selectingCheckOut || !tempCheckIn) {
+      // Selecting check-in date
+      setTempCheckIn(date);
+      setTempCheckOut(null);
+      setSelectingCheckOut(true);
+    } else {
+      // Selecting check-out date
+      if (isBefore(date, tempCheckIn)) {
+        // If selected date is before check-in, start over with this as check-in
+        setTempCheckIn(date);
+        setTempCheckOut(null);
+      } else if (isSameDay(date, tempCheckIn)) {
+        // If same day, set checkout to next day
+        setTempCheckOut(addDays(date, 1));
+        setSelectingCheckOut(false);
+      } else {
+        setTempCheckOut(date);
+        setSelectingCheckOut(false);
+      }
+    }
+  };
+
+  const isInRange = (date: Date) => {
+    if (!tempCheckIn || !tempCheckOut) return false;
+    return isAfter(date, tempCheckIn) && isBefore(date, tempCheckOut);
+  };
+
+  const isCheckIn = (date: Date) => tempCheckIn && isSameDay(date, tempCheckIn);
+  const isCheckOut = (date: Date) => tempCheckOut && isSameDay(date, tempCheckOut);
+  const isDisabled = (date: Date) => isBefore(date, startOfDay(minDate));
+
+  const getDateStatus = (date: Date) => {
+    if (!availabilityMap) return null;
+    const key = format(date, "yyyy-MM-dd");
+    return availabilityMap.get(key);
+  };
+
+  const handleConfirm = () => {
+    if (tempCheckIn && tempCheckOut) {
+      onDatesChange(tempCheckIn, tempCheckOut);
+      onOpenChange(false);
+    }
+  };
+
+  const prevMonth = () => {
+    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const nextMonth = () => {
+    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  const nights = tempCheckIn && tempCheckOut
+    ? Math.ceil((tempCheckOut.getTime() - tempCheckIn.getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent className="max-h-[90vh]">
+        <DrawerHeader className="pb-2">
+          <DrawerTitle className="font-sans text-lg font-medium tracking-tight">
+            Select Dates
+          </DrawerTitle>
+          <p className="text-sm text-muted-foreground">
+            {selectingCheckOut ? "Select check-out date" : "Select check-in date"}
+          </p>
+        </DrawerHeader>
+
+        {/* Quick date scroll */}
+        <div 
+          ref={scrollRef}
+          className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide border-b"
+        >
+          {quickDates.map((date) => {
+            const isSelected = isCheckIn(date) || isCheckOut(date);
+            const status = getDateStatus(date);
+            
+            return (
+              <button
+                key={date.toISOString()}
+                onClick={() => handleDateClick(date)}
+                className={cn(
+                  "flex flex-col items-center min-w-[3.5rem] py-2 px-3 rounded-xl transition-all duration-200",
+                  "border border-transparent",
+                  isSelected
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : isInRange(date)
+                    ? "bg-primary/10 border-primary/20"
+                    : "hover:bg-muted hover:border-border/60",
+                  isDisabled(date) && "opacity-30 pointer-events-none"
+                )}
+              >
+                <span className="text-[10px] uppercase tracking-wider opacity-70">
+                  {format(date, "EEE")}
+                </span>
+                <span className="text-lg font-medium">
+                  {format(date, "d")}
+                </span>
+                {status && (
+                  <span className={cn(
+                    "w-1.5 h-1.5 rounded-full mt-1",
+                    status.available ? "bg-green-500" : "bg-red-400"
+                  )} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Calendar grid */}
+        <div className="px-4 py-3 overflow-y-auto max-h-[50vh]">
+          {/* Month navigation */}
+          <div className="flex items-center justify-between mb-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={prevMonth}
+              className="h-10 w-10 rounded-full"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <span className="font-medium tracking-tight">
+              {format(currentMonth, "MMMM yyyy")}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={nextMonth}
+              className="h-10 w-10 rounded-full"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          </div>
+
+          {/* Day headers */}
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
+              <div
+                key={day}
+                className="text-center text-xs text-muted-foreground font-medium py-2"
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* Days grid */}
+          <div className="grid grid-cols-7 gap-1">
+            {getDaysInMonth(currentMonth).map((date, index) => {
+              if (!date) {
+                return <div key={`empty-${index}`} className="h-11" />;
+              }
+
+              const status = getDateStatus(date);
+              const disabled = isDisabled(date);
+              const selected = isCheckIn(date) || isCheckOut(date);
+              const inRange = isInRange(date);
+
+              return (
+                <button
+                  key={date.toISOString()}
+                  onClick={() => !disabled && handleDateClick(date)}
+                  disabled={disabled}
+                  className={cn(
+                    "h-11 rounded-xl text-sm font-medium transition-all duration-200",
+                    "flex flex-col items-center justify-center gap-0.5",
+                    selected
+                      ? "bg-primary text-primary-foreground"
+                      : inRange
+                      ? "bg-primary/10"
+                      : "hover:bg-muted",
+                    disabled && "opacity-30 cursor-not-allowed",
+                    isCheckIn(date) && "rounded-r-none",
+                    isCheckOut(date) && "rounded-l-none",
+                    inRange && "rounded-none"
+                  )}
+                >
+                  <span>{format(date, "d")}</span>
+                  {status && !selected && (
+                    <span className={cn(
+                      "w-1 h-1 rounded-full",
+                      status.available ? "bg-green-500" : "bg-red-400"
+                    )} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Summary */}
+        {tempCheckIn && (
+          <div className="px-4 py-3 border-t bg-muted/30">
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-primary" />
+                <span>
+                  {format(tempCheckIn, "MMM d")}
+                  {tempCheckOut && ` – ${format(tempCheckOut, "MMM d")}`}
+                </span>
+              </div>
+              {nights > 0 && (
+                <span className="text-muted-foreground">
+                  {nights} night{nights !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        <DrawerFooter className="pt-2">
+          <Button
+            onClick={handleConfirm}
+            disabled={!tempCheckIn || !tempCheckOut}
+            className="w-full h-12 text-base font-medium"
+          >
+            Confirm Dates
+          </Button>
+          <DrawerClose asChild>
+            <Button variant="ghost" className="w-full">
+              Cancel
+            </Button>
+          </DrawerClose>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
+  );
+}

@@ -266,3 +266,150 @@ html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
+
+/* =============================================
+   LUXURY BOOKING DESIGN TOKENS
+   ============================================= */
+
+/* Glass morphism backgrounds */
+.glass-morphism {
+  @apply bg-white/95 backdrop-blur-xl border border-white/20 shadow-2xl;
+}
+
+.glass-morphism-subtle {
+  @apply bg-white/80 backdrop-blur-md border border-white/10 shadow-lg;
+}
+
+/* Luxury shadows */
+.shadow-luxury {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+.shadow-luxury-lg {
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.16);
+}
+
+/* Shimmer animation for loading states */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+/* Number morphing animation */
+@keyframes number-morph {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-4px);
+    opacity: 0.7;
+  }
+}
+
+.animate-number-morph {
+  animation: number-morph 0.3s ease-out;
+}
+
+/* Floating element animations */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Spring bounce for buttons */
+.spring-bounce {
+  transition: transform 0.2s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.spring-bounce:active {
+  transform: scale(0.95);
+}
+
+/* Luxury gradients */
+.gradient-luxury {
+  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(345 50% 32%) 100%);
+}
+
+.gradient-gold {
+  background: linear-gradient(135deg, hsl(var(--accent)) 0%, hsl(42 80% 60%) 100%);
+}
+
+/* Bottom sheet safe area handling */
+.bottom-sheet-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 16px);
+}
+
+/* Fixed bottom bar with safe area */
+.fixed-bottom-safe {
+  @apply fixed bottom-0 left-0 right-0;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Booking flow specific utilities */
+.booking-card {
+  @apply rounded-2xl border border-border/60 bg-card overflow-hidden transition-all duration-300;
+  @apply hover:shadow-lg hover:border-primary/30;
+}
+
+.booking-card-selected {
+  @apply border-primary ring-2 ring-primary/20;
+}
+
+/* Price display styling */
+.price-primary {
+  @apply text-2xl font-bold text-primary;
+}
+
+.price-label {
+  @apply text-xs text-muted-foreground;
+}
+
+/* Thumb-zone optimized buttons */
+.btn-thumb-zone {
+  @apply min-h-[48px] text-base font-medium rounded-xl;
+}
+
+/* Editorial typography for booking */
+.booking-headline {
+  @apply font-serif text-2xl sm:text-3xl font-light tracking-tight leading-tight;
+}
+
+.booking-subheadline {
+  @apply font-sans text-lg font-medium tracking-tight;
+}
+
+/* Room card image aspect ratios */
+.room-image-mobile {
+  aspect-ratio: 4/3;
+}
+
+.room-image-desktop {
+  aspect-ratio: 16/10;
+}
+
+/* Smooth scroll snap for horizontal date picker */
+.date-scroll-snap {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.date-scroll-snap > * {
+  scroll-snap-align: center;
+}
