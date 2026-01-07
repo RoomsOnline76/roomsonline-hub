@@ -155,7 +155,7 @@ export default function AdminKeys() {
   // Hostfully-specific state
   const [hostfullyCredentials, setHostfullyCredentials] = useState<PMSCredentials | null>(null);
   const [hostfullyApiKey, setHostfullyApiKey] = useState("");
-  const [hostfullyEnvironment, setHostfullyEnvironment] = useState<"sandbox" | "production">("sandbox");
+  const [hostfullyEnvironment, setHostfullyEnvironment] = useState<"staging" | "production">("staging");
   const [editingHostfully, setEditingHostfully] = useState(false);
   const [savingHostfully, setSavingHostfully] = useState(false);
   const [togglingHostfully, setTogglingHostfully] = useState(false);
@@ -164,7 +164,7 @@ export default function AdminKeys() {
   // Cloudbeds-specific state
   const [cloudbedsCredentials, setCloudbedsCredentials] = useState<PMSCredentials | null>(null);
   const [cloudbedsApiKey, setCloudbedsApiKey] = useState("");
-  const [cloudbedsEnvironment, setCloudbedsEnvironment] = useState<"sandbox" | "production">("sandbox");
+  const [cloudbedsEnvironment, setCloudbedsEnvironment] = useState<"staging" | "production">("staging");
   const [editingCloudbeds, setEditingCloudbeds] = useState(false);
   const [savingCloudbeds, setSavingCloudbeds] = useState(false);
   const [togglingCloudbeds, setTogglingCloudbeds] = useState(false);
@@ -183,7 +183,7 @@ export default function AdminKeys() {
   const [hotelbedsCredentials, setHotelbedsCredentials] = useState<PMSCredentials | null>(null);
   const [hotelbedsApiKey, setHotelbedsApiKey] = useState("");
   const [hotelbedsApiSecret, setHotelbedsApiSecret] = useState("");
-  const [hotelbedsEnvironment, setHotelbedsEnvironment] = useState<"test" | "production">("test");
+  const [hotelbedsEnvironment, setHotelbedsEnvironment] = useState<"staging" | "production">("staging");
   const [editingHotelbeds, setEditingHotelbeds] = useState(false);
   const [savingHotelbeds, setSavingHotelbeds] = useState(false);
   const [togglingHotelbeds, setTogglingHotelbeds] = useState(false);
@@ -603,7 +603,7 @@ export default function AdminKeys() {
 
     if (!error && data) {
       setHostfullyCredentials(data);
-      setHostfullyEnvironment(data.environment as "sandbox" | "production");
+      setHostfullyEnvironment(data.environment as "staging" | "production");
       if (data.refresh_interval_minutes) {
         setHostfullyRefreshInterval(data.refresh_interval_minutes);
       }
@@ -619,7 +619,7 @@ export default function AdminKeys() {
 
     if (!error && data) {
       setCloudbedsCredentials(data);
-      setCloudbedsEnvironment(data.environment as "sandbox" | "production");
+      setCloudbedsEnvironment(data.environment as "staging" | "production");
       if (data.refresh_interval_minutes) {
         setCloudbedsRefreshInterval(data.refresh_interval_minutes);
       }
@@ -652,7 +652,7 @@ export default function AdminKeys() {
 
     if (!error && data) {
       setHotelbedsCredentials(data);
-      setHotelbedsEnvironment(data.environment as "test" | "production");
+      setHotelbedsEnvironment(data.environment as "staging" | "production");
       if (data.refresh_interval_minutes) {
         setHotelbedsRefreshInterval(data.refresh_interval_minutes);
       }
@@ -1065,7 +1065,7 @@ export default function AdminKeys() {
     setTogglingHostfully(false);
   };
 
-  const handleHostfullyEnvironmentChange = async (newEnv: "sandbox" | "production") => {
+  const handleHostfullyEnvironmentChange = async (newEnv: "staging" | "production") => {
     setHostfullyEnvironment(newEnv);
     if (hostfullyCredentials) {
       const { error } = await supabase
@@ -1100,7 +1100,7 @@ export default function AdminKeys() {
     setTogglingCloudbeds(false);
   };
 
-  const handleCloudbedsEnvironmentChange = async (newEnv: "sandbox" | "production") => {
+  const handleCloudbedsEnvironmentChange = async (newEnv: "staging" | "production") => {
     setCloudbedsEnvironment(newEnv);
     if (cloudbedsCredentials) {
       const { error } = await supabase
@@ -1166,7 +1166,7 @@ export default function AdminKeys() {
     }
   };
 
-  const handleHotelbedsEnvironmentChange = async (newEnv: "test" | "production") => {
+  const handleHotelbedsEnvironmentChange = async (newEnv: "staging" | "production") => {
     setHotelbedsEnvironment(newEnv);
     if (hotelbedsCredentials) {
       const { error } = await supabase
@@ -1380,12 +1380,12 @@ export default function AdminKeys() {
                 <p className="text-xs text-muted-foreground">API calls will use {cloudbedsEnvironment} endpoint</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`text-sm ${cloudbedsEnvironment === "sandbox" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
+                <span className={`text-sm ${cloudbedsEnvironment === "staging" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
                   Sandbox
                 </span>
                 <Switch
                   checked={cloudbedsEnvironment === "production"}
-                  onCheckedChange={(checked) => handleCloudbedsEnvironmentChange(checked ? "production" : "sandbox")}
+                  onCheckedChange={(checked) => handleCloudbedsEnvironmentChange(checked ? "production" : "staging")}
                 />
                 <span className={`text-sm ${cloudbedsEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
                   Production
@@ -2811,12 +2811,12 @@ export default function AdminKeys() {
                 <p className="text-xs text-muted-foreground">API calls will use {hostfullyEnvironment} endpoint</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`text-sm ${hostfullyEnvironment === "sandbox" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
+                <span className={`text-sm ${hostfullyEnvironment === "staging" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
                   Sandbox
                 </span>
                 <Switch
                   checked={hostfullyEnvironment === "production"}
-                  onCheckedChange={(checked) => handleHostfullyEnvironmentChange(checked ? "production" : "sandbox")}
+                  onCheckedChange={(checked) => handleHostfullyEnvironmentChange(checked ? "production" : "staging")}
                 />
                 <span className={`text-sm ${hostfullyEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
                   Production
@@ -3230,9 +3230,9 @@ export default function AdminKeys() {
                           <Label>Environment</Label>
                           <div className="flex items-center gap-4">
                             <Button
-                              variant={hotelbedsEnvironment === "test" ? "default" : "outline"}
+                              variant={hotelbedsEnvironment === "staging" ? "default" : "outline"}
                               size="sm"
-                              onClick={() => handleHotelbedsEnvironmentChange("test")}
+                              onClick={() => handleHotelbedsEnvironmentChange("staging")}
                             >
                               Test
                             </Button>
