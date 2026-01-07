@@ -332,7 +332,7 @@ export default function PropertyForm() {
     { key_name: string; name: string; system_type: string }[]
   >([]);
   const [bensonPropertyCode, setBensonPropertyCode] = useState<string>("");
-  const [bensonEnvironment, setBensonEnvironment] = useState<"staging" | "production">("staging");
+  const [bensonEnvironment, setBensonEnvironment] = useState<"staging" | "production">("production");
   const [cloudbedsPropertyId, setCloudbedsPropertyId] = useState<string>("");
   const [littlehotelierChannelCode, setLittlehotelierChannelCode] = useState<string>("");
   const [littlehotelierRegion, setLittlehotelierRegion] = useState<"apac" | "emea">("apac");
@@ -2418,7 +2418,7 @@ export default function PropertyForm() {
         external_id: formData.bb_id || formData.venue_id || null,
         // Preserve existing benson_property_code if PMS changed, only update if benson is selected
         benson_property_code: selectedPMS === "benson" ? bensonPropertyCode : existingBensonPropertyCode,
-        benson_environment: selectedPMS === "benson" ? bensonEnvironment : null,
+        benson_environment: selectedPMS === "benson" ? "production" : null,
         // Preserve existing cloudbeds_property_id if PMS changed, only update if cloudbeds is selected
         cloudbeds_property_id: selectedPMS === "cloudbeds" ? cloudbedsPropertyId : existingCloudbedsPropertyId,
         // Preserve existing littlehotelier fields if PMS changed, only update if littlehotelier is selected
@@ -3080,26 +3080,6 @@ export default function PropertyForm() {
                               className="h-7 text-xs w-40"
                               required
                             />
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor="benson_environment" className="text-xs whitespace-nowrap">
-                              Env
-                            </Label>
-                            <Select
-                              value={bensonEnvironment}
-                              onValueChange={(v) => {
-                                setBensonEnvironment(v as "staging" | "production");
-                                setIsDirty(true);
-                              }}
-                            >
-                              <SelectTrigger className="h-7 text-xs w-24">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="staging">Staging</SelectItem>
-                                <SelectItem value="production">Production</SelectItem>
-                              </SelectContent>
-                            </Select>
                           </div>
                           {bensonPropertyCode && (
                             <Button
