@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StatusIndicator } from "@/components/ui/status-indicator";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1232,40 +1233,30 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
               {isPmsProperty && (
                 <div className="flex items-center gap-2">
                   {pmsSyncStatus === "loading" && (
-                    <Badge variant="secondary" className="flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Syncing...
-                    </Badge>
+                    <StatusIndicator status="syncing" label="Syncing..." size="sm" />
                   )}
                   {pmsSyncStatus === "success" && (
-                    <Badge variant="default" className="flex items-center gap-1 bg-green-600">
-                      <Cloud className="h-3 w-3" />
-                      {selectedPropertyData.external_system?.toUpperCase()} Connected
-                    </Badge>
+                    <StatusIndicator 
+                      status="healthy" 
+                      label={`${selectedPropertyData.external_system?.toUpperCase()} Connected`} 
+                      size="sm" 
+                    />
                   )}
                   {pmsSyncStatus === "not_configured" && (
-                    <Badge variant="destructive" className="flex items-center gap-1">
-                      <CloudOff className="h-3 w-3" />
-                      {selectedPropertyData.external_system?.toUpperCase()} Not Configured
-                    </Badge>
+                    <StatusIndicator 
+                      status="error" 
+                      label={`${selectedPropertyData.external_system?.toUpperCase()} Not Configured`} 
+                      size="sm" 
+                    />
                   )}
                   {pmsSyncStatus === "no_property_code" && (
-                    <Badge variant="outline" className="flex items-center gap-1 border-yellow-500 text-yellow-600">
-                      <AlertCircle className="h-3 w-3" />
-                      No Property Code
-                    </Badge>
+                    <StatusIndicator status="warning" label="No Property Code" size="sm" />
                   )}
                   {pmsSyncStatus === "error" && (
-                    <Badge variant="destructive" className="flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" />
-                      Sync Error
-                    </Badge>
+                    <StatusIndicator status="error" label="Sync Error" size="sm" />
                   )}
                   {pmsSyncStatus === "idle" && (
-                    <Badge variant="outline" className="flex items-center gap-1">
-                      <CloudOff className="h-3 w-3" />
-                      No PMS
-                    </Badge>
+                    <StatusIndicator status="stale" label="No PMS" size="sm" />
                   )}
                 </div>
               )}

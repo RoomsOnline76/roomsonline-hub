@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StatusIndicator } from "@/components/ui/status-indicator";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -445,18 +446,18 @@ const Bookings = () => {
     return { total, confirmed, pending, cancelled, totalRevenue };
   }, [bookings, searchTerm]);
 
-  const getStatusBadge = (status: string) => {
+  const getStatusIndicator = (status: string) => {
     const normalized = status?.toLowerCase() || "";
     if (["confirmed", "guaranteed", "checked-in"].includes(normalized)) {
-      return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">{status}</Badge>;
+      return <StatusIndicator status="healthy" label={status} size="sm" />;
     }
     if (["pending", "provisional"].includes(normalized)) {
-      return <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20">{status}</Badge>;
+      return <StatusIndicator status="warning" label={status} size="sm" />;
     }
     if (normalized === "cancelled") {
-      return <Badge className="bg-red-500/10 text-red-600 border-red-500/20">Cancelled</Badge>;
+      return <StatusIndicator status="error" label="Cancelled" size="sm" />;
     }
-    return <Badge variant="outline">{status}</Badge>;
+    return <StatusIndicator status="stale" label={status} size="sm" />;
   };
 
   const getTotalGuests = (booking: Booking) => {
@@ -779,7 +780,7 @@ const Bookings = () => {
                               R{Number(booking.total_price).toLocaleString()}
                             </TableCell>
                             <TableCell className="py-1.5 px-2">
-                              {getStatusBadge(booking.status)}
+                              {getStatusIndicator(booking.status)}
                             </TableCell>
                             <TableCell className="py-1.5 px-2 text-muted-foreground truncate max-w-[70px]">
                               {booking.external_reservation_id || booking.id.slice(0, 6)}
