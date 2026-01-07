@@ -86,6 +86,23 @@ const generateEmailHtml = (
   ).length;
   const pendingCount = trackerData.length - completedCount - inProgressCount;
 
+  // Build a map of latest note per system
+  const latestNoteBySystem: Record<string, NoteLogEntry> = {};
+  notesLog.forEach(note => {
+    if (!latestNoteBySystem[note.system_type]) {
+      latestNoteBySystem[note.system_type] = note;
+    }
+  });
+
+  // Group all notes by system_type for full log
+  const notesBySystem: Record<string, NoteLogEntry[]> = {};
+  notesLog.forEach(note => {
+    if (!notesBySystem[note.system_type]) {
+      notesBySystem[note.system_type] = [];
+    }
+    notesBySystem[note.system_type].push(note);
+  });
+
   // Sort by status priority: COMPLETE first, then In Progress, then others
   const sortedData = [...trackerData].sort((a, b) => {
     const statusOrder = (s: string) => {
@@ -107,21 +124,16 @@ const generateEmailHtml = (
     else if (row.contact_person) contactParts.push(row.contact_person);
     const contactDisplay = contactParts.length > 0 ? contactParts.join(' ') : '—';
 
-    // Build additional info display
-    const additionalParts: string[] = [];
-    if (row.additional_info?.url) {
-      additionalParts.push(`<a href="${row.additional_info.url}" style="color: #3b82f6; text-decoration: underline;">Register Link</a>`);
+    // Get latest note for this system
+    const latestNote = latestNoteBySystem[row.system_type];
+    let latestNoteDisplay = '—';
+    if (latestNote) {
+      // Truncate note if too long (max 80 chars)
+      const truncatedNote = latestNote.note_content.length > 80 
+        ? latestNote.note_content.substring(0, 77) + '...' 
+        : latestNote.note_content;
+      latestNoteDisplay = truncatedNote;
     }
-    if (row.additional_info?.agent_code) {
-      additionalParts.push(`Code: ${row.additional_info.agent_code}`);
-    }
-    if (row.additional_info?.notes) {
-      additionalParts.push(row.additional_info.notes);
-    }
-    if (row.additional_info?.email) {
-      additionalParts.push(`<a href="mailto:${row.additional_info.email}" style="color: #3b82f6;">${row.additional_info.email}</a>`);
-    }
-    const additionalDisplay = additionalParts.length > 0 ? additionalParts.join('<br/>') : '—';
 
     // Progress indicators as small circles
     const progressDots = progressFlags.map((flag, i) => {
@@ -145,23 +157,14 @@ const generateEmailHtml = (
         <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; color: #4a5568; font-size: 13px;">
           ${contactDisplay}
         </td>
-        <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 12px;">
-          ${additionalDisplay}
+        <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 12px; max-width: 250px;">
+          ${latestNoteDisplay}
         </td>
       </tr>
     `;
   }).join('');
 
-  // Group notes by system_type
-  const notesBySystem: Record<string, NoteLogEntry[]> = {};
-  notesLog.forEach(note => {
-    if (!notesBySystem[note.system_type]) {
-      notesBySystem[note.system_type] = [];
-    }
-    notesBySystem[note.system_type].push(note);
-  });
-
-  // Build notes section with timestamps
+  // Build full notes log section with timestamps
   const notesSection = Object.entries(notesBySystem)
     .sort(([a], [b]) => getPMSDisplayName(a).localeCompare(getPMSDisplayName(b)))
     .map(([systemType, notes]) => `
@@ -195,7 +198,7 @@ const generateEmailHtml = (
   <table role="presentation" width="100%" style="background-color: #f4f4f4;">
     <tr>
       <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" width="800" style="max-width: 100%; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); overflow: hidden;">
+        <table role="presentation" width="850" style="max-width: 100%; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); overflow: hidden;">
           
           <!-- Header with ROL Branding -->
           <tr>
@@ -244,7 +247,7 @@ const generateEmailHtml = (
                     <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Status</th>
                     <th style="padding: 12px 10px; text-align: center; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Progress</th>
                     <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Contact</th>
-                    <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Details</th>
+                    <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Latest Note</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -269,7 +272,7 @@ const generateEmailHtml = (
             </td>
           </tr>
           
-          <!-- Dev Notes Section -->
+          <!-- Dev Notes Log Section (Full History) -->
           ${notesSection ? `
           <tr>
             <td style="padding: 0 40px 10px;">
@@ -319,7 +322,7 @@ const handler = async (req: Request): Promise<Response> => {
       throw trackerError;
     }
 
-    // Fetch notes log with timestamps
+    // Fetch notes log with timestamps (ordered descending so first match is latest)
     const { data: notesLog, error: notesError } = await supabase
       .from('pms_dev_notes_log')
       .select('system_type, note_content, created_at, created_by_name')
