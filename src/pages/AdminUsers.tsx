@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Shield, User, Search, Trash2, Building2, Plus, KeyRound } from "lucide-react";
+import { Shield, User, Search, Trash2, Building2, Plus, KeyRound, Users } from "lucide-react";
 import { AddUserModal } from "@/components/AddUserModal";
 
 interface UserProfile {
@@ -217,100 +218,114 @@ export default function AdminUsers() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="container mx-auto px-4 py-8">
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
           <p className="text-muted-foreground">Loading...</p>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <div className="container mx-auto px-4 py-3">
-        <div className="flex items-baseline gap-2 mb-3">
-          <h1 className="text-xl font-bold text-foreground">User Management</h1>
-          <span className="text-xs text-muted-foreground">— Manage user accounts and permissions</span>
+    <AppLayout>
+      <PageHeader
+        title="Team"
+        subtitle={`${adminCount} admins · ${ownerCount} owners`}
+        actions={
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddOwnerModalOpen(true)}
+              className="gap-1"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Owner
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setAddAdminModalOpen(true)}
+              className="gap-1"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Admin
+            </Button>
+          </div>
+        }
+      />
+
+        {/* Stats Cards - Refined */}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <Card className="border-0 shadow-sm">
+            <CardContent className="py-4 px-5">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Users className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold">{totalUsers}</p>
+                  <p className="text-xs text-muted-foreground">Total Users</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm">
+            <CardContent className="py-4 px-5">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <Shield className="h-5 w-5 text-accent" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold">{adminCount}</p>
+                  <p className="text-xs text-muted-foreground">Administrators</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm">
+            <CardContent className="py-4 px-5">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-midnight/10 flex items-center justify-center">
+                  <Building2 className="h-5 w-5 text-midnight" />
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold">{ownerCount}</p>
+                  <p className="text-xs text-muted-foreground">Property Owners</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-3 gap-2 mb-3">
-          <Card>
-            <CardContent className="py-2 px-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-bold">{totalUsers}</span>
-                <span className="text-xs text-muted-foreground">Total Users</span>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="py-2 px-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-bold">{adminCount}</span>
-                  <span className="text-xs text-muted-foreground">Admins</span>
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => setAddAdminModalOpen(true)}
-                  className="h-6 text-xs px-2 gap-1"
-                >
-                  <Plus className="h-3 w-3" />
-                  Add
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="py-2 px-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-bold">{ownerCount}</span>
-                  <span className="text-xs text-muted-foreground">Owners</span>
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => setAddOwnerModalOpen(true)}
-                  className="h-6 text-xs px-2 gap-1"
-                >
-                  <Plus className="h-3 w-3" />
-                  Add
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
         {/* Users Table */}
-        <Card>
-          <CardHeader className="py-2 px-4">
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="py-4 px-5 border-b">
             <div className="flex items-center justify-between gap-4">
-              <div className="flex items-baseline gap-2">
-                <CardTitle className="text-sm">All Users</CardTitle>
-                <CardDescription className="text-xs">— View and manage accounts</CardDescription>
+              <div>
+                <CardTitle className="text-base font-medium">All Users</CardTitle>
+                <CardDescription className="text-xs mt-0.5">View and manage user accounts</CardDescription>
               </div>
-              <div className="relative flex-1 max-w-xs">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search..."
+                  placeholder="Search users..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-7 h-7 text-xs"
+                  className="pl-9 h-9"
                 />
               </div>
             </div>
           </CardHeader>
-          <CardContent className="py-2 px-4">
+          <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow className="h-8">
-                  <TableHead className="py-1 text-xs">User</TableHead>
-                  <TableHead className="py-1 text-xs">Role</TableHead>
-                  <TableHead className="text-center py-1 text-xs">Properties</TableHead>
-                  <TableHead className="py-1 text-xs">Joined</TableHead>
-                  <TableHead className="text-right py-1 text-xs">Actions</TableHead>
+                <TableRow className="bg-muted/30 hover:bg-muted/30">
+                  <TableHead className="py-3 px-5 text-xs font-medium">User</TableHead>
+                  <TableHead className="py-3 text-xs font-medium">Role</TableHead>
+                  <TableHead className="text-center py-3 text-xs font-medium">Properties</TableHead>
+                  <TableHead className="py-3 text-xs font-medium">Joined</TableHead>
+                  <TableHead className="text-right py-3 px-5 text-xs font-medium">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -449,7 +464,6 @@ export default function AdminUsers() {
           role="user"
           onUserAdded={loadUsers}
         />
-      </div>
-    </div>
+    </AppLayout>
   );
 }
