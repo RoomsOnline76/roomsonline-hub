@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { Badge } from "@/components/ui/badge";
+import { BookingLifecycleVisualizer, type BookingState } from "@/components/BookingLifecycleVisualizer";
 import {
   Select,
   SelectContent,
@@ -460,6 +461,16 @@ const Bookings = () => {
     return <StatusIndicator status="stale" label={status} size="sm" />;
   };
 
+  // Map booking status to lifecycle state
+  const mapStatusToState = (status: string): BookingState => {
+    const normalized = status?.toLowerCase() || "";
+    if (normalized === "cancelled") return "cancelled";
+    if (normalized === "checked-in") return "checked_in";
+    if (["confirmed", "guaranteed"].includes(normalized)) return "confirmed";
+    if (normalized === "completed" || normalized === "checked-out") return "completed";
+    return "pending";
+  };
+
   const getTotalGuests = (booking: Booking) => {
     return booking.adults + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
   };
@@ -790,9 +801,17 @@ const Bookings = () => {
                           {isExpanded && (
                             <TableRow key={`${booking.id}-details`} className="bg-muted/30">
                               <TableCell colSpan={9} className="p-2">
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <p className="text-xs font-medium text-muted-foreground">Room Details</p>
+                                <div className="space-y-3">
+                                  {/* Booking Lifecycle Visualizer */}
+                                  <div className="flex items-center justify-between border-b pb-2">
+                                    <BookingLifecycleVisualizer 
+                                      currentState={mapStatusToState(booking.status)}
+                                      timestamps={{
+                                        pending: booking.created_at || undefined,
+                                        confirmed: ["confirmed", "guaranteed"].includes(booking.status?.toLowerCase()) ? booking.created_at || undefined : undefined,
+                                        checked_in: booking.status?.toLowerCase() === "checked-in" ? undefined : undefined,
+                                      }}
+                                    />
                                     {booking.status !== "cancelled" && (
                                       <Button
                                         variant="destructive"
@@ -813,6 +832,8 @@ const Bookings = () => {
                                       </Button>
                                     )}
                                   </div>
+                                  
+                                  <p className="text-xs font-medium text-muted-foreground">Room Details</p>
                                   <div className="grid gap-2">
                                     {rooms.map((room: any, index: number) => {
                                       const roomDates = {
