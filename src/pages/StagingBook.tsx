@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PublicLayout } from "@/components/layout/PublicLayout";
 import { 
   Building2, Users, Bed, CalendarDays, Minus, Plus, 
   MapPin, Star, Check, AlertCircle, ChevronRight
@@ -217,32 +218,17 @@ const StagingBook = () => {
 
   if (propertyLoading) {
     return (
-      <div className="min-h-screen bg-background">
+      <PublicLayout>
         <div className="container mx-auto px-4 py-8">
           <Skeleton className="h-12 w-64 mb-4" />
           <Skeleton className="h-96 w-full" />
         </div>
-      </div>
+      </PublicLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
-              <Bed className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="font-bold text-lg">RoomsOnline</h1>
-              <p className="text-xs text-muted-foreground">Staging Environment</p>
-            </div>
-          </div>
-        </div>
-      </header>
-
+    <PublicLayout>
       <main className="container mx-auto px-4 py-8">
         {/* Property Hero */}
         <div className="mb-8">
@@ -634,16 +620,7 @@ const StagingBook = () => {
           </Card>
         )}
       </main>
-
-      {/* Footer */}
-      <footer className="border-t border-border mt-auto py-6">
-        <div className="container mx-auto px-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} RoomsOnline Staging Environment
-          </p>
-        </div>
-      </footer>
-    </div>
+    </PublicLayout>
   );
 };
 

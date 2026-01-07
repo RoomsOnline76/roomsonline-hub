@@ -107,13 +107,15 @@ export default function RoomAvailability() {
   const roomId = String(room.pmsRoomId || room.id);
 
   return (
-    <RoomAvailabilityCalendar
-      propertyId={property.id}
-      propertySlug={property.slug || property.id}
-      propertyName={property.name}
-      roomName={room.name}
-      roomId={roomId}
-      externalSystem={property.external_system}
-    />
+    <PublicLayout hideHeader>
+      <RoomAvailabilityCalendar
+        propertyId={property.id}
+        propertySlug={property.slug || property.id}
+        propertyName={property.name}
+        roomName={room.name}
+        roomId={roomId}
+        externalSystem={property.external_system}
+      />
+    </PublicLayout>
   );
 }

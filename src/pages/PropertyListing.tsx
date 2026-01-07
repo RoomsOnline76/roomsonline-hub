@@ -1,11 +1,7 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { PropertySegmentSection } from "@/components/PropertySegmentSection";
 import { SegmentFilterId } from "@/lib/segmentFilters";
-import { PublicFooter } from "@/components/layout/PublicFooter";
-import rolLogo from "@/assets/rol-logo.png";
+import { PublicLayout } from "@/components/layout/PublicLayout";
 
 const HERO_SENTENCES = [
   "Discover hand-picked extraordinary escapes and places that spark the wanderlust",
@@ -49,40 +45,7 @@ export default function PropertyListing() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      {/* Header with Back Button */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
-        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
-          <div className="flex items-center justify-between gap-4">
-            {/* Left: Back button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              asChild
-              className="gap-2 font-normal"
-            >
-              <Link to="/">
-                <ArrowLeft className="h-4 w-4" />
-                <span className="hidden sm:inline">Back to Home</span>
-                <span className="sm:hidden">Back</span>
-              </Link>
-            </Button>
-
-            {/* Center: Logo */}
-            <Link to="/" className="absolute left-1/2 -translate-x-1/2">
-              <img
-                src={rolLogo}
-                alt="RoomsOnline"
-                className="h-8 sm:h-10 w-auto"
-              />
-            </Link>
-
-            {/* Right: Placeholder for balance */}
-            <div className="w-24" />
-          </div>
-        </div>
-      </header>
-
+    <PublicLayout backLabel="Back to Home" backTo="/">
       {/* Hero Sentence */}
       <div className="bg-muted/30 border-b border-border">
         <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -93,17 +56,14 @@ export default function PropertyListing() {
       </div>
 
       {/* Property Segments */}
-      <main className="flex-1">
+      <div className="flex-1">
         {ALL_SEGMENTS.map((segmentId) => (
           <PropertySegmentSection
             key={segmentId}
             segmentId={segmentId}
           />
         ))}
-      </main>
-
-      {/* Footer */}
-      <PublicFooter />
-    </div>
+      </div>
+    </PublicLayout>
   );
 }
