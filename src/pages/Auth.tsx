@@ -243,7 +243,7 @@ export default function Auth() {
   // Password Recovery Mode - User clicked reset link from email
   if (isRecoveryMode) {
     return (
-      <PublicLayout hideFooter>
+      <PublicLayout hideFooter hideHeader>
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md">
             <div className="text-center mb-8">
@@ -313,7 +313,7 @@ export default function Auth() {
   // Forgot Password View
   if (showForgotPassword) {
     return (
-      <PublicLayout hideFooter>
+      <PublicLayout hideFooter hideHeader>
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md">
             <div className="text-center mb-8">
@@ -396,7 +396,7 @@ export default function Auth() {
   }
 
   return (
-    <PublicLayout hideFooter>
+    <PublicLayout hideFooter hideHeader>
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
