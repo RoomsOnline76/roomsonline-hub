@@ -1011,10 +1011,13 @@ export type Database = {
           contact_tel: string | null
           created_at: string | null
           has_access: boolean | null
+          has_account: boolean | null
           has_docs: boolean | null
           has_edge: boolean | null
           has_get: boolean | null
+          has_health: boolean | null
           has_post: boolean | null
+          has_soft_test: boolean | null
           id: string
           is_production: boolean | null
           notes: string | null
@@ -1030,10 +1033,13 @@ export type Database = {
           contact_tel?: string | null
           created_at?: string | null
           has_access?: boolean | null
+          has_account?: boolean | null
           has_docs?: boolean | null
           has_edge?: boolean | null
           has_get?: boolean | null
+          has_health?: boolean | null
           has_post?: boolean | null
+          has_soft_test?: boolean | null
           id?: string
           is_production?: boolean | null
           notes?: string | null
@@ -1049,10 +1055,13 @@ export type Database = {
           contact_tel?: string | null
           created_at?: string | null
           has_access?: boolean | null
+          has_account?: boolean | null
           has_docs?: boolean | null
           has_edge?: boolean | null
           has_get?: boolean | null
+          has_health?: boolean | null
           has_post?: boolean | null
+          has_soft_test?: boolean | null
           id?: string
           is_production?: boolean | null
           notes?: string | null

@@ -15,12 +15,18 @@ interface TrackerData {
   contact_name: string | null;
   contact_tel: string | null;
   contact_email: string | null;
-  has_access: boolean;
+  // Setup phase
+  has_account: boolean;
   has_docs: boolean;
   has_edge: boolean;
+  // Integration phase
+  has_health: boolean;
   has_get: boolean;
   has_post: boolean;
+  has_soft_test: boolean;
   is_production: boolean;
+  // Legacy
+  has_access: boolean;
   additional_info: Record<string, string> | null;
 }
 
@@ -115,7 +121,11 @@ const generateEmailHtml = (
   });
 
   const tableRows = sortedData.map(row => {
-    const progressFlags = [row.has_access, row.has_docs, row.has_edge, row.has_get, row.has_post, row.is_production];
+    // Setup phase: Account, Docs, Edge
+    const setupFlags = [row.has_account || row.has_access, row.has_docs, row.has_edge];
+    // Integration phase: Health, GET, POST, Test, Live
+    const integrationFlags = [row.has_health, row.has_get, row.has_post, row.has_soft_test, row.is_production];
+    const allFlags = [...setupFlags, ...integrationFlags];
     const statusColor = getStatusColor(row.status);
     
     // Build contact display
@@ -135,11 +145,19 @@ const generateEmailHtml = (
       latestNoteDisplay = truncatedNote;
     }
 
-    // Progress indicators as small circles
-    const progressDots = progressFlags.map((flag, i) => {
-      const labels = ['A', 'D', 'E', 'G', 'P', 'L'];
-      return `<span style="display: inline-block; width: 18px; height: 18px; border-radius: 50%; background: ${flag ? '#22c55e' : '#e2e8f0'}; color: ${flag ? '#fff' : '#94a3b8'}; font-size: 10px; line-height: 18px; text-align: center; margin-right: 2px;" title="${['Access', 'Docs', 'Edge', 'GET', 'POST', 'Live'][i]}">${labels[i]}</span>`;
+    // Setup progress dots (Account, Docs, Edge)
+    const setupLabels = ['Ac', 'Do', 'Ed'];
+    const setupDots = setupFlags.map((flag, i) => {
+      return `<span style="display: inline-block; width: 20px; height: 18px; border-radius: 3px; background: ${flag ? '#22c55e' : '#e2e8f0'}; color: ${flag ? '#fff' : '#94a3b8'}; font-size: 9px; line-height: 18px; text-align: center; margin-right: 2px;" title="${['Account', 'Docs', 'Edge'][i]}">${setupLabels[i]}</span>`;
     }).join('');
+
+    // Integration progress dots (Health, GET, POST, Test, Live)
+    const integrationLabels = ['He', 'Gt', 'Ps', 'Te', 'Lv'];
+    const integrationDots = integrationFlags.map((flag, i) => {
+      return `<span style="display: inline-block; width: 20px; height: 18px; border-radius: 3px; background: ${flag ? '#22c55e' : '#e2e8f0'}; color: ${flag ? '#fff' : '#94a3b8'}; font-size: 9px; line-height: 18px; text-align: center; margin-right: 2px;" title="${['Health', 'GET', 'POST', 'Test', 'Live'][i]}">${integrationLabels[i]}</span>`;
+    }).join('');
+
+    const completedCount = allFlags.filter(Boolean).length;
     
     return `
       <tr style="background: ${row.status?.toLowerCase() === 'complete' ? '#f0fdf4' : '#ffffff'};">
@@ -152,7 +170,11 @@ const generateEmailHtml = (
           </span>
         </td>
         <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">
-          ${progressDots}
+          <div style="display: inline-block;">
+            <div style="margin-bottom: 2px;">${setupDots}</div>
+            <div>${integrationDots}</div>
+          </div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">${completedCount}/8</div>
         </td>
         <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; color: #4a5568; font-size: 13px;">
           ${contactDisplay}
@@ -260,14 +282,19 @@ const generateEmailHtml = (
           <!-- Progress Legend -->
           <tr>
             <td style="padding: 0 40px 25px;">
+              <p style="margin: 0 0 6px; font-size: 11px; color: #94a3b8;">
+                <strong>Setup:</strong> 
+                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">Ac</span> Account
+                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">Do</span> Docs
+                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">Ed</span> Edge Function
+              </p>
               <p style="margin: 0; font-size: 11px; color: #94a3b8;">
-                <strong>Progress Key:</strong> 
-                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">A</span> Access
-                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">D</span> Docs
-                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">E</span> Edge Function
-                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">G</span> GET API
-                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">P</span> POST API
-                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">L</span> Live/Production
+                <strong>Integration:</strong> 
+                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">He</span> Health Check
+                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">Gt</span> GET API
+                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">Ps</span> POST API
+                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">Te</span> Soft Test
+                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">Lv</span> Live
               </p>
             </td>
           </tr>
