@@ -414,7 +414,7 @@ function HomeContent() {
                   className={`rounded-lg flex items-center justify-center transition-all ${
                     isExpanded 
                       ? "h-9 w-9 bg-muted hover:bg-muted/80" 
-                      : "h-10 w-10 bg-white/10 backdrop-blur-sm hover:bg-white/20 border border-white/20"
+                      : "h-10 w-10 bg-transparent hover:bg-white/10 border-transparent"
                   }`}
                   aria-label="Open menu"
                 >
@@ -456,7 +456,7 @@ function HomeContent() {
         {/* Property Attribution - Frosted glass badge */}
         {heroProperty && (
           <div className="absolute bottom-24 sm:bottom-28 right-4 sm:right-8 z-20">
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-lg px-4 py-2.5 text-right">
+            <div className="rounded-lg px-4 py-2.5 text-right">
               <p className="font-display text-sm sm:text-base text-white drop-shadow-sm">{heroProperty.name}</p>
               <p className="text-xs sm:text-sm text-white/80">
                 {heroProperty.city}, {heroProperty.country}
