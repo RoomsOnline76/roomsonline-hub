@@ -1320,8 +1320,8 @@ export default function AdminKeys() {
   const requiredCount = apiKeys.filter((k) => k.is_required).length;
   const completedCount = apiKeys.filter((k) => k.is_required && !isPlaceholder(k.key_value)).length;
 
-  // Group API keys: PMS systems vs Additional Services (Google Maps, SendGrid, Resend, etc.)
-  const additionalServiceTypes = ["google", "sendgrid", "resend", "tripadvisor", "global"];
+  // Group API keys: PMS systems vs Additional Services (Google Maps, Resend, etc.)
+  const additionalServiceTypes = ["google", "resend", "tripadvisor", "global"];
   // Only show Semper and SiteMinder in the generic PMS cards (Benson, NightsBridge, Checkfront have custom cards)
   const allowedPmsTypes = ["semper", "siteminder"];
   const pmsKeys = apiKeys
