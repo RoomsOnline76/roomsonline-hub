@@ -2674,6 +2674,25 @@ export default function AdminKeys() {
               ⓘ Rate Limit: 10,000 API calls per hour
             </div>
 
+            {/* Active Environment Toggle */}
+            <div className="flex items-center justify-between p-4 rounded-lg border bg-primary/5 border-primary/20">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">Active Environment</Label>
+                <p className="text-xs text-muted-foreground">API calls will use {hostfullyEnvironment} endpoint</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm ${hostfullyEnvironment === "sandbox" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
+                  Sandbox
+                </span>
+                <Switch
+                  checked={hostfullyEnvironment === "production"}
+                  onCheckedChange={(checked) => setHostfullyEnvironment(checked ? "production" : "sandbox")}
+                />
+                <span className={`text-sm ${hostfullyEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
+                  Production
+                </span>
+              </div>
+            </div>
 
             {editingHostfully ? (
               <div className="space-y-4">
@@ -2712,6 +2731,10 @@ export default function AdminKeys() {
                     <p className={`font-medium ${hostfullyCredentials?.api_key ? "text-green-600" : ""}`}>
                       {hostfullyCredentials?.api_key ? "Configured" : "Not set"}
                     </p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Environment</Label>
+                    <p className="font-medium capitalize">{hostfullyCredentials?.environment || "Sandbox"}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Status</Label>
