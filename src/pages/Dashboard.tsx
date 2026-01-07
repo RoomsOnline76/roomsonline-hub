@@ -962,8 +962,8 @@ const Dashboard = () => {
   return (
     <AppLayout>
       <PageHeader
-        title="Reports"
-        subtitle={isAdmin ? "All properties" : "Your properties"}
+        title="Revenue Pulse"
+        subtitle={`${format(dateRange?.from || new Date(), "MMM yyyy")}${isAdmin ? " · All properties" : ""}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {/* Compare toggle */}

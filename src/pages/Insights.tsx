@@ -156,8 +156,8 @@ const Insights = () => {
   return (
     <AppLayout>
       <PageHeader
-        title="Search Analytics"
-        subtitle={`${searchLogs.length} searches · ${searchTermStats.length} unique · ${avgMatches} avg matches`}
+        title="Search Intelligence"
+        subtitle={`${searchLogs.length} searches · ${searchTermStats.length} unique terms · ${avgMatches} avg matches`}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => setDateRange({ from: subDays(new Date(), 7), to: new Date() })}>7d</Button>
