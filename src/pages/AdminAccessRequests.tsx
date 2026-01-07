@@ -113,9 +113,9 @@ export default function AdminAccessRequests() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
-        return <Badge variant="outline" className="text-amber-600 border-amber-600"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
+        return <Badge variant="outline" className="text-status-warning border-status-warning"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
       case "approved":
-        return <Badge variant="default" className="bg-green-600"><Check className="h-3 w-3 mr-1" />Approved</Badge>;
+        return <Badge variant="default" className="bg-status-healthy"><Check className="h-3 w-3 mr-1" />Approved</Badge>;
       case "declined":
         return <Badge variant="destructive"><X className="h-3 w-3 mr-1" />Declined</Badge>;
       default:
