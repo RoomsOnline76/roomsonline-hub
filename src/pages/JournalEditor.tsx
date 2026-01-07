@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -164,7 +165,7 @@ export default function JournalEditor() {
         body: {
           action: "generate_journal_meta",
           title: journal.title,
-          content: journal.content?.substring(0, 2000), // Limit content for API
+          content: journal.content?.substring(0, 2000),
         },
       });
 
@@ -206,28 +207,23 @@ export default function JournalEditor() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
+      <AppLayout>
         <div className="flex items-center justify-center h-[60vh]">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <div className="container mx-auto px-4 py-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
+    <AppLayout>
+      <PageHeader 
+        title={isNew ? "New Journal" : "Edit Journal"}
+        actions={
+          <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={() => navigate("/admin/journals")}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <h1 className="text-2xl font-bold">{isNew ? "New Journal" : "Edit Journal"}</h1>
-          </div>
-          <div className="flex items-center gap-2">
             {!isNew && (
               <Button variant="destructive" size="sm" onClick={handleDelete}>
                 <Trash2 className="h-4 w-4 mr-1" />
@@ -239,218 +235,218 @@ export default function JournalEditor() {
               Save
             </Button>
           </div>
-        </div>
+        }
+      />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Title */}
-            <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
-              <Input
-                id="title"
-                value={journal.title || ""}
-                onChange={(e) => setJournal(prev => ({ ...prev, title: e.target.value }))}
-                placeholder="Enter journal title..."
-                className="text-lg"
-              />
-            </div>
-
-            {/* Header Image */}
-            <div className="space-y-2">
-              <Label>Header Image</Label>
-              <div className="border border-dashed border-border rounded-lg p-4">
-                {journal.header_image_url ? (
-                  <div className="relative">
-                    <img 
-                      src={journal.header_image_url} 
-                      alt="Header" 
-                      className="w-full h-48 object-cover rounded-lg"
-                    />
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="absolute top-2 right-2"
-                      onClick={() => setJournal(prev => ({ ...prev, header_image_url: "" }))}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                ) : (
-                  <label className="flex flex-col items-center justify-center h-32 cursor-pointer hover:bg-muted/50 transition-colors rounded-lg">
-                    <Image className="h-8 w-8 text-muted-foreground mb-2" />
-                    <span className="text-sm text-muted-foreground">Click to upload header image</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleImageUpload(file, "header_image_url");
-                      }}
-                    />
-                  </label>
-                )}
-              </div>
-            </div>
-
-            {/* Content Editor */}
-            <div className="space-y-2">
-              <Label>Content</Label>
-              <RichTextEditor
-                content={journal.content || ""}
-                onChange={(content) => setJournal(prev => ({ ...prev, content }))}
-              />
-            </div>
-
-            {/* Excerpt */}
-            <div className="space-y-2">
-              <Label htmlFor="excerpt">Excerpt</Label>
-              <Textarea
-                id="excerpt"
-                value={journal.excerpt || ""}
-                onChange={(e) => setJournal(prev => ({ ...prev, excerpt: e.target.value }))}
-                placeholder="Brief summary for listings..."
-                rows={3}
-              />
-            </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Content */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Title */}
+          <div className="space-y-2">
+            <Label htmlFor="title">Title</Label>
+            <Input
+              id="title"
+              value={journal.title || ""}
+              onChange={(e) => setJournal(prev => ({ ...prev, title: e.target.value }))}
+              placeholder="Enter journal title..."
+              className="text-lg"
+            />
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Publish Settings */}
-            <div className="border border-border rounded-lg p-4 space-y-4">
-              <h3 className="font-semibold">Publish Settings</h3>
-              
-              <div className="flex items-center justify-between">
-                <Label htmlFor="published">Published</Label>
-                <Switch
-                  id="published"
-                  checked={journal.status === "published"}
-                  onCheckedChange={(checked) => 
-                    setJournal(prev => ({ ...prev, status: checked ? "published" : "draft" }))
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Publish Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !journal.publish_date && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {journal.publish_date 
-                        ? format(new Date(journal.publish_date), "PPP")
-                        : "Pick a date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={journal.publish_date ? new Date(journal.publish_date) : undefined}
-                      onSelect={(date) => 
-                        setJournal(prev => ({ ...prev, publish_date: date?.toISOString() || null }))
-                      }
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-
-            {/* Featured Image */}
-            <div className="border border-border rounded-lg p-4 space-y-4">
-              <h3 className="font-semibold">Featured Image</h3>
-              {journal.featured_image_url ? (
+          {/* Header Image */}
+          <div className="space-y-2">
+            <Label>Header Image</Label>
+            <div className="border border-dashed border-border rounded-lg p-4">
+              {journal.header_image_url ? (
                 <div className="relative">
                   <img 
-                    src={journal.featured_image_url} 
-                    alt="Featured" 
-                    className="w-full h-32 object-cover rounded-lg"
+                    src={journal.header_image_url} 
+                    alt="Header" 
+                    className="w-full h-48 object-cover rounded-lg"
                   />
                   <Button
                     variant="destructive"
                     size="sm"
                     className="absolute top-2 right-2"
-                    onClick={() => setJournal(prev => ({ ...prev, featured_image_url: "" }))}
+                    onClick={() => setJournal(prev => ({ ...prev, header_image_url: "" }))}
                   >
                     Remove
                   </Button>
                 </div>
               ) : (
-                <label className="flex flex-col items-center justify-center h-24 cursor-pointer border border-dashed border-border rounded-lg hover:bg-muted/50 transition-colors">
-                  <Image className="h-6 w-6 text-muted-foreground mb-1" />
-                  <span className="text-xs text-muted-foreground">Upload featured image</span>
+                <label className="flex flex-col items-center justify-center h-32 cursor-pointer hover:bg-muted/50 transition-colors rounded-lg">
+                  <Image className="h-8 w-8 text-muted-foreground mb-2" />
+                  <span className="text-sm text-muted-foreground">Click to upload header image</span>
                   <input
                     type="file"
                     accept="image/*"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) handleImageUpload(file, "featured_image_url");
+                      if (file) handleImageUpload(file, "header_image_url");
                     }}
                   />
                 </label>
               )}
             </div>
+          </div>
 
-            {/* SEO Settings */}
-            <div className="border border-border rounded-lg p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">SEO</h3>
-                <Button 
-                  variant="outline" 
+          {/* Content Editor */}
+          <div className="space-y-2">
+            <Label>Content</Label>
+            <RichTextEditor
+              content={journal.content || ""}
+              onChange={(content) => setJournal(prev => ({ ...prev, content }))}
+            />
+          </div>
+
+          {/* Excerpt */}
+          <div className="space-y-2">
+            <Label htmlFor="excerpt">Excerpt</Label>
+            <Textarea
+              id="excerpt"
+              value={journal.excerpt || ""}
+              onChange={(e) => setJournal(prev => ({ ...prev, excerpt: e.target.value }))}
+              placeholder="Brief summary for listings..."
+              rows={3}
+            />
+          </div>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Publish Settings */}
+          <div className="border border-border rounded-lg p-4 space-y-4">
+            <h3 className="font-semibold">Publish Settings</h3>
+            
+            <div className="flex items-center justify-between">
+              <Label htmlFor="published">Published</Label>
+              <Switch
+                id="published"
+                checked={journal.status === "published"}
+                onCheckedChange={(checked) => 
+                  setJournal(prev => ({ ...prev, status: checked ? "published" : "draft" }))
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Publish Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !journal.publish_date && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {journal.publish_date 
+                      ? format(new Date(journal.publish_date), "PPP")
+                      : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={journal.publish_date ? new Date(journal.publish_date) : undefined}
+                    onSelect={(date) => 
+                      setJournal(prev => ({ ...prev, publish_date: date?.toISOString() || null }))
+                    }
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
+          {/* Featured Image */}
+          <div className="border border-border rounded-lg p-4 space-y-4">
+            <h3 className="font-semibold">Featured Image</h3>
+            {journal.featured_image_url ? (
+              <div className="relative">
+                <img 
+                  src={journal.featured_image_url} 
+                  alt="Featured" 
+                  className="w-full h-32 object-cover rounded-lg"
+                />
+                <Button
+                  variant="destructive"
                   size="sm"
-                  onClick={generateMetaWithAI}
-                  disabled={generatingMeta}
+                  className="absolute top-2 right-2"
+                  onClick={() => setJournal(prev => ({ ...prev, featured_image_url: "" }))}
                 >
-                  {generatingMeta ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                  ) : (
-                    <Sparkles className="h-4 w-4 mr-1" />
-                  )}
-                  AI Generate
+                  Remove
                 </Button>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="meta_title">Meta Title</Label>
-                <Input
-                  id="meta_title"
-                  value={journal.meta_title || ""}
-                  onChange={(e) => setJournal(prev => ({ ...prev, meta_title: e.target.value }))}
-                  placeholder="SEO title..."
-                  maxLength={60}
+            ) : (
+              <label className="flex flex-col items-center justify-center h-24 cursor-pointer border border-dashed border-border rounded-lg hover:bg-muted/50 transition-colors">
+                <Image className="h-6 w-6 text-muted-foreground mb-1" />
+                <span className="text-xs text-muted-foreground">Upload featured image</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImageUpload(file, "featured_image_url");
+                  }}
                 />
-                <p className="text-xs text-muted-foreground">
-                  {(journal.meta_title?.length || 0)}/60 characters
-                </p>
-              </div>
+              </label>
+            )}
+          </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="meta_description">Meta Description</Label>
-                <Textarea
-                  id="meta_description"
-                  value={journal.meta_description || ""}
-                  onChange={(e) => setJournal(prev => ({ ...prev, meta_description: e.target.value }))}
-                  placeholder="SEO description..."
-                  rows={3}
-                  maxLength={160}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {(journal.meta_description?.length || 0)}/160 characters
-                </p>
-              </div>
+          {/* SEO Settings */}
+          <div className="border border-border rounded-lg p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">SEO</h3>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={generateMetaWithAI}
+                disabled={generatingMeta}
+              >
+                {generatingMeta ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-1" />
+                )}
+                AI Generate
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="meta_title">Meta Title</Label>
+              <Input
+                id="meta_title"
+                value={journal.meta_title || ""}
+                onChange={(e) => setJournal(prev => ({ ...prev, meta_title: e.target.value }))}
+                placeholder="SEO title..."
+                maxLength={60}
+              />
+              <p className="text-xs text-muted-foreground">
+                {(journal.meta_title?.length || 0)}/60 characters
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="meta_description">Meta Description</Label>
+              <Textarea
+                id="meta_description"
+                value={journal.meta_description || ""}
+                onChange={(e) => setJournal(prev => ({ ...prev, meta_description: e.target.value }))}
+                placeholder="SEO description..."
+                rows={3}
+                maxLength={160}
+              />
+              <p className="text-xs text-muted-foreground">
+                {(journal.meta_description?.length || 0)}/160 characters
+              </p>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </AppLayout>
   );
 }

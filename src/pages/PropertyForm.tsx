@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RoomTypeDataViewer, ExpandableDataViewer, RateTypeItem } from "@/components/ExpandableDataViewer";
 import { Button } from "@/components/ui/button";
@@ -2726,10 +2726,8 @@ export default function PropertyForm() {
   };
 
   return (
-    <>
-      <Navbar />
-      <div className="container mx-auto px-4 py-3">
-        <div className="max-w-7xl mx-auto">
+    <AppLayout>
+      <div className="max-w-7xl mx-auto">
           {/* Breadcrumb Navigation */}
           <div className="flex items-center gap-1 text-xs mb-2 text-muted-foreground">
             <button
@@ -8550,7 +8548,6 @@ export default function PropertyForm() {
             </TabsContent>
           </Tabs>
         </div>
-      </div>
 
       {/* Manage Announcements Dialog */}
       <Dialog open={isManageAnnouncementOpen} onOpenChange={setIsManageAnnouncementOpen}>
@@ -9027,6 +9024,6 @@ export default function PropertyForm() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </AppLayout>
   );
 }
