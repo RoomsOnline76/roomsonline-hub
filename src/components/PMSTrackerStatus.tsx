@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { CheckCircle2, Circle, ExternalLink, User } from "lucide-react";
+import { CheckCircle2, Circle, ExternalLink, User, Phone, Mail, Info } from "lucide-react";
 import { PMSTrackerStatus as TrackerType, getStatusColor, getProgressCount } from "@/lib/pmsTrackerConfig";
 
 interface PMSTrackerStatusProps {
@@ -43,19 +43,15 @@ const PMSTrackerStatusDisplay = ({ tracker, compact = false }: PMSTrackerStatusP
   }
 
   return (
-    <div className="space-y-3 p-3 bg-muted/30 rounded-lg border border-border/50">
-      {/* Status and Contact Row */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
+    <div className="space-y-3">
+      {/* Status Badge */}
+      <div className="flex items-center gap-2 flex-wrap">
         <Badge className={`${statusColors.bg} ${statusColors.text} border-0`}>
           {tracker.status}
         </Badge>
-        
-        {tracker.contact_person && (
-          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <User className="h-3 w-3" />
-            <span>{tracker.contact_person}</span>
-          </div>
-        )}
+        <span className="text-xs text-muted-foreground">
+          Progress: {progress.current}/{progress.total}
+        </span>
       </div>
 
       {/* Progress Indicators */}
@@ -85,9 +81,17 @@ const PMSTrackerStatusDisplay = ({ tracker, compact = false }: PMSTrackerStatusP
         </div>
       </TooltipProvider>
 
+      {/* Contact Person (read-only display) */}
+      {tracker.contact_person && (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <User className="h-3 w-3" />
+          <span>Contact: {tracker.contact_person}</span>
+        </div>
+      )}
+
       {/* Additional Info */}
-      {tracker.additional_info && (
-        <div className="text-xs text-muted-foreground space-y-1">
+      {tracker.additional_info && Object.keys(tracker.additional_info).length > 0 && (
+        <div className="text-xs space-y-1 pt-1 border-t border-border/50">
           {tracker.additional_info.url && (
             <a 
               href={tracker.additional_info.url} 
@@ -99,10 +103,42 @@ const PMSTrackerStatusDisplay = ({ tracker, compact = false }: PMSTrackerStatusP
               Registration Link
             </a>
           )}
+          {tracker.additional_info.email && (
+            <a 
+              href={`mailto:${tracker.additional_info.email}`}
+              className="flex items-center gap-1 text-primary hover:underline"
+            >
+              <Mail className="h-3 w-3" />
+              {tracker.additional_info.email}
+            </a>
+          )}
+          {tracker.additional_info.agent_code && (
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <Info className="h-3 w-3" />
+              Agent Code: <span className="font-mono">{tracker.additional_info.agent_code}</span>
+            </div>
+          )}
+          {tracker.additional_info.user && (
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <User className="h-3 w-3" />
+              User: {tracker.additional_info.user}
+            </div>
+          )}
+          {tracker.additional_info.test_account && (
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <Info className="h-3 w-3" />
+              Test: {tracker.additional_info.test_account}
+            </div>
+          )}
+          {tracker.additional_info.notes && (
+            <div className="text-amber-600 dark:text-amber-400">
+              ⓘ {tracker.additional_info.notes}
+            </div>
+          )}
           {tracker.additional_info.meeting && (
-            <p className="text-amber-600 dark:text-amber-400">
+            <div className="text-amber-600 dark:text-amber-400">
               📅 {tracker.additional_info.meeting}
-            </p>
+            </div>
           )}
         </div>
       )}

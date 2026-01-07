@@ -12,6 +12,9 @@ interface TrackerData {
   system_type: string;
   status: string;
   contact_person: string | null;
+  contact_name: string | null;
+  contact_tel: string | null;
+  contact_email: string | null;
   has_access: boolean;
   has_docs: boolean;
   has_edge: boolean;
@@ -27,6 +30,7 @@ const getPMSDisplayName = (key: string): string => {
     benson: 'Benson',
     checkfront: 'Checkfront',
     cloudbeds: 'Cloudbeds',
+    guestly: 'Guestly',
     hostfully: 'Hostfully',
     hotelbeds: 'HotelBeds',
     littlehotelier: 'Little Hotelier',
@@ -35,17 +39,17 @@ const getPMSDisplayName = (key: string): string => {
     roomkey: 'RoomKey',
     roomracoon: 'RoomRaccoon',
     siteminder: 'SiteMinder',
-    guestly: 'Guestly',
-    roomsonline: 'RoomsOnline',
+    smoobu: 'Smoobu',
+    roomsonline: 'RoomsOnline PMS',
   };
-  return names[key] || key;
+  return names[key] || key.charAt(0).toUpperCase() + key.slice(1);
 };
 
 const getStatusColor = (status: string): string => {
   const normalized = status?.toLowerCase() || '';
   if (normalized === 'complete') return '#22c55e';
   if (normalized.includes('wait') || normalized.includes('access')) return '#f59e0b';
-  if (normalized === 'register' || normalized === 'review') return '#3b82f6';
+  if (normalized === 'register' || normalized === 'to apply' || normalized === 'researching') return '#3b82f6';
   if (normalized === 'in progress') return '#a855f7';
   return '#6b7280';
 };
@@ -58,28 +62,68 @@ const generateEmailHtml = (trackerData: TrackerData[], generatedDate: string): s
   ).length;
   const pendingCount = trackerData.length - completedCount - inProgressCount;
 
-  const tableRows = trackerData.map(row => {
+  // Sort by status priority: COMPLETE first, then In Progress, then others
+  const sortedData = [...trackerData].sort((a, b) => {
+    const statusOrder = (s: string) => {
+      const lower = s?.toLowerCase() || '';
+      if (lower === 'complete') return 0;
+      if (lower.includes('wait') || lower === 'in progress') return 1;
+      return 2;
+    };
+    return statusOrder(a.status) - statusOrder(b.status);
+  });
+
+  const tableRows = sortedData.map(row => {
     const progressFlags = [row.has_access, row.has_docs, row.has_edge, row.has_get, row.has_post, row.is_production];
     const progressCount = progressFlags.filter(Boolean).length;
     const statusColor = getStatusColor(row.status);
     
+    // Build contact display
+    const contactParts: string[] = [];
+    if (row.contact_name) contactParts.push(row.contact_name);
+    else if (row.contact_person) contactParts.push(row.contact_person);
+    const contactDisplay = contactParts.length > 0 ? contactParts.join(' ') : '—';
+
+    // Build additional info display
+    const additionalParts: string[] = [];
+    if (row.additional_info?.url) {
+      additionalParts.push(`<a href="${row.additional_info.url}" style="color: #3b82f6; text-decoration: underline;">Register Link</a>`);
+    }
+    if (row.additional_info?.agent_code) {
+      additionalParts.push(`Code: ${row.additional_info.agent_code}`);
+    }
+    if (row.additional_info?.notes) {
+      additionalParts.push(row.additional_info.notes);
+    }
+    if (row.additional_info?.email) {
+      additionalParts.push(`<a href="mailto:${row.additional_info.email}" style="color: #3b82f6;">${row.additional_info.email}</a>`);
+    }
+    const additionalDisplay = additionalParts.length > 0 ? additionalParts.join('<br/>') : '—';
+
+    // Progress indicators as small circles
+    const progressDots = progressFlags.map((flag, i) => {
+      const labels = ['A', 'D', 'E', 'G', 'P', 'L'];
+      return `<span style="display: inline-block; width: 18px; height: 18px; border-radius: 50%; background: ${flag ? '#22c55e' : '#e2e8f0'}; color: ${flag ? '#fff' : '#94a3b8'}; font-size: 10px; line-height: 18px; text-align: center; margin-right: 2px;" title="${['Access', 'Docs', 'Edge', 'GET', 'POST', 'Live'][i]}">${labels[i]}</span>`;
+    }).join('');
+    
     return `
-      <tr>
-        <td style="padding: 14px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #1a1a2e;">
+      <tr style="background: ${row.status?.toLowerCase() === 'complete' ? '#f0fdf4' : '#ffffff'};">
+        <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #1a1a2e;">
           ${getPMSDisplayName(row.system_type)}
         </td>
-        <td style="padding: 14px 12px; border-bottom: 1px solid #e2e8f0;">
-          <span style="background: ${statusColor}; color: white; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+        <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0;">
+          <span style="background: ${statusColor}; color: white; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;">
             ${row.status || 'Unknown'}
           </span>
         </td>
-        <td style="padding: 14px 12px; border-bottom: 1px solid #e2e8f0; text-align: center;">
-          <span style="font-weight: 600; color: ${progressCount === 6 ? '#22c55e' : progressCount > 0 ? '#f59e0b' : '#6b7280'};">
-            ${progressCount}/6
-          </span>
+        <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">
+          ${progressDots}
         </td>
-        <td style="padding: 14px 12px; border-bottom: 1px solid #e2e8f0; color: #4a5568;">
-          ${row.contact_person || '—'}
+        <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; color: #4a5568; font-size: 13px;">
+          ${contactDisplay}
+        </td>
+        <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 12px;">
+          ${additionalDisplay}
         </td>
       </tr>
     `;
@@ -109,7 +153,7 @@ const generateEmailHtml = (trackerData: TrackerData[], generatedDate: string): s
   <table role="presentation" width="100%" style="background-color: #f4f4f4;">
     <tr>
       <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" width="700" style="max-width: 100%; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); overflow: hidden;">
+        <table role="presentation" width="800" style="max-width: 100%; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); overflow: hidden;">
           
           <!-- Header with ROL Branding -->
           <tr>
@@ -131,16 +175,16 @@ const generateEmailHtml = (trackerData: TrackerData[], generatedDate: string): s
             <td style="padding: 0 40px 30px;">
               <table width="100%" style="border-collapse: separate; border-spacing: 12px 0;">
                 <tr>
-                  <td width="33%" style="background: linear-gradient(135deg, #22c55e20 0%, #22c55e10 100%); padding: 20px; border-radius: 10px; text-align: center;">
-                    <div style="font-size: 28px; font-weight: 700; color: #22c55e;">${completedCount}</div>
+                  <td width="33%" style="background: linear-gradient(135deg, #22c55e20 0%, #22c55e10 100%); padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #22c55e30;">
+                    <div style="font-size: 32px; font-weight: 700; color: #22c55e;">${completedCount}</div>
                     <div style="font-size: 12px; color: #166534; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">Complete</div>
                   </td>
-                  <td width="33%" style="background: linear-gradient(135deg, #f59e0b20 0%, #f59e0b10 100%); padding: 20px; border-radius: 10px; text-align: center;">
-                    <div style="font-size: 28px; font-weight: 700; color: #f59e0b;">${inProgressCount}</div>
+                  <td width="33%" style="background: linear-gradient(135deg, #f59e0b20 0%, #f59e0b10 100%); padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #f59e0b30;">
+                    <div style="font-size: 32px; font-weight: 700; color: #f59e0b;">${inProgressCount}</div>
                     <div style="font-size: 12px; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">In Progress</div>
                   </td>
-                  <td width="33%" style="background: linear-gradient(135deg, #6b728020 0%, #6b728010 100%); padding: 20px; border-radius: 10px; text-align: center;">
-                    <div style="font-size: 28px; font-weight: 700; color: #6b7280;">${pendingCount}</div>
+                  <td width="33%" style="background: linear-gradient(135deg, #6b728020 0%, #6b728010 100%); padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #6b728030;">
+                    <div style="font-size: 32px; font-weight: 700; color: #6b7280;">${pendingCount}</div>
                     <div style="font-size: 12px; color: #4b5563; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">Pending</div>
                   </td>
                 </tr>
@@ -150,14 +194,15 @@ const generateEmailHtml = (trackerData: TrackerData[], generatedDate: string): s
           
           <!-- Status Table -->
           <tr>
-            <td style="padding: 0 40px 30px;">
+            <td style="padding: 0 40px 20px;">
               <table width="100%" style="border-collapse: collapse; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
                 <thead>
                   <tr style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
-                    <th style="padding: 14px 12px; text-align: left; color: #ffffff; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">System</th>
-                    <th style="padding: 14px 12px; text-align: left; color: #ffffff; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Status</th>
-                    <th style="padding: 14px 12px; text-align: center; color: #ffffff; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Progress</th>
-                    <th style="padding: 14px 12px; text-align: left; color: #ffffff; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Contact</th>
+                    <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">System</th>
+                    <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Status</th>
+                    <th style="padding: 12px 10px; text-align: center; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Progress</th>
+                    <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Contact</th>
+                    <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Details</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -170,8 +215,14 @@ const generateEmailHtml = (trackerData: TrackerData[], generatedDate: string): s
           <!-- Progress Legend -->
           <tr>
             <td style="padding: 0 40px 25px;">
-              <p style="margin: 0; font-size: 12px; color: #718096;">
-                <strong>Progress Indicators:</strong> Access • Docs • Edge Function • GET API • POST API • Production
+              <p style="margin: 0; font-size: 11px; color: #94a3b8;">
+                <strong>Progress Key:</strong> 
+                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">A</span> Access
+                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">D</span> Docs
+                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">E</span> Edge Function
+                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">G</span> GET API
+                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">P</span> POST API
+                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">L</span> Live/Production
               </p>
             </td>
           </tr>

@@ -975,7 +975,10 @@ export type Database = {
       pms_tracker_status: {
         Row: {
           additional_info: Json | null
+          contact_email: string | null
+          contact_name: string | null
           contact_person: string | null
+          contact_tel: string | null
           created_at: string | null
           has_access: boolean | null
           has_docs: boolean | null
@@ -991,7 +994,10 @@ export type Database = {
         }
         Insert: {
           additional_info?: Json | null
+          contact_email?: string | null
+          contact_name?: string | null
           contact_person?: string | null
+          contact_tel?: string | null
           created_at?: string | null
           has_access?: boolean | null
           has_docs?: boolean | null
@@ -1007,7 +1013,10 @@ export type Database = {
         }
         Update: {
           additional_info?: Json | null
+          contact_email?: string | null
+          contact_name?: string | null
           contact_person?: string | null
+          contact_tel?: string | null
           created_at?: string | null
           has_access?: boolean | null
           has_docs?: boolean | null

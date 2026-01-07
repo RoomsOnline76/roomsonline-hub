@@ -4,6 +4,9 @@ export interface PMSTrackerStatus {
   system_type: string;
   status: string;
   contact_person?: string;
+  contact_name?: string;
+  contact_tel?: string;
+  contact_email?: string;
   has_access: boolean;
   has_docs: boolean;
   has_edge: boolean;
@@ -14,6 +17,11 @@ export interface PMSTrackerStatus {
   additional_info?: {
     url?: string;
     meeting?: string;
+    email?: string;
+    agent_code?: string;
+    user?: string;
+    test_account?: string;
+    notes?: string;
     [key: string]: string | undefined;
   };
 }
