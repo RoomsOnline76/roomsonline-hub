@@ -228,7 +228,7 @@ const CategoryBanner = ({ onSegmentClick, heroRef, selectedProperty }: CategoryB
       className={`
         z-40 bg-black/70 backdrop-blur-sm transition-all duration-300
         ${isSticky 
-          ? "fixed top-0 left-0 right-0 shadow-lg" 
+          ? "fixed top-0 left-0 right-0 shadow-lg border-b border-white/10" 
           : "absolute bottom-0 left-0 right-0"
         }
       `}
@@ -264,7 +264,7 @@ const CategoryBanner = ({ onSegmentClick, heroRef, selectedProperty }: CategoryB
               <segment.icon className="h-4 w-4 sm:h-5 sm:w-5 text-white/80 mb-1 
                                         group-hover:text-white group-hover:scale-110 
                                         transition-all duration-200 pointer-events-none" />
-              <span className="text-[10px] sm:text-xs text-white/80 whitespace-nowrap 
+              <span className="text-[10px] sm:text-xs text-white/80 whitespace-nowrap tracking-wide
                                group-hover:text-white transition-colors duration-200 pointer-events-none">
                 {segment.label}
               </span>

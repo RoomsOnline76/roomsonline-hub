@@ -71,21 +71,21 @@ export function SegmentSection({ id, title, tag, segmentId, properties, isLoadin
   const displayTags = segmentConfig?.tags || (tag ? [tag] : []);
 
   return (
-    <section id={id} className="py-6 sm:py-8">
-      <div className="container mx-auto px-3 sm:px-4">
-        <div className="mb-4">
-          <h2 className="text-xl sm:text-2xl font-bold text-foreground inline">
+    <section id={id} className="py-12 sm:py-16">
+      <div className="container mx-auto px-4 sm:px-6">
+        <div className="mb-6">
+          <h2 className="font-sans text-xl sm:text-2xl font-medium text-foreground tracking-tight leading-tight inline">
             {title}
           </h2>
           {displayTags.length > 0 && (
-            <span className="ml-3 text-xs sm:text-sm text-muted-foreground">
-              {displayTags.length === 1 ? `TAG: ${displayTags[0]}` : `TAGS: ${displayTags.join(", ")}`}
+            <span className="ml-3 text-xs uppercase tracking-wider text-muted-foreground">
+              {displayTags.length === 1 ? displayTags[0] : displayTags.join(" · ")}
             </span>
           )}
         </div>
 
         {isLoading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="space-y-3">
                 <Skeleton className="h-48 sm:h-52 w-full rounded-lg" />
@@ -115,7 +115,7 @@ export function SegmentSection({ id, title, tag, segmentId, properties, isLoadin
 
         {/* 3+ properties - standard grid */}
         {!isLoading && filteredProperties.length >= 3 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
             {filteredProperties.map((property) => (
               <PropertyCard key={property.id} property={property} showCautionBadge={isFiltered} />
             ))}
