@@ -1698,8 +1698,26 @@ export default function AdminKeys() {
                   </div>
                 </div>
 
-                {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
+              {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
                   <ApiMilestones systemType={apiKey.system_type} className="pt-4 border-t" />
+                )}
+
+                {/* PMS IT Contact */}
+                {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
+                  <PMSContactDetails 
+                    systemType={apiKey.system_type}
+                    initialData={{
+                      contact_name: trackerData[apiKey.system_type]?.contact_name,
+                      contact_tel: trackerData[apiKey.system_type]?.contact_tel,
+                      contact_email: trackerData[apiKey.system_type]?.contact_email,
+                    }}
+                    onUpdated={() => fetchTrackerData()}
+                  />
+                )}
+
+                {/* Dev Notes */}
+                {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
+                  <PMSDevNotes systemType={apiKey.system_type} />
                 )}
 
                 <div className="flex gap-2">
