@@ -43,7 +43,7 @@ export function CurrencySelector({ compact = false, className, variant = 'defaul
           className={cn(
             compact ? "w-[100px]" : "w-[180px]",
             isHero || compact 
-              ? "bg-white/10 backdrop-blur-sm border-white/20 text-white hover:bg-white/20 focus:ring-white/30" 
+              ? "bg-transparent border-transparent text-white hover:bg-white/10 focus:ring-white/30" 
               : "bg-background border-border"
           )}
         >
