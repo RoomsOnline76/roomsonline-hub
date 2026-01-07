@@ -10,7 +10,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
-import { ApiMilestones } from "@/components/ApiMilestones";
+import { PMSProgressToggles } from "@/components/PMSProgressToggles";
 import { TOTAL_PMS_SYSTEMS_COUNT, ALL_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
 import PMSTrackerStatusDisplay from "@/components/PMSTrackerStatus";
 import PMSDevNotes from "@/components/PMSDevNotes";
@@ -254,12 +254,18 @@ export default function AdminKeys() {
           contact_name: row.contact_name || undefined,
           contact_tel: row.contact_tel || undefined,
           contact_email: row.contact_email || undefined,
-          has_access: row.has_access || false,
+          // Setup phase
+          has_account: row.has_account || false,
           has_docs: row.has_docs || false,
           has_edge: row.has_edge || false,
+          // Integration phase
+          has_health: row.has_health || false,
           has_get: row.has_get || false,
           has_post: row.has_post || false,
+          has_soft_test: row.has_soft_test || false,
           is_production: row.is_production || false,
+          // Legacy field
+          has_access: row.has_access || false,
           notes: row.notes || undefined,
           additional_info: row.additional_info as PMSTrackerStatus['additional_info'],
         };
@@ -1298,7 +1304,7 @@ export default function AdminKeys() {
                   </div>
                 </div>
 
-                <ApiMilestones systemType="cloudbeds" className="pt-4 border-t" />
+                <PMSProgressToggles systemType="cloudbeds" trackerData={trackerData.cloudbeds} onUpdated={fetchTrackerData} />
 
                 {/* PMS IT Contact */}
                 <PMSContactDetails 
@@ -1699,7 +1705,7 @@ export default function AdminKeys() {
                 </div>
 
               {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
-                  <ApiMilestones systemType={apiKey.system_type} className="pt-4 border-t" />
+                  <PMSProgressToggles systemType={apiKey.system_type} trackerData={trackerData[apiKey.system_type]} onUpdated={fetchTrackerData} />
                 )}
 
                 {/* PMS IT Contact */}
@@ -2035,7 +2041,7 @@ export default function AdminKeys() {
               </div>
             </div>
 
-            <ApiMilestones systemType="benson" className="pt-4 border-t" />
+            <PMSProgressToggles systemType="benson" trackerData={trackerData.benson} onUpdated={fetchTrackerData} />
 
             {/* PMS IT Contact */}
             <PMSContactDetails 
@@ -2227,7 +2233,7 @@ export default function AdminKeys() {
                   </div>
                 </div>
 
-                <ApiMilestones systemType="nightsbridge" className="pt-4 border-t" />
+                <PMSProgressToggles systemType="nightsbridge" trackerData={trackerData.nightsbridge} onUpdated={fetchTrackerData} />
 
                 {/* PMS IT Contact */}
                 <PMSContactDetails 
@@ -2491,7 +2497,7 @@ export default function AdminKeys() {
                     </div>
                   </div>
 
-                  <ApiMilestones systemType="checkfront" className="pt-4 border-t" />
+                  <PMSProgressToggles systemType="checkfront" trackerData={trackerData.checkfront} onUpdated={fetchTrackerData} />
 
                   {/* PMS IT Contact */}
                   <PMSContactDetails 
@@ -2641,7 +2647,7 @@ export default function AdminKeys() {
                   </div>
                 </div>
 
-                <ApiMilestones systemType="littlehotelier" className="pt-4 border-t" />
+                <PMSProgressToggles systemType="littlehotelier" trackerData={trackerData.littlehotelier} onUpdated={fetchTrackerData} />
 
                 {/* PMS IT Contact */}
                 <PMSContactDetails 
@@ -2809,7 +2815,7 @@ export default function AdminKeys() {
                   </div>
                 </div>
 
-                <ApiMilestones systemType="hostfully" className="pt-4 border-t" />
+                <PMSProgressToggles systemType="hostfully" trackerData={trackerData.hostfully} onUpdated={fetchTrackerData} />
 
                 {/* PMS IT Contact */}
                 <PMSContactDetails 
@@ -3013,7 +3019,7 @@ export default function AdminKeys() {
                       </p>
                     </div>
 
-                    <ApiMilestones systemType="roomsonline" className="pt-4 border-t" />
+                    <PMSProgressToggles systemType="roomsonline" trackerData={trackerData.roomsonline} onUpdated={fetchTrackerData} />
 
                     {/* PMS IT Contact */}
                     <PMSContactDetails 
@@ -3168,7 +3174,7 @@ export default function AdminKeys() {
                             <p className="font-medium">{hotelbedsCredentials?.is_active ? "Active" : "Inactive"}</p>
                           </div>
                         </div>
-                        <ApiMilestones systemType="hotelbeds" className="pt-4 border-t" />
+                        <PMSProgressToggles systemType="hotelbeds" trackerData={trackerData.hotelbeds} onUpdated={fetchTrackerData} />
 
                         {/* PMS IT Contact */}
                         <PMSContactDetails 

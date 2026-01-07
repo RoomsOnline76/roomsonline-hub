@@ -7,12 +7,18 @@ export interface PMSTrackerStatus {
   contact_name?: string;
   contact_tel?: string;
   contact_email?: string;
-  has_access: boolean;
+  // Setup phase
+  has_account: boolean;
   has_docs: boolean;
   has_edge: boolean;
+  // Integration phase
+  has_health: boolean;
   has_get: boolean;
   has_post: boolean;
+  has_soft_test: boolean;
   is_production: boolean;
+  // Legacy field (mapped to has_account)
+  has_access?: boolean;
   notes?: string;
   additional_info?: {
     url?: string;
@@ -53,13 +59,18 @@ export const getStatusColor = (status: string): { bg: string; text: string } => 
   return { bg: 'bg-muted', text: 'text-muted-foreground' };
 };
 
+// Updated to use all 8 progress indicators
 export const getProgressCount = (tracker: PMSTrackerStatus): { current: number; total: number } => {
   const flags = [
-    tracker.has_access,
+    // Setup phase
+    tracker.has_account,
     tracker.has_docs,
     tracker.has_edge,
+    // Integration phase
+    tracker.has_health,
     tracker.has_get,
     tracker.has_post,
+    tracker.has_soft_test,
     tracker.is_production,
   ];
   return {
