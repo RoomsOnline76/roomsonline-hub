@@ -1455,6 +1455,14 @@ export default function AdminKeys() {
                   <Button variant="outline" onClick={() => setEditingCloudbeds(true)}>
                     {isConfigured ? "Update Credentials" : "Configure"}
                   </Button>
+                  <Button
+                    variant="default"
+                    onClick={() => navigate("/admin/pms-config/cloudbeds")}
+                    disabled={!isConfigured}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Field Mappings
+                  </Button>
                 </div>
               </div>
             )}
@@ -2337,12 +2345,7 @@ export default function AdminKeys() {
                   </Button>
                   <Button
                     variant="default"
-                    onClick={() =>
-                      toast({
-                        title: "Coming Soon",
-                        description: "NightsBridge field mappings configuration is under development",
-                      })
-                    }
+                    onClick={() => navigate("/admin/pms-config/nightsbridge")}
                     disabled={!isConfigured}
                   >
                     <Settings className="h-4 w-4 mr-2" />
@@ -2599,19 +2602,14 @@ export default function AdminKeys() {
                     <Button variant="outline" onClick={() => setEditingCheckfront(true)}>
                       {isConfigured ? "Update Credentials" : "Configure"}
                     </Button>
-                    <Button
-                      variant="default"
-                      onClick={() =>
-                        toast({
-                          title: "Coming Soon",
-                          description: "Checkfront field mappings configuration is under development",
-                        })
-                      }
-                      disabled={!isConfigured}
-                    >
-                      <Settings className="h-4 w-4 mr-2" />
-                      Field Mappings
-                    </Button>
+                  <Button
+                    variant="default"
+                    onClick={() => navigate("/admin/pms-config/checkfront")}
+                    disabled={!isConfigured}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Field Mappings
+                  </Button>
                   </div>
                 </div>
               )}
@@ -2748,6 +2746,14 @@ export default function AdminKeys() {
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setEditingLittlehotelier(true)}>
                     {isConfigured ? "Update Credentials" : "Configure"}
+                  </Button>
+                  <Button
+                    variant="default"
+                    onClick={() => navigate("/admin/pms-config/littlehotelier")}
+                    disabled={!isConfigured}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Field Mappings
                   </Button>
                 </div>
               </div>
@@ -2916,6 +2922,14 @@ export default function AdminKeys() {
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setEditingHostfully(true)}>
                     {isConfigured ? "Update Credentials" : "Configure"}
+                  </Button>
+                  <Button
+                    variant="default"
+                    onClick={() => navigate("/admin/pms-config/hostfully")}
+                    disabled={!isConfigured}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Field Mappings
                   </Button>
                 </div>
               </div>
@@ -3291,6 +3305,14 @@ export default function AdminKeys() {
                         <div className="flex gap-2">
                           <Button variant="outline" onClick={() => setEditingHotelbeds(true)}>
                             {hotelbedsCredentials?.api_key ? "Update Credentials" : "Configure"}
+                          </Button>
+                          <Button
+                            variant="default"
+                            onClick={() => navigate("/admin/pms-config/hotelbeds")}
+                            disabled={!hotelbedsCredentials?.api_key}
+                          >
+                            <Settings className="h-4 w-4 mr-2" />
+                            Field Mappings
                           </Button>
                         </div>
                       </div>
