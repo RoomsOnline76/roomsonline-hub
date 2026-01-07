@@ -66,7 +66,7 @@ export function PropertyCard({ property, variant = "default", showCautionBadge =
 
   return (
     <Link to={propertyLink} className="block group">
-      <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 h-full">
+      <Card className="overflow-hidden hover:shadow-lg hover:scale-[1.02] transition-all duration-300 h-full border-border/50">
         {/* Image with editorial badge overlay */}
         <div className={`relative overflow-hidden ${isLarge ? "h-64 sm:h-72" : "h-48 sm:h-52"}`}>
           <img
@@ -75,7 +75,7 @@ export function PropertyCard({ property, variant = "default", showCautionBadge =
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
           {/* Gradient overlay for better badge visibility */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
           
           {/* Editorial Rating Badge - Top Left */}
           {property.editorial_rating && (
@@ -83,18 +83,17 @@ export function PropertyCard({ property, variant = "default", showCautionBadge =
               <EditorialRatingBadge rating={property.editorial_rating} />
             </div>
           )}
-
         </div>
 
         <CardContent className={isLarge ? "p-5" : "p-4"}>
-          {/* Property Name */}
-          <h3 className={`font-semibold text-foreground line-clamp-1 mb-1.5 group-hover:text-primary transition-colors ${isLarge ? "text-lg" : "text-base"}`}>
+          {/* Property Name - Editorial typography */}
+          <h3 className={`font-display font-medium text-foreground line-clamp-1 mb-1.5 group-hover:text-primary transition-colors ${isLarge ? "text-xl" : "text-lg"}`}>
             {property.name}
           </h3>
 
           {/* Location */}
           <div className={`flex items-center gap-1.5 text-muted-foreground mb-3 ${isLarge ? "text-base" : "text-sm"}`}>
-            <MapPin className={isLarge ? "h-4 w-4 shrink-0" : "h-3.5 w-3.5 shrink-0"} />
+            <MapPin className={isLarge ? "h-4 w-4 shrink-0 text-primary/60" : "h-3.5 w-3.5 shrink-0 text-primary/60"} />
             <span className="line-clamp-1">
               {property.city}, {property.country}
             </span>
@@ -103,7 +102,7 @@ export function PropertyCard({ property, variant = "default", showCautionBadge =
           {/* Random Editorial Blurb + Caution Badge */}
           <div className="flex items-end gap-2">
             {blurb && (
-              <p className={`text-muted-foreground italic leading-relaxed flex-1 ${isLarge ? "text-base" : "text-sm"}`}>
+              <p className={`text-muted-foreground italic leading-relaxed flex-1 line-clamp-2 ${isLarge ? "text-base" : "text-sm"}`}>
                 "{blurb}"
               </p>
             )}

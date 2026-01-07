@@ -1,7 +1,7 @@
 import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Navbar } from "@/components/Navbar";
+import { PublicLayout } from "@/components/layout/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -714,30 +714,28 @@ const Booking = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="container mx-auto px-4 py-8">
+      <PublicLayout backLabel="Back" backTo="/">
+        <div className="container mx-auto px-4 py-12">
           <Skeleton className="h-8 w-64 mb-4" />
-          <Skeleton className="h-96 w-full" />
+          <Skeleton className="h-96 w-full rounded-lg" />
         </div>
-      </div>
+      </PublicLayout>
     );
   }
 
   if (!property) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="container mx-auto px-4 py-16 text-center">
-          <h1 className="text-2xl font-bold mb-4">Property Not Found</h1>
-          <p className="text-muted-foreground mb-8">
+      <PublicLayout>
+        <div className="container mx-auto px-4 py-24 text-center">
+          <h1 className="font-display text-2xl sm:text-3xl mb-4">Property Not Found</h1>
+          <p className="text-muted-foreground mb-8 max-w-md mx-auto">
             The property you're looking for doesn't exist or is no longer available.
           </p>
           <Button asChild>
             <Link to="/">Return to Home</Link>
           </Button>
         </div>
-      </div>
+      </PublicLayout>
     );
   }
 
@@ -747,11 +745,10 @@ const Booking = () => {
   // For non-Benson properties, show a message and redirect to property page
   if (!isBensonProperty) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="container mx-auto px-4 py-16 text-center">
-          <AlertCircle className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-          <h1 className="text-2xl font-bold mb-4">Online Booking Not Available</h1>
+      <PublicLayout backLabel="Back to Property" backTo={`/property/${property.slug || property.id}`}>
+        <div className="container mx-auto px-4 py-24 text-center">
+          <AlertCircle className="h-16 w-16 text-muted-foreground/30 mx-auto mb-6" />
+          <h1 className="font-display text-2xl sm:text-3xl mb-4">Online Booking Not Available</h1>
           <p className="text-muted-foreground mb-8 max-w-md mx-auto">
             Online booking is not currently available for this property. 
             Please contact the property directly for reservations.
@@ -765,7 +762,7 @@ const Booking = () => {
             </Button>
           </div>
         </div>
-      </div>
+      </PublicLayout>
     );
   }
 
@@ -775,30 +772,30 @@ const Booking = () => {
     const hasMultipleRoomDates = rooms.some(room => room.checkIn && room.checkOut && (room.checkIn !== checkIn || room.checkOut !== checkOut));
     
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="container mx-auto px-3 sm:px-4 py-8 sm:py-16">
-          <Card className="max-w-lg mx-auto text-center">
-            <CardContent className="pt-6 pb-6 sm:pt-8 sm:pb-8 px-4 sm:px-6">
-              <CheckCircle className="h-12 w-12 sm:h-16 sm:w-16 text-green-500 mx-auto mb-3 sm:mb-4" />
-              <h2 className="text-xl sm:text-2xl font-bold mb-2">Reservation Submitted!</h2>
-              <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6">
-                Your reservation for {property.name} has been submitted. 
+      <PublicLayout>
+        <div className="container mx-auto px-3 sm:px-4 py-12 sm:py-20">
+          <Card className="max-w-lg mx-auto text-center border-border/50">
+            <CardContent className="pt-8 pb-8 sm:pt-10 sm:pb-10 px-6 sm:px-8">
+              <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
+                <CheckCircle className="h-8 w-8 text-green-500" />
+              </div>
+              <h2 className="font-display text-2xl sm:text-3xl mb-3">Reservation Submitted!</h2>
+              <p className="text-muted-foreground mb-6">
+                Your reservation for <span className="font-medium text-foreground">{property.name}</span> has been submitted. 
                 A confirmation email will be sent to {guestEmail}.
               </p>
-              <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-left bg-muted/50 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+              <div className="space-y-2 text-sm text-left bg-muted/30 rounded-lg p-4 sm:p-5 mb-6">
                 <p><strong>Reference:</strong> {externalReservationId || bookingId?.slice(0, 8).toUpperCase()}</p>
                 
                 {/* Show per-room itinerary if rooms have different dates */}
                 {rooms.length > 0 && (hasMultipleRoomDates || rooms.length > 1) ? (
-                  <div className="space-y-2 mt-2">
+                  <div className="space-y-2 mt-3">
                     <p className="font-semibold">Itinerary:</p>
                     {rooms.map((room, index) => {
                       const roomCheckIn = room.checkIn || checkIn;
                       const roomCheckOut = room.checkOut || checkOut;
-                      const roomGuests = room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants;
                       return (
-                        <div key={index} className="pl-2 border-l-2 border-primary/30 ml-1">
+                        <div key={index} className="pl-3 border-l-2 border-primary/30 ml-1">
                           <p className="font-medium">Room {index + 1}: {room.roomTypeName}</p>
                           <p className="text-muted-foreground">
                             {roomCheckIn && format(parseISO(roomCheckIn), "MMM d, yyyy")} – {roomCheckOut && format(parseISO(roomCheckOut), "MMM d, yyyy")}
@@ -821,39 +818,39 @@ const Booking = () => {
                   </>
                 )}
               </div>
-              <Button onClick={() => navigate("/")} size="sm" className="w-full sm:w-auto">
+              <Button onClick={() => navigate("/")} className="w-full sm:w-auto">
                 Return to Home
               </Button>
             </CardContent>
           </Card>
         </div>
-      </div>
+      </PublicLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      
-      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8">
-        {/* Back Link */}
-        <a 
-          href={`${getPropertyUrl(property.slug || property.id)}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
-          className="inline-flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground hover:text-foreground mb-4 sm:mb-6"
-        >
-          <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-          Back to property
-        </a>
+    <PublicLayout 
+      backLabel="Back to Property" 
+      backTo={`${getPropertyUrl(property.slug || property.id)}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
+    >
+      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-10">
+        {/* Page Header */}
+        <div className="mb-8">
+          <h1 className="font-display text-2xl sm:text-3xl mb-2">Complete Your Booking</h1>
+          <p className="text-muted-foreground">
+            {property.name} • {property.city}, {property.country}
+          </p>
+        </div>
 
-        <div className="grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+        <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Booking Form */}
-          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+          <div className="lg:col-span-2 space-y-6">
             {/* Guest Details */}
-            <Card>
-              <CardHeader className="pb-3 sm:pb-6">
-                <CardTitle className="text-base sm:text-lg">Guest Details</CardTitle>
+            <Card className="border-border/50">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg">Guest Details</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 sm:space-y-4">
+              <CardContent className="space-y-4">
                 <div className="grid gap-3 sm:gap-4">
                   <div className="space-y-1.5 sm:space-y-2">
                     <Label htmlFor="guest_name" className="text-xs sm:text-sm">Full Name *</Label>
@@ -1394,7 +1391,7 @@ const Booking = () => {
           </div>
         </div>
       </div>
-    </div>
+    </PublicLayout>
   );
 };
 
