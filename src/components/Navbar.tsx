@@ -206,10 +206,7 @@ export const Navbar = () => {
         <div className="flex items-center justify-between">
           <Link to="/dashboard/reports" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <img src={rolLogo} alt="RoomsOnline" className="h-10 w-auto" />
-            <div>
-              <h1 className="text-xl font-bold text-foreground">RoomsOnline</h1>
-              <p className="text-xs text-muted-foreground">Unified Booking Engine</p>
-            </div>
+            <h1 className="text-xl font-bold text-foreground">RoomsOnline</h1>
           </Link>
 
           <div className="flex items-center gap-4">
