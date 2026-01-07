@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -223,11 +223,8 @@ const CalendarConference = () => {
   const monthDays = generateMonthDays();
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-
-      <div className="container mx-auto px-4 py-8">
-        {/* Property Indicator */}
+    <AppLayout>
+      {/* Property Indicator */}
         {selectedPropertyData && (
           <div className="mb-4 p-4 bg-primary/10 border border-primary/20 rounded-lg flex items-center gap-3">
             <Building2 className="h-5 w-5 text-primary" />
@@ -446,16 +443,15 @@ const CalendarConference = () => {
             )}
           </CardContent>
         </Card>
-      </div>
 
-      <BulkRateRuleDialog open={bulkRateOpen} onOpenChange={setBulkRateOpen} />
-      <BulkAvailabilityRuleDialog open={bulkAvailabilityOpen} onOpenChange={setBulkAvailabilityOpen} />
-      <BulkStopSellDialog open={stopSellOpen} onOpenChange={setStopSellOpen} />
-      <BulkMinimumStayDialog open={minStayOpen} onOpenChange={setMinStayOpen} />
-      <BulkMaximumStayDialog open={maxStayOpen} onOpenChange={setMaxStayOpen} />
-      <BulkLeadDaysAdvanceDialog open={leadDaysAdvanceOpen} onOpenChange={setLeadDaysAdvanceOpen} />
-      <BulkLeadDaysPostDialog open={leadDaysPostOpen} onOpenChange={setLeadDaysPostOpen} />
-    </div>
+        <BulkRateRuleDialog open={bulkRateOpen} onOpenChange={setBulkRateOpen} />
+        <BulkAvailabilityRuleDialog open={bulkAvailabilityOpen} onOpenChange={setBulkAvailabilityOpen} />
+        <BulkStopSellDialog open={stopSellOpen} onOpenChange={setStopSellOpen} />
+        <BulkMinimumStayDialog open={minStayOpen} onOpenChange={setMinStayOpen} />
+        <BulkMaximumStayDialog open={maxStayOpen} onOpenChange={setMaxStayOpen} />
+        <BulkLeadDaysAdvanceDialog open={leadDaysAdvanceOpen} onOpenChange={setLeadDaysAdvanceOpen} />
+        <BulkLeadDaysPostDialog open={leadDaysPostOpen} onOpenChange={setLeadDaysPostOpen} />
+    </AppLayout>
   );
 };
 
