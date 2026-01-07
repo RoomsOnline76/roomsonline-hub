@@ -93,7 +93,7 @@ export const PMSProgressToggles: React.FC<PMSProgressTogglesProps> = ({
               'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all',
               'border hover:scale-105 active:scale-95',
               isComplete
-                ? 'bg-green-500/20 border-green-500/40 text-green-700 dark:text-green-400'
+                ? 'bg-status-healthy/20 border-status-healthy/40 text-status-healthy'
                 : 'bg-muted/50 border-muted-foreground/20 text-muted-foreground hover:bg-muted',
               isSaving && 'opacity-50 cursor-wait'
             )}
