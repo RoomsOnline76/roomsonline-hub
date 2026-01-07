@@ -168,8 +168,17 @@ async function getHostfullyCredentials(supabase: any): Promise<HostfullyCredenti
     return null;
   }
 
+  // Use environment variable as fallback/override for API key
+  const apiKeyFromEnv = Deno.env.get("HOSTFULLY_API_KEY");
+  const apiKey = apiKeyFromEnv || data.api_key;
+
+  if (!apiKey) {
+    console.error("No Hostfully API key found in credentials or environment");
+    return null;
+  }
+
   return {
-    api_key: data.api_key,
+    api_key: apiKey,
     environment: data.environment as "sandbox" | "production",
     is_active: data.is_active,
     refresh_interval_minutes: data.refresh_interval_minutes || 60,
