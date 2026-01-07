@@ -60,7 +60,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
   {
     key: 'siteminder',
     name: 'SiteMinder',
-    description: 'Hotel commerce platform with channel management and booking engine',
+    description: 'Hotel commerce platform with channel management',
   },
   {
     key: 'mews',
@@ -87,7 +87,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
   {
     key: 'roomracoon',
     name: 'RoomRaccoon',
-    description: 'All-in-one hotel management system with channel manager and booking engine',
+    description: 'All-in-one hotel management system with channel manager',
   },
 ];
 

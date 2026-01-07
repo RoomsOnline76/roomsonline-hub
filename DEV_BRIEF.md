@@ -2,7 +2,7 @@
 
 ## Overview
 
-RoomsOnline is a **unified booking engine** for vacation rentals, hotels, and B&Bs that integrates with multiple Property Management Systems (PMS). It serves as a central platform connecting property owners to various booking systems while providing a consistent booking experience for guests.
+RoomsOnline is a **curated booking platform** for vacation rentals, hotels, and B&Bs that integrates with multiple Property Management Systems (PMS). It serves as a central platform connecting property owners to various booking systems while providing a consistent booking experience for guests.
 
 ### Key Capabilities
 - Multi-PMS integration (Benson, NightsBridge, Checkfront, SiteMinder, **RoomsOnline Native**)
@@ -362,7 +362,7 @@ This code block is marked with ASCII art banner and MUST NOT be removed or bypas
 
 ## Key Architectural Decisions
 
-1. **PMS-Agnostic Data Model** - Unified internal schema with mapping layer for external IDs
+1. **PMS-Agnostic Data Model** - Standardized internal schema with mapping layer for external IDs
 2. **Cache Never Authoritative** - All booking creation verifies live with PMS
 3. **Benson-Only Internal Booking** - Full booking flow only for Benson; NightsBridge redirects externally
 4. **Multi-Domain Deployment** - Same codebase serves admin console and public booking page based on hostname

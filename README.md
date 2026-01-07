@@ -1,10 +1,10 @@
-# RoomsOnline - Unified Booking Engine
+# RoomsOnline — Rooms done Right
 
 //resync push 20251225 1230
 
 ## Project Overview
 
-RoomsOnline is a unified booking engine for vacation rentals, hotels, and B&Bs that integrates with multiple Property Management Systems (PMS). The platform provides centralized management of properties, rates, availability, and bookings across different external systems.
+RoomsOnline is a curated booking platform for vacation rentals, hotels, and B&Bs that integrates with multiple Property Management Systems (PMS). The platform provides centralized management of properties, rates, availability, and bookings across different external systems.
 
 ---
 

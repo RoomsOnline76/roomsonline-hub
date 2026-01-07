@@ -4,7 +4,7 @@
  * Isolation layers:
  * 1. Headline Template Layer — Fixed sentence structure with substitution slots
  * 2. Substitution Options Layer — Isolated word/phrase lists per slot
- * 3. Unified Output — Single-line proposition rendering
+ * 3. Composed Output — Single-line proposition rendering
  */
 
 // Isolation Layer 1: Headline Templates

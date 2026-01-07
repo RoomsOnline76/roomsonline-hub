@@ -3020,8 +3020,8 @@ export default function AdminKeys() {
                 <AccordionContent>
                   <div className="pt-4 space-y-4">
                     <p className="text-sm text-muted-foreground">
-                      RoomsOnline's proprietary API for direct property management and booking engine integration. 
-                      <strong>This will become the unified interface for properties not using third-party PMS systems.</strong>
+                      RoomsOnline's proprietary API for direct property management. 
+                      <strong>This will become the primary interface for properties not using third-party PMS systems.</strong>
                     </p>
                     <div className="p-4 rounded-lg border bg-background text-center space-y-2">
                       <p className="text-sm font-medium">Planned Capabilities</p>
