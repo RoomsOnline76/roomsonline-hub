@@ -9,9 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useMobileBooking } from "@/contexts/MobileBookingContext";
 import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 import TripAdvisorReviews from "@/components/TripAdvisorReviews";
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { FloatingDateGuestPicker } from "@/components/booking/FloatingDateGuestPicker";
+import { LuxuryRoomCard } from "@/components/booking/LuxuryRoomCard";
+import { BookingSkeleton } from "@/components/booking/BookingSkeleton";
 import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
 import rolLogo from "@/assets/rol-logo.png";
 import { 
@@ -202,9 +206,11 @@ interface BookingRoom {
 export default function PropertyShowcase() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
   const { currency } = useCurrency();
-  const [property, setProperty] = useState<Property | null>(null);
+  const { setProperty } = useMobileBooking();
+  const [property, setPropertyData] = useState<Property | null>(null);
   const [availability, setAvailability] = useState<Map<string, AvailabilityData>>(new Map());
   const [nightsBridgeAgentCode, setNightsBridgeAgentCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -287,7 +293,12 @@ export default function PropertyShowcase() {
         ? (propertyData.images as string[])
         : [];
       
-      setProperty({ ...propertyData, images });
+      setPropertyData({ ...propertyData, images });
+      
+      // Update mobile booking context with property info
+      if (propertyData.id && propertyData.name) {
+        setProperty(propertyData.id, propertyData.name, propertyData.slug || propertyData.id);
+      }
 
       // Fetch availability data from pms_availability_cache for today
       const today = new Date().toISOString().split('T')[0];
@@ -512,16 +523,7 @@ export default function PropertyShowcase() {
   if (loading) {
     return (
       <PublicLayout hideHeader>
-        <div className="h-[60vh] bg-muted animate-pulse" />
-        <div className="container mx-auto px-4 py-8">
-          <Skeleton className="h-12 w-1/2 mb-4" />
-          <Skeleton className="h-6 w-1/3 mb-8" />
-          <div className="grid md:grid-cols-3 gap-6">
-            <Skeleton className="h-64" />
-            <Skeleton className="h-64" />
-            <Skeleton className="h-64" />
-          </div>
-        </div>
+        <BookingSkeleton />
       </PublicLayout>
     );
   }
@@ -764,8 +766,8 @@ export default function PropertyShowcase() {
         </div>
       </section>
 
-      {/* Main Content */}
-      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-10">
+      {/* Main Content - add padding at bottom for floating picker */}
+      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-10 pb-32">
         {/* Description */}
         {property.description && (
           <section className="mb-6 sm:mb-12">
@@ -894,136 +896,43 @@ export default function PropertyShowcase() {
           )}
           
           {roomTypes.length > 0 ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="space-y-4">
               {roomTypes.map((room) => {
-                const availData = getAvailabilityForRoom(room);
                 const lowestRate = getLowestRateForRoom(room);
-                const availableUnits = availData?.available_units;
                 const roomImages = (room as any).images || [];
                 const roomImage = roomImages[0] || room.url || (property.images.length > 0 ? property.images[0] : null);
                 const bookedCount = getBookedCountForRoom(room);
                 const remainingUnits = getRemainingAvailability(room);
                 const isFullyBooked = remainingUnits !== undefined && remainingUnits <= 0;
-                const isAddRoomMode = searchParams.get('addRoom') === 'true';
+                
+                // Transform room type to LuxuryRoomCard format
+                const roomData = {
+                  id: room.id,
+                  name: room.name,
+                  description: room.description,
+                  images: roomImages.length > 0 ? roomImages : (roomImage ? [roomImage] : []),
+                  maxPeople: room.maxPeople || room.maxAdults,
+                  maxAdults: room.maxAdults,
+                  maxChildren: room.maxChildren,
+                  bedConfiguration: room.bedConfiguration,
+                  roomSize: room.roomSize,
+                  bathrooms: room.bathrooms,
+                  pmsRoomId: room.pmsRoomId,
+                };
                 
                 return (
-                  <div 
-                    key={room.id} 
-                    className={cn(
-                      "group",
-                      isFullyBooked ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
-                    )}
-                    onClick={() => !isFullyBooked && handleRoomClick(room)}
-                  >
-                    {/* Room Image with Badges */}
-                    <div className="relative aspect-[4/3] rounded-lg overflow-hidden mb-3">
-                      {roomImage ? (
-                        <img
-                          src={roomImage}
-                          alt={room.name}
-                          className={cn(
-                            "w-full h-full object-cover transition-transform duration-300",
-                            !isFullyBooked && "group-hover:scale-105"
-                          )}
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-muted flex items-center justify-center">
-                          <Bed className="h-12 w-12 text-muted-foreground/30" />
-                        </div>
-                      )}
-                      
-                      {/* Overlay gradient */}
-                      <div className={cn(
-                        "absolute inset-0 bg-gradient-to-t from-black/30 to-transparent transition-opacity",
-                        isFullyBooked ? "opacity-50" : "opacity-0 group-hover:opacity-100"
-                      )} />
-                      
-                      {/* Badges */}
-                      <div className="absolute top-3 left-3 flex flex-wrap gap-2">
-                        {/* Already added badge */}
-                        {bookedCount > 0 && isAddRoomMode && (
-                          <Badge className="bg-green-600 text-white text-xs font-semibold uppercase tracking-wider shadow-lg">
-                            <Check className="h-3 w-3 mr-1" />
-                            {bookedCount} Added
-                          </Badge>
-                        )}
-                        {!isFullyBooked && (
-                          <Badge className="bg-primary text-primary-foreground text-xs font-semibold uppercase tracking-wider shadow-lg">
-                            Instant Book
-                          </Badge>
-                        )}
-                        {remainingUnits !== undefined && remainingUnits <= 2 && remainingUnits > 0 && (
-                          <Badge className="bg-amber-600 text-white text-xs font-semibold uppercase tracking-wider shadow-lg">
-                            Only {remainingUnits} left
-                          </Badge>
-                        )}
-                        {isFullyBooked && (
-                          <Badge variant="destructive" className="text-xs font-semibold uppercase tracking-wider shadow-lg">
-                            {bookedCount > 0 ? 'All Reserved' : 'Sold Out'}
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Bottom right - units remaining indicator in add room mode */}
-                      {isAddRoomMode && remainingUnits !== undefined && !isFullyBooked && (
-                        <div className="absolute bottom-3 right-3">
-                          <Badge variant="secondary" className="bg-background/90 text-foreground text-xs font-medium shadow-lg">
-                            {remainingUnits} unit{remainingUnits !== 1 ? 's' : ''} available
-                          </Badge>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Room Info */}
-                    <div className="space-y-1">
-                      {/* Location/Property Type */}
-                      <p className="text-xs text-muted-foreground capitalize">
-                        {property.property_type.replace('_', ' ')} in {property.city}
-                      </p>
-                      
-                      {/* Room Name */}
-                      <h3 className={cn(
-                        "text-base font-bold uppercase tracking-wide transition-colors",
-                        isFullyBooked ? "text-muted-foreground" : "text-foreground group-hover:text-primary"
-                      )}>
-                        {room.name}
-                      </h3>
-                      
-                      {/* Room Details */}
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        {room.maxPeople && (
-                          <div className="flex items-center gap-1">
-                            <Users className="h-3.5 w-3.5" />
-                            <span>{room.maxPeople} guest{room.maxPeople > 1 ? 's' : ''}</span>
-                          </div>
-                        )}
-                        {room.bathrooms && (
-                          <div className="flex items-center gap-1">
-                            <Bath className="h-3.5 w-3.5" />
-                            <span>{room.bathrooms} bath{room.bathrooms > 1 ? 's' : ''}</span>
-                          </div>
-                        )}
-                        {room.roomSize && (
-                          <div className="flex items-center gap-1">
-                            <span>{room.roomSize} m²</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Pricing */}
-                      <div className="pt-2">
-                        {lowestRate !== null ? (
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-[10px] text-muted-foreground uppercase">From</span>
-                            <FormattedPrice amount={lowestRate} className="text-lg font-bold text-primary" />
-                            <span className="text-[10px] text-muted-foreground uppercase">per night</span>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-muted-foreground italic">Contact for rates</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <LuxuryRoomCard
+                    key={room.id}
+                    room={roomData}
+                    lowestRate={lowestRate}
+                    availableUnits={remainingUnits}
+                    onSelect={() => {
+                      if (!isFullyBooked) {
+                        handleRoomClick(room);
+                      }
+                    }}
+                    onViewDetails={() => handleRoomClick(room)}
+                  />
                 );
               })}
             </div>
@@ -1205,6 +1114,14 @@ export default function PropertyShowcase() {
         externalUrl={externalBookingUrl}
         propertyName={property?.name}
       />
+      
+      {/* Floating Date/Guest Picker for Benson properties */}
+      {isBensonProperty && (
+        <FloatingDateGuestPicker
+          onContinue={() => scrollToRooms()}
+          ctaLabel="Check Rates"
+        />
+      )}
     </PublicLayout>
   );
 }
