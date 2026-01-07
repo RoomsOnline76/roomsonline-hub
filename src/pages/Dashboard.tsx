@@ -9,11 +9,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { InsightPanelTrigger } from "@/components/InsightPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, differenceInDays } from "date-fns";
-import { CalendarIcon, CalendarDays, XCircle, Building2, Download, TrendingUp, TrendingDown, Percent, BedDouble, Sparkles, Send, Loader2, Search } from "lucide-react";
+import { CalendarIcon, CalendarDays, XCircle, Building2, Download, TrendingUp, TrendingDown, Percent, BedDouble, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, LineChart, Line, ComposedChart, Cell, ReferenceLine, PieChart, Pie } from "recharts";
 import { DateRange } from "react-day-picker";
@@ -40,9 +41,6 @@ const Dashboard = () => {
   const [selectedType, setSelectedType] = useState<string>("all");
   const [propertySearch, setPropertySearch] = useState<string>("");
   const [drillDownDate, setDrillDownDate] = useState<string | null>(null);
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [aiInsight, setAiInsight] = useState<string | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
     const now = new Date();
     return {
@@ -442,56 +440,6 @@ const Dashboard = () => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
-
-  // AI Insights function
-  const fetchAiInsight = async () => {
-    if (!aiPrompt.trim()) {
-      toast.error("Please enter a question for AI analysis");
-      return;
-    }
-    
-    setAiLoading(true);
-    setAiInsight(null);
-    
-    try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dashboard-insights`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          prompt: aiPrompt,
-          dashboardData: {
-            stats,
-            chartData,
-            propertyBreakdown,
-          },
-        }),
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        if (response.status === 429) {
-          toast.error("Rate limit exceeded. Please try again later.");
-        } else if (response.status === 402) {
-          toast.error("AI credits exhausted. Please add credits to your workspace.");
-        } else {
-          toast.error(data.error || "Failed to get AI insight");
-        }
-        return;
-      }
-      
-      const data = await response.json();
-      setAiInsight(data.insight);
-    } catch (error) {
-      console.error("AI insight error:", error);
-      toast.error("Failed to get AI insight");
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
   // Generate chart data
   // Simple Moving Average (12-period rolling mean for trend)
   // Handles early months by using available data (expanding window until period is reached)
@@ -1261,36 +1209,6 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* AI Insights - compact */}
-        <Card className="mb-3 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent p-2">
-          <div className="flex items-center gap-2 mb-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs font-medium">AI Insights</span>
-          </div>
-          <div className="flex gap-1.5">
-            <Input
-              placeholder="Ask about your data..."
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !aiLoading && fetchAiInsight()}
-              className="flex-1 h-7 text-xs"
-            />
-            <Button size="sm" className="h-7 px-2" onClick={fetchAiInsight} disabled={aiLoading || !aiPrompt.trim()}>
-              {aiLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-            </Button>
-          </div>
-          {aiInsight && (
-            <div className="mt-1.5 p-2 rounded bg-primary/10 border border-primary/20">
-              <p className="text-xs leading-relaxed">{aiInsight}</p>
-            </div>
-          )}
-          {!aiInsight && !aiLoading && (
-            <p className="text-[10px] text-muted-foreground mt-1">
-              "What's the top revenue driver?" • "Any concerning trends?"
-            </p>
-          )}
-        </Card>
-
         {/* Charts - compact */}
         <div className="grid gap-3 lg:grid-cols-2">
           <Card className="p-2">
@@ -1557,6 +1475,48 @@ const Dashboard = () => {
             </Card>
           </div>
         )}
+
+      {/* Floating AI Insight Panel */}
+      <InsightPanelTrigger 
+        onAnalyze={async (prompt) => {
+          try {
+            const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dashboard-insights`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              },
+              body: JSON.stringify({
+                prompt,
+                dashboardData: {
+                  stats,
+                  chartData,
+                  propertyBreakdown,
+                },
+              }),
+            });
+            
+            if (!response.ok) {
+              const data = await response.json();
+              if (response.status === 429) {
+                toast.error("Rate limit exceeded. Please try again later.");
+              } else if (response.status === 402) {
+                toast.error("AI credits exhausted. Please add credits to your workspace.");
+              } else {
+                toast.error(data.error || "Failed to get AI insight");
+              }
+              return null;
+            }
+            
+            const data = await response.json();
+            return data.insight;
+          } catch (error) {
+            console.error("AI insight error:", error);
+            toast.error("Failed to get AI insight");
+            return null;
+          }
+        }}
+      />
     </AppLayout>
   );
 };
