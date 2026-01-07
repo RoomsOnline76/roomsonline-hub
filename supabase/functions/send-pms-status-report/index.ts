@@ -21,8 +21,14 @@ interface TrackerData {
   has_get: boolean;
   has_post: boolean;
   is_production: boolean;
-  notes: string | null;
   additional_info: Record<string, string> | null;
+}
+
+interface NoteLogEntry {
+  system_type: string;
+  note_content: string;
+  created_at: string;
+  created_by_name: string | null;
 }
 
 const getPMSDisplayName = (key: string): string => {
@@ -54,7 +60,26 @@ const getStatusColor = (status: string): string => {
   return '#6b7280';
 };
 
-const generateEmailHtml = (trackerData: TrackerData[], generatedDate: string): string => {
+const formatNoteDate = (dateStr: string): string => {
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-ZA', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return dateStr;
+  }
+};
+
+const generateEmailHtml = (
+  trackerData: TrackerData[], 
+  notesLog: NoteLogEntry[],
+  generatedDate: string
+): string => {
   const completedCount = trackerData.filter(t => t.status?.toLowerCase() === 'complete').length;
   const inProgressCount = trackerData.filter(t => 
     t.status?.toLowerCase().includes('wait') || 
@@ -75,7 +100,6 @@ const generateEmailHtml = (trackerData: TrackerData[], generatedDate: string): s
 
   const tableRows = sortedData.map(row => {
     const progressFlags = [row.has_access, row.has_docs, row.has_edge, row.has_get, row.has_post, row.is_production];
-    const progressCount = progressFlags.filter(Boolean).length;
     const statusColor = getStatusColor(row.status);
     
     // Build contact display
@@ -129,14 +153,33 @@ const generateEmailHtml = (trackerData: TrackerData[], generatedDate: string): s
     `;
   }).join('');
 
-  const notesSection = trackerData
-    .filter(r => r.notes && r.notes.trim())
-    .map(row => `
+  // Group notes by system_type
+  const notesBySystem: Record<string, NoteLogEntry[]> = {};
+  notesLog.forEach(note => {
+    if (!notesBySystem[note.system_type]) {
+      notesBySystem[note.system_type] = [];
+    }
+    notesBySystem[note.system_type].push(note);
+  });
+
+  // Build notes section with timestamps
+  const notesSection = Object.entries(notesBySystem)
+    .sort(([a], [b]) => getPMSDisplayName(a).localeCompare(getPMSDisplayName(b)))
+    .map(([systemType, notes]) => `
       <tr>
         <td style="padding: 0 40px 16px;">
           <div style="background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%); border-left: 4px solid #1a1a2e; padding: 16px 20px; border-radius: 0 8px 8px 0;">
-            <strong style="color: #1a1a2e; font-size: 14px;">${getPMSDisplayName(row.system_type)}</strong>
-            <p style="margin: 10px 0 0; color: #4a5568; font-size: 13px; line-height: 1.6; white-space: pre-wrap;">${row.notes}</p>
+            <strong style="color: #1a1a2e; font-size: 14px;">${getPMSDisplayName(systemType)}</strong>
+            <div style="margin-top: 12px;">
+              ${notes.map(note => `
+                <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
+                  <div style="font-size: 11px; color: #718096; margin-bottom: 4px;">
+                    <strong>${note.created_by_name || 'Unknown'}</strong> • ${formatNoteDate(note.created_at)}
+                  </div>
+                  <p style="margin: 0; color: #4a5568; font-size: 13px; line-height: 1.6; white-space: pre-wrap;">${note.note_content}</p>
+                </div>
+              `).join('')}
+            </div>
           </div>
         </td>
       </tr>
@@ -231,7 +274,7 @@ const generateEmailHtml = (trackerData: TrackerData[], generatedDate: string): s
           ${notesSection ? `
           <tr>
             <td style="padding: 0 40px 10px;">
-              <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">Development Notes</h2>
+              <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">Development Notes Log</h2>
             </td>
           </tr>
           ${notesSection}
@@ -267,17 +310,28 @@ const handler = async (req: Request): Promise<Response> => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Fetch tracker data
-    const { data: trackerData, error } = await supabase
+    const { data: trackerData, error: trackerError } = await supabase
       .from('pms_tracker_status')
       .select('*')
       .order('system_type');
 
-    if (error) {
-      console.error("Error fetching tracker data:", error);
-      throw error;
+    if (trackerError) {
+      console.error("Error fetching tracker data:", trackerError);
+      throw trackerError;
     }
 
-    console.log(`Fetched ${trackerData?.length || 0} tracker records`);
+    // Fetch notes log with timestamps
+    const { data: notesLog, error: notesError } = await supabase
+      .from('pms_dev_notes_log')
+      .select('system_type, note_content, created_at, created_by_name')
+      .order('created_at', { ascending: false });
+
+    if (notesError) {
+      console.error("Error fetching notes log:", notesError);
+      // Continue without notes if there's an error
+    }
+
+    console.log(`Fetched ${trackerData?.length || 0} tracker records, ${notesLog?.length || 0} notes`);
 
     const generatedDate = new Date().toLocaleDateString('en-ZA', {
       weekday: 'long',
@@ -288,7 +342,7 @@ const handler = async (req: Request): Promise<Response> => {
       minute: '2-digit',
     });
 
-    const emailHtml = generateEmailHtml(trackerData || [], generatedDate);
+    const emailHtml = generateEmailHtml(trackerData || [], notesLog || [], generatedDate);
 
     // Send email via Resend API
     const emailResponse = await fetch("https://api.resend.com/emails", {

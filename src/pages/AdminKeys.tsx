@@ -2783,11 +2783,7 @@ export default function AdminKeys() {
             </div>
             
             {/* Dev Notes */}
-            <PMSDevNotes 
-              systemType={systemType} 
-              initialNotes={tracker?.notes || ""} 
-              onNotesUpdated={() => fetchTrackerData()}
-            />
+            <PMSDevNotes systemType={systemType} />
           </div>
         </AccordionContent>
       </AccordionItem>

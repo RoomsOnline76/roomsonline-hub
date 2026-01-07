@@ -606,6 +606,36 @@ export type Database = {
         }
         Relationships: []
       }
+      pms_dev_notes_log: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          created_by_email: string | null
+          created_by_name: string | null
+          id: string
+          note_content: string
+          system_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          created_by_email?: string | null
+          created_by_name?: string | null
+          id?: string
+          note_content: string
+          system_type: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          created_by_email?: string | null
+          created_by_name?: string | null
+          id?: string
+          note_content?: string
+          system_type?: string
+        }
+        Relationships: []
+      }
       pms_mappings: {
         Row: {
           created_at: string | null
