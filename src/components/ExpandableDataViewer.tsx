@@ -40,9 +40,9 @@ export function ExpandableDataViewer({
     if (Array.isArray(value)) return <Badge variant="outline" className="text-xs font-mono ml-2">Array[{value.length}]</Badge>;
     if (value === null) return <Badge variant="outline" className="text-xs font-mono ml-2 text-muted-foreground">null</Badge>;
     if (typeof value === "object") return <Badge variant="outline" className="text-xs font-mono ml-2">Object</Badge>;
-    if (typeof value === "number") return <Badge variant="outline" className="text-xs font-mono ml-2 text-blue-600">number</Badge>;
-    if (typeof value === "boolean") return <Badge variant="outline" className="text-xs font-mono ml-2 text-purple-600">boolean</Badge>;
-    if (typeof value === "string") return <Badge variant="outline" className="text-xs font-mono ml-2 text-green-600">string</Badge>;
+    if (typeof value === "number") return <Badge variant="outline" className="text-xs font-mono ml-2 text-status-syncing">number</Badge>;
+    if (typeof value === "boolean") return <Badge variant="outline" className="text-xs font-mono ml-2 text-primary">boolean</Badge>;
+    if (typeof value === "string") return <Badge variant="outline" className="text-xs font-mono ml-2 text-status-healthy">string</Badge>;
     return null;
   };
   
