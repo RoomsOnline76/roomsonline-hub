@@ -2901,51 +2901,51 @@ export default function AdminKeys() {
           {/* Global Settings Section */}
           <div className="mb-8">
             <h2 className="text-xl font-semibold mb-4">Global Settings</h2>
-            <Card>
-              <CardHeader>
-                <div className="flex items-start gap-3">
-                  <div className="mt-1">
+            <Accordion type="multiple" className="space-y-4">
+              <AccordionItem value="navigation-settings" className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center gap-3">
                     <Settings className="h-5 w-5 text-primary" />
+                    <span className="font-semibold">Navigation Settings</span>
                   </div>
-                  <div>
-                    <CardTitle>Navigation Settings</CardTitle>
-                    <CardDescription className="mt-1">
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-4 space-y-6">
+                    <p className="text-sm text-muted-foreground">
                       Configure global navigation behavior for the application
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="book-new-tab">Open Book page in new tab</Label>
-                    <p className="text-sm text-muted-foreground">
-                      When enabled, clicking the "Book" button in the navbar opens the booking page in a new browser tab
                     </p>
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="book-new-tab">Open Book page in new tab</Label>
+                        <p className="text-sm text-muted-foreground">
+                          When enabled, clicking the "Book" button in the navbar opens the booking page in a new browser tab
+                        </p>
+                      </div>
+                      <Switch
+                        id="book-new-tab"
+                        checked={bookOpenNewTab}
+                        onCheckedChange={handleSaveBookOpenNewTab}
+                        disabled={savingBookOpenNewTab}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="home-icon-new-tab">Open Home icon in new tab</Label>
+                        <p className="text-sm text-muted-foreground">
+                          When enabled, clicking the Home icon in property edit pages opens in a new browser tab
+                        </p>
+                      </div>
+                      <Switch
+                        id="home-icon-new-tab"
+                        checked={homeIconOpenNewTab}
+                        onCheckedChange={handleSaveHomeIconOpenNewTab}
+                        disabled={savingHomeIconOpenNewTab}
+                      />
+                    </div>
                   </div>
-                  <Switch
-                    id="book-new-tab"
-                    checked={bookOpenNewTab}
-                    onCheckedChange={handleSaveBookOpenNewTab}
-                    disabled={savingBookOpenNewTab}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="home-icon-new-tab">Open Home icon in new tab</Label>
-                    <p className="text-sm text-muted-foreground">
-                      When enabled, clicking the Home icon in property edit pages opens in a new browser tab
-                    </p>
-                  </div>
-                  <Switch
-                    id="home-icon-new-tab"
-                    checked={homeIconOpenNewTab}
-                    onCheckedChange={handleSaveHomeIconOpenNewTab}
-                    disabled={savingHomeIconOpenNewTab}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </div>
 
           {/* RoomsOnline API Section */}
