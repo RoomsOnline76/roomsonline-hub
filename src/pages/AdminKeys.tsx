@@ -12,6 +12,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { ApiMilestones } from "@/components/ApiMilestones";
 import { TOTAL_PMS_SYSTEMS_COUNT, ALL_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
+import PMSTrackerStatusDisplay from "@/components/PMSTrackerStatus";
+import PMSDevNotes from "@/components/PMSDevNotes";
+import { PMSTrackerStatus } from "@/lib/pmsTrackerConfig";
 import {
   Key,
   AlertCircle,
@@ -26,6 +29,8 @@ import {
   LucideIcon,
   Settings,
   Star,
+  Send,
+  Loader2,
 } from "lucide-react";
 
 // Map PMS system types to icons
@@ -212,6 +217,10 @@ export default function AdminKeys() {
   const [roomsonlineActive, setRoomsonlineActive] = useState(false);
   const [togglingRoomsonline, setTogglingRoomsonline] = useState(false);
 
+  // PMS Tracker status state
+  const [trackerData, setTrackerData] = useState<Record<string, PMSTrackerStatus>>({});
+  const [sendingStatusReport, setSendingStatusReport] = useState(false);
+
   useEffect(() => {
     fetchApiKeys();
     fetchBensonCredentials();
@@ -226,7 +235,57 @@ export default function AdminKeys() {
     fetchTripadvisorConfig();
     fetchGlobalSettings();
     fetchRoomsonlineStatus();
+    fetchTrackerData();
   }, []);
+
+  const fetchTrackerData = async () => {
+    const { data, error } = await supabase
+      .from('pms_tracker_status')
+      .select('*');
+    
+    if (data && !error) {
+      const mapped: Record<string, PMSTrackerStatus> = {};
+      data.forEach((row) => {
+        mapped[row.system_type] = {
+          system_type: row.system_type,
+          status: row.status || 'Unknown',
+          contact_person: row.contact_person || undefined,
+          has_access: row.has_access || false,
+          has_docs: row.has_docs || false,
+          has_edge: row.has_edge || false,
+          has_get: row.has_get || false,
+          has_post: row.has_post || false,
+          is_production: row.is_production || false,
+          notes: row.notes || undefined,
+          additional_info: row.additional_info as PMSTrackerStatus['additional_info'],
+        };
+      });
+      setTrackerData(mapped);
+    }
+  };
+
+  const sendStatusReport = async () => {
+    setSendingStatusReport(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-pms-status-report');
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Status report sent",
+        description: "PMS integration status report has been sent to dev@roomsonline.co.za",
+      });
+    } catch (error: any) {
+      console.error('Error sending status report:', error);
+      toast({
+        title: "Error sending report",
+        description: error.message || "Failed to send status report",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingStatusReport(false);
+    }
+  };
 
   const fetchResendConfig = async () => {
     const { data } = await supabase
@@ -2676,6 +2735,7 @@ export default function AdminKeys() {
   // Placeholder card for upcoming PMS integrations
   const renderPlaceholderPMSCard = (name: string, systemType: string, description: string) => {
     const Icon = getPMSIcon(systemType);
+    const tracker = trackerData[systemType];
     return (
       <AccordionItem key={systemType} value={systemType} className="border rounded-lg px-4 opacity-60">
         <AccordionTrigger className="hover:no-underline">
@@ -2686,6 +2746,7 @@ export default function AdminKeys() {
               <Badge variant="outline" className="text-xs">Coming Soon</Badge>
             </div>
             <div className="flex items-center gap-2">
+              {tracker && <PMSTrackerStatusDisplay tracker={tracker} compact />}
               <Badge variant="secondary" className="flex items-center gap-1">
                 <AlertCircle className="h-3 w-3" />
                 Not Available
@@ -2696,11 +2757,22 @@ export default function AdminKeys() {
         <AccordionContent>
           <div className="pt-4 space-y-4">
             <p className="text-sm text-muted-foreground">{description}</p>
+            
+            {/* Tracker Status */}
+            <PMSTrackerStatusDisplay tracker={tracker} />
+            
             <div className="p-4 rounded-lg border bg-muted/50 text-center">
               <p className="text-sm text-muted-foreground">
                 This integration is planned for a future release. Contact support for more information.
               </p>
             </div>
+            
+            {/* Dev Notes */}
+            <PMSDevNotes 
+              systemType={systemType} 
+              initialNotes={tracker?.notes || ""} 
+              onNotesUpdated={() => fetchTrackerData()}
+            />
           </div>
         </AccordionContent>
       </AccordionItem>
@@ -2835,7 +2907,23 @@ export default function AdminKeys() {
 
           {/* PMS Systems Section - Alphabetically ordered */}
           <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">Property Management Systems</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Property Management Systems</h2>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={sendStatusReport}
+                disabled={sendingStatusReport}
+                className="gap-2"
+              >
+                {sendingStatusReport ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                Email Status Report
+              </Button>
+            </div>
             <Accordion type="multiple" className="space-y-4">
               {renderBensonCard()}
               {renderCheckfrontCard()}
