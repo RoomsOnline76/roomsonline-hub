@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Bed } from "lucide-react";
 import RoomAvailabilityCalendar from "@/components/RoomAvailabilityCalendar";
+import { PublicLayout } from "@/components/layout/PublicLayout";
 
 interface RoomType {
   id: string;
@@ -75,27 +76,30 @@ export default function RoomAvailability() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-8">
-          <Skeleton className="h-10 w-1/3 mb-4" />
-          <Skeleton className="h-96 w-full max-w-2xl mx-auto" />
+      <PublicLayout>
+        <div className="container mx-auto px-4 py-12">
+          <Skeleton className="h-8 w-48 mb-2" />
+          <Skeleton className="h-5 w-32 mb-8" />
+          <Skeleton className="h-96 w-full max-w-2xl mx-auto rounded-lg" />
         </div>
-      </div>
+      </PublicLayout>
     );
   }
 
   if (!property || !room) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Bed className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
-          <h1 className="text-2xl font-bold mb-4">Room Not Found</h1>
-          <p className="text-muted-foreground mb-6">The room you're looking for doesn't exist.</p>
+      <PublicLayout>
+        <div className="container mx-auto px-4 py-24 text-center">
+          <Bed className="h-16 w-16 mx-auto mb-6 text-muted-foreground/20" />
+          <h1 className="font-display text-2xl sm:text-3xl mb-3">Room Not Found</h1>
+          <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+            The room you're looking for doesn't exist or is no longer available.
+          </p>
           <Link to="/">
             <Button>Return Home</Button>
           </Link>
         </div>
-      </div>
+      </PublicLayout>
     );
   }
 
