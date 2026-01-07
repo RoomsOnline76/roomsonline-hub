@@ -342,18 +342,6 @@ const PropertyOverview = () => {
                   <div className="text-center py-6">
                     <p className="text-muted-foreground text-xs">Loading properties...</p>
                   </div>
-                ) : activeProperties.length === 0 ? (
-                  <div className="text-center py-6">
-                    <Building2 className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                    <h3 className="text-sm font-semibold mb-1">No Active Properties</h3>
-                    <p className="text-muted-foreground text-xs mb-3">
-                      Add your first property to get started
-                    </p>
-                    <Button onClick={() => navigate('/admin/properties/new')} className="h-7 text-xs px-2">
-                      <Building2 className="mr-1 h-3 w-3" />
-                      Add Property
-                    </Button>
-                  </div>
                 ) : (
                   <Table>
                     <TableHeader>
@@ -448,7 +436,30 @@ const PropertyOverview = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {activeProperties.map((property) => (
+                      {activeProperties.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center py-6">
+                            {(searchName || searchPms || searchHero || searchPropertyType) ? (
+                              <div>
+                                <AlertTriangle className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
+                                <p className="text-muted-foreground text-xs">No properties match your search criteria</p>
+                              </div>
+                            ) : (
+                              <div>
+                                <Building2 className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                                <h3 className="text-sm font-semibold mb-1">No Active Properties</h3>
+                                <p className="text-muted-foreground text-xs mb-3">
+                                  Add your first property to get started
+                                </p>
+                                <Button onClick={() => navigate('/admin/properties/new')} className="h-7 text-xs px-2">
+                                  <Building2 className="mr-1 h-3 w-3" />
+                                  Add Property
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ) : activeProperties.map((property) => (
                         <TableRow key={property.id} className="h-8">
                           <TableCell className="font-medium py-1 text-xs">
                             <div className="flex items-center gap-1">
