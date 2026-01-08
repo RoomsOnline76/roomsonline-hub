@@ -757,143 +757,169 @@ export default function PropertyForm() {
     }
 
     setFullSyncingHostfully(true);
-    setSyncProgress({ phase: "Importing rooms...", current: 0, total: 0 });
 
     try {
-      // PHASE 1: Import rooms (reuse existing logic)
-      const { data, error } = await supabase.functions.invoke("hostfully-api", {
-        body: {
-          action: "list_all_properties",
-          owner_credential_id: ownerPmsCredentialId,
-        },
-      });
+      // Get all rooms for this property that have Hostfully UIDs
+      const { data: existingRooms, error: fetchError } = await supabase
+        .from("hostfully_room_types")
+        .select("id, hostfully_room_id, name")
+        .eq("property_id", propertyId)
+        .not("hostfully_room_id", "is", null);
 
-      if (error) throw error;
-      if (!data?.data?.properties) throw new Error("No properties returned from Hostfully");
-
-      const buildings = parseHostfullyProperties(data.data.properties);
-      const matchingBuilding = buildings.find(
-        (b) => b.building_name.toUpperCase() === formData.name.toUpperCase()
-      );
-
-      if (!matchingBuilding) {
+      if (fetchError) throw fetchError;
+      
+      console.log("[DEBUG] Found rooms:", existingRooms);
+      
+      if (!existingRooms || existingRooms.length === 0) {
         toast({
-          title: "No Matching Building",
-          description: `Could not find "${formData.name}" in Hostfully`,
+          title: "No Rooms Found",
+          description: "No Hostfully rooms linked to this property. Import rooms first.",
           variant: "destructive",
         });
         setFullSyncingHostfully(false);
-        setSyncProgress(null);
         return;
       }
 
-      // Upsert all rooms and collect their DB IDs
-      const importedRoomIds: { dbId: string; hostfullyId: string }[] = [];
-      for (const unit of matchingBuilding.units) {
-        const roomName = `${unit.room_number} ${unit.room_type}`.trim() || unit.name;
-        const { data: upsertedRoom, error: upsertError } = await supabase
-          .from("hostfully_room_types")
-          .upsert(
-            {
-              property_id: propertyId,
-              hostfully_room_id: unit.id,
-              name: roomName,
-              is_active: true,
-            },
-            { onConflict: "property_id,hostfully_room_id" }
-          )
-          .select("id")
-          .single();
-
-        if (!upsertError && upsertedRoom) {
-          importedRoomIds.push({ dbId: upsertedRoom.id, hostfullyId: unit.id });
-        }
-      }
+      toast({
+        title: "DEBUG: Rooms Found",
+        description: `${existingRooms.length} rooms with UIDs: ${existingRooms.map(r => r.name).join(', ')}`,
+      });
 
       // TESTING LIMIT: Only sync first 1 room
-      const roomsToSync = importedRoomIds.slice(0, 1);
-      setSyncProgress({ phase: "Rooms imported. Populating data...", current: 0, total: roomsToSync.length });
+      const roomsToSync = existingRooms.slice(0, 1);
+      setSyncProgress({ 
+        phase: "Syncing room data...", 
+        current: 0, 
+        total: roomsToSync.length 
+      });
 
-      // PHASE 2: Populate each room's data sequentially
       let syncedCount = 0;
       for (const room of roomsToSync) {
         setSyncProgress({
-          phase: `Syncing room ${syncedCount + 1}/${roomsToSync.length}...`,
+          phase: `Syncing ${room.name}...`,
           current: syncedCount + 1,
           total: roomsToSync.length,
         });
 
-        // Call Hostfully API with get_listing_details
-        const { data: roomData, error: roomError } = await supabase.functions.invoke("hostfully-api", {
-          body: {
-            action: "get_listing_details",
-            owner_credential_id: ownerPmsCredentialId,
-            propertyUid: room.hostfullyId,
-          },
+        toast({
+          title: "DEBUG: Calling API",
+          description: `Room: ${room.name}, UID: ${room.hostfully_room_id}`,
         });
 
-        if (!roomError && roomData?.success) {
-          const hf = roomData.data;
-          const syncedFields = [
-            "name", "description", "maxPeople", "maxAdults", "minGuests", "bathrooms",
-            "roomSize", "beds", "images", "amenities", "minStay", "maxStay",
-            "checkInTime", "checkOutTime", "dailyRate", "currency", "cleaningFee",
-            "securityDeposit", "extraGuestFee", "taxRate", "propertyType",
-            "wifiNetwork", "wifiPassword", "houseRules", "checkInInstructions", "cancellationPolicy",
-            "addressStreet", "addressCity", "addressState", "addressPostalCode", "addressCountry",
-            "latitude", "longitude", "thumbnailUrl",
-          ];
-
-          const dbUpdate = {
-            name: hf.name,
-            description: hf.description,
-            max_guests: hf.max_guests,
-            min_guests: hf.min_guests,
-            bedrooms: hf.bedrooms,
-            bathrooms: hf.bathrooms,
-            beds: hf.beds,
-            room_size: hf.room_size,
-            room_size_unit: hf.room_size_unit || "SQUARE_METERS",
-            daily_rate: hf.daily_rate,
-            currency: hf.currency || "ZAR",
-            cleaning_fee: hf.cleaning_fee,
-            security_deposit: hf.security_deposit,
-            extra_guest_fee: hf.extra_guest_fee,
-            tax_rate: hf.tax_rate,
-            min_stay: hf.min_stay,
-            max_stay: hf.max_stay,
-            check_in_time: hf.check_in_time,
-            check_out_time: hf.check_out_time,
-            property_type: hf.property_type,
-            images: hf.images || [],
-            amenities: hf.amenities || [],
-            thumbnail_url: hf.thumbnail,
-            wifi_network: hf.wifi_network,
-            wifi_password: hf.wifi_password,
-            check_in_instructions: hf.check_in_instructions,
-            house_rules: hf.house_rules,
-            cancellation_policy: hf.cancellation_policy,
-            address_street: hf.address?.street,
-            address_city: hf.address?.city,
-            address_state: hf.address?.state,
-            address_postal_code: hf.address?.postal_code,
-            address_country: hf.address?.country,
-            latitude: hf.location?.latitude,
-            longitude: hf.location?.longitude,
-            pms_synced_fields: syncedFields,
-            last_synced_at: new Date().toISOString(),
-            raw_data: hf._raw || hf,
-          };
-
-          await supabase.from("hostfully_room_types").update(dbUpdate).eq("id", room.dbId);
-          
-          // TEMP DEBUG: Show which room was updated
-          toast({
-            title: "Room Synced",
-            description: `Updated: ${hf.name || 'Unknown'} (ID: ${room.hostfullyId})`,
+        // Call get_listing_details with stored UID
+        const { data: roomData, error: roomError } = await supabase
+          .functions.invoke("hostfully-api", {
+            body: {
+              action: "get_listing_details",
+              owner_credential_id: ownerPmsCredentialId,
+              propertyUid: room.hostfully_room_id,
+            },
           });
+
+        // DEBUG: Log what we received
+        console.log("[DEBUG] API Response for", room.name, ":", roomData);
+
+        if (roomError) {
+          console.error("[DEBUG] API Error:", roomError);
+          toast({
+            title: "DEBUG: API Failed",
+            description: `${room.name}: ${roomError.message}`,
+            variant: "destructive",
+          });
+          continue;
         }
-        syncedCount++;
+
+        if (!roomData?.success) {
+          console.error("[DEBUG] API returned failure:", roomData);
+          toast({
+            title: "DEBUG: API Returned Failure",
+            description: `${room.name}: ${roomData?.error || 'Unknown error'}`,
+            variant: "destructive",
+          });
+          continue;
+        }
+
+        const hf = roomData.data;
+        
+        toast({
+          title: "DEBUG: API Success",
+          description: `Received: ${hf.name}, guests: ${hf.max_guests}, rate: ${hf.daily_rate}`,
+        });
+
+        // Build update object with all 68 fields
+        const dbUpdate = {
+          name: hf.name,
+          description: hf.description,
+          max_guests: hf.max_guests,
+          min_guests: hf.min_guests,
+          bedrooms: hf.bedrooms,
+          bathrooms: hf.bathrooms,
+          beds: hf.beds,
+          room_size: hf.room_size,
+          room_size_unit: hf.room_size_unit || "SQUARE_METERS",
+          daily_rate: hf.daily_rate,
+          currency: hf.currency || "ZAR",
+          cleaning_fee: hf.cleaning_fee,
+          security_deposit: hf.security_deposit,
+          extra_guest_fee: hf.extra_guest_fee,
+          tax_rate: hf.tax_rate,
+          min_stay: hf.min_stay,
+          max_stay: hf.max_stay,
+          check_in_time: hf.check_in_time,
+          check_out_time: hf.check_out_time,
+          property_type: hf.property_type,
+          images: hf.images || [],
+          amenities: hf.amenities || [],
+          thumbnail_url: hf.thumbnail,
+          wifi_network: hf.wifi_network,
+          wifi_password: hf.wifi_password,
+          check_in_instructions: hf.check_in_instructions,
+          house_rules: hf.house_rules,
+          cancellation_policy: hf.cancellation_policy,
+          address_street: hf.address?.street,
+          address_city: hf.address?.city,
+          address_state: hf.address?.state,
+          address_postal_code: hf.address?.postal_code,
+          address_country: hf.address?.country,
+          latitude: hf.location?.latitude,
+          longitude: hf.location?.longitude,
+          pms_synced_fields: [
+            "name", "description", "maxPeople", "maxAdults", "minGuests", 
+            "bathrooms", "roomSize", "beds", "images", "amenities", 
+            "minStay", "maxStay", "checkInTime", "checkOutTime", 
+            "dailyRate", "currency", "cleaningFee", "securityDeposit", 
+            "extraGuestFee", "taxRate", "propertyType", "wifiNetwork", 
+            "wifiPassword", "houseRules", "checkInInstructions", 
+            "cancellationPolicy", "addressStreet", "addressCity", 
+            "addressState", "addressPostalCode", "addressCountry",
+            "latitude", "longitude", "thumbnailUrl",
+          ],
+          last_synced_at: new Date().toISOString(),
+          raw_data: hf._raw || hf,
+        };
+
+        // DEBUG: Log what we're writing
+        console.log("[DEBUG] Writing to DB:", dbUpdate);
+
+        const { error: updateError } = await supabase
+          .from("hostfully_room_types")
+          .update(dbUpdate)
+          .eq("id", room.id);
+
+        if (updateError) {
+          console.error("[DEBUG] DB Update failed:", updateError);
+          toast({
+            title: "DEBUG: DB Update Failed",
+            description: `${room.name}: ${updateError.message}`,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Room Synced Successfully",
+            description: `Updated: ${hf.name || room.name}`,
+          });
+          syncedCount++;
+        }
       }
 
       // Refresh room count
@@ -905,11 +931,15 @@ export default function PropertyForm() {
 
       toast({
         title: "Full Sync Complete",
-        description: `Imported ${importedRoomIds.length} rooms, synced data for ${syncedCount} (limit: 1 for testing)`,
+        description: `Synced ${syncedCount}/${roomsToSync.length} rooms`,
       });
     } catch (err: any) {
       console.error("Full Hostfully sync error:", err);
-      toast({ title: "Sync Failed", description: err.message, variant: "destructive" });
+      toast({ 
+        title: "Sync Failed", 
+        description: err.message, 
+        variant: "destructive" 
+      });
     } finally {
       setFullSyncingHostfully(false);
       setSyncProgress(null);
