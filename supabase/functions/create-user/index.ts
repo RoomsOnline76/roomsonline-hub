@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { Resend } from "https://esm.sh/resend@4.0.0";
+
+const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -170,6 +173,85 @@ serve(async (req) => {
 
     // Properties will be imported when owner provides API key during onboarding
     // No property creation at user creation time
+
+    // Send welcome email with password setup link for new users (not existing auth users)
+    if (!existingAuthUser) {
+      try {
+        // Generate password setup link
+        const redirectUrl = 'https://sleepinafrica.roomsonline.co.za/auth';
+        
+        const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'recovery',
+          email: email,
+          options: {
+            redirectTo: redirectUrl,
+          }
+        });
+
+        if (resetError) {
+          console.error('Generate password setup link error:', resetError);
+        } else {
+          // Fetch configurable email addresses from api_keys table
+          const { data: emailConfig } = await supabaseAdmin
+            .from("api_keys")
+            .select("key_name, key_value")
+            .in("key_name", ["RESEND_FROM_EMAIL"]);
+
+          const fromEmailConfig = emailConfig?.find((k: any) => k.key_name === "RESEND_FROM_EMAIL")?.key_value;
+          const fromEmail = fromEmailConfig || "RoomsOnline <noreply@notify.roomsonline.co.za>";
+
+          const setupLink = resetData.properties.action_link;
+          const roleLabel = role === 'user' ? 'Property Owner' : 'Administrator';
+
+          // Send welcome email
+          const emailResponse = await resend.emails.send({
+            from: fromEmail,
+            to: [email],
+            subject: `Welcome to RoomsOnline - Set Up Your Account`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #333;">Welcome to RoomsOnline!</h2>
+                <p>Hi ${full_name},</p>
+                <p>Your ${roleLabel} account has been created. To get started, please set up your password by clicking the button below:</p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${setupLink}" 
+                     style="display: inline-block; background: #e91e63; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                    Set Up Password
+                  </a>
+                </div>
+                
+                ${role === 'user' && pms_systems && pms_systems.length > 0 ? `
+                <p style="color: #666; font-size: 14px;">
+                  After setting your password, you'll be able to connect your property management system and import your listings.
+                </p>
+                ` : ''}
+                
+                <p style="color: #666; font-size: 14px;">
+                  This link will expire in 24 hours for security reasons. If it expires, please contact your administrator.
+                </p>
+                
+                <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
+                
+                <p style="color: #999; font-size: 12px;">
+                  Best regards,<br>
+                  The RoomsOnline Team
+                </p>
+              </div>
+            `,
+          });
+
+          if (emailResponse.error) {
+            console.error('Resend email error:', emailResponse.error);
+          } else {
+            console.log('Welcome email sent successfully to:', email);
+          }
+        }
+      } catch (emailError) {
+        // Log but don't fail the user creation if email fails
+        console.error('Failed to send welcome email:', emailError);
+      }
+    }
 
     return new Response(
       JSON.stringify({ 
