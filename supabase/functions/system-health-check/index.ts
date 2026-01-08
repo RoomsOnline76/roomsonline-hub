@@ -470,6 +470,23 @@ async function runHealthCheck(
   return Promise.race([checkPromise, timeoutPromise]);
 }
 
+// Helper to get active PMS systems from pms_credentials
+async function getActivePmsSystems(supabase: SupabaseClientType): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from('pms_credentials')
+    .select('system_type')
+    .eq('is_active', true);
+  
+  if (error || !data) {
+    console.warn('[Health Check] Could not fetch active PMS credentials:', error?.message);
+    return new Set<string>();
+  }
+  
+  const activeTypes = new Set<string>(data.map((cred: { system_type: string }) => cred.system_type));
+  console.log(`[Health Check] Active PMS systems: ${Array.from(activeTypes).join(', ') || 'none'}`);
+  return activeTypes;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -501,11 +518,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[Health Check] Checking ${components.length} components...`);
+    // Get active PMS systems from pms_credentials
+    const activePmsSystems = await getActivePmsSystems(supabase);
+
+    // Filter components: keep all non-PMS, only keep PMS with active credentials
+    const componentsToCheck = (components || []).filter((component: Component) => {
+      if (component.component_type !== 'pms') {
+        return true;
+      }
+      const isActive = activePmsSystems.has(component.component_key);
+      if (!isActive) {
+        console.log(`[Health Check] Skipping ${component.component_key} - no active credentials`);
+      }
+      return isActive;
+    });
+
+    const skippedCount = (components?.length || 0) - componentsToCheck.length;
+    console.log(`[Health Check] Checking ${componentsToCheck.length} components (${skippedCount} PMS skipped)...`);
 
     // Run all health checks in parallel
     const results = await Promise.all(
-      components.map((component) => runHealthCheck(supabase, component as Component))
+      componentsToCheck.map((component: Component) => runHealthCheck(supabase, component))
     );
 
     const checkedAt = new Date().toISOString();
