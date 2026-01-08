@@ -46,17 +46,31 @@ interface HelpContextType {
 
 const HelpContext = createContext<HelpContextType | undefined>(undefined);
 
+const SECTION_ORDER: string[] = [
+  "getting_started",
+  "booking_flow",
+  "roles_permissions",
+  "data_authority",
+  "architecture",
+  "debugging",
+  // Owner sections
+  "booking_categories",
+  "availability_pricing",
+  "troubleshooting",
+  "common_mistakes",
+];
+
 const SECTION_LABELS: Record<string, string> = {
   getting_started: "Getting Started",
+  booking_flow: "Booking Flow",
+  roles_permissions: "Roles & Permissions",
+  data_authority: "Data Authority & Sync",
+  architecture: "System Architecture",
+  debugging: "Debugging & Monitoring",
   booking_categories: "Booking Categories",
   availability_pricing: "Availability & Pricing",
   troubleshooting: "Troubleshooting",
   common_mistakes: "Common Mistakes to Avoid",
-  architecture: "System Architecture",
-  roles_permissions: "Roles & Permissions",
-  data_authority: "Data Authority & Sync",
-  booking_flow: "Booking Flow",
-  debugging: "Debugging & Monitoring",
 };
 
 export function HelpProvider({ children }: { children: ReactNode }) {
@@ -94,11 +108,17 @@ export function HelpProvider({ children }: { children: ReactNode }) {
       acc[article.section].push(article);
       return acc;
     }, {} as Record<string, HelpArticle[]>)
-  ).map(([name, sectionArticles]) => ({
-    name,
-    label: SECTION_LABELS[name] || name,
-    articles: sectionArticles.sort((a, b) => a.sort_order - b.sort_order),
-  }));
+  )
+    .map(([name, sectionArticles]) => ({
+      name,
+      label: SECTION_LABELS[name] || name,
+      articles: sectionArticles.sort((a, b) => a.sort_order - b.sort_order),
+    }))
+    .sort((a, b) => {
+      const orderA = SECTION_ORDER.indexOf(a.name);
+      const orderB = SECTION_ORDER.indexOf(b.name);
+      return (orderA === -1 ? 999 : orderA) - (orderB === -1 ? 999 : orderB);
+    });
 
   const filteredArticles = searchQuery
     ? articles.filter(
