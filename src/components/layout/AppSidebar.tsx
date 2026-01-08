@@ -16,6 +16,7 @@ import {
   Bell,
   Newspaper,
   FileSearch,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,46 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import rolLogo from "@/assets/rol-logo.png";
+import { useHelp } from "@/contexts/HelpContext";
+
+// Separate component to handle optional HelpContext
+function HelpNavSection({ collapsed }: { collapsed: boolean }) {
+  try {
+    const { openHelp } = useHelp();
+    
+    const link = (
+      <button
+        onClick={() => openHelp()}
+        className={cn(
+          "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
+          "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+          "text-sidebar-foreground/70"
+        )}
+      >
+        <HelpCircle className="h-4 w-4 shrink-0" />
+        {!collapsed && <span className="flex-1 text-left">Help & Guidance</span>}
+      </button>
+    );
+
+    return (
+      <div className="mt-auto pt-4 border-t border-sidebar-border">
+        <div className="space-y-1">
+          {collapsed ? (
+            <Tooltip>
+              <TooltipTrigger asChild>{link}</TooltipTrigger>
+              <TooltipContent side="right">Help & Guidance</TooltipContent>
+            </Tooltip>
+          ) : (
+            link
+          )}
+        </div>
+      </div>
+    );
+  } catch {
+    // HelpContext not available - don't render help nav
+    return null;
+  }
+}
 
 interface NavItem {
   title: string;
@@ -224,6 +265,9 @@ export function AppSidebar() {
             </div>
           </div>
         )}
+
+        {/* Help - visible to all authenticated users */}
+        <HelpNavSection collapsed={collapsed} />
       </nav>
 
       {/* Collapse Toggle */}
