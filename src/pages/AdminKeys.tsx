@@ -114,15 +114,11 @@ export default function AdminKeys() {
   // Staging form state
   const [bensonStagingUsername, setBensonStagingUsername] = useState("");
   const [bensonStagingPassword, setBensonStagingPassword] = useState("");
-  const [bensonStagingPropertyCode, setBensonStagingPropertyCode] = useState("");
-  const [bensonStagingPropertyName, setBensonStagingPropertyName] = useState("");
   const [bensonStagingUrl, setBensonStagingUrl] = useState("");
 
   // Production form state
   const [bensonProductionUsername, setBensonProductionUsername] = useState("");
   const [bensonProductionPassword, setBensonProductionPassword] = useState("");
-  const [bensonProductionPropertyCode, setBensonProductionPropertyCode] = useState("");
-  const [bensonProductionPropertyName, setBensonProductionPropertyName] = useState("");
   const [bensonProductionUrl, setBensonProductionUrl] = useState("");
 
   const [editingBensonStaging, setEditingBensonStaging] = useState(false);
@@ -687,8 +683,6 @@ export default function AdminKeys() {
       environment: "staging",
       username: bensonStagingUsername || bensonStagingCredentials?.username || null,
       password: bensonStagingPassword || bensonStagingCredentials?.password || null,
-      property_code: bensonStagingPropertyCode || bensonStagingCredentials?.property_code || null,
-      property_name: bensonStagingPropertyName || bensonStagingCredentials?.property_name || null,
       base_url: bensonStagingUrl || bensonStagingCredentials?.base_url || null,
       is_active: true,
     };
@@ -716,8 +710,6 @@ export default function AdminKeys() {
       setEditingBensonStaging(false);
       setBensonStagingUsername("");
       setBensonStagingPassword("");
-      setBensonStagingPropertyCode("");
-      setBensonStagingPropertyName("");
       setBensonStagingUrl("");
       fetchBensonCredentials();
     }
@@ -732,8 +724,6 @@ export default function AdminKeys() {
       environment: "production",
       username: bensonProductionUsername || bensonProductionCredentials?.username || null,
       password: bensonProductionPassword || bensonProductionCredentials?.password || null,
-      property_code: bensonProductionPropertyCode || bensonProductionCredentials?.property_code || null,
-      property_name: bensonProductionPropertyName || bensonProductionCredentials?.property_name || null,
       base_url: bensonProductionUrl || bensonProductionCredentials?.base_url || null,
       is_active: true,
     };
@@ -761,8 +751,6 @@ export default function AdminKeys() {
       setEditingBensonProduction(false);
       setBensonProductionUsername("");
       setBensonProductionPassword("");
-      setBensonProductionPropertyCode("");
-      setBensonProductionPropertyName("");
       setBensonProductionUrl("");
       fetchBensonCredentials();
     }
@@ -1917,10 +1905,6 @@ export default function AdminKeys() {
       setUsername: (v: string) => void,
       password: string,
       setPassword: (v: string) => void,
-      propertyCode: string,
-      setPropertyCode: (v: string) => void,
-      propertyName: string,
-      setPropertyName: (v: string) => void,
       url: string,
       setUrl: (v: string) => void,
     ) => (
@@ -1968,24 +1952,6 @@ export default function AdminKeys() {
                   placeholder={credentials?.password ? "••••••••" : "Enter password"}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor={`benson-${env}-property-code`}>Property Code</Label>
-                <Input
-                  id={`benson-${env}-property-code`}
-                  value={propertyCode}
-                  onChange={(e) => setPropertyCode(e.target.value)}
-                  placeholder={credentials?.property_code || "Enter property code"}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`benson-${env}-property-name`}>Property Name</Label>
-                <Input
-                  id={`benson-${env}-property-name`}
-                  value={propertyName}
-                  onChange={(e) => setPropertyName(e.target.value)}
-                  placeholder={credentials?.property_name || "Enter property name"}
-                />
-              </div>
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor={`benson-${env}-url`}>URL</Label>
                 <Input
@@ -2007,8 +1973,6 @@ export default function AdminKeys() {
                   setEditing(false);
                   setUsername("");
                   setPassword("");
-                  setPropertyCode("");
-                  setPropertyName("");
                   setUrl("");
                 }}
               >
@@ -2017,7 +1981,7 @@ export default function AdminKeys() {
             </div>
           </div>
         ) : isConfigured ? (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+          <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
               <Label className="text-muted-foreground text-xs">Username</Label>
               <p className="font-medium text-green-600">Configured</p>
@@ -2025,14 +1989,6 @@ export default function AdminKeys() {
             <div>
               <Label className="text-muted-foreground text-xs">Password</Label>
               <p className="font-medium text-green-600">Configured</p>
-            </div>
-            <div>
-              <Label className="text-muted-foreground text-xs">Property Code</Label>
-              <p className="font-medium truncate">{credentials?.property_code || "—"}</p>
-            </div>
-            <div>
-              <Label className="text-muted-foreground text-xs">Property Name</Label>
-              <p className="font-medium truncate">{credentials?.property_name || "—"}</p>
             </div>
             <div>
               <Label className="text-muted-foreground text-xs">URL</Label>
@@ -2098,10 +2054,6 @@ export default function AdminKeys() {
               setBensonProductionUsername,
               bensonProductionPassword,
               setBensonProductionPassword,
-              bensonProductionPropertyCode,
-              setBensonProductionPropertyCode,
-              bensonProductionPropertyName,
-              setBensonProductionPropertyName,
               bensonProductionUrl,
               setBensonProductionUrl,
             )}
