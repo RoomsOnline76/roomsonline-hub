@@ -21,6 +21,7 @@ interface ComponentHealthCardProps {
   componentName: string;
   componentType: string;
   isCritical: boolean;
+  isActive?: boolean;
   expectedLatency: number;
   lastStatus: string;
   lastChecked: string;
@@ -36,6 +37,7 @@ export function ComponentHealthCard({
   componentName,
   componentType,
   isCritical,
+  isActive = true,
   expectedLatency,
   lastStatus,
   lastChecked,
@@ -75,8 +77,9 @@ export function ComponentHealthCard({
     <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
       <Card className={cn(
         "transition-all duration-200",
-        lastStatus === 'failed' && "border-red-500/50 bg-red-500/5",
-        lastStatus === 'degraded' && "border-yellow-500/50 bg-yellow-500/5",
+        !isActive && "opacity-50 grayscale",
+        lastStatus === 'failed' && isActive && "border-red-500/50 bg-red-500/5",
+        lastStatus === 'degraded' && isActive && "border-yellow-500/50 bg-yellow-500/5",
         isExpanded && "ring-2 ring-primary/20"
       )}>
         <CollapsibleTrigger asChild>
@@ -87,7 +90,12 @@ export function ComponentHealthCard({
                 <div>
                   <CardTitle className="text-base flex items-center gap-2">
                     {componentName}
-                    {isCritical && (
+                    {!isActive && (
+                      <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-normal">
+                        Inactive
+                      </span>
+                    )}
+                    {isCritical && isActive && (
                       <span className="text-xs bg-red-500/10 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded font-normal">
                         Critical
                       </span>
