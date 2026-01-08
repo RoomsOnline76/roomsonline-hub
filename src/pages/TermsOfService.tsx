@@ -9,9 +9,7 @@ const TermsOfService = () => {
           <h1 className="font-display text-3xl sm:text-4xl font-light tracking-tight leading-tight text-foreground mb-4">
             Terms of Service
           </h1>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">
-            Last updated: January 2025
-          </p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Last updated: January 2025</p>
         </div>
 
         {/* Content */}
@@ -21,9 +19,8 @@ const TermsOfService = () => {
               1. Acceptance of Terms
             </h2>
             <p className="text-foreground/80 leading-relaxed">
-              By accessing or using RoomsOnline ("the Platform"), you agree to be bound by 
-              these Terms of Service. If you do not agree to these terms, please do not 
-              use our services.
+              By accessing or using RoomsOnline ("the Platform"), you agree to be bound by these Terms of Service. If
+              you do not agree to these terms, please do not use our services.
             </p>
           </section>
 
@@ -32,9 +29,9 @@ const TermsOfService = () => {
               2. Description of Service
             </h2>
             <p className="text-foreground/80 leading-relaxed">
-              RoomsOnline connects guests with accommodation providers, including hotels, 
-              vacation rentals, and bed & breakfasts. We facilitate bookings between guests 
-              and property owners/managers but are not the accommodation provider.
+              RoomsOnline connects guests with accommodation providers, including hotels, vacation rentals, and bed &
+              breakfasts. We facilitate bookings between guests and property owners/managers but are not the
+              accommodation provider.
             </p>
           </section>
 
@@ -58,23 +55,20 @@ const TermsOfService = () => {
             </h2>
             <h3 className="font-medium text-foreground">4.1 Reservations</h3>
             <p className="text-foreground/80 leading-relaxed">
-              When you make a booking through RoomsOnline, you enter into a direct contract 
-              with the accommodation provider. We act as an intermediary to facilitate the 
-              booking process.
+              When you make a booking through RoomsOnline, you enter into a direct contract with the accommodation
+              provider. We act as an intermediary to facilitate the booking process.
             </p>
 
             <h3 className="font-medium text-foreground mt-6">4.2 Pricing</h3>
             <p className="text-foreground/80 leading-relaxed">
-              All prices displayed are provided by the accommodation providers and may be 
-              subject to change. Additional taxes, fees, or charges may apply as indicated 
-              during the booking process.
+              All prices displayed are provided by the accommodation providers and may be subject to change. Additional
+              taxes, fees, or charges may apply as indicated during the booking process.
             </p>
 
             <h3 className="font-medium text-foreground mt-6">4.3 Cancellations</h3>
             <p className="text-foreground/80 leading-relaxed">
-              Cancellation and modification policies are set by individual accommodation 
-              providers and will be displayed during the booking process. Please review 
-              these policies carefully before confirming your booking.
+              Cancellation and modification policies are set by individual accommodation providers and will be displayed
+              during the booking process. Please review these policies carefully before confirming your booking.
             </p>
           </section>
 
@@ -97,10 +91,9 @@ const TermsOfService = () => {
               6. Intellectual Property
             </h2>
             <p className="text-foreground/80 leading-relaxed">
-              All content on the Platform, including text, graphics, logos, and software, 
-              is the property of RoomsOnline or its licensors and is protected by 
-              intellectual property laws. You may not reproduce, distribute, or create 
-              derivative works without our express written consent.
+              All content on the Platform, including text, graphics, logos, and software, is the property of RoomsOnline
+              or its licensors and is protected by intellectual property laws. You may not reproduce, distribute, or
+              create derivative works without our express written consent.
             </p>
           </section>
 
@@ -109,10 +102,10 @@ const TermsOfService = () => {
               7. Limitation of Liability
             </h2>
             <p className="text-foreground/80 leading-relaxed">
-              RoomsOnline acts as an intermediary between guests and accommodation providers. 
-              We are not liable for any issues arising from the accommodation itself, including 
-              but not limited to property conditions, service quality, or disputes with property 
-              owners/managers. Our liability is limited to the maximum extent permitted by law.
+              RoomsOnline acts as an intermediary between guests and accommodation providers. We are not liable for any
+              issues arising from the accommodation itself, including but not limited to property conditions, service
+              quality, or disputes with property owners/managers. Our liability is limited to the maximum extent
+              permitted by law.
             </p>
           </section>
 
@@ -121,9 +114,9 @@ const TermsOfService = () => {
               8. Governing Law
             </h2>
             <p className="text-foreground/80 leading-relaxed">
-              These Terms are governed by the laws of the Republic of South Africa. Any 
-              disputes arising from these Terms or your use of the Platform shall be 
-              subject to the exclusive jurisdiction of the South African courts.
+              These Terms are governed by the laws of the Republic of South Africa. Any disputes arising from these
+              Terms or your use of the Platform shall be subject to the exclusive jurisdiction of the South African
+              courts.
             </p>
           </section>
 
@@ -132,9 +125,8 @@ const TermsOfService = () => {
               9. Changes to Terms
             </h2>
             <p className="text-foreground/80 leading-relaxed">
-              We reserve the right to modify these Terms at any time. Changes will be 
-              effective upon posting to the Platform. Your continued use of the Platform 
-              after changes constitutes acceptance of the modified Terms.
+              We reserve the right to modify these Terms at any time. Changes will be effective upon posting to the
+              Platform. Your continued use of the Platform after changes constitutes acceptance of the modified Terms.
             </p>
           </section>
 
@@ -147,10 +139,19 @@ const TermsOfService = () => {
             </p>
             <div className="p-6 rounded-lg bg-card border border-border mt-4">
               <p className="text-foreground">
-                Email: <a href="mailto:legal@roomsonline.co.za" className="text-primary hover:underline transition-colors duration-200">legal@roomsonline.co.za</a>
+                Email:{" "}
+                <a
+                  href="mailto:legal@roomsonline.co.za"
+                  className="text-primary hover:underline transition-colors duration-200"
+                >
+                  legal@roomsonline.co.za
+                </a>
               </p>
               <p className="text-foreground mt-2">
-                Phone: <a href="tel:+27214180022" className="text-primary hover:underline transition-colors duration-200">+27 21 418 0022</a>
+                Phone:{" "}
+                <a href="tel:+27823238115" className="text-primary hover:underline transition-colors duration-200">
+                  +27 82 323 8115
+                </a>
               </p>
             </div>
           </section>
