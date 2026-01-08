@@ -2223,12 +2223,12 @@ export default function PropertyForm() {
           // Load room types if available
           if (amenities?.room_types && Array.isArray(amenities.room_types) && amenities.room_types.length > 0) {
             setRoomTypes(amenities.room_types);
-          } else if ((data as any).external_system === "hostfully" && propertyId) {
+          } else if ((data as any).external_system === "hostfully" && data.id) {
             // For Hostfully properties with no room_types in amenities, load from hostfully_room_types table
             const { data: hfRooms } = await supabase
               .from("hostfully_room_types")
               .select("*")
-              .eq("property_id", propertyId)
+              .eq("property_id", data.id)
               .eq("is_active", true);
             
             if (hfRooms && hfRooms.length > 0) {
