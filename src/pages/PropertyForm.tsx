@@ -7737,7 +7737,7 @@ export default function PropertyForm() {
                       <Plus className="h-3 w-3" />
                     </Button>
                   </div>
-                  {roomTypes.map((room) => (
+                  {[...roomTypes].sort((a, b) => a.name.localeCompare(b.name)).map((room) => (
                     <div
                       key={room.id}
                       className={cn(
