@@ -158,6 +158,7 @@ export function AddPMSModal({
                     onChange={(e) => setHostfullyAgencyUid(e.target.value)}
                     placeholder="e.g. c429dd30-c9b0-44e5-812f-d65f801f2584"
                     className="font-mono text-sm"
+                    autoComplete="off"
                   />
                   <p className="text-xs text-muted-foreground">
                     Find this in Hostfully dashboard under Agency settings

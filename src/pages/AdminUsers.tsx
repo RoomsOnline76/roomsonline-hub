@@ -387,6 +387,9 @@ export default function AdminUsers() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9 h-9"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  name="user-search"
                 />
               </div>
             </div>
