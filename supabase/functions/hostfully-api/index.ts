@@ -102,6 +102,7 @@ const baseRequestSchema = z.object({
   action: z.enum([
     "get_capabilities",
     "health_check",
+    "list_properties",  // Discovery endpoint - lists all accessible properties
     "fetch_availability",
     "get_room_types",
     "get_rate_types",
@@ -380,6 +381,79 @@ async function handleHealthCheck(creds: HostfullyCredentials) {
   }
 }
 
+async function handleListProperties(creds: HostfullyCredentials) {
+  const baseUrl = HOSTFULLY_URLS[creds.environment];
+  
+  try {
+    // Step 1: Get agency UID from /agencies
+    const agenciesResponse = await hostfullyRequest("/agencies", creds.api_key, baseUrl);
+    if (!agenciesResponse.ok) {
+      const error = mapHostfullyHttpError(agenciesResponse.status, await agenciesResponse.text());
+      return createErrorResponse(error.code, error.message, "list_properties");
+    }
+    
+    const agencies = await agenciesResponse.json();
+    const agencyUid = agencies[0]?.uid;
+    
+    if (!agencyUid) {
+      return createErrorResponse(
+        ERROR_CODES.NOT_FOUND,
+        "No agency found for this API key",
+        "list_properties"
+      );
+    }
+    
+    console.log("[Hostfully] Found agency:", agencyUid);
+    
+    // Step 2: Get all properties for agency
+    const propertiesResponse = await hostfullyRequest(
+      `/properties?agencyUid=${agencyUid}`,
+      creds.api_key,
+      baseUrl
+    );
+    
+    if (!propertiesResponse.ok) {
+      const error = mapHostfullyHttpError(propertiesResponse.status, await propertiesResponse.text());
+      return createErrorResponse(error.code, error.message, "list_properties");
+    }
+    
+    const properties = await propertiesResponse.json();
+    
+    // Map to standardized format - include raw data for field mapping exploration
+    const propertyList = (properties || []).map((p: any) => ({
+      id: p.uid,
+      name: p.name,
+      status: p.status,
+      timezone: p.timezone || null,
+      bedrooms: p.bedrooms || null,
+      bathrooms: p.bathrooms || null,
+      max_guests: p.maxGuests || null,
+      address: p.address1 || null,
+      city: p.city || null,
+      country: p.countryCode || null,
+      currency: p.currency || null,
+      base_price: p.baseDailyRate || null,
+      // Include raw data for field mapping exploration
+      _raw: p,
+    }));
+    
+    return createSuccessResponse({ 
+      properties: propertyList,
+      agency_uid: agencyUid,
+      count: propertyList.length
+    }, "list_properties");
+    
+  } catch (err) {
+    console.error("[Hostfully] List properties failed:", err);
+    return createErrorResponse(
+      ERROR_CODES.INTERNAL_ADAPTER_ERROR,
+      "Failed to list properties from Hostfully",
+      "list_properties",
+      err
+    );
+  }
+}
+
 async function handleFetchAvailability(
   creds: HostfullyCredentials,
   propertyUid: string,
@@ -645,6 +719,10 @@ serve(async (req) => {
     switch (action) {
       case "health_check":
         response = await handleHealthCheck(creds);
+        break;
+
+      case "list_properties":
+        response = await handleListProperties(creds);
         break;
 
       case "fetch_availability": {
