@@ -1012,7 +1012,7 @@ export default function PropertyForm() {
             city: roomWithCoords.addressCity || prev.city,
             country: roomWithCoords.addressCountry || prev.country,
             postal_code: roomWithCoords.addressPostalCode || prev.postal_code,
-            property_type: roomWithCoords.propertyType || prev.property_type,
+            property_type: roomWithCoords.propertyType?.toLowerCase() || prev.property_type,
           }));
           
           // Fetch current amenities to merge postal_code
@@ -1027,8 +1027,8 @@ export default function PropertyForm() {
             postal_code: roomWithCoords.addressPostalCode || (currentProperty?.amenities as any)?.postal_code,
           };
 
-          // Update property record in DB with all 7 fields
-          await supabase
+        // Update property record in DB with all 7 fields
+          const { error: updateError } = await supabase
             .from("properties")
             .update({
               latitude: roomWithCoords.latitude,
@@ -1036,10 +1036,14 @@ export default function PropertyForm() {
               address: roomWithCoords.addressStreet || undefined,
               city: roomWithCoords.addressCity || undefined,
               country: roomWithCoords.addressCountry || undefined,
-              property_type: roomWithCoords.propertyType || undefined,
+              property_type: roomWithCoords.propertyType?.toLowerCase() || undefined,
               amenities: updatedAmenities,
             })
             .eq("id", propertyId);
+          
+          if (updateError) {
+            console.error("[DEBUG] Property update FAILED:", updateError);
+          }
             
           console.log("[DEBUG] Property fields updated from first room:", {
             address: roomWithCoords.addressStreet,
