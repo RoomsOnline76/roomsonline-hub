@@ -64,6 +64,12 @@ function getStatusEmoji(status: string): string {
   }
 }
 
+interface InactiveComponent {
+  component_key: string;
+  component_name: string;
+  component_type: string;
+}
+
 function generateEmailHtml(
   date: string,
   generatedAt: string,
@@ -74,6 +80,7 @@ function generateEmailHtml(
   componentStats: ComponentStats[],
   criticalIssues: Array<{ component: string; message: string; last_failed: string }>,
   pmsIntegrations: PmsIntegrationStats[],
+  inactiveComponents: InactiveComponent[],
   nextCheckTime: string
 ): string {
   const overallStatusColor = getStatusColor(overallStatus);
@@ -194,6 +201,34 @@ function generateEmailHtml(
       </div>
     </div>
 
+    <!-- Inactive / Waiting Systems -->
+    ${inactiveComponents.length > 0 ? `
+    <div style="padding: 24px;">
+      <h3 style="margin: 0 0 16px 0; font-size: 18px; color: #6b7280;">⏸️ Waiting / Not Active Systems (${inactiveComponents.length})</h3>
+      <p style="margin: 0 0 12px 0; font-size: 13px; color: #9ca3af;">These systems are configured but not currently in production. No health checks are performed.</p>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px; background-color: #f9fafb; border-radius: 8px; opacity: 0.7;">
+          <thead>
+            <tr style="border-bottom: 2px solid #e5e7eb;">
+              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #9ca3af;">Component</th>
+              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #9ca3af;">Type</th>
+              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #9ca3af;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${inactiveComponents.map(comp => `
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 12px 8px; color: #9ca3af;">${comp.component_name}</td>
+                <td style="padding: 12px 8px; color: #9ca3af;">${comp.component_type.toUpperCase()}</td>
+                <td style="padding: 12px 8px; color: #9ca3af;">Not Active</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    ` : ''}
+
     <!-- Cache Note -->
     <div style="padding: 16px 24px; background-color: #fffbeb; border-top: 1px solid #fde68a;">
       <p style="margin: 0; font-size: 12px; color: #92400e;">
@@ -244,13 +279,23 @@ Deno.serve(async (req) => {
     const now = new Date();
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    // Fetch all components
-    const { data: components, error: componentsError } = await supabase
+    // Fetch all components (both active and inactive)
+    const { data: allComponents, error: componentsError } = await supabase
       .from('system_health_components')
       .select('*')
-      .eq('is_active', true);
+      .order('is_active', { ascending: false });
 
     if (componentsError) throw componentsError;
+
+    // Separate active and inactive
+    const activeComponentsList = (allComponents || []).filter(c => c.is_active);
+    const inactiveComponentsList: InactiveComponent[] = (allComponents || [])
+      .filter(c => !c.is_active)
+      .map(c => ({
+        component_key: c.component_key,
+        component_name: c.component_name,
+        component_type: c.component_type,
+      }));
 
     // Fetch last 24h of health checks
     const { data: recentChecks, error: checksError } = await supabase
@@ -261,8 +306,8 @@ Deno.serve(async (req) => {
 
     if (checksError) throw checksError;
 
-    // Calculate stats per component
-    const componentStats: ComponentStats[] = (components || []).map(comp => {
+    // Calculate stats per active component
+    const componentStats: ComponentStats[] = activeComponentsList.map(comp => {
       const checks = (recentChecks || []).filter(c => c.component_key === comp.component_key);
       const healthyChecks = checks.filter(c => c.status === 'healthy').length;
       const degradedChecks = checks.filter(c => c.status === 'degraded').length;
@@ -381,6 +426,7 @@ Deno.serve(async (req) => {
       componentStats,
       criticalIssues,
       pmsIntegrations,
+      inactiveComponentsList,
       formatTime(nextCheckTime)
     );
 
