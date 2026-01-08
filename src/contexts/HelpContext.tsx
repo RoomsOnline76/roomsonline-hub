@@ -1,7 +1,19 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+
+// Simple debounce function
+function debounce<T extends (...args: Parameters<T>) => void>(
+  fn: T,
+  delay: number
+): (...args: Parameters<T>) => void {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), delay);
+  };
+}
 
 interface HelpArticle {
   id: string;
@@ -127,6 +139,28 @@ export function HelpProvider({ children }: { children: ReactNode }) {
           article.content_markdown.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : articles;
+
+  // Log search queries (debounced)
+  const logSearchRef = useRef(
+    debounce(async (query: string, resultsCount: number, userId?: string) => {
+      if (!query.trim() || query.length < 2) return;
+      try {
+        await supabase.from("help_search_logs").insert({
+          user_id: userId || null,
+          search_query: query.trim().toLowerCase(),
+          results_count: resultsCount,
+        });
+      } catch (error) {
+        console.error("Failed to log search:", error);
+      }
+    }, 1500)
+  );
+
+  useEffect(() => {
+    if (searchQuery && searchQuery.length >= 2) {
+      logSearchRef.current(searchQuery, filteredArticles.length, user?.id);
+    }
+  }, [searchQuery, filteredArticles.length, user?.id]);
 
   const openHelp = useCallback((articleSlug?: string) => {
     setIsOpen(true);

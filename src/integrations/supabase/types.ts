@@ -481,6 +481,41 @@ export type Database = {
         }
         Relationships: []
       }
+      help_search_logs: {
+        Row: {
+          created_at: string | null
+          id: string
+          results_count: number | null
+          search_query: string
+          selected_article_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          results_count?: number | null
+          search_query: string
+          selected_article_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          results_count?: number | null
+          search_query?: string
+          selected_article_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "help_search_logs_selected_article_id_fkey"
+            columns: ["selected_article_id"]
+            isOneToOne: false
+            referencedRelation: "help_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journals: {
         Row: {
           author_id: string | null

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { Plus, Loader2, HelpCircle, Search, Eye, ThumbsUp, AlertTriangle, AlertCircle, Info } from "lucide-react";
+import { Plus, Loader2, HelpCircle, Search, Eye, ThumbsUp, AlertTriangle, AlertCircle, Info, BarChart3, ChevronDown, ChevronUp } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -24,6 +24,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { HelpAnalyticsDashboard } from "@/components/help/HelpAnalyticsDashboard";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface HelpArticle {
   id: string;
@@ -86,6 +88,7 @@ export default function AdminHelpArticles() {
     admin: 0,
     totalViews: 0,
   });
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   useEffect(() => {
     loadArticles();
@@ -138,12 +141,30 @@ export default function AdminHelpArticles() {
         title="Help Articles" 
         subtitle={`${stats.published} published · ${stats.totalViews} total views`}
         actions={
-          <Button onClick={() => navigate("/admin/help-articles/new")}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Article
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowAnalytics(!showAnalytics)}>
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Analytics
+              {showAnalytics ? (
+                <ChevronUp className="h-4 w-4 ml-1" />
+              ) : (
+                <ChevronDown className="h-4 w-4 ml-1" />
+              )}
+            </Button>
+            <Button onClick={() => navigate("/admin/help-articles/new")}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Article
+            </Button>
+          </div>
         }
       />
+
+      {/* Analytics Dashboard */}
+      <Collapsible open={showAnalytics} onOpenChange={setShowAnalytics}>
+        <CollapsibleContent className="mb-6">
+          <HelpAnalyticsDashboard />
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
