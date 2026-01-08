@@ -103,6 +103,8 @@ const baseRequestSchema = z.object({
     "get_capabilities",
     "health_check",
     "list_properties",  // Discovery endpoint - lists all accessible properties
+    "sync_listings",    // Syncs listings to pms_credentials.available_listings
+    "get_listing_details", // Get detailed info for specific listing
     "fetch_availability",
     "get_room_types",
     "get_rate_types",
@@ -662,6 +664,143 @@ async function handleCancelReservation() {
 }
 
 // ============================================================================
+// SYNC LISTINGS - Store available listings in pms_credentials
+// ============================================================================
+
+async function handleSyncListings(creds: HostfullyCredentials, supabase: any) {
+  const baseUrl = HOSTFULLY_URLS[creds.environment];
+  
+  try {
+    // Get agency UID
+    const agenciesResponse = await hostfullyRequest("/agencies", creds.api_key, baseUrl);
+    if (!agenciesResponse.ok) {
+      const error = mapHostfullyHttpError(agenciesResponse.status, await agenciesResponse.text());
+      return createErrorResponse(error.code, error.message, "sync_listings");
+    }
+    
+    const agenciesData = await agenciesResponse.json();
+    const agencyUid = agenciesData?.agencies?.[0]?.uid || agenciesData?.[0]?.uid;
+    
+    if (!agencyUid) {
+      return createErrorResponse(ERROR_CODES.NOT_FOUND, "No agency found for this API key", "sync_listings");
+    }
+    
+    // Get all properties
+    const propertiesResponse = await hostfullyRequest(`/properties?agencyUid=${agencyUid}`, creds.api_key, baseUrl);
+    if (!propertiesResponse.ok) {
+      const error = mapHostfullyHttpError(propertiesResponse.status, await propertiesResponse.text());
+      return createErrorResponse(error.code, error.message, "sync_listings");
+    }
+    
+    const propertiesData = await propertiesResponse.json();
+    const propertiesArray = propertiesData?.properties || propertiesData || [];
+    
+    // Map to standardized format
+    const listings = (Array.isArray(propertiesArray) ? propertiesArray : []).map((p: any) => ({
+      id: p.uid,
+      name: p.name,
+      status: p.status || 'active',
+      property_type: p.type || p.propertyType || 'property',
+      bedrooms: p.bedrooms || null,
+      bathrooms: p.bathrooms || null,
+      max_guests: p.maxGuests || null,
+      address: p.address1 || p.streetAddress || null,
+      city: p.city || null,
+      country: p.countryCode || p.country || null,
+      currency: p.currency || null,
+      base_price: p.baseDailyRate || null,
+      thumbnail: p.pictureLink || p.picture || null,
+      last_updated: p.modifiedDate || p.updatedAt || null,
+    }));
+    
+    // Update pms_credentials with available listings
+    const { error: updateError } = await supabase
+      .from("pms_credentials")
+      .update({
+        available_listings: listings,
+        last_sync_at: new Date().toISOString(),
+        sync_status: 'connected',
+      })
+      .eq("system_type", "hostfully")
+      .eq("is_active", true);
+    
+    if (updateError) {
+      console.error("[Hostfully] Failed to update pms_credentials:", updateError);
+      return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to save listings", "sync_listings", updateError);
+    }
+    
+    return createSuccessResponse({
+      listings,
+      count: listings.length,
+      agency_uid: agencyUid,
+      synced_at: new Date().toISOString(),
+    }, "sync_listings");
+    
+  } catch (err) {
+    console.error("[Hostfully] Sync listings failed:", err);
+    return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to sync listings", "sync_listings", err);
+  }
+}
+
+// ============================================================================
+// GET LISTING DETAILS - Fetch detailed info for a specific listing
+// ============================================================================
+
+async function handleGetListingDetails(creds: HostfullyCredentials, propertyUid: string) {
+  const baseUrl = HOSTFULLY_URLS[creds.environment];
+  
+  try {
+    const response = await hostfullyRequest(`/properties/${propertyUid}`, creds.api_key, baseUrl);
+    
+    if (!response.ok) {
+      const error = mapHostfullyHttpError(response.status, await response.text());
+      return createErrorResponse(error.code, error.message, "get_listing_details");
+    }
+    
+    const property = await response.json();
+    
+    // Return detailed property info
+    return createSuccessResponse({
+      id: property.uid,
+      name: property.name,
+      description: property.description || property.summary || null,
+      property_type: property.type || property.propertyType || 'property',
+      status: property.status || 'active',
+      bedrooms: property.bedrooms || null,
+      bathrooms: property.bathrooms || null,
+      max_guests: property.maxGuests || null,
+      min_guests: property.minGuests || 1,
+      address: {
+        street: property.address1 || property.streetAddress || null,
+        city: property.city || null,
+        state: property.state || property.province || null,
+        postal_code: property.postalCode || property.zipCode || null,
+        country: property.countryCode || property.country || null,
+      },
+      location: {
+        latitude: property.latitude || null,
+        longitude: property.longitude || null,
+      },
+      pricing: {
+        base_daily_rate: property.baseDailyRate || null,
+        currency: property.currency || 'USD',
+        cleaning_fee: property.cleaningFee || null,
+      },
+      check_in_time: property.checkInTime || property.checkInTimeStart || null,
+      check_out_time: property.checkOutTime || null,
+      images: property.photos || property.images || [],
+      amenities: property.amenities || property.features || [],
+      thumbnail: property.pictureLink || property.picture || null,
+      _raw: property,
+    }, "get_listing_details");
+    
+  } catch (err) {
+    console.error("[Hostfully] Get listing details failed:", err);
+    return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to fetch listing details", "get_listing_details", err);
+  }
+}
+
+// ============================================================================
 // MAIN HANDLER
 // ============================================================================
 
@@ -730,6 +869,22 @@ serve(async (req) => {
 
       case "list_properties":
         response = await handleListProperties(creds);
+        break;
+
+      case "sync_listings":
+        response = await handleSyncListings(creds, supabase);
+        break;
+
+      case "get_listing_details": {
+        if (!body.propertyUid) {
+          return new Response(
+            JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyUid is required", action)),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+          );
+        }
+        response = await handleGetListingDetails(creds, body.propertyUid);
+        break;
+      }
         break;
 
       case "fetch_availability": {

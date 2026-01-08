@@ -339,6 +339,7 @@ export default function PropertyForm() {
   const [littlehotelierChannelCode, setLittlehotelierChannelCode] = useState<string>("");
   const [littlehotelierRegion, setLittlehotelierRegion] = useState<"apac" | "emea">("apac");
   const [hotelbedsHotelCode, setHotelbedsHotelCode] = useState<string>("");
+  const [hostfullyPropertyUid, setHostfullyPropertyUid] = useState<string>("");
   const [isSyncingPms, setIsSyncingPms] = useState(false);
   const [lastPmsSync, setLastPmsSync] = useState<Date | null>(null);
   const [isSyncEditorialDialogOpen, setIsSyncEditorialDialogOpen] = useState(false);
@@ -361,6 +362,7 @@ export default function PropertyForm() {
   const [existingLittlehotelierChannelCode, setExistingLittlehotelierChannelCode] = useState<string | null>(null);
   const [existingLittlehotelierRegion, setExistingLittlehotelierRegion] = useState<string | null>(null);
   const [existingHotelbedsHotelCode, setExistingHotelbedsHotelCode] = useState<string | null>(null);
+  const [existingHostfullyPropertyUid, setExistingHostfullyPropertyUid] = useState<string | null>(null);
 
   // Sync room/rate types from PMS (Benson)
   const syncFromBenson = async () => {
@@ -1997,6 +1999,12 @@ export default function PropertyForm() {
             setHotelbedsHotelCode((data as any).hotelbeds_hotel_code);
           }
           setExistingHotelbedsHotelCode((data as any).hotelbeds_hotel_code || null);
+
+          // Set Hostfully property UID
+          if ((data as any).hostfully_property_uid) {
+            setHostfullyPropertyUid((data as any).hostfully_property_uid);
+          }
+          setExistingHostfullyPropertyUid((data as any).hostfully_property_uid || null);
 
           // Load TripAdvisor ID
           if (amenities?.external_ids?.tripadvisor_id) {
