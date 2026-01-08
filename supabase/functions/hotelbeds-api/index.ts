@@ -550,27 +550,39 @@ serve(async (req) => {
       );
     }
 
-    // Get HotelBeds credentials from pms_credentials
-    const { data: credentials, error: credError } = await supabaseClient
-      .from("pms_credentials")
-      .select("*")
-      .eq("system_type", "hotelbeds")
-      .eq("is_active", true)
-      .single();
+    // Get HotelBeds credentials - prioritize Cloud secrets, fallback to pms_credentials
+    let apiKey = Deno.env.get("HOTELBEDS_API_KEY");
+    let apiSecret = Deno.env.get("HOTELBEDS_API_SECRET");
+    let environment = "staging"; // Default to sandbox/test
 
-    if (credError || !credentials) {
-      console.error(`[HotelBeds] Credentials lookup failed:`, credError);
-      return new Response(
-        JSON.stringify(createErrorResponse(
-          ERROR_CODES.AUTH_FAILED,
-          "HotelBeds credentials not configured or inactive",
-          action
-        )),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // If Cloud secrets not set, fallback to database credentials
+    if (!apiKey || !apiSecret) {
+      console.log(`[HotelBeds] Cloud secrets not found, checking pms_credentials...`);
+      const { data: credentials, error: credError } = await supabaseClient
+        .from("pms_credentials")
+        .select("*")
+        .eq("system_type", "hotelbeds")
+        .eq("is_active", true)
+        .single();
+
+      if (credError || !credentials) {
+        console.error(`[HotelBeds] Credentials lookup failed:`, credError);
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            ERROR_CODES.AUTH_FAILED,
+            "HotelBeds credentials not configured or inactive",
+            action
+          )),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      apiKey = credentials.api_key;
+      apiSecret = credentials.password;
+      environment = credentials.environment || "staging";
+    } else {
+      console.log(`[HotelBeds] Using Cloud secrets for authentication`);
     }
-
-    const { api_key: apiKey, password: apiSecret, environment } = credentials;
 
     if (!apiKey || !apiSecret) {
       return new Response(
