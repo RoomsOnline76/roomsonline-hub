@@ -3229,6 +3229,8 @@ export default function AdminKeys() {
                           <Label htmlFor="hotelbeds-apikey">API Key</Label>
                           <Input
                             id="hotelbeds-apikey"
+                            name="hotelbeds-api-key-input"
+                            autoComplete="off"
                             value={hotelbedsApiKey}
                             onChange={(e) => setHotelbedsApiKey(e.target.value)}
                             placeholder={hotelbedsCredentials?.api_key ? "••••••••" : "Enter API key"}
@@ -3238,7 +3240,9 @@ export default function AdminKeys() {
                           <Label htmlFor="hotelbeds-secret">API Secret</Label>
                           <Input
                             id="hotelbeds-secret"
+                            name="hotelbeds-api-secret-input"
                             type="password"
+                            autoComplete="new-password"
                             value={hotelbedsApiSecret}
                             onChange={(e) => setHotelbedsApiSecret(e.target.value)}
                             placeholder={hotelbedsCredentials?.password ? "••••••••" : "Enter API secret"}
