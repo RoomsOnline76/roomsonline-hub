@@ -60,7 +60,7 @@ export function OwnerPMSConnectionCard({
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
   const [listingSelectorOpen, setListingSelectorOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
-  const [environment, setEnvironment] = useState<'sandbox' | 'production'>('production');
+  const environment = 'production'; // Always production for owners
   const [validating, setValidating] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -447,18 +447,6 @@ export function OwnerPMSConnectionCard({
               <p className="text-xs text-muted-foreground">
                 Find this in Hostfully under Settings → API Keys
               </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="environment">Environment</Label>
-              <Select value={environment} onValueChange={(v) => setEnvironment(v as any)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="production">Production</SelectItem>
-                  <SelectItem value="sandbox">Sandbox</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
           <DialogFooter>

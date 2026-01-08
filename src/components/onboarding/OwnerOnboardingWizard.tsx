@@ -73,7 +73,7 @@ export function OwnerOnboardingWizard({
   
   // Hostfully state
   const [hostfullyApiKey, setHostfullyApiKey] = useState("");
-  const [hostfullyEnvironment, setHostfullyEnvironment] = useState<"production" | "sandbox">("production");
+  const hostfullyEnvironment = "production"; // Always production for owners
   const [hostfullyAgencyInfo, setHostfullyAgencyInfo] = useState<HostfullyAgencyInfo | null>(null);
   const [hostfullyProperties, setHostfullyProperties] = useState<HostfullyProperty[]>([]);
   const [selectedHostfullyProperties, setSelectedHostfullyProperties] = useState<Set<string>>(new Set());
@@ -88,7 +88,6 @@ export function OwnerOnboardingWizard({
     if (open) {
       // Reset state when opening
       setHostfullyApiKey("");
-      setHostfullyEnvironment("production");
       setHostfullyAgencyInfo(null);
       setHostfullyProperties([]);
       setSelectedHostfullyProperties(new Set());
@@ -341,30 +340,6 @@ export function OwnerOnboardingWizard({
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="onboard-hostfully-env">Environment</Label>
-                  <Select
-                    value={hostfullyEnvironment}
-                    onValueChange={(v) => {
-                      setHostfullyEnvironment(v as "production" | "sandbox");
-                      if (keyValidated) {
-                        setKeyValidated(false);
-                        setHostfullyAgencyInfo(null);
-                        setHostfullyProperties([]);
-                        setSelectedHostfullyProperties(new Set());
-                      }
-                    }}
-                    disabled={importing}
-                  >
-                    <SelectTrigger id="onboard-hostfully-env">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="production">Production</SelectItem>
-                      <SelectItem value="sandbox">Sandbox</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
 
                 {keyValidated && hostfullyAgencyInfo && (
                   <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-950/30 rounded-md border border-green-200 dark:border-green-800">
