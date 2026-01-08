@@ -1590,6 +1590,146 @@ export type Database = {
           },
         ]
       }
+      system_health_aggregates: {
+        Row: {
+          avg_latency_ms: number | null
+          component_key: string
+          date: string
+          degraded_count: number | null
+          failed_count: number | null
+          healthy_count: number | null
+          hour: number
+          id: string
+          last_status: Database["public"]["Enums"]["health_status"] | null
+          p95_latency_ms: number | null
+          total_checks: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          avg_latency_ms?: number | null
+          component_key: string
+          date: string
+          degraded_count?: number | null
+          failed_count?: number | null
+          healthy_count?: number | null
+          hour: number
+          id?: string
+          last_status?: Database["public"]["Enums"]["health_status"] | null
+          p95_latency_ms?: number | null
+          total_checks?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          avg_latency_ms?: number | null
+          component_key?: string
+          date?: string
+          degraded_count?: number | null
+          failed_count?: number | null
+          healthy_count?: number | null
+          hour?: number
+          id?: string
+          last_status?: Database["public"]["Enums"]["health_status"] | null
+          p95_latency_ms?: number | null
+          total_checks?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      system_health_checks: {
+        Row: {
+          checked_at: string
+          component_key: string
+          created_at: string | null
+          error_code: string | null
+          error_message: string | null
+          id: string
+          latency_ms: number | null
+          metadata: Json | null
+          response_data: Json | null
+          status: Database["public"]["Enums"]["health_status"]
+        }
+        Insert: {
+          checked_at?: string
+          component_key: string
+          created_at?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          latency_ms?: number | null
+          metadata?: Json | null
+          response_data?: Json | null
+          status: Database["public"]["Enums"]["health_status"]
+        }
+        Update: {
+          checked_at?: string
+          component_key?: string
+          created_at?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          latency_ms?: number | null
+          metadata?: Json | null
+          response_data?: Json | null
+          status?: Database["public"]["Enums"]["health_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_health_checks_component_key_fkey"
+            columns: ["component_key"]
+            isOneToOne: false
+            referencedRelation: "system_health_components"
+            referencedColumns: ["component_key"]
+          },
+        ]
+      }
+      system_health_components: {
+        Row: {
+          check_interval_minutes: number | null
+          component_key: string
+          component_name: string
+          component_type: Database["public"]["Enums"]["component_type"]
+          created_at: string | null
+          description: string | null
+          expected_latency_ms: number | null
+          health_check_endpoint: string | null
+          id: string
+          is_active: boolean | null
+          is_critical: boolean | null
+          retry_count: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          check_interval_minutes?: number | null
+          component_key: string
+          component_name: string
+          component_type: Database["public"]["Enums"]["component_type"]
+          created_at?: string | null
+          description?: string | null
+          expected_latency_ms?: number | null
+          health_check_endpoint?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_critical?: boolean | null
+          retry_count?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          check_interval_minutes?: number | null
+          component_key?: string
+          component_name?: string
+          component_type?: Database["public"]["Enums"]["component_type"]
+          created_at?: string | null
+          description?: string | null
+          expected_latency_ms?: number | null
+          health_check_endpoint?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_critical?: boolean | null
+          retry_count?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       user_help_views: {
         Row: {
           article_id: string | null
@@ -1791,6 +1931,8 @@ export type Database = {
         | "cron"
         | "db_trigger"
       audit_user_role: "admin" | "dev" | "owner" | "system"
+      component_type: "pms" | "internal" | "external" | "infrastructure"
+      health_status: "healthy" | "degraded" | "failed" | "unknown"
       help_impact_level: "critical" | "warning" | "info"
     }
     CompositeTypes: {
@@ -1938,6 +2080,8 @@ export const Constants = {
         "db_trigger",
       ],
       audit_user_role: ["admin", "dev", "owner", "system"],
+      component_type: ["pms", "internal", "external", "infrastructure"],
+      health_status: ["healthy", "degraded", "failed", "unknown"],
       help_impact_level: ["critical", "warning", "info"],
     },
   },
