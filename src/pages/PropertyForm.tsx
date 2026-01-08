@@ -7837,26 +7837,6 @@ export default function PropertyForm() {
                       )}
                     </TabsList>
 
-                    {/* Hostfully Sync Button */}
-                    {selectedPMS === "hostfully" && roomTypes.find(r => r.id === selectedRoomType)?.pmsRoomId && (
-                      <div className="flex justify-end px-3 pt-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => syncRoomFromHostfully(selectedRoomType)}
-                          disabled={syncingRoomId === selectedRoomType}
-                          className="gap-2 h-7 text-xs"
-                        >
-                          {syncingRoomId === selectedRoomType ? (
-                            <RefreshCw className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Cloud className="h-3 w-3" />
-                          )}
-                          Sync from Hostfully
-                        </Button>
-                      </div>
-                    )}
 
                     {/* Room Type Sub-tab */}
                     <TabsContent value="room-type" className="p-3 space-y-3">
