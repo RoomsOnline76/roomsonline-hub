@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { getPropertyUrl } from "@/lib/config";
+import { ExternalSourceBadge } from "@/components/pms/ExternalSourceBadge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -498,9 +499,12 @@ const PropertyOverview = () => {
                           </TableCell>
                           <TableCell className="py-1 text-xs">
                             {property.external_system ? (
-                              <Badge variant="outline" className="capitalize text-[10px] px-1 py-0">
-                                {property.external_system}
-                              </Badge>
+                              <ExternalSourceBadge
+                                systemType={property.external_system}
+                                status={property.pms_sync_status === 'error' ? 'error' : property.pms_sync_status === 'syncing' ? 'syncing' : 'active'}
+                                lastSyncAt={property.last_pms_sync_at}
+                                compact
+                              />
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
@@ -528,7 +532,8 @@ const PropertyOverview = () => {
                               const externalId = property.external_id || 
                                 property.benson_property_code || 
                                 property.checkfront_property_code || 
-                                property.siteminder_property_code;
+                                property.siteminder_property_code ||
+                                property.hostfully_property_uid;
                               return externalId ? (
                                 <span className="font-mono text-[10px]">{externalId}</span>
                               ) : (

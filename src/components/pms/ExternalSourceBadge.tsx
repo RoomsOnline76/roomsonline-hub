@@ -11,6 +11,7 @@ interface ExternalSourceBadgeProps {
   lastSyncAt?: string | null;
   className?: string;
   showTooltip?: boolean;
+  compact?: boolean;
 }
 
 const statusConfig: Record<PMSSyncStatus, { color: string; label: string }> = {
@@ -38,6 +39,7 @@ export function ExternalSourceBadge({
   lastSyncAt,
   className,
   showTooltip = true,
+  compact = false,
 }: ExternalSourceBadgeProps) {
   const displayName = systemNames[systemType.toLowerCase()] || systemType;
   const statusInfo = statusConfig[status];
@@ -60,12 +62,13 @@ export function ExternalSourceBadge({
       variant="outline" 
       className={cn(
         "gap-1.5 font-normal",
+        compact && "text-[10px] px-1.5 py-0",
         className
       )}
     >
-      <Link className="h-3 w-3" />
-      <span>{displayName}</span>
-      <Circle className={cn("h-2 w-2 fill-current", statusInfo.color)} />
+      <Link className={cn("h-3 w-3", compact && "h-2.5 w-2.5")} />
+      {!compact && <span>{displayName}</span>}
+      <Circle className={cn("h-2 w-2 fill-current", compact && "h-1.5 w-1.5", statusInfo.color)} />
     </Badge>
   );
 
