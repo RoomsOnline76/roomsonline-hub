@@ -1096,35 +1096,9 @@ export default function PropertyForm() {
     navigation_tags: [] as string[],
   });
 
-  // Room types state with full data structure
-  const [roomTypes, setRoomTypes] = useState<any[]>([
-    {
-      id: "1",
-      name: "Holiday House",
-      url: "",
-      selected: true,
-      numRooms: 1,
-      pmsRoomType: "",
-      pmsRoomId: "",
-      description: "",
-      extraPersonPolicy: "",
-      bedConfiguration: [] as BedEntry[],
-      roomSize: 0,
-      bathrooms: 1,
-      maxPeople: 2,
-      maxAdults: 2,
-      maxChildren: 0,
-      minStay: 1,
-      maxStay: 0,
-      rateType: "per-unit",
-      splitPercent: 0,
-      images: [] as string[],
-      facilities: [] as string[],
-      amenities: [] as string[],
-      mealTypes: [] as string[],
-    },
-  ]);
-  const [selectedRoomType, setSelectedRoomType] = useState<string>("1");
+  // Room types state with full data structure - starts empty for new properties
+  const [roomTypes, setRoomTypes] = useState<any[]>([]);
+  const [selectedRoomType, setSelectedRoomType] = useState<string>("");
   const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
 
   const addRoomType = () => {
