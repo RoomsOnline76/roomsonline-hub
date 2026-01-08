@@ -175,6 +175,53 @@ export default function PMSConfig() {
   };
 
   const fetchExternalTypes = async () => {
+    // For Hostfully, we only need the owner selected (not a property)
+    if (systemType === 'hostfully') {
+      if (!selectedOwnerId) {
+        toast({
+          title: "Missing configuration",
+          description: "Please select an owner",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setFetchingExternal(true);
+      try {
+        // Fetch properties using owner's API key via list_properties action
+        const { data, error } = await supabase.functions.invoke('hostfully-api', {
+          body: {
+            action: 'list_properties',
+            owner_credential_id: selectedOwnerId,
+          },
+        });
+
+        if (error) throw error;
+
+        if (data?.success) {
+          setPmsData({
+            properties: data.data?.properties || [],
+            raw_response: data.data,
+          });
+          toast({
+            title: "Data fetched",
+            description: `Found ${data.data?.properties?.length || 0} properties from Hostfully`,
+          });
+        } else {
+          throw new Error(data?.error || 'Failed to fetch properties');
+        }
+      } catch (error: any) {
+        toast({
+          title: "Error fetching data",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+      setFetchingExternal(false);
+      return;
+    }
+
+    // For other PMS systems, require property selection
     if (!selectedPropertyId || !pmsConfig) {
       toast({
         title: "Missing configuration",
@@ -184,7 +231,6 @@ export default function PMSConfig() {
       return;
     }
 
-    // Get the selected property to find its Hostfully UID
     const selectedProperty = properties.find(p => p.id === selectedPropertyId);
     if (!selectedProperty) {
       toast({
@@ -200,52 +246,17 @@ export default function PMSConfig() {
     setFetchingExternal(true);
     try {
       const fetchedData: Record<string, any> = {};
+      
+      // For other PMS systems, use the generic fetch_types if supported
+      const { data, error } = await supabase.functions.invoke(pmsConfig.edgeFunctionName, {
+        body: {
+          action: "get_room_types",
+          property_id: selectedPropertyId,
+        },
+      });
 
-      // For Hostfully, fetch room types and rate types using valid actions
-      if (systemType === 'hostfully') {
-        // Get owner credential if property is linked to one
-        let apiKeySource: Record<string, any> = {};
-        if (selectedProperty.owner_pms_credential_id) {
-          apiKeySource = { owner_credential_id: selectedProperty.owner_pms_credential_id };
-        }
-
-        // Fetch room types
-        const { data: roomData, error: roomError } = await supabase.functions.invoke('hostfully-api', {
-          body: {
-            action: 'get_room_types',
-            propertyUid,
-            ...apiKeySource,
-          },
-        });
-
-        if (!roomError && roomData?.success) {
-          fetchedData.room_types = roomData.data?.room_types || [];
-        }
-
-        // Fetch rate types
-        const { data: rateData, error: rateError } = await supabase.functions.invoke('hostfully-api', {
-          body: {
-            action: 'get_rate_types',
-            propertyUid,
-            ...apiKeySource,
-          },
-        });
-
-        if (!rateError && rateData?.success) {
-          fetchedData.rate_types = rateData.data?.rate_types || [];
-        }
-      } else {
-        // For other PMS systems, use the generic fetch_types if supported
-        const { data, error } = await supabase.functions.invoke(pmsConfig.edgeFunctionName, {
-          body: {
-            action: "get_room_types",
-            property_id: selectedPropertyId,
-          },
-        });
-
-        if (error) throw error;
-        Object.assign(fetchedData, data.data || data);
-      }
+      if (error) throw error;
+      Object.assign(fetchedData, data.data || data);
 
       setPmsData(fetchedData);
 
@@ -401,6 +412,7 @@ export default function PMSConfig() {
                   No Hostfully owners found. Create an owner with Hostfully credentials first.
                 </div>
               ) : (
+              <div className="flex items-center gap-4">
                 <Select value={selectedOwnerId} onValueChange={setSelectedOwnerId}>
                   <SelectTrigger className="w-[400px]">
                     <SelectValue placeholder="Select an owner" />
@@ -414,68 +426,98 @@ export default function PMSConfig() {
                     ))}
                   </SelectContent>
                 </Select>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Property Selection */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Select Property</CardTitle>
-            <CardDescription>
-              {systemType === 'hostfully' 
-                ? 'Choose a property from the selected owner'
-                : 'Choose a property to configure field mappings for'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {systemType === 'hostfully' && !selectedOwnerId ? (
-              <div className="text-sm text-muted-foreground">
-                Please select an owner first.
-              </div>
-            ) : properties.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                No properties found{systemType === 'hostfully' ? ' for this owner' : ` using ${pmsConfig.displayName}`}. 
-                {systemType !== 'hostfully' && (
-                  <Button variant="link" className="px-1" onClick={() => navigate("/admin/properties/new")}>
-                    Create a property
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-4">
-                <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId}>
-                  <SelectTrigger className="w-[300px]">
-                    <SelectValue placeholder="Select a property" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {properties.map(property => (
-                      <SelectItem key={property.id} value={property.id}>
-                        {property.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
                 <Button
                   variant="outline"
                   onClick={fetchExternalTypes}
-                  disabled={!selectedPropertyId || fetchingExternal}
+                  disabled={!selectedOwnerId || fetchingExternal}
                 >
                   {fetchingExternal ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
                     <RefreshCw className="h-4 w-4 mr-2" />
                   )}
-                  Fetch External Data
+                  Fetch Properties
                 </Button>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-        {/* Field Mappings */}
-        {selectedPropertyId && (
+        {/* Property Selection - hide for Hostfully as we fetch from API */}
+        {systemType !== 'hostfully' && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Select Property</CardTitle>
+              <CardDescription>
+                Choose a property to configure field mappings for
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {properties.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  No properties found using {pmsConfig.displayName}. 
+                  <Button variant="link" className="px-1" onClick={() => navigate("/admin/properties/new")}>
+                    Create a property
+                  </Button>
+                  with {pmsConfig.displayName} as the external system.
+                </div>
+              ) : (
+                <div className="flex items-center gap-4">
+                  <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId}>
+                    <SelectTrigger className="w-[300px]">
+                      <SelectValue placeholder="Select a property" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {properties.map(property => (
+                        <SelectItem key={property.id} value={property.id}>
+                          {property.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    onClick={fetchExternalTypes}
+                    disabled={!selectedPropertyId || fetchingExternal}
+                  >
+                    {fetchingExternal ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Fetch External Data
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Data Explorer for Hostfully - show when we have fetched data */}
+        {systemType === 'hostfully' && Object.keys(pmsData).length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Hostfully Properties Data
+              </CardTitle>
+              <CardDescription>
+                Raw data from Hostfully API for the selected owner
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[500px] rounded border">
+                <pre className="p-4 text-xs font-mono">
+                  {JSON.stringify(pmsData, null, 2)}
+                </pre>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Field Mappings - for non-Hostfully or when property selected */}
+        {(systemType !== 'hostfully' && selectedPropertyId) && (
           <Tabs defaultValue="mappings" className="mb-6">
             <TabsList>
               <TabsTrigger value="mappings">Field Mappings</TabsTrigger>
