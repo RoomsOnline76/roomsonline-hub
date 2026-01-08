@@ -97,6 +97,11 @@ export const TOTAL_PMS_SYSTEMS_COUNT = ALL_PMS_SYSTEMS.length;
 // Get only PMS systems (excluding internal RoomsOnline API)
 export const PMS_ONLY_SYSTEMS = ALL_PMS_SYSTEMS.filter(s => !s.isInternal);
 
+// Get only active/implemented PMS systems (those with custom cards)
+export const ACTIVE_PMS_SYSTEMS = ALL_PMS_SYSTEMS.filter(
+  s => !s.isInternal && s.hasCustomCard
+);
+
 // Get systems for property form dropdown (all systems)
 export const getPropertyFormPMSSystems = () => 
   ALL_PMS_SYSTEMS.map(s => ({
