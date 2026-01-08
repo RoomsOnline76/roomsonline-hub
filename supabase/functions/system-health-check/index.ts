@@ -250,11 +250,11 @@ async function checkGoogleMaps(supabase: SupabaseClientType): Promise<HealthChec
   const start = Date.now();
   
   try {
-    // Get API key from database
+    // Get API key from database (stored as lowercase)
     const { data: apiKeyData } = await supabase
       .from('api_keys')
       .select('key_value')
-      .eq('key_name', 'GOOGLE_MAPS_API_KEY')
+      .eq('key_name', 'google_maps_api_key')
       .single();
     
     if (!apiKeyData?.key_value) {
