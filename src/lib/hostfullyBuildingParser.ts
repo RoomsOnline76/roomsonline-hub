@@ -26,6 +26,19 @@ interface RawHostfullyProperty {
 }
 
 /**
+ * Sanitizes a property name by removing all types of whitespace anomalies
+ */
+function sanitizeName(name: string): string {
+  return name
+    // Replace all unicode whitespace variants with regular space
+    .replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000\t\r\n]/g, ' ')
+    // Collapse multiple spaces to single space
+    .replace(/\s+/g, ' ')
+    // Remove leading/trailing whitespace
+    .trim();
+}
+
+/**
  * Parses a single property name into building, room number, and room type
  * Pattern: [Building Name] [Room Number] [Room Type...]
  * 
@@ -39,7 +52,14 @@ export function parsePropertyName(name: string): { building: string; room: strin
     return null;
   }
 
-  const parts = name.trim().split(/\s+/);
+  // Aggressive sanitization to handle messy human input
+  const sanitized = sanitizeName(name);
+  
+  if (!sanitized) {
+    return null;
+  }
+
+  const parts = sanitized.split(' ');
   
   if (parts.length < 2) {
     // Can't parse, return whole name as building
@@ -75,7 +95,7 @@ export function parsePropertyName(name: string): { building: string; room: strin
 }
 
 /**
- * Groups Hostfully properties by building name
+ * Groups Hostfully properties by building name (case-insensitive)
  * Returns an array of ParsedBuilding objects
  */
 export function parseHostfullyProperties(properties: RawHostfullyProperty[]): ParsedBuilding[] {
@@ -83,33 +103,37 @@ export function parseHostfullyProperties(properties: RawHostfullyProperty[]): Pa
     return [];
   }
 
-  // Group properties by building name
-  const buildingMap = new Map<string, HostfullyUnit[]>();
+  // Group properties by NORMALIZED (uppercase) building name for case-insensitive matching
+  const buildingMap = new Map<string, { displayName: string; units: HostfullyUnit[] }>();
 
   for (const prop of properties) {
     const parsed = parsePropertyName(prop.name);
     
-    if (!parsed) continue;
+    if (!parsed || !parsed.building) continue;
 
-    const buildingName = parsed.building;
+    // Normalize to uppercase for grouping key
+    const normalizedKey = parsed.building.toUpperCase();
     
     const unit: HostfullyUnit = {
       id: prop.id,
-      name: prop.name,
+      name: sanitizeName(prop.name),
       room_number: parsed.room,
       room_type: parsed.type,
     };
 
-    if (!buildingMap.has(buildingName)) {
-      buildingMap.set(buildingName, []);
+    if (!buildingMap.has(normalizedKey)) {
+      buildingMap.set(normalizedKey, {
+        displayName: parsed.building, // Keep first occurrence's casing
+        units: []
+      });
     }
-    buildingMap.get(buildingName)!.push(unit);
+    buildingMap.get(normalizedKey)!.units.push(unit);
   }
 
   // Convert map to array of ParsedBuilding objects
   const buildings: ParsedBuilding[] = [];
   
-  for (const [buildingName, units] of buildingMap) {
+  for (const [, { displayName, units }] of buildingMap) {
     // Sort units by room number
     units.sort((a, b) => {
       // Try numeric comparison first
@@ -125,7 +149,7 @@ export function parseHostfullyProperties(properties: RawHostfullyProperty[]): Pa
     });
 
     buildings.push({
-      building_name: buildingName,
+      building_name: displayName,
       units,
       unit_count: units.length,
       sample_hostfully_uid: units[0]?.id || '',
