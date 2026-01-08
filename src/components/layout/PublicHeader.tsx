@@ -101,32 +101,74 @@ export function PublicHeader({
 
         {/* Mobile dropdown menu */}
         {mobileMenuOpen && (
-          <div className="sm:hidden mt-4 pb-2 animate-fade-in">
+          <div className={cn(
+            "sm:hidden mt-4 pb-2 animate-fade-in",
+            transparent && "text-white"
+          )}>
             <nav className="flex flex-col gap-2">
               <Link
                 to="/journals"
-                className="px-3 py-2 text-sm text-foreground/80 hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                className={cn(
+                  "px-3 py-2 text-sm rounded-md transition-colors",
+                  transparent 
+                    ? "text-white/90 hover:text-white hover:bg-white/10" 
+                    : "text-foreground/80 hover:text-foreground hover:bg-muted"
+                )}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Journal
               </Link>
               <Link
                 to="/about"
-                className="px-3 py-2 text-sm text-foreground/80 hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                className={cn(
+                  "px-3 py-2 text-sm rounded-md transition-colors",
+                  transparent 
+                    ? "text-white/90 hover:text-white hover:bg-white/10" 
+                    : "text-foreground/80 hover:text-foreground hover:bg-muted"
+                )}
                 onClick={() => setMobileMenuOpen(false)}
               >
-                About
+                About Us
+              </Link>
+              <Link
+                to="/privacy"
+                className={cn(
+                  "px-3 py-2 text-sm rounded-md transition-colors",
+                  transparent 
+                    ? "text-white/90 hover:text-white hover:bg-white/10" 
+                    : "text-foreground/80 hover:text-foreground hover:bg-muted"
+                )}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Privacy
+              </Link>
+              <Link
+                to="/terms"
+                className={cn(
+                  "px-3 py-2 text-sm rounded-md transition-colors",
+                  transparent 
+                    ? "text-white/90 hover:text-white hover:bg-white/10" 
+                    : "text-foreground/80 hover:text-foreground hover:bg-muted"
+                )}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Terms
               </Link>
               <Link
                 to="/contact"
-                className="px-3 py-2 text-sm text-foreground/80 hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                className={cn(
+                  "px-3 py-2 text-sm rounded-md transition-colors",
+                  transparent 
+                    ? "text-white/90 hover:text-white hover:bg-white/10" 
+                    : "text-foreground/80 hover:text-foreground hover:bg-muted"
+                )}
                 onClick={() => setMobileMenuOpen(false)}
               >
-                Contact
+                Contact Us
               </Link>
               {showCurrency && (
                 <div className="px-3 py-2">
-                  <CurrencySelector compact />
+                  <CurrencySelector compact variant={transparent ? "hero" : "default"} />
                 </div>
               )}
             </nav>
