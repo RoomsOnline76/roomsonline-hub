@@ -134,6 +134,7 @@ export default function AdminKeys() {
   const [editingNightsbridge, setEditingNightsbridge] = useState(false);
   const [savingNightsbridge, setSavingNightsbridge] = useState(false);
   const [togglingNightsbridge, setTogglingNightsbridge] = useState(false);
+  const [syncingNightsbridgeReservations, setSyncingNightsbridgeReservations] = useState(false);
 
   // Checkfront-specific state (supports Token and OAuth2 auth)
   const [checkfrontCredentials, setCheckfrontCredentials] = useState<PMSCredentials | null>(null);
@@ -1129,6 +1130,39 @@ export default function AdminKeys() {
           description: `NightsBridge now using ${newEnv} endpoint`,
         });
       }
+    }
+  };
+
+  const handleSyncNightsbridgeReservations = async () => {
+    setSyncingNightsbridgeReservations(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("nightsbridge-reservations-sync", {
+        body: {},
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: "Reservations synced",
+          description: data.message || `Synced ${data.data?.synced || 0} reservations from NightsBridge`,
+        });
+      } else {
+        toast({
+          title: "Sync issue",
+          description: data?.message || data?.error || "Could not sync reservations",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error("NightsBridge sync error:", error);
+      toast({
+        title: "Sync failed",
+        description: error.message || "Failed to sync NightsBridge reservations",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingNightsbridgeReservations(false);
     }
   };
 
@@ -2291,7 +2325,7 @@ export default function AdminKeys() {
                 {/* Dev Notes */}
                 <PMSDevNotes systemType="nightsbridge" />
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button variant="outline" onClick={() => setEditingNightsbridge(true)}>
                     {isConfigured ? "Update Credentials" : "Configure"}
                   </Button>
@@ -2302,6 +2336,24 @@ export default function AdminKeys() {
                   >
                     <Settings className="h-4 w-4 mr-2" />
                     Field Mappings
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleSyncNightsbridgeReservations}
+                    disabled={syncingNightsbridgeReservations || !nightsbridgeCredentials?.api_key}
+                    title={!nightsbridgeCredentials?.api_key ? "API key required for reservation sync" : "Sync reservations from NightsBridge"}
+                  >
+                    {syncingNightsbridgeReservations ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Syncing...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Sync Reservations
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
