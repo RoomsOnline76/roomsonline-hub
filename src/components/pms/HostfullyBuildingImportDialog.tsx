@@ -48,7 +48,7 @@ export function HostfullyBuildingImportDialog({
   const [importing, setImporting] = useState(false);
   const [existingBuildingNames, setExistingBuildingNames] = useState<Set<string>>(new Set());
 
-  // Check which buildings are already imported when dialog opens
+  // Check which buildings are already imported when dialog opens (only active, non-deleted)
   useEffect(() => {
     async function fetchExistingBuildings() {
       if (!open || !ownerCredentialId) return;
@@ -56,7 +56,9 @@ export function HostfullyBuildingImportDialog({
       const { data } = await supabase
         .from('properties')
         .select('name')
-        .eq('owner_pms_credential_id', ownerCredentialId);
+        .eq('owner_pms_credential_id', ownerCredentialId)
+        .eq('is_active', true)
+        .is('permanently_deleted_at', null);
       
       if (data) {
         setExistingBuildingNames(new Set(data.map(p => p.name.toUpperCase())));
