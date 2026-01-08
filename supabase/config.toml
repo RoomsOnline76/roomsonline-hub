@@ -62,3 +62,18 @@ verify_jwt = false
 
 [functions.send-pms-status-report]
 verify_jwt = true
+
+[functions.log-audit-event]
+verify_jwt = false
+
+[functions.fetch-audit-logs]
+verify_jwt = false
+
+[functions.forgot-password]
+verify_jwt = false
+
+[functions.send-contact-email]
+verify_jwt = false
+
+[functions.geocode-property]
+verify_jwt = false
