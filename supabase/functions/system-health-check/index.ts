@@ -246,30 +246,26 @@ async function checkAddPay(): Promise<HealthCheckResult> {
   };
 }
 
-async function checkGoogleMaps(supabase: SupabaseClientType): Promise<HealthCheckResult> {
+async function checkGoogleMaps(_supabase: SupabaseClientType): Promise<HealthCheckResult> {
   const start = Date.now();
   
   try {
-    // Get API key from database (stored as lowercase)
-    const { data: apiKeyData } = await supabase
-      .from('api_keys')
-      .select('key_value')
-      .eq('key_name', 'google_maps_api_key')
-      .single();
+    // Use server-side API key from secrets (not the referer-restricted frontend key)
+    const apiKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
     
-    if (!apiKeyData?.key_value) {
+    if (!apiKey) {
       return {
         component_key: 'google_maps',
         status: 'unknown',
         latency_ms: Date.now() - start,
         error_code: 'NO_API_KEY',
-        error_message: 'Google Maps API key not configured',
+        error_message: 'Google Maps API key not configured in secrets',
       };
     }
 
     // Test geocoding endpoint with a simple query
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?address=Cape+Town&key=${apiKeyData.key_value}`
+      `https://maps.googleapis.com/maps/api/geocode/json?address=Cape+Town&key=${apiKey}`
     );
     const latency = Date.now() - start;
     const data = await response.json();
