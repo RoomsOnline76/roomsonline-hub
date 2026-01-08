@@ -518,61 +518,142 @@ export type Database = {
       }
       hostfully_room_types: {
         Row: {
+          address_city: string | null
+          address_country: string | null
+          address_postal_code: string | null
+          address_state: string | null
+          address_street: string | null
           amenities: Json | null
           bathrooms: number | null
           bedrooms: number | null
           beds: number | null
+          cancellation_policy: string | null
+          check_in_instructions: string | null
+          check_in_time: string | null
+          check_out_time: string | null
+          cleaning_fee: number | null
           created_at: string | null
           currency: string | null
           daily_rate: number | null
           description: string | null
+          extra_guest_fee: number | null
           hostfully_room_id: string | null
+          house_rules: string | null
           id: string
           images: Json | null
           is_active: boolean | null
+          last_synced_at: string | null
+          latitude: number | null
+          longitude: number | null
           max_guests: number | null
+          max_stay: number | null
+          min_guests: number | null
+          min_stay: number | null
           name: string
+          pms_synced_fields: string[] | null
           property_id: string
+          property_type: string | null
           raw_data: Json | null
+          room_size: number | null
+          room_size_unit: string | null
+          security_deposit: number | null
+          tax_rate: number | null
+          thumbnail_url: string | null
           updated_at: string | null
+          wifi_network: string | null
+          wifi_password: string | null
         }
         Insert: {
+          address_city?: string | null
+          address_country?: string | null
+          address_postal_code?: string | null
+          address_state?: string | null
+          address_street?: string | null
           amenities?: Json | null
           bathrooms?: number | null
           bedrooms?: number | null
           beds?: number | null
+          cancellation_policy?: string | null
+          check_in_instructions?: string | null
+          check_in_time?: string | null
+          check_out_time?: string | null
+          cleaning_fee?: number | null
           created_at?: string | null
           currency?: string | null
           daily_rate?: number | null
           description?: string | null
+          extra_guest_fee?: number | null
           hostfully_room_id?: string | null
+          house_rules?: string | null
           id?: string
           images?: Json | null
           is_active?: boolean | null
+          last_synced_at?: string | null
+          latitude?: number | null
+          longitude?: number | null
           max_guests?: number | null
+          max_stay?: number | null
+          min_guests?: number | null
+          min_stay?: number | null
           name: string
+          pms_synced_fields?: string[] | null
           property_id: string
+          property_type?: string | null
           raw_data?: Json | null
+          room_size?: number | null
+          room_size_unit?: string | null
+          security_deposit?: number | null
+          tax_rate?: number | null
+          thumbnail_url?: string | null
           updated_at?: string | null
+          wifi_network?: string | null
+          wifi_password?: string | null
         }
         Update: {
+          address_city?: string | null
+          address_country?: string | null
+          address_postal_code?: string | null
+          address_state?: string | null
+          address_street?: string | null
           amenities?: Json | null
           bathrooms?: number | null
           bedrooms?: number | null
           beds?: number | null
+          cancellation_policy?: string | null
+          check_in_instructions?: string | null
+          check_in_time?: string | null
+          check_out_time?: string | null
+          cleaning_fee?: number | null
           created_at?: string | null
           currency?: string | null
           daily_rate?: number | null
           description?: string | null
+          extra_guest_fee?: number | null
           hostfully_room_id?: string | null
+          house_rules?: string | null
           id?: string
           images?: Json | null
           is_active?: boolean | null
+          last_synced_at?: string | null
+          latitude?: number | null
+          longitude?: number | null
           max_guests?: number | null
+          max_stay?: number | null
+          min_guests?: number | null
+          min_stay?: number | null
           name?: string
+          pms_synced_fields?: string[] | null
           property_id?: string
+          property_type?: string | null
           raw_data?: Json | null
+          room_size?: number | null
+          room_size_unit?: string | null
+          security_deposit?: number | null
+          tax_rate?: number | null
+          thumbnail_url?: string | null
           updated_at?: string | null
+          wifi_network?: string | null
+          wifi_password?: string | null
         }
         Relationships: [
           {
