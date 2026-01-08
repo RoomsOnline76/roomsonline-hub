@@ -8,7 +8,10 @@ import {
   CheckCircle2, 
   XCircle,
   Download,
-  Timer
+  Timer,
+  ChevronDown,
+  ChevronRight,
+  PauseCircle
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -21,6 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { ComponentHealthCard } from "@/components/health/ComponentHealthCard";
 import { HealthStatusBadge } from "@/components/health/HealthStatusBadge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 
 type ComponentType = 'all' | 'pms' | 'internal' | 'external' | 'infrastructure';
@@ -52,6 +56,7 @@ export default function AdminSystemHealth() {
   const [selectedType, setSelectedType] = useState<ComponentType>('all');
   const [timeRange, setTimeRange] = useState<TimeRange>('24h');
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [inactiveExpanded, setInactiveExpanded] = useState(false);
 
   // Auto-refresh every 60 seconds
   useEffect(() => {
@@ -214,11 +219,18 @@ export default function AdminSystemHealth() {
     };
   }, [components, componentStats]);
 
-  // Filter components by type
-  const filteredComponents = useMemo(() => {
-    if (!components) return [];
-    if (selectedType === 'all') return components;
-    return components.filter(c => c.component_type === selectedType);
+  // Filter components by type - separate active and inactive
+  const { activeComponents, inactiveComponents } = useMemo(() => {
+    if (!components) return { activeComponents: [], inactiveComponents: [] };
+    
+    const filtered = selectedType === 'all' 
+      ? components 
+      : components.filter(c => c.component_type === selectedType);
+    
+    return {
+      activeComponents: filtered.filter(c => c.is_active),
+      inactiveComponents: filtered.filter(c => !c.is_active),
+    };
   }, [components, selectedType]);
 
   // Last check time
@@ -446,39 +458,95 @@ export default function AdminSystemHealth() {
         </div>
       </div>
 
-      {/* Component Grid */}
+      {/* Active Monitored Systems */}
       {isLoading ? (
         <div className="space-y-4">
           {[1, 2, 3, 4].map(i => (
             <Skeleton key={i} className="h-24 w-full" />
           ))}
         </div>
-      ) : filteredComponents.length === 0 ? (
+      ) : activeComponents.length === 0 && inactiveComponents.length === 0 ? (
         <Card className="p-8 text-center">
           <p className="text-muted-foreground">No components found for this filter.</p>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {filteredComponents.map(component => {
-            const stats = componentStats[component.component_key];
-            return (
-              <ComponentHealthCard
-                key={component.id}
-                componentKey={component.component_key}
-                componentName={component.component_name}
-                componentType={component.component_type}
-                isCritical={component.is_critical}
-                isActive={component.is_active}
-                expectedLatency={component.expected_latency_ms}
-                lastStatus={stats?.lastStatus || 'unknown'}
-                lastChecked={stats?.lastChecked || 'Never'}
-                avgLatency={stats?.avgLatency || 0}
-                uptimePercentage={stats?.uptimePercentage || 0}
-                failureCount24h={stats?.failureCount || 0}
-                recentChecks={stats?.recentChecks || []}
-              />
-            );
-          })}
+        <div className="space-y-6">
+          {/* Active Components */}
+          {activeComponents.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Activity className="h-4 w-4" />
+                Active Monitored Systems ({activeComponents.length})
+              </h3>
+              {activeComponents.map(component => {
+                const stats = componentStats[component.component_key];
+                return (
+                  <ComponentHealthCard
+                    key={component.id}
+                    componentKey={component.component_key}
+                    componentName={component.component_name}
+                    componentType={component.component_type}
+                    isCritical={component.is_critical}
+                    isActive={component.is_active}
+                    expectedLatency={component.expected_latency_ms}
+                    lastStatus={stats?.lastStatus || 'unknown'}
+                    lastChecked={stats?.lastChecked || 'Never'}
+                    avgLatency={stats?.avgLatency || 0}
+                    uptimePercentage={stats?.uptimePercentage || 0}
+                    failureCount24h={stats?.failureCount || 0}
+                    recentChecks={stats?.recentChecks || []}
+                  />
+                );
+              })}
+            </div>
+          )}
+
+          {/* Inactive / Waiting Systems - Collapsible */}
+          {inactiveComponents.length > 0 && (
+            <Collapsible open={inactiveExpanded} onOpenChange={setInactiveExpanded}>
+              <CollapsibleTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-between px-4 py-3 h-auto border border-dashed border-muted-foreground/30 hover:border-muted-foreground/50"
+                >
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <PauseCircle className="h-4 w-4" />
+                    Waiting / Not Active ({inactiveComponents.length} systems)
+                  </span>
+                  {inactiveExpanded ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-3">
+                <Card className="border-dashed">
+                  <CardContent className="p-0">
+                    <div className="divide-y divide-border">
+                      {inactiveComponents.map(component => (
+                        <div 
+                          key={component.id}
+                          className="flex items-center justify-between px-4 py-3 text-muted-foreground"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+                            <span className="font-medium">{component.component_name}</span>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm">
+                            <Badge variant="outline" className="text-xs font-normal opacity-60">
+                              {component.component_type}
+                            </Badge>
+                            <span className="text-xs opacity-50">Not Active</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
         </div>
       )}
     </AppLayout>
