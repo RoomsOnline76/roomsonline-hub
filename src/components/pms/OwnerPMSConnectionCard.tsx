@@ -131,32 +131,8 @@ export function OwnerPMSConnectionCard({
   };
 
   const handleSyncListings = async () => {
-    if (!credential?.id) return;
-
-    setSyncing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('hostfully-api', {
-        body: {
-          action: 'sync_owner_listings',
-          owner_credential_id: credential.id,
-        },
-      });
-
-      if (error) throw error;
-
-      if (!data?.success) {
-        toast.error(data?.error?.message || 'Sync failed');
-        return;
-      }
-
-      toast.success(`Synced ${data.data.count} properties from Hostfully`);
-      onCredentialChange?.();
-    } catch (error: any) {
-      console.error('Sync failed:', error);
-      toast.error(error.message || 'Failed to sync listings');
-    } finally {
-      setSyncing(false);
-    }
+    // Sync now triggers the building import dialog
+    await handleOpenBuildingImporter();
   };
 
   const handleDisconnect = async (action: DisconnectAction) => {
