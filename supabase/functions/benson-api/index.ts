@@ -599,7 +599,11 @@ serve(async (req) => {
       // Use the property's environment for the API call
       const testEnvironment = testProperty.benson_environment || credentials.environment || "production";
       const baseUrl = testEnvironment === "production" ? BENSON_PRODUCTION_URL : BENSON_STAGING_URL;
-      const testUrl = `${baseUrl}/${testProperty.benson_property_code}/roomtypes`;
+      
+      // Use /availability endpoint with 1-day range (roomtypes returns 404 for some properties)
+      const today = new Date().toISOString().split('T')[0];
+      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      const testUrl = `${baseUrl}/${testProperty.benson_property_code}/availability?startdate=${today}&enddate=${tomorrow}`;
       
       console.log(`[Benson] Testing connection to: ${testUrl} (env: ${testEnvironment})`);
 
@@ -721,9 +725,11 @@ serve(async (req) => {
     switch (action) {
       case "health_check":
       case "test_connection": {
-        // Simple test to verify credentials work
+        // Simple test to verify credentials work - use /availability endpoint (roomtypes returns 404 for some properties)
         const baseUrl = creds.baseUrl || (creds.environment === "production" ? BENSON_PRODUCTION_URL : BENSON_STAGING_URL);
-        const testUrl = `${baseUrl}/${propertyCode}/roomtypes`;
+        const today = new Date().toISOString().split('T')[0];
+        const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+        const testUrl = `${baseUrl}/${propertyCode}/availability?startdate=${today}&enddate=${tomorrow}`;
         
         console.log(`Testing connection to: ${testUrl}`);
         console.log(`Username: ${creds.username}`);
