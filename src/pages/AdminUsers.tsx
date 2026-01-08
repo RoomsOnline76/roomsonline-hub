@@ -20,11 +20,29 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Shield, User, Search, Trash2, Building2, Plus, KeyRound, Users } from "lucide-react";
+import { Shield, User, Search, Trash2, Building2, Plus, KeyRound, Users, ChevronDown, ChevronRight } from "lucide-react";
 import { AddUserModal } from "@/components/AddUserModal";
+import { getPMSSystemByKey } from "@/lib/pmsSystemsConfig";
+import { OwnerPMSConnectionCard } from "@/components/pms/OwnerPMSConnectionCard";
+
+interface PMSCredential {
+  id: string;
+  owner_id: string;
+  system_type: string;
+  api_key: string | null;
+  environment: string;
+  external_account_id: string | null;
+  external_account_name: string | null;
+  available_listings: any[] | null;
+  last_sync_at: string | null;
+  sync_status: string | null;
+  sync_error: string | null;
+  is_active: boolean;
+}
 
 interface UserProfile {
   id: string;
@@ -34,6 +52,7 @@ interface UserProfile {
   role: string;
   created_at: string;
   property_count?: number;
+  pms_credentials?: PMSCredential[];
 }
 
 export default function AdminUsers() {
@@ -45,6 +64,7 @@ export default function AdminUsers() {
   const [searchTerm, setSearchTerm] = useState("");
   const [addAdminModalOpen, setAddAdminModalOpen] = useState(false);
   const [addOwnerModalOpen, setAddOwnerModalOpen] = useState(false);
+  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!authLoading && !isAdmin) {
@@ -75,6 +95,13 @@ export default function AdminUsers() {
 
       if (rolesError) throw rolesError;
 
+      // Get all PMS credentials with full data
+      const { data: pmsCredentials, error: pmsError } = await supabase
+        .from("owner_pms_credentials")
+        .select("*");
+
+      if (pmsError) throw pmsError;
+
       // Get property counts for each user
       const usersWithData = await Promise.all(
         (profiles || []).map(async (profile) => {
@@ -89,6 +116,9 @@ export default function AdminUsers() {
             primaryRole = "user";
           }
           
+          // Get PMS credentials for this user
+          const userPMSCredentials = pmsCredentials?.filter(c => c.owner_id === profile.id) || [];
+          
           // Count properties owned by this user
           const { count } = await supabase
             .from("properties")
@@ -99,6 +129,20 @@ export default function AdminUsers() {
             ...profile,
             role: primaryRole,
             property_count: count || 0,
+            pms_credentials: userPMSCredentials.map(c => ({
+              id: c.id,
+              owner_id: c.owner_id,
+              system_type: c.system_type,
+              api_key: c.api_key,
+              environment: c.environment || 'production',
+              external_account_id: c.external_account_id,
+              external_account_name: c.external_account_name,
+              available_listings: c.available_listings as any[] | null,
+              last_sync_at: c.last_sync_at,
+              sync_status: c.sync_status,
+              sync_error: c.sync_error,
+              is_active: c.is_active ?? false,
+            })),
           };
         })
       );
@@ -211,6 +255,31 @@ export default function AdminUsers() {
     return user.email.substring(0, 2).toUpperCase();
   };
 
+  const toggleUserExpanded = (userId: string) => {
+    setExpandedUsers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
+
+  const getPMSBadgeVariant = (syncStatus: string | null): "default" | "secondary" | "destructive" | "outline" => {
+    switch (syncStatus) {
+      case 'connected':
+        return 'default';
+      case 'pending':
+        return 'secondary';
+      case 'error':
+        return 'destructive';
+      default:
+        return 'outline';
+    }
+  };
+
   // Calculate counters based on current users state
   const totalUsers = useMemo(() => users.length, [users]);
   const adminCount = useMemo(() => users.filter(u => u.role === "admin").length, [users]);
@@ -321,8 +390,10 @@ export default function AdminUsers() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/30 hover:bg-muted/30">
-                  <TableHead className="py-3 px-5 text-xs font-medium">User</TableHead>
+                  <TableHead className="py-3 px-5 text-xs font-medium w-8"></TableHead>
+                  <TableHead className="py-3 text-xs font-medium">User</TableHead>
                   <TableHead className="py-3 text-xs font-medium">Role</TableHead>
+                  <TableHead className="py-3 text-xs font-medium">PMS</TableHead>
                   <TableHead className="text-center py-3 text-xs font-medium">Properties</TableHead>
                   <TableHead className="py-3 text-xs font-medium">Joined</TableHead>
                   <TableHead className="text-right py-3 px-5 text-xs font-medium">Actions</TableHead>
@@ -331,139 +402,204 @@ export default function AdminUsers() {
               <TableBody>
                 {filteredUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground text-xs py-4">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground text-xs py-4">
                       {searchTerm ? "No users found" : "No users yet"}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredUsers.map((user) => (
-                    <TableRow key={user.id} className="h-10 group hover:bg-muted/30">
-                      <TableCell className="py-1">
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-6 w-6">
-                            <AvatarImage src={user.avatar_url || undefined} />
-                            <AvatarFallback className="text-[10px]">{getInitials(user)}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="text-xs font-medium">
-                              {user.full_name || "No name"}
-                              {user.id === currentUser?.id && (
-                                <Badge variant="outline" className="ml-1 text-[10px] py-0 px-1">You</Badge>
+                  filteredUsers.map((user) => {
+                    const hasPMSCredentials = user.pms_credentials && user.pms_credentials.length > 0;
+                    const hasPendingPMS = user.pms_credentials?.some(c => c.sync_status === 'pending');
+                    const isExpanded = expandedUsers.has(user.id);
+
+                    return (
+                      <Collapsible key={user.id} open={isExpanded} onOpenChange={() => toggleUserExpanded(user.id)} asChild>
+                        <>
+                          <TableRow className="h-10 group hover:bg-muted/30">
+                            <TableCell className="py-1 px-2 w-8">
+                              {hasPMSCredentials && (
+                                <CollapsibleTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-6 w-6">
+                                    {isExpanded ? (
+                                      <ChevronDown className="h-3 w-3" />
+                                    ) : (
+                                      <ChevronRight className="h-3 w-3" />
+                                    )}
+                                  </Button>
+                                </CollapsibleTrigger>
                               )}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">{user.email}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-1">
-                        {user.role === "dev" ? (
-                          <div className="flex items-center gap-1 px-2 py-1 border rounded bg-muted/50 w-fit">
-                            <Shield className="h-3 w-3 text-primary" />
-                            <span className="text-xs font-medium">Dev</span>
-                          </div>
-                        ) : (
-                          <Select
-                            value={user.role}
-                            onValueChange={(value) => handleRoleChange(user.id, value)}
-                            disabled={user.id === currentUser?.id}
-                          >
-                            <SelectTrigger className="w-[100px] h-7 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="user">
-                                <div className="flex items-center gap-1">
-                                  <User className="h-3 w-3" />
-                                  <span className="text-xs">Owner</span>
+                            </TableCell>
+                            <TableCell className="py-1">
+                              <div className="flex items-center gap-2">
+                                <Avatar className="h-6 w-6">
+                                  <AvatarImage src={user.avatar_url || undefined} />
+                                  <AvatarFallback className="text-[10px]">{getInitials(user)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="text-xs font-medium">
+                                    {user.full_name || "No name"}
+                                    {user.id === currentUser?.id && (
+                                      <Badge variant="outline" className="ml-1 text-[10px] py-0 px-1">You</Badge>
+                                    )}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground">{user.email}</p>
                                 </div>
-                              </SelectItem>
-                              <SelectItem value="admin">
-                                <div className="flex items-center gap-1">
-                                  <Shield className="h-3 w-3" />
-                                  <span className="text-xs">Admin</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-1">
+                              {user.role === "dev" ? (
+                                <div className="flex items-center gap-1 px-2 py-1 border rounded bg-muted/50 w-fit">
+                                  <Shield className="h-3 w-3 text-primary" />
+                                  <span className="text-xs font-medium">Dev</span>
                                 </div>
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center py-1">
-                        <div className="flex items-center justify-center gap-1">
-                          <Building2 className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-xs">{user.property_count || 0}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-1">
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(user.created_at).toLocaleDateString()}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right py-1">
-                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => handleResetPassword(user.email)}
-                            disabled={user.id === currentUser?.id}
-                            title="Reset password"
-                          >
-                            <KeyRound className="h-3 w-3" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                disabled={user.id === currentUser?.id || isLastDevUser(user)}
-                                title={isLastDevUser(user) ? "Cannot delete the last dev user" : undefined}
-                              >
-                                <Trash2 className="h-3 w-3 text-destructive" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete User</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete {user.full_name || user.email}? 
-                                  This action cannot be undone and will remove all their data.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDeleteUser(user.id, user.role)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              ) : (
+                                <Select
+                                  value={user.role}
+                                  onValueChange={(value) => handleRoleChange(user.id, value)}
+                                  disabled={user.id === currentUser?.id}
                                 >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                                  <SelectTrigger className="w-[100px] h-7 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="user">
+                                      <div className="flex items-center gap-1">
+                                        <User className="h-3 w-3" />
+                                        <span className="text-xs">Owner</span>
+                                      </div>
+                                    </SelectItem>
+                                    <SelectItem value="admin">
+                                      <div className="flex items-center gap-1">
+                                        <Shield className="h-3 w-3" />
+                                        <span className="text-xs">Admin</span>
+                                      </div>
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-1">
+                              {hasPMSCredentials ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {user.pms_credentials!.map((cred) => {
+                                    const pmsInfo = getPMSSystemByKey(cred.system_type);
+                                    return (
+                                      <Badge 
+                                        key={cred.id} 
+                                        variant={getPMSBadgeVariant(cred.sync_status)}
+                                        className="text-[10px] py-0 px-1.5"
+                                      >
+                                        {pmsInfo?.name || cred.system_type}
+                                        {cred.sync_status === 'connected' && ' ✓'}
+                                        {cred.sync_status === 'pending' && ' ⏳'}
+                                        {cred.sync_status === 'error' && ' ✗'}
+                                      </Badge>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center py-1">
+                              <div className="flex items-center justify-center gap-1">
+                                <Building2 className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-xs">{user.property_count || 0}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-1">
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(user.created_at).toLocaleDateString()}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right py-1">
+                              <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => handleResetPassword(user.email)}
+                                  disabled={user.id === currentUser?.id}
+                                  title="Reset password"
+                                >
+                                  <KeyRound className="h-3 w-3" />
+                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      disabled={user.id === currentUser?.id || isLastDevUser(user)}
+                                      title={isLastDevUser(user) ? "Cannot delete the last dev user" : undefined}
+                                    >
+                                      <Trash2 className="h-3 w-3 text-destructive" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete User</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Are you sure you want to delete {user.full_name || user.email}? 
+                                        This action cannot be undone and will remove all their data.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteUser(user.id, user.role)}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      >
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {hasPMSCredentials && (
+                            <CollapsibleContent asChild>
+                              <TableRow className="bg-muted/20 hover:bg-muted/30">
+                                <TableCell colSpan={7} className="p-4">
+                                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                    {user.pms_credentials!.filter(c => c.system_type === 'hostfully').map((cred) => (
+                                      <OwnerPMSConnectionCard
+                                        key={cred.id}
+                                        ownerId={user.id}
+                                        ownerName={user.full_name || user.email}
+                                        ownerEmail={user.email}
+                                        existingCredential={cred}
+                                        onCredentialChange={loadUsers}
+                                      />
+                                    ))}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            </CollapsibleContent>
+                          )}
+                        </>
+                      </Collapsible>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
 
-        <AddUserModal
-          open={addAdminModalOpen}
-          onOpenChange={setAddAdminModalOpen}
-          role="admin"
-          onUserAdded={loadUsers}
-        />
-
-        <AddUserModal
-          open={addOwnerModalOpen}
-          onOpenChange={setAddOwnerModalOpen}
-          role="user"
-          onUserAdded={loadUsers}
-        />
+      <AddUserModal
+        open={addAdminModalOpen}
+        onOpenChange={setAddAdminModalOpen}
+        role="admin"
+        onUserAdded={loadUsers}
+      />
+      <AddUserModal
+        open={addOwnerModalOpen}
+        onOpenChange={setAddOwnerModalOpen}
+        role="user"
+        onUserAdded={loadUsers}
+      />
     </AppLayout>
   );
 }
