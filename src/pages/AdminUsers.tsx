@@ -129,11 +129,13 @@ export default function AdminUsers() {
           // Get PMS credentials for this user
           const userPMSCredentials = pmsCredentials?.filter(c => c.owner_id === profile.id) || [];
           
-          // Count properties owned by this user
+          // Count properties owned by this user (only active, non-deleted)
           const { count } = await supabase
             .from("properties")
             .select("*", { count: "exact", head: true })
-            .eq("owner_email", profile.email);
+            .eq("owner_email", profile.email)
+            .eq("is_active", true)
+            .is("permanently_deleted_at", null);
 
           return {
             ...profile,
