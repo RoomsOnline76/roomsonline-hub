@@ -98,7 +98,7 @@ const baseRequestSchema = z.object({
     "get_client_invoices",
     "post_bill"
   ]),
-  property_id: z.string().uuid({ message: "Invalid property ID format" }),
+  property_id: z.string().uuid({ message: "Invalid property ID format" }).optional(),
 });
 
 const fetchAvailabilitySchema = baseRequestSchema.extend({
@@ -522,6 +522,114 @@ serve(async (req) => {
       return new Response(
         JSON.stringify(createSuccessResponse(CAPABILITIES, "get_capabilities")),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Handle health_check/test_connection - doesn't need property, just credentials
+    if ((action === "health_check" || action === "test_connection") && !property_id) {
+      console.log(`[Benson] Standalone health check - no property_id provided`);
+      
+      // Get any active Benson credentials
+      const { data: credentials } = await supabase
+        .from("pms_credentials")
+        .select("*")
+        .eq("system_type", "benson")
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle();
+
+      if (!credentials || !credentials.username || !credentials.password) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            ERROR_CODES.AUTH_FAILED,
+            "Benson credentials not configured",
+            action
+          )),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get any property with a Benson code to test against
+      const { data: testProperty } = await supabase
+        .from("properties")
+        .select("benson_property_code")
+        .not("benson_property_code", "is", null)
+        .limit(1)
+        .maybeSingle();
+
+      if (!testProperty?.benson_property_code) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            ERROR_CODES.NOT_FOUND,
+            "No Benson-connected properties found for health check",
+            action
+          )),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const creds: BensonCredentials = {
+        username: credentials.username,
+        password: credentials.password,
+        environment: credentials.environment as "staging" | "production",
+        baseUrl: credentials.base_url || undefined,
+      };
+
+      const baseUrl = creds.baseUrl || (creds.environment === "production" ? BENSON_PRODUCTION_URL : BENSON_STAGING_URL);
+      const testUrl = `${baseUrl}/${testProperty.benson_property_code}/roomtypes`;
+      
+      console.log(`[Benson] Testing connection to: ${testUrl}`);
+
+      try {
+        const testResponse = await fetch(testUrl, {
+          headers: {
+            "Authorization": getAuthHeader(creds.username, creds.password),
+            "Content-Type": "application/json",
+          },
+        });
+        
+        if (!testResponse.ok) {
+          const errorText = await testResponse.text();
+          return new Response(
+            JSON.stringify(createErrorResponse(
+              testResponse.status === 401 ? ERROR_CODES.AUTH_FAILED : ERROR_CODES.PMS_UNAVAILABLE,
+              `Health check failed: ${errorText || testResponse.status}`,
+              action
+            )),
+            { status: testResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        return new Response(
+          JSON.stringify(createSuccessResponse({
+            status: "ok",
+            healthy: true,
+            environment: creds.environment,
+            message: "Connection successful",
+          }, action)),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error: any) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            ERROR_CODES.PMS_UNAVAILABLE,
+            error.message || "Health check failed",
+            action
+          )),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // For remaining actions, property_id is required
+    if (!property_id) {
+      return new Response(
+        JSON.stringify(createErrorResponse(
+          ERROR_CODES.INVALID_REQUEST,
+          "property_id is required for this action",
+          action
+        )),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

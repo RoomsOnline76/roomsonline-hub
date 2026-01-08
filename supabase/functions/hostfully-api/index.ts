@@ -364,7 +364,11 @@ async function handleHealthCheck(creds: HostfullyCredentials) {
       return createErrorResponse(error.code, error.message, "health_check");
     }
     
-    return createSuccessResponse({ healthy: true, environment: creds.environment }, "health_check");
+    return createSuccessResponse({ 
+      status: "ok",
+      healthy: true, 
+      environment: creds.environment 
+    }, "health_check");
   } catch (err) {
     console.error("[Hostfully] Health check failed:", err);
     return createErrorResponse(

@@ -67,6 +67,7 @@ const CAPABILITIES = {
 const baseRequestSchema = z.object({
   action: z.enum([
     "get_capabilities",
+    "health_check",
     "fetch_availability",
     "get_room_types",
     "get_rate_types",
@@ -232,6 +233,9 @@ Deno.serve(async (req) => {
       case "get_capabilities":
         return handleGetCapabilities();
 
+      case "health_check":
+        return handleHealthCheck(supabase);
+
       case "fetch_availability":
         return await handleFetchAvailability(body, supabase);
 
@@ -284,6 +288,41 @@ function handleGetCapabilities(): Response {
     JSON.stringify(createSuccessResponse(CAPABILITIES, "get_capabilities")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleHealthCheck(supabase: any): Promise<Response> {
+  console.log("[roomsonline-pms-api] Performing health check");
+  
+  try {
+    // Test database connectivity by checking cache tables
+    const { error: dbError } = await supabase
+      .from("pms_room_types_cache")
+      .select("id")
+      .eq("system_type", SOURCE)
+      .limit(1);
+
+    if (dbError) {
+      return new Response(
+        JSON.stringify(createErrorResponse(ERROR_CODES.PMS_UNAVAILABLE, `Database error: ${dbError.message}`, "health_check")),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 503 }
+      );
+    }
+
+    return new Response(
+      JSON.stringify(createSuccessResponse({
+        status: "ok",
+        healthy: true,
+        message: "RoomsOnline native PMS is operational",
+      }, "health_check")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, String(error), "health_check")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+    );
+  }
 }
 
 // deno-lint-ignore no-explicit-any

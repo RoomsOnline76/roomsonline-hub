@@ -90,7 +90,7 @@ const baseRequestSchema = z.object({
     "get_rate_plans",
     "fetch_property_data",
   ]),
-  property_id: z.string().uuid({ message: "Invalid property ID format" }),
+  property_id: z.string().uuid({ message: "Invalid property ID format" }).optional(),
 });
 
 const fetchAvailabilitySchema = baseRequestSchema.extend({
@@ -458,6 +458,84 @@ serve(async (req) => {
       return new Response(
         JSON.stringify(createSuccessResponse(CAPABILITIES, action)),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Handle health_check - doesn't need property, just credentials
+    if (action === "health_check" && !propertyId) {
+      console.log(`[Cloudbeds] Standalone health check - no property_id provided`);
+      
+      // Get Cloudbeds credentials
+      const { data: credentials } = await supabaseClient
+        .from("pms_credentials")
+        .select("*")
+        .eq("system_type", "cloudbeds")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (!credentials?.api_key) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            ERROR_CODES.AUTH_FAILED,
+            "Cloudbeds credentials not configured",
+            action
+          )),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get any Cloudbeds-connected property for testing
+      const { data: testProperty } = await supabaseClient
+        .from("properties")
+        .select("cloudbeds_property_id")
+        .not("cloudbeds_property_id", "is", null)
+        .limit(1)
+        .maybeSingle();
+
+      if (!testProperty?.cloudbeds_property_id) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            ERROR_CODES.NOT_FOUND,
+            "No Cloudbeds-connected properties found for health check",
+            action
+          )),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      try {
+        const result = await getHotelDetails(credentials.api_key, testProperty.cloudbeds_property_id);
+        
+        return new Response(
+          JSON.stringify(createSuccessResponse({
+            status: "ok",
+            healthy: true,
+            environment: credentials.environment || "production",
+            message: "Connection successful",
+          }, action)),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error: any) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            ERROR_CODES.PMS_UNAVAILABLE,
+            error.message || "Health check failed",
+            action
+          )),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // For remaining actions, property_id is required
+    if (!propertyId) {
+      return new Response(
+        JSON.stringify(createErrorResponse(
+          ERROR_CODES.INVALID_REQUEST,
+          "property_id is required for this action",
+          action
+        )),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
