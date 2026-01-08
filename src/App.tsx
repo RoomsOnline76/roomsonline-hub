@@ -41,6 +41,8 @@ import AdminJournals from "./pages/AdminJournals";
 import JournalEditor from "./pages/JournalEditor";
 import PublicJournals from "./pages/PublicJournals";
 import AdminAudit from "./pages/AdminAudit";
+import AdminHelpArticles from "./pages/AdminHelpArticles";
+import HelpArticleEditor from "./pages/HelpArticleEditor";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -262,6 +264,22 @@ const App = () => (
             element={
               <ProtectedRoute requireAdmin={true}>
                 <AdminAudit />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/help-articles"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <AdminHelpArticles />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/help-articles/:id"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <HelpArticleEditor />
               </ProtectedRoute>
             }
           />
