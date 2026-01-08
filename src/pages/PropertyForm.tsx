@@ -942,7 +942,11 @@ export default function PropertyForm() {
           hostfullyId: hr.hostfully_room_id,
           description: hr.description || "",
           extraPersonPolicy: "",
-          bedConfiguration: hr.beds || [],
+          bedConfiguration: Array.isArray(hr.beds) 
+            ? hr.beds 
+            : (typeof hr.beds === 'number' && hr.beds > 0 
+                ? [{ type: 'bed', count: hr.beds }] 
+                : []),
           roomSize: hr.room_size || 0,
           bathrooms: hr.bathrooms || 1,
           maxPeople: hr.max_guests || 2,
@@ -956,8 +960,8 @@ export default function PropertyForm() {
           images: hr.images || [],
           facilities: [],
           amenities: hr.amenities || [],
-          checkInTime: hr.check_in_time,
-          checkOutTime: hr.check_out_time,
+          checkInTime: hr.check_in_time ? `${String(hr.check_in_time).padStart(2, '0')}:00` : null,
+          checkOutTime: hr.check_out_time ? `${String(hr.check_out_time).padStart(2, '0')}:00` : null,
           propertyType: hr.property_type,
           dailyRate: hr.daily_rate,
           currency: hr.currency || 'ZAR',

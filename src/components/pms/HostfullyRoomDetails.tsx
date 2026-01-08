@@ -22,13 +22,13 @@ export function HostfullyRoomDetails({
   getPmsFieldClass 
 }: HostfullyRoomDetailsProps) {
   const [showWifiPassword, setShowWifiPassword] = useState(false);
-  const [openSections, setOpenSections] = useState({
+  const [openSections, setOpenSections] = useState(() => ({
     timing: true,
-    wifi: false,
-    pricing: false,
-    policies: false,
-    location: false,
-  });
+    wifi: !!(room?.wifiNetwork || room?.wifiPassword),
+    pricing: !!(room?.dailyRate || room?.cleaningFee),
+    policies: !!(room?.houseRules || room?.cancellationPolicy),
+    location: !!(room?.addressCity || room?.latitude),
+  }));
 
   const toggleSection = (section: keyof typeof openSections) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
