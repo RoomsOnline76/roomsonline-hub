@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { z } from "zod";
-import { getPMSSystemByKey } from "@/lib/pmsSystemsConfig";
+import { getPMSSystemByKey, ALL_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
 import { CheckCircle2, Building2 } from "lucide-react";
 
 const userSchema = z.object({
@@ -32,6 +33,9 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
   const [selectedPMSSystems, setSelectedPMSSystems] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [activePMSSystems, setActivePMSSystems] = useState<{key: string, name: string}[]>([]);
+  
+  // Multi-PMS toggle
+  const [showMultiPMS, setShowMultiPMS] = useState(false);
 
   // Hostfully-specific state
   const [hostfullyAgencyUid, setHostfullyAgencyUid] = useState("");
@@ -39,6 +43,9 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
 
   const isHostfullySelected = selectedPMSSystems.includes("hostfully");
   const hasValidAgencyUid = hostfullyAgencyUid.trim().length > 0;
+
+  // Get all available PMS systems (not just active ones for multi-select)
+  const allPMSSystems = ALL_PMS_SYSTEMS.filter(s => !s.isInternal);
 
   // Fetch active PMS systems from database
   useEffect(() => {
@@ -69,6 +76,7 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
         email: defaultEmail || "",
       });
       setSelectedPMSSystems([]);
+      setShowMultiPMS(false);
       resetHostfullyState();
     }
   }, [open, defaultEmail, defaultName]);
@@ -85,6 +93,17 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
     } else {
       setSelectedPMSSystems([value]);
       if (value !== "hostfully") {
+        resetHostfullyState();
+      }
+    }
+  };
+
+  const handleMultiPMSToggle = (pmsKey: string, checked: boolean) => {
+    if (checked) {
+      setSelectedPMSSystems(prev => [...prev, pmsKey]);
+    } else {
+      setSelectedPMSSystems(prev => prev.filter(k => k !== pmsKey));
+      if (pmsKey === "hostfully") {
         resetHostfullyState();
       }
     }
@@ -195,24 +214,62 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
 
           {role === "user" && (
             <>
-              <div className="space-y-2">
-                <Label>Which PMS do they use? <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                <Select
-                  value={selectedPMSSystems[0] || "none"}
-                  onValueChange={handlePMSChange}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select PMS (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {activePMSSystems.map((system) => (
-                      <SelectItem key={system.key} value={system.key}>
-                        {system.name}
-                      </SelectItem>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Which PMS do they use? <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="multi-pms"
+                      checked={showMultiPMS}
+                      onCheckedChange={(checked) => {
+                        setShowMultiPMS(!!checked);
+                        if (!checked) {
+                          // Keep first selection when switching back to single mode
+                          setSelectedPMSSystems(prev => prev.slice(0, 1));
+                        }
+                      }}
+                    />
+                    <Label htmlFor="multi-pms" className="text-xs text-muted-foreground cursor-pointer">
+                      Multiple PMS
+                    </Label>
+                  </div>
+                </div>
+                
+                {!showMultiPMS ? (
+                  // Single PMS dropdown
+                  <Select
+                    value={selectedPMSSystems[0] || "none"}
+                    onValueChange={handlePMSChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select PMS (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {activePMSSystems.map((system) => (
+                        <SelectItem key={system.key} value={system.key}>
+                          {system.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  // Multi-PMS checkboxes
+                  <div className="grid grid-cols-2 gap-2 p-3 border rounded-lg bg-muted/30">
+                    {allPMSSystems.map((system) => (
+                      <div key={system.key} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`pms-${system.key}`}
+                          checked={selectedPMSSystems.includes(system.key)}
+                          onCheckedChange={(checked) => handleMultiPMSToggle(system.key, !!checked)}
+                        />
+                        <Label htmlFor={`pms-${system.key}`} className="text-sm cursor-pointer">
+                          {system.name}
+                        </Label>
+                      </div>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                )}
               </div>
 
               {/* Hostfully Configuration Section */}
