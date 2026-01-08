@@ -702,10 +702,10 @@ const Booking = () => {
       return { ...data, externalReservationId: combinedExternalId };
     },
     onSuccess: (data) => {
-      setBookingId(data.id);
-      setExternalReservationId(data.externalReservationId || null);
-      setBookingSuccess(true);
       toast.success("Booking request submitted successfully!");
+      // Redirect to confirmation page for Google Ads tracking
+      const refParam = data.externalReservationId ? `?ref=${encodeURIComponent(data.externalReservationId)}` : '';
+      navigate(`/booking-confirmation/${data.id}${refParam}`);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Failed to create booking");
