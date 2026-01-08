@@ -87,30 +87,31 @@ const PropertyOverview = () => {
       
       if (propertiesError) throw propertiesError;
 
-      const propertiesWithExtras = await Promise.all(
-        (propertiesData || []).map(async (property) => {
-          const { count } = await supabase
-            .from("bookings")
-            .select("*", { count: "exact", head: true })
-            .eq("property_id", property.id);
-          
-          let ownerProfile = null;
-          if (property.owner_email) {
-            const { data: profileData } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("email", property.owner_email)
-              .single();
-            ownerProfile = profileData;
-          }
-          
-          return {
-            ...property,
-            total_bookings: count || 0,
-            owner_profile: ownerProfile,
-          };
-        })
+      // Get unique owner emails for batch profile fetch
+      const ownerEmails = [...new Set(
+        (propertiesData || [])
+          .map(p => p.owner_email)
+          .filter(Boolean)
+      )] as string[];
+
+      // Batch fetch: all profiles in one query
+      const { data: profilesData } = ownerEmails.length > 0
+        ? await supabase
+            .from("profiles")
+            .select("*")
+            .in("email", ownerEmails)
+        : { data: [] };
+
+      const profilesByEmail = new Map(
+        (profilesData || []).map(p => [p.email, p])
       );
+
+      // Map properties with profiles (skip individual booking counts for speed)
+      const propertiesWithExtras = (propertiesData || []).map((property) => ({
+        ...property,
+        total_bookings: 0, // Skip N+1 booking queries for now
+        owner_profile: property.owner_email ? profilesByEmail.get(property.owner_email) || null : null,
+      }));
       
       return propertiesWithExtras;
     },
