@@ -939,6 +939,23 @@ async function handleGetListingDetails(creds: HostfullyCredentials, propertyUid:
       console.log("[Hostfully] Amenities endpoint failed, using main property amenities");
     }
 
+    // Fetch descriptions from dedicated endpoint
+    let description = property.description || property.summary || null;
+    try {
+      const descriptionsResponse = await hostfullyRequest(`/property-descriptions/${propertyUid}`, creds.api_key, baseUrl);
+      if (descriptionsResponse.ok) {
+        const descriptionsData = await descriptionsResponse.json();
+        console.log("[Hostfully] Descriptions endpoint response:", Object.keys(descriptionsData));
+        if (descriptionsData?.summary) {
+          description = descriptionsData.summary;
+        } else if (descriptionsData?.description) {
+          description = descriptionsData.description;
+        }
+      }
+    } catch (e) {
+      console.log("[Hostfully] Descriptions endpoint failed, using main property description");
+    }
+
     // Extract nested availability object
     const availability = property.availability || {};
     // Extract nested pricing object
@@ -966,7 +983,7 @@ async function handleGetListingDetails(creds: HostfullyCredentials, propertyUid:
       name: property.name,
       
       // Descriptions
-      description: property.description || property.summary || property.shortDescription || null,
+      description: description,
       house_rules: property.houseRules || property.rules || null,
       check_in_instructions: property.checkInInstructions || property.instructions || null,
       

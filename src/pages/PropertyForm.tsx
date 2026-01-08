@@ -785,8 +785,8 @@ export default function PropertyForm() {
         description: `${existingRooms.length} rooms with UIDs: ${existingRooms.map(r => r.name).join(', ')}`,
       });
 
-      // Sync all rooms with Hostfully UIDs
-      const roomsToSync = existingRooms;
+      // TEST: Limit to 2 rooms for debugging
+      const roomsToSync = existingRooms.slice(0, 2);
       setSyncProgress({ 
         phase: "Syncing room data...", 
         current: 0, 
