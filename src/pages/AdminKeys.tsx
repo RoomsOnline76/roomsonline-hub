@@ -17,6 +17,8 @@ import PMSTrackerStatusDisplay from "@/components/PMSTrackerStatus";
 import PMSDevNotes from "@/components/PMSDevNotes";
 import PMSContactDetails from "@/components/PMSContactDetails";
 import { PMSTrackerStatus } from "@/lib/pmsTrackerConfig";
+import { PMSListingSelector, type PMSListing } from "@/components/pms/PMSListingSelector";
+import { SyncStatusIndicator } from "@/components/pms/SyncStatusIndicator";
 import {
   Key,
   AlertCircle,
@@ -33,6 +35,7 @@ import {
   Star,
   Send,
   Loader2,
+  Building2,
 } from "lucide-react";
 
 // Map PMS system types to icons
@@ -157,6 +160,10 @@ export default function AdminKeys() {
   const [savingHostfully, setSavingHostfully] = useState(false);
   const [togglingHostfully, setTogglingHostfully] = useState(false);
   const [hostfullyRefreshInterval, setHostfullyRefreshInterval] = useState<number>(60);
+  const [hostfullyListingSelectorOpen, setHostfullyListingSelectorOpen] = useState(false);
+  const [hostfullyListingsCount, setHostfullyListingsCount] = useState<number | null>(null);
+  const [hostfullyLastSyncAt, setHostfullyLastSyncAt] = useState<string | null>(null);
+  const [hostfullySyncStatus, setHostfullySyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
 
   // Cloudbeds-specific state
   const [cloudbedsCredentials, setCloudbedsCredentials] = useState<PMSCredentials | null>(null);
@@ -604,6 +611,113 @@ export default function AdminKeys() {
       if (data.refresh_interval_minutes) {
         setHostfullyRefreshInterval(data.refresh_interval_minutes);
       }
+      // Load available listings count and last sync time
+      if (data.available_listings) {
+        const listings = data.available_listings as { properties?: any[] };
+        setHostfullyListingsCount(listings.properties?.length || 0);
+      }
+      if (data.last_sync_at) {
+        setHostfullyLastSyncAt(data.last_sync_at);
+      }
+    }
+  };
+
+  const handleHostfullySyncListings = async () => {
+    setHostfullySyncStatus('syncing');
+    try {
+      const { data, error } = await supabase.functions.invoke('hostfully-api', {
+        body: { action: 'list_properties' },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error?.message || 'Failed to sync listings');
+
+      const properties = data.data?.properties || [];
+      
+      // Update pms_credentials with the listings
+      const { error: updateError } = await supabase
+        .from('pms_credentials')
+        .update({
+          available_listings: { properties, count: properties.length, agency_uid: data.data?.agency_uid },
+          last_sync_at: new Date().toISOString(),
+          sync_status: 'connected',
+        })
+        .eq('system_type', 'hostfully');
+
+      if (updateError) throw updateError;
+
+      setHostfullyListingsCount(properties.length);
+      setHostfullyLastSyncAt(new Date().toISOString());
+      setHostfullySyncStatus('success');
+      
+      toast({
+        title: 'Listings synced',
+        description: `Found ${properties.length} listings from Hostfully`,
+      });
+
+      // Refresh credentials to get updated data
+      fetchHostfullyCredentials();
+    } catch (err: any) {
+      console.error('Error syncing Hostfully listings:', err);
+      setHostfullySyncStatus('error');
+      toast({
+        title: 'Sync failed',
+        description: err.message || 'Failed to sync listings from Hostfully',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleHostfullyImportListings = async (
+    listings: PMSListing[],
+    mode: 'create' | 'attach',
+    targetPropertyId?: string
+  ) => {
+    try {
+      if (mode === 'create') {
+        // Create new properties from listings
+        for (const listing of listings) {
+          const propertyData = {
+            name: listing.name,
+            address: listing.address || 'Address pending',
+            city: listing.city || 'City pending',
+            country: listing.country || 'Country pending',
+            property_type: listing.type || 'Property',
+            max_guests: listing.max_guests || 2,
+            bedrooms: listing.bedrooms || 1,
+            bathrooms: listing.bathrooms || 1,
+            price_per_night: listing.base_price || 0,
+            external_system: 'hostfully',
+            external_id: listing.id,
+            hostfully_property_uid: listing.id,
+            external_metadata: listing._raw || {},
+            pms_managed_fields: ['availability', 'rates', 'max_guests', 'bedrooms', 'bathrooms'],
+            pms_sync_status: 'active',
+            last_pms_sync_at: new Date().toISOString(),
+            is_active: true,
+          };
+
+          const { error } = await supabase.from('properties').insert(propertyData);
+          if (error) {
+            console.error('Error creating property:', error);
+            throw new Error(`Failed to create property "${listing.name}": ${error.message}`);
+          }
+        }
+
+        toast({
+          title: 'Properties created',
+          description: `Successfully imported ${listings.length} properties from Hostfully`,
+        });
+      } else if (mode === 'attach' && targetPropertyId) {
+        // For attach mode, we'd create room types - simplified for now
+        toast({
+          title: 'Coming soon',
+          description: 'Attaching listings to existing properties is under development',
+        });
+      }
+    } catch (err: any) {
+      console.error('Error importing listings:', err);
+      throw err;
     }
   };
 
@@ -2865,6 +2979,53 @@ export default function AdminKeys() {
               </div>
             ) : (
               <div className="space-y-4">
+                {/* Available Listings Panel */}
+                {isConfigured && (
+                  <div className="p-4 rounded-lg border bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Building2 className="h-5 w-5 text-primary" />
+                        <div>
+                          <p className="font-medium">
+                            Available from Hostfully
+                            {hostfullyListingsCount !== null && (
+                              <Badge variant="secondary" className="ml-2">
+                                {hostfullyListingsCount} listings
+                              </Badge>
+                            )}
+                          </p>
+                          <SyncStatusIndicator
+                            status={hostfullySyncStatus}
+                            lastSyncAt={hostfullyLastSyncAt}
+                            onSync={handleHostfullySyncListings}
+                            compact
+                            showButton={false}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleHostfullySyncListings}
+                          disabled={hostfullySyncStatus === 'syncing'}
+                        >
+                          <RefreshCw className={`h-4 w-4 mr-2 ${hostfullySyncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+                          Sync
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => setHostfullyListingSelectorOpen(true)}
+                          disabled={hostfullyListingsCount === 0}
+                        >
+                          <Building2 className="h-4 w-4 mr-2" />
+                          View & Import
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                   <div>
                     <Label className="text-muted-foreground">API Key</Label>
@@ -2943,6 +3104,17 @@ export default function AdminKeys() {
       </AccordionItem>
     );
   };
+
+  // Hostfully Listing Selector Modal - rendered separately
+  const renderHostfullyListingSelector = () => (
+    <PMSListingSelector
+      open={hostfullyListingSelectorOpen}
+      onOpenChange={setHostfullyListingSelectorOpen}
+      systemType="hostfully"
+      onImport={handleHostfullyImportListings}
+      existingProperties={[]}
+    />
+  );
 
   // Placeholder card for upcoming PMS integrations
   const renderPlaceholderPMSCard = (name: string, systemType: string, description: string) => {
@@ -3352,6 +3524,7 @@ export default function AdminKeys() {
                 .map(renderKeyCard)}
           </Accordion>
         </div>
+      {renderHostfullyListingSelector()}
     </AppLayout>
   );
 }
