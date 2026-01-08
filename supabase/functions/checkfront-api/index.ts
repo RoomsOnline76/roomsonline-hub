@@ -14,6 +14,7 @@ const baseRequestSchema = z.object({
     'update_booking',
     'cancel_booking',
     'test_connection',
+    'health_check',  // Added for system health monitoring
     'fetch_property_data'  // Added per v1.1 spec
   ]),
   property_id: z.string().uuid().optional(),
@@ -413,6 +414,88 @@ serve(async (req) => {
     const { action, property_id, ...params } = body;
 
     console.log(`Checkfront API action: ${action}, property_id: ${property_id}`);
+
+    // Handle health_check/test_connection without property - just validate credentials
+    if ((action === "health_check" || action === "test_connection") && !property_id) {
+      console.log(`[Checkfront] Standalone health check - no property_id provided`);
+      
+      // Get Checkfront credentials from pms_credentials
+      const { data: pmsCredentials } = await supabase
+        .from("pms_credentials")
+        .select("*")
+        .eq("system_type", "checkfront")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (!pmsCredentials || !pmsCredentials.api_key) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: "Checkfront credentials not configured",
+            source: "checkfront",
+            action 
+          }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Use demo host or first connected property's host
+      const { data: connection } = await supabase
+        .from("checkfront_connections")
+        .select("host")
+        .limit(1)
+        .maybeSingle();
+
+      const host = connection?.host || pmsCredentials.base_url || "demo.checkfront.com";
+      
+      const creds: CheckfrontCredentials = {
+        host,
+        authMode: "token_pair",
+        apiKey: pmsCredentials.api_key,
+        apiSecret: pmsCredentials.agent_code,
+      };
+
+      try {
+        const result = await getItems(supabase, creds, { limit: 1 });
+        
+        if (result.success) {
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              data: { 
+                status: "ok", 
+                healthy: true, 
+                host,
+                message: "Connection successful" 
+              },
+              source: "checkfront",
+              action 
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        } else {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: result.error || "Connection test failed",
+              source: "checkfront",
+              action 
+            }),
+            { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      } catch (error: any) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: error.message || "Health check failed",
+            source: "checkfront",
+            action 
+          }),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     // Get Checkfront credentials - first check for OAuth2 connection
     let creds: CheckfrontCredentials | null = null;

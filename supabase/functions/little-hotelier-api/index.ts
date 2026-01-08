@@ -95,7 +95,7 @@ const baseRequestSchema = z.object({
     "get_rate_plans",
     "fetch_property_data",
   ]),
-  property_id: z.string().uuid({ message: "Invalid property ID format" }),
+  property_id: z.string().uuid({ message: "Invalid property ID format" }).optional(),
 });
 
 const fetchAvailabilitySchema = baseRequestSchema.extend({
@@ -333,6 +333,71 @@ serve(async (req) => {
       return new Response(
         JSON.stringify(createSuccessResponse(CAPABILITIES, action)),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Handle health_check - doesn't need property_id, just any connected property
+    if (action === "health_check" && !propertyId) {
+      console.log(`[LittleHotelier] Standalone health check - no property_id provided`);
+      
+      // Get any Little Hotelier-connected property
+      const { data: testProperty } = await supabaseClient
+        .from("properties")
+        .select("littlehotelier_channel_code, littlehotelier_region")
+        .not("littlehotelier_channel_code", "is", null)
+        .limit(1)
+        .maybeSingle();
+
+      if (!testProperty?.littlehotelier_channel_code) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            ERROR_CODES.NOT_FOUND,
+            "No Little Hotelier-connected properties found for health check",
+            action
+          )),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      try {
+        const checkDate = new Date().toISOString().split('T')[0];
+        await littleHotelierApiCall(
+          testProperty.littlehotelier_channel_code, 
+          testProperty.littlehotelier_region || "emea", 
+          checkDate, 
+          checkDate
+        );
+        
+        return new Response(
+          JSON.stringify(createSuccessResponse({
+            status: "ok",
+            healthy: true,
+            region: testProperty.littlehotelier_region || "emea",
+            message: "Connection successful",
+          }, action)),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error: any) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            ERROR_CODES.PMS_UNAVAILABLE,
+            error.message || "Health check failed",
+            action
+          )),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // For remaining actions, property_id is required
+    if (!propertyId) {
+      return new Response(
+        JSON.stringify(createErrorResponse(
+          ERROR_CODES.INVALID_REQUEST,
+          "property_id is required for this action",
+          action
+        )),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
