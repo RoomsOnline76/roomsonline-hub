@@ -720,16 +720,19 @@ export type Database = {
         Row: {
           agent_code: string | null
           api_key: string | null
+          available_listings: Json | null
           base_url: string | null
           capabilities: Json | null
           created_at: string | null
           environment: string
           id: string
           is_active: boolean | null
+          last_sync_at: string | null
           password: string | null
           property_code: string | null
           property_name: string | null
           refresh_interval_minutes: number | null
+          sync_status: string | null
           system_type: string
           updated_at: string | null
           username: string | null
@@ -737,16 +740,19 @@ export type Database = {
         Insert: {
           agent_code?: string | null
           api_key?: string | null
+          available_listings?: Json | null
           base_url?: string | null
           capabilities?: Json | null
           created_at?: string | null
           environment?: string
           id?: string
           is_active?: boolean | null
+          last_sync_at?: string | null
           password?: string | null
           property_code?: string | null
           property_name?: string | null
           refresh_interval_minutes?: number | null
+          sync_status?: string | null
           system_type: string
           updated_at?: string | null
           username?: string | null
@@ -754,16 +760,19 @@ export type Database = {
         Update: {
           agent_code?: string | null
           api_key?: string | null
+          available_listings?: Json | null
           base_url?: string | null
           capabilities?: Json | null
           created_at?: string | null
           environment?: string
           id?: string
           is_active?: boolean | null
+          last_sync_at?: string | null
           password?: string | null
           property_code?: string | null
           property_name?: string | null
           refresh_interval_minutes?: number | null
+          sync_status?: string | null
           system_type?: string
           updated_at?: string | null
           username?: string | null
@@ -1284,13 +1293,16 @@ export type Database = {
           description: string | null
           editorial_rating: string | null
           external_id: string | null
+          external_metadata: Json | null
           external_system: string | null
           hero_listing: boolean | null
           hero_video_url: string | null
+          hostfully_property_uid: string | null
           hotelbeds_hotel_code: string | null
           id: string
           images: Json | null
           is_active: boolean | null
+          last_pms_sync_at: string | null
           latitude: number | null
           littlehotelier_channel_code: string | null
           littlehotelier_region: string | null
@@ -1302,6 +1314,8 @@ export type Database = {
           owner_name: string | null
           owner_notes: string | null
           permanently_deleted_at: string | null
+          pms_managed_fields: string[] | null
+          pms_sync_status: string | null
           price_per_night: number
           property_type: string
           property_url: string | null
@@ -1329,13 +1343,16 @@ export type Database = {
           description?: string | null
           editorial_rating?: string | null
           external_id?: string | null
+          external_metadata?: Json | null
           external_system?: string | null
           hero_listing?: boolean | null
           hero_video_url?: string | null
+          hostfully_property_uid?: string | null
           hotelbeds_hotel_code?: string | null
           id?: string
           images?: Json | null
           is_active?: boolean | null
+          last_pms_sync_at?: string | null
           latitude?: number | null
           littlehotelier_channel_code?: string | null
           littlehotelier_region?: string | null
@@ -1347,6 +1364,8 @@ export type Database = {
           owner_name?: string | null
           owner_notes?: string | null
           permanently_deleted_at?: string | null
+          pms_managed_fields?: string[] | null
+          pms_sync_status?: string | null
           price_per_night: number
           property_type: string
           property_url?: string | null
@@ -1374,13 +1393,16 @@ export type Database = {
           description?: string | null
           editorial_rating?: string | null
           external_id?: string | null
+          external_metadata?: Json | null
           external_system?: string | null
           hero_listing?: boolean | null
           hero_video_url?: string | null
+          hostfully_property_uid?: string | null
           hotelbeds_hotel_code?: string | null
           id?: string
           images?: Json | null
           is_active?: boolean | null
+          last_pms_sync_at?: string | null
           latitude?: number | null
           littlehotelier_channel_code?: string | null
           littlehotelier_region?: string | null
@@ -1392,6 +1414,8 @@ export type Database = {
           owner_name?: string | null
           owner_notes?: string | null
           permanently_deleted_at?: string | null
+          pms_managed_fields?: string[] | null
+          pms_sync_status?: string | null
           price_per_night?: number
           property_type?: string
           property_url?: string | null
