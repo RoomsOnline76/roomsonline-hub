@@ -1,5 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseClientType = any;
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -35,7 +38,7 @@ const PMS_ADAPTERS: Record<string, { function_name: string }> = {
 };
 
 async function checkPmsAdapter(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClientType,
   componentKey: string,
   expectedLatency: number
 ): Promise<HealthCheckResult> {
@@ -94,7 +97,7 @@ async function checkPmsAdapter(
   }
 }
 
-async function checkDatabase(supabase: ReturnType<typeof createClient>): Promise<HealthCheckResult> {
+async function checkDatabase(supabase: SupabaseClientType): Promise<HealthCheckResult> {
   const start = Date.now();
   try {
     const { error } = await supabase.from('properties').select('id').limit(1);
@@ -127,7 +130,7 @@ async function checkDatabase(supabase: ReturnType<typeof createClient>): Promise
   }
 }
 
-async function checkStorage(supabase: ReturnType<typeof createClient>): Promise<HealthCheckResult> {
+async function checkStorage(supabase: SupabaseClientType): Promise<HealthCheckResult> {
   const start = Date.now();
   try {
     const { data, error } = await supabase.storage.listBuckets();
@@ -243,7 +246,7 @@ async function checkAddPay(): Promise<HealthCheckResult> {
   };
 }
 
-async function checkGoogleMaps(supabase: ReturnType<typeof createClient>): Promise<HealthCheckResult> {
+async function checkGoogleMaps(supabase: SupabaseClientType): Promise<HealthCheckResult> {
   const start = Date.now();
   
   try {
@@ -322,7 +325,7 @@ async function checkTripAdvisor(): Promise<HealthCheckResult> {
   };
 }
 
-async function checkBookingEngine(supabase: ReturnType<typeof createClient>): Promise<HealthCheckResult> {
+async function checkBookingEngine(supabase: SupabaseClientType): Promise<HealthCheckResult> {
   const start = Date.now();
   
   try {
@@ -367,7 +370,7 @@ async function checkBookingEngine(supabase: ReturnType<typeof createClient>): Pr
   }
 }
 
-async function checkAvailabilityCache(supabase: ReturnType<typeof createClient>): Promise<HealthCheckResult> {
+async function checkAvailabilityCache(supabase: SupabaseClientType): Promise<HealthCheckResult> {
   const start = Date.now();
   
   try {
@@ -417,7 +420,7 @@ async function checkAvailabilityCache(supabase: ReturnType<typeof createClient>)
 }
 
 async function runHealthCheck(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClientType,
   component: Component
 ): Promise<HealthCheckResult> {
   const timeout = 30000; // 30 second timeout per check
@@ -434,7 +437,7 @@ async function runHealthCheck(
       case 'external':
         if (component.component_key === 'resend_email') return checkResendEmail();
         if (component.component_key === 'addpay_gateway') return checkAddPay();
-        if (component.component_key === 'google_maps') return checkGoogleMaps();
+        if (component.component_key === 'google_maps') return checkGoogleMaps(supabase);
         if (component.component_key === 'tripadvisor') return checkTripAdvisor();
         break;
       case 'infrastructure':
