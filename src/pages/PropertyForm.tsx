@@ -2221,8 +2221,43 @@ export default function PropertyForm() {
           }
 
           // Load room types if available
-          if (amenities?.room_types && Array.isArray(amenities.room_types)) {
+          if (amenities?.room_types && Array.isArray(amenities.room_types) && amenities.room_types.length > 0) {
             setRoomTypes(amenities.room_types);
+          } else if ((data as any).external_system === "hostfully" && propertyId) {
+            // For Hostfully properties with no room_types in amenities, load from hostfully_room_types table
+            const { data: hfRooms } = await supabase
+              .from("hostfully_room_types")
+              .select("*")
+              .eq("property_id", propertyId)
+              .eq("is_active", true);
+            
+            if (hfRooms && hfRooms.length > 0) {
+              const convertedRooms = hfRooms.map(hr => ({
+                id: hr.id,
+                name: hr.name || "Unnamed Room",
+                url: "",
+                selected: false,
+                numRooms: 1,
+                pmsRoomType: hr.name,
+                pmsRoomId: hr.hostfully_room_id,
+                description: hr.description || "",
+                extraPersonPolicy: "",
+                bedConfiguration: hr.beds || [],
+                roomSize: 0,
+                bathrooms: hr.bathrooms || 1,
+                maxPeople: hr.max_guests || 2,
+                maxAdults: hr.max_guests || 2,
+                maxChildren: 0,
+                minStay: 1,
+                maxStay: 0,
+                rateType: "per-unit",
+                splitPercent: 0,
+                images: hr.images || [],
+                facilities: [],
+                amenities: hr.amenities || [],
+              }));
+              setRoomTypes(convertedRooms);
+            }
           }
 
           // Load other saved data
