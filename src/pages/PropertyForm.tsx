@@ -990,6 +990,14 @@ export default function PropertyForm() {
         setHostfullyRoomCount(convertedRooms.length);
         console.log("[DEBUG] UI State Updated with", convertedRooms.length, "rooms");
         
+        // Auto-select first room or preserve valid selection
+        if (convertedRooms.length > 0) {
+          const existingSelection = convertedRooms.find(r => r.id === selectedRoomType);
+          if (!existingSelection) {
+            setSelectedRoomType(convertedRooms[0].id);
+          }
+        }
+        
         // Update property-level GPS and address from first room with valid coordinates
         const roomWithCoords = convertedRooms.find(r => r.latitude && r.longitude);
         if (roomWithCoords) {
@@ -2730,7 +2738,11 @@ export default function PropertyForm() {
                 pmsRoomId: hr.hostfully_room_id,
                 description: hr.description || "",
                 extraPersonPolicy: "",
-                bedConfiguration: hr.beds || [],
+                bedConfiguration: Array.isArray(hr.beds) 
+                  ? hr.beds 
+                  : (typeof hr.beds === 'number' && hr.beds > 0 
+                      ? [{ type: 'bed', count: hr.beds }] 
+                      : []),
                 roomSize: hr.room_size || 0,
                 bathrooms: hr.bathrooms || 1,
                 maxPeople: hr.max_guests || 2,
@@ -2745,8 +2757,8 @@ export default function PropertyForm() {
                 facilities: [],
                 amenities: hr.amenities || [],
                 // New Hostfully fields
-                checkInTime: hr.check_in_time,
-                checkOutTime: hr.check_out_time,
+                checkInTime: hr.check_in_time ? `${String(hr.check_in_time).padStart(2, '0')}:00` : null,
+                checkOutTime: hr.check_out_time ? `${String(hr.check_out_time).padStart(2, '0')}:00` : null,
                 propertyType: hr.property_type,
                 dailyRate: hr.daily_rate,
                 currency: hr.currency || 'ZAR',
@@ -2771,6 +2783,10 @@ export default function PropertyForm() {
                 pms_synced_fields: hr.pms_synced_fields || [],
               }));
               setRoomTypes(convertedRooms);
+              // Auto-select first room on initial load
+              if (convertedRooms.length > 0 && !selectedRoomType) {
+                setSelectedRoomType(convertedRooms[0].id);
+              }
             }
           }
 
