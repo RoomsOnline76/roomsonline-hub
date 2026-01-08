@@ -561,21 +561,25 @@ serve(async (req) => {
         );
       }
 
-      // Get a production Benson property to test against (prefer production environment)
+      // Get a production Benson property to test against (prefer active production properties)
       let { data: testProperty } = await supabase
         .from("properties")
         .select("benson_property_code, benson_environment")
         .not("benson_property_code", "is", null)
         .eq("benson_environment", "production")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      // Fall back to any Benson property if no production ones
+      // Fall back to any active Benson property if no production ones
       if (!testProperty) {
         const { data: fallbackProperty } = await supabase
           .from("properties")
           .select("benson_property_code, benson_environment")
           .not("benson_property_code", "is", null)
+          .eq("is_active", true)
+          .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
         testProperty = fallbackProperty;
