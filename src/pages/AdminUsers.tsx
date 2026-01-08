@@ -24,9 +24,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Shield, User, Search, Trash2, Building2, Plus, KeyRound, Users, ChevronDown, ChevronRight, Link } from "lucide-react";
+import { Shield, User, Search, Trash2, Building2, Plus, KeyRound, Users, ChevronDown, ChevronRight, Link, Pencil, X } from "lucide-react";
 import { AddUserModal } from "@/components/AddUserModal";
 import { AddPMSModal } from "@/components/AddPMSModal";
+import { EditUserModal } from "@/components/EditUserModal";
 import { getPMSSystemByKey } from "@/lib/pmsSystemsConfig";
 import { OwnerPMSConnectionCard } from "@/components/pms/OwnerPMSConnectionCard";
 
@@ -70,6 +71,10 @@ export default function AdminUsers() {
   // Add PMS modal state
   const [addPMSModalOpen, setAddPMSModalOpen] = useState(false);
   const [addPMSForUser, setAddPMSForUser] = useState<UserProfile | null>(null);
+  
+  // Edit user modal state
+  const [editUserModalOpen, setEditUserModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAdmin) {
@@ -250,6 +255,22 @@ export default function AdminUsers() {
       toast.success(`Password reset email sent to ${email}`);
     } catch (error: any) {
       toast.error(error.message || "Failed to send reset email");
+    }
+  };
+
+  const handleDeletePMSCredential = async (credentialId: string, systemType: string) => {
+    try {
+      const { error } = await supabase
+        .from("owner_pms_credentials")
+        .delete()
+        .eq("id", credentialId);
+
+      if (error) throw error;
+
+      toast.success(`${systemType} connection removed`);
+      loadUsers();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to remove PMS connection");
     }
   };
 
@@ -493,17 +514,49 @@ export default function AdminUsers() {
                                     {user.pms_credentials!.map((cred) => {
                                       const pmsInfo = getPMSSystemByKey(cred.system_type);
                                       return (
-                                        <Badge 
-                                          key={cred.id} 
-                                          variant={getPMSBadgeVariant(cred.sync_status)}
-                                          className="text-[10px] py-0 px-1.5"
-                                        >
-                                          {pmsInfo?.name || cred.system_type}
-                                          {cred.sync_status === 'connected' && ' ✓'}
-                                          {cred.sync_status === 'pending' && ' ⏳'}
-                                          {cred.sync_status === 'pending_key' && ' 🔑'}
-                                          {cred.sync_status === 'error' && ' ✗'}
-                                        </Badge>
+                                        <div key={cred.id} className="flex items-center gap-0.5 group/pms">
+                                          <Badge 
+                                            variant={getPMSBadgeVariant(cred.sync_status)}
+                                            className="text-[10px] py-0 px-1.5"
+                                          >
+                                            {pmsInfo?.name || cred.system_type}
+                                            {cred.sync_status === 'connected' && ' ✓'}
+                                            {cred.sync_status === 'pending' && ' ⏳'}
+                                            {cred.sync_status === 'pending_key' && ' 🔑'}
+                                            {cred.sync_status === 'error' && ' ✗'}
+                                          </Badge>
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-4 w-4 opacity-0 group-hover/pms:opacity-100 transition-opacity"
+                                                onClick={(e) => e.stopPropagation()}
+                                                title={`Remove ${pmsInfo?.name || cred.system_type}`}
+                                              >
+                                                <X className="h-2.5 w-2.5 text-muted-foreground hover:text-destructive" />
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Remove PMS Connection</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  Are you sure you want to remove the {pmsInfo?.name || cred.system_type} connection for {user.full_name || user.email}?
+                                                  This will not delete any imported properties.
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                  onClick={() => handleDeletePMSCredential(cred.id, pmsInfo?.name || cred.system_type)}
+                                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                >
+                                                  Remove
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
+                                        </div>
                                       );
                                     })}
                                   </div>
@@ -541,6 +594,18 @@ export default function AdminUsers() {
                             </TableCell>
                             <TableCell className="text-right py-1">
                               <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => {
+                                    setEditingUser(user);
+                                    setEditUserModalOpen(true);
+                                  }}
+                                  title="Edit profile"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -643,6 +708,17 @@ export default function AdminUsers() {
           onCredentialAdded={loadUsers}
         />
       )}
+      
+      {/* Edit User Modal */}
+      <EditUserModal
+        open={editUserModalOpen}
+        onOpenChange={(open) => {
+          setEditUserModalOpen(open);
+          if (!open) setEditingUser(null);
+        }}
+        user={editingUser}
+        onUserUpdated={loadUsers}
+      />
     </AppLayout>
   );
 }
