@@ -507,7 +507,7 @@ export default function PMSConfig() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[500px] rounded border">
+              <ScrollArea className="h-[400px] rounded border">
                 <pre className="p-4 text-xs font-mono">
                   {JSON.stringify(pmsData, null, 2)}
                 </pre>
@@ -516,15 +516,17 @@ export default function PMSConfig() {
           </Card>
         )}
 
-        {/* Field Mappings - for non-Hostfully or when property selected */}
-        {(systemType !== 'hostfully' && selectedPropertyId) && (
+        {/* Field Mappings - show for all PMS types */}
+        {(systemType === 'hostfully' ? selectedOwnerId : selectedPropertyId) && (
           <Tabs defaultValue="mappings" className="mb-6">
             <TabsList>
               <TabsTrigger value="mappings">Field Mappings</TabsTrigger>
-              <TabsTrigger value="data">
-                <Eye className="h-4 w-4 mr-2" />
-                Data Explorer
-              </TabsTrigger>
+              {systemType !== 'hostfully' && (
+                <TabsTrigger value="data">
+                  <Eye className="h-4 w-4 mr-2" />
+                  Data Explorer
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="mappings" className="space-y-4">
