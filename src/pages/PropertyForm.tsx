@@ -213,7 +213,7 @@ export default function PropertyForm() {
   const navigate = useNavigate();
   const { id } = useParams(); // Can be UUID or slug
   const { toast } = useToast();
-  const { isDev, isAdmin, user, profile } = useAuth();
+  const { isDev, isAdmin, user, profile, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [owners, setOwners] = useState<any[]>([]);
@@ -3333,7 +3333,7 @@ export default function PropertyForm() {
                       )}
 
                       {/* Hostfully connection for owners */}
-                      {selectedPMS === "hostfully" && isOwnerUser && (
+                      {selectedPMS === "hostfully" && !authLoading && isOwnerUser && (
                         <div className="w-full mt-2">
                           <OwnerPMSConnectionCard
                             ownerId={user?.id || ""}
@@ -3346,7 +3346,7 @@ export default function PropertyForm() {
                       )}
 
                       {/* Hostfully Import Rooms button for admin/dev when property has owner credential */}
-                      {selectedPMS === "hostfully" && propertyId && ownerPmsCredentialId && (isAdmin || isDev) && (
+                      {selectedPMS === "hostfully" && !authLoading && propertyId && ownerPmsCredentialId && (isAdmin || isDev) && (
                         <div className="flex items-center gap-2">
                           <Button
                             type="button"
