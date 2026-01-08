@@ -12,7 +12,37 @@ const requestSchema = z.object({
   full_name: z.string().trim().min(1, "Name is required").max(100, "Name too long"),
   role: z.enum(["admin", "user"], { errorMap: () => ({ message: "Role must be admin or user" }) }),
   pms_systems: z.array(z.string()).optional(),
+  // Hostfully-specific fields
+  hostfully_api_key: z.string().optional(),
+  hostfully_environment: z.enum(["production", "sandbox"]).optional(),
+  hostfully_agency_uid: z.string().optional(),
+  selected_property_uids: z.array(z.string()).optional(),
 });
+
+// Hostfully API helper
+async function fetchHostfullyPropertyDetails(
+  apiKey: string,
+  environment: string,
+  propertyUid: string
+): Promise<any> {
+  const baseUrl = environment === "sandbox"
+    ? "https://sandbox.hostfully.com/api/v3"
+    : "https://api.hostfully.com/api/v3";
+
+  const response = await fetch(`${baseUrl}/properties/${propertyUid}`, {
+    headers: {
+      "X-HOSTFULLY-APIKEY": apiKey,
+      "Accept": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    console.error(`Failed to fetch Hostfully property ${propertyUid}:`, response.status);
+    return null;
+  }
+
+  return response.json();
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -55,7 +85,16 @@ serve(async (req) => {
       throw new Error('Missing required fields');
     }
     
-    const { email, full_name, role, pms_systems } = validationResult.data;
+    const { 
+      email, 
+      full_name, 
+      role, 
+      pms_systems,
+      hostfully_api_key,
+      hostfully_environment,
+      hostfully_agency_uid,
+      selected_property_uids,
+    } = validationResult.data;
 
     // Check if user already exists in auth
     const { data: { users: existingAuthUsers } } = await supabaseAdmin.auth.admin.listUsers();
@@ -125,27 +164,129 @@ serve(async (req) => {
     if (roleError) throw roleError;
 
     // Create PMS credentials for owners if PMS systems were selected
+    let hostfullyCredentialId: string | null = null;
+    
     if (role === 'user' && pms_systems && pms_systems.length > 0) {
       for (const systemType of pms_systems) {
-        const { error: pmsError } = await supabaseAdmin
+        const credentialData: Record<string, any> = {
+          owner_id: userId,
+          system_type: systemType,
+          sync_status: 'pending',
+          is_active: true,
+        };
+
+        // Add Hostfully-specific data if provided
+        if (systemType === 'hostfully' && hostfully_api_key) {
+          credentialData.api_key = hostfully_api_key;
+          credentialData.environment = hostfully_environment || 'production';
+          credentialData.external_account_id = hostfully_agency_uid;
+          credentialData.sync_status = 'connected';
+        }
+
+        const { data: credData, error: pmsError } = await supabaseAdmin
           .from('owner_pms_credentials')
-          .upsert({
-            owner_id: userId,
-            system_type: systemType,
-            sync_status: 'pending',
-            is_active: true,
-          }, {
+          .upsert(credentialData, {
             onConflict: 'owner_id,system_type'
-          });
+          })
+          .select('id')
+          .single();
 
         if (pmsError) {
           console.error(`Failed to create PMS credential for ${systemType}:`, pmsError);
+        } else if (systemType === 'hostfully') {
+          hostfullyCredentialId = credData.id;
         }
       }
     }
 
+    // Create properties from selected Hostfully listings
+    let propertiesCreated = 0;
+    
+    if (
+      role === 'user' && 
+      hostfully_api_key && 
+      hostfully_environment && 
+      selected_property_uids && 
+      selected_property_uids.length > 0 &&
+      hostfullyCredentialId
+    ) {
+      console.log(`Creating ${selected_property_uids.length} properties from Hostfully`);
+
+      for (const propertyUid of selected_property_uids) {
+        try {
+          // Fetch property details from Hostfully
+          const propertyDetails = await fetchHostfullyPropertyDetails(
+            hostfully_api_key,
+            hostfully_environment,
+            propertyUid
+          );
+
+          if (!propertyDetails) {
+            console.error(`Failed to fetch details for property ${propertyUid}, skipping`);
+            continue;
+          }
+
+          // Create property in database
+          const { error: propError } = await supabaseAdmin
+            .from('properties')
+            .insert({
+              name: propertyDetails.name || `Property ${propertyUid.slice(0, 8)}`,
+              description: propertyDetails.description || null,
+              address: propertyDetails.address1 || propertyDetails.streetAddress || 'Address TBD',
+              city: propertyDetails.city || 'Unknown',
+              country: propertyDetails.countryCode || propertyDetails.country || 'Unknown',
+              property_type: propertyDetails.type || propertyDetails.propertyType || 'property',
+              bedrooms: propertyDetails.bedrooms || null,
+              bathrooms: propertyDetails.bathrooms || null,
+              max_guests: propertyDetails.maxGuests || 2,
+              price_per_night: propertyDetails.baseDailyRate || 0,
+              images: propertyDetails.pictureLink ? [propertyDetails.pictureLink] : null,
+              latitude: propertyDetails.latitude || null,
+              longitude: propertyDetails.longitude || null,
+              // Owner information
+              owner_name: full_name,
+              owner_email: email,
+              owner_pms_credential_id: hostfullyCredentialId,
+              // External system info
+              external_system: 'hostfully',
+              external_id: propertyUid,
+              hostfully_property_uid: propertyUid,
+              external_metadata: propertyDetails,
+              pms_managed_fields: ['availability', 'rates', 'max_guests', 'bedrooms', 'bathrooms'],
+              pms_sync_status: 'synced',
+              last_pms_sync_at: new Date().toISOString(),
+              // Start inactive until reviewed
+              is_active: false,
+            });
+
+          if (propError) {
+            console.error(`Failed to create property ${propertyUid}:`, propError);
+          } else {
+            propertiesCreated++;
+            console.log(`Created property: ${propertyDetails.name}`);
+          }
+        } catch (err) {
+          console.error(`Error processing property ${propertyUid}:`, err);
+        }
+      }
+
+      // Update credential with listing info
+      if (propertiesCreated > 0) {
+        await supabaseAdmin
+          .from('owner_pms_credentials')
+          .update({
+            last_sync_at: new Date().toISOString(),
+            sync_status: 'connected',
+          })
+          .eq('id', hostfullyCredentialId);
+      }
+    }
+
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ 
+        success: true,
+        properties_created: propertiesCreated,
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
