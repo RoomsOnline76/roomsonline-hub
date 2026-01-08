@@ -59,6 +59,7 @@ interface HelpContextType {
 const HelpContext = createContext<HelpContextType | undefined>(undefined);
 
 const SECTION_ORDER: string[] = [
+  // Admin sections
   "getting_started",
   "booking_flow",
   "roles_permissions",
@@ -66,23 +67,33 @@ const SECTION_ORDER: string[] = [
   "architecture",
   "debugging",
   // Owner sections
+  "owner_getting_started",
   "booking_categories",
   "availability_pricing",
-  "troubleshooting",
+  "pms_integration",
+  "property_appearance",
   "common_mistakes",
+  "troubleshooting",
+  "support",
 ];
 
 const SECTION_LABELS: Record<string, string> = {
+  // Admin sections
   getting_started: "Getting Started",
   booking_flow: "Booking Flow",
   roles_permissions: "Roles & Permissions",
   data_authority: "Data Authority & Sync",
   architecture: "System Architecture",
   debugging: "Debugging & Monitoring",
+  // Owner sections
+  owner_getting_started: "Getting Started",
   booking_categories: "Booking Categories",
   availability_pricing: "Availability & Pricing",
-  troubleshooting: "Troubleshooting",
+  pms_integration: "How ROL Works with Your PMS",
+  property_appearance: "Your Property's Appearance",
   common_mistakes: "Common Mistakes to Avoid",
+  troubleshooting: "Troubleshooting",
+  support: "Getting Help",
 };
 
 export function HelpProvider({ children }: { children: ReactNode }) {
