@@ -9,9 +9,7 @@ const PrivacyPolicy = () => {
           <h1 className="font-display text-3xl sm:text-4xl font-light tracking-tight leading-tight text-foreground mb-4">
             Privacy Policy
           </h1>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">
-            Last updated: January 2025
-          </p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Last updated: January 2025</p>
         </div>
 
         {/* Content */}
@@ -21,9 +19,9 @@ const PrivacyPolicy = () => {
               1. Introduction
             </h2>
             <p className="text-foreground/80 leading-relaxed">
-              RoomsOnline ("we", "our", or "us") is committed to protecting your privacy. 
-              This Privacy Policy explains how we collect, use, disclose, and safeguard your 
-              information when you use our booking platform and services.
+              RoomsOnline ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains
+              how we collect, use, disclose, and safeguard your information when you use our booking platform and
+              services.
             </p>
           </section>
 
@@ -76,10 +74,18 @@ const PrivacyPolicy = () => {
             </h2>
             <p className="text-foreground/80 leading-relaxed">We may share your information with:</p>
             <ul className="list-disc list-inside text-foreground/80 space-y-1 ml-4 marker:text-primary/50">
-              <li><strong>Property Owners/Managers:</strong> To fulfill your booking requests</li>
-              <li><strong>Payment Processors:</strong> To process secure transactions</li>
-              <li><strong>Service Providers:</strong> Who assist in operating our platform</li>
-              <li><strong>Legal Authorities:</strong> When required by law</li>
+              <li>
+                <strong>Property Owners/Managers:</strong> To fulfill your booking requests
+              </li>
+              <li>
+                <strong>Payment Processors:</strong> To process secure transactions
+              </li>
+              <li>
+                <strong>Service Providers:</strong> Who assist in operating our platform
+              </li>
+              <li>
+                <strong>Legal Authorities:</strong> When required by law
+              </li>
             </ul>
             <p className="text-foreground/80 leading-relaxed mt-4">
               We do not sell your personal information to third parties for marketing purposes.
@@ -91,9 +97,9 @@ const PrivacyPolicy = () => {
               5. Data Security
             </h2>
             <p className="text-foreground/80 leading-relaxed">
-              We implement industry-standard security measures to protect your personal information, 
-              including encryption, secure servers, and access controls. However, no method of 
-              transmission over the Internet is 100% secure.
+              We implement industry-standard security measures to protect your personal information, including
+              encryption, secure servers, and access controls. However, no method of transmission over the Internet is
+              100% secure.
             </p>
           </section>
 
@@ -118,9 +124,8 @@ const PrivacyPolicy = () => {
               7. Cookies
             </h2>
             <p className="text-foreground/80 leading-relaxed">
-              We use cookies and similar tracking technologies to enhance your experience, 
-              analyze site traffic, and for marketing purposes. You can control cookie 
-              settings through your browser preferences.
+              We use cookies and similar tracking technologies to enhance your experience, analyze site traffic, and for
+              marketing purposes. You can control cookie settings through your browser preferences.
             </p>
           </section>
 
@@ -129,9 +134,8 @@ const PrivacyPolicy = () => {
               8. Changes to This Policy
             </h2>
             <p className="text-foreground/80 leading-relaxed">
-              We may update this Privacy Policy from time to time. We will notify you of 
-              any changes by posting the new policy on this page and updating the 
-              "Last updated" date.
+              We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new
+              policy on this page and updating the "Last updated" date.
             </p>
           </section>
 
@@ -144,10 +148,19 @@ const PrivacyPolicy = () => {
             </p>
             <div className="p-6 rounded-lg bg-card border border-border mt-4">
               <p className="text-foreground">
-                Email: <a href="mailto:privacy@roomsonline.co.za" className="text-primary hover:underline transition-colors duration-200">privacy@roomsonline.co.za</a>
+                Email:{" "}
+                <a
+                  href="mailto:privacy@roomsonline.co.za"
+                  className="text-primary hover:underline transition-colors duration-200"
+                >
+                  privacy@roomsonline.co.za
+                </a>
               </p>
               <p className="text-foreground mt-2">
-                Phone: <a href="tel:+27214180022" className="text-primary hover:underline transition-colors duration-200">+27 21 418 0022</a>
+                Phone:{" "}
+                <a href="tel:+27823238115" className="text-primary hover:underline transition-colors duration-200">
+                  +27 21 418 0022
+                </a>
               </p>
             </div>
           </section>
