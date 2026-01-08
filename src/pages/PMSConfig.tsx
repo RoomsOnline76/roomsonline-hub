@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -14,6 +14,8 @@ import { RefreshCw, CheckCircle2, AlertCircle, Loader2, Save, ChevronDown, Chevr
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { pmsFieldDefinitions, availableInternalFields, getPMSFieldConfig, PMSFieldConfig, PMSDataCategory } from "@/config/pmsFieldMappings";
+import { parseHostfullyProperties, ParsedBuilding } from "@/lib/hostfullyBuildingParser";
+import { HostfullyBuildingImporter } from "@/components/pms/HostfullyBuildingImporter";
 
 interface PMSCredentials {
   id: string;
@@ -52,6 +54,14 @@ export default function PMSConfig() {
 
   // Open state for collapsibles
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
+
+  // Parse Hostfully properties into buildings
+  const parsedBuildings = useMemo(() => {
+    if (systemType !== 'hostfully' || !pmsData.properties) {
+      return [];
+    }
+    return parseHostfullyProperties(pmsData.properties);
+  }, [systemType, pmsData.properties]);
 
   useEffect(() => {
     if (systemType) {
@@ -494,24 +504,46 @@ export default function PMSConfig() {
           </Card>
         )}
 
-        {/* Data Explorer for Hostfully - show when we have fetched data */}
+        {/* Parsed Buildings for Hostfully - show when we have fetched data */}
+        {systemType === 'hostfully' && parsedBuildings.length > 0 && (
+          <HostfullyBuildingImporter
+            buildings={parsedBuildings}
+            ownerCredentialId={selectedOwnerId}
+            onImportComplete={() => {
+              loadOwnerProperties(selectedOwnerId);
+            }}
+          />
+        )}
+
+        {/* Raw Data Explorer for Hostfully - show when we have fetched data */}
         {systemType === 'hostfully' && Object.keys(pmsData).length > 0 && (
           <Card className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Database className="h-5 w-5" />
-                Hostfully Properties Data
+                Raw Hostfully Data
+                <Badge variant="outline">{pmsData.properties?.length || 0} properties</Badge>
               </CardTitle>
               <CardDescription>
-                Raw data from Hostfully API for the selected owner
+                Raw data from Hostfully API (for debugging)
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[400px] rounded border">
-                <pre className="p-4 text-xs font-mono">
-                  {JSON.stringify(pmsData, null, 2)}
-                </pre>
-              </ScrollArea>
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" size="sm" className="mb-2">
+                    <Eye className="h-4 w-4 mr-2" />
+                    Toggle Raw JSON
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <ScrollArea className="h-[300px] rounded border">
+                    <pre className="p-4 text-xs font-mono">
+                      {JSON.stringify(pmsData, null, 2)}
+                    </pre>
+                  </ScrollArea>
+                </CollapsibleContent>
+              </Collapsible>
             </CardContent>
           </Card>
         )}
