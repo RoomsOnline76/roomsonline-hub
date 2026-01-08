@@ -529,14 +529,26 @@ serve(async (req) => {
     if ((action === "health_check" || action === "test_connection") && !property_id) {
       console.log(`[Benson] Standalone health check - no property_id provided`);
       
-      // Get any active Benson credentials
-      const { data: credentials } = await supabase
+      // PRIORITY 1: Get production Benson credentials
+      let { data: credentials } = await supabase
         .from("pms_credentials")
         .select("*")
         .eq("system_type", "benson")
         .eq("is_active", true)
-        .limit(1)
+        .eq("environment", "production")
         .maybeSingle();
+
+      // PRIORITY 2: Fall back to any active Benson credentials
+      if (!credentials) {
+        const { data: fallbackCreds } = await supabase
+          .from("pms_credentials")
+          .select("*")
+          .eq("system_type", "benson")
+          .eq("is_active", true)
+          .limit(1)
+          .maybeSingle();
+        credentials = fallbackCreds;
+      }
 
       if (!credentials || !credentials.username || !credentials.password) {
         return new Response(
@@ -549,13 +561,25 @@ serve(async (req) => {
         );
       }
 
-      // Get any property with a Benson code to test against
-      const { data: testProperty } = await supabase
+      // Get a production Benson property to test against (prefer production environment)
+      let { data: testProperty } = await supabase
         .from("properties")
-        .select("benson_property_code")
+        .select("benson_property_code, benson_environment")
         .not("benson_property_code", "is", null)
+        .eq("benson_environment", "production")
         .limit(1)
         .maybeSingle();
+
+      // Fall back to any Benson property if no production ones
+      if (!testProperty) {
+        const { data: fallbackProperty } = await supabase
+          .from("properties")
+          .select("benson_property_code, benson_environment")
+          .not("benson_property_code", "is", null)
+          .limit(1)
+          .maybeSingle();
+        testProperty = fallbackProperty;
+      }
 
       if (!testProperty?.benson_property_code) {
         return new Response(
@@ -568,22 +592,17 @@ serve(async (req) => {
         );
       }
 
-      const creds: BensonCredentials = {
-        username: credentials.username,
-        password: credentials.password,
-        environment: credentials.environment as "staging" | "production",
-        baseUrl: credentials.base_url || undefined,
-      };
-
-      const baseUrl = creds.baseUrl || (creds.environment === "production" ? BENSON_PRODUCTION_URL : BENSON_STAGING_URL);
+      // Use the property's environment for the API call
+      const testEnvironment = testProperty.benson_environment || credentials.environment || "production";
+      const baseUrl = testEnvironment === "production" ? BENSON_PRODUCTION_URL : BENSON_STAGING_URL;
       const testUrl = `${baseUrl}/${testProperty.benson_property_code}/roomtypes`;
       
-      console.log(`[Benson] Testing connection to: ${testUrl}`);
+      console.log(`[Benson] Testing connection to: ${testUrl} (env: ${testEnvironment})`);
 
       try {
         const testResponse = await fetch(testUrl, {
           headers: {
-            "Authorization": getAuthHeader(creds.username, creds.password),
+            "Authorization": getAuthHeader(credentials.username, credentials.password),
             "Content-Type": "application/json",
           },
         });
@@ -604,7 +623,8 @@ serve(async (req) => {
           JSON.stringify(createSuccessResponse({
             status: "ok",
             healthy: true,
-            environment: creds.environment,
+            environment: testEnvironment,
+            test_property_code: testProperty.benson_property_code,
             message: "Connection successful",
           }, action)),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
