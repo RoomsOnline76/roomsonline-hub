@@ -127,7 +127,7 @@ serve(async (req) => {
     const limit = Math.min(payload.limit || 50, 100);
     let query = serviceClient
       .from("audit_logs")
-      .select("*, profiles:user_id(full_name)", { count: "exact" })
+      .select("*", { count: "exact" })
       .order("created_at", { ascending: false })
       .limit(limit + 1); // Fetch one extra to check if there's more
 
