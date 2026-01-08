@@ -63,14 +63,14 @@ export default function AdminSystemHealth() {
     return () => clearInterval(interval);
   }, [autoRefresh, queryClient]);
 
-  // Fetch components
+  // Fetch components (including inactive for display)
   const { data: components, isLoading: componentsLoading } = useQuery({
     queryKey: ['health-components'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('system_health_components')
         .select('*')
-        .eq('is_active', true)
+        .order('is_active', { ascending: false }) // Active first
         .order('component_type', { ascending: true });
       if (error) throw error;
       return data as Component[];
@@ -173,16 +173,24 @@ export default function AdminSystemHealth() {
     return stats;
   }, [components, healthChecks]);
 
-  // Overall stats
+  // Overall stats (only count ACTIVE components)
   const overallStats = useMemo(() => {
     if (!components || !componentStats) {
-      return { healthy: 0, degraded: 0, failed: 0, unknown: 0, uptime: 0, avgLatency: 0 };
+      return { healthy: 0, degraded: 0, failed: 0, unknown: 0, uptime: 0, avgLatency: 0, activeCount: 0 };
     }
 
+    // Only count active components in metrics
+    const activeComponents = components.filter(c => c.is_active);
     let healthy = 0, degraded = 0, failed = 0, unknown = 0;
     let totalUptime = 0, totalLatency = 0, latencyCount = 0;
 
-    Object.values(componentStats).forEach(stat => {
+    activeComponents.forEach(comp => {
+      const stat = componentStats[comp.component_key];
+      if (!stat) {
+        unknown++;
+        return;
+      }
+      
       if (stat.lastStatus === 'healthy') healthy++;
       else if (stat.lastStatus === 'degraded') degraded++;
       else if (stat.lastStatus === 'failed') failed++;
@@ -200,8 +208,9 @@ export default function AdminSystemHealth() {
       degraded,
       failed,
       unknown,
-      uptime: components.length > 0 ? totalUptime / components.length : 0,
+      uptime: activeComponents.length > 0 ? totalUptime / activeComponents.length : 0,
       avgLatency: latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0,
+      activeCount: activeComponents.length,
     };
   }, [components, componentStats]);
 
@@ -387,7 +396,7 @@ export default function AdminSystemHealth() {
                   {overallStats.failed}
                 </p>
                 <span className="text-sm text-muted-foreground">
-                  / {components?.length || 0} components
+                  / {overallStats.activeCount} active
                 </span>
               </div>
             )}
@@ -459,6 +468,7 @@ export default function AdminSystemHealth() {
                 componentName={component.component_name}
                 componentType={component.component_type}
                 isCritical={component.is_critical}
+                isActive={component.is_active}
                 expectedLatency={component.expected_latency_ms}
                 lastStatus={stats?.lastStatus || 'unknown'}
                 lastChecked={stats?.lastChecked || 'Never'}
