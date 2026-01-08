@@ -29,6 +29,7 @@ import PropertyShowcase from "./pages/PropertyShowcase";
 import RoomShowcase from "./pages/RoomShowcase";
 import RoomAvailability from "./pages/RoomAvailability";
 import Booking from "./pages/Booking";
+import BookingConfirmation from "./pages/BookingConfirmation";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -231,6 +232,7 @@ const App = () => (
           <Route path="/property/:propertySlug/room/:roomSlug" element={<RoomShowcase />} />
           <Route path="/property/:propertySlug/room/:roomSlug/availability" element={<RoomAvailability />} />
           <Route path="/booking/:id" element={<Booking />} />
+          <Route path="/booking-confirmation/:bookingId" element={<BookingConfirmation />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route path="/about" element={<AboutUs />} />
