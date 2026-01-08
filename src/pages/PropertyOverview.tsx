@@ -414,7 +414,7 @@ const PropertyOverview = () => {
                             {getSortIcon("total_bookings")}
                           </div>
                         </TableHead>
-                        <TableHead className="py-1 text-xs">EXT ID</TableHead>
+                        
                         <TableHead className="py-1 text-xs">TA ID</TableHead>
                         <TableHead className="text-right py-1 text-xs">ACTION</TableHead>
                       </TableRow>
@@ -527,20 +527,6 @@ const PropertyOverview = () => {
                             <span className="capitalize">{property.property_type?.replace(/_/g, ' ') || "-"}</span>
                           </TableCell>
                           <TableCell className="py-1 text-xs">{property.total_bookings || 0}</TableCell>
-                          <TableCell className="py-1">
-                            {(() => {
-                              const externalId = property.external_id || 
-                                property.benson_property_code || 
-                                property.checkfront_property_code || 
-                                property.siteminder_property_code ||
-                                property.hostfully_property_uid;
-                              return externalId ? (
-                                <span className="font-mono text-[10px]">{externalId}</span>
-                              ) : (
-                                <span className="text-muted-foreground text-xs">—</span>
-                              );
-                            })()}
-                          </TableCell>
                           <TableCell className="py-1">
                             {(() => {
                               const amenities = property.amenities as any;
