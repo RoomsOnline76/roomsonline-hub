@@ -998,24 +998,36 @@ export default function PropertyForm() {
           }
         }
         
-        // Update property-level GPS and address from first room with valid coordinates
+        // Update property-level GPS, address, and type from first room with valid coordinates
         const roomWithCoords = convertedRooms.find(r => r.latitude && r.longitude);
         if (roomWithCoords) {
           // Update property GPS position in UI
           setLatitude(roomWithCoords.latitude);
           setLongitude(roomWithCoords.longitude);
           
-          // Update property address fields from room address
-          if (roomWithCoords.addressStreet || roomWithCoords.addressCity) {
-            setFormData(prev => ({
-              ...prev,
-              address: roomWithCoords.addressStreet || prev.address,
-              city: roomWithCoords.addressCity || prev.city,
-              country: roomWithCoords.addressCountry || prev.country,
-            }));
-          }
+          // Update property address and type fields from room data
+          setFormData(prev => ({
+            ...prev,
+            address: roomWithCoords.addressStreet || prev.address,
+            city: roomWithCoords.addressCity || prev.city,
+            country: roomWithCoords.addressCountry || prev.country,
+            postal_code: roomWithCoords.addressPostalCode || prev.postal_code,
+            property_type: roomWithCoords.propertyType || prev.property_type,
+          }));
           
-          // Also update the property record in DB
+          // Fetch current amenities to merge postal_code
+          const { data: currentProperty } = await supabase
+            .from("properties")
+            .select("amenities")
+            .eq("id", propertyId)
+            .single();
+
+          const updatedAmenities = {
+            ...(currentProperty?.amenities as Record<string, unknown> || {}),
+            postal_code: roomWithCoords.addressPostalCode || (currentProperty?.amenities as any)?.postal_code,
+          };
+
+          // Update property record in DB with all 7 fields
           await supabase
             .from("properties")
             .update({
@@ -1024,10 +1036,20 @@ export default function PropertyForm() {
               address: roomWithCoords.addressStreet || undefined,
               city: roomWithCoords.addressCity || undefined,
               country: roomWithCoords.addressCountry || undefined,
+              property_type: roomWithCoords.propertyType || undefined,
+              amenities: updatedAmenities,
             })
             .eq("id", propertyId);
             
-          console.log("[DEBUG] Property GPS updated:", roomWithCoords.latitude, roomWithCoords.longitude);
+          console.log("[DEBUG] Property fields updated from first room:", {
+            address: roomWithCoords.addressStreet,
+            city: roomWithCoords.addressCity,
+            postal_code: roomWithCoords.addressPostalCode,
+            country: roomWithCoords.addressCountry,
+            latitude: roomWithCoords.latitude,
+            longitude: roomWithCoords.longitude,
+            property_type: roomWithCoords.propertyType,
+          });
         }
       }
 
