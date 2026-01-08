@@ -11,6 +11,7 @@ const requestSchema = z.object({
   email: z.string().trim().email("Invalid email address").max(255, "Email too long"),
   full_name: z.string().trim().min(1, "Name is required").max(100, "Name too long"),
   role: z.enum(["admin", "user"], { errorMap: () => ({ message: "Role must be admin or user" }) }),
+  pms_systems: z.array(z.string()).optional(),
 });
 
 serve(async (req) => {
@@ -54,7 +55,7 @@ serve(async (req) => {
       throw new Error('Missing required fields');
     }
     
-    const { email, full_name, role } = validationResult.data;
+    const { email, full_name, role, pms_systems } = validationResult.data;
 
     // Check if user already exists in auth
     const { data: { users: existingAuthUsers } } = await supabaseAdmin.auth.admin.listUsers();
@@ -122,6 +123,26 @@ serve(async (req) => {
       });
 
     if (roleError) throw roleError;
+
+    // Create PMS credentials for owners if PMS systems were selected
+    if (role === 'user' && pms_systems && pms_systems.length > 0) {
+      for (const systemType of pms_systems) {
+        const { error: pmsError } = await supabaseAdmin
+          .from('owner_pms_credentials')
+          .upsert({
+            owner_id: userId,
+            system_type: systemType,
+            sync_status: 'pending',
+            is_active: true,
+          }, {
+            onConflict: 'owner_id,system_type'
+          });
+
+        if (pmsError) {
+          console.error(`Failed to create PMS credential for ${systemType}:`, pmsError);
+        }
+      }
+    }
 
     return new Response(
       JSON.stringify({ success: true }),
