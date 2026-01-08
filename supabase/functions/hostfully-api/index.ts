@@ -1013,8 +1013,8 @@ async function handleGetListingDetails(creds: HostfullyCredentials, propertyUid:
       latitude: addressObj.latitude || property.latitude || null,
       longitude: addressObj.longitude || property.longitude || null,
       
-      // Media
-      images: imageUrls,
+      // Media - fallback to pictureLink if photos endpoint returns empty
+      images: imageUrls.length > 0 ? imageUrls : (property.pictureLink ? [property.pictureLink] : []),
       thumbnail: property.pictureLink || property.picture || property.thumbnailUrl || (imageUrls.length > 0 ? imageUrls[0] : null),
       
       // Amenities
