@@ -81,6 +81,7 @@ import { AlertTriangle, Sparkles } from "lucide-react";
 import { ROLSpecTab } from "@/components/property/ROLSpecTab";
 import { ContextualHelp, ImpactWarning } from "@/components/help";
 import { OwnerPMSConnectionCard } from "@/components/pms/OwnerPMSConnectionCard";
+import { parseHostfullyProperties } from "@/lib/hostfullyBuildingParser";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -364,6 +365,13 @@ export default function PropertyForm() {
   const [existingLittlehotelierRegion, setExistingLittlehotelierRegion] = useState<string | null>(null);
   const [existingHotelbedsHotelCode, setExistingHotelbedsHotelCode] = useState<string | null>(null);
   const [existingHostfullyPropertyUid, setExistingHostfullyPropertyUid] = useState<string | null>(null);
+  
+  // Hostfully import and warning states
+  const [ownerPmsCredentialId, setOwnerPmsCredentialId] = useState<string | null>(null);
+  const [hostfullyRoomCount, setHostfullyRoomCount] = useState(0);
+  const [importingHostfullyRooms, setImportingHostfullyRooms] = useState(false);
+  const [showHostfullyWarning, setShowHostfullyWarning] = useState(false);
+  const [previousPMS, setPreviousPMS] = useState<string>("");
 
   // Owner's Hostfully credential (for owners to connect their PMS)
   const [ownerHostfullyCredential, setOwnerHostfullyCredential] = useState<any>(null);
@@ -408,6 +416,105 @@ export default function PropertyForm() {
       .eq("system_type", "hostfully")
       .maybeSingle();
     setOwnerHostfullyCredential(data);
+  };
+
+  // Load Hostfully room count when property has owner credential
+  useEffect(() => {
+    const loadHostfullyRoomCount = async () => {
+      if (!propertyId) return;
+      const { count } = await supabase
+        .from("hostfully_room_types")
+        .select("*", { count: "exact", head: true })
+        .eq("property_id", propertyId);
+      setHostfullyRoomCount(count || 0);
+    };
+    loadHostfullyRoomCount();
+  }, [propertyId]);
+
+  // Handle importing Hostfully rooms from the owner's agency
+  const handleImportHostfullyRooms = async () => {
+    if (!propertyId || !ownerPmsCredentialId) {
+      toast({
+        title: "Cannot Import",
+        description: "Property must be linked to an owner's Hostfully account",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setImportingHostfullyRooms(true);
+    try {
+      // 1. Fetch all properties from owner's Hostfully agency
+      const { data, error } = await supabase.functions.invoke("hostfully-api", {
+        body: {
+          action: "list_all_properties",
+          owner_credential_id: ownerPmsCredentialId,
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.data?.properties) {
+        throw new Error("No properties returned from Hostfully");
+      }
+
+      // 2. Parse into buildings
+      const buildings = parseHostfullyProperties(data.data.properties);
+
+      // 3. Find matching building by property name (case-insensitive)
+      const matchingBuilding = buildings.find(
+        (b) => b.building_name.toUpperCase() === formData.name.toUpperCase()
+      );
+
+      if (!matchingBuilding) {
+        toast({
+          title: "No Matching Building",
+          description: `Could not find a building named "${formData.name}" in Hostfully. Available: ${buildings.map(b => b.building_name).join(", ")}`,
+          variant: "destructive",
+        });
+        setImportingHostfullyRooms(false);
+        return;
+      }
+
+      // 4. Upsert hostfully_room_types for each unit
+      let successCount = 0;
+      for (const unit of matchingBuilding.units) {
+        const roomName = `${unit.room_number} ${unit.room_type}`.trim() || unit.name;
+        const { error: upsertError } = await supabase
+          .from("hostfully_room_types")
+          .upsert(
+            {
+              property_id: propertyId,
+              hostfully_room_id: unit.id,
+              name: roomName,
+              is_active: true,
+            },
+            { onConflict: "property_id,hostfully_room_id" }
+          );
+        
+        if (!upsertError) successCount++;
+      }
+
+      // Refresh room count
+      const { count } = await supabase
+        .from("hostfully_room_types")
+        .select("*", { count: "exact", head: true })
+        .eq("property_id", propertyId);
+      setHostfullyRoomCount(count || 0);
+
+      toast({
+        title: "Import Complete",
+        description: `Imported ${successCount} room types from "${matchingBuilding.building_name}"`,
+      });
+    } catch (err: any) {
+      console.error("Hostfully import error:", err);
+      toast({
+        title: "Import Failed",
+        description: err.message || "Failed to import Hostfully rooms",
+        variant: "destructive",
+      });
+    } finally {
+      setImportingHostfullyRooms(false);
+    }
   };
 
   const syncFromBenson = async () => {
@@ -2050,6 +2157,11 @@ export default function PropertyForm() {
             setHostfullyPropertyUid((data as any).hostfully_property_uid);
           }
           setExistingHostfullyPropertyUid((data as any).hostfully_property_uid || null);
+          
+          // Set owner PMS credential ID for Hostfully import
+          if ((data as any).owner_pms_credential_id) {
+            setOwnerPmsCredentialId((data as any).owner_pms_credential_id);
+          }
 
           // Load TripAdvisor ID
           if (amenities?.external_ids?.tripadvisor_id) {
@@ -3011,7 +3123,16 @@ export default function PropertyForm() {
                         <Select
                           value={selectedPMS || "none"}
                           onValueChange={(value) => {
-                            setSelectedPMS(value === "none" ? "" : value);
+                            const newPMS = value === "none" ? "" : value;
+                            
+                            // Show warning when switching TO hostfully from non-hostfully without owner credential
+                            if (newPMS === "hostfully" && selectedPMS !== "hostfully" && !ownerPmsCredentialId) {
+                              setPreviousPMS(selectedPMS);
+                              setShowHostfullyWarning(true);
+                              return;
+                            }
+                            
+                            setSelectedPMS(newPMS);
                             setIsDirty(true);
                           }}
                         >
@@ -3247,6 +3368,26 @@ export default function PropertyForm() {
                             existingCredential={ownerHostfullyCredential}
                             onCredentialChange={handleOwnerCredentialChange}
                           />
+                        </div>
+                      )}
+
+                      {/* Hostfully Import Rooms button for admin/dev when property has owner credential */}
+                      {selectedPMS === "hostfully" && propertyId && ownerPmsCredentialId && (isAdmin || isDev) && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs gap-1"
+                            onClick={handleImportHostfullyRooms}
+                            disabled={importingHostfullyRooms}
+                          >
+                            <RefreshCw className={cn("h-3 w-3", importingHostfullyRooms && "animate-spin")} />
+                            {importingHostfullyRooms ? "Importing..." : "Import Hostfully Rooms"}
+                          </Button>
+                          {hostfullyRoomCount > 0 && (
+                            <Badge variant="secondary" className="text-xs">{hostfullyRoomCount} rooms</Badge>
+                          )}
                         </div>
                       )}
 
@@ -9105,6 +9246,40 @@ export default function PropertyForm() {
               </>
             );
           })()}
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Hostfully Warning Dialog */}
+      <AlertDialog open={showHostfullyWarning} onOpenChange={setShowHostfullyWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="h-5 w-5" />
+              Hostfully Connection Required
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Hostfully properties can only be connected through an owner's PMS credentials 
+                  in the Team Dashboard.
+                </p>
+                <div className="text-sm space-y-1">
+                  <p className="font-medium text-foreground">To connect a Hostfully property:</p>
+                  <ol className="list-decimal list-inside text-muted-foreground space-y-0.5 ml-2">
+                    <li>Go to <strong>Team Dashboard → Users</strong></li>
+                    <li>Find or create the property owner</li>
+                    <li>Connect their Hostfully account (Agency UID + API Key)</li>
+                    <li>Import properties from their Hostfully account</li>
+                  </ol>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowHostfullyWarning(false)}>
+              Understood
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </AppLayout>
