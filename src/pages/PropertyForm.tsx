@@ -565,7 +565,7 @@ export default function PropertyForm() {
     return amenities.map(a => typeof a === 'string' ? a : a.name).filter(Boolean);
   };
 
-  // Sync single room from Hostfully API
+  // Sync single room from Hostfully API - comprehensive field mapping
   const syncRoomFromHostfully = async (roomId: string) => {
     const room = roomTypes.find(r => r.id === roomId);
     if (!room?.pmsRoomId) {
@@ -600,19 +600,51 @@ export default function PropertyForm() {
         throw new Error(data?.error?.message || "Failed to fetch room details from Hostfully");
       }
 
-      const hfData = data.data;
-      console.log("Hostfully room data:", hfData);
+      const hf = data.data;
+      console.log("Hostfully comprehensive room data:", hf);
       
-      // Map Hostfully data to room type fields
+      // All fields that will be marked as PMS-synced/locked
+      const syncedFields = [
+        "name", "description", "maxPeople", "maxAdults", "minGuests", "bathrooms", 
+        "roomSize", "beds", "images", "amenities", "minStay", "maxStay",
+        "checkInTime", "checkOutTime", "dailyRate", "currency", "cleaningFee"
+      ];
+      
+      // Comprehensive field mapping from Hostfully API
       const updatedFields: Partial<typeof room> = {
-        description: hfData.description || room.description,
-        maxPeople: hfData.maximumGuests || hfData.max_guests || room.maxPeople,
-        maxAdults: hfData.maximumGuests || hfData.max_guests || room.maxAdults,
-        bathrooms: hfData.bathrooms || room.bathrooms,
-        roomSize: hfData.areaSize || hfData.size || room.roomSize,
-        images: extractImageUrls(hfData.photos || hfData.images) || room.images,
-        amenities: mapHostfullyAmenities(hfData.amenities || []),
-        pms_synced_fields: [...(room.pms_synced_fields || []), "description", "maxPeople", "maxAdults", "bathrooms", "images", "amenities"].filter((v, i, a) => a.indexOf(v) === i),
+        // Basic info
+        name: hf.name || room.name,
+        description: hf.description || room.description,
+        
+        // Occupancy
+        maxPeople: hf.max_guests || room.maxPeople,
+        maxAdults: hf.max_guests || room.maxAdults,
+        minGuests: hf.min_guests || room.minGuests || 1,
+        
+        // Physical specs
+        bathrooms: hf.bathrooms || room.bathrooms,
+        roomSize: hf.room_size || room.roomSize,
+        bedConfiguration: hf.beds ? [{ type: 'bed', count: hf.beds }] : room.bedConfiguration,
+        
+        // Stay rules
+        minStay: hf.min_stay || room.minStay || 1,
+        maxStay: hf.max_stay || room.maxStay,
+        checkInTime: hf.check_in_time || room.checkInTime,
+        checkOutTime: hf.check_out_time || room.checkOutTime,
+        
+        // Media - use API images if available
+        images: (hf.images && hf.images.length > 0) ? hf.images : room.images,
+        
+        // Amenities
+        amenities: (hf.amenities && hf.amenities.length > 0) ? hf.amenities : room.amenities,
+        
+        // Rate info
+        dailyRate: hf.daily_rate || room.dailyRate,
+        currency: hf.currency || room.currency || 'ZAR',
+        cleaningFee: hf.cleaning_fee || room.cleaningFee,
+        
+        // Mark all synced fields as PMS-locked
+        pms_synced_fields: syncedFields,
       };
 
       // Update UI state
@@ -620,18 +652,58 @@ export default function PropertyForm() {
         r.id === roomId ? { ...r, ...updatedFields } : r
       ));
       
-      // Also update hostfully_room_types table
-      await supabase.from("hostfully_room_types").update({
-        description: hfData.description,
-        max_guests: hfData.maximumGuests || hfData.max_guests,
-        bathrooms: hfData.bathrooms,
-        images: hfData.photos || hfData.images,
-        amenities: hfData.amenities,
-        raw_data: hfData,
-      }).eq("id", roomId);
+      // Comprehensive database update with all new columns
+      const dbUpdate = {
+        name: hf.name,
+        description: hf.description,
+        max_guests: hf.max_guests,
+        min_guests: hf.min_guests,
+        bedrooms: hf.bedrooms,
+        bathrooms: hf.bathrooms,
+        beds: hf.beds,
+        room_size: hf.room_size,
+        room_size_unit: hf.room_size_unit || 'SQUARE_METERS',
+        daily_rate: hf.daily_rate,
+        currency: hf.currency || 'ZAR',
+        cleaning_fee: hf.cleaning_fee,
+        security_deposit: hf.security_deposit,
+        extra_guest_fee: hf.extra_guest_fee,
+        tax_rate: hf.tax_rate,
+        min_stay: hf.min_stay,
+        max_stay: hf.max_stay,
+        check_in_time: hf.check_in_time,
+        check_out_time: hf.check_out_time,
+        property_type: hf.property_type,
+        images: hf.images || [],
+        amenities: hf.amenities || [],
+        thumbnail_url: hf.thumbnail,
+        wifi_network: hf.wifi_network,
+        wifi_password: hf.wifi_password,
+        check_in_instructions: hf.check_in_instructions,
+        house_rules: hf.house_rules,
+        cancellation_policy: hf.cancellation_policy,
+        address_street: hf.address?.street,
+        address_city: hf.address?.city,
+        address_state: hf.address?.state,
+        address_postal_code: hf.address?.postal_code,
+        address_country: hf.address?.country,
+        latitude: hf.latitude,
+        longitude: hf.longitude,
+        pms_synced_fields: syncedFields,
+        last_synced_at: new Date().toISOString(),
+        raw_data: hf._raw || hf,
+      };
+
+      await supabase.from("hostfully_room_types").update(dbUpdate).eq("id", roomId);
+
+      // Count synced fields for toast
+      const syncedCount = Object.values(dbUpdate).filter(v => v !== null && v !== undefined).length;
 
       setIsDirty(true);
-      toast({ title: "Room Synced", description: `Updated ${room.name} from Hostfully` });
+      toast({ 
+        title: "Room Synced", 
+        description: `Updated ${syncedCount} fields for "${room.name}" from Hostfully` 
+      });
     } catch (err: any) {
       console.error("Hostfully room sync error:", err);
       toast({ title: "Sync Failed", description: err.message, variant: "destructive" });

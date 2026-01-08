@@ -894,6 +894,7 @@ async function handleGetListingDetails(creds: HostfullyCredentials, propertyUid:
   const baseUrl = HOSTFULLY_URLS[creds.environment];
 
   try {
+    // Fetch main property data
     const response = await hostfullyRequest(`/properties/${propertyUid}`, creds.api_key, baseUrl);
 
     if (!response.ok) {
@@ -901,39 +902,131 @@ async function handleGetListingDetails(creds: HostfullyCredentials, propertyUid:
       return createErrorResponse(error.code, error.message, "get_listing_details");
     }
 
-    const property = await response.json();
+    const rawResponse = await response.json();
+    // Handle potential property wrapper in response
+    const property = rawResponse.property || rawResponse;
+    
+    console.log("[Hostfully] Raw property keys:", Object.keys(property));
+
+    // Fetch photos from dedicated endpoint for complete image list
+    let photos: any[] = property.photos || property.images || [];
+    try {
+      const photosResponse = await hostfullyRequest(`/properties/${propertyUid}/photos`, creds.api_key, baseUrl);
+      if (photosResponse.ok) {
+        const photosData = await photosResponse.json();
+        const fetchedPhotos = photosData?.photos || photosData || [];
+        if (Array.isArray(fetchedPhotos) && fetchedPhotos.length > 0) {
+          photos = fetchedPhotos;
+        }
+      }
+    } catch (e) {
+      console.log("[Hostfully] Photos endpoint failed, using main property photos");
+    }
+
+    // Fetch amenities from dedicated endpoint for complete list
+    let amenities: any[] = property.amenities || property.features || [];
+    try {
+      const amenitiesResponse = await hostfullyRequest(`/properties/${propertyUid}/amenities`, creds.api_key, baseUrl);
+      if (amenitiesResponse.ok) {
+        const amenitiesData = await amenitiesResponse.json();
+        const fetchedAmenities = amenitiesData?.amenities || amenitiesData || [];
+        if (Array.isArray(fetchedAmenities) && fetchedAmenities.length > 0) {
+          amenities = fetchedAmenities;
+        }
+      }
+    } catch (e) {
+      console.log("[Hostfully] Amenities endpoint failed, using main property amenities");
+    }
+
+    // Extract nested availability object
+    const availability = property.availability || {};
+    // Extract nested pricing object
+    const pricing = property.pricing || {};
+    // Extract nested area object
+    const area = property.area || {};
+    // Extract nested address object (could also be flat on property)
+    const addressObj = property.address || {};
+
+    // Process images to extract URLs
+    const imageUrls = photos.map((img: any) => {
+      if (typeof img === 'string') return img;
+      return img.url || img.original || img.pictureLink || img.uri || null;
+    }).filter(Boolean);
+
+    // Process amenities to extract names
+    const amenityNames = amenities.map((a: any) => {
+      if (typeof a === 'string') return a;
+      return a.name || a.label || a.amenityName || null;
+    }).filter(Boolean);
 
     return createSuccessResponse({
+      // Identifiers
       id: property.uid,
       name: property.name,
-      description: property.description || property.summary || null,
-      property_type: property.type || property.propertyType || 'property',
-      status: property.status || 'active',
-      bedrooms: property.bedrooms || null,
-      bathrooms: property.bathrooms || null,
-      max_guests: property.maxGuests || null,
-      min_guests: property.minGuests || 1,
+      
+      // Descriptions
+      description: property.description || property.summary || property.shortDescription || null,
+      house_rules: property.houseRules || property.rules || null,
+      check_in_instructions: property.checkInInstructions || property.instructions || null,
+      
+      // Property type
+      property_type: property.type || property.propertyType || property.listingType || 'property',
+      status: property.status || (property.isActive === false ? 'inactive' : 'active'),
+      
+      // Physical specs
+      bedrooms: property.bedrooms ?? null,
+      bathrooms: property.bathrooms ? parseFloat(property.bathrooms) : null,
+      beds: property.beds ?? null,
+      room_size: area.size || property.areaSize || property.squareFeet || null,
+      room_size_unit: area.unitType || property.areaSizeUnit || 'SQUARE_METERS',
+      
+      // Occupancy
+      max_guests: availability.maxGuests || property.maxGuests || null,
+      min_guests: availability.minGuests || property.minGuests || availability.baseGuests || 1,
+      
+      // Stay rules
+      min_stay: availability.minimumStay || property.minimumStay || 1,
+      max_stay: availability.maximumStay || property.maximumStay || null,
+      check_in_time: availability.checkInTimeStart || property.checkInTime || property.checkInTimeStart || null,
+      check_out_time: availability.checkOutTime || property.checkOutTime || null,
+      
+      // Pricing
+      daily_rate: pricing.dailyRate || property.baseDailyRate || property.basePrice || null,
+      currency: pricing.currency || property.currency || 'USD',
+      cleaning_fee: pricing.cleaningFee || property.cleaningFee || null,
+      security_deposit: pricing.securityDeposit || property.securityDeposit || null,
+      extra_guest_fee: pricing.extraGuestFee || property.extraGuestFee || null,
+      tax_rate: pricing.taxRate || property.taxRate || null,
+      
+      // Address - try both nested and flat
       address: {
-        street: property.address1 || property.streetAddress || null,
-        city: property.city || null,
-        state: property.state || property.province || null,
-        postal_code: property.postalCode || property.zipCode || null,
-        country: property.countryCode || property.country || null,
+        street: addressObj.address || addressObj.address1 || property.address1 || property.streetAddress || null,
+        street2: addressObj.address2 || property.address2 || null,
+        city: addressObj.city || property.city || null,
+        state: addressObj.state || property.state || property.province || null,
+        postal_code: addressObj.zipCode || addressObj.postalCode || property.postalCode || property.zipCode || null,
+        country: addressObj.countryCode || property.countryCode || property.country || null,
       },
-      location: {
-        latitude: property.latitude || null,
-        longitude: property.longitude || null,
-      },
-      pricing: {
-        base_daily_rate: property.baseDailyRate || null,
-        currency: property.currency || 'USD',
-        cleaning_fee: property.cleaningFee || null,
-      },
-      check_in_time: property.checkInTime || property.checkInTimeStart || null,
-      check_out_time: property.checkOutTime || null,
-      images: property.photos || property.images || [],
-      amenities: property.amenities || property.features || [],
-      thumbnail: property.pictureLink || property.picture || null,
+      
+      // Location
+      latitude: addressObj.latitude || property.latitude || null,
+      longitude: addressObj.longitude || property.longitude || null,
+      
+      // Media
+      images: imageUrls,
+      thumbnail: property.pictureLink || property.picture || property.thumbnailUrl || (imageUrls.length > 0 ? imageUrls[0] : null),
+      
+      // Amenities
+      amenities: amenityNames,
+      
+      // Wifi/Access
+      wifi_network: property.wifiNetwork || property.wifiName || null,
+      wifi_password: property.wifiPassword || null,
+      
+      // Policies
+      cancellation_policy: property.cancellationPolicy || null,
+      
+      // Raw data for debugging
       _raw: property,
     }, "get_listing_details");
   } catch (err) {
