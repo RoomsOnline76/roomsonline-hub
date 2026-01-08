@@ -785,8 +785,8 @@ export default function PropertyForm() {
         description: `${existingRooms.length} rooms with UIDs: ${existingRooms.map(r => r.name).join(', ')}`,
       });
 
-      // TESTING LIMIT: Only sync first 1 room
-      const roomsToSync = existingRooms.slice(0, 1);
+      // Sync all rooms with Hostfully UIDs
+      const roomsToSync = existingRooms;
       setSyncProgress({ 
         phase: "Syncing room data...", 
         current: 0, 
@@ -846,9 +846,9 @@ export default function PropertyForm() {
           description: `Received: ${hf.name}, guests: ${hf.max_guests}, rate: ${hf.daily_rate}`,
         });
 
-        // Build update object with all 68 fields
+        // Build update object with all 68 fields (do NOT overwrite name - keep parsed ROL name)
         const dbUpdate = {
-          name: hf.name,
+          // name is intentionally NOT updated - preserve parsed ROL name
           description: hf.description,
           max_guests: hf.max_guests,
           min_guests: hf.min_guests,
@@ -881,8 +881,8 @@ export default function PropertyForm() {
           address_state: hf.address?.state,
           address_postal_code: hf.address?.postal_code,
           address_country: hf.address?.country,
-          latitude: hf.location?.latitude,
-          longitude: hf.location?.longitude,
+          latitude: hf.latitude || hf.address?.latitude,
+          longitude: hf.longitude || hf.address?.longitude,
           pms_synced_fields: [
             "name", "description", "maxPeople", "maxAdults", "minGuests", 
             "bathrooms", "roomSize", "beds", "images", "amenities", 
