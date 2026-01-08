@@ -11,7 +11,8 @@ import {
   Timer,
   ChevronDown,
   ChevronRight,
-  PauseCircle
+  PauseCircle,
+  Mail
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -129,6 +130,28 @@ export default function AdminSystemHealth() {
       toast({
         title: "Health Check Failed",
         description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Send email report mutation
+  const sendEmailReport = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('daily-health-report');
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Email Report Sent",
+        description: data?.message || "Health report email sent successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Email Failed",
+        description: error instanceof Error ? error.message : "Failed to send report",
         variant: "destructive",
       });
     },
@@ -322,6 +345,18 @@ export default function AdminSystemHealth() {
           >
             <Download className="h-4 w-4 mr-2" />
             Export CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => sendEmailReport.mutate()}
+            disabled={sendEmailReport.isPending}
+          >
+            <Mail className={cn(
+              "h-4 w-4 mr-2",
+              sendEmailReport.isPending && "animate-spin"
+            )} />
+            {sendEmailReport.isPending ? 'Sending...' : 'Send Report'}
           </Button>
           <Button
             onClick={() => runHealthCheck.mutate()}
