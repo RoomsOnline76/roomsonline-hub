@@ -58,7 +58,7 @@ async function checkPmsAdapter(
       body: {
         action: 'health_check',
         test_mode: true,
-        property_id: null,
+        // property_id omitted for standalone health check (Zod .optional() fails on explicit null)
         metadata: { source: 'system_health_check', timestamp: new Date().toISOString() }
       },
     });
