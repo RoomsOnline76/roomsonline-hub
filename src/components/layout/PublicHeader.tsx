@@ -69,8 +69,45 @@ export function PublicHeader({
             </div>
           </Link>
 
-          {/* Right: Currency + Mobile Menu */}
-          <div className="flex items-center gap-2">
+          {/* Right: Desktop Nav + Currency + Mobile Menu */}
+          <div className="flex items-center gap-4">
+            {/* Desktop navigation links */}
+            <nav className="hidden sm:flex items-center gap-1">
+              <Link
+                to="/journals"
+                className={cn(
+                  "px-3 py-1.5 text-sm rounded-md transition-colors",
+                  transparent 
+                    ? "text-white/90 hover:text-white hover:bg-transparent" 
+                    : "text-foreground/80 hover:text-foreground hover:bg-muted"
+                )}
+              >
+                Journal
+              </Link>
+              <Link
+                to="/about"
+                className={cn(
+                  "px-3 py-1.5 text-sm rounded-md transition-colors",
+                  transparent 
+                    ? "text-white/90 hover:text-white hover:bg-transparent" 
+                    : "text-foreground/80 hover:text-foreground hover:bg-muted"
+                )}
+              >
+                About
+              </Link>
+              <Link
+                to="/contact"
+                className={cn(
+                  "px-3 py-1.5 text-sm rounded-md transition-colors",
+                  transparent 
+                    ? "text-white/90 hover:text-white hover:bg-transparent" 
+                    : "text-foreground/80 hover:text-foreground hover:bg-muted"
+                )}
+              >
+                Contact
+              </Link>
+            </nav>
+
             {showCurrency && (
               <div className="hidden sm:block">
                 <CurrencySelector
