@@ -90,13 +90,21 @@ export default function PMSConfig() {
         setCredentials(creds);
       }
 
-      // Fetch properties that use this PMS
-      const { data: props } = await supabase
+      // Fetch properties that use this PMS (via external_system OR owner_pms_credential)
+      let query = supabase
         .from("properties")
-        .select("*")
-        .eq("external_system", systemType)
+        .select("*, owner_pms_credentials(system_type)")
         .eq("is_active", true)
         .order("name");
+
+      // For hostfully, also include properties linked via owner_pms_credentials
+      if (systemType === 'hostfully') {
+        query = query.or(`external_system.eq.${systemType},hostfully_property_uid.not.is.null`);
+      } else {
+        query = query.eq("external_system", systemType);
+      }
+
+      const { data: props } = await query;
 
       if (props && props.length > 0) {
         setProperties(props);
@@ -139,28 +147,79 @@ export default function PMSConfig() {
   };
 
   const fetchExternalTypes = async () => {
-    if (!selectedPropertyId || !credentials || !pmsConfig) {
+    if (!selectedPropertyId || !pmsConfig) {
       toast({
         title: "Missing configuration",
-        description: "Please select a property and ensure credentials are configured",
+        description: "Please select a property",
         variant: "destructive",
       });
       return;
     }
 
+    // Get the selected property to find its Hostfully UID
+    const selectedProperty = properties.find(p => p.id === selectedPropertyId);
+    if (!selectedProperty) {
+      toast({
+        title: "Property not found",
+        description: "Could not find the selected property",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const propertyUid = selectedProperty.hostfully_property_uid || selectedProperty.external_id;
+    
     setFetchingExternal(true);
     try {
-      const { data, error } = await supabase.functions.invoke(pmsConfig.edgeFunctionName, {
-        body: {
-          action: "fetch_types",
-          property_id: selectedPropertyId,
-        },
-      });
+      const fetchedData: Record<string, any> = {};
 
-      if (error) throw error;
+      // For Hostfully, fetch room types and rate types using valid actions
+      if (systemType === 'hostfully') {
+        // Get owner credential if property is linked to one
+        let apiKeySource: Record<string, any> = {};
+        if (selectedProperty.owner_pms_credential_id) {
+          apiKeySource = { owner_credential_id: selectedProperty.owner_pms_credential_id };
+        }
 
-      const responseData = data.data || data;
-      setPmsData(responseData);
+        // Fetch room types
+        const { data: roomData, error: roomError } = await supabase.functions.invoke('hostfully-api', {
+          body: {
+            action: 'get_room_types',
+            propertyUid,
+            ...apiKeySource,
+          },
+        });
+
+        if (!roomError && roomData?.success) {
+          fetchedData.room_types = roomData.data?.room_types || [];
+        }
+
+        // Fetch rate types
+        const { data: rateData, error: rateError } = await supabase.functions.invoke('hostfully-api', {
+          body: {
+            action: 'get_rate_types',
+            propertyUid,
+            ...apiKeySource,
+          },
+        });
+
+        if (!rateError && rateData?.success) {
+          fetchedData.rate_types = rateData.data?.rate_types || [];
+        }
+      } else {
+        // For other PMS systems, use the generic fetch_types if supported
+        const { data, error } = await supabase.functions.invoke(pmsConfig.edgeFunctionName, {
+          body: {
+            action: "get_room_types",
+            property_id: selectedPropertyId,
+          },
+        });
+
+        if (error) throw error;
+        Object.assign(fetchedData, data.data || data);
+      }
+
+      setPmsData(fetchedData);
 
       toast({
         title: "Data fetched",
@@ -333,7 +392,7 @@ export default function PMSConfig() {
                 <Button
                   variant="outline"
                   onClick={fetchExternalTypes}
-                  disabled={!selectedPropertyId || fetchingExternal || !credentials}
+                  disabled={!selectedPropertyId || fetchingExternal}
                 >
                   {fetchingExternal ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
