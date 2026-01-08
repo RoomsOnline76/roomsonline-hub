@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
-import { FileSearch, Download, RefreshCw, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Download, RefreshCw, ChevronDown, ChevronUp, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -283,20 +283,20 @@ export default function AdminAudit() {
       <div className="p-6 space-y-6">
         <PageHeader
           title="Audit Log"
-          description="Track all administrative changes across the system"
-          icon={<FileSearch className="h-6 w-6" />}
-        >
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => fetchLogs()}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExportCSV}>
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
-            </Button>
-          </div>
-        </PageHeader>
+          subtitle="Track all administrative changes"
+          actions={
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => fetchLogs()}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExportCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+            </div>
+          }
+        />
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
