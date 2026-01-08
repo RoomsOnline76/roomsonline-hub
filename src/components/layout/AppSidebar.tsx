@@ -19,6 +19,7 @@ import {
   HelpCircle,
   HeartPulse,
   BookOpenCheck,
+  UserCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import rolLogo from "@/assets/rol-logo.png";
 import { useHelp } from "@/contexts/HelpContext";
+import { ProfileModal } from "@/components/ProfileModal";
 
 // Separate component to handle optional HelpContext
 function HelpNavSection({ collapsed }: { collapsed: boolean }) {
@@ -108,7 +110,7 @@ export function AppSidebar() {
     return saved ? JSON.parse(saved) : false;
   });
   const [pendingRequests, setPendingRequests] = useState(0);
-
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
   useEffect(() => {
     localStorage.setItem("sidebar-collapsed", JSON.stringify(collapsed));
   }, [collapsed]);
@@ -298,8 +300,8 @@ export function AppSidebar() {
         {collapsed ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button onClick={handleSignOut}>
-                <Avatar className="h-8 w-8">
+              <button onClick={() => setProfileModalOpen(true)}>
+                <Avatar className="h-8 w-8 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all">
                   <AvatarImage src={profile?.avatar_url || undefined} />
                   <AvatarFallback className="text-xs bg-primary/10 text-primary">
                     {getInitials()}
@@ -310,28 +312,40 @@ export function AppSidebar() {
             <TooltipContent side="right">
               <div className="text-xs">
                 <p className="font-medium">{profile?.full_name || user?.email}</p>
-                <p className="text-muted-foreground">Click to sign out</p>
+                <p className="text-muted-foreground">Click to edit profile</p>
               </div>
             </TooltipContent>
           </Tooltip>
         ) : (
           <div className="flex items-center gap-3">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                {getInitials()}
-              </AvatarFallback>
-            </Avatar>
+            <button onClick={() => setProfileModalOpen(true)}>
+              <Avatar className="h-8 w-8 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all">
+                <AvatarImage src={profile?.avatar_url || undefined} />
+                <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                  {getInitials()}
+                </AvatarFallback>
+              </Avatar>
+            </button>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium truncate">{profile?.full_name || "User"}</p>
               <p className="text-[10px] text-muted-foreground capitalize">{isDev ? "Developer" : isAdmin ? "Admin" : "Owner"}</p>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSignOut}>
-              <LogOut className="h-3.5 w-3.5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSignOut}>
+                  <LogOut className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Sign out</TooltipContent>
+            </Tooltip>
           </div>
         )}
       </div>
+
+      <ProfileModal 
+        open={profileModalOpen} 
+        onOpenChange={setProfileModalOpen}
+      />
     </aside>
   );
 }
