@@ -372,6 +372,7 @@ export default function PropertyForm() {
   const [importingHostfullyRooms, setImportingHostfullyRooms] = useState(false);
   const [showHostfullyWarning, setShowHostfullyWarning] = useState(false);
   const [previousPMS, setPreviousPMS] = useState<string>("");
+  const [syncingRoomId, setSyncingRoomId] = useState<string | null>(null);
 
   // Owner's Hostfully credential (for owners to connect their PMS)
   const [ownerHostfullyCredential, setOwnerHostfullyCredential] = useState<any>(null);
@@ -538,7 +539,7 @@ export default function PropertyForm() {
 
       toast({
         title: "Import Complete",
-        description: `Imported ${successCount} room types from "${matchingBuilding.building_name}"`,
+        description: `Synced ${importedRooms.length} room types from "${matchingBuilding.building_name}"`,
       });
     } catch (err: any) {
       console.error("Hostfully import error:", err);
@@ -549,6 +550,93 @@ export default function PropertyForm() {
       });
     } finally {
       setImportingHostfullyRooms(false);
+    }
+  };
+
+  // Helper: Extract image URLs from Hostfully photos
+  const extractImageUrls = (images: any[]): string[] => {
+    if (!Array.isArray(images)) return [];
+    return images.map(img => typeof img === 'string' ? img : (img.url || img.original)).filter(Boolean);
+  };
+
+  // Helper: Map Hostfully amenities to ROL format
+  const mapHostfullyAmenities = (amenities: any[]): string[] => {
+    if (!Array.isArray(amenities)) return [];
+    return amenities.map(a => typeof a === 'string' ? a : a.name).filter(Boolean);
+  };
+
+  // Sync single room from Hostfully API
+  const syncRoomFromHostfully = async (roomId: string) => {
+    const room = roomTypes.find(r => r.id === roomId);
+    if (!room?.pmsRoomId) {
+      toast({ title: "No Hostfully ID", description: "This room has no linked Hostfully ID", variant: "destructive" });
+      return;
+    }
+
+    setSyncingRoomId(roomId);
+    
+    try {
+      // Get owner credentials from property
+      const { data: property } = await supabase
+        .from("properties")
+        .select("owner_pms_credential_id")
+        .eq("id", propertyId)
+        .single();
+
+      if (!property?.owner_pms_credential_id) {
+        throw new Error("No owner PMS credential linked to this property");
+      }
+
+      // Call Hostfully API with get_listing_details
+      const { data, error } = await supabase.functions.invoke("hostfully-api", {
+        body: {
+          action: "get_listing_details",
+          owner_credential_id: property.owner_pms_credential_id,
+          propertyUid: room.pmsRoomId,
+        },
+      });
+
+      if (error || !data?.success) {
+        throw new Error(data?.error?.message || "Failed to fetch room details from Hostfully");
+      }
+
+      const hfData = data.data;
+      console.log("Hostfully room data:", hfData);
+      
+      // Map Hostfully data to room type fields
+      const updatedFields: Partial<typeof room> = {
+        description: hfData.description || room.description,
+        maxPeople: hfData.maximumGuests || hfData.max_guests || room.maxPeople,
+        maxAdults: hfData.maximumGuests || hfData.max_guests || room.maxAdults,
+        bathrooms: hfData.bathrooms || room.bathrooms,
+        roomSize: hfData.areaSize || hfData.size || room.roomSize,
+        images: extractImageUrls(hfData.photos || hfData.images) || room.images,
+        amenities: mapHostfullyAmenities(hfData.amenities || []),
+        pms_synced_fields: [...(room.pms_synced_fields || []), "description", "maxPeople", "maxAdults", "bathrooms", "images", "amenities"].filter((v, i, a) => a.indexOf(v) === i),
+      };
+
+      // Update UI state
+      setRoomTypes(prev => prev.map(r => 
+        r.id === roomId ? { ...r, ...updatedFields } : r
+      ));
+      
+      // Also update hostfully_room_types table
+      await supabase.from("hostfully_room_types").update({
+        description: hfData.description,
+        max_guests: hfData.maximumGuests || hfData.max_guests,
+        bathrooms: hfData.bathrooms,
+        images: hfData.photos || hfData.images,
+        amenities: hfData.amenities,
+        raw_data: hfData,
+      }).eq("id", roomId);
+
+      setIsDirty(true);
+      toast({ title: "Room Synced", description: `Updated ${room.name} from Hostfully` });
+    } catch (err: any) {
+      console.error("Hostfully room sync error:", err);
+      toast({ title: "Sync Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSyncingRoomId(null);
     }
   };
 
@@ -7439,6 +7527,27 @@ export default function PropertyForm() {
                         </TabsTrigger>
                       )}
                     </TabsList>
+
+                    {/* Hostfully Sync Button */}
+                    {selectedPMS === "hostfully" && roomTypes.find(r => r.id === selectedRoomType)?.pmsRoomId && (
+                      <div className="flex justify-end px-3 pt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => syncRoomFromHostfully(selectedRoomType)}
+                          disabled={syncingRoomId === selectedRoomType}
+                          className="gap-2 h-7 text-xs"
+                        >
+                          {syncingRoomId === selectedRoomType ? (
+                            <RefreshCw className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Cloud className="h-3 w-3" />
+                          )}
+                          Sync from Hostfully
+                        </Button>
+                      </div>
+                    )}
 
                     {/* Room Type Sub-tab */}
                     <TabsContent value="room-type" className="p-3 space-y-3">
