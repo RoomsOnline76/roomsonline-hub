@@ -64,6 +64,7 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
   const [validatingKey, setValidatingKey] = useState(false);
   const [keyValidated, setKeyValidated] = useState(false);
   const [keyError, setKeyError] = useState<string | null>(null);
+  const [ownerWillProvideKey, setOwnerWillProvideKey] = useState(false);
 
   const isHostfullySelected = selectedPMSSystems.includes("hostfully");
 
@@ -86,6 +87,7 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
     setSelectedHostfullyProperties(new Set());
     setKeyValidated(false);
     setKeyError(null);
+    setOwnerWillProvideKey(false);
   };
 
   const handlePMSToggle = (systemKey: string) => {
@@ -197,8 +199,8 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
       // Validate form data
       const validated = userSchema.parse(formData);
       
-      // Validate Hostfully requirements if selected
-      if (isHostfullySelected && !keyValidated) {
+      // Validate Hostfully requirements if selected and admin is providing key
+      if (isHostfullySelected && !ownerWillProvideKey && !keyValidated) {
         toast.error("Please validate the Hostfully API key first");
         return;
       }
@@ -213,12 +215,18 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
         pms_systems: role === "user" ? selectedPMSSystems : undefined,
       };
 
-      // Add Hostfully-specific data if selected and validated
-      if (isHostfullySelected && keyValidated) {
-        payload.hostfully_api_key = hostfullyApiKey.trim();
-        payload.hostfully_environment = hostfullyEnvironment;
-        payload.hostfully_agency_uid = hostfullyAgencyInfo?.uid;
-        payload.selected_property_uids = Array.from(selectedHostfullyProperties);
+      // Add Hostfully-specific data if selected
+      if (isHostfullySelected) {
+        if (ownerWillProvideKey) {
+          // Owner will provide key on first login - just mark as pending
+          payload.hostfully_owner_will_provide = true;
+        } else if (keyValidated) {
+          // Admin provided key - include full details
+          payload.hostfully_api_key = hostfullyApiKey.trim();
+          payload.hostfully_environment = hostfullyEnvironment;
+          payload.hostfully_agency_uid = hostfullyAgencyInfo?.uid;
+          payload.selected_property_uids = Array.from(selectedHostfullyProperties);
+        }
       }
 
       // Call edge function to create user
@@ -230,9 +238,14 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
       if (data?.error) throw new Error(data.error);
 
       const propertyCount = selectedHostfullyProperties.size;
-      const successMessage = propertyCount > 0
-        ? `${role === "admin" ? "Admin" : "Property Owner"} created with ${propertyCount} ${propertyCount === 1 ? "property" : "properties"} imported`
-        : `${role === "admin" ? "Admin" : "Property Owner"} created successfully`;
+      let successMessage: string;
+      if (ownerWillProvideKey) {
+        successMessage = "Property Owner created. They will complete PMS setup on first login.";
+      } else if (propertyCount > 0) {
+        successMessage = `${role === "admin" ? "Admin" : "Property Owner"} created with ${propertyCount} ${propertyCount === 1 ? "property" : "properties"} imported`;
+      } else {
+        successMessage = `${role === "admin" ? "Admin" : "Property Owner"} created successfully`;
+      }
 
       toast.success(successMessage);
       setFormData({ full_name: "", email: "" });
@@ -325,144 +338,191 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
                     <Label className="font-medium">Hostfully Configuration</Label>
                   </div>
 
-                  <div className="space-y-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="hostfully-api-key">API Key</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="hostfully-api-key"
-                          value={hostfullyApiKey}
-                          onChange={(e) => {
-                            setHostfullyApiKey(e.target.value);
+                  {/* Toggle: Admin provides key OR owner will provide */}
+                  <div className="space-y-2">
+                    <div 
+                      className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                        !ownerWillProvideKey ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+                      }`}
+                      onClick={() => setOwnerWillProvideKey(false)}
+                    >
+                      <input
+                        type="radio"
+                        name="hostfully-key-mode"
+                        checked={!ownerWillProvideKey}
+                        onChange={() => setOwnerWillProvideKey(false)}
+                        className="h-4 w-4"
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">I have the API key</p>
+                        <p className="text-xs text-muted-foreground">Enter the key now to import properties</p>
+                      </div>
+                    </div>
+                    <div 
+                      className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                        ownerWillProvideKey ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+                      }`}
+                      onClick={() => {
+                        setOwnerWillProvideKey(true);
+                        resetHostfullyState();
+                        setOwnerWillProvideKey(true); // Re-set after reset
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="hostfully-key-mode"
+                        checked={ownerWillProvideKey}
+                        onChange={() => setOwnerWillProvideKey(true)}
+                        className="h-4 w-4"
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">Owner will provide key on first login</p>
+                        <p className="text-xs text-muted-foreground">They'll see a setup wizard when they log in</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Only show API key input if admin is providing */}
+                  {!ownerWillProvideKey && (
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="hostfully-api-key">API Key</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="hostfully-api-key"
+                            value={hostfullyApiKey}
+                            onChange={(e) => {
+                              setHostfullyApiKey(e.target.value);
+                              if (keyValidated) {
+                                setKeyValidated(false);
+                                setHostfullyAgencyInfo(null);
+                                setHostfullyProperties([]);
+                                setSelectedHostfullyProperties(new Set());
+                              }
+                              setKeyError(null);
+                            }}
+                            placeholder="FzNI0hVYcB2PjmTs"
+                            disabled={validatingKey}
+                            className="font-mono text-sm"
+                          />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={validateHostfullyKey}
+                            disabled={validatingKey || !hostfullyApiKey.trim()}
+                          >
+                            {validatingKey ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : keyValidated ? (
+                              <CheckCircle2 className="h-4 w-4 text-green-600" />
+                            ) : (
+                              "Validate"
+                            )}
+                          </Button>
+                        </div>
+                        {keyError && (
+                          <p className="text-xs text-destructive flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            {keyError}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="hostfully-env">Environment</Label>
+                        <Select
+                          value={hostfullyEnvironment}
+                          onValueChange={(v) => {
+                            setHostfullyEnvironment(v as "production" | "sandbox");
                             if (keyValidated) {
                               setKeyValidated(false);
                               setHostfullyAgencyInfo(null);
                               setHostfullyProperties([]);
                               setSelectedHostfullyProperties(new Set());
                             }
-                            setKeyError(null);
                           }}
-                          placeholder="FzNI0hVYcB2PjmTs"
-                          disabled={validatingKey}
-                          className="font-mono text-sm"
-                        />
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={validateHostfullyKey}
-                          disabled={validatingKey || !hostfullyApiKey.trim()}
                         >
-                          {validatingKey ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : keyValidated ? (
-                            <CheckCircle2 className="h-4 w-4 text-green-600" />
-                          ) : (
-                            "Validate"
-                          )}
-                        </Button>
+                          <SelectTrigger id="hostfully-env">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="production">Production</SelectItem>
+                            <SelectItem value="sandbox">Sandbox</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      {keyError && (
-                        <p className="text-xs text-destructive flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          {keyError}
-                        </p>
+
+                      {/* Agency Info */}
+                      {keyValidated && hostfullyAgencyInfo && (
+                        <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-950/30 rounded-md border border-green-200 dark:border-green-800">
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">
+                            Connected to: <strong>{hostfullyAgencyInfo.name || "Unnamed Agency"}</strong>
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Property Selection */}
+                      {keyValidated && hostfullyProperties.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label>Select properties to import ({hostfullyProperties.length} available)</Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={toggleAllProperties}
+                              className="text-xs h-7"
+                            >
+                              {selectedHostfullyProperties.size === hostfullyProperties.length ? "Deselect All" : "Select All"}
+                            </Button>
+                          </div>
+                          <ScrollArea className="h-48 border rounded-md">
+                            <div className="p-2 space-y-1">
+                              {hostfullyProperties.map((property) => (
+                                <div
+                                  key={property.id}
+                                  className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-colors ${
+                                    selectedHostfullyProperties.has(property.id)
+                                      ? "bg-primary/10"
+                                      : "hover:bg-muted/50"
+                                  }`}
+                                  onClick={() => togglePropertySelection(property.id)}
+                                >
+                                  <Checkbox
+                                    checked={selectedHostfullyProperties.has(property.id)}
+                                    onCheckedChange={() => togglePropertySelection(property.id)}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{property.name}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {[
+                                        property.bedrooms && `${property.bedrooms} bed`,
+                                        property.max_guests && `${property.max_guests} guests`,
+                                        property.city,
+                                      ].filter(Boolean).join(" • ")}
+                                    </p>
+                                  </div>
+                                  {property.base_price && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {property.currency || "$"}{property.base_price}/night
+                                    </Badge>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                          <p className="text-xs text-muted-foreground">
+                            {selectedHostfullyProperties.size} {selectedHostfullyProperties.size === 1 ? "property" : "properties"} will be imported
+                          </p>
+                        </div>
+                      )}
+
+                      {keyValidated && hostfullyProperties.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No properties found in this Hostfully account.</p>
                       )}
                     </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="hostfully-env">Environment</Label>
-                      <Select
-                        value={hostfullyEnvironment}
-                        onValueChange={(v) => {
-                          setHostfullyEnvironment(v as "production" | "sandbox");
-                          if (keyValidated) {
-                            setKeyValidated(false);
-                            setHostfullyAgencyInfo(null);
-                            setHostfullyProperties([]);
-                            setSelectedHostfullyProperties(new Set());
-                          }
-                        }}
-                      >
-                        <SelectTrigger id="hostfully-env">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="production">Production</SelectItem>
-                          <SelectItem value="sandbox">Sandbox</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Agency Info */}
-                    {keyValidated && hostfullyAgencyInfo && (
-                      <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-950/30 rounded-md border border-green-200 dark:border-green-800">
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        <span className="text-sm">
-                          Connected to: <strong>{hostfullyAgencyInfo.name || "Unnamed Agency"}</strong>
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Property Selection */}
-                    {keyValidated && hostfullyProperties.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label>Select properties to import ({hostfullyProperties.length} available)</Label>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={toggleAllProperties}
-                            className="text-xs h-7"
-                          >
-                            {selectedHostfullyProperties.size === hostfullyProperties.length ? "Deselect All" : "Select All"}
-                          </Button>
-                        </div>
-                        <ScrollArea className="h-48 border rounded-md">
-                          <div className="p-2 space-y-1">
-                            {hostfullyProperties.map((property) => (
-                              <div
-                                key={property.id}
-                                className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-colors ${
-                                  selectedHostfullyProperties.has(property.id)
-                                    ? "bg-primary/10"
-                                    : "hover:bg-muted/50"
-                                }`}
-                                onClick={() => togglePropertySelection(property.id)}
-                              >
-                                <Checkbox
-                                  checked={selectedHostfullyProperties.has(property.id)}
-                                  onCheckedChange={() => togglePropertySelection(property.id)}
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium truncate">{property.name}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {[
-                                      property.bedrooms && `${property.bedrooms} bed`,
-                                      property.max_guests && `${property.max_guests} guests`,
-                                      property.city,
-                                    ].filter(Boolean).join(" • ")}
-                                  </p>
-                                </div>
-                                {property.base_price && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {property.currency || "$"}{property.base_price}/night
-                                  </Badge>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </ScrollArea>
-                        <p className="text-xs text-muted-foreground">
-                          {selectedHostfullyProperties.size} {selectedHostfullyProperties.size === 1 ? "property" : "properties"} will be imported
-                        </p>
-                      </div>
-                    )}
-
-                    {keyValidated && hostfullyProperties.length === 0 && (
-                      <p className="text-sm text-muted-foreground">No properties found in this Hostfully account.</p>
-                    )}
-                  </div>
+                  )}
                 </div>
               )}
             </>

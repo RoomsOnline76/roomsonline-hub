@@ -17,6 +17,7 @@ const requestSchema = z.object({
   hostfully_environment: z.enum(["production", "sandbox"]).optional(),
   hostfully_agency_uid: z.string().optional(),
   selected_property_uids: z.array(z.string()).optional(),
+  hostfully_owner_will_provide: z.boolean().optional(), // Owner will provide key on first login
 });
 
 // Hostfully API helper

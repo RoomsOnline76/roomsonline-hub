@@ -2,12 +2,16 @@ import { ReactNode } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { HelpProvider } from "@/contexts/HelpContext";
 import { HelpDrawer, FloatingHelpButton } from "@/components/help";
+import { OwnerOnboardingWizard } from "@/components/onboarding";
+import { useOwnerOnboarding } from "@/hooks/useOwnerOnboarding";
 
 interface AppLayoutProps {
   children: ReactNode;
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
+  const { pendingCredentials, showOnboarding, completeOnboarding, skipOnboarding } = useOwnerOnboarding();
+
   return (
     <HelpProvider>
       <div className="flex min-h-screen w-full bg-background">
@@ -20,6 +24,12 @@ export function AppLayout({ children }: AppLayoutProps) {
       </div>
       <HelpDrawer />
       <FloatingHelpButton />
+      <OwnerOnboardingWizard
+        open={showOnboarding}
+        onComplete={completeOnboarding}
+        onSkip={skipOnboarding}
+        pendingCredentials={pendingCredentials}
+      />
     </HelpProvider>
   );
 }
