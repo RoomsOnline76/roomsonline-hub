@@ -72,6 +72,7 @@ import { Switch } from "@/components/ui/switch";
 import { PropertyMap } from "@/components/PropertyMap";
 import { TagInput } from "@/components/TagInput";
 import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS, getFieldAuthority, getAuthorityLabel } from "@/lib/pmsFieldConfig";
+import { getPMSEditorialCapability, canSyncEditorial, getSyncableFields, getAuthorityLabel as getEditorialAuthorityLabel } from "@/lib/pmsEditorialConfig";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import RichTextEditor from "@/components/RichTextEditor";
 import { pmsIntegrationStatus } from "@/components/ApiMilestones";
@@ -2769,34 +2770,40 @@ export default function PropertyForm() {
               )}
             </div>
             <div className="flex gap-2">
-              {/* Sync Editorial button - only visible when PMS is selected (except NightsBridge) and has property ID */}
-              {isEditMode && selectedPMS && selectedPMS !== "nightsbridge" && hasPMSPropertyId(selectedPMS) && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs gap-1"
-                        onClick={() => !isSyncingEditorial && setIsSyncEditorialDialogOpen(true)}
-                        disabled={isSyncingEditorial}
-                      >
-                        <Cloud className={cn("h-3 w-3", isSyncingEditorial && "animate-pulse")} />
-                        {isSyncingEditorial ? "Syncing..." : "Sync Editorial"}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p className="text-xs">
-                        {isSyncingEditorial 
-                          ? "Syncing editorial content..." 
-                          : `Fetch editorial content from ${getPMSDisplayName(selectedPMS)} and populate EDITORIAL fields.`
-                        }
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
+              {/* Sync Editorial button - only visible when PMS supports sync and has property ID */}
+              {isEditMode && selectedPMS && canSyncEditorial(selectedPMS) && hasPMSPropertyId(selectedPMS) && (() => {
+                const pmsCapability = getPMSEditorialCapability(selectedPMS);
+                return (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs gap-1"
+                          onClick={() => !isSyncingEditorial && setIsSyncEditorialDialogOpen(true)}
+                          disabled={isSyncingEditorial}
+                        >
+                          <Cloud className={cn("h-3 w-3", isSyncingEditorial && "animate-pulse")} />
+                          {isSyncingEditorial ? "Syncing..." : (pmsCapability?.syncButtonLabel || "Sync Editorial")}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="text-xs">
+                          {isSyncingEditorial 
+                            ? "Syncing editorial content..." 
+                            : (pmsCapability?.syncDescription || `Fetch editorial content from ${getPMSDisplayName(selectedPMS)}.`)
+                          }
+                        </p>
+                        {pmsCapability?.notes && (
+                          <p className="text-xs text-muted-foreground mt-1">{pmsCapability.notes}</p>
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                );
+              })()}
               <Button
                 variant="outline"
                 size="sm"
@@ -8983,25 +8990,53 @@ export default function PropertyForm() {
       {/* Sync Editorial Confirmation Dialog */}
       <AlertDialog open={isSyncEditorialDialogOpen} onOpenChange={setIsSyncEditorialDialogOpen}>
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
-              <Cloud className="h-5 w-5" />
-              Sync Editorial from {getPMSDisplayName(selectedPMS)}
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <p>
-                This will fetch editorial content from <strong>{getPMSDisplayName(selectedPMS)}</strong> and update
-                applicable ROL Spec fields.
-              </p>
-              <p className="text-sm font-medium text-amber-600">
-                ⚠️ This may overwrite existing editorial content in some fields.
-              </p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSyncEditorial}>Sync Editorial</AlertDialogAction>
-          </AlertDialogFooter>
+          {(() => {
+            const pmsCapability = getPMSEditorialCapability(selectedPMS);
+            const syncableFields = pmsCapability ? getSyncableFields(pmsCapability) : [];
+            return (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+                    <Cloud className="h-5 w-5" />
+                    {pmsCapability?.syncButtonLabel || `Sync Editorial from ${getPMSDisplayName(selectedPMS)}`}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription asChild>
+                    <div className="space-y-3">
+                      <p>{pmsCapability?.syncDescription || `This will fetch editorial content from ${getPMSDisplayName(selectedPMS)}.`}</p>
+                      
+                      {syncableFields.length > 0 && (
+                        <div className="text-sm space-y-1">
+                          <p className="font-medium text-foreground">Fields that will be synced:</p>
+                          <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
+                            {syncableFields.map(({ field, authority }) => (
+                              <li key={field}>
+                                {field}
+                                <span className="text-xs ml-1">({getEditorialAuthorityLabel(authority)})</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {pmsCapability?.notes && (
+                        <p className="text-xs text-muted-foreground">{pmsCapability.notes}</p>
+                      )}
+                      
+                      <p className="text-sm font-medium text-amber-600">
+                        ⚠️ This may overwrite existing editorial content.
+                      </p>
+                    </div>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleSyncEditorial}>
+                    {pmsCapability?.syncButtonLabel || "Sync Editorial"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
+            );
+          })()}
         </AlertDialogContent>
       </AlertDialog>
     </AppLayout>
