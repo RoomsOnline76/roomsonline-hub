@@ -886,6 +886,12 @@ export default function PropertyForm() {
           };
 
           await supabase.from("hostfully_room_types").update(dbUpdate).eq("id", room.dbId);
+          
+          // TEMP DEBUG: Show which room was updated
+          toast({
+            title: "Room Synced",
+            description: `Updated: ${hf.name || 'Unknown'} (ID: ${room.hostfullyId})`,
+          });
         }
         syncedCount++;
       }
