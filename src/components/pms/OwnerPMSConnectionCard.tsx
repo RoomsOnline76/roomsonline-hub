@@ -74,13 +74,15 @@ export function OwnerPMSConnectionCard({
     }
   }, [credential?.available_listings]);
 
-  // Query imported property count for this credential
+  // Query imported property count for this credential (only active properties)
   const refreshImportedCount = async () => {
     if (!credential?.id) return;
     const { count } = await supabase
       .from('properties')
       .select('*', { count: 'exact', head: true })
-      .eq('owner_pms_credential_id', credential.id);
+      .eq('owner_pms_credential_id', credential.id)
+      .eq('is_active', true)
+      .is('permanently_deleted_at', null);
     setBuildingsData(prev => ({ ...prev, imported: count || 0 }));
   };
 
