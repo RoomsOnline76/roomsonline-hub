@@ -24,8 +24,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Shield, User, Search, Trash2, Building2, Plus, KeyRound, Users, ChevronDown, ChevronRight } from "lucide-react";
+import { Shield, User, Search, Trash2, Building2, Plus, KeyRound, Users, ChevronDown, ChevronRight, Link } from "lucide-react";
 import { AddUserModal } from "@/components/AddUserModal";
+import { AddPMSModal } from "@/components/AddPMSModal";
 import { getPMSSystemByKey } from "@/lib/pmsSystemsConfig";
 import { OwnerPMSConnectionCard } from "@/components/pms/OwnerPMSConnectionCard";
 
@@ -65,6 +66,10 @@ export default function AdminUsers() {
   const [addAdminModalOpen, setAddAdminModalOpen] = useState(false);
   const [addOwnerModalOpen, setAddOwnerModalOpen] = useState(false);
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+  
+  // Add PMS modal state
+  const [addPMSModalOpen, setAddPMSModalOpen] = useState(false);
+  const [addPMSForUser, setAddPMSForUser] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAdmin) {
@@ -479,27 +484,46 @@ export default function AdminUsers() {
                               )}
                             </TableCell>
                             <TableCell className="py-1">
-                              {hasPMSCredentials ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {user.pms_credentials!.map((cred) => {
-                                    const pmsInfo = getPMSSystemByKey(cred.system_type);
-                                    return (
-                                      <Badge 
-                                        key={cred.id} 
-                                        variant={getPMSBadgeVariant(cred.sync_status)}
-                                        className="text-[10px] py-0 px-1.5"
-                                      >
-                                        {pmsInfo?.name || cred.system_type}
-                                        {cred.sync_status === 'connected' && ' ✓'}
-                                        {cred.sync_status === 'pending' && ' ⏳'}
-                                        {cred.sync_status === 'error' && ' ✗'}
-                                      </Badge>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              )}
+                              <div className="flex items-center gap-1">
+                                {hasPMSCredentials ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {user.pms_credentials!.map((cred) => {
+                                      const pmsInfo = getPMSSystemByKey(cred.system_type);
+                                      return (
+                                        <Badge 
+                                          key={cred.id} 
+                                          variant={getPMSBadgeVariant(cred.sync_status)}
+                                          className="text-[10px] py-0 px-1.5"
+                                        >
+                                          {pmsInfo?.name || cred.system_type}
+                                          {cred.sync_status === 'connected' && ' ✓'}
+                                          {cred.sync_status === 'pending' && ' ⏳'}
+                                          {cred.sync_status === 'pending_key' && ' 🔑'}
+                                          {cred.sync_status === 'error' && ' ✗'}
+                                        </Badge>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
+                                {/* Add PMS button for owners */}
+                                {user.role === "user" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 ml-1"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setAddPMSForUser(user);
+                                      setAddPMSModalOpen(true);
+                                    }}
+                                    title="Add PMS connection"
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="text-center py-1">
                               <div className="flex items-center justify-center gap-1">
@@ -600,6 +624,22 @@ export default function AdminUsers() {
         role="user"
         onUserAdded={loadUsers}
       />
+      
+      {/* Add PMS Modal */}
+      {addPMSForUser && (
+        <AddPMSModal
+          open={addPMSModalOpen}
+          onOpenChange={(open) => {
+            setAddPMSModalOpen(open);
+            if (!open) setAddPMSForUser(null);
+          }}
+          ownerId={addPMSForUser.id}
+          ownerName={addPMSForUser.full_name || addPMSForUser.email}
+          ownerEmail={addPMSForUser.email}
+          existingPMSSystems={addPMSForUser.pms_credentials?.map(c => c.system_type) || []}
+          onCredentialAdded={loadUsers}
+        />
+      )}
     </AppLayout>
   );
 }

@@ -138,7 +138,7 @@ serve(async (req) => {
     // Create PMS credentials for owners if PMS systems were selected
     if (role === 'user' && pms_systems && pms_systems.length > 0) {
       for (const systemType of pms_systems) {
-        const credentialData: Record<string, any> = {
+        const credentialData: Record<string, unknown> = {
           owner_id: userId,
           system_type: systemType,
           sync_status: 'pending',
@@ -152,14 +152,18 @@ serve(async (req) => {
           credentialData.sync_status = 'pending_key'; // Awaiting owner to provide API key
         }
 
+        // Insert new credential (new unique constraint allows multiple of same type if external_account_id differs)
         const { error: pmsError } = await supabaseAdmin
           .from('owner_pms_credentials')
-          .upsert(credentialData, {
-            onConflict: 'owner_id,system_type'
-          });
+          .insert(credentialData);
 
         if (pmsError) {
-          console.error(`Failed to create PMS credential for ${systemType}:`, pmsError);
+          // If duplicate, log and continue (owner already has this PMS connection)
+          if (pmsError.code === '23505') {
+            console.log(`PMS credential for ${systemType} already exists for user ${userId}`);
+          } else {
+            console.error(`Failed to create PMS credential for ${systemType}:`, pmsError);
+          }
         }
       }
     }
