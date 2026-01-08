@@ -360,6 +360,7 @@ const PropertyOverview = () => {
                   <Table>
                     <TableHeader>
                       <TableRow className="h-8">
+                        <TableHead className="py-1 text-xs w-10">EDIT</TableHead>
                         <TableHead className="py-1 text-xs w-12">STATUS</TableHead>
                         <TableHead 
                           className="cursor-pointer hover:bg-muted/50 select-none py-1 text-xs"
@@ -421,6 +422,7 @@ const PropertyOverview = () => {
                       </TableRow>
                       {/* Search row */}
                       <TableRow className="hover:bg-transparent h-7">
+                        <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1">
                           <Input
@@ -487,6 +489,17 @@ const PropertyOverview = () => {
                         </TableRow>
                       ) : activeProperties.map((property) => (
                         <TableRow key={property.id} className="h-8 group">
+                          <TableCell className="py-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => navigate(`/admin/properties/${property.slug || property.id}`)}
+                              title="Edit Property"
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                          </TableCell>
                           <TableCell className="py-1">
                             <StatusIndicator 
                               status={property.external_system ? "healthy" : "stale"}
@@ -556,15 +569,6 @@ const PropertyOverview = () => {
                                 title="View Property Showcase"
                               >
                                 <Home className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => navigate(`/admin/properties/${property.slug || property.id}`)}
-                                title="Edit Property"
-                              >
-                                <Edit className="h-3 w-3" />
                               </Button>
                               <Button
                                 variant="ghost"
