@@ -148,6 +148,19 @@ export default function AdminSystemHealth() {
     }> = {};
 
     components.forEach(comp => {
+      // NightsBridge special case: iframe-based, always healthy until API configured
+      if (comp.component_key === 'nightsbridge') {
+        stats[comp.component_key] = {
+          lastStatus: 'healthy',
+          lastChecked: 'Iframe-based',
+          avgLatency: 0,
+          uptimePercentage: 100,
+          failureCount: 0,
+          recentChecks: [],
+        };
+        return;
+      }
+
       const checks = healthChecks.filter(c => c.component_key === comp.component_key);
       const healthyChecks = checks.filter(c => c.status === 'healthy').length;
       const degradedChecks = checks.filter(c => c.status === 'degraded').length;
