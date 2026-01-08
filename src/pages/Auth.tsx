@@ -409,8 +409,11 @@ function AuthContent() {
     );
   }
 
-  // Show reCAPTCHA overlay for login tab
-  const showLoginOverlay = activeTab === "login" && !loginRecaptcha.isVerified && loginRecaptcha.isReady;
+  // Show reCAPTCHA overlay for login tab - only show after initial attempt and only on error
+  const showLoginOverlay = activeTab === "login" && 
+    loginRecaptcha.hasAttempted && 
+    !loginRecaptcha.isVerified && 
+    (loginRecaptcha.error || loginRecaptcha.isVerifying);
 
   return (
     <PublicLayout hideFooter hideHeader>

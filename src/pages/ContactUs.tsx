@@ -4,12 +4,13 @@ import { PublicLayout } from "@/components/layout/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
-import { Mail, Phone, MapPin, Send, CheckCircle, Loader2, Clock } from "lucide-react";
+import { Mail, Phone, MapPin, Send, CheckCircle, Loader2, Clock, ShieldCheck } from "lucide-react";
+import { useRecaptcha } from "@/hooks/useRecaptcha";
+import { RecaptchaOverlay } from "@/components/RecaptchaOverlay";
 
 const contactSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
@@ -23,19 +24,16 @@ const ContactUs = () => {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [honeypot, setHoneypot] = useState("");
-  const [captchaChecked, setCaptchaChecked] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [errors, setErrors] = useState<{ name?: string; email?: string; message?: string; captcha?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; email?: string; message?: string; recaptcha?: string }>({});
+  
+  // reCAPTCHA v3 integration
+  const recaptcha = useRecaptcha("contact_form");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
-
-    if (!captchaChecked) {
-      setErrors({ captcha: "Please confirm you are not a robot" });
-      return;
-    }
 
     const result = contactSchema.safeParse({ name, email, message });
     if (!result.success) {
@@ -49,28 +47,39 @@ const ContactUs = () => {
       return;
     }
 
+    // Verify reCAPTCHA before submission
+    if (!recaptcha.isVerified) {
+      const verified = await recaptcha.verify();
+      if (!verified) {
+        setErrors({ recaptcha: "Human verification failed. Please try again." });
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.functions.invoke("send-contact-email", {
+      const { data, error } = await supabase.functions.invoke("send-contact-email", {
         body: {
           name: result.data.name,
           email: result.data.email,
           message: result.data.message,
           honeypot,
+          recaptchaToken: recaptcha.token,
         },
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       setShowSuccessModal(true);
       setName("");
       setEmail("");
       setMessage("");
-      setCaptchaChecked(false);
-    } catch (error) {
+      recaptcha.reset();
+    } catch (error: any) {
       console.error("Error sending message:", error);
-      setErrors({ message: "Failed to send message. Please try again." });
+      setErrors({ message: error.message || "Failed to send message. Please try again." });
     } finally {
       setIsSubmitting(false);
     }
@@ -210,17 +219,16 @@ const ContactUs = () => {
                     aria-hidden="true"
                   />
 
+                  {/* reCAPTCHA status indicator */}
                   <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg border border-border">
-                    <Checkbox
-                      id="captcha"
-                      checked={captchaChecked}
-                      onCheckedChange={(checked) => setCaptchaChecked(checked === true)}
-                    />
-                    <Label htmlFor="captcha" className="text-sm text-muted-foreground cursor-pointer">
-                      I am not a robot
-                    </Label>
+                    <ShieldCheck className={`h-5 w-5 ${recaptcha.isReady ? 'text-status-healthy' : 'text-muted-foreground'}`} />
+                    <span className="text-sm text-muted-foreground">
+                      {recaptcha.isVerifying ? "Verifying..." : 
+                       recaptcha.isVerified ? "Verified" : 
+                       "Protected by reCAPTCHA"}
+                    </span>
                   </div>
-                  {errors.captcha && <p className="text-sm text-destructive">{errors.captcha}</p>}
+                  {errors.recaptcha && <p className="text-sm text-destructive">{errors.recaptcha}</p>}
                 </div>
 
                 <Button type="submit" disabled={isSubmitting} size="lg" className="w-full mt-6 gap-2 h-12">
