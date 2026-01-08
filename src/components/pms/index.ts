@@ -3,3 +3,4 @@ export { PMSManagedField } from './PMSManagedField';
 export { SyncStatusIndicator, type SyncStatus } from './SyncStatusIndicator';
 export { PMSListingSelector, type PMSListing } from './PMSListingSelector';
 export { DisconnectPMSDialog, type DisconnectAction } from './DisconnectPMSDialog';
+export { OwnerPMSConnectionCard } from './OwnerPMSConnectionCard';

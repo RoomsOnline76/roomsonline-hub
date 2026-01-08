@@ -516,6 +516,81 @@ export type Database = {
           },
         ]
       }
+      hostfully_room_types: {
+        Row: {
+          amenities: Json | null
+          bathrooms: number | null
+          bedrooms: number | null
+          beds: number | null
+          created_at: string | null
+          currency: string | null
+          daily_rate: number | null
+          description: string | null
+          hostfully_room_id: string | null
+          id: string
+          images: Json | null
+          is_active: boolean | null
+          max_guests: number | null
+          name: string
+          property_id: string
+          raw_data: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          amenities?: Json | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          beds?: number | null
+          created_at?: string | null
+          currency?: string | null
+          daily_rate?: number | null
+          description?: string | null
+          hostfully_room_id?: string | null
+          id?: string
+          images?: Json | null
+          is_active?: boolean | null
+          max_guests?: number | null
+          name: string
+          property_id: string
+          raw_data?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          amenities?: Json | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          beds?: number | null
+          created_at?: string | null
+          currency?: string | null
+          daily_rate?: number | null
+          description?: string | null
+          hostfully_room_id?: string | null
+          id?: string
+          images?: Json | null
+          is_active?: boolean | null
+          max_guests?: number | null
+          name?: string
+          property_id?: string
+          raw_data?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hostfully_room_types_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hostfully_room_types_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journals: {
         Row: {
           author_id: string | null
@@ -605,6 +680,65 @@ export type Database = {
           tag_name?: string
         }
         Relationships: []
+      }
+      owner_pms_credentials: {
+        Row: {
+          api_key: string | null
+          available_listings: Json | null
+          created_at: string | null
+          environment: string | null
+          external_account_id: string | null
+          external_account_name: string | null
+          id: string
+          is_active: boolean | null
+          last_sync_at: string | null
+          owner_id: string
+          sync_error: string | null
+          sync_status: string | null
+          system_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          api_key?: string | null
+          available_listings?: Json | null
+          created_at?: string | null
+          environment?: string | null
+          external_account_id?: string | null
+          external_account_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          owner_id: string
+          sync_error?: string | null
+          sync_status?: string | null
+          system_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          api_key?: string | null
+          available_listings?: Json | null
+          created_at?: string | null
+          environment?: string | null
+          external_account_id?: string | null
+          external_account_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          owner_id?: string
+          sync_error?: string | null
+          sync_status?: string | null
+          system_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_pms_credentials_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payment_transactions: {
         Row: {
@@ -1313,6 +1447,7 @@ export type Database = {
           owner_email: string | null
           owner_name: string | null
           owner_notes: string | null
+          owner_pms_credential_id: string | null
           permanently_deleted_at: string | null
           pms_managed_fields: string[] | null
           pms_sync_status: string | null
@@ -1363,6 +1498,7 @@ export type Database = {
           owner_email?: string | null
           owner_name?: string | null
           owner_notes?: string | null
+          owner_pms_credential_id?: string | null
           permanently_deleted_at?: string | null
           pms_managed_fields?: string[] | null
           pms_sync_status?: string | null
@@ -1413,6 +1549,7 @@ export type Database = {
           owner_email?: string | null
           owner_name?: string | null
           owner_notes?: string | null
+          owner_pms_credential_id?: string | null
           permanently_deleted_at?: string | null
           pms_managed_fields?: string[] | null
           pms_sync_status?: string | null
@@ -1428,7 +1565,15 @@ export type Database = {
           why_this_place_matters?: string | null
           why_we_chose_this_place?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "properties_owner_pms_credential_id_fkey"
+            columns: ["owner_pms_credential_id"]
+            isOneToOne: false
+            referencedRelation: "owner_pms_credentials"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       property_availability: {
         Row: {

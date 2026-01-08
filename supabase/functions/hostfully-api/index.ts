@@ -6,6 +6,11 @@ import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 // HOSTFULLY API ADAPTER
 // Conforms to: supabase/functions/_shared/adapter-contract.ts
 // Reference: https://dev.hostfully.com/reference/getting-started
+// 
+// KEY CHANGE: Owner-level API keys
+// - API key is tied to an Owner (Agency in Hostfully) who owns many properties
+// - Each property has many rooms
+// - API key passed per-request from owner_pms_credentials table
 // ============================================================================
 
 const corsHeaders = {
@@ -21,7 +26,7 @@ const SOURCE = "hostfully";
 
 const HOSTFULLY_URLS: Record<string, string> = {
   sandbox: "https://sandbox.hostfully.com/api/v3",
-  staging: "https://sandbox.hostfully.com/api/v3", // staging maps to sandbox
+  staging: "https://sandbox.hostfully.com/api/v3",
   production: "https://api.hostfully.com/api/v3",
 };
 
@@ -35,10 +40,11 @@ const CAPABILITIES = {
   supports_create_booking: true,
   supports_modify_booking: false,
   supports_webhooks: false,
+  supports_owner_credentials: true, // NEW: Supports owner-level API keys
 };
 
 // ============================================================================
-// STANDARDIZED ERROR CODES (from adapter-contract.ts)
+// STANDARDIZED ERROR CODES
 // ============================================================================
 
 const ERROR_CODES = {
@@ -102,9 +108,11 @@ const baseRequestSchema = z.object({
   action: z.enum([
     "get_capabilities",
     "health_check",
-    "list_properties",  // Discovery endpoint - lists all accessible properties
-    "sync_listings",    // Syncs listings to pms_credentials.available_listings
-    "get_listing_details", // Get detailed info for specific listing
+    "validate_api_key",        // NEW: Validates owner API key
+    "sync_owner_listings",     // NEW: Syncs listings for owner
+    "list_properties",
+    "get_listing_details",
+    "get_property_rooms",      // NEW: Get rooms for a property
     "fetch_availability",
     "get_room_types",
     "get_rate_types",
@@ -112,8 +120,13 @@ const baseRequestSchema = z.object({
     "create_reservation",
     "modify_reservation",
     "cancel_reservation",
-    "fetch_property_data",  // Added per v1.1 spec
+    "fetch_property_data",
   ]),
+  // Owner-level credentials (NEW)
+  api_key: z.string().optional(),
+  owner_credential_id: z.string().uuid().optional(),
+  environment: z.enum(["sandbox", "staging", "production"]).optional(),
+  // Property context
   property_id: z.string().uuid().optional(),
   propertyUid: z.string().optional(),
 });
@@ -155,11 +168,44 @@ const createReservationSchema = baseRequestSchema.extend({
 interface HostfullyCredentials {
   api_key: string;
   environment: "sandbox" | "staging" | "production";
-  is_active: boolean;
-  refresh_interval_minutes: number;
+  owner_credential_id?: string;
 }
 
-async function getHostfullyCredentials(supabase: any): Promise<HostfullyCredentials | null> {
+// NEW: Get credentials from request body (owner-level) or fallback to system-level
+async function getCredentials(
+  supabase: any,
+  body: z.infer<typeof baseRequestSchema>
+): Promise<HostfullyCredentials | null> {
+  // Option 1: API key provided directly in request
+  if (body.api_key) {
+    return {
+      api_key: body.api_key,
+      environment: body.environment || "production",
+    };
+  }
+
+  // Option 2: Owner credential ID provided - fetch from owner_pms_credentials
+  if (body.owner_credential_id) {
+    const { data, error } = await supabase
+      .from("owner_pms_credentials")
+      .select("*")
+      .eq("id", body.owner_credential_id)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (error || !data || !data.api_key) {
+      console.error("Failed to fetch owner credentials:", error);
+      return null;
+    }
+
+    return {
+      api_key: data.api_key,
+      environment: data.environment as "sandbox" | "production" || "production",
+      owner_credential_id: data.id,
+    };
+  }
+
+  // Option 3: Fallback to system-level pms_credentials (legacy)
   const { data, error } = await supabase
     .from("pms_credentials")
     .select("*")
@@ -168,24 +214,20 @@ async function getHostfullyCredentials(supabase: any): Promise<HostfullyCredenti
     .maybeSingle();
 
   if (error || !data) {
-    console.error("Failed to fetch Hostfully credentials:", error);
+    console.error("Failed to fetch system credentials:", error);
     return null;
   }
 
-  // Use environment variable as fallback/override for API key
   const apiKeyFromEnv = Deno.env.get("HOSTFULLY_API_KEY");
   const apiKey = apiKeyFromEnv || data.api_key;
 
   if (!apiKey) {
-    console.error("No Hostfully API key found in credentials or environment");
     return null;
   }
 
   return {
     api_key: apiKey,
-    environment: data.environment as "sandbox" | "production",
-    is_active: data.is_active,
-    refresh_interval_minutes: data.refresh_interval_minutes || 60,
+    environment: data.environment as "sandbox" | "production" || "production",
   };
 }
 
@@ -238,7 +280,7 @@ function mapHostfullyHttpError(status: number, body: unknown): { code: string; m
     case 409:
       return { code: ERROR_CODES.BOOKING_REJECTED, message: "Booking conflict or already exists" };
     case 429:
-      return { code: ERROR_CODES.PMS_UNAVAILABLE, message: "Hostfully rate limit exceeded (10,000/hour)" };
+      return { code: ERROR_CODES.PMS_UNAVAILABLE, message: "Hostfully rate limit exceeded" };
     default:
       return { code: ERROR_CODES.INTERNAL_ADAPTER_ERROR, message: `Hostfully API error: ${status}` };
   }
@@ -257,34 +299,10 @@ interface HostfullyCalendarDay {
   checkOutAllowed?: boolean;
 }
 
-interface HostfullyProperty {
-  uid: string;
-  name: string;
-  description?: string;
-  bedrooms?: number;
-  bathrooms?: number;
-  maxGuests?: number;
-  minGuests?: number;
-}
-
-interface HostfullyBooking {
-  uid: string;
-  propertyUid: string;
-  checkInDate: string;
-  checkOutDate: string;
-  status: string;
-  guestFirstName?: string;
-  guestLastName?: string;
-  guestEmail?: string;
-  adults?: number;
-  children?: number;
-  totalPrice?: number;
-}
-
 function mapHostfullyCalendarToAvailability(calendarData: HostfullyCalendarDay[], propertyUid: string) {
   const roomType = {
     room_type_id: propertyUid,
-    name: "Property", // Hostfully treats whole property as unit
+    name: "Property",
     availability_per_night: calendarData.map(day => ({
       date: day.date,
       available_units: day.available ? 1 : 0,
@@ -311,24 +329,7 @@ function mapHostfullyCalendarToAvailability(calendarData: HostfullyCalendarDay[]
   return { room_types: [roomType] };
 }
 
-function mapHostfullyPropertyToRoomTypes(property: HostfullyProperty) {
-  return {
-    room_types: [{
-      room_type_id: property.uid,
-      name: property.name,
-      description: property.description,
-      max_guests: property.maxGuests || 2,
-      min_guests: property.minGuests || 1,
-      guest_rules: {
-        allow_teens: true,
-        allow_children: true,
-        allow_infants: true,
-      },
-    }],
-  };
-}
-
-function mapHostfullyBookingToReservation(booking: HostfullyBooking) {
+function mapHostfullyBookingToReservation(booking: any) {
   return {
     external_reservation_id: booking.uid,
     property_uid: booking.propertyUid,
@@ -355,85 +356,233 @@ async function handleGetCapabilities() {
   return createSuccessResponse(CAPABILITIES, "get_capabilities");
 }
 
+// NEW: Validate an API key and return agency info
+async function handleValidateApiKey(apiKey: string, environment: string) {
+  const baseUrl = HOSTFULLY_URLS[environment] || HOSTFULLY_URLS.production;
+
+  try {
+    const response = await hostfullyRequest("/agencies", apiKey, baseUrl);
+
+    if (!response.ok) {
+      const error = mapHostfullyHttpError(response.status, await response.text());
+      return createErrorResponse(error.code, error.message, "validate_api_key");
+    }
+
+    const agenciesData = await response.json();
+    const agency = agenciesData?.agencies?.[0] || agenciesData?.[0];
+
+    if (!agency) {
+      return createErrorResponse(ERROR_CODES.NOT_FOUND, "No agency found for this API key", "validate_api_key");
+    }
+
+    // Get property count
+    const propertiesResponse = await hostfullyRequest(`/properties?agencyUid=${agency.uid}`, apiKey, baseUrl);
+    let propertyCount = 0;
+
+    if (propertiesResponse.ok) {
+      const propData = await propertiesResponse.json();
+      const props = propData?.properties || propData || [];
+      propertyCount = Array.isArray(props) ? props.length : 0;
+    }
+
+    return createSuccessResponse({
+      valid: true,
+      agency_uid: agency.uid,
+      agency_name: agency.name || agency.companyName || null,
+      property_count: propertyCount,
+      environment,
+    }, "validate_api_key");
+  } catch (err) {
+    console.error("[Hostfully] Validate API key failed:", err);
+    return createErrorResponse(ERROR_CODES.PMS_UNAVAILABLE, "Failed to validate API key", "validate_api_key", err);
+  }
+}
+
+// NEW: Sync listings for an owner and store in owner_pms_credentials
+async function handleSyncOwnerListings(
+  creds: HostfullyCredentials,
+  supabase: any
+) {
+  const baseUrl = HOSTFULLY_URLS[creds.environment];
+
+  try {
+    // Get agency UID
+    const agenciesResponse = await hostfullyRequest("/agencies", creds.api_key, baseUrl);
+    if (!agenciesResponse.ok) {
+      const error = mapHostfullyHttpError(agenciesResponse.status, await agenciesResponse.text());
+      return createErrorResponse(error.code, error.message, "sync_owner_listings");
+    }
+
+    const agenciesData = await agenciesResponse.json();
+    const agency = agenciesData?.agencies?.[0] || agenciesData?.[0];
+
+    if (!agency) {
+      return createErrorResponse(ERROR_CODES.NOT_FOUND, "No agency found", "sync_owner_listings");
+    }
+
+    // Get all properties
+    const propertiesResponse = await hostfullyRequest(`/properties?agencyUid=${agency.uid}`, creds.api_key, baseUrl);
+    if (!propertiesResponse.ok) {
+      const error = mapHostfullyHttpError(propertiesResponse.status, await propertiesResponse.text());
+      return createErrorResponse(error.code, error.message, "sync_owner_listings");
+    }
+
+    const propertiesData = await propertiesResponse.json();
+    const propertiesArray = propertiesData?.properties || propertiesData || [];
+
+    // Map to standardized format
+    const listings = (Array.isArray(propertiesArray) ? propertiesArray : []).map((p: any) => ({
+      id: p.uid,
+      name: p.name,
+      status: p.status || 'active',
+      property_type: p.type || p.propertyType || 'property',
+      bedrooms: p.bedrooms || null,
+      bathrooms: p.bathrooms || null,
+      max_guests: p.maxGuests || null,
+      address: p.address1 || p.streetAddress || null,
+      city: p.city || null,
+      country: p.countryCode || p.country || null,
+      currency: p.currency || null,
+      base_price: p.baseDailyRate || null,
+      thumbnail: p.pictureLink || p.picture || null,
+    }));
+
+    // Update owner_pms_credentials if we have credential ID
+    if (creds.owner_credential_id) {
+      const { error: updateError } = await supabase
+        .from("owner_pms_credentials")
+        .update({
+          available_listings: listings,
+          last_sync_at: new Date().toISOString(),
+          sync_status: 'connected',
+          sync_error: null,
+          external_account_id: agency.uid,
+          external_account_name: agency.name || agency.companyName || null,
+        })
+        .eq("id", creds.owner_credential_id);
+
+      if (updateError) {
+        console.error("[Hostfully] Failed to update owner_pms_credentials:", updateError);
+      }
+    }
+
+    return createSuccessResponse({
+      listings,
+      count: listings.length,
+      agency_uid: agency.uid,
+      agency_name: agency.name || agency.companyName || null,
+      synced_at: new Date().toISOString(),
+    }, "sync_owner_listings");
+  } catch (err) {
+    console.error("[Hostfully] Sync owner listings failed:", err);
+
+    // Update error status if we have credential ID
+    if (creds.owner_credential_id) {
+      await supabase
+        .from("owner_pms_credentials")
+        .update({
+          sync_status: 'error',
+          sync_error: err instanceof Error ? err.message : String(err),
+        })
+        .eq("id", creds.owner_credential_id);
+    }
+
+    return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to sync listings", "sync_owner_listings", err);
+  }
+}
+
+// NEW: Get rooms for a specific property
+async function handleGetPropertyRooms(creds: HostfullyCredentials, propertyUid: string) {
+  const baseUrl = HOSTFULLY_URLS[creds.environment];
+
+  try {
+    // Hostfully properties are typically single units, but may have bedroom info
+    const response = await hostfullyRequest(`/properties/${propertyUid}`, creds.api_key, baseUrl);
+
+    if (!response.ok) {
+      const error = mapHostfullyHttpError(response.status, await response.text());
+      return createErrorResponse(error.code, error.message, "get_property_rooms");
+    }
+
+    const property = await response.json();
+
+    // For Hostfully, the property itself is the "room"
+    // But we can create room entries based on bedroom configuration
+    const rooms = [{
+      id: propertyUid,
+      hostfully_room_id: propertyUid,
+      name: property.name || "Property",
+      description: property.description || property.summary || null,
+      max_guests: property.maxGuests || 2,
+      bedrooms: property.bedrooms || 1,
+      bathrooms: property.bathrooms || 1,
+      beds: property.beds || property.bedrooms || 1,
+      daily_rate: property.baseDailyRate || null,
+      currency: property.currency || 'USD',
+      images: property.photos || property.images || [],
+      amenities: property.amenities || property.features || [],
+    }];
+
+    return createSuccessResponse({ rooms, property_uid: propertyUid }, "get_property_rooms");
+  } catch (err) {
+    console.error("[Hostfully] Get property rooms failed:", err);
+    return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to fetch rooms", "get_property_rooms", err);
+  }
+}
+
 async function handleHealthCheck(creds: HostfullyCredentials) {
   const baseUrl = HOSTFULLY_URLS[creds.environment];
-  
+
   try {
-    // Use agencies endpoint to verify API key works
     const response = await hostfullyRequest("/agencies", creds.api_key, baseUrl);
-    
+
     if (!response.ok) {
       const error = mapHostfullyHttpError(response.status, await response.text());
       return createErrorResponse(error.code, error.message, "health_check");
     }
-    
-    return createSuccessResponse({ 
+
+    return createSuccessResponse({
       status: "ok",
-      healthy: true, 
-      environment: creds.environment 
+      healthy: true,
+      environment: creds.environment
     }, "health_check");
   } catch (err) {
     console.error("[Hostfully] Health check failed:", err);
-    return createErrorResponse(
-      ERROR_CODES.PMS_UNAVAILABLE,
-      "Failed to connect to Hostfully API",
-      "health_check",
-      err
-    );
+    return createErrorResponse(ERROR_CODES.PMS_UNAVAILABLE, "Failed to connect to Hostfully API", "health_check", err);
   }
 }
 
 async function handleListProperties(creds: HostfullyCredentials) {
   const baseUrl = HOSTFULLY_URLS[creds.environment];
-  
+
   try {
-    // Step 1: Get agency UID from /agencies
     const agenciesResponse = await hostfullyRequest("/agencies", creds.api_key, baseUrl);
     if (!agenciesResponse.ok) {
       const error = mapHostfullyHttpError(agenciesResponse.status, await agenciesResponse.text());
       return createErrorResponse(error.code, error.message, "list_properties");
     }
-    
+
     const agenciesData = await agenciesResponse.json();
-    console.log("[Hostfully] Agencies response:", JSON.stringify(agenciesData));
-    
-    // Response structure: { agencies: [...], _metadata: {...} }
     const agencyUid = agenciesData?.agencies?.[0]?.uid || agenciesData?.[0]?.uid;
-    
+
     if (!agencyUid) {
-      return createErrorResponse(
-        ERROR_CODES.NOT_FOUND,
-        `No agency found for this API key`,
-        "list_properties"
-      );
+      return createErrorResponse(ERROR_CODES.NOT_FOUND, "No agency found for this API key", "list_properties");
     }
-    
-    console.log("[Hostfully] Found agency:", agencyUid);
-    
-    // Step 2: Get all properties for agency
-    const propertiesResponse = await hostfullyRequest(
-      `/properties?agencyUid=${agencyUid}`,
-      creds.api_key,
-      baseUrl
-    );
-    
+
+    const propertiesResponse = await hostfullyRequest(`/properties?agencyUid=${agencyUid}`, creds.api_key, baseUrl);
+
     if (!propertiesResponse.ok) {
       const error = mapHostfullyHttpError(propertiesResponse.status, await propertiesResponse.text());
       return createErrorResponse(error.code, error.message, "list_properties");
     }
-    
+
     const propertiesData = await propertiesResponse.json();
-    console.log("[Hostfully] Properties response keys:", Object.keys(propertiesData));
-    
-    // Response structure: { properties: [...], _metadata: {...} } or just array
     const propertiesArray = propertiesData?.properties || propertiesData || [];
-    
-    // Map to standardized format - include raw data for field mapping exploration
+
     const propertyList = (Array.isArray(propertiesArray) ? propertiesArray : []).map((p: any) => ({
       id: p.uid,
       name: p.name,
       status: p.status,
-      timezone: p.timezone || null,
       bedrooms: p.bedrooms || null,
       bathrooms: p.bathrooms || null,
       max_guests: p.maxGuests || null,
@@ -442,24 +591,17 @@ async function handleListProperties(creds: HostfullyCredentials) {
       country: p.countryCode || null,
       currency: p.currency || null,
       base_price: p.baseDailyRate || null,
-      // Include raw data for field mapping exploration
       _raw: p,
     }));
-    
-    return createSuccessResponse({ 
+
+    return createSuccessResponse({
       properties: propertyList,
       agency_uid: agencyUid,
       count: propertyList.length
     }, "list_properties");
-    
   } catch (err) {
     console.error("[Hostfully] List properties failed:", err);
-    return createErrorResponse(
-      ERROR_CODES.INTERNAL_ADAPTER_ERROR,
-      "Failed to list properties from Hostfully",
-      "list_properties",
-      err
-    );
+    return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to list properties", "list_properties", err);
   }
 }
 
@@ -470,60 +612,60 @@ async function handleFetchAvailability(
   endDate: string
 ) {
   const baseUrl = HOSTFULLY_URLS[creds.environment];
-  
+
   try {
     const endpoint = `/properties/${propertyUid}/calendar?startDate=${startDate}&endDate=${endDate}`;
     const response = await hostfullyRequest(endpoint, creds.api_key, baseUrl);
-    
+
     if (!response.ok) {
       const error = mapHostfullyHttpError(response.status, await response.text());
       return createErrorResponse(error.code, error.message, "fetch_availability");
     }
-    
+
     const calendarData = await response.json();
     const availability = mapHostfullyCalendarToAvailability(calendarData, propertyUid);
-    
+
     return createSuccessResponse(availability, "fetch_availability");
   } catch (err) {
     console.error("[Hostfully] Fetch availability failed:", err);
-    return createErrorResponse(
-      ERROR_CODES.INTERNAL_ADAPTER_ERROR,
-      "Failed to fetch availability from Hostfully",
-      "fetch_availability",
-      err
-    );
+    return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to fetch availability", "fetch_availability", err);
   }
 }
 
 async function handleGetRoomTypes(creds: HostfullyCredentials, propertyUid: string) {
   const baseUrl = HOSTFULLY_URLS[creds.environment];
-  
+
   try {
     const response = await hostfullyRequest(`/properties/${propertyUid}`, creds.api_key, baseUrl);
-    
+
     if (!response.ok) {
       const error = mapHostfullyHttpError(response.status, await response.text());
       return createErrorResponse(error.code, error.message, "get_room_types");
     }
-    
+
     const property = await response.json();
-    const roomTypes = mapHostfullyPropertyToRoomTypes(property);
-    
-    return createSuccessResponse(roomTypes, "get_room_types");
+
+    return createSuccessResponse({
+      room_types: [{
+        room_type_id: property.uid,
+        name: property.name,
+        description: property.description,
+        max_guests: property.maxGuests || 2,
+        min_guests: property.minGuests || 1,
+        guest_rules: {
+          allow_teens: true,
+          allow_children: true,
+          allow_infants: true,
+        },
+      }],
+    }, "get_room_types");
   } catch (err) {
     console.error("[Hostfully] Get room types failed:", err);
-    return createErrorResponse(
-      ERROR_CODES.INTERNAL_ADAPTER_ERROR,
-      "Failed to fetch room types from Hostfully",
-      "get_room_types",
-      err
-    );
+    return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to fetch room types", "get_room_types", err);
   }
 }
 
-async function handleGetRateTypes(creds: HostfullyCredentials, propertyUid: string) {
-  // Hostfully doesn't have separate rate types - properties have single pricing
-  // Return a standard rate type for consistency with adapter contract
+async function handleGetRateTypes() {
   return createSuccessResponse({
     rate_types: [{
       rate_type_id: "standard",
@@ -541,31 +683,26 @@ async function handleGetReservations(
   endDate?: string
 ) {
   const baseUrl = HOSTFULLY_URLS[creds.environment];
-  
+
   try {
     let endpoint = `/leads?propertyUid=${propertyUid}`;
     if (startDate) endpoint += `&checkInDate=${startDate}`;
     if (endDate) endpoint += `&checkOutDate=${endDate}`;
-    
+
     const response = await hostfullyRequest(endpoint, creds.api_key, baseUrl);
-    
+
     if (!response.ok) {
       const error = mapHostfullyHttpError(response.status, await response.text());
       return createErrorResponse(error.code, error.message, "get_reservations");
     }
-    
+
     const bookings = await response.json();
     const reservations = (bookings || []).map(mapHostfullyBookingToReservation);
-    
+
     return createSuccessResponse({ reservations }, "get_reservations");
   } catch (err) {
     console.error("[Hostfully] Get reservations failed:", err);
-    return createErrorResponse(
-      ERROR_CODES.INTERNAL_ADAPTER_ERROR,
-      "Failed to fetch reservations from Hostfully",
-      "get_reservations",
-      err
-    );
+    return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to fetch reservations", "get_reservations", err);
   }
 }
 
@@ -575,27 +712,20 @@ async function handleCreateReservation(
   reservationData: z.infer<typeof createReservationSchema>["reservation_data"]
 ) {
   const baseUrl = HOSTFULLY_URLS[creds.environment];
-  
-  // ============================================================================
-  // DATA AUTHORITY RULE: CACHE IS NEVER AUTHORITATIVE. PMS ALWAYS IS.
-  // Verify live availability before creating reservation
-  // ============================================================================
-  
-  console.log("[Hostfully] Verifying live availability before booking...");
-  
+
   try {
     // Check live availability first
     const calendarEndpoint = `/properties/${propertyUid}/calendar?startDate=${reservationData.checkInDate}&endDate=${reservationData.checkOutDate}`;
     const calendarResponse = await hostfullyRequest(calendarEndpoint, creds.api_key, baseUrl);
-    
+
     if (!calendarResponse.ok) {
       const error = mapHostfullyHttpError(calendarResponse.status, await calendarResponse.text());
       return createErrorResponse(error.code, error.message, "create_reservation");
     }
-    
+
     const calendarData: HostfullyCalendarDay[] = await calendarResponse.json();
     const unavailableDates = calendarData.filter(d => !d.available);
-    
+
     if (unavailableDates.length > 0) {
       return createErrorResponse(
         ERROR_CODES.AVAILABILITY_CHANGED,
@@ -604,8 +734,7 @@ async function handleCreateReservation(
         { unavailable_dates: unavailableDates.map(d => d.date) }
       );
     }
-    
-    // Create the booking
+
     const bookingPayload = {
       propertyUid,
       checkInDate: reservationData.checkInDate,
@@ -619,18 +748,18 @@ async function handleCreateReservation(
       notes: reservationData.notes,
       source: "RoomsOnline",
     };
-    
+
     const response = await hostfullyRequest("/leads", creds.api_key, baseUrl, "POST", bookingPayload);
-    
+
     if (!response.ok) {
       const errorBody = await response.text();
       console.error("[Hostfully] Create reservation failed:", response.status, errorBody);
       const error = mapHostfullyHttpError(response.status, errorBody);
       return createErrorResponse(error.code, error.message, "create_reservation", errorBody);
     }
-    
+
     const booking = await response.json();
-    
+
     return createSuccessResponse({
       external_reservation_id: booking.uid,
       confirmation_number: booking.uid,
@@ -638,128 +767,23 @@ async function handleCreateReservation(
     }, "create_reservation");
   } catch (err) {
     console.error("[Hostfully] Create reservation error:", err);
-    return createErrorResponse(
-      ERROR_CODES.INTERNAL_ADAPTER_ERROR,
-      "Failed to create reservation in Hostfully",
-      "create_reservation",
-      err
-    );
+    return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to create reservation", "create_reservation", err);
   }
 }
-
-async function handleModifyReservation() {
-  return createErrorResponse(
-    ERROR_CODES.MODIFICATION_NOT_SUPPORTED,
-    "Hostfully reservation modification is not yet supported",
-    "modify_reservation"
-  );
-}
-
-async function handleCancelReservation() {
-  return createErrorResponse(
-    ERROR_CODES.CANCELLATION_NOT_SUPPORTED,
-    "Hostfully reservation cancellation is not yet supported",
-    "cancel_reservation"
-  );
-}
-
-// ============================================================================
-// SYNC LISTINGS - Store available listings in pms_credentials
-// ============================================================================
-
-async function handleSyncListings(creds: HostfullyCredentials, supabase: any) {
-  const baseUrl = HOSTFULLY_URLS[creds.environment];
-  
-  try {
-    // Get agency UID
-    const agenciesResponse = await hostfullyRequest("/agencies", creds.api_key, baseUrl);
-    if (!agenciesResponse.ok) {
-      const error = mapHostfullyHttpError(agenciesResponse.status, await agenciesResponse.text());
-      return createErrorResponse(error.code, error.message, "sync_listings");
-    }
-    
-    const agenciesData = await agenciesResponse.json();
-    const agencyUid = agenciesData?.agencies?.[0]?.uid || agenciesData?.[0]?.uid;
-    
-    if (!agencyUid) {
-      return createErrorResponse(ERROR_CODES.NOT_FOUND, "No agency found for this API key", "sync_listings");
-    }
-    
-    // Get all properties
-    const propertiesResponse = await hostfullyRequest(`/properties?agencyUid=${agencyUid}`, creds.api_key, baseUrl);
-    if (!propertiesResponse.ok) {
-      const error = mapHostfullyHttpError(propertiesResponse.status, await propertiesResponse.text());
-      return createErrorResponse(error.code, error.message, "sync_listings");
-    }
-    
-    const propertiesData = await propertiesResponse.json();
-    const propertiesArray = propertiesData?.properties || propertiesData || [];
-    
-    // Map to standardized format
-    const listings = (Array.isArray(propertiesArray) ? propertiesArray : []).map((p: any) => ({
-      id: p.uid,
-      name: p.name,
-      status: p.status || 'active',
-      property_type: p.type || p.propertyType || 'property',
-      bedrooms: p.bedrooms || null,
-      bathrooms: p.bathrooms || null,
-      max_guests: p.maxGuests || null,
-      address: p.address1 || p.streetAddress || null,
-      city: p.city || null,
-      country: p.countryCode || p.country || null,
-      currency: p.currency || null,
-      base_price: p.baseDailyRate || null,
-      thumbnail: p.pictureLink || p.picture || null,
-      last_updated: p.modifiedDate || p.updatedAt || null,
-    }));
-    
-    // Update pms_credentials with available listings
-    const { error: updateError } = await supabase
-      .from("pms_credentials")
-      .update({
-        available_listings: listings,
-        last_sync_at: new Date().toISOString(),
-        sync_status: 'connected',
-      })
-      .eq("system_type", "hostfully")
-      .eq("is_active", true);
-    
-    if (updateError) {
-      console.error("[Hostfully] Failed to update pms_credentials:", updateError);
-      return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to save listings", "sync_listings", updateError);
-    }
-    
-    return createSuccessResponse({
-      listings,
-      count: listings.length,
-      agency_uid: agencyUid,
-      synced_at: new Date().toISOString(),
-    }, "sync_listings");
-    
-  } catch (err) {
-    console.error("[Hostfully] Sync listings failed:", err);
-    return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to sync listings", "sync_listings", err);
-  }
-}
-
-// ============================================================================
-// GET LISTING DETAILS - Fetch detailed info for a specific listing
-// ============================================================================
 
 async function handleGetListingDetails(creds: HostfullyCredentials, propertyUid: string) {
   const baseUrl = HOSTFULLY_URLS[creds.environment];
-  
+
   try {
     const response = await hostfullyRequest(`/properties/${propertyUid}`, creds.api_key, baseUrl);
-    
+
     if (!response.ok) {
       const error = mapHostfullyHttpError(response.status, await response.text());
       return createErrorResponse(error.code, error.message, "get_listing_details");
     }
-    
+
     const property = await response.json();
-    
-    // Return detailed property info
+
     return createSuccessResponse({
       id: property.uid,
       name: property.name,
@@ -793,10 +817,72 @@ async function handleGetListingDetails(creds: HostfullyCredentials, propertyUid:
       thumbnail: property.pictureLink || property.picture || null,
       _raw: property,
     }, "get_listing_details");
-    
   } catch (err) {
     console.error("[Hostfully] Get listing details failed:", err);
     return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to fetch listing details", "get_listing_details", err);
+  }
+}
+
+async function handleFetchPropertyData(creds: HostfullyCredentials, propertyUid: string) {
+  const baseUrl = HOSTFULLY_URLS[creds.environment];
+
+  try {
+    const propResponse = await hostfullyRequest(`/properties/${propertyUid}`, creds.api_key, baseUrl);
+
+    if (!propResponse.ok) {
+      const error = mapHostfullyHttpError(propResponse.status, await propResponse.text());
+      return createErrorResponse(error.code, error.message, "fetch_property_data");
+    }
+
+    const prop = await propResponse.json();
+
+    const location = {
+      address: prop.address || prop.streetAddress || null,
+      city: prop.city || null,
+      country: prop.country || prop.countryCode || null,
+      postal_code: prop.postalCode || prop.zipCode || null,
+    };
+
+    let imageUrls: string[] | null = null;
+    if (prop.photos || prop.images) {
+      const images = prop.photos || prop.images;
+      imageUrls = Array.isArray(images)
+        ? images.map((img: any) => typeof img === 'string' ? img : (img.url || img.original))
+        : null;
+    }
+
+    const amenities = prop.amenities || prop.features || null;
+    const amenityList = Array.isArray(amenities)
+      ? amenities.map((a: any) => typeof a === 'string' ? a : a.name)
+      : null;
+
+    return createSuccessResponse({
+      property_name: prop.name || null,
+      description: prop.description || prop.summary || null,
+      location: (location.address || location.city) ? location : null,
+      geo: null,
+      images: imageUrls,
+      amenities: amenityList,
+      room_types: [{
+        room_type_id: propertyUid,
+        name: prop.name || "Property",
+        description: prop.description || null,
+        min_guests: prop.minGuests || 1,
+        max_guests: prop.maxGuests || 2,
+        guest_rules: { allow_teens: true, allow_children: true, allow_infants: true },
+        linked_rate_type_ids: [],
+      }],
+      rate_types: [{ rate_type_id: "standard", name: "Standard Rate", description: null, price_type: "per_night" }],
+      charge_types: [],
+      payment_types: [],
+      check_in_time: prop.checkInTime || null,
+      check_out_time: prop.checkOutTime || null,
+      star_rating: null,
+      max_guests: prop.maxGuests || null,
+    }, "fetch_property_data");
+  } catch (err) {
+    console.error("[Hostfully] Fetch property data failed:", err);
+    return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to fetch property data", "fetch_property_data", err);
   }
 }
 
@@ -805,7 +891,6 @@ async function handleGetListingDetails(creds: HostfullyCredentials, propertyUid:
 // ============================================================================
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -813,25 +898,17 @@ serve(async (req) => {
   let action = "unknown";
 
   try {
-    // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Parse request body
     const body = await req.json();
     console.log("[Hostfully] Request:", JSON.stringify(body, null, 2));
 
-    // Validate base request
     const baseResult = baseRequestSchema.safeParse(body);
     if (!baseResult.success) {
       return new Response(
-        JSON.stringify(createErrorResponse(
-          ERROR_CODES.INVALID_REQUEST,
-          "Invalid request format",
-          "unknown",
-          baseResult.error.issues
-        )),
+        JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "Invalid request format", "unknown", baseResult.error.issues)),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
@@ -846,20 +923,29 @@ serve(async (req) => {
       });
     }
 
+    // Handle validate_api_key with provided key
+    if (action === "validate_api_key") {
+      if (!body.api_key) {
+        return new Response(
+          JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "api_key is required", action)),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
+      }
+      const response = await handleValidateApiKey(body.api_key, body.environment || "production");
+      return new Response(JSON.stringify(response), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Get credentials for all other actions
-    const creds = await getHostfullyCredentials(supabase);
+    const creds = await getCredentials(supabase, baseResult.data);
     if (!creds) {
       return new Response(
-        JSON.stringify(createErrorResponse(
-          ERROR_CODES.AUTH_FAILED,
-          "Hostfully credentials not configured or inactive",
-          action
-        )),
+        JSON.stringify(createErrorResponse(ERROR_CODES.AUTH_FAILED, "No valid credentials found", action)),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
       );
     }
 
-    // Route to appropriate handler
     let response: AdapterResponse<unknown>;
 
     switch (action) {
@@ -867,15 +953,15 @@ serve(async (req) => {
         response = await handleHealthCheck(creds);
         break;
 
+      case "sync_owner_listings":
+        response = await handleSyncOwnerListings(creds, supabase);
+        break;
+
       case "list_properties":
         response = await handleListProperties(creds);
         break;
 
-      case "sync_listings":
-        response = await handleSyncListings(creds, supabase);
-        break;
-
-      case "get_listing_details": {
+      case "get_listing_details":
         if (!body.propertyUid) {
           return new Response(
             JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyUid is required", action)),
@@ -884,80 +970,52 @@ serve(async (req) => {
         }
         response = await handleGetListingDetails(creds, body.propertyUid);
         break;
-      }
+
+      case "get_property_rooms":
+        if (!body.propertyUid) {
+          return new Response(
+            JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyUid is required", action)),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+          );
+        }
+        response = await handleGetPropertyRooms(creds, body.propertyUid);
         break;
 
       case "fetch_availability": {
         const result = fetchAvailabilitySchema.safeParse(body);
         if (!result.success) {
           return new Response(
-            JSON.stringify(createErrorResponse(
-              ERROR_CODES.INVALID_REQUEST,
-              "Invalid fetch_availability request",
-              action,
-              result.error.issues
-            )),
+            JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "Invalid request", action, result.error.issues)),
             { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
           );
         }
-        response = await handleFetchAvailability(
-          creds,
-          result.data.propertyUid,
-          result.data.startDate,
-          result.data.endDate
-        );
+        response = await handleFetchAvailability(creds, result.data.propertyUid, result.data.startDate, result.data.endDate);
         break;
       }
 
-      case "get_room_types": {
+      case "get_room_types":
         if (!body.propertyUid) {
           return new Response(
-            JSON.stringify(createErrorResponse(
-              ERROR_CODES.INVALID_REQUEST,
-              "propertyUid is required",
-              action
-            )),
+            JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyUid is required", action)),
             { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
           );
         }
         response = await handleGetRoomTypes(creds, body.propertyUid);
         break;
-      }
 
-      case "get_rate_types": {
-        if (!body.propertyUid) {
-          return new Response(
-            JSON.stringify(createErrorResponse(
-              ERROR_CODES.INVALID_REQUEST,
-              "propertyUid is required",
-              action
-            )),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-          );
-        }
-        response = await handleGetRateTypes(creds, body.propertyUid);
+      case "get_rate_types":
+        response = await handleGetRateTypes();
         break;
-      }
 
       case "get_reservations": {
         const result = getReservationsSchema.safeParse(body);
         if (!result.success) {
           return new Response(
-            JSON.stringify(createErrorResponse(
-              ERROR_CODES.INVALID_REQUEST,
-              "Invalid get_reservations request",
-              action,
-              result.error.issues
-            )),
+            JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "Invalid request", action, result.error.issues)),
             { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
           );
         }
-        response = await handleGetReservations(
-          creds,
-          result.data.propertyUid,
-          result.data.startDate,
-          result.data.endDate
-        );
+        response = await handleGetReservations(creds, result.data.propertyUid, result.data.startDate, result.data.endDate);
         break;
       }
 
@@ -965,114 +1023,34 @@ serve(async (req) => {
         const result = createReservationSchema.safeParse(body);
         if (!result.success) {
           return new Response(
-            JSON.stringify(createErrorResponse(
-              ERROR_CODES.INVALID_REQUEST,
-              "Invalid create_reservation request",
-              action,
-              result.error.issues
-            )),
+            JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "Invalid request", action, result.error.issues)),
             { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
           );
         }
-        response = await handleCreateReservation(
-          creds,
-          result.data.propertyUid,
-          result.data.reservation_data
-        );
+        response = await handleCreateReservation(creds, result.data.propertyUid, result.data.reservation_data);
         break;
       }
 
       case "modify_reservation":
-        response = await handleModifyReservation();
+        response = createErrorResponse(ERROR_CODES.MODIFICATION_NOT_SUPPORTED, "Not supported", action);
         break;
 
       case "cancel_reservation":
-        response = await handleCancelReservation();
+        response = createErrorResponse(ERROR_CODES.CANCELLATION_NOT_SUPPORTED, "Not supported", action);
         break;
 
-      case "fetch_property_data": {
-        // ============================================================================
-        // HOSTFULLY fetch_property_data - per v1.1 pms-implementation-master.json:
-        // - name: authoritative
-        // - description: authoritative
-        // - location: authoritative
-        // - images: authoritative
-        // - amenities: partial
-        // ============================================================================
+      case "fetch_property_data":
         if (!body.propertyUid) {
           return new Response(
             JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyUid is required", action)),
             { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
           );
         }
-        
-        const baseUrl = HOSTFULLY_URLS[creds.environment];
-        const propResponse = await hostfullyRequest(`/properties/${body.propertyUid}`, creds.api_key, baseUrl);
-        
-        if (!propResponse.ok) {
-          const error = mapHostfullyHttpError(propResponse.status, await propResponse.text());
-          response = createErrorResponse(error.code, error.message, action);
-          break;
-        }
-        
-        const prop = await propResponse.json();
-        
-        // Extract editorial data
-        const location = {
-          address: prop.address || prop.streetAddress || null,
-          city: prop.city || null,
-          country: prop.country || prop.countryCode || null,
-          postal_code: prop.postalCode || prop.zipCode || null,
-        };
-        
-        // Get images if available
-        let imageUrls: string[] | null = null;
-        if (prop.photos || prop.images) {
-          const images = prop.photos || prop.images;
-          imageUrls = Array.isArray(images) 
-            ? images.map((img: any) => typeof img === 'string' ? img : (img.url || img.original))
-            : null;
-        }
-        
-        // Amenities - partial per spec
-        const amenities = prop.amenities || prop.features || null;
-        const amenityList = Array.isArray(amenities)
-          ? amenities.map((a: any) => typeof a === 'string' ? a : a.name)
-          : null;
-        
-        response = createSuccessResponse({
-          property_name: prop.name || null,
-          description: prop.description || prop.summary || null,
-          location: (location.address || location.city) ? location : null,
-          geo: null,
-          images: imageUrls,
-          amenities: amenityList,
-          room_types: [{
-            room_type_id: body.propertyUid,
-            name: prop.name || "Property",
-            description: prop.description || null,
-            min_guests: prop.minGuests || 1,
-            max_guests: prop.maxGuests || 2,
-            guest_rules: { allow_teens: true, allow_children: true, allow_infants: true },
-            linked_rate_type_ids: [],
-          }],
-          rate_types: [{ rate_type_id: "standard", name: "Standard Rate", description: null, price_type: "per_night" }],
-          charge_types: [],
-          payment_types: [],
-          check_in_time: prop.checkInTime || null,
-          check_out_time: prop.checkOutTime || null,
-          star_rating: null,
-          max_guests: prop.maxGuests || null,
-        }, action);
+        response = await handleFetchPropertyData(creds, body.propertyUid);
         break;
-      }
 
       default:
-        response = createErrorResponse(
-          ERROR_CODES.INVALID_REQUEST,
-          `Unknown action: ${action}`,
-          action
-        );
+        response = createErrorResponse(ERROR_CODES.INVALID_REQUEST, `Unknown action: ${action}`, action);
     }
 
     console.log("[Hostfully] Response:", JSON.stringify(response, null, 2));
@@ -1083,12 +1061,7 @@ serve(async (req) => {
   } catch (err) {
     console.error("[Hostfully] Unhandled error:", err);
     return new Response(
-      JSON.stringify(createErrorResponse(
-        ERROR_CODES.INTERNAL_ADAPTER_ERROR,
-        "Internal adapter error",
-        action,
-        err instanceof Error ? err.message : String(err)
-      )),
+      JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Internal error", action, err instanceof Error ? err.message : String(err))),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
