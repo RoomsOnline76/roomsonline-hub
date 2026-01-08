@@ -411,7 +411,7 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
                               }
                               setKeyError(null);
                             }}
-                            placeholder="FzNI0hVYcB2PjmTs"
+                            placeholder="(Enter key here)"
                             disabled={validatingKey}
                             className="font-mono text-sm"
                           />
