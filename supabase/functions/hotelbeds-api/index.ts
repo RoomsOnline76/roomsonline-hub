@@ -98,6 +98,11 @@ const baseRequestSchema = z.object({
     "get_room_types",
     "get_rate_types",
   ]),
+  property_id: z.string().uuid({ message: "Invalid property ID format" }).optional(),
+});
+
+// Schema for actions that require property_id
+const propertyRequiredSchema = baseRequestSchema.extend({
   property_id: z.string().uuid({ message: "Invalid property ID format" }),
 });
 
@@ -509,13 +514,83 @@ serve(async (req) => {
     }
 
     action = body.action;
-    const propertyId = body.property_id;
 
     // Handle get_capabilities without needing credentials
     if (action === "get_capabilities") {
       return new Response(
         JSON.stringify(createSuccessResponse(CAPABILITIES, action)),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Handle health_check - doesn't need property, just credentials
+    if (action === "health_check") {
+      let apiKey = Deno.env.get("HOTELBEDS_API_KEY");
+      let apiSecret = Deno.env.get("HOTELBEDS_API_SECRET");
+      let environment = "staging";
+
+      if (!apiKey || !apiSecret) {
+        console.log(`[HotelBeds] Cloud secrets not found for health_check, checking pms_credentials...`);
+        const { data: credentials } = await supabaseClient
+          .from("pms_credentials")
+          .select("*")
+          .eq("system_type", "hotelbeds")
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (credentials) {
+          apiKey = credentials.api_key;
+          apiSecret = credentials.password;
+          environment = credentials.environment || "staging";
+        }
+      } else {
+        console.log(`[HotelBeds] Using Cloud secrets for health_check`);
+      }
+
+      if (!apiKey || !apiSecret) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            ERROR_CODES.AUTH_FAILED,
+            "HotelBeds credentials not configured",
+            action
+          )),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      try {
+        const status = await checkStatus(apiKey, apiSecret, environment);
+        return new Response(
+          JSON.stringify(createSuccessResponse({
+            status: "ok",
+            api_status: status,
+            environment,
+            using_cloud_secrets: !!Deno.env.get("HOTELBEDS_API_KEY")
+          }, action)),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error: any) {
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            error.code || ERROR_CODES.PMS_UNAVAILABLE,
+            error.message || "Health check failed",
+            action
+          )),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // For remaining actions, property_id is required
+    const propertyId = body.property_id;
+    if (!propertyId) {
+      return new Response(
+        JSON.stringify(createErrorResponse(
+          ERROR_CODES.INVALID_REQUEST,
+          "property_id is required for this action",
+          action
+        )),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
