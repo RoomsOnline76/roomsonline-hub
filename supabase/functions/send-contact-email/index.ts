@@ -14,6 +14,38 @@ interface ContactEmailRequest {
   email: string;
   message: string;
   honeypot?: string;
+  recaptchaToken?: string;
+}
+
+// Verify reCAPTCHA token with Google
+async function verifyRecaptcha(token: string): Promise<{ success: boolean; score: number }> {
+  const secretKey = Deno.env.get("GOOGLE_RECAPTCHA_SECRET_KEY");
+  
+  if (!secretKey) {
+    console.warn("GOOGLE_RECAPTCHA_SECRET_KEY not configured, skipping verification");
+    return { success: true, score: 1.0 };
+  }
+
+  try {
+    const response = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: `secret=${secretKey}&response=${token}`,
+    });
+
+    const data = await response.json();
+    console.log("reCAPTCHA verification response:", { success: data.success, score: data.score });
+    
+    return {
+      success: data.success === true,
+      score: data.score || 0,
+    };
+  } catch (error) {
+    console.error("reCAPTCHA verification error:", error);
+    return { success: false, score: 0 };
+  }
 }
 
 // ROL branded email template for user confirmation
@@ -109,7 +141,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { name, email, message, honeypot }: ContactEmailRequest = await req.json();
+    const { name, email, message, honeypot, recaptchaToken }: ContactEmailRequest = await req.json();
     
     console.log("Received contact form submission from:", email);
 
@@ -121,6 +153,23 @@ const handler = async (req: Request): Promise<Response> => {
         status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
+    }
+
+    // Verify reCAPTCHA token if provided
+    if (recaptchaToken) {
+      const { success, score } = await verifyRecaptcha(recaptchaToken);
+      
+      if (!success || score < 0.5) {
+        console.log(`reCAPTCHA verification failed: success=${success}, score=${score}`);
+        return new Response(
+          JSON.stringify({ error: "Human verification failed. Please try again." }),
+          { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+      
+      console.log(`reCAPTCHA verification passed: score=${score}`);
+    } else {
+      console.log("No reCAPTCHA token provided, proceeding without verification");
     }
 
     // Validate required fields
@@ -188,10 +237,11 @@ const handler = async (req: Request): Promise<Response> => {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Error in send-contact-email function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }

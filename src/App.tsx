@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { MobileBookingProvider } from "@/contexts/MobileBookingContext";
+import { RecaptchaProvider } from "@/components/RecaptchaProvider";
 import Home from "./pages/Home";
 import HomeOld from "./pages/HomeOld";
 import StagingBook from "./pages/StagingBook";
@@ -58,10 +59,11 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <CurrencyProvider>
       <MobileBookingProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
+        <RecaptchaProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
         <Routes>
           <Route path="/" element={
             window.location.hostname === 'book.sleepinafrica.roomsonline.co.za' 
@@ -263,11 +265,12 @@ const App = () => (
               </ProtectedRoute>
             }
           />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </RecaptchaProvider>
     </MobileBookingProvider>
     </CurrencyProvider>
   </QueryClientProvider>
