@@ -556,6 +556,7 @@ async function handleListProperties(creds: HostfullyCredentials) {
   const baseUrl = HOSTFULLY_URLS[creds.environment];
 
   try {
+    // First get the agency UID
     const agenciesResponse = await hostfullyRequest("/agencies", creds.api_key, baseUrl);
     if (!agenciesResponse.ok) {
       const error = mapHostfullyHttpError(agenciesResponse.status, await agenciesResponse.text());
@@ -563,41 +564,87 @@ async function handleListProperties(creds: HostfullyCredentials) {
     }
 
     const agenciesData = await agenciesResponse.json();
-    const agencyUid = agenciesData?.agencies?.[0]?.uid || agenciesData?.[0]?.uid;
+    const agency = agenciesData?.agencies?.[0] || agenciesData?.[0];
+    const agencyUid = agency?.uid;
 
     if (!agencyUid) {
       return createErrorResponse(ERROR_CODES.NOT_FOUND, "No agency found for this API key", "list_properties");
     }
 
-    const propertiesResponse = await hostfullyRequest(`/properties?agencyUid=${agencyUid}`, creds.api_key, baseUrl);
+    // Use /multi-units/multi-unit-properties endpoint to get multi-unit properties
+    const multiUnitResponse = await hostfullyRequest(`/multi-units/multi-unit-properties?agencyUid=${agencyUid}`, creds.api_key, baseUrl);
 
-    if (!propertiesResponse.ok) {
-      const error = mapHostfullyHttpError(propertiesResponse.status, await propertiesResponse.text());
-      return createErrorResponse(error.code, error.message, "list_properties");
+    if (!multiUnitResponse.ok) {
+      // If multi-unit endpoint fails, fall back to regular properties endpoint
+      console.log("[Hostfully] Multi-unit endpoint failed, falling back to /properties");
+      const propertiesResponse = await hostfullyRequest(`/properties?agencyUid=${agencyUid}`, creds.api_key, baseUrl);
+
+      if (!propertiesResponse.ok) {
+        const error = mapHostfullyHttpError(propertiesResponse.status, await propertiesResponse.text());
+        return createErrorResponse(error.code, error.message, "list_properties");
+      }
+
+      const propertiesData = await propertiesResponse.json();
+      const propertiesArray = propertiesData?.properties || propertiesData || [];
+
+      const propertyList = (Array.isArray(propertiesArray) ? propertiesArray : []).map((p: any) => ({
+        id: p.uid,
+        name: p.name,
+        status: p.status,
+        bedrooms: p.bedrooms || null,
+        bathrooms: p.bathrooms || null,
+        max_guests: p.maxGuests || null,
+        address: p.address1 || null,
+        city: p.city || null,
+        country: p.countryCode || null,
+        currency: p.currency || null,
+        base_price: p.baseDailyRate || null,
+        source_endpoint: 'properties',
+        _raw: p,
+      }));
+
+      return createSuccessResponse({
+        properties: propertyList,
+        agency_uid: agencyUid,
+        agency_name: agency?.name || agency?.companyName || null,
+        count: propertyList.length,
+        endpoint_used: 'properties',
+      }, "list_properties");
     }
 
-    const propertiesData = await propertiesResponse.json();
-    const propertiesArray = propertiesData?.properties || propertiesData || [];
+    // Parse multi-unit properties response
+    const multiUnitData = await multiUnitResponse.json();
+    console.log("[Hostfully] Multi-unit response:", JSON.stringify(multiUnitData).substring(0, 500));
+    
+    // Multi-unit properties are the parent properties that contain child units
+    const multiUnitArray = multiUnitData?.multiUnitProperties || multiUnitData?.properties || multiUnitData || [];
 
-    const propertyList = (Array.isArray(propertiesArray) ? propertiesArray : []).map((p: any) => ({
+    const propertyList = (Array.isArray(multiUnitArray) ? multiUnitArray : []).map((p: any) => ({
       id: p.uid,
       name: p.name,
       status: p.status,
+      property_type: 'multi_unit',
       bedrooms: p.bedrooms || null,
       bathrooms: p.bathrooms || null,
       max_guests: p.maxGuests || null,
-      address: p.address1 || null,
+      address: p.address1 || p.streetAddress || null,
       city: p.city || null,
-      country: p.countryCode || null,
+      country: p.countryCode || p.country || null,
       currency: p.currency || null,
       base_price: p.baseDailyRate || null,
+      child_properties: p.childProperties || p.units || [],
+      child_count: (p.childProperties || p.units || []).length,
+      source_endpoint: 'multi-units',
       _raw: p,
     }));
 
     return createSuccessResponse({
       properties: propertyList,
       agency_uid: agencyUid,
-      count: propertyList.length
+      agency_name: agency?.name || agency?.companyName || null,
+      count: propertyList.length,
+      endpoint_used: 'multi-units/multi-unit-properties',
+      raw_response: multiUnitData,
     }, "list_properties");
   } catch (err) {
     console.error("[Hostfully] List properties failed:", err);
