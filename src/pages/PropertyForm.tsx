@@ -80,6 +80,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Sparkles } from "lucide-react";
 import { ROLSpecTab } from "@/components/property/ROLSpecTab";
 import { ContextualHelp, ImpactWarning } from "@/components/help";
+import { OwnerPMSConnectionCard } from "@/components/pms/OwnerPMSConnectionCard";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -211,7 +212,7 @@ export default function PropertyForm() {
   const navigate = useNavigate();
   const { id } = useParams(); // Can be UUID or slug
   const { toast } = useToast();
-  const { isDev } = useAuth();
+  const { isDev, isAdmin, user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [owners, setOwners] = useState<any[]>([]);
@@ -364,7 +365,51 @@ export default function PropertyForm() {
   const [existingHotelbedsHotelCode, setExistingHotelbedsHotelCode] = useState<string | null>(null);
   const [existingHostfullyPropertyUid, setExistingHostfullyPropertyUid] = useState<string | null>(null);
 
-  // Sync room/rate types from PMS (Benson)
+  // Owner's Hostfully credential (for owners to connect their PMS)
+  const [ownerHostfullyCredential, setOwnerHostfullyCredential] = useState<any>(null);
+  const [loadingOwnerCredential, setLoadingOwnerCredential] = useState(false);
+
+  // Load owner's Hostfully credential if they're an owner (not admin/dev)
+  const isOwnerUser = user && !isAdmin && !isDev;
+  
+  useEffect(() => {
+    const loadOwnerHostfullyCredential = async () => {
+      if (!isOwnerUser || !user?.id) return;
+      
+      setLoadingOwnerCredential(true);
+      try {
+        const { data, error } = await supabase
+          .from("owner_pms_credentials")
+          .select("*")
+          .eq("owner_id", user.id)
+          .eq("system_type", "hostfully")
+          .maybeSingle();
+        
+        if (!error && data) {
+          setOwnerHostfullyCredential(data);
+        }
+      } catch (err) {
+        console.error("Failed to load owner Hostfully credential:", err);
+      } finally {
+        setLoadingOwnerCredential(false);
+      }
+    };
+    
+    loadOwnerHostfullyCredential();
+  }, [isOwnerUser, user?.id]);
+
+  const handleOwnerCredentialChange = async () => {
+    // Reload the credential after changes
+    if (!user?.id) return;
+    const { data } = await supabase
+      .from("owner_pms_credentials")
+      .select("*")
+      .eq("owner_id", user.id)
+      .eq("system_type", "hostfully")
+      .maybeSingle();
+    setOwnerHostfullyCredential(data);
+  };
+
   const syncFromBenson = async () => {
     if (!bensonPropertyCode || !propertyId) {
       toast({
@@ -3188,6 +3233,19 @@ export default function PropertyForm() {
                             placeholder="HotelBeds hotel code"
                             className="h-7 text-xs w-40"
                             required
+                          />
+                        </div>
+                      )}
+
+                      {/* Hostfully connection for owners */}
+                      {selectedPMS === "hostfully" && isOwnerUser && (
+                        <div className="w-full mt-2">
+                          <OwnerPMSConnectionCard
+                            ownerId={user?.id || ""}
+                            ownerName={profile?.full_name || profile?.email || ""}
+                            ownerEmail={profile?.email || user?.email || ""}
+                            existingCredential={ownerHostfullyCredential}
+                            onCredentialChange={handleOwnerCredentialChange}
                           />
                         </div>
                       )}
