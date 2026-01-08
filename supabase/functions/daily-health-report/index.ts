@@ -440,9 +440,18 @@ Deno.serve(async (req) => {
       subject = `✅ ROL System Health Report - All Systems Operational - ${formatDate(now)}`;
     }
 
+    // Fetch sender email from api_keys (same pattern as booking emails)
+    const { data: emailConfig } = await supabase
+      .from("api_keys")
+      .select("key_value")
+      .eq("key_name", "RESEND_FROM_EMAIL")
+      .maybeSingle();
+
+    const fromEmail = emailConfig?.key_value || "RoomsOnline <noreply@notify.roomsonline.co.za>";
+
     // Send email
     const { error: emailError } = await resend.emails.send({
-      from: 'RoomsOnline <noreply@roomsonline.co.za>',
+      from: fromEmail,
       to: ['dev@roomsonline.co.za'],
       subject,
       html: emailHtml,
