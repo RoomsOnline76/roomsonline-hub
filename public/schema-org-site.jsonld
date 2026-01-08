@@ -1,0 +1,139 @@
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://sleepinafrica.roomsonline.co.za/#software",
+      "name": "RoomsOnline",
+      "alternateName": "ROL",
+      "description": "PMS-agnostic booking orchestration platform that unifies multiple Property Management Systems for vacation rentals, safari lodges, and boutique hotels across Africa.",
+      "applicationCategory": "BusinessApplication",
+      "applicationSubCategory": "Hotel Booking System",
+      "operatingSystem": "Web",
+      "browserRequirements": "Requires JavaScript. Modern browser recommended (Chrome, Firefox, Safari, Edge).",
+      "softwareVersion": "2026.01",
+      "offers": {
+        "@type": "Offer",
+        "category": "SoftwareAsAService",
+        "availability": "https://schema.org/InStock"
+      },
+      "featureList": [
+        "Multi-PMS integration",
+        "Real-time availability checking",
+        "Unified booking interface",
+        "Property management dashboard",
+        "Rate and inventory synchronization"
+      ],
+      "screenshot": "https://sleepinafrica.roomsonline.co.za/images/rol-share-image.png",
+      "publisher": {
+        "@id": "https://sleepinafrica.roomsonline.co.za/#organization"
+      }
+    },
+    {
+      "@type": "WebApplication",
+      "@id": "https://book.sleepinafrica.roomsonline.co.za/#booking-app",
+      "name": "Sleep in Africa Booking",
+      "description": "Public booking interface for discovering and reserving extraordinary accommodation across Africa.",
+      "url": "https://book.sleepinafrica.roomsonline.co.za",
+      "applicationCategory": "TravelApplication",
+      "browserRequirements": "Requires JavaScript. Mobile-responsive design.",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "category": "Accommodation Booking"
+      },
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://book.sleepinafrica.roomsonline.co.za/properties?search={search_term}"
+        },
+        "query-input": "required name=search_term"
+      },
+      "publisher": {
+        "@id": "https://sleepinafrica.roomsonline.co.za/#organization"
+      }
+    },
+    {
+      "@type": "WebApplication",
+      "@id": "https://sleepinafrica.roomsonline.co.za/#admin-console",
+      "name": "RoomsOnline Admin Console",
+      "description": "Management interface for property owners and administrators to manage listings, bookings, and PMS integrations.",
+      "url": "https://sleepinafrica.roomsonline.co.za",
+      "applicationCategory": "BusinessApplication",
+      "browserRequirements": "Requires JavaScript. Desktop browser recommended for full functionality.",
+      "operatingSystem": "Web",
+      "publisher": {
+        "@id": "https://sleepinafrica.roomsonline.co.za/#organization"
+      }
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://sleepinafrica.roomsonline.co.za/#organization",
+      "name": "RoomsOnline",
+      "alternateName": "Sleep in Africa",
+      "url": "https://roomsonline.co.za",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://sleepinafrica.roomsonline.co.za/images/rol-logo.png",
+        "width": 512,
+        "height": 512
+      },
+      "description": "Booking orchestration platform connecting travelers with extraordinary accommodation across Africa through unified PMS integration.",
+      "areaServed": {
+        "@type": "Continent",
+        "name": "Africa"
+      },
+      "knowsAbout": [
+        "Hotel Booking",
+        "Safari Lodge Reservations",
+        "Property Management System Integration",
+        "Vacation Rental Management"
+      ],
+      "sameAs": []
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://sleepinafrica.roomsonline.co.za/#website",
+      "name": "Sleep in Africa by RoomsOnline",
+      "url": "https://sleepinafrica.roomsonline.co.za",
+      "description": "Discover and book extraordinary accommodation across Africa",
+      "publisher": {
+        "@id": "https://sleepinafrica.roomsonline.co.za/#organization"
+      },
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://book.sleepinafrica.roomsonline.co.za/properties?search={search_term}"
+        },
+        "query-input": "required name=search_term"
+      },
+      "inLanguage": "en"
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://sleepinafrica.roomsonline.co.za/#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Home",
+          "item": "https://sleepinafrica.roomsonline.co.za/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Properties",
+          "item": "https://book.sleepinafrica.roomsonline.co.za/properties"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Journals",
+          "item": "https://sleepinafrica.roomsonline.co.za/journals"
+        }
+      ]
+    }
+  ]
+}
