@@ -403,14 +403,27 @@ export default function AdminUsers() {
               </div>
               <div className="relative w-64">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                {/* Hidden decoy input to absorb browser autofill */}
+                <input 
+                  type="text" 
+                  name="fake-email" 
+                  autoComplete="username" 
+                  className="hidden" 
+                  tabIndex={-1}
+                  aria-hidden="true"
+                />
                 <Input
                   placeholder="Search users..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9 h-9"
-                  autoComplete="off"
+                  autoComplete="new-password"
                   autoCorrect="off"
-                  name="user-search"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  name="filter-query-x1"
+                  data-form-type="other"
+                  data-lpignore="true"
                 />
               </div>
             </div>

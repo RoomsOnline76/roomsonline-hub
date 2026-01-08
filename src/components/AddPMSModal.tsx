@@ -151,14 +151,32 @@ export function AddPMSModal({
 
               {!ownerWillProvideUid && (
                 <div className="space-y-2">
-                  <Label htmlFor="hostfully-agency-uid">Agency UID</Label>
+                  <Label htmlFor="pms-config-uid">Agency UID</Label>
+                  {/* Hidden decoys to absorb autofill */}
+                  <input 
+                    type="text" 
+                    autoComplete="username" 
+                    className="hidden"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                  />
+                  <input 
+                    type="password" 
+                    autoComplete="current-password" 
+                    className="hidden"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                  />
                   <Input
-                    id="hostfully-agency-uid"
+                    id="pms-config-uid"
                     value={hostfullyAgencyUid}
                     onChange={(e) => setHostfullyAgencyUid(e.target.value)}
                     placeholder="e.g. c429dd30-c9b0-44e5-812f-d65f801f2584"
                     className="font-mono text-sm"
-                    autoComplete="off"
+                    autoComplete="new-password"
+                    data-form-type="other"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                   />
                   <p className="text-xs text-muted-foreground">
                     Find this in Hostfully dashboard under Agency settings
