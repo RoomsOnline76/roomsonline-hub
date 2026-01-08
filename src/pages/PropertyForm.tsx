@@ -82,6 +82,7 @@ import { ROLSpecTab } from "@/components/property/ROLSpecTab";
 import { ContextualHelp, ImpactWarning } from "@/components/help";
 import { OwnerPMSConnectionCard } from "@/components/pms/OwnerPMSConnectionCard";
 import { parseHostfullyProperties } from "@/lib/hostfullyBuildingParser";
+import { HostfullyRoomDetails } from "@/components/pms/HostfullyRoomDetails";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -607,7 +608,11 @@ export default function PropertyForm() {
       const syncedFields = [
         "name", "description", "maxPeople", "maxAdults", "minGuests", "bathrooms", 
         "roomSize", "beds", "images", "amenities", "minStay", "maxStay",
-        "checkInTime", "checkOutTime", "dailyRate", "currency", "cleaningFee"
+        "checkInTime", "checkOutTime", "dailyRate", "currency", "cleaningFee",
+        "securityDeposit", "extraGuestFee", "taxRate", "propertyType",
+        "wifiNetwork", "wifiPassword", "houseRules", "checkInInstructions", "cancellationPolicy",
+        "addressStreet", "addressCity", "addressState", "addressPostalCode", "addressCountry",
+        "latitude", "longitude", "thumbnailUrl"
       ];
       
       // Comprehensive field mapping from Hostfully API
@@ -631,9 +636,11 @@ export default function PropertyForm() {
         maxStay: hf.max_stay || room.maxStay,
         checkInTime: hf.check_in_time || room.checkInTime,
         checkOutTime: hf.check_out_time || room.checkOutTime,
+        propertyType: hf.property_type || room.propertyType,
         
         // Media - use API images if available
         images: (hf.images && hf.images.length > 0) ? hf.images : room.images,
+        thumbnailUrl: hf.thumbnail || room.thumbnailUrl,
         
         // Amenities
         amenities: (hf.amenities && hf.amenities.length > 0) ? hf.amenities : room.amenities,
@@ -642,6 +649,30 @@ export default function PropertyForm() {
         dailyRate: hf.daily_rate || room.dailyRate,
         currency: hf.currency || room.currency || 'ZAR',
         cleaningFee: hf.cleaning_fee || room.cleaningFee,
+        securityDeposit: hf.security_deposit || room.securityDeposit,
+        extraGuestFee: hf.extra_guest_fee || room.extraGuestFee,
+        taxRate: hf.tax_rate || room.taxRate,
+        
+        // WiFi & Connectivity
+        wifiNetwork: hf.wifi_network || room.wifiNetwork,
+        wifiPassword: hf.wifi_password || room.wifiPassword,
+        
+        // Policies
+        houseRules: hf.house_rules || room.houseRules,
+        checkInInstructions: hf.check_in_instructions || room.checkInInstructions,
+        cancellationPolicy: hf.cancellation_policy || room.cancellationPolicy,
+        
+        // Location
+        addressStreet: hf.address?.street || room.addressStreet,
+        addressCity: hf.address?.city || room.addressCity,
+        addressState: hf.address?.state || room.addressState,
+        addressPostalCode: hf.address?.postal_code || room.addressPostalCode,
+        addressCountry: hf.address?.country || room.addressCountry,
+        latitude: hf.location?.latitude || room.latitude,
+        longitude: hf.location?.longitude || room.longitude,
+        
+        // Sync metadata
+        lastSyncedAt: new Date().toISOString(),
         
         // Mark all synced fields as PMS-locked
         pms_synced_fields: syncedFields,
@@ -687,8 +718,8 @@ export default function PropertyForm() {
         address_state: hf.address?.state,
         address_postal_code: hf.address?.postal_code,
         address_country: hf.address?.country,
-        latitude: hf.latitude,
-        longitude: hf.longitude,
+        latitude: hf.location?.latitude,
+        longitude: hf.location?.longitude,
         pms_synced_fields: syncedFields,
         last_synced_at: new Date().toISOString(),
         raw_data: hf._raw || hf,
@@ -2403,18 +2434,44 @@ export default function PropertyForm() {
                 description: hr.description || "",
                 extraPersonPolicy: "",
                 bedConfiguration: hr.beds || [],
-                roomSize: 0,
+                roomSize: hr.room_size || 0,
                 bathrooms: hr.bathrooms || 1,
                 maxPeople: hr.max_guests || 2,
                 maxAdults: hr.max_guests || 2,
+                minGuests: hr.min_guests || 1,
                 maxChildren: 0,
-                minStay: 1,
-                maxStay: 0,
+                minStay: hr.min_stay || 1,
+                maxStay: hr.max_stay || 0,
                 rateType: "per-unit",
                 splitPercent: 0,
                 images: hr.images || [],
                 facilities: [],
                 amenities: hr.amenities || [],
+                // New Hostfully fields
+                checkInTime: hr.check_in_time,
+                checkOutTime: hr.check_out_time,
+                propertyType: hr.property_type,
+                dailyRate: hr.daily_rate,
+                currency: hr.currency || 'ZAR',
+                cleaningFee: hr.cleaning_fee,
+                securityDeposit: hr.security_deposit,
+                extraGuestFee: hr.extra_guest_fee,
+                taxRate: hr.tax_rate,
+                wifiNetwork: hr.wifi_network,
+                wifiPassword: hr.wifi_password,
+                houseRules: hr.house_rules,
+                checkInInstructions: hr.check_in_instructions,
+                cancellationPolicy: hr.cancellation_policy,
+                addressStreet: hr.address_street,
+                addressCity: hr.address_city,
+                addressState: hr.address_state,
+                addressPostalCode: hr.address_postal_code,
+                addressCountry: hr.address_country,
+                latitude: hr.latitude,
+                longitude: hr.longitude,
+                thumbnailUrl: hr.thumbnail_url,
+                lastSyncedAt: hr.last_synced_at,
+                pms_synced_fields: hr.pms_synced_fields || [],
               }));
               setRoomTypes(convertedRooms);
             }
@@ -8338,6 +8395,16 @@ export default function PropertyForm() {
                               </p>
                             </div>
                           </div>
+
+                          {/* Hostfully-specific Room Details */}
+                          {selectedPMS === "hostfully" && (
+                            <HostfullyRoomDetails
+                              room={roomTypes.find((r) => r.id === selectedRoomType)}
+                              onFieldChange={(field, value) => updateRoomTypeField(selectedRoomType, field, value)}
+                              isFieldPmsSynced={(field) => isRoomFieldPmsSynced(selectedRoomType, field)}
+                              getPmsFieldClass={(field) => getRoomPmsFieldClass(selectedRoomType, field)}
+                            />
+                          )}
                         </>
                       )}
                     </TabsContent>
@@ -8579,13 +8646,47 @@ export default function PropertyForm() {
 
                     {/* Amenities Sub-tab */}
                     <TabsContent value="amenities" className="p-6 space-y-4">
-                      <div className="bg-amber-50 border border-amber-200 rounded-md p-2 mb-4">
-                        <p className="text-sm text-amber-700">
-                          <strong>Manual Entry:</strong> Amenities are not available from the PMS API. Select the
-                          amenities available in this room type.
-                        </p>
-                      </div>
-
+                      {(() => {
+                        const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
+                        const pmsSyncedAmenities = isRoomFieldPmsSynced(selectedRoomType, "amenities") 
+                          ? ensureArray(currentRoom?.amenities) 
+                          : [];
+                        
+                        return (
+                          <>
+                            {pmsSyncedAmenities.length > 0 ? (
+                              <div className="bg-primary/5 border border-primary/20 rounded-md p-3 mb-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Cloud className="h-4 w-4 text-primary" />
+                                  <span className="text-sm font-medium text-primary">
+                                    {pmsSyncedAmenities.length} amenities synced from Hostfully
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {pmsSyncedAmenities.slice(0, 10).map((amenity: string) => (
+                                    <Badge key={amenity} variant="secondary" className="text-xs">
+                                      <Cloud className="h-2.5 w-2.5 mr-1" />
+                                      {amenity}
+                                    </Badge>
+                                  ))}
+                                  {pmsSyncedAmenities.length > 10 && (
+                                    <Badge variant="outline" className="text-xs">
+                                      +{pmsSyncedAmenities.length - 10} more
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="bg-amber-50 border border-amber-200 rounded-md p-2 mb-4">
+                                <p className="text-sm text-amber-700">
+                                  <strong>Manual Entry:</strong> Amenities are not available from the PMS API. Select the
+                                  amenities available in this room type.
+                                </p>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                       <div className="grid grid-cols-4 gap-6">
                         {/* Bathroom */}
                         <div className="space-y-3">
@@ -8729,7 +8830,37 @@ export default function PropertyForm() {
 
                     {/* Room Images Sub-tab */}
                     <TabsContent value="room-images" className="p-6 space-y-4">
-                      <h3 className="font-semibold text-lg mb-4">ROOM TYPE IMAGES</h3>
+                      {(() => {
+                        const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
+                        const pmsSyncedImages = isRoomFieldPmsSynced(selectedRoomType, "images");
+                        const imageCount = ensureArray(currentRoom?.images).length;
+                        
+                        return (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <h3 className="font-semibold text-lg">ROOM TYPE IMAGES</h3>
+                              {pmsSyncedImages && imageCount > 0 && (
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="secondary" className="text-xs">
+                                    <Cloud className="h-2.5 w-2.5 mr-1" />
+                                    {imageCount} synced from PMS
+                                  </Badge>
+                                  {currentRoom?.thumbnailUrl && (
+                                    <Badge variant="outline" className="text-xs">
+                                      Thumbnail set
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {currentRoom?.lastSyncedAt && pmsSyncedImages && (
+                              <p className="text-xs text-muted-foreground">
+                                Last synced: {new Date(currentRoom.lastSyncedAt).toLocaleString()}
+                              </p>
+                            )}
+                          </>
+                        );
+                      })()}
                       <div className="grid grid-cols-6 gap-4">
                         {/* Upload slot */}
                         <div
