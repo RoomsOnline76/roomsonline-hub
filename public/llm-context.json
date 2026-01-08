@@ -1,0 +1,152 @@
+{
+  "system_identity": {
+    "name": "RoomsOnline (ROL)",
+    "type": "multi-pms_booking_orchestration_platform",
+    "scope": "PMS-agnostic booking engine that unifies multiple Property Management Systems under one interface",
+    "primary_function": "Orchestrate bookings across diverse PMS backends while providing consistent UI/UX",
+    "domains": {
+      "admin_console": "sleepinafrica.roomsonline.co.za",
+      "public_booking": "book.sleepinafrica.roomsonline.co.za"
+    },
+    "is_not": [
+      "a Property Management System (PMS)",
+      "a channel manager",
+      "a payment processor",
+      "a review platform",
+      "the source of truth for availability or rates"
+    ]
+  },
+  "architectural_invariants": {
+    "NO_BOOKING_FROM_CACHE": {
+      "rule": "Booking decisions MUST always verify with live PMS",
+      "reason": "Cache is for display performance only, never for transactional decisions",
+      "enforcement": "All booking flows call PMS adapter before confirmation"
+    },
+    "PMS_AUTHORITY": {
+      "rule": "External PMS is always authoritative for availability, rates, and booking confirmations",
+      "reason": "ROL orchestrates, PMS decides inventory state",
+      "enforcement": "No direct database updates to availability/rates without PMS sync"
+    },
+    "ADAPTER_PATTERN": {
+      "rule": "Each PMS has isolated edge function adapter",
+      "reason": "New PMS integration requires zero core UI changes",
+      "enforcement": "Adapters implement standard contract interface"
+    },
+    "SNAKE_CASE": {
+      "rule": "All database fields, API responses, and code variables use snake_case",
+      "reason": "Consistency across PostgreSQL, TypeScript, and API boundaries",
+      "enforcement": "Zod schemas validate naming conventions"
+    },
+    "RLS_MANDATORY": {
+      "rule": "Row Level Security on all tables",
+      "reason": "Data access control at database level",
+      "enforcement": "Migrations must include RLS policies"
+    }
+  },
+  "data_authority_model": {
+    "pms_controls": [
+      "availability",
+      "rates",
+      "booking_confirmation",
+      "inventory_counts",
+      "room_type_definitions",
+      "rate_type_definitions",
+      "reservation_status"
+    ],
+    "rol_controls": [
+      "property_display_data",
+      "editorial_content",
+      "user_interface",
+      "booking_collection_form",
+      "cache_management",
+      "user_accounts",
+      "navigation_tags",
+      "property_images"
+    ],
+    "cache_purpose": "Performance optimization for display. Never authoritative for transactions."
+  },
+  "critical_rules": [
+    "NEVER bypass live PMS verification for bookings",
+    "NEVER modify adapter contracts without backward compatibility",
+    "NEVER expose PMS credentials or API keys in client code",
+    "NEVER allow booking from stale cache data",
+    "ALWAYS validate with Zod schemas",
+    "ALWAYS use service_role for administrative database operations",
+    "ALWAYS log sync operations to sync_logs table"
+  ],
+  "ui_zones": {
+    "public_booking": {
+      "url_pattern": "book.sleepinafrica.roomsonline.co.za/*",
+      "purpose": "Guest booking interface, property showcase",
+      "protection": "none (public)",
+      "key_components": ["PropertyShowcase", "BookingWidget", "RoomShowcase", "PropertyListing"]
+    },
+    "owner_portal": {
+      "url_pattern": "sleepinafrica.roomsonline.co.za/dashboard/*",
+      "purpose": "Property management, booking overview, reports",
+      "protection": "authenticated + owner role",
+      "key_components": ["Dashboard", "Bookings", "Calendar"]
+    },
+    "admin_console": {
+      "url_pattern": "sleepinafrica.roomsonline.co.za/admin/*",
+      "purpose": "System administration, user management, PMS configuration",
+      "protection": "authenticated + admin role",
+      "key_components": ["AdminUsers", "AdminKeys", "PMSConfig", "AdminAudit"]
+    },
+    "dev_tools": {
+      "url_pattern": "sleepinafrica.roomsonline.co.za/admin/integrations/*",
+      "purpose": "System monitoring, health checks, debugging",
+      "protection": "authenticated + dev role",
+      "key_components": ["AdminSystemHealth", "BensonConfig"]
+    }
+  },
+  "pms_integrations": {
+    "supported": [
+      {
+        "name": "Benson",
+        "type": "full_integration",
+        "capabilities": ["availability", "rates", "bookings", "room_types"]
+      },
+      {
+        "name": "NightsBridge",
+        "type": "full_integration",
+        "capabilities": ["availability", "rates", "bookings", "reservations_sync"]
+      },
+      {
+        "name": "Checkfront",
+        "type": "partial_integration",
+        "capabilities": ["availability", "bookings"]
+      },
+      {
+        "name": "Cloudbeds",
+        "type": "planned",
+        "capabilities": []
+      },
+      {
+        "name": "Little Hotelier",
+        "type": "planned",
+        "capabilities": []
+      }
+    ],
+    "adapter_location": "supabase/functions/*-api/"
+  },
+  "glossary": {
+    "pms": "Property Management System - external software that manages property inventory, rates, and reservations",
+    "adapter": "Isolated edge function handling PMS-specific API communication, implementing standard contract",
+    "cache": "Read-only copy of PMS data stored in ROL database for display performance",
+    "native_pms": "ROL's built-in PMS functionality for properties without external PMS integration",
+    "sync_logs": "Audit trail table recording all data synchronization between ROL and external PMS",
+    "rls": "Row Level Security - PostgreSQL feature for fine-grained data access control",
+    "edge_function": "Serverless function running on Supabase infrastructure for backend logic",
+    "booking_widget": "Embeddable component for date/guest selection and availability checking"
+  },
+  "file_references": {
+    "system_manifest": "docs/system-export/rol-system-manifest.json",
+    "booking_flow": "docs/system-export/booking-flow-state-machine.json",
+    "data_authority": "docs/system-export/data-authority-model.json",
+    "pms_registry": "docs/system-export/pms-adapter-registry.json",
+    "llm_actions": "public/llm-actions.md"
+  },
+  "version": "2026.01.08",
+  "generated_for": "ai_llm_context"
+}

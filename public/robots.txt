@@ -1,14 +1,100 @@
+# RoomsOnline Crawler Directives
+# Last updated: 2026-01-08
+
+# Default rules for all crawlers
+User-agent: *
+Allow: /
+Allow: /property/
+Allow: /properties
+Allow: /journals/
+Allow: /journals
+Allow: /about
+Allow: /contact
+Allow: /privacy-policy
+Allow: /terms-of-service
+Allow: /*.js
+Allow: /*.css
+Allow: /*.json
+
+# Block admin and protected areas
+Disallow: /admin/
+Disallow: /admin-*
+Disallow: /dashboard
+Disallow: /calendar/
+Disallow: /bookings
+Disallow: /booking/
+Disallow: /insights
+Disallow: /test-*
+Disallow: /staging
+Disallow: /nb
+Disallow: /pms-config
+Disallow: /benson-config
+Disallow: /auth
+Disallow: /*/edit
+Disallow: /*/settings
+
+# Google Bot - allow public content
 User-agent: Googlebot
 Allow: /
+Allow: /property/
+Allow: /properties
+Allow: /journals/
+Allow: /about
+Allow: /contact
+Disallow: /admin/
+Disallow: /admin-*
+Disallow: /dashboard
+Disallow: /calendar/
+Disallow: /bookings
+Disallow: /auth
 
+# Bing Bot
 User-agent: Bingbot
 Allow: /
+Allow: /property/
+Allow: /properties
+Allow: /journals/
+Disallow: /admin/
+Disallow: /admin-*
+Disallow: /dashboard
+Disallow: /auth
 
+# OpenAI GPT Bot - allow for AI understanding
+User-agent: GPTBot
+Allow: /
+Allow: /llm-context.json
+Allow: /llm-actions.md
+Allow: /schema-org-site.jsonld
+Disallow: /admin/
+Disallow: /admin-*
+Disallow: /dashboard
+Disallow: /auth
+
+# ChatGPT User Agent
+User-agent: ChatGPT-User
+Allow: /
+Allow: /llm-context.json
+Allow: /llm-actions.md
+Disallow: /admin/
+Disallow: /dashboard
+Disallow: /auth
+
+# Anthropic Claude Bot
+User-agent: anthropic-ai
+Allow: /
+Allow: /llm-context.json
+Allow: /llm-actions.md
+Disallow: /admin/
+Disallow: /dashboard
+Disallow: /auth
+
+# Social media crawlers
 User-agent: Twitterbot
 Allow: /
 
 User-agent: facebookexternalhit
 Allow: /
 
-User-agent: *
-Allow: /
+# Sitemaps
+Sitemap: https://sleepinafrica.roomsonline.co.za/sitemap.xml
+Sitemap: https://book.sleepinafrica.roomsonline.co.za/sitemap.xml

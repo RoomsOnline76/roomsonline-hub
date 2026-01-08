@@ -1,0 +1,160 @@
+{
+  "_comment": "Template for individual property structured data. Replace {{placeholders}} with actual values when rendering.",
+  "_usage": "Inject this schema into PropertyShowcase page <head> with actual property data",
+  
+  "@context": "https://schema.org",
+  "@type": "LodgingBusiness",
+  "@id": "{{property_url}}",
+  "name": "{{property_name}}",
+  "description": "{{property_description}}",
+  "url": "{{property_url}}",
+  "image": [
+    "{{property_image_1}}",
+    "{{property_image_2}}",
+    "{{property_image_3}}"
+  ],
+  "logo": "https://sleepinafrica.roomsonline.co.za/images/rol-logo.png",
+  
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "{{street_address}}",
+    "addressLocality": "{{city}}",
+    "addressRegion": "{{region}}",
+    "postalCode": "{{postal_code}}",
+    "addressCountry": "{{country}}"
+  },
+  
+  "geo": {
+    "@type": "GeoCoordinates",
+    "latitude": "{{latitude}}",
+    "longitude": "{{longitude}}"
+  },
+  
+  "telephone": "{{phone_number}}",
+  "email": "{{contact_email}}",
+  
+  "priceRange": "{{price_range}}",
+  "currenciesAccepted": "ZAR, USD, EUR, GBP",
+  
+  "amenityFeature": [
+    {
+      "@type": "LocationFeatureSpecification",
+      "name": "{{amenity_1}}",
+      "value": true
+    },
+    {
+      "@type": "LocationFeatureSpecification",
+      "name": "{{amenity_2}}",
+      "value": true
+    },
+    {
+      "@type": "LocationFeatureSpecification",
+      "name": "{{amenity_3}}",
+      "value": true
+    }
+  ],
+  
+  "containsPlace": [
+    {
+      "@type": "HotelRoom",
+      "name": "{{room_type_name}}",
+      "description": "{{room_type_description}}",
+      "occupancy": {
+        "@type": "QuantitativeValue",
+        "maxValue": "{{max_guests}}",
+        "minValue": "{{min_guests}}",
+        "unitText": "guests"
+      },
+      "bed": {
+        "@type": "BedDetails",
+        "typeOfBed": "{{bed_type}}",
+        "numberOfBeds": "{{number_of_beds}}"
+      },
+      "amenityFeature": [
+        {
+          "@type": "LocationFeatureSpecification",
+          "name": "{{room_amenity_1}}"
+        },
+        {
+          "@type": "LocationFeatureSpecification",
+          "name": "{{room_amenity_2}}"
+        }
+      ]
+    }
+  ],
+  
+  "makesOffer": {
+    "@type": "Offer",
+    "name": "Nightly Accommodation",
+    "priceSpecification": {
+      "@type": "UnitPriceSpecification",
+      "priceCurrency": "ZAR",
+      "price": "{{nightly_rate}}",
+      "unitCode": "DAY",
+      "unitText": "per night"
+    },
+    "availability": "https://schema.org/InStock",
+    "validFrom": "{{available_from}}",
+    "validThrough": "{{available_to}}",
+    "seller": {
+      "@type": "Organization",
+      "name": "RoomsOnline",
+      "url": "https://sleepinafrica.roomsonline.co.za"
+    }
+  },
+  
+  "starRating": {
+    "@type": "Rating",
+    "ratingValue": "{{star_rating}}",
+    "bestRating": "5"
+  },
+  
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "{{aggregate_rating}}",
+    "bestRating": "5",
+    "worstRating": "1",
+    "ratingCount": "{{review_count}}",
+    "reviewCount": "{{review_count}}"
+  },
+  
+  "checkinTime": "{{check_in_time}}",
+  "checkoutTime": "{{check_out_time}}",
+  
+  "petsAllowed": "{{pets_allowed}}",
+  "smokingAllowed": false,
+  
+  "numberOfRooms": "{{total_rooms}}",
+  
+  "potentialAction": {
+    "@type": "ReserveAction",
+    "target": {
+      "@type": "EntryPoint",
+      "urlTemplate": "{{booking_url}}",
+      "actionPlatform": [
+        "https://schema.org/DesktopWebPlatform",
+        "https://schema.org/MobileWebPlatform"
+      ]
+    },
+    "result": {
+      "@type": "LodgingReservation",
+      "reservationFor": {
+        "@type": "LodgingBusiness",
+        "name": "{{property_name}}"
+      }
+    }
+  },
+  
+  "isAccessibleForFree": false,
+  
+  "additionalType": [
+    "{{property_type_schema}}"
+  ],
+  
+  "sameAs": [
+    "{{tripadvisor_url}}",
+    "{{booking_com_url}}",
+    "{{facebook_url}}",
+    "{{instagram_url}}"
+  ]
+}

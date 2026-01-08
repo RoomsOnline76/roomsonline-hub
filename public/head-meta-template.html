@@ -1,0 +1,134 @@
+<!--
+  RoomsOnline Head Meta Template
+  
+  Usage: Copy and customize these meta tags for each page type.
+  Replace {{placeholders}} with actual page values.
+  
+  Page Types:
+  - Homepage: og:type = website
+  - Property: og:type = place (or hotel for specific lodging)
+  - Journal: og:type = article
+  - Listing: og:type = website
+-->
+
+<!-- ============================================ -->
+<!-- PRIMARY META TAGS -->
+<!-- ============================================ -->
+<title>{{page_title}} | Sleep in Africa by RoomsOnline</title>
+<meta name="description" content="{{page_description}}">
+<meta name="keywords" content="{{keywords}}, South Africa accommodation, safari lodges, boutique hotels, vacation rentals, African travel">
+<meta name="author" content="RoomsOnline">
+
+<!-- ============================================ -->
+<!-- ROBOTS & INDEXING -->
+<!-- ============================================ -->
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+<meta name="googlebot" content="index, follow">
+<link rel="canonical" href="{{canonical_url}}">
+
+<!-- ============================================ -->
+<!-- OPEN GRAPH (Facebook, LinkedIn, etc.) -->
+<!-- ============================================ -->
+<meta property="og:type" content="{{og_type}}">
+<meta property="og:url" content="{{page_url}}">
+<meta property="og:title" content="{{page_title}}">
+<meta property="og:description" content="{{page_description}}">
+<meta property="og:image" content="{{og_image_url}}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="{{og_image_alt}}">
+<meta property="og:site_name" content="Sleep in Africa by RoomsOnline">
+<meta property="og:locale" content="en_ZA">
+
+<!-- For property pages, add location data -->
+<!--
+<meta property="place:location:latitude" content="{{latitude}}">
+<meta property="place:location:longitude" content="{{longitude}}">
+-->
+
+<!-- For article/journal pages -->
+<!--
+<meta property="article:published_time" content="{{publish_date}}">
+<meta property="article:modified_time" content="{{modified_date}}">
+<meta property="article:author" content="{{author_name}}">
+<meta property="article:section" content="{{category}}">
+<meta property="article:tag" content="{{tag1}}">
+<meta property="article:tag" content="{{tag2}}">
+-->
+
+<!-- ============================================ -->
+<!-- TWITTER CARD -->
+<!-- ============================================ -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@roomsonline">
+<meta name="twitter:creator" content="@roomsonline">
+<meta name="twitter:title" content="{{page_title}}">
+<meta name="twitter:description" content="{{page_description}}">
+<meta name="twitter:image" content="{{og_image_url}}">
+<meta name="twitter:image:alt" content="{{og_image_alt}}">
+
+<!-- ============================================ -->
+<!-- TECHNICAL META -->
+<!-- ============================================ -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+<!-- ============================================ -->
+<!-- THEME & PWA -->
+<!-- ============================================ -->
+<meta name="theme-color" content="#1a365d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Sleep in Africa">
+<meta name="application-name" content="Sleep in Africa">
+<meta name="msapplication-TileColor" content="#1a365d">
+
+<!-- ============================================ -->
+<!-- GEO TAGS (for location-based pages) -->
+<!-- ============================================ -->
+<!--
+<meta name="geo.region" content="ZA">
+<meta name="geo.placename" content="{{city}}, {{country}}">
+<meta name="geo.position" content="{{latitude}};{{longitude}}">
+<meta name="ICBM" content="{{latitude}}, {{longitude}}">
+-->
+
+<!-- ============================================ -->
+<!-- ALTERNATE LANGUAGES (if applicable) -->
+<!-- ============================================ -->
+<!--
+<link rel="alternate" hreflang="en" href="{{english_url}}">
+<link rel="alternate" hreflang="x-default" href="{{default_url}}">
+-->
+
+<!-- ============================================ -->
+<!-- FAVICON & ICONS -->
+<!-- ============================================ -->
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/jpeg" href="/favicon.jpg">
+<link rel="apple-touch-icon" sizes="180x180" href="/images/rol-logo.png">
+
+<!-- ============================================ -->
+<!-- PRECONNECT & PERFORMANCE -->
+<!-- ============================================ -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="dns-prefetch" href="https://qmprswbgkpzcvexmmcbf.supabase.co">
+
+<!-- ============================================ -->
+<!-- STRUCTURED DATA (JSON-LD) -->
+<!-- ============================================ -->
+<script type="application/ld+json">
+  // For site-wide pages, use contents of schema-org-site.jsonld
+  // For property pages, use schema-org-property-template.jsonld with data
+  {{json_ld_data}}
+</script>
+
+<!-- ============================================ -->
+<!-- VERIFICATION TAGS (add as needed) -->
+<!-- ============================================ -->
+<!--
+<meta name="google-site-verification" content="{{google_verification_code}}">
+<meta name="msvalidate.01" content="{{bing_verification_code}}">
+-->

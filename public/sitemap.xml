@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  RoomsOnline Sitemap
+  Last updated: 2026-01-08
+  
+  NOTE: For production, this sitemap should be dynamically generated
+  from the database using an edge function that queries:
+  - properties table (where is_active = true AND permanently_deleted_at IS NULL)
+  - journals table (where status = 'published')
+  
+  Dynamic generation endpoint: /api/sitemap.xml (to be implemented)
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  
+  <!-- ============================================ -->
+  <!-- STATIC PAGES - Admin Console Domain -->
+  <!-- ============================================ -->
+  
+  <!-- Homepage -->
+  <url>
+    <loc>https://sleepinafrica.roomsonline.co.za/</loc>
+    <lastmod>2026-01-08</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  
+  <!-- About Us -->
+  <url>
+    <loc>https://sleepinafrica.roomsonline.co.za/about</loc>
+    <lastmod>2026-01-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <!-- Contact -->
+  <url>
+    <loc>https://sleepinafrica.roomsonline.co.za/contact</loc>
+    <lastmod>2026-01-08</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <!-- Journals Index -->
+  <url>
+    <loc>https://sleepinafrica.roomsonline.co.za/journals</loc>
+    <lastmod>2026-01-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <!-- Privacy Policy -->
+  <url>
+    <loc>https://sleepinafrica.roomsonline.co.za/privacy-policy</loc>
+    <lastmod>2026-01-08</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  
+  <!-- Terms of Service -->
+  <url>
+    <loc>https://sleepinafrica.roomsonline.co.za/terms-of-service</loc>
+    <lastmod>2026-01-08</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  
+  <!-- ============================================ -->
+  <!-- PUBLIC BOOKING PAGES - Booking Domain -->
+  <!-- ============================================ -->
+  
+  <!-- Properties Listing -->
+  <url>
+    <loc>https://book.sleepinafrica.roomsonline.co.za/properties</loc>
+    <lastmod>2026-01-08</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <!-- ============================================ -->
+  <!-- PROPERTY PAGES (Dynamic - Examples) -->
+  <!-- In production, generate from properties table -->
+  <!-- Query: SELECT slug, updated_at FROM properties 
+       WHERE is_active = true AND permanently_deleted_at IS NULL -->
+  <!-- ============================================ -->
+  
+  <!--
+  Example property entries (replace with dynamic generation):
+  
+  <url>
+    <loc>https://book.sleepinafrica.roomsonline.co.za/property/{slug}</loc>
+    <lastmod>{updated_at}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>{first_image_url}</image:loc>
+      <image:title>{property_name}</image:title>
+    </image:image>
+  </url>
+  -->
+  
+  <!-- ============================================ -->
+  <!-- JOURNAL PAGES (Dynamic - Examples) -->
+  <!-- In production, generate from journals table -->
+  <!-- Query: SELECT slug, updated_at FROM journals 
+       WHERE status = 'published' -->
+  <!-- ============================================ -->
+  
+  <!--
+  Example journal entries (replace with dynamic generation):
+  
+  <url>
+    <loc>https://sleepinafrica.roomsonline.co.za/journals/{slug}</loc>
+    <lastmod>{updated_at}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  -->
+
+</urlset>
