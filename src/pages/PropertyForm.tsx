@@ -922,16 +922,74 @@ export default function PropertyForm() {
         }
       }
 
-      // Refresh room count
-      const { count } = await supabase
+      // Refetch ALL room data from hostfully_room_types to update UI
+      const { data: refreshedRooms, error: refreshError } = await supabase
         .from("hostfully_room_types")
-        .select("*", { count: "exact", head: true })
-        .eq("property_id", propertyId);
-      setHostfullyRoomCount(count || 0);
+        .select("*")
+        .eq("property_id", propertyId)
+        .eq("is_active", true);
+
+      if (!refreshError && refreshedRooms && refreshedRooms.length > 0) {
+        // Convert DB format to UI state format
+        const convertedRooms = refreshedRooms.map(hr => ({
+          id: hr.id,
+          name: hr.name || "Unnamed Room",
+          url: "",
+          selected: false,
+          numRooms: 1,
+          pmsRoomType: hr.name,
+          pmsRoomId: hr.hostfully_room_id,
+          hostfullyId: hr.hostfully_room_id,
+          description: hr.description || "",
+          extraPersonPolicy: "",
+          bedConfiguration: hr.beds || [],
+          roomSize: hr.room_size || 0,
+          bathrooms: hr.bathrooms || 1,
+          maxPeople: hr.max_guests || 2,
+          maxAdults: hr.max_guests || 2,
+          minGuests: hr.min_guests || 1,
+          maxChildren: 0,
+          minStay: hr.min_stay || 1,
+          maxStay: hr.max_stay || 0,
+          rateType: "per-unit",
+          splitPercent: 0,
+          images: hr.images || [],
+          facilities: [],
+          amenities: hr.amenities || [],
+          checkInTime: hr.check_in_time,
+          checkOutTime: hr.check_out_time,
+          propertyType: hr.property_type,
+          dailyRate: hr.daily_rate,
+          currency: hr.currency || 'ZAR',
+          cleaningFee: hr.cleaning_fee,
+          securityDeposit: hr.security_deposit,
+          extraGuestFee: hr.extra_guest_fee,
+          taxRate: hr.tax_rate,
+          wifiNetwork: hr.wifi_network,
+          wifiPassword: hr.wifi_password,
+          houseRules: hr.house_rules,
+          checkInInstructions: hr.check_in_instructions,
+          cancellationPolicy: hr.cancellation_policy,
+          addressStreet: hr.address_street,
+          addressCity: hr.address_city,
+          addressState: hr.address_state,
+          addressPostalCode: hr.address_postal_code,
+          addressCountry: hr.address_country,
+          latitude: hr.latitude,
+          longitude: hr.longitude,
+          thumbnailUrl: hr.thumbnail_url,
+          lastSyncedAt: hr.last_synced_at,
+          pms_synced_fields: hr.pms_synced_fields || [],
+        }));
+        
+        setRoomTypes(convertedRooms);
+        setHostfullyRoomCount(convertedRooms.length);
+        console.log("[DEBUG] UI State Updated with", convertedRooms.length, "rooms");
+      }
 
       toast({
         title: "Full Sync Complete",
-        description: `Synced ${syncedCount}/${roomsToSync.length} rooms`,
+        description: `Synced ${syncedCount}/${roomsToSync.length} rooms - UI refreshed`,
       });
     } catch (err: any) {
       console.error("Full Hostfully sync error:", err);
