@@ -34,15 +34,14 @@ serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    // Check if requesting user is admin
+    // Check if requesting user is admin or dev
     const { data: roleData } = await supabaseAdmin
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
-      .eq('role', 'admin')
-      .maybeSingle();
+      .in('role', ['admin', 'dev']);
 
-    if (!roleData) {
+    if (!roleData || roleData.length === 0) {
       throw new Error('Only admins can create users');
     }
 
