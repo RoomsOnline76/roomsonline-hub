@@ -374,6 +374,8 @@ export default function PropertyForm() {
   const [showHostfullyWarning, setShowHostfullyWarning] = useState(false);
   const [previousPMS, setPreviousPMS] = useState<string>("");
   const [syncingRoomId, setSyncingRoomId] = useState<string | null>(null);
+  const [fullSyncingHostfully, setFullSyncingHostfully] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{ phase: string; current: number; total: number } | null>(null);
 
   // Owner's Hostfully credential (for owners to connect their PMS)
   const [ownerHostfullyCredential, setOwnerHostfullyCredential] = useState<any>(null);
@@ -740,6 +742,171 @@ export default function PropertyForm() {
       toast({ title: "Sync Failed", description: err.message, variant: "destructive" });
     } finally {
       setSyncingRoomId(null);
+    }
+  };
+
+  // Full Hostfully sync: Import rooms + populate all field data (limited to 1 room for testing)
+  const handleFullHostfullySync = async () => {
+    if (!propertyId || !ownerPmsCredentialId) {
+      toast({
+        title: "Cannot Sync",
+        description: "Property must be linked to owner's Hostfully account",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setFullSyncingHostfully(true);
+    setSyncProgress({ phase: "Importing rooms...", current: 0, total: 0 });
+
+    try {
+      // PHASE 1: Import rooms (reuse existing logic)
+      const { data, error } = await supabase.functions.invoke("hostfully-api", {
+        body: {
+          action: "list_all_properties",
+          owner_credential_id: ownerPmsCredentialId,
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.data?.properties) throw new Error("No properties returned from Hostfully");
+
+      const buildings = parseHostfullyProperties(data.data.properties);
+      const matchingBuilding = buildings.find(
+        (b) => b.building_name.toUpperCase() === formData.name.toUpperCase()
+      );
+
+      if (!matchingBuilding) {
+        toast({
+          title: "No Matching Building",
+          description: `Could not find "${formData.name}" in Hostfully`,
+          variant: "destructive",
+        });
+        setFullSyncingHostfully(false);
+        setSyncProgress(null);
+        return;
+      }
+
+      // Upsert all rooms and collect their DB IDs
+      const importedRoomIds: { dbId: string; hostfullyId: string }[] = [];
+      for (const unit of matchingBuilding.units) {
+        const roomName = `${unit.room_number} ${unit.room_type}`.trim() || unit.name;
+        const { data: upsertedRoom, error: upsertError } = await supabase
+          .from("hostfully_room_types")
+          .upsert(
+            {
+              property_id: propertyId,
+              hostfully_room_id: unit.id,
+              name: roomName,
+              is_active: true,
+            },
+            { onConflict: "property_id,hostfully_room_id" }
+          )
+          .select("id")
+          .single();
+
+        if (!upsertError && upsertedRoom) {
+          importedRoomIds.push({ dbId: upsertedRoom.id, hostfullyId: unit.id });
+        }
+      }
+
+      // TESTING LIMIT: Only sync first 1 room
+      const roomsToSync = importedRoomIds.slice(0, 1);
+      setSyncProgress({ phase: "Rooms imported. Populating data...", current: 0, total: roomsToSync.length });
+
+      // PHASE 2: Populate each room's data sequentially
+      let syncedCount = 0;
+      for (const room of roomsToSync) {
+        setSyncProgress({
+          phase: `Syncing room ${syncedCount + 1}/${roomsToSync.length}...`,
+          current: syncedCount + 1,
+          total: roomsToSync.length,
+        });
+
+        // Call Hostfully API with get_listing_details
+        const { data: roomData, error: roomError } = await supabase.functions.invoke("hostfully-api", {
+          body: {
+            action: "get_listing_details",
+            owner_credential_id: ownerPmsCredentialId,
+            propertyUid: room.hostfullyId,
+          },
+        });
+
+        if (!roomError && roomData?.success) {
+          const hf = roomData.data;
+          const syncedFields = [
+            "name", "description", "maxPeople", "maxAdults", "minGuests", "bathrooms",
+            "roomSize", "beds", "images", "amenities", "minStay", "maxStay",
+            "checkInTime", "checkOutTime", "dailyRate", "currency", "cleaningFee",
+            "securityDeposit", "extraGuestFee", "taxRate", "propertyType",
+            "wifiNetwork", "wifiPassword", "houseRules", "checkInInstructions", "cancellationPolicy",
+            "addressStreet", "addressCity", "addressState", "addressPostalCode", "addressCountry",
+            "latitude", "longitude", "thumbnailUrl",
+          ];
+
+          const dbUpdate = {
+            name: hf.name,
+            description: hf.description,
+            max_guests: hf.max_guests,
+            min_guests: hf.min_guests,
+            bedrooms: hf.bedrooms,
+            bathrooms: hf.bathrooms,
+            beds: hf.beds,
+            room_size: hf.room_size,
+            room_size_unit: hf.room_size_unit || "SQUARE_METERS",
+            daily_rate: hf.daily_rate,
+            currency: hf.currency || "ZAR",
+            cleaning_fee: hf.cleaning_fee,
+            security_deposit: hf.security_deposit,
+            extra_guest_fee: hf.extra_guest_fee,
+            tax_rate: hf.tax_rate,
+            min_stay: hf.min_stay,
+            max_stay: hf.max_stay,
+            check_in_time: hf.check_in_time,
+            check_out_time: hf.check_out_time,
+            property_type: hf.property_type,
+            images: hf.images || [],
+            amenities: hf.amenities || [],
+            thumbnail_url: hf.thumbnail,
+            wifi_network: hf.wifi_network,
+            wifi_password: hf.wifi_password,
+            check_in_instructions: hf.check_in_instructions,
+            house_rules: hf.house_rules,
+            cancellation_policy: hf.cancellation_policy,
+            address_street: hf.address?.street,
+            address_city: hf.address?.city,
+            address_state: hf.address?.state,
+            address_postal_code: hf.address?.postal_code,
+            address_country: hf.address?.country,
+            latitude: hf.location?.latitude,
+            longitude: hf.location?.longitude,
+            pms_synced_fields: syncedFields,
+            last_synced_at: new Date().toISOString(),
+            raw_data: hf._raw || hf,
+          };
+
+          await supabase.from("hostfully_room_types").update(dbUpdate).eq("id", room.dbId);
+        }
+        syncedCount++;
+      }
+
+      // Refresh room count
+      const { count } = await supabase
+        .from("hostfully_room_types")
+        .select("*", { count: "exact", head: true })
+        .eq("property_id", propertyId);
+      setHostfullyRoomCount(count || 0);
+
+      toast({
+        title: "Full Sync Complete",
+        description: `Imported ${importedRoomIds.length} rooms, synced data for ${syncedCount} (limit: 1 for testing)`,
+      });
+    } catch (err: any) {
+      console.error("Full Hostfully sync error:", err);
+      toast({ title: "Sync Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setFullSyncingHostfully(false);
+      setSyncProgress(null);
     }
   };
 
@@ -3632,22 +3799,35 @@ export default function PropertyForm() {
                         </div>
                       )}
 
-                      {/* Hostfully Import Rooms button for admin/dev when property has owner credential */}
+                      {/* Hostfully Full Sync button for admin/dev when property has owner credential */}
                       {selectedPMS === "hostfully" && !authLoading && propertyId && ownerPmsCredentialId && (isAdmin || isDev) && (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs gap-1"
-                            onClick={handleImportHostfullyRooms}
-                            disabled={importingHostfullyRooms}
-                          >
-                            <RefreshCw className={cn("h-3 w-3", importingHostfullyRooms && "animate-spin")} />
-                            {importingHostfullyRooms ? "Importing..." : "Import Hostfully Rooms"}
-                          </Button>
-                          {hostfullyRoomCount > 0 && (
-                            <Badge variant="secondary" className="text-xs">{hostfullyRoomCount} rooms</Badge>
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="default"
+                              size="sm"
+                              className="h-7 text-xs gap-1"
+                              onClick={handleFullHostfullySync}
+                              disabled={fullSyncingHostfully || importingHostfullyRooms}
+                            >
+                              <RefreshCw className={cn("h-3 w-3", fullSyncingHostfully && "animate-spin")} />
+                              {fullSyncingHostfully ? "Syncing..." : "Sync All Hostfully Data"}
+                            </Button>
+                            {hostfullyRoomCount > 0 && (
+                              <Badge variant="secondary" className="text-xs">{hostfullyRoomCount} rooms</Badge>
+                            )}
+                          </div>
+                          {syncProgress && (
+                            <div className="text-xs text-muted-foreground flex items-center gap-2">
+                              <div className="h-1 w-20 bg-muted rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-primary transition-all duration-300"
+                                  style={{ width: `${syncProgress.total > 0 ? (syncProgress.current / syncProgress.total) * 100 : 0}%` }}
+                                />
+                              </div>
+                              <span>{syncProgress.phase}</span>
+                            </div>
                           )}
                         </div>
                       )}
