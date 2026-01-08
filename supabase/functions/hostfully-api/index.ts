@@ -392,13 +392,16 @@ async function handleListProperties(creds: HostfullyCredentials) {
       return createErrorResponse(error.code, error.message, "list_properties");
     }
     
-    const agencies = await agenciesResponse.json();
-    const agencyUid = agencies[0]?.uid;
+    const agenciesData = await agenciesResponse.json();
+    console.log("[Hostfully] Agencies response:", JSON.stringify(agenciesData));
+    
+    // Response structure: { agencies: [...], _metadata: {...} }
+    const agencyUid = agenciesData?.agencies?.[0]?.uid || agenciesData?.[0]?.uid;
     
     if (!agencyUid) {
       return createErrorResponse(
         ERROR_CODES.NOT_FOUND,
-        "No agency found for this API key",
+        `No agency found for this API key`,
         "list_properties"
       );
     }
@@ -417,10 +420,14 @@ async function handleListProperties(creds: HostfullyCredentials) {
       return createErrorResponse(error.code, error.message, "list_properties");
     }
     
-    const properties = await propertiesResponse.json();
+    const propertiesData = await propertiesResponse.json();
+    console.log("[Hostfully] Properties response keys:", Object.keys(propertiesData));
+    
+    // Response structure: { properties: [...], _metadata: {...} } or just array
+    const propertiesArray = propertiesData?.properties || propertiesData || [];
     
     // Map to standardized format - include raw data for field mapping exploration
-    const propertyList = (properties || []).map((p: any) => ({
+    const propertyList = (Array.isArray(propertiesArray) ? propertiesArray : []).map((p: any) => ({
       id: p.uid,
       name: p.name,
       status: p.status,
