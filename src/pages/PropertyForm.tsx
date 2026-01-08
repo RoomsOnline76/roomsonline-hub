@@ -477,6 +477,8 @@ export default function PropertyForm() {
 
       // 4. Upsert hostfully_room_types for each unit
       let successCount = 0;
+      const importedRooms: typeof roomTypes = [];
+      
       for (const unit of matchingBuilding.units) {
         const roomName = `${unit.room_number} ${unit.room_type}`.trim() || unit.name;
         const { error: upsertError } = await supabase
@@ -491,7 +493,40 @@ export default function PropertyForm() {
             { onConflict: "property_id,hostfully_room_id" }
           );
         
-        if (!upsertError) successCount++;
+        if (!upsertError) {
+          successCount++;
+          // Build room entry for UI state
+          importedRooms.push({
+            id: unit.id,
+            name: roomName,
+            url: "",
+            selected: false,
+            numRooms: 1,
+            pmsRoomType: unit.room_type || "",
+            pmsRoomId: unit.id,
+            description: "",
+            extraPersonPolicy: "",
+            bedConfiguration: [],
+            roomSize: 0,
+            bathrooms: 1,
+            maxPeople: 2,
+            maxAdults: 2,
+            maxChildren: 0,
+            minStay: 1,
+            maxStay: 0,
+            rateType: "per-unit",
+            splitPercent: 0,
+            images: [],
+            facilities: [],
+            amenities: [],
+          });
+        }
+      }
+
+      // Update UI state with imported rooms
+      if (importedRooms.length > 0) {
+        setRoomTypes(importedRooms);
+        setIsDirty(true);
       }
 
       // Refresh room count
