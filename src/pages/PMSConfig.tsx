@@ -37,6 +37,8 @@ export default function PMSConfig() {
   const [pmsConfig, setPmsConfig] = useState<PMSFieldConfig | null>(null);
   const [credentials, setCredentials] = useState<PMSCredentials | null>(null);
   const [properties, setProperties] = useState<Property[]>([]);
+  const [ownerCredentials, setOwnerCredentials] = useState<any[]>([]);
+  const [selectedOwnerId, setSelectedOwnerId] = useState<string>("");
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -90,32 +92,58 @@ export default function PMSConfig() {
         setCredentials(creds);
       }
 
-      // Fetch properties that use this PMS (via external_system OR owner_pms_credential)
-      let query = supabase
-        .from("properties")
-        .select("*, owner_pms_credentials(system_type)")
-        .eq("is_active", true)
-        .order("name");
-
-      // For hostfully, also include properties linked via owner_pms_credentials
+      // For Hostfully, fetch owner credentials instead of properties directly
       if (systemType === 'hostfully') {
-        query = query.or(`external_system.eq.${systemType},hostfully_property_uid.not.is.null`);
+        const { data: owners } = await supabase
+          .from("owner_pms_credentials")
+          .select("*, profiles(full_name, email)")
+          .eq("system_type", "hostfully")
+          .eq("is_active", true)
+          .order("created_at", { ascending: false });
+
+        if (owners && owners.length > 0) {
+          setOwnerCredentials(owners);
+        }
       } else {
-        query = query.eq("external_system", systemType);
-      }
+        // For other PMS systems, fetch properties directly
+        const { data: props } = await supabase
+          .from("properties")
+          .select("*")
+          .eq("external_system", systemType)
+          .eq("is_active", true)
+          .order("name");
 
-      const { data: props } = await query;
-
-      if (props && props.length > 0) {
-        setProperties(props);
-        if (!selectedPropertyId) {
-          setSelectedPropertyId(props[0].id);
+        if (props && props.length > 0) {
+          setProperties(props);
+          if (!selectedPropertyId) {
+            setSelectedPropertyId(props[0].id);
+          }
         }
       }
     } catch (error) {
       console.error("Error loading data:", error);
     }
     setLoading(false);
+  };
+
+  // Load properties when owner is selected (for Hostfully)
+  useEffect(() => {
+    if (systemType === 'hostfully' && selectedOwnerId) {
+      loadOwnerProperties(selectedOwnerId);
+    }
+  }, [selectedOwnerId]);
+
+  const loadOwnerProperties = async (ownerId: string) => {
+    const { data: props } = await supabase
+      .from("properties")
+      .select("*")
+      .eq("owner_pms_credential_id", ownerId)
+      .eq("is_active", true)
+      .order("name");
+
+    setProperties(props || []);
+    setSelectedPropertyId("");
+    setPmsData({});
   };
 
   const loadFieldMappings = async () => {
@@ -358,22 +386,62 @@ export default function PMSConfig() {
           </CardHeader>
         </Card>
 
+        {/* Owner Selection (for Hostfully) */}
+        {systemType === 'hostfully' && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Select Owner</CardTitle>
+              <CardDescription>
+                Choose a Hostfully owner to view their properties
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {ownerCredentials.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  No Hostfully owners found. Create an owner with Hostfully credentials first.
+                </div>
+              ) : (
+                <Select value={selectedOwnerId} onValueChange={setSelectedOwnerId}>
+                  <SelectTrigger className="w-[400px]">
+                    <SelectValue placeholder="Select an owner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ownerCredentials.map(owner => (
+                      <SelectItem key={owner.id} value={owner.id}>
+                        {owner.profiles?.full_name || owner.profiles?.email || owner.external_account_name || 'Unknown Owner'}
+                        {owner.external_account_name && ` (${owner.external_account_name})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Property Selection */}
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>Select Property</CardTitle>
             <CardDescription>
-              Choose a property to configure field mappings for
+              {systemType === 'hostfully' 
+                ? 'Choose a property from the selected owner'
+                : 'Choose a property to configure field mappings for'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {properties.length === 0 ? (
+            {systemType === 'hostfully' && !selectedOwnerId ? (
               <div className="text-sm text-muted-foreground">
-                No properties found using {pmsConfig.displayName}. 
-                <Button variant="link" className="px-1" onClick={() => navigate("/admin/properties/new")}>
-                  Create a property
-                </Button>
-                with {pmsConfig.displayName} as the external system.
+                Please select an owner first.
+              </div>
+            ) : properties.length === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                No properties found{systemType === 'hostfully' ? ' for this owner' : ` using ${pmsConfig.displayName}`}. 
+                {systemType !== 'hostfully' && (
+                  <Button variant="link" className="px-1" onClick={() => navigate("/admin/properties/new")}>
+                    Create a property
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="flex items-center gap-4">
