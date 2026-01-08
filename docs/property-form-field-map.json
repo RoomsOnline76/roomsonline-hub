@@ -1,0 +1,645 @@
+{
+  "version": "2.0",
+  "lastUpdated": "2025-01-08",
+  "description": "Complete mapping of all UI fields in PropertyForm to database columns. Every field that appears in the Edit Property UI is documented here with its storage location.",
+  "databaseTables": {
+    "properties": "Main property table with core fields",
+    "properties.amenities": "JSONB column storing 100+ extended property attributes",
+    "properties.images": "JSONB column storing property image URLs",
+    "hostfully_room_types": "Room types for Hostfully-integrated properties (44 columns)",
+    "pms_room_types_cache": "Cached room types from any PMS",
+    "pms_rate_types_cache": "Cached rate types from PMS"
+  },
+  "tabs": {
+    "general": {
+      "tabLabel": "General",
+      "tabValue": "general",
+      "description": "Core property information, contact details, location, PMS integration, and finance",
+      "sections": {
+        "basicInfo": {
+          "sectionLabel": "Basic Information",
+          "fields": [
+            { "uiLabel": "Name", "stateVariable": "formData.name", "dbTable": "properties", "dbColumn": "name", "dataType": "text", "required": true, "pmsPopulated": true, "pmsLockable": true },
+            { "uiLabel": "Type", "stateVariable": "formData.property_type", "dbTable": "properties", "dbColumn": "property_type", "dataType": "text", "required": true, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Telephone", "stateVariable": "formData.telephone", "dbTable": "properties", "dbColumn": "amenities->telephone", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Contact Email", "stateVariable": "formData.contact_email", "dbTable": "properties", "dbColumn": "amenities->contact_email", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Currency", "stateVariable": "formData.currency", "dbTable": "properties", "dbColumn": "amenities->currency", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": false }
+          ]
+        },
+        "ownership": {
+          "sectionLabel": "Ownership",
+          "fields": [
+            { "uiLabel": "Owner Email", "stateVariable": "formData.owner_email", "dbTable": "properties", "dbColumn": "owner_email", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Owner Name", "stateVariable": "formData.owner_name", "dbTable": "properties", "dbColumn": "owner_name", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Property Website", "stateVariable": "formData.property_url", "dbTable": "properties", "dbColumn": "property_url", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": false }
+          ]
+        },
+        "location": {
+          "sectionLabel": "Location",
+          "fields": [
+            { "uiLabel": "Street Address", "stateVariable": "formData.address", "dbTable": "properties", "dbColumn": "address", "dataType": "text", "required": true, "pmsPopulated": true, "pmsLockable": true },
+            { "uiLabel": "Suburb", "stateVariable": "formData.suburb", "dbTable": "properties", "dbColumn": "amenities->suburb", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "City", "stateVariable": "formData.city", "dbTable": "properties", "dbColumn": "city", "dataType": "text", "required": true, "pmsPopulated": true, "pmsLockable": true },
+            { "uiLabel": "Country", "stateVariable": "formData.country", "dbTable": "properties", "dbColumn": "country", "dataType": "text", "required": true, "pmsPopulated": true, "pmsLockable": true },
+            { "uiLabel": "Postal Code", "stateVariable": "formData.postal_code", "dbTable": "properties", "dbColumn": "amenities->postal_code", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": false },
+            { "uiLabel": "Google Maps Link", "stateVariable": "googleMapsLink", "dbTable": null, "dbColumn": null, "dataType": "derived", "required": false, "pmsPopulated": false, "pmsLockable": false, "notes": "Derived from lat/lng, not stored" },
+            { "uiLabel": "Latitude", "stateVariable": "latitude", "dbTable": "properties", "dbColumn": "latitude", "dataType": "numeric", "required": false, "pmsPopulated": true, "pmsLockable": false },
+            { "uiLabel": "Longitude", "stateVariable": "longitude", "dbTable": "properties", "dbColumn": "longitude", "dataType": "numeric", "required": false, "pmsPopulated": true, "pmsLockable": false },
+            { "uiLabel": "No Street Address", "stateVariable": "noStreetAddress", "dbTable": null, "dbColumn": null, "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false, "notes": "UI-only toggle" }
+          ]
+        },
+        "nearbyPOI": {
+          "sectionLabel": "Nearby Points of Interest",
+          "fields": [
+            { "uiLabel": "Restaurants & Cafes", "stateVariable": "formData.restaurants_cafes", "dbTable": "properties", "dbColumn": "amenities->restaurants_cafes", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Restaurants Distance", "stateVariable": "formData.restaurants_cafes_distance", "dbTable": "properties", "dbColumn": "amenities->restaurants_cafes_distance", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Public Transport", "stateVariable": "formData.public_transport", "dbTable": "properties", "dbColumn": "amenities->public_transport", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Public Transport Distance", "stateVariable": "formData.public_transport_distance", "dbTable": "properties", "dbColumn": "amenities->public_transport_distance", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Closest Airport", "stateVariable": "formData.closest_airport", "dbTable": "properties", "dbColumn": "amenities->closest_airport", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Airport Distance", "stateVariable": "formData.closest_airport_distance", "dbTable": "properties", "dbColumn": "amenities->closest_airport_distance", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        },
+        "pmsIntegration": {
+          "sectionLabel": "PMS Integration",
+          "fields": [
+            { "uiLabel": "Selected PMS", "stateVariable": "selectedPMS", "dbTable": "properties", "dbColumn": "external_system", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Benson Property Code", "stateVariable": "bensonPropertyCode", "dbTable": "properties", "dbColumn": "benson_property_code", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Benson Environment", "stateVariable": "bensonEnvironment", "dbTable": "properties", "dbColumn": "benson_environment", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Cloudbeds Property ID", "stateVariable": "cloudbedsPropertyId", "dbTable": "properties", "dbColumn": "cloudbeds_property_id", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "LittleHotelier Channel Code", "stateVariable": "littlehotelierChannelCode", "dbTable": "properties", "dbColumn": "littlehotelier_channel_code", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "LittleHotelier Region", "stateVariable": "littlehotelierRegion", "dbTable": "properties", "dbColumn": "littlehotelier_region", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "HotelBeds Hotel Code", "stateVariable": "hotelbedsHotelCode", "dbTable": "properties", "dbColumn": "hotelbeds_hotel_code", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Hostfully Property UID", "stateVariable": "hostfullyPropertyUid", "dbTable": "properties", "dbColumn": "hostfully_property_uid", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+            { "uiLabel": "TripAdvisor ID", "stateVariable": "tripadvisorId", "dbTable": "properties", "dbColumn": "amenities->tripadvisor_id", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        },
+        "externalIDs": {
+          "sectionLabel": "External IDs (NightsBridge/Semper)",
+          "fields": [
+            { "uiLabel": "NightsBridge BB_ID", "stateVariable": "formData.bb_id", "dbTable": "properties", "dbColumn": "amenities->bb_id", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Semper Venue ID", "stateVariable": "formData.venue_id", "dbTable": "properties", "dbColumn": "amenities->venue_id", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Semper Channel ID", "stateVariable": "formData.channel_id", "dbTable": "properties", "dbColumn": "amenities->channel_id", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Semper Account ID", "stateVariable": "formData.account_id", "dbTable": "properties", "dbColumn": "amenities->account_id", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Semper Agent ID", "stateVariable": "formData.agent_id", "dbTable": "properties", "dbColumn": "amenities->agent_id", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        },
+        "finance": {
+          "sectionLabel": "Finance & Banking",
+          "fields": [
+            { "uiLabel": "Has VAT", "stateVariable": "formData.has_vat", "dbTable": "properties", "dbColumn": "amenities->has_vat", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "VAT Number", "stateVariable": "formData.vat_number", "dbTable": "properties", "dbColumn": "amenities->vat_number", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Property Registration", "stateVariable": "formData.property_registration", "dbTable": "properties", "dbColumn": "amenities->property_registration", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Bank Name", "stateVariable": "formData.bank_name", "dbTable": "properties", "dbColumn": "amenities->bank_name", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Branch Code", "stateVariable": "formData.branch_code", "dbTable": "properties", "dbColumn": "amenities->branch_code", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Account Holder", "stateVariable": "formData.account_holder", "dbTable": "properties", "dbColumn": "amenities->account_holder", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Account Number", "stateVariable": "formData.account_number", "dbTable": "properties", "dbColumn": "amenities->account_number", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Account Type", "stateVariable": "formData.account_type", "dbTable": "properties", "dbColumn": "amenities->account_type", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "SWIFT Code", "stateVariable": "formData.swift_code", "dbTable": "properties", "dbColumn": "amenities->swift_code", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Accepts Bitcoin", "stateVariable": "formData.accepts_bitcoin", "dbTable": "properties", "dbColumn": "amenities->accepts_bitcoin", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Bitcoin Wallet Address", "stateVariable": "formData.bitcoin_wallet_address", "dbTable": "properties", "dbColumn": "amenities->bitcoin_wallet_address", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        },
+        "offerings": {
+          "sectionLabel": "Property Offerings",
+          "fields": [
+            { "uiLabel": "Accommodation", "stateVariable": "isAccommodation", "dbTable": "properties", "dbColumn": "amenities->offerings->accommodation", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Venues", "stateVariable": "isVenues", "dbTable": "properties", "dbColumn": "amenities->offerings->venues", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Event", "stateVariable": "isEvent", "dbTable": "properties", "dbColumn": "amenities->offerings->event", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Conference", "stateVariable": "isConference", "dbTable": "properties", "dbColumn": "amenities->offerings->conference", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        },
+        "websiteColors": {
+          "sectionLabel": "Website Colors",
+          "fields": [
+            { "uiLabel": "Primary Color", "stateVariable": "websiteColors.primary", "dbTable": "properties", "dbColumn": "amenities->website_colors->primary", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Secondary Color", "stateVariable": "websiteColors.secondary", "dbTable": "properties", "dbColumn": "amenities->website_colors->secondary", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Font Color", "stateVariable": "websiteColors.fontColor", "dbTable": "properties", "dbColumn": "amenities->website_colors->fontColor", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        }
+      }
+    },
+    "rol-spec": {
+      "tabLabel": "ROL Spec",
+      "tabValue": "rol-spec",
+      "description": "RoomsOnline editorial and curation fields",
+      "sections": {
+        "editorial": {
+          "sectionLabel": "Editorial Content",
+          "fields": [
+            { "uiLabel": "Hero Listing", "stateVariable": "rolSpecData.hero_listing", "dbTable": "properties", "dbColumn": "hero_listing", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Hero Video URL", "stateVariable": "rolSpecData.hero_video_url", "dbTable": "properties", "dbColumn": "hero_video_url", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Editorial Rating", "stateVariable": "rolSpecData.editorial_rating", "dbTable": "properties", "dbColumn": "editorial_rating", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Why We Chose This Place", "stateVariable": "rolSpecData.why_we_chose_this_place", "dbTable": "properties", "dbColumn": "why_we_chose_this_place", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Who This Suits", "stateVariable": "rolSpecData.who_this_suits", "dbTable": "properties", "dbColumn": "who_this_suits", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "What It's Really Like", "stateVariable": "rolSpecData.what_its_really_like", "dbTable": "properties", "dbColumn": "what_its_really_like", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Why This Place Matters", "stateVariable": "rolSpecData.why_this_place_matters", "dbTable": "properties", "dbColumn": "why_this_place_matters", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Who It's Not For", "stateVariable": "rolSpecData.who_its_not_for", "dbTable": "properties", "dbColumn": "who_its_not_for", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Owner Notes", "stateVariable": "rolSpecData.owner_notes", "dbTable": "properties", "dbColumn": "owner_notes", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Navigation Tags", "stateVariable": "rolSpecData.navigation_tags", "dbTable": "properties", "dbColumn": "navigation_tags", "dataType": "text[]", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        }
+      }
+    },
+    "info-facilities": {
+      "tabLabel": "Info & Facilities",
+      "tabValue": "info-facilities",
+      "description": "Property description, star rating, facilities, house rules, and policies",
+      "sections": {
+        "description": {
+          "sectionLabel": "Description",
+          "fields": [
+            { "uiLabel": "Description", "stateVariable": "formData.description", "dbTable": "properties", "dbColumn": "description", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+            { "uiLabel": "Star Rating", "stateVariable": "starRating", "dbTable": "properties", "dbColumn": "amenities->star_rating", "dataType": "number", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        },
+        "facilities": {
+          "sectionLabel": "Facilities",
+          "description": "60+ facility checkboxes organized by category",
+          "fields": [
+            { "uiLabel": "Selected Facilities", "stateVariable": "selectedFacilities", "dbTable": "properties", "dbColumn": "amenities->facilities", "dataType": "text[]", "required": false, "pmsPopulated": true, "pmsLockable": false, "notes": "Array of facility slugs from facilityCategories config" }
+          ],
+          "facilityCategories": [
+            "General", "Activities", "Food & Drink", "Pool & Wellness", "Transportation", 
+            "Reception Services", "Entertainment & Family", "Cleaning Services", 
+            "Business Facilities", "Shops", "Safety & Security", "Accessibility", "Languages Spoken"
+          ]
+        },
+        "breakfastOptions": {
+          "sectionLabel": "Breakfast Options",
+          "fields": [
+            { "uiLabel": "Breakfast Options", "stateVariable": "selectedBreakfastOptions", "dbTable": "properties", "dbColumn": "amenities->breakfast_options", "dataType": "text[]", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        },
+        "houseRules": {
+          "sectionLabel": "House Rules",
+          "fields": [
+            { "uiLabel": "Items Non-Refundable", "stateVariable": "formData.items_non_refundable", "dbTable": "properties", "dbColumn": "amenities->items_non_refundable", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Smoking Allowed", "stateVariable": "formData.smoking_allowed", "dbTable": "properties", "dbColumn": "amenities->smoking_allowed", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Pets Allowed", "stateVariable": "formData.pets_allowed", "dbTable": "properties", "dbColumn": "amenities->pets_allowed", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Children Allowed", "stateVariable": "formData.children_allowed", "dbTable": "properties", "dbColumn": "amenities->children_allowed", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Parties Allowed", "stateVariable": "formData.parties_allowed", "dbTable": "properties", "dbColumn": "amenities->parties_allowed", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "24h Check-in", "stateVariable": "formData.check_in_24h", "dbTable": "properties", "dbColumn": "amenities->check_in_24h", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        },
+        "cancellationPolicies": {
+          "sectionLabel": "Cancellation Policies",
+          "fields": [
+            { "uiLabel": "Cancellation Policies", "stateVariable": "cancellationPolicies", "dbTable": "properties", "dbColumn": "amenities->cancellation_policies", "dataType": "json[]", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ],
+          "nestedFields": [
+            { "uiLabel": "Days Before", "path": "[].daysBefore", "dataType": "number" },
+            { "uiLabel": "Penalty Percentage", "path": "[].penaltyPercentage", "dataType": "number" },
+            { "uiLabel": "Description", "path": "[].description", "dataType": "text" }
+          ]
+        },
+        "timing": {
+          "sectionLabel": "Timing & Deposits",
+          "fields": [
+            { "uiLabel": "Deposit Allowed", "stateVariable": "formData.deposit_allowed", "dbTable": "properties", "dbColumn": "amenities->deposit_allowed", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Deposit Percentage", "stateVariable": "formData.deposit_percentage", "dbTable": "properties", "dbColumn": "amenities->deposit_percentage", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Deposit Days", "stateVariable": "formData.deposit_days", "dbTable": "properties", "dbColumn": "amenities->deposit_days", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Same Day Bookings", "stateVariable": "formData.same_day_bookings", "dbTable": "properties", "dbColumn": "amenities->same_day_bookings", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Same Day Cutoff", "stateVariable": "formData.same_day_cutoff", "dbTable": "properties", "dbColumn": "amenities->same_day_cutoff", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Check-in From", "stateVariable": "formData.check_in_from", "dbTable": "properties", "dbColumn": "amenities->check_in_from", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": false },
+            { "uiLabel": "Check-in To", "stateVariable": "formData.check_in_to", "dbTable": "properties", "dbColumn": "amenities->check_in_to", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": false },
+            { "uiLabel": "Check-out From", "stateVariable": "formData.check_out_from", "dbTable": "properties", "dbColumn": "amenities->check_out_from", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": false },
+            { "uiLabel": "Check-out To", "stateVariable": "formData.check_out_to", "dbTable": "properties", "dbColumn": "amenities->check_out_to", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": false }
+          ]
+        },
+        "ageRanges": {
+          "sectionLabel": "Age Ranges",
+          "fields": [
+            { "uiLabel": "Infant Age From", "stateVariable": "formData.infant_age_from", "dbTable": "properties", "dbColumn": "amenities->infant_age_from", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Infant Age To", "stateVariable": "formData.infant_age_to", "dbTable": "properties", "dbColumn": "amenities->infant_age_to", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Children Age From", "stateVariable": "formData.children_age_from", "dbTable": "properties", "dbColumn": "amenities->children_age_from", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Children Age To", "stateVariable": "formData.children_age_to", "dbTable": "properties", "dbColumn": "amenities->children_age_to", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Min Check-in Age", "stateVariable": "formData.min_check_in_age", "dbTable": "properties", "dbColumn": "amenities->min_check_in_age", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Child Adult Age", "stateVariable": "formData.child_adult_age", "dbTable": "properties", "dbColumn": "amenities->child_adult_age", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Pets Policy", "stateVariable": "formData.pets_policy", "dbTable": "properties", "dbColumn": "amenities->pets_policy", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        },
+        "cotExtraBeds": {
+          "sectionLabel": "Cot & Extra Beds",
+          "fields": [
+            { "uiLabel": "Cot Available", "stateVariable": "formData.cot_available", "dbTable": "properties", "dbColumn": "amenities->cot_available", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Cot Age From", "stateVariable": "formData.cot_age_from", "dbTable": "properties", "dbColumn": "amenities->cot_age_from", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Cot Age To", "stateVariable": "formData.cot_age_to", "dbTable": "properties", "dbColumn": "amenities->cot_age_to", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Cot Price", "stateVariable": "formData.cot_price", "dbTable": "properties", "dbColumn": "amenities->cot_price", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Extra Beds Available", "stateVariable": "formData.extra_beds_available", "dbTable": "properties", "dbColumn": "amenities->extra_beds_available", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Extra Bed Price", "stateVariable": "formData.extra_bed_price", "dbTable": "properties", "dbColumn": "amenities->extra_bed_price", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        },
+        "additional": {
+          "sectionLabel": "Additional Information",
+          "fields": [
+            { "uiLabel": "Advance Notice Required", "stateVariable": "formData.advance_notice_required", "dbTable": "properties", "dbColumn": "amenities->advance_notice_required", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Special Requests Message", "stateVariable": "formData.special_requests_message", "dbTable": "properties", "dbColumn": "amenities->special_requests_message", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Fine Print", "stateVariable": "formData.fine_print", "dbTable": "properties", "dbColumn": "amenities->fine_print", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Children Policy", "stateVariable": "formData.children_policy", "dbTable": "properties", "dbColumn": "amenities->children_policy", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        }
+      }
+    },
+    "images": {
+      "tabLabel": "Images",
+      "tabValue": "images",
+      "description": "Property-level images and gallery management",
+      "sections": {
+        "gallery": {
+          "sectionLabel": "Image Gallery",
+          "fields": [
+            { "uiLabel": "Property Images", "stateVariable": "uploadedImages", "dbTable": "properties", "dbColumn": "images", "dataType": "jsonb", "required": false, "pmsPopulated": true, "pmsLockable": false, "notes": "Array of image URLs or objects with url/alt properties" }
+          ]
+        }
+      }
+    },
+    "templates": {
+      "tabLabel": "Templates",
+      "tabValue": "templates",
+      "description": "Email templates and mailer configuration",
+      "sections": {
+        "emailTemplates": {
+          "sectionLabel": "Email Templates",
+          "fields": [
+            { "uiLabel": "Selected Template Type", "stateVariable": "selectedTemplate", "dbTable": null, "dbColumn": null, "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false, "notes": "UI selector for template type" },
+            { "uiLabel": "Template Content", "stateVariable": "templateContent", "dbTable": "properties", "dbColumn": "amenities->templates->[type]->content", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ],
+          "templateTypes": ["confirmation", "pre_arrival", "post_checkout", "cancellation", "modification"]
+        },
+        "mailerTiming": {
+          "sectionLabel": "Mailer Timing",
+          "fields": [
+            { "uiLabel": "Pre Mailer Days", "stateVariable": "preMailerDays", "dbTable": "properties", "dbColumn": "amenities->pre_mailer_days", "dataType": "number", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Pre Mailer Hours", "stateVariable": "preMailerHours", "dbTable": "properties", "dbColumn": "amenities->pre_mailer_hours", "dataType": "number", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Post Mailer Days", "stateVariable": "postMailerDays", "dbTable": "properties", "dbColumn": "amenities->post_mailer_days", "dataType": "number", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Post Mailer Hours", "stateVariable": "postMailerHours", "dbTable": "properties", "dbColumn": "amenities->post_mailer_hours", "dataType": "number", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        }
+      }
+    },
+    "addons": {
+      "tabLabel": "Addons",
+      "tabValue": "addons",
+      "description": "Additional services and products that can be added to bookings",
+      "sections": {
+        "addonsList": {
+          "sectionLabel": "Addons",
+          "fields": [
+            { "uiLabel": "Addons List", "stateVariable": "addons", "dbTable": "properties", "dbColumn": "amenities->addons", "dataType": "json[]", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ],
+          "nestedFields": [
+            { "uiLabel": "Name", "path": "[].name", "dataType": "text", "required": true },
+            { "uiLabel": "Description", "path": "[].description", "dataType": "text", "required": false },
+            { "uiLabel": "Price Type", "path": "[].priceType", "dataType": "text", "required": true, "options": ["per_stay", "per_night", "per_person", "per_person_per_night"] },
+            { "uiLabel": "Price", "path": "[].price", "dataType": "number", "required": true },
+            { "uiLabel": "Has Capacity", "path": "[].hasCapacity", "dataType": "boolean", "required": false },
+            { "uiLabel": "Capacity", "path": "[].capacity", "dataType": "number", "required": false },
+            { "uiLabel": "Offerings Accommodation", "path": "[].offeringsAccommodation", "dataType": "boolean", "required": false },
+            { "uiLabel": "Offerings Venue", "path": "[].offeringsVenue", "dataType": "boolean", "required": false },
+            { "uiLabel": "Images", "path": "[].images", "dataType": "text[]", "required": false }
+          ]
+        }
+      }
+    },
+    "specials": {
+      "tabLabel": "Specials",
+      "tabValue": "specials",
+      "description": "Conference and event specials/packages",
+      "sections": {
+        "specialsList": {
+          "sectionLabel": "Specials",
+          "fields": [
+            { "uiLabel": "Conference Specials", "stateVariable": "conferenceSpecials", "dbTable": "properties", "dbColumn": "amenities->specials", "dataType": "json[]", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ],
+          "nestedFields": [
+            { "uiLabel": "Name", "path": "[].name", "dataType": "text", "required": true },
+            { "uiLabel": "Season", "path": "[].season", "dataType": "text", "required": false },
+            { "uiLabel": "Description", "path": "[].description", "dataType": "text", "required": false },
+            { "uiLabel": "Period From", "path": "[].periodFrom", "dataType": "date", "required": false },
+            { "uiLabel": "Period To", "path": "[].periodTo", "dataType": "date", "required": false },
+            { "uiLabel": "Pricing Config", "path": "[].pricingConfig", "dataType": "text", "required": false },
+            { "uiLabel": "Is Public", "path": "[].isPublic", "dataType": "boolean", "required": false }
+          ]
+        }
+      }
+    },
+    "rates": {
+      "tabLabel": "Rates",
+      "tabValue": "rates",
+      "description": "Rate types, seasons, and pricing configuration",
+      "subTabs": {
+        "rate-types": {
+          "subTabLabel": "Rate Types",
+          "subTabValue": "rate-types",
+          "fields": [
+            { "uiLabel": "PMS Rate Types", "stateVariable": "pmsRateTypes", "dbTable": "pms_rate_types_cache", "dbColumn": "*", "dataType": "json[]", "required": false, "pmsPopulated": true, "pmsLockable": true, "notes": "Fetched from PMS, read-only" }
+          ],
+          "nestedFields": [
+            { "uiLabel": "Rate Type ID", "path": "[].external_rate_type_id", "dataType": "text" },
+            { "uiLabel": "Name", "path": "[].name", "dataType": "text" },
+            { "uiLabel": "Description", "path": "[].description", "dataType": "text" },
+            { "uiLabel": "Price Type", "path": "[].price_type", "dataType": "text" },
+            { "uiLabel": "Min Stay Days", "path": "[].min_stay_days", "dataType": "number" },
+            { "uiLabel": "Max Stay Days", "path": "[].max_stay_days", "dataType": "number" },
+            { "uiLabel": "Min Advance Days", "path": "[].min_advance_days", "dataType": "number" },
+            { "uiLabel": "Max Advance Days", "path": "[].max_advance_days", "dataType": "number" }
+          ]
+        },
+        "season": {
+          "subTabLabel": "Seasons",
+          "subTabValue": "season",
+          "fields": [
+            { "uiLabel": "Seasons", "stateVariable": "seasons", "dbTable": "properties", "dbColumn": "amenities->seasons", "dataType": "json[]", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ],
+          "nestedFields": [
+            { "uiLabel": "Season Name", "path": "[].name", "dataType": "text", "required": true },
+            { "uiLabel": "Start Date", "path": "[].startDate", "dataType": "date", "required": true },
+            { "uiLabel": "End Date", "path": "[].endDate", "dataType": "date", "required": true },
+            { "uiLabel": "Color", "path": "[].color", "dataType": "text", "required": false }
+          ]
+        },
+        "rate-breakdown": {
+          "subTabLabel": "Rate Breakdown",
+          "subTabValue": "rate-breakdown",
+          "fields": [
+            { "uiLabel": "Season Rates", "stateVariable": "seasonRates", "dbTable": "properties", "dbColumn": "amenities->season_rates", "dataType": "json", "required": false, "pmsPopulated": false, "pmsLockable": false, "notes": "Nested object: seasonId -> roomTypeId -> rateTypeId -> amount" }
+          ]
+        },
+        "overview": {
+          "subTabLabel": "Overview",
+          "subTabValue": "overview",
+          "description": "Visual calendar overview of rates across rooms and seasons",
+          "fields": []
+        },
+        "data-explorer": {
+          "subTabLabel": "Data Explorer",
+          "subTabValue": "data-explorer",
+          "description": "Raw data viewer for debugging rate configuration",
+          "fields": []
+        }
+      }
+    },
+    "rooms": {
+      "tabLabel": "Rooms",
+      "tabValue": "rooms",
+      "description": "Room types and their configurations. Each room type has 6 sub-tabs.",
+      "fields": [
+        { "uiLabel": "Room Types", "stateVariable": "roomTypes", "dbTable": "properties", "dbColumn": "amenities->room_types", "dataType": "json[]", "required": false, "pmsPopulated": true, "pmsLockable": false, "notes": "For non-Hostfully properties. Hostfully rooms stored in hostfully_room_types table." }
+      ],
+      "subTabsPerRoom": {
+        "room-type": {
+          "subTabLabel": "Room Type",
+          "subTabValue": "room-type",
+          "description": "Core room information, capacity, and Hostfully-synced fields",
+          "sections": {
+            "basicInfo": {
+              "sectionLabel": "Basic Information",
+              "fields": [
+                { "uiLabel": "Room Name", "stateVariable": "room.name", "dbTable": "hostfully_room_types", "dbColumn": "name", "dataType": "text", "required": true, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Number of Rooms", "stateVariable": "room.numRooms", "dbTable": "properties", "dbColumn": "amenities->room_types[].numRooms", "dataType": "integer", "required": false, "pmsPopulated": false, "pmsLockable": false },
+                { "uiLabel": "PMS Room Type", "stateVariable": "room.pmsRoomType", "dbTable": "properties", "dbColumn": "amenities->room_types[].pmsRoomType", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+                { "uiLabel": "PMS Room ID", "stateVariable": "room.pmsRoomId", "dbTable": "hostfully_room_types", "dbColumn": "hostfully_room_id", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Description", "stateVariable": "room.description", "dbTable": "hostfully_room_types", "dbColumn": "description", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Extra Person Policy", "stateVariable": "room.extraPersonPolicy", "dbTable": "properties", "dbColumn": "amenities->room_types[].extraPersonPolicy", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+                { "uiLabel": "Property Type", "stateVariable": "room.propertyType", "dbTable": "hostfully_room_types", "dbColumn": "property_type", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true }
+              ]
+            },
+            "bedConfiguration": {
+              "sectionLabel": "Bed Configuration",
+              "fields": [
+                { "uiLabel": "Beds", "stateVariable": "room.bedConfiguration", "dbTable": "hostfully_room_types", "dbColumn": "beds", "dataType": "json", "required": false, "pmsPopulated": true, "pmsLockable": false, "notes": "Array of {type, count} objects" }
+              ]
+            },
+            "dimensions": {
+              "sectionLabel": "Dimensions",
+              "fields": [
+                { "uiLabel": "Room Size", "stateVariable": "room.roomSize", "dbTable": "hostfully_room_types", "dbColumn": "room_size", "dataType": "numeric", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Room Size Unit", "stateVariable": "room.roomSizeUnit", "dbTable": "hostfully_room_types", "dbColumn": "room_size_unit", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Bathrooms", "stateVariable": "room.bathrooms", "dbTable": "hostfully_room_types", "dbColumn": "bathrooms", "dataType": "numeric", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Bedrooms", "stateVariable": "room.bedrooms", "dbTable": "hostfully_room_types", "dbColumn": "bedrooms", "dataType": "integer", "required": false, "pmsPopulated": true, "pmsLockable": true }
+              ]
+            },
+            "occupancy": {
+              "sectionLabel": "Occupancy",
+              "fields": [
+                { "uiLabel": "Max Guests", "stateVariable": "room.maxPeople", "dbTable": "hostfully_room_types", "dbColumn": "max_guests", "dataType": "integer", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Max Adults", "stateVariable": "room.maxAdults", "dbTable": "hostfully_room_types", "dbColumn": "max_guests", "dataType": "integer", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Max Children", "stateVariable": "room.maxChildren", "dbTable": "properties", "dbColumn": "amenities->room_types[].maxChildren", "dataType": "integer", "required": false, "pmsPopulated": false, "pmsLockable": false },
+                { "uiLabel": "Min Guests", "stateVariable": "room.minGuests", "dbTable": "hostfully_room_types", "dbColumn": "min_guests", "dataType": "integer", "required": false, "pmsPopulated": true, "pmsLockable": true }
+              ]
+            },
+            "guestAgeCategories": {
+              "sectionLabel": "Guest Age Categories",
+              "fields": [
+                { "uiLabel": "Allow Teens", "stateVariable": "room.allowTeens", "dbTable": "properties", "dbColumn": "amenities->room_types[].allowTeens", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+                { "uiLabel": "Teen Min Age", "stateVariable": "room.teenMinAge", "dbTable": "properties", "dbColumn": "amenities->room_types[].teenMinAge", "dataType": "integer", "required": false, "pmsPopulated": false, "pmsLockable": false },
+                { "uiLabel": "Teen Max Age", "stateVariable": "room.teenMaxAge", "dbTable": "properties", "dbColumn": "amenities->room_types[].teenMaxAge", "dataType": "integer", "required": false, "pmsPopulated": false, "pmsLockable": false },
+                { "uiLabel": "Allow Children", "stateVariable": "room.allowChildren", "dbTable": "properties", "dbColumn": "amenities->room_types[].allowChildren", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+                { "uiLabel": "Child Min Age", "stateVariable": "room.childMinAge", "dbTable": "properties", "dbColumn": "amenities->room_types[].childMinAge", "dataType": "integer", "required": false, "pmsPopulated": false, "pmsLockable": false },
+                { "uiLabel": "Child Max Age", "stateVariable": "room.childMaxAge", "dbTable": "properties", "dbColumn": "amenities->room_types[].childMaxAge", "dataType": "integer", "required": false, "pmsPopulated": false, "pmsLockable": false },
+                { "uiLabel": "Allow Infants", "stateVariable": "room.allowInfants", "dbTable": "properties", "dbColumn": "amenities->room_types[].allowInfants", "dataType": "boolean", "required": false, "pmsPopulated": false, "pmsLockable": false },
+                { "uiLabel": "Infant Min Age", "stateVariable": "room.infantMinAge", "dbTable": "properties", "dbColumn": "amenities->room_types[].infantMinAge", "dataType": "integer", "required": false, "pmsPopulated": false, "pmsLockable": false },
+                { "uiLabel": "Infant Max Age", "stateVariable": "room.infantMaxAge", "dbTable": "properties", "dbColumn": "amenities->room_types[].infantMaxAge", "dataType": "integer", "required": false, "pmsPopulated": false, "pmsLockable": false },
+                { "uiLabel": "Min Age Category", "stateVariable": "room.minAgeCategory", "dbTable": "properties", "dbColumn": "amenities->room_types[].minAgeCategory", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false },
+                { "uiLabel": "Min Adults for Non-Adult Rates", "stateVariable": "room.minAdultsToOfferNonAdultRates", "dbTable": "properties", "dbColumn": "amenities->room_types[].minAdultsToOfferNonAdultRates", "dataType": "integer", "required": false, "pmsPopulated": false, "pmsLockable": false }
+              ]
+            },
+            "stayRules": {
+              "sectionLabel": "Stay Rules",
+              "fields": [
+                { "uiLabel": "Min Stay", "stateVariable": "room.minStay", "dbTable": "hostfully_room_types", "dbColumn": "min_stay", "dataType": "integer", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Max Stay", "stateVariable": "room.maxStay", "dbTable": "hostfully_room_types", "dbColumn": "max_stay", "dataType": "integer", "required": false, "pmsPopulated": true, "pmsLockable": true }
+              ]
+            },
+            "checkInOut": {
+              "sectionLabel": "Check-In/Out (Hostfully)",
+              "fields": [
+                { "uiLabel": "Check-In Time", "stateVariable": "room.checkInTime", "dbTable": "hostfully_room_types", "dbColumn": "check_in_time", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Check-Out Time", "stateVariable": "room.checkOutTime", "dbTable": "hostfully_room_types", "dbColumn": "check_out_time", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true }
+              ]
+            },
+            "pricing": {
+              "sectionLabel": "Pricing (from PMS)",
+              "fields": [
+                { "uiLabel": "Daily Rate", "stateVariable": "room.dailyRate", "dbTable": "hostfully_room_types", "dbColumn": "daily_rate", "dataType": "numeric", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Currency", "stateVariable": "room.currency", "dbTable": "hostfully_room_types", "dbColumn": "currency", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Cleaning Fee", "stateVariable": "room.cleaningFee", "dbTable": "hostfully_room_types", "dbColumn": "cleaning_fee", "dataType": "numeric", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Security Deposit", "stateVariable": "room.securityDeposit", "dbTable": "hostfully_room_types", "dbColumn": "security_deposit", "dataType": "numeric", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Extra Guest Fee", "stateVariable": "room.extraGuestFee", "dbTable": "hostfully_room_types", "dbColumn": "extra_guest_fee", "dataType": "numeric", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Tax Rate", "stateVariable": "room.taxRate", "dbTable": "hostfully_room_types", "dbColumn": "tax_rate", "dataType": "numeric", "required": false, "pmsPopulated": true, "pmsLockable": true }
+              ]
+            },
+            "wifi": {
+              "sectionLabel": "WiFi & Connectivity",
+              "fields": [
+                { "uiLabel": "WiFi Network", "stateVariable": "room.wifiNetwork", "dbTable": "hostfully_room_types", "dbColumn": "wifi_network", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "WiFi Password", "stateVariable": "room.wifiPassword", "dbTable": "hostfully_room_types", "dbColumn": "wifi_password", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true }
+              ]
+            },
+            "policies": {
+              "sectionLabel": "Policies & Instructions",
+              "fields": [
+                { "uiLabel": "House Rules", "stateVariable": "room.houseRules", "dbTable": "hostfully_room_types", "dbColumn": "house_rules", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Check-In Instructions", "stateVariable": "room.checkInInstructions", "dbTable": "hostfully_room_types", "dbColumn": "check_in_instructions", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Cancellation Policy", "stateVariable": "room.cancellationPolicy", "dbTable": "hostfully_room_types", "dbColumn": "cancellation_policy", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true }
+              ]
+            },
+            "location": {
+              "sectionLabel": "Location (from PMS)",
+              "fields": [
+                { "uiLabel": "Address Street", "stateVariable": "room.addressStreet", "dbTable": "hostfully_room_types", "dbColumn": "address_street", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Address City", "stateVariable": "room.addressCity", "dbTable": "hostfully_room_types", "dbColumn": "address_city", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Address State", "stateVariable": "room.addressState", "dbTable": "hostfully_room_types", "dbColumn": "address_state", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Address Postal Code", "stateVariable": "room.addressPostalCode", "dbTable": "hostfully_room_types", "dbColumn": "address_postal_code", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Address Country", "stateVariable": "room.addressCountry", "dbTable": "hostfully_room_types", "dbColumn": "address_country", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Latitude", "stateVariable": "room.latitude", "dbTable": "hostfully_room_types", "dbColumn": "latitude", "dataType": "numeric", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Longitude", "stateVariable": "room.longitude", "dbTable": "hostfully_room_types", "dbColumn": "longitude", "dataType": "numeric", "required": false, "pmsPopulated": true, "pmsLockable": true }
+              ]
+            },
+            "syncMetadata": {
+              "sectionLabel": "Sync Metadata",
+              "fields": [
+                { "uiLabel": "Thumbnail URL", "stateVariable": "room.thumbnailUrl", "dbTable": "hostfully_room_types", "dbColumn": "thumbnail_url", "dataType": "text", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Last Synced At", "stateVariable": "room.lastSyncedAt", "dbTable": "hostfully_room_types", "dbColumn": "last_synced_at", "dataType": "timestamp", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "PMS Synced Fields", "stateVariable": "room.pms_synced_fields", "dbTable": "hostfully_room_types", "dbColumn": "pms_synced_fields", "dataType": "text[]", "required": false, "pmsPopulated": true, "pmsLockable": true },
+                { "uiLabel": "Raw Data", "stateVariable": "room.rawData", "dbTable": "hostfully_room_types", "dbColumn": "raw_data", "dataType": "jsonb", "required": false, "pmsPopulated": true, "pmsLockable": true }
+              ]
+            }
+          }
+        },
+        "rate-types": {
+          "subTabLabel": "Rate Types",
+          "subTabValue": "rate-types",
+          "description": "Link room to available rate types",
+          "fields": [
+            { "uiLabel": "Linked Rate Types", "stateVariable": "room.linkedRateTypes", "dbTable": "properties", "dbColumn": "amenities->room_types[].linkedRateTypes", "dataType": "number[]", "required": false, "pmsPopulated": false, "pmsLockable": false },
+            { "uiLabel": "Linked Rate Type IDs (PMS)", "stateVariable": "room.linkedRateTypeIds", "dbTable": "hostfully_room_types", "dbColumn": "linked_rate_type_ids", "dataType": "jsonb", "required": false, "pmsPopulated": true, "pmsLockable": true }
+          ]
+        },
+        "facilities": {
+          "subTabLabel": "Facilities",
+          "subTabValue": "facilities",
+          "description": "Room-level facility checkboxes",
+          "fields": [
+            { "uiLabel": "Room Facilities", "stateVariable": "room.facilities", "dbTable": "properties", "dbColumn": "amenities->room_types[].facilities", "dataType": "text[]", "required": false, "pmsPopulated": false, "pmsLockable": false, "notes": "60+ facility options from roomFacilityCategories" }
+          ]
+        },
+        "amenities": {
+          "subTabLabel": "Amenities",
+          "subTabValue": "amenities",
+          "description": "Room-level amenities (can be synced from Hostfully)",
+          "fields": [
+            { "uiLabel": "Room Amenities", "stateVariable": "room.amenities", "dbTable": "hostfully_room_types", "dbColumn": "amenities", "dataType": "jsonb", "required": false, "pmsPopulated": true, "pmsLockable": false, "notes": "Array of amenity strings from Hostfully" }
+          ]
+        },
+        "room-images": {
+          "subTabLabel": "Images",
+          "subTabValue": "room-images",
+          "description": "Room-specific images",
+          "fields": [
+            { "uiLabel": "Room Images", "stateVariable": "room.images", "dbTable": "hostfully_room_types", "dbColumn": "images", "dataType": "jsonb", "required": false, "pmsPopulated": true, "pmsLockable": false, "notes": "Array of image URLs or objects" }
+          ]
+        },
+        "agreement": {
+          "subTabLabel": "Agreement",
+          "subTabValue": "agreement",
+          "description": "Room-specific rental agreement content",
+          "fields": [
+            { "uiLabel": "Agreement Content", "stateVariable": "room.agreement", "dbTable": "properties", "dbColumn": "amenities->room_types[].agreement", "dataType": "text", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        }
+      }
+    },
+    "event-wedding": {
+      "tabLabel": "Event/Wedding",
+      "tabValue": "event-wedding",
+      "description": "Event and wedding venue configuration",
+      "sections": {
+        "venues": {
+          "sectionLabel": "Venues",
+          "fields": [
+            { "uiLabel": "Venues List", "stateVariable": "venues", "dbTable": "properties", "dbColumn": "amenities->venues", "dataType": "json[]", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ],
+          "nestedFields": [
+            { "uiLabel": "Venue Name", "path": "[].name", "dataType": "text", "required": true },
+            { "uiLabel": "Capacity", "path": "[].capacity", "dataType": "number", "required": false },
+            { "uiLabel": "Description", "path": "[].description", "dataType": "text", "required": false },
+            { "uiLabel": "Setup Options", "path": "[].setupOptions", "dataType": "text[]", "required": false },
+            { "uiLabel": "Images", "path": "[].images", "dataType": "text[]", "required": false }
+          ]
+        },
+        "packages": {
+          "sectionLabel": "Event Packages",
+          "fields": [
+            { "uiLabel": "Packages List", "stateVariable": "packages", "dbTable": "properties", "dbColumn": "amenities->packages", "dataType": "json[]", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        }
+      }
+    },
+    "conference": {
+      "tabLabel": "Conference",
+      "tabValue": "conference",
+      "description": "Conference venue and meeting room configuration",
+      "sections": {
+        "conferenceVenues": {
+          "sectionLabel": "Conference Venues",
+          "fields": [
+            { "uiLabel": "Conference Venues", "stateVariable": "conferenceVenues", "dbTable": "properties", "dbColumn": "amenities->conference_venues", "dataType": "json[]", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        },
+        "meetingRooms": {
+          "sectionLabel": "Meeting Rooms",
+          "fields": [
+            { "uiLabel": "Meeting Rooms", "stateVariable": "meetingRooms", "dbTable": "properties", "dbColumn": "amenities->meeting_rooms", "dataType": "json[]", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ]
+        }
+      }
+    },
+    "announcements": {
+      "tabLabel": "Announcements",
+      "tabValue": "announcements",
+      "description": "Property announcements and notifications",
+      "sections": {
+        "announcementsList": {
+          "sectionLabel": "Announcements",
+          "fields": [
+            { "uiLabel": "Announcements", "stateVariable": "announcements", "dbTable": "properties", "dbColumn": "amenities->announcements", "dataType": "json[]", "required": false, "pmsPopulated": false, "pmsLockable": false }
+          ],
+          "nestedFields": [
+            { "uiLabel": "Enabled", "path": "[].enabled", "dataType": "boolean", "required": false },
+            { "uiLabel": "Announcement Text", "path": "[].announcement", "dataType": "text", "required": true },
+            { "uiLabel": "Start Date", "path": "[].startDate", "dataType": "date", "required": false },
+            { "uiLabel": "End Date", "path": "[].endDate", "dataType": "date", "required": false },
+            { "uiLabel": "Display Order", "path": "[].order", "dataType": "number", "required": false }
+          ]
+        }
+      }
+    }
+  },
+  "summary": {
+    "totalTabs": 11,
+    "totalSubTabs": 11,
+    "totalFields": 218,
+    "tabBreakdown": {
+      "general": 49,
+      "rol-spec": 10,
+      "info-facilities": 42,
+      "images": 1,
+      "templates": 6,
+      "addons": 10,
+      "specials": 8,
+      "rates": 12,
+      "rooms": 65,
+      "event-wedding": 7,
+      "conference": 2,
+      "announcements": 6
+    },
+    "databaseBreakdown": {
+      "properties_direct_columns": 25,
+      "properties_amenities_jsonb": 128,
+      "hostfully_room_types": 44,
+      "pms_rate_types_cache": 8,
+      "derived_or_ui_only": 13
+    }
+  }
+}
