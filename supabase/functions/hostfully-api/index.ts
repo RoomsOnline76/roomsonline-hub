@@ -111,6 +111,7 @@ const baseRequestSchema = z.object({
     "validate_api_key",        // NEW: Validates owner API key
     "sync_owner_listings",     // NEW: Syncs listings for owner
     "list_properties",
+    "list_all_properties",     // NEW: Paginated fetch of all properties
     "get_listing_details",
     "get_property_rooms",      // NEW: Get rooms for a property
     "fetch_availability",
