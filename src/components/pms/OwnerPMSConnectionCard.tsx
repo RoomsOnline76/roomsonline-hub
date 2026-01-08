@@ -5,13 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -21,10 +14,11 @@ import {
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Link2, Unlink, RefreshCw, Building2, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { Link2, Unlink, Building2, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
-import { PMSListingSelector, type PMSListing } from './PMSListingSelector';
 import { DisconnectPMSDialog, type DisconnectAction } from './DisconnectPMSDialog';
+import { HostfullyBuildingImportDialog } from './HostfullyBuildingImportDialog';
+import { parseHostfullyProperties, type ParsedBuilding } from '@/lib/hostfullyBuildingParser';
 
 interface OwnerPMSCredential {
   id: string;
@@ -58,12 +52,13 @@ export function OwnerPMSConnectionCard({
 }: OwnerPMSConnectionCardProps) {
   const [connectDialogOpen, setConnectDialogOpen] = useState(false);
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
-  const [listingSelectorOpen, setListingSelectorOpen] = useState(false);
+  const [buildingImportDialogOpen, setBuildingImportDialogOpen] = useState(false);
+  const [parsedBuildings, setParsedBuildings] = useState<ParsedBuilding[]>([]);
+  const [fetchingBuildings, setFetchingBuildings] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const environment = 'production'; // Always production for owners
   const [validating, setValidating] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [importing, setImporting] = useState(false);
 
   const credential = existingCredential;
   const isConnected = credential?.is_active && credential?.sync_status === 'connected';
@@ -212,107 +207,41 @@ export function OwnerPMSConnectionCard({
     }
   };
 
-  const handleImportListings = async (
-    listings: PMSListing[],
-    importMode: 'create' | 'attach',
-    targetPropertyId?: string
-  ) => {
+  const handleOpenBuildingImporter = async () => {
     if (!credential?.id) return;
 
-    setImporting(true);
+    setFetchingBuildings(true);
     try {
-      for (const listing of listings) {
-        // Get full details for each listing
-        const { data: detailsData } = await supabase.functions.invoke('hostfully-api', {
-          body: {
-            action: 'get_listing_details',
-            owner_credential_id: credential.id,
-            propertyUid: listing.id,
-          },
-        });
+      // Fetch all properties using list_all_properties
+      const { data, error } = await supabase.functions.invoke('hostfully-api', {
+        body: {
+          action: 'list_all_properties',
+          owner_credential_id: credential.id,
+        },
+      });
 
-        const details = detailsData?.data || {};
+      if (error) throw error;
 
-        // Create property
-        const propertyData = {
-          name: listing.name || details.name || 'Imported Property',
-          address: details.address?.street || listing.address || 'Address from Hostfully',
-          city: details.address?.city || listing.city || 'City',
-          country: details.address?.country || listing.country || 'Country',
-          property_type: (listing as any).property_type || details.property_type || 'property',
-          max_guests: listing.max_guests || details.max_guests || 2,
-          bedrooms: listing.bedrooms || details.bedrooms || 1,
-          bathrooms: listing.bathrooms || details.bathrooms || 1,
-          price_per_night: listing.base_price || details.pricing?.base_daily_rate || 0,
-          description: details.description || null,
-          images: details.images || [],
-          latitude: details.location?.latitude || null,
-          longitude: details.location?.longitude || null,
-          // PMS linking
-          external_system: 'hostfully',
-          external_id: listing.id,
-          hostfully_property_uid: listing.id,
-          owner_pms_credential_id: credential.id,
-          pms_managed_fields: ['name', 'description', 'images', 'max_guests', 'price_per_night'],
-          pms_sync_status: 'synced',
-          last_pms_sync_at: new Date().toISOString(),
-          // Owner info
-          owner_name: ownerName,
-          owner_email: ownerEmail,
-          is_active: true,
-        };
-
-        const { data: newProperty, error: insertError } = await supabase
-          .from('properties')
-          .insert(propertyData)
-          .select()
-          .single();
-
-        if (insertError) {
-          console.error('Failed to create property:', insertError);
-          continue;
-        }
-
-        // Create room types in hostfully_room_types
-        if (newProperty) {
-          const { data: roomsData } = await supabase.functions.invoke('hostfully-api', {
-            body: {
-              action: 'get_property_rooms',
-              owner_credential_id: credential.id,
-              propertyUid: listing.id,
-            },
-          });
-
-          const rooms = roomsData?.data?.rooms || [];
-          for (const room of rooms) {
-            await supabase.from('hostfully_room_types').insert({
-              property_id: newProperty.id,
-              hostfully_room_id: room.hostfully_room_id || room.id,
-              name: room.name,
-              description: room.description,
-              max_guests: room.max_guests,
-              bedrooms: room.bedrooms,
-              bathrooms: room.bathrooms,
-              beds: room.beds,
-              daily_rate: room.daily_rate,
-              currency: room.currency,
-              images: room.images || [],
-              amenities: room.amenities || [],
-              raw_data: room,
-              is_active: true,
-            });
-          }
-        }
+      if (!data?.success || !data?.data?.properties) {
+        toast.error(data?.error?.message || 'Failed to fetch properties');
+        return;
       }
 
-      toast.success(`Imported ${listings.length} properties from Hostfully`);
-      setListingSelectorOpen(false);
-      onCredentialChange?.();
+      // Parse into buildings using the building parser
+      const buildings = parseHostfullyProperties(data.data.properties);
+      
+      if (buildings.length === 0) {
+        toast.error('No buildings found in Hostfully account');
+        return;
+      }
+
+      setParsedBuildings(buildings);
+      setBuildingImportDialogOpen(true);
     } catch (error: any) {
-      console.error('Import failed:', error);
-      toast.error(error.message || 'Failed to import properties');
+      console.error('Failed to fetch buildings:', error);
+      toast.error(error.message || 'Failed to fetch properties from Hostfully');
     } finally {
-      setImporting(false);
+      setFetchingBuildings(false);
     }
   };
 
@@ -384,10 +313,14 @@ export function OwnerPMSConnectionCard({
                   variant="outline"
                   size="sm"
                   className="flex-1 gap-1.5"
-                  onClick={() => setListingSelectorOpen(true)}
-                  disabled={listingsCount === 0}
+                  onClick={handleOpenBuildingImporter}
+                  disabled={fetchingBuildings || listingsCount === 0}
                 >
-                  <Building2 className="h-3.5 w-3.5" />
+                  {fetchingBuildings ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Building2 className="h-3.5 w-3.5" />
+                  )}
                   Import Properties
                 </Button>
                 <Button
@@ -467,13 +400,17 @@ export function OwnerPMSConnectionCard({
         </DialogContent>
       </Dialog>
 
-      {/* Listing Selector */}
-      <PMSListingSelector
-        open={listingSelectorOpen}
-        onOpenChange={setListingSelectorOpen}
-        systemType="hostfully"
-        onImport={handleImportListings}
-        existingProperties={[]} // Could pass existing properties for attach mode
+      {/* Building Import Dialog */}
+      <HostfullyBuildingImportDialog
+        open={buildingImportDialogOpen}
+        onOpenChange={setBuildingImportDialogOpen}
+        buildings={parsedBuildings}
+        ownerCredentialId={credential?.id || ''}
+        ownerName={ownerName}
+        ownerEmail={ownerEmail}
+        onImportComplete={() => {
+          onCredentialChange?.();
+        }}
       />
 
       {/* Disconnect Dialog */}
