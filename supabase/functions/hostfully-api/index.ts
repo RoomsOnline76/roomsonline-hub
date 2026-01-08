@@ -652,6 +652,77 @@ async function handleListProperties(creds: HostfullyCredentials) {
   }
 }
 
+// Paginated list of ALL properties (ID + Name only) for large accounts
+async function handleListAllProperties(creds: HostfullyCredentials) {
+  const baseUrl = HOSTFULLY_URLS[creds.environment];
+  const PAGE_SIZE = 100;
+  let allProperties: { id: string; name: string }[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  try {
+    // Get agency UID first
+    const agenciesResponse = await hostfullyRequest("/agencies", creds.api_key, baseUrl);
+    if (!agenciesResponse.ok) {
+      const error = mapHostfullyHttpError(agenciesResponse.status, await agenciesResponse.text());
+      return createErrorResponse(error.code, error.message, "list_all_properties");
+    }
+
+    const agenciesData = await agenciesResponse.json();
+    const agency = agenciesData?.agencies?.[0] || agenciesData?.[0];
+    const agencyUid = agency?.uid;
+
+    if (!agencyUid) {
+      return createErrorResponse(ERROR_CODES.NOT_FOUND, "No agency found for this API key", "list_all_properties");
+    }
+
+    console.log(`[Hostfully] Starting paginated fetch for agency ${agencyUid}...`);
+
+    // Paginate through all properties
+    while (hasMore) {
+      const response = await hostfullyRequest(
+        `/properties?agencyUid=${agencyUid}&_limit=${PAGE_SIZE}&_offset=${offset}`,
+        creds.api_key,
+        baseUrl
+      );
+
+      if (!response.ok) {
+        const error = mapHostfullyHttpError(response.status, await response.text());
+        return createErrorResponse(error.code, error.message, "list_all_properties");
+      }
+
+      const data = await response.json();
+      const properties = data?.properties || data || [];
+      const batch = (Array.isArray(properties) ? properties : []).map((p: any) => ({
+        id: p.uid,
+        name: p.name,
+      }));
+
+      allProperties = [...allProperties, ...batch];
+
+      console.log(`[Hostfully] Fetched ${allProperties.length} properties (offset: ${offset}, batch: ${batch.length})`);
+
+      // Check if there are more pages
+      if (batch.length < PAGE_SIZE) {
+        hasMore = false;
+      } else {
+        offset += PAGE_SIZE;
+      }
+    }
+
+    return createSuccessResponse({
+      properties: allProperties,
+      agency_uid: agencyUid,
+      agency_name: agency?.name || agency?.companyName || null,
+      total_count: allProperties.length,
+    }, "list_all_properties");
+
+  } catch (err) {
+    console.error("[Hostfully] List all properties failed:", err);
+    return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to list all properties", "list_all_properties", err);
+  }
+}
+
 async function handleFetchAvailability(
   creds: HostfullyCredentials,
   propertyUid: string,
@@ -1006,6 +1077,10 @@ serve(async (req) => {
 
       case "list_properties":
         response = await handleListProperties(creds);
+        break;
+
+      case "list_all_properties":
+        response = await handleListAllProperties(creds);
         break;
 
       case "get_listing_details":
