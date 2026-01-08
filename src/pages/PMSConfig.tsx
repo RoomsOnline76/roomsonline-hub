@@ -188,10 +188,10 @@ export default function PMSConfig() {
 
       setFetchingExternal(true);
       try {
-        // Fetch properties using owner's API key via list_properties action
+        // Fetch ALL properties using paginated list_all_properties action
         const { data, error } = await supabase.functions.invoke('hostfully-api', {
           body: {
-            action: 'list_properties',
+            action: 'list_all_properties',
             owner_credential_id: selectedOwnerId,
           },
         });
@@ -205,7 +205,7 @@ export default function PMSConfig() {
           });
           toast({
             title: "Data fetched",
-            description: `Found ${data.data?.properties?.length || 0} properties from Hostfully`,
+            description: `Found ${data.data?.total_count || 0} properties from Hostfully`,
           });
         } else {
           throw new Error(data?.error || 'Failed to fetch properties');
