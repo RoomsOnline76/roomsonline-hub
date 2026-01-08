@@ -985,6 +985,38 @@ export default function PropertyForm() {
         setRoomTypes(convertedRooms);
         setHostfullyRoomCount(convertedRooms.length);
         console.log("[DEBUG] UI State Updated with", convertedRooms.length, "rooms");
+        
+        // Update property-level GPS and address from first room with valid coordinates
+        const roomWithCoords = convertedRooms.find(r => r.latitude && r.longitude);
+        if (roomWithCoords) {
+          // Update property GPS position in UI
+          setLatitude(roomWithCoords.latitude);
+          setLongitude(roomWithCoords.longitude);
+          
+          // Update property address fields from room address
+          if (roomWithCoords.addressStreet || roomWithCoords.addressCity) {
+            setFormData(prev => ({
+              ...prev,
+              address: roomWithCoords.addressStreet || prev.address,
+              city: roomWithCoords.addressCity || prev.city,
+              country: roomWithCoords.addressCountry || prev.country,
+            }));
+          }
+          
+          // Also update the property record in DB
+          await supabase
+            .from("properties")
+            .update({
+              latitude: roomWithCoords.latitude,
+              longitude: roomWithCoords.longitude,
+              address: roomWithCoords.addressStreet || undefined,
+              city: roomWithCoords.addressCity || undefined,
+              country: roomWithCoords.addressCountry || undefined,
+            })
+            .eq("id", propertyId);
+            
+          console.log("[DEBUG] Property GPS updated:", roomWithCoords.latitude, roomWithCoords.longitude);
+        }
       }
 
       toast({
