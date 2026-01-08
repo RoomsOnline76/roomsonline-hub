@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -46,7 +46,27 @@ export function HostfullyBuildingImportDialog({
   const [selectedBuildings, setSelectedBuildings] = useState<Set<string>>(new Set());
   const [expandedBuildings, setExpandedBuildings] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
-  const [importedBuildings, setImportedBuildings] = useState<Set<string>>(new Set());
+  const [existingBuildingNames, setExistingBuildingNames] = useState<Set<string>>(new Set());
+
+  // Check which buildings are already imported when dialog opens
+  useEffect(() => {
+    async function fetchExistingBuildings() {
+      if (!open || !ownerCredentialId) return;
+      
+      const { data } = await supabase
+        .from('properties')
+        .select('name')
+        .eq('owner_pms_credential_id', ownerCredentialId);
+      
+      if (data) {
+        setExistingBuildingNames(new Set(data.map(p => p.name.toUpperCase())));
+      }
+    }
+    fetchExistingBuildings();
+  }, [open, ownerCredentialId]);
+
+  const isAlreadyImported = (buildingName: string) => 
+    existingBuildingNames.has(buildingName.toUpperCase());
 
   const toggleBuildingSelection = (buildingName: string) => {
     setSelectedBuildings(prev => {
@@ -73,13 +93,19 @@ export function HostfullyBuildingImportDialog({
   };
 
   const selectAll = () => {
-    const allNames = new Set(buildings.map(b => b.building_name));
-    setSelectedBuildings(allNames);
+    // Only select buildings that aren't already imported
+    const selectableNames = new Set(
+      buildings.filter(b => !isAlreadyImported(b.building_name)).map(b => b.building_name)
+    );
+    setSelectedBuildings(selectableNames);
   };
 
   const deselectAll = () => {
     setSelectedBuildings(new Set());
   };
+
+  const importableCount = buildings.filter(b => !isAlreadyImported(b.building_name)).length;
+  const alreadyImportedCount = buildings.length - importableCount;
 
   const handleImport = async () => {
     if (selectedBuildings.size === 0) {
@@ -144,7 +170,8 @@ export function HostfullyBuildingImportDialog({
         }
 
         successCount++;
-        setImportedBuildings(prev => new Set(prev).add(buildingName));
+        // Update existingBuildingNames so the UI reflects the import immediately
+        setExistingBuildingNames(prev => new Set(prev).add(buildingName.toUpperCase()));
       } catch (error: any) {
         console.error(`Error importing ${buildingName}:`, error);
         errorCount++;
@@ -175,6 +202,11 @@ export function HostfullyBuildingImportDialog({
           </DialogTitle>
           <DialogDescription>
             Select buildings to import as ROL properties. Each unit will be created as a room type.
+            {alreadyImportedCount > 0 && (
+              <span className="block mt-1 text-green-600">
+                {alreadyImportedCount} building{alreadyImportedCount !== 1 ? 's' : ''} already imported.
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -196,7 +228,7 @@ export function HostfullyBuildingImportDialog({
             {buildings.map((building) => {
               const isSelected = selectedBuildings.has(building.building_name);
               const isExpanded = expandedBuildings.has(building.building_name);
-              const isImported = importedBuildings.has(building.building_name);
+              const isImported = isAlreadyImported(building.building_name);
 
               return (
                 <Collapsible

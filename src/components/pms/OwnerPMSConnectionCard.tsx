@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,10 +59,34 @@ export function OwnerPMSConnectionCard({
   const environment = 'production'; // Always production for owners
   const [validating, setValidating] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [buildingsData, setBuildingsData] = useState<{ total: number; imported: number }>({ total: 0, imported: 0 });
 
   const credential = existingCredential;
   const isConnected = credential?.is_active && credential?.sync_status === 'connected';
-  const listingsCount = credential?.available_listings?.length || 0;
+
+  // Parse available_listings into buildings to get total count
+  useEffect(() => {
+    if (credential?.available_listings && Array.isArray(credential.available_listings)) {
+      const buildings = parseHostfullyProperties(credential.available_listings);
+      setBuildingsData(prev => ({ ...prev, total: buildings.length }));
+    } else {
+      setBuildingsData(prev => ({ ...prev, total: 0 }));
+    }
+  }, [credential?.available_listings]);
+
+  // Query imported property count for this credential
+  const refreshImportedCount = async () => {
+    if (!credential?.id) return;
+    const { count } = await supabase
+      .from('properties')
+      .select('*', { count: 'exact', head: true })
+      .eq('owner_pms_credential_id', credential.id);
+    setBuildingsData(prev => ({ ...prev, imported: count || 0 }));
+  };
+
+  useEffect(() => {
+    refreshImportedCount();
+  }, [credential?.id]);
 
   const handleConnect = async () => {
     if (!apiKey.trim()) {
@@ -264,8 +288,14 @@ export function OwnerPMSConnectionCard({
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Properties</span>
-                  <span className="text-xs font-medium">{listingsCount} available</span>
+                  <span className="text-xs text-muted-foreground">Buildings</span>
+                  <span className="text-xs font-medium">
+                    {buildingsData.imported > 0
+                      ? `${buildingsData.imported}/${buildingsData.total} imported`
+                      : buildingsData.total > 0
+                        ? `${buildingsData.total} available`
+                        : 'Sync to fetch'}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Environment</span>
@@ -290,7 +320,7 @@ export function OwnerPMSConnectionCard({
                   size="sm"
                   className="flex-1 gap-1.5"
                   onClick={handleOpenBuildingImporter}
-                  disabled={fetchingBuildings || listingsCount === 0}
+                  disabled={fetchingBuildings}
                 >
                   {fetchingBuildings ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -385,6 +415,7 @@ export function OwnerPMSConnectionCard({
         ownerName={ownerName}
         ownerEmail={ownerEmail}
         onImportComplete={() => {
+          refreshImportedCount();
           onCredentialChange?.();
         }}
       />
@@ -394,7 +425,7 @@ export function OwnerPMSConnectionCard({
         open={disconnectDialogOpen}
         onOpenChange={setDisconnectDialogOpen}
         systemName="Hostfully"
-        affectedPropertyCount={listingsCount}
+        affectedPropertyCount={buildingsData.imported}
         onConfirm={handleDisconnect}
       />
     </>
