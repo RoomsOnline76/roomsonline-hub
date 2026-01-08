@@ -43,6 +43,7 @@ import PublicJournals from "./pages/PublicJournals";
 import AdminAudit from "./pages/AdminAudit";
 import AdminHelpArticles from "./pages/AdminHelpArticles";
 import HelpArticleEditor from "./pages/HelpArticleEditor";
+import AdminSystemHealth from "./pages/AdminSystemHealth";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -280,6 +281,14 @@ const App = () => (
             element={
               <ProtectedRoute requireAdmin={true}>
                 <HelpArticleEditor />
+            </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/system-health"
+            element={
+              <ProtectedRoute requireDev={true}>
+                <AdminSystemHealth />
               </ProtectedRoute>
             }
           />
