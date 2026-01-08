@@ -108,12 +108,12 @@ const baseRequestSchema = z.object({
   action: z.enum([
     "get_capabilities",
     "health_check",
-    "validate_api_key",        // NEW: Validates owner API key
-    "sync_owner_listings",     // NEW: Syncs listings for owner
+    "validate_api_key",
+    "sync_owner_listings",
     "list_properties",
-    "list_all_properties",     // NEW: Paginated fetch of all properties
+    "list_all_properties",
     "get_listing_details",
-    "get_property_rooms",      // NEW: Get rooms for a property
+    "get_property_rooms",
     "fetch_availability",
     "get_room_types",
     "get_rate_types",
@@ -122,6 +122,7 @@ const baseRequestSchema = z.object({
     "modify_reservation",
     "cancel_reservation",
     "fetch_property_data",
+    "full_ingest_property",    // NEW: One-time property data ingestion
   ]),
   // Owner-level credentials (NEW)
   api_key: z.string().optional(),
@@ -1264,6 +1265,19 @@ serve(async (req) => {
         }
         response = await handleFetchPropertyData(creds, body.propertyUid);
         break;
+
+      case "full_ingest_property": {
+        // One-time property data ingestion (68 fields)
+        const { executeFullIngestion } = await import("./ingestion/orchestrator.ts");
+        if (!body.propertyUid || !body.rol_property_id) {
+          return new Response(
+            JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyUid and rol_property_id required", action)),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+          );
+        }
+        response = await executeFullIngestion(body.propertyUid, body.rol_property_id, creds.owner_credential_id || '', supabase);
+        break;
+      }
 
       default:
         response = createErrorResponse(ERROR_CODES.INVALID_REQUEST, `Unknown action: ${action}`, action);
