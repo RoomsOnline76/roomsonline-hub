@@ -413,3 +413,35 @@ html {
 .date-scroll-snap > * {
   scroll-snap-align: center;
 }
+
+/* =============================================
+   HELP SYSTEM MARKDOWN CALLOUTS
+   ============================================= */
+
+.help-markdown .callout {
+  @apply rounded-lg p-4 my-4 border;
+}
+
+.help-markdown .callout-critical {
+  @apply bg-destructive/5 border-destructive/20 text-destructive;
+}
+
+.help-markdown .callout-critical::before {
+  content: "⚠️ ";
+}
+
+.help-markdown .callout-warning {
+  @apply bg-yellow-500/5 border-yellow-500/20;
+}
+
+.help-markdown .callout-warning::before {
+  content: "⚠️ ";
+}
+
+.help-markdown .callout-info {
+  @apply bg-blue-500/5 border-blue-500/20;
+}
+
+.help-markdown .callout-info::before {
+  content: "ℹ️ ";
+}

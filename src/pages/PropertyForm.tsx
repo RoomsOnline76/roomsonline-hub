@@ -79,6 +79,7 @@ import { pmsIntegrationStatus } from "@/components/ApiMilestones";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Sparkles } from "lucide-react";
 import { ROLSpecTab } from "@/components/property/ROLSpecTab";
+import { ContextualHelp, ImpactWarning } from "@/components/help";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -3255,8 +3256,9 @@ export default function PropertyForm() {
                             />
                           </div>
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="property_type" className="text-xs">
+                            <Label htmlFor="property_type" className="text-xs flex items-center">
                               Type *
+                              <ContextualHelp table="properties" field="property_type" />
                             </Label>
                             <Select
                               value={formData.property_type}
