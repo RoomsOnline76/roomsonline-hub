@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { z } from "zod";
-import { ACTIVE_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
+import { getPMSSystemByKey } from "@/lib/pmsSystemsConfig";
 import { Loader2, CheckCircle2, AlertCircle, Building2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -54,6 +54,7 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
   });
   const [selectedPMSSystems, setSelectedPMSSystems] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [activePMSSystems, setActivePMSSystems] = useState<{key: string, name: string}[]>([]);
 
   // Hostfully-specific state
   const [hostfullyApiKey, setHostfullyApiKey] = useState("");
@@ -67,6 +68,28 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
   const [ownerWillProvideKey, setOwnerWillProvideKey] = useState(false);
 
   const isHostfullySelected = selectedPMSSystems.includes("hostfully");
+
+  // Fetch active PMS systems from database
+  useEffect(() => {
+    const fetchActivePMS = async () => {
+      const { data } = await supabase
+        .from('pms_credentials')
+        .select('system_type')
+        .eq('is_active', true);
+      
+      if (data) {
+        const uniqueSystems = [...new Set(data.map(d => d.system_type))];
+        const systems = uniqueSystems
+          .map(key => {
+            const config = getPMSSystemByKey(key);
+            return config ? { key, name: config.name } : null;
+          })
+          .filter((s): s is {key: string, name: string} => s !== null);
+        setActivePMSSystems(systems);
+      }
+    };
+    fetchActivePMS();
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -308,7 +331,7 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
-                    {ACTIVE_PMS_SYSTEMS.map((system) => (
+                    {activePMSSystems.map((system) => (
                       <SelectItem key={system.key} value={system.key}>
                         {system.name}
                       </SelectItem>
