@@ -49,16 +49,22 @@ interface HelpStats {
 }
 
 const SECTION_LABELS: Record<string, string> = {
+  // Admin sections
   getting_started: "Getting Started",
+  booking_flow: "Booking Flow",
+  roles_permissions: "Roles & Permissions",
+  data_authority: "Data Authority & Sync",
+  architecture: "System Architecture",
+  debugging: "Debugging & Monitoring",
+  // Owner sections
+  owner_getting_started: "Getting Started",
   booking_categories: "Booking Categories",
   availability_pricing: "Availability & Pricing",
+  pms_integration: "How ROL Works with Your PMS",
+  property_appearance: "Your Property's Appearance",
+  common_mistakes: "Common Mistakes to Avoid",
   troubleshooting: "Troubleshooting",
-  common_mistakes: "Common Mistakes",
-  architecture: "Architecture",
-  roles_permissions: "Roles & Permissions",
-  data_authority: "Data Authority",
-  booking_flow: "Booking Flow",
-  debugging: "Debugging",
+  support: "Getting Help",
 };
 
 const getImpactIcon = (level: string | null) => {
