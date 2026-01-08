@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { z } from "zod";
-import { PMS_ONLY_SYSTEMS } from "@/lib/pmsSystemsConfig";
+import { ACTIVE_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
 import { Loader2, CheckCircle2, AlertCircle, Building2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -90,19 +90,16 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
     setOwnerWillProvideKey(false);
   };
 
-  const handlePMSToggle = (systemKey: string) => {
-    setSelectedPMSSystems(prev => {
-      const newSelection = prev.includes(systemKey)
-        ? prev.filter(k => k !== systemKey)
-        : [...prev, systemKey];
-      
-      // Reset Hostfully state if deselected
-      if (systemKey === "hostfully" && prev.includes("hostfully")) {
+  const handlePMSChange = (value: string) => {
+    if (value === "none") {
+      setSelectedPMSSystems([]);
+      resetHostfullyState();
+    } else {
+      setSelectedPMSSystems([value]);
+      if (value !== "hostfully") {
         resetHostfullyState();
       }
-      
-      return newSelection;
-    });
+    }
   };
 
   const validateHostfullyKey = async () => {
@@ -300,34 +297,24 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
 
           {role === "user" && (
             <>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <Label>Which PMS do they use? <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                <div className="grid gap-2 max-h-48 overflow-y-auto border rounded-md p-3">
-                  {PMS_ONLY_SYSTEMS.map((system) => (
-                    <div 
-                      key={system.key} 
-                      className="flex items-start gap-3 p-2 rounded hover:bg-muted/50 cursor-pointer"
-                      onClick={() => handlePMSToggle(system.key)}
-                    >
-                      <Checkbox
-                        id={`pms-${system.key}`}
-                        checked={selectedPMSSystems.includes(system.key)}
-                        onCheckedChange={() => handlePMSToggle(system.key)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <label 
-                          htmlFor={`pms-${system.key}`} 
-                          className="text-sm font-medium cursor-pointer"
-                        >
-                          {system.name}
-                        </label>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {system.description}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <Select
+                  value={selectedPMSSystems[0] || "none"}
+                  onValueChange={handlePMSChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select PMS (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {ACTIVE_PMS_SYSTEMS.map((system) => (
+                      <SelectItem key={system.key} value={system.key}>
+                        {system.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Hostfully Configuration Section */}
