@@ -107,6 +107,84 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_logs: {
+        Row: {
+          action_type: Database["public"]["Enums"]["audit_action_type"]
+          change_summary: string
+          changed_fields: string[] | null
+          correlation_id: string | null
+          created_at: string
+          edge_function_name: string | null
+          id: string
+          immutable_hash: string | null
+          ip_address: string | null
+          is_sensitive: boolean | null
+          metadata: Json | null
+          new_values: Json | null
+          old_values: Json | null
+          property_id: string | null
+          record_id: string
+          redacted_fields: string[] | null
+          request_origin: Database["public"]["Enums"]["audit_request_origin"]
+          session_id: string | null
+          table_name: string
+          user_agent: string | null
+          user_email: string
+          user_id: string
+          user_role: Database["public"]["Enums"]["audit_user_role"]
+        }
+        Insert: {
+          action_type: Database["public"]["Enums"]["audit_action_type"]
+          change_summary: string
+          changed_fields?: string[] | null
+          correlation_id?: string | null
+          created_at?: string
+          edge_function_name?: string | null
+          id?: string
+          immutable_hash?: string | null
+          ip_address?: string | null
+          is_sensitive?: boolean | null
+          metadata?: Json | null
+          new_values?: Json | null
+          old_values?: Json | null
+          property_id?: string | null
+          record_id: string
+          redacted_fields?: string[] | null
+          request_origin: Database["public"]["Enums"]["audit_request_origin"]
+          session_id?: string | null
+          table_name: string
+          user_agent?: string | null
+          user_email: string
+          user_id: string
+          user_role: Database["public"]["Enums"]["audit_user_role"]
+        }
+        Update: {
+          action_type?: Database["public"]["Enums"]["audit_action_type"]
+          change_summary?: string
+          changed_fields?: string[] | null
+          correlation_id?: string | null
+          created_at?: string
+          edge_function_name?: string | null
+          id?: string
+          immutable_hash?: string | null
+          ip_address?: string | null
+          is_sensitive?: boolean | null
+          metadata?: Json | null
+          new_values?: Json | null
+          old_values?: Json | null
+          property_id?: string | null
+          record_id?: string
+          redacted_fields?: string[] | null
+          request_origin?: Database["public"]["Enums"]["audit_request_origin"]
+          session_id?: string | null
+          table_name?: string
+          user_agent?: string | null
+          user_email?: string
+          user_id?: string
+          user_role?: Database["public"]["Enums"]["audit_user_role"]
+        }
+        Relationships: []
+      }
       book_page_images: {
         Row: {
           alt_text: string | null
@@ -1552,6 +1630,11 @@ export type Database = {
         Args: { property_id: string; property_name: string }
         Returns: string
       }
+      get_user_audit_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["audit_user_role"]
+      }
+      get_user_email: { Args: { _user_id: string }; Returns: string }
       get_user_profile: {
         Args: { user_id: string }
         Returns: {
@@ -1573,6 +1656,22 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user" | "dev"
+      audit_action_type:
+        | "create"
+        | "update"
+        | "delete"
+        | "permission_change"
+        | "sync"
+        | "export"
+        | "login"
+        | "other"
+      audit_request_origin:
+        | "admin_ui"
+        | "edge_function"
+        | "api"
+        | "cron"
+        | "db_trigger"
+      audit_user_role: "admin" | "dev" | "owner" | "system"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1701,6 +1800,24 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user", "dev"],
+      audit_action_type: [
+        "create",
+        "update",
+        "delete",
+        "permission_change",
+        "sync",
+        "export",
+        "login",
+        "other",
+      ],
+      audit_request_origin: [
+        "admin_ui",
+        "edge_function",
+        "api",
+        "cron",
+        "db_trigger",
+      ],
+      audit_user_role: ["admin", "dev", "owner", "system"],
     },
   },
 } as const
