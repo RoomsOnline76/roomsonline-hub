@@ -30,8 +30,12 @@ function AuthContent() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotEmailSent, setForgotEmailSent] = useState(false);
   
-  // Password reset state
-  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
+  // Password reset state - check URL hash for recovery token on initial load
+  const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
+    // Check if URL contains recovery token to prevent flash
+    const hash = window.location.hash;
+    return hash.includes('type=recovery') || hash.includes('type=signup');
+  });
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   
@@ -410,7 +414,9 @@ function AuthContent() {
   }
 
   // Show reCAPTCHA overlay for login tab - only show after initial attempt and only on error
-  const showLoginOverlay = activeTab === "login" && 
+  // Never show during recovery mode (password reset flow)
+  const showLoginOverlay = !isRecoveryMode && 
+    activeTab === "login" && 
     loginRecaptcha.hasAttempted && 
     !loginRecaptcha.isVerified && 
     (loginRecaptcha.error || loginRecaptcha.isVerifying);
