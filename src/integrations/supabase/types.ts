@@ -430,6 +430,57 @@ export type Database = {
           },
         ]
       }
+      help_articles: {
+        Row: {
+          content_markdown: string
+          created_at: string | null
+          id: string
+          impact_level: Database["public"]["Enums"]["help_impact_level"] | null
+          is_published: boolean | null
+          related_field: string | null
+          related_table: string | null
+          role_target: string[]
+          section: string
+          slug: string
+          sort_order: number | null
+          title: string
+          updated_at: string | null
+          view_count: number | null
+        }
+        Insert: {
+          content_markdown: string
+          created_at?: string | null
+          id?: string
+          impact_level?: Database["public"]["Enums"]["help_impact_level"] | null
+          is_published?: boolean | null
+          related_field?: string | null
+          related_table?: string | null
+          role_target?: string[]
+          section: string
+          slug: string
+          sort_order?: number | null
+          title: string
+          updated_at?: string | null
+          view_count?: number | null
+        }
+        Update: {
+          content_markdown?: string
+          created_at?: string | null
+          id?: string
+          impact_level?: Database["public"]["Enums"]["help_impact_level"] | null
+          is_published?: boolean | null
+          related_field?: string | null
+          related_table?: string | null
+          role_target?: string[]
+          section?: string
+          slug?: string
+          sort_order?: number | null
+          title?: string
+          updated_at?: string | null
+          view_count?: number | null
+        }
+        Relationships: []
+      }
       journals: {
         Row: {
           author_id: string | null
@@ -1504,6 +1555,38 @@ export type Database = {
           },
         ]
       }
+      user_help_views: {
+        Row: {
+          article_id: string | null
+          id: string
+          user_id: string
+          viewed_at: string | null
+          was_helpful: boolean | null
+        }
+        Insert: {
+          article_id?: string | null
+          id?: string
+          user_id: string
+          viewed_at?: string | null
+          was_helpful?: boolean | null
+        }
+        Update: {
+          article_id?: string | null
+          id?: string
+          user_id?: string
+          viewed_at?: string | null
+          was_helpful?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_help_views_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "help_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -1635,6 +1718,7 @@ export type Database = {
         Returns: Database["public"]["Enums"]["audit_user_role"]
       }
       get_user_email: { Args: { _user_id: string }; Returns: string }
+      get_user_help_role: { Args: { _user_id: string }; Returns: string }
       get_user_profile: {
         Args: { user_id: string }
         Returns: {
@@ -1672,6 +1756,7 @@ export type Database = {
         | "cron"
         | "db_trigger"
       audit_user_role: "admin" | "dev" | "owner" | "system"
+      help_impact_level: "critical" | "warning" | "info"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1818,6 +1903,7 @@ export const Constants = {
         "db_trigger",
       ],
       audit_user_role: ["admin", "dev", "owner", "system"],
+      help_impact_level: ["critical", "warning", "info"],
     },
   },
 } as const
