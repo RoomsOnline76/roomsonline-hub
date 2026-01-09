@@ -129,6 +129,11 @@ export default function RoomShowcase() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showLeavingModal, setShowLeavingModal] = useState(false);
   const [externalBookingUrl, setExternalBookingUrl] = useState("");
+  
+  // Real-time rates from API (HotelBeds, etc.)
+  const [liveRates, setLiveRates] = useState<any[]>([]);
+  const [liveAvailability, setLiveAvailability] = useState<number | null>(null);
+  const [fetchingLiveRates, setFetchingLiveRates] = useState(false);
 
   // Helper to create slug from room name
   const slugifyRoomName = (name: string) => {
@@ -243,6 +248,68 @@ export default function RoomShowcase() {
   // Check if this is a Benson property (supports direct booking)
   const isBensonProperty = property?.external_system?.toLowerCase() === "benson";
   
+  // Check if this is a HotelBeds property
+  const isHotelBedsProperty = property?.external_system === "hotelbeds";
+  
+  // Fetch real-time rates for HotelBeds properties
+  const fetchLiveRates = async () => {
+    if (!property?.id || !room) return;
+    
+    setFetchingLiveRates(true);
+    const today = new Date().toISOString().split('T')[0];
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 14);
+    const end = endDate.toISOString().split('T')[0];
+
+    try {
+      const { data, error } = await supabase.functions.invoke('hotelbeds-api', {
+        body: {
+          action: 'fetch_availability',
+          property_id: property.id,
+          start_date: today,
+          end_date: end,
+        }
+      });
+      
+      if (error) {
+        console.error('HotelBeds API error:', error);
+        return;
+      }
+      
+      if (data?.success && data?.data?.room_types) {
+        const roomId = room.pmsRoomId || room.id;
+        const matchedRoom = data.data.room_types.find((rt: any) => 
+          (rt.room_type_id || rt.id) === roomId || 
+          rt.name === room.name
+        );
+        
+        if (matchedRoom) {
+          // Extract availability
+          const availArray = matchedRoom.rooms_available_per_night || matchedRoom.dailyAvailability || [];
+          const todayData = availArray.find((d: any) => d.date === today) || availArray[0];
+          if (todayData) {
+            setLiveAvailability(todayData.available_units ?? todayData.availableUnits ?? 1);
+          }
+          
+          // Extract rates
+          const rateTypes = matchedRoom.rate_types || matchedRoom.rateTypes || [];
+          setLiveRates(rateTypes);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch live rates:', error);
+    } finally {
+      setFetchingLiveRates(false);
+    }
+  };
+  
+  // Fetch live rates for HotelBeds on load
+  useEffect(() => {
+    if (isHotelBedsProperty && property?.id && room && !fetchingLiveRates && liveRates.length === 0) {
+      fetchLiveRates();
+    }
+  }, [property?.id, room, isHotelBedsProperty]);
+  
   // Get NightsBridge BBID from property
   const getNightsBridgeBBID = (): string | null => {
     if (!property) return null;
@@ -264,8 +331,8 @@ export default function RoomShowcase() {
       }
     }
     
-    // For Benson properties: navigate to availability calendar
-    if (isBensonProperty && property && room) {
+    // For Benson or HotelBeds properties: navigate to availability calendar
+    if ((isBensonProperty || isHotelBedsProperty) && property && room) {
       const roomSlugName = slugifyRoomName(room.name);
       const params = new URLSearchParams(window.location.search);
       const queryString = params.toString();
@@ -315,9 +382,37 @@ export default function RoomShowcase() {
   const images = room.images || [];
   const facilities = room.facilities || [];
   const amenities = room.amenities || [];
-  // Calculate lowest rate from pms_rates (amenities) first, fallback to property_rates
+  // Use liveAvailability if available, fallback to cached
+  const displayedAvailability = liveAvailability ?? availableUnits;
+  
+  // Calculate lowest rate from live rates first, then pms_rates, then property_rates
   const getLowestRate = (): number | null => {
-    // First check pms_rates from room data
+    // First check live rates (real-time from API for HotelBeds, etc.)
+    if (liveRates.length > 0) {
+      let lowest: number | null = null;
+      liveRates.forEach((rateType: any) => {
+        // Check direct rate fields
+        if (rateType.room_amount && (lowest === null || rateType.room_amount < lowest)) {
+          lowest = rateType.room_amount;
+        }
+        // Check adult_amounts
+        if (rateType.adult_amounts) {
+          Object.values(rateType.adult_amounts).forEach((amt: any) => {
+            if (typeof amt === 'number' && amt > 0 && (lowest === null || amt < lowest)) lowest = amt;
+          });
+        }
+        // Check nested rates array (HotelBeds format)
+        if (rateType.rates?.length > 0) {
+          rateType.rates.forEach((dr: any) => {
+            const amt = dr.room_amount || dr.adult_amounts?.adult_amount_1;
+            if (typeof amt === 'number' && amt > 0 && (lowest === null || amt < lowest)) lowest = amt;
+          });
+        }
+      });
+      if (lowest !== null) return lowest;
+    }
+    
+    // Then check pms_rates from room data
     if (room.pms_rates && room.pms_rates.length > 0) {
       const validRates = room.pms_rates
         .filter(r => r.roomAmount != null || r.adultAmount1 != null || r.adultAmount2 != null)
