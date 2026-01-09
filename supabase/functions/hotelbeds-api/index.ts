@@ -378,12 +378,47 @@ function transformAvailability(hotelbedsData: any, startDate: string, endDate: s
         });
       }
       
-      // Process rates - use "rates" array format expected by CalendarAccommodation
+      // Group rates by boardCode to deduplicate and aggregate
+      const ratesByBoardCode = new Map<string, {
+        boardCode: string;
+        boardName: string;
+        rateClass: string;
+        rateKey: string;
+        cancellationPolicies: any[];
+        netTotal: number;
+        count: number;
+      }>();
+      
       for (const rate of (room.rates || [])) {
+        const boardCode = rate.boardCode || rate.rateClass || 'standard';
+        if (!ratesByBoardCode.has(boardCode)) {
+          ratesByBoardCode.set(boardCode, {
+            boardCode,
+            boardName: rate.boardName || rate.rateClass || "Standard",
+            rateClass: rate.rateClass,
+            rateKey: rate.rateKey, // Store one rateKey for booking
+            cancellationPolicies: rate.cancellationPolicies || [],
+            netTotal: parseFloat(rate.net) || 0,
+            count: 1,
+          });
+        } else {
+          // Use lowest rate for this board type
+          const existing = ratesByBoardCode.get(boardCode)!;
+          const newNet = parseFloat(rate.net) || 0;
+          if (newNet < existing.netTotal) {
+            existing.netTotal = newNet;
+            existing.rateKey = rate.rateKey;
+            existing.cancellationPolicies = rate.cancellationPolicies || [];
+          }
+          existing.count++;
+        }
+      }
+      
+      // Build rate types from grouped data
+      for (const [boardCode, rateData] of ratesByBoardCode) {
         const rates: any[] = [];
-        const netAmount = parseFloat(rate.net) || 0;
         const nights = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-        const perNightRate = nights > 0 ? netAmount / nights : netAmount;
+        const perNightRate = nights > 0 ? rateData.netTotal / nights : rateData.netTotal;
         
         // Create daily rate entries
         for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
@@ -403,16 +438,16 @@ function transformAvailability(hotelbedsData: any, startDate: string, endDate: s
         }
         
         rateTypes.push({
-          rate_type_id: rate.rateKey?.substring(0, 50) || `rate_${rateTypes.length}`,
-          rate_type_name: rate.boardName || rate.rateClass || "Standard",
-          name: rate.boardName || rate.rateClass || "Standard",
-          rate_key: rate.rateKey, // Store full rateKey for booking
-          board_code: rate.boardCode,
-          board_name: rate.boardName,
+          rate_type_id: boardCode, // Use boardCode for consistency with transformRateTypes
+          rate_type_name: rateData.boardName,
+          name: rateData.boardName,
+          rate_key: rateData.rateKey, // Store full rateKey for booking
+          board_code: boardCode,
+          board_name: rateData.boardName,
           price_type: "UnitRate",
-          cancellation_policies: rate.cancellationPolicies || [],
+          cancellation_policies: rateData.cancellationPolicies,
           rates: rates,
-          net_total: netAmount,
+          net_total: rateData.netTotal,
         });
       }
       
@@ -457,7 +492,8 @@ function transformRoomTypes(hotelbedsData: any): any[] {
           infant_min_age: 0,
           infant_max_age: 1,
         },
-        linked_rate_type_ids: room.rates?.map((r: any) => r.rateKey?.substring(0, 50)) || [],
+        // Use boardCode for consistency with transformRateTypes
+        linked_rate_type_ids: [...new Set(room.rates?.map((r: any) => r.boardCode || r.rateClass) || [])],
       });
     }
   }
