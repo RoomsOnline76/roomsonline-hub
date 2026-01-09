@@ -77,12 +77,14 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import RichTextEditor from "@/components/RichTextEditor";
 import { pmsIntegrationStatus } from "@/components/ApiMilestones";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Sparkles } from "lucide-react";
+import { AlertTriangle, Sparkles, Globe } from "lucide-react";
 import { ROLSpecTab } from "@/components/property/ROLSpecTab";
 import { ContextualHelp, ImpactWarning } from "@/components/help";
 import { OwnerPMSConnectionCard } from "@/components/pms/OwnerPMSConnectionCard";
 import { parseHostfullyProperties } from "@/lib/hostfullyBuildingParser";
 import { HostfullyRoomDetails } from "@/components/pms/HostfullyRoomDetails";
+import { WebsiteSyncModal, WebsiteSyncSuggestion } from "@/components/property/WebsiteSyncModal";
+import { syncFromWebsite } from "@/lib/api/websiteSync";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -377,7 +379,12 @@ export default function PropertyForm() {
   const [fullSyncingHostfully, setFullSyncingHostfully] = useState(false);
   const [syncProgress, setSyncProgress] = useState<{ phase: string; current: number; total: number } | null>(null);
 
-  // Owner's Hostfully credential (for owners to connect their PMS)
+  // Website sync state
+  const [websiteSyncing, setWebsiteSyncing] = useState(false);
+  const [websiteSyncModalOpen, setWebsiteSyncModalOpen] = useState(false);
+  const [websiteSyncSuggestions, setWebsiteSyncSuggestions] = useState<WebsiteSyncSuggestion[]>([]);
+  const [websiteSyncUrl, setWebsiteSyncUrl] = useState("");
+
   const [ownerHostfullyCredential, setOwnerHostfullyCredential] = useState<any>(null);
   const [loadingOwnerCredential, setLoadingOwnerCredential] = useState(false);
 
@@ -4204,14 +4211,89 @@ export default function PropertyForm() {
                             <Label htmlFor="property_url" className="text-xs">
                               Property Website
                             </Label>
-                            <Input
-                              id="property_url"
-                              type="url"
-                              value={formData.property_url}
-                              onChange={(e) => handleInputChange("property_url", e.target.value)}
-                              placeholder="https://www.explorersclub.co.za/"
-                              className="h-7 text-xs"
-                            />
+                            <div className="flex gap-2">
+                              <Input
+                                id="property_url"
+                                type="url"
+                                value={formData.property_url}
+                                onChange={(e) => handleInputChange("property_url", e.target.value)}
+                                placeholder="https://www.explorersclub.co.za/"
+                                className="h-7 text-xs flex-1"
+                              />
+                              {formData.property_url?.startsWith("http") && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    setWebsiteSyncing(true);
+                                    try {
+                                      const existingData = {
+                                        telephone: formData.telephone,
+                                        contact_email: formData.contact_email,
+                                        address: formData.address,
+                                        suburb: formData.suburb,
+                                        city: formData.city,
+                                        country: formData.country,
+                                        postal_code: formData.postal_code,
+                                        description: formData.description,
+                                        restaurants_cafes: formData.restaurants_cafes,
+                                        public_transport: formData.public_transport,
+                                        closest_airport: formData.closest_airport,
+                                        facilities: selectedFacilities,
+                                      };
+                                      const result = await syncFromWebsite(
+                                        propertyId || "",
+                                        formData.property_url || "",
+                                        existingData
+                                      );
+                                      if (result.success && result.suggestions && result.suggestions.length > 0) {
+                                        setWebsiteSyncSuggestions(result.suggestions);
+                                        setWebsiteSyncUrl(result.scrapedUrl || formData.property_url || "");
+                                        setWebsiteSyncModalOpen(true);
+                                      } else if (result.success && (!result.suggestions || result.suggestions.length === 0)) {
+                                        toast({
+                                          title: "No suggestions found",
+                                          description: "Could not extract any new information from the website.",
+                                        });
+                                      } else {
+                                        toast({
+                                          title: "Sync failed",
+                                          description: result.error || "Failed to sync from website",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    } catch (err) {
+                                      console.error("Website sync error:", err);
+                                      toast({
+                                        title: "Sync failed",
+                                        description: "An unexpected error occurred",
+                                        variant: "destructive",
+                                      });
+                                    } finally {
+                                      setWebsiteSyncing(false);
+                                    }
+                                  }}
+                                  disabled={websiteSyncing}
+                                  className="h-7 gap-1 text-xs"
+                                >
+                                  {websiteSyncing ? (
+                                    <>
+                                      <RefreshCw className="h-3 w-3 animate-spin" />
+                                      Scanning...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Sparkles className="h-3 w-3" />
+                                      Auto-fill
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">
+                              Scan the website to auto-fill empty fields
+                            </p>
                           </div>
                         </div>
                       </CardContent>
@@ -10000,6 +10082,29 @@ export default function PropertyForm() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Website Auto-fill Modal */}
+      <WebsiteSyncModal
+        open={websiteSyncModalOpen}
+        onOpenChange={setWebsiteSyncModalOpen}
+        suggestions={websiteSyncSuggestions}
+        scrapedUrl={websiteSyncUrl}
+        onApply={(selectedSuggestions) => {
+          selectedSuggestions.forEach((suggestion) => {
+            const key = suggestion.stateVariable.replace("formData.", "");
+            if (key === "selectedFacilities" && Array.isArray(suggestion.suggested)) {
+              setSelectedFacilities(suggestion.suggested as string[]);
+            } else if (key in formData) {
+              setFormData((prev) => ({ ...prev, [key]: suggestion.suggested as string }));
+            }
+          });
+          setIsDirty(true);
+          toast({
+            title: "Fields updated",
+            description: `Applied ${selectedSuggestions.length} suggestion${selectedSuggestions.length !== 1 ? "s" : ""} from website`,
+          });
+        }}
+      />
     </AppLayout>
   );
 }

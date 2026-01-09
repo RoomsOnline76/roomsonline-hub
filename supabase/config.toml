@@ -77,3 +77,6 @@ verify_jwt = false
 
 [functions.geocode-property]
 verify_jwt = false
+
+[functions.ai-website-sync]
+verify_jwt = true
