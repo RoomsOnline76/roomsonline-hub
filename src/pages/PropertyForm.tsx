@@ -764,7 +764,8 @@ export default function PropertyForm() {
         .from("hostfully_room_types")
         .select("id, hostfully_room_id, name")
         .eq("property_id", propertyId)
-        .not("hostfully_room_id", "is", null);
+        .not("hostfully_room_id", "is", null)
+        .order("name");
 
       if (fetchError) throw fetchError;
       
@@ -1022,9 +1023,13 @@ export default function PropertyForm() {
             .eq("id", propertyId)
             .single();
 
+          const currentAmenities = currentProperty?.amenities as Record<string, unknown> || {};
           const updatedAmenities = {
-            ...(currentProperty?.amenities as Record<string, unknown> || {}),
-            postal_code: roomWithCoords.addressPostalCode || (currentProperty?.amenities as any)?.postal_code,
+            ...currentAmenities,
+            address_details: {
+              ...(currentAmenities.address_details as Record<string, unknown> || {}),
+              postal_code: roomWithCoords.addressPostalCode,
+            },
           };
 
         // Update property record in DB with all 7 fields
