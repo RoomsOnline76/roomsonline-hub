@@ -6,8 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const HOSTFULLY_TOKEN_URL = 'https://pmp.hostfully.com/api/auth/oauth/code-exchange';
-
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -17,7 +15,7 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
-    const state = url.searchParams.get('state'); // Contains owner_id
+    const state = url.searchParams.get('state'); // Contains owner_id, environment, etc.
     const error = url.searchParams.get('error');
     const errorDescription = url.searchParams.get('error_description');
 
@@ -52,8 +50,13 @@ serve(async (req) => {
       );
     }
 
-    // Parse state - contains owner_id and optional property_id
-    let stateData: { owner_id: string; property_id?: string; credential_id?: string };
+    // Parse state - contains owner_id, property_id, credential_id, and environment
+    let stateData: { 
+      owner_id: string; 
+      property_id?: string; 
+      credential_id?: string;
+      environment?: 'sandbox' | 'production';
+    };
     try {
       stateData = JSON.parse(atob(state));
     } catch {
@@ -63,8 +66,8 @@ serve(async (req) => {
       );
     }
 
-    const { owner_id, property_id, credential_id } = stateData;
-    console.log('Parsed state:', { owner_id, property_id, credential_id });
+    const { owner_id, property_id, credential_id, environment = 'production' } = stateData;
+    console.log('Parsed state:', { owner_id, property_id, credential_id, environment });
 
     // Get OAuth credentials
     const clientId = Deno.env.get('HOSTFULLY_CLIENT_ID');
@@ -78,25 +81,36 @@ serve(async (req) => {
       );
     }
 
-    // Exchange code for tokens
-    console.log('Exchanging code for tokens...');
-    const tokenResponse = await fetch(HOSTFULLY_TOKEN_URL, {
+    // Determine URLs based on environment
+    const tokenUrl = environment === 'sandbox'
+      ? 'https://sandbox-api.hostfully.com/api/v3.2/auth/oauth/code-exchange'
+      : 'https://pmp.hostfully.com/api/auth/oauth/code-exchange';
+
+    const appUrl = Deno.env.get('APP_URL') || 'https://roomsonline.co.za';
+    const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/hostfully-oauth-callback`;
+
+    // Exchange code for tokens using Basic Auth (per Hostfully docs)
+    console.log('Exchanging code for tokens at:', tokenUrl);
+    const basicAuth = btoa(`${clientId}:${clientSecret}`);
+    
+    const tokenResponse = await fetch(tokenUrl, {
       method: 'POST',
       headers: {
+        'Authorization': `Basic ${basicAuth}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        clientId,
-        clientSecret,
         code,
-        grantType: 'authorization_code',
+        redirectUri,
+        scope: 'FULL',
+        grantType: 'REFRESH_TOKEN',
       }),
     });
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
       console.error('Token exchange failed:', tokenResponse.status, errorText);
-      throw new Error(`Token exchange failed: ${tokenResponse.status}`);
+      throw new Error(`Token exchange failed: ${tokenResponse.status} - ${errorText}`);
     }
 
     const tokenData = await tokenResponse.json();
@@ -113,9 +127,9 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Calculate token expiry
+    // Calculate token expiry (default 24h if not provided)
     const expiresAt = new Date();
-    expiresAt.setSeconds(expiresAt.getSeconds() + (expiresIn || 86400)); // Default 24h
+    expiresAt.setSeconds(expiresAt.getSeconds() + (expiresIn || 86400));
 
     // Store or update credentials in owner_pms_credentials
     if (credential_id) {
@@ -123,11 +137,13 @@ serve(async (req) => {
       const { error: updateError } = await supabase
         .from('owner_pms_credentials')
         .update({
-          api_key: accessToken, // Store access token as api_key for compatibility
+          api_key: accessToken,
+          refresh_token: refreshToken,
+          token_expires_at: expiresAt.toISOString(),
+          environment,
           sync_status: 'connected',
           sync_error: null,
           updated_at: new Date().toISOString(),
-          // Store refresh token and expiry in a metadata field or separate columns if needed
         })
         .eq('id', credential_id);
 
@@ -143,7 +159,9 @@ serve(async (req) => {
           owner_id,
           system_type: 'hostfully',
           api_key: accessToken,
-          environment: 'production',
+          refresh_token: refreshToken,
+          token_expires_at: expiresAt.toISOString(),
+          environment,
           sync_status: 'connected',
           is_active: true,
         });
@@ -173,7 +191,6 @@ serve(async (req) => {
     console.log('OAuth flow completed successfully');
 
     // Redirect back to app with success
-    const appUrl = Deno.env.get('APP_URL') || 'https://roomsonline.co.za';
     const redirectPath = property_id 
       ? `/admin/properties/${property_id}?hostfully_connected=true`
       : '/admin/users?hostfully_connected=true';
