@@ -1517,6 +1517,7 @@ export type Database = {
           id: string
           images: Json | null
           is_active: boolean | null
+          is_rol_property: boolean | null
           last_pms_sync_at: string | null
           latitude: number | null
           littlehotelier_channel_code: string | null
@@ -1568,6 +1569,7 @@ export type Database = {
           id?: string
           images?: Json | null
           is_active?: boolean | null
+          is_rol_property?: boolean | null
           last_pms_sync_at?: string | null
           latitude?: number | null
           littlehotelier_channel_code?: string | null
@@ -1619,6 +1621,7 @@ export type Database = {
           id?: string
           images?: Json | null
           is_active?: boolean | null
+          is_rol_property?: boolean | null
           last_pms_sync_at?: string | null
           latitude?: number | null
           littlehotelier_channel_code?: string | null

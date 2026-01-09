@@ -1642,6 +1642,7 @@ export default function PropertyForm() {
   });
 
   const [starRating, setStarRating] = useState(0);
+  const [isRolProperty, setIsRolProperty] = useState(false);
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
   const [selectedBreakfastOptions, setSelectedBreakfastOptions] = useState<string[]>([]);
   const [cancellationPolicies, setCancellationPolicies] = useState([
@@ -2749,6 +2750,9 @@ export default function PropertyForm() {
             navigation_tags: (data as any).navigation_tags || [],
           });
 
+          // Load is_rol_property
+          setIsRolProperty((data as any).is_rol_property ?? false);
+
           // Load meal types if available
           if (amenities?.meal_types && Array.isArray(amenities.meal_types)) {
             setSelectedMealTypes(amenities.meal_types);
@@ -3207,6 +3211,7 @@ export default function PropertyForm() {
         // Preserve existing hotelbeds_hotel_code if PMS changed, only update if hotelbeds is selected
         hotelbeds_hotel_code: selectedPMS === "hotelbeds" ? hotelbedsHotelCode : existingHotelbedsHotelCode,
         property_url: formData.property_url || null,
+        is_rol_property: isRolProperty,
         is_active: true,
         images: uploadedImages,
         max_guests: 2, // Default value, can be updated later
@@ -4109,6 +4114,19 @@ export default function PropertyForm() {
                                 <SelectItem value="apartment">Apartment</SelectItem>
                               </SelectContent>
                             </Select>
+                          </div>
+                          <div className="flex items-center gap-2 pt-5">
+                            <Checkbox
+                              id="is_rol_property"
+                              checked={isRolProperty}
+                              onCheckedChange={(checked) => {
+                                setIsRolProperty(checked as boolean);
+                                setIsDirty(true);
+                              }}
+                            />
+                            <Label htmlFor="is_rol_property" className="text-xs cursor-pointer">
+                              ROL Property
+                            </Label>
                           </div>
                           <div className="flex flex-col gap-1">
                             <Label htmlFor="telephone" className="text-xs">
