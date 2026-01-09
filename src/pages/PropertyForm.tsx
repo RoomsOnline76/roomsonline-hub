@@ -8890,11 +8890,26 @@ export default function PropertyForm() {
                     <TabsContent value="rate-types" className="p-3 space-y-2">
                       {(() => {
                         const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
-                        const availableRateTypeIds =
-                          currentRoom?.availableRateTypes || currentRoom?.linkedRateTypes || [];
-                        const availableRateTypesForRoom = pmsRateTypes.filter((rt) =>
-                          availableRateTypeIds.includes(rt.id),
-                        );
+                        
+                        // Extract actual rate type IDs from complex HotelBeds keys like "20260109|...|BB"
+                        const extractRateTypeId = (key: string | number): string => {
+                          const keyStr = String(key);
+                          if (keyStr.includes('|')) {
+                            const parts = keyStr.split('|').filter(p => p.trim());
+                            return parts[parts.length - 1] || '';
+                          }
+                          return keyStr;
+                        };
+                        
+                        const rawLinkedIds = currentRoom?.availableRateTypes || currentRoom?.linkedRateTypes || currentRoom?.linked_rate_type_ids || [];
+                        const linkedRateTypeIds = rawLinkedIds.map(extractRateTypeId).filter(Boolean);
+                        
+                        // If room has specific linked rate types, filter by those; otherwise show all available
+                        const availableRateTypesForRoom = linkedRateTypeIds.length > 0
+                          ? pmsRateTypes.filter((rt) => 
+                              linkedRateTypeIds.includes(String(rt.id)) || linkedRateTypeIds.includes(rt.id)
+                            )
+                          : pmsRateTypes; // Show all rate types if none specifically linked
 
                         return (
                           <>
