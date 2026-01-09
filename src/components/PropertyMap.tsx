@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "@/hooks/use-toast";
 import { MapPin } from "lucide-react";
 import { useGoogleMapsApiKey } from "@/hooks/useFeatureFlags";
@@ -32,11 +32,18 @@ export function PropertyMap({
   onLocationUpdate 
 }: PropertyMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const [map, setMap] = useState<google.maps.Map | null>(null);
-  const [marker, setMarker] = useState<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const mapInstanceRef = useRef<google.maps.Map | null>(null);
+  const markerInstanceRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const onLocationUpdateRef = useRef(onLocationUpdate);
   const { apiKey, isReady: apiKeyReady } = useGoogleMapsApiKey();
   const [mapsLoaded, setMapsLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Keep callback ref updated without triggering re-renders
+  useEffect(() => {
+    onLocationUpdateRef.current = onLocationUpdate;
+  }, [onLocationUpdate]);
 
   // Show toast when API key is missing after loading completes
   useEffect(() => {
@@ -49,7 +56,7 @@ export function PropertyMap({
     }
   }, [apiKeyReady, apiKey]);
 
-  // Load Google Maps script
+  // Load Google Maps script - only once
   useEffect(() => {
     if (!apiKeyReady || !apiKey) return;
 
@@ -64,15 +71,11 @@ export function PropertyMap({
     script.defer = true;
     script.onload = () => setMapsLoaded(true);
     document.head.appendChild(script);
-
-    return () => {
-      // Cleanup if needed
-    };
   }, [apiKey, apiKeyReady]);
 
-  // Initialize map
+  // Initialize map - only once when mapsLoaded becomes true
   useEffect(() => {
-    if (!mapRef.current || !mapsLoaded || !window.google?.maps) return;
+    if (!mapRef.current || !mapsLoaded || !window.google?.maps || isInitialized) return;
 
     try {
       const initialPosition = latitude && longitude 
@@ -116,23 +119,36 @@ export function PropertyMap({
 
       newMarker.addListener("dragend", () => {
         const position = newMarker.position;
-        if (position && onLocationUpdate) {
+        if (position && onLocationUpdateRef.current) {
           const lat = typeof position.lat === 'function' ? position.lat() : position.lat;
           const lng = typeof position.lng === 'function' ? position.lng() : position.lng;
-          onLocationUpdate(lat, lng);
+          onLocationUpdateRef.current(lat, lng);
         }
       });
 
-      setMap(newMap);
-      setMarker(newMarker);
+      mapInstanceRef.current = newMap;
+      markerInstanceRef.current = newMarker;
+      setIsInitialized(true);
     } catch (error) {
       console.error("Failed to initialize Google Maps:", error);
       setMapError("Failed to initialize map. The API key may not be authorized for this domain.");
     }
-  }, [mapsLoaded, latitude, longitude, onLocationUpdate]);
+  }, [mapsLoaded, isInitialized]); // Only depend on mapsLoaded and isInitialized
+
+  // Update marker position when lat/lng props change (without reinitializing map)
+  useEffect(() => {
+    if (!isInitialized || !mapInstanceRef.current || !markerInstanceRef.current) return;
+    if (!latitude || !longitude) return;
+
+    const newPosition = { lat: Number(latitude), lng: Number(longitude) };
+    mapInstanceRef.current.setCenter(newPosition);
+    markerInstanceRef.current.position = newPosition;
+  }, [latitude, longitude, isInitialized]);
 
   // Geocode address when it changes
   useEffect(() => {
+    const map = mapInstanceRef.current;
+    const marker = markerInstanceRef.current;
     if (!map || !marker || !address || !city || !country || !window.google?.maps) return;
 
     // Build full address: Street, Suburb (if present), City, Country
@@ -149,14 +165,14 @@ export function PropertyMap({
         map.setCenter(location);
         marker.position = { lat: location.lat(), lng: location.lng() };
         
-        if (onLocationUpdate) {
-          onLocationUpdate(location.lat(), location.lng());
+        if (onLocationUpdateRef.current) {
+          onLocationUpdateRef.current(location.lat(), location.lng());
         }
       } else {
         console.warn("Geocoding failed:", status);
       }
     });
-  }, [address, suburb, city, country, map, marker, onLocationUpdate]);
+  }, [address, suburb, city, country, isInitialized]);
 
   if (!apiKeyReady || (apiKey && !mapsLoaded)) {
     return (
