@@ -288,6 +288,58 @@ async function checkStatus(
   );
 }
 
+// ============================================================================
+// CONTENT API FUNCTIONS (for Editorial Sync)
+// ============================================================================
+
+// Get hotel content data (name, description, address, coordinates, etc.)
+async function getHotelContent(
+  apiKey: string,
+  secret: string,
+  environment: string,
+  hotelCode: string
+): Promise<any> {
+  return hotelbedsApiCall(
+    `/hotel-content-api/1.0/hotels?codes=${hotelCode}&language=ENG&from=1&to=1`,
+    apiKey,
+    secret,
+    environment,
+    'GET'
+  );
+}
+
+// Get hotel images
+async function getHotelImages(
+  apiKey: string,
+  secret: string,
+  environment: string,
+  hotelCode: string
+): Promise<any> {
+  return hotelbedsApiCall(
+    `/hotel-content-api/1.0/hotels/${hotelCode}/details`,
+    apiKey,
+    secret,
+    environment,
+    'GET'
+  );
+}
+
+// Get hotel facilities/amenities
+async function getHotelFacilities(
+  apiKey: string,
+  secret: string,
+  environment: string,
+  hotelCode: string
+): Promise<any> {
+  return hotelbedsApiCall(
+    `/hotel-content-api/1.0/hotels/${hotelCode}/details`,
+    apiKey,
+    secret,
+    environment,
+    'GET'
+  );
+}
+
 // Create booking
 async function createBooking(
   apiKey: string,
@@ -976,52 +1028,138 @@ serve(async (req) => {
     // Fetch property data for editorial sync (per adapter-contract.ts)
     if (action === "fetch_property_data") {
       try {
-        // Fetch availability for a week to get hotel/room data
+        // Fetch from Content API endpoints + availability in parallel
         const today = new Date();
         const startDate = today.toISOString().split('T')[0];
         const endDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         
-        const availabilityData = await getAvailability(
-          apiKey,
-          apiSecret,
-          environment || "test",
-          hotelCode,
-          startDate,
-          endDate,
-          { rooms: 1, adults: 2, children: 0 }
-        );
-
-        const hotels = availabilityData?.hotels?.hotels || [];
-        const hotel = hotels[0]; // Get first hotel (our property)
-
-        // Extract room types and rate types
-        const roomTypes = transformRoomTypes(availabilityData);
-        const rateTypes = transformRateTypes(availabilityData);
-
-        // Per adapter-contract.ts hotelbeds rules:
-        // - name: authoritative
-        // - description: authoritative  
-        // - images: authoritative
-        // - location: not_available
-        // - geo: not_available
-        // - amenities: not_available
+        console.log(`[HotelBeds] Fetching property data from Content API for hotel ${hotelCode}`);
         
+        // Call all endpoints in parallel for better performance
+        const [hotelContentResult, availabilityData] = await Promise.allSettled([
+          getHotelContent(apiKey, apiSecret, environment || "test", hotelCode),
+          getAvailability(apiKey, apiSecret, environment || "test", hotelCode, startDate, endDate, { rooms: 1, adults: 2, children: 0 }),
+        ]);
+
+        // Extract Content API data (may fail if Content API not available)
+        let hotel: any = null;
+        let contentImages: any[] = [];
+        let contentFacilities: any[] = [];
+        
+        if (hotelContentResult.status === 'fulfilled') {
+          const contentData = hotelContentResult.value;
+          hotel = contentData?.hotels?.[0] || contentData?.hotel || null;
+          contentImages = hotel?.images || [];
+          contentFacilities = hotel?.facilities || [];
+          console.log(`[HotelBeds] Content API returned hotel: ${hotel?.name?.content || hotel?.name || 'N/A'}`);
+        } else {
+          console.log(`[HotelBeds] Content API failed, using availability data only:`, hotelContentResult.reason);
+        }
+
+        // Fallback to availability data if Content API fails
+        let availHotel: any = null;
+        if (availabilityData.status === 'fulfilled') {
+          const hotels = availabilityData.value?.hotels?.hotels || [];
+          availHotel = hotels[0];
+        }
+
+        // Use Content API data first, fallback to availability data
+        const finalHotel = hotel || availHotel;
+
+        // Extract room types and rate types from availability data
+        let roomTypes: any[] = [];
+        let rateTypes: any[] = [];
+        if (availabilityData.status === 'fulfilled') {
+          roomTypes = transformRoomTypes(availabilityData.value);
+          rateTypes = transformRateTypes(availabilityData.value);
+        }
+
+        // Transform Content API images (full URLs)
+        const images = contentImages.length > 0 
+          ? contentImages.map((img: any) => ({
+              url: img.path ? `https://photos.hotelbeds.com/giata/${img.path}` : img.url,
+              type: img.imageTypeCode || img.type || 'general',
+              description: img.description?.content || img.description || null,
+              room_code: img.roomCode || null,
+              order: img.order || 0,
+            }))
+          : (finalHotel?.images?.map((img: any) => ({
+              url: img.path ? `https://photos.hotelbeds.com/giata/${img.path}` : img.url,
+              type: img.imageTypeCode || 'general',
+              description: null,
+              room_code: null,
+              order: 0,
+            })) || null);
+
+        // Transform facilities to amenities
+        const amenities = contentFacilities.length > 0
+          ? contentFacilities.map((f: any) => ({
+              code: f.facilityCode?.toString() || f.code?.toString(),
+              group_code: f.facilityGroupCode?.toString() || f.groupCode?.toString(),
+              name: f.description?.content || f.description || f.facilityName || null,
+              is_included: f.indYesOrNo !== false,
+              number: f.number || null,
+            }))
+          : null;
+
+        // Build property data with Content API fields
         const propertyData = {
-          property_name: hotel?.name || null,
-          description: hotel?.description || null,
-          location: null, // HotelBeds doesn't provide structured address
-          geo: null,      // Not available from this API
-          images: hotel?.images?.map((img: any) => img.path || img.url) || null,
-          amenities: null, // Not available
+          // Basic info
+          property_name: hotel?.name?.content || hotel?.name || finalHotel?.name || null,
+          description: hotel?.description?.content || hotel?.description || finalHotel?.description || null,
+          
+          // Location fields (from Content API)
+          address: hotel?.address?.content || hotel?.address || null,
+          city: hotel?.city?.content || hotel?.city || null,
+          country: hotel?.country?.description?.content || hotel?.country?.content || hotel?.country || null,
+          country_code: hotel?.countryCode || null,
+          postal_code: hotel?.postalCode || null,
+          
+          // Geo coordinates
+          latitude: hotel?.coordinates?.latitude || null,
+          longitude: hotel?.coordinates?.longitude || null,
+          
+          // Contact info
+          email: hotel?.email || null,
+          phone: hotel?.phones?.[0]?.phoneNumber || hotel?.phones?.[0]?.phone || null,
+          web: hotel?.web || null,
+          
+          // Editorial content
+          images: images,
+          amenities: amenities,
+          
+          // Operational data
           room_types: roomTypes,
           rate_types: rateTypes,
           charge_types: [],
           payment_types: [],
           check_in_time: null,
           check_out_time: null,
-          star_rating: hotel?.categoryCode ? parseInt(hotel.categoryCode) : null,
+          star_rating: hotel?.categoryCode ? parseInt(hotel.categoryCode) : (hotel?.category?.code ? parseInt(hotel.category.code) : null),
           max_guests: null,
+          
+          // Location structure for backward compatibility
+          location: hotel?.address?.content || hotel?.address ? {
+            address: hotel?.address?.content || hotel?.address || null,
+            city: hotel?.city?.content || hotel?.city || null,
+            country: hotel?.country?.description?.content || hotel?.country || null,
+            postal_code: hotel?.postalCode || null,
+          } : null,
+          geo: hotel?.coordinates?.latitude ? {
+            latitude: hotel.coordinates.latitude,
+            longitude: hotel.coordinates.longitude,
+          } : null,
         };
+
+        console.log(`[HotelBeds] fetch_property_data result:`, {
+          has_name: !!propertyData.property_name,
+          has_description: !!propertyData.description,
+          has_address: !!propertyData.address,
+          image_count: images?.length || 0,
+          amenity_count: amenities?.length || 0,
+          room_type_count: roomTypes.length,
+          rate_type_count: rateTypes.length,
+        });
 
         return new Response(
           JSON.stringify(createSuccessResponse(propertyData, action)),
