@@ -774,9 +774,11 @@ export type Database = {
           is_active: boolean | null
           last_sync_at: string | null
           owner_id: string
+          refresh_token: string | null
           sync_error: string | null
           sync_status: string | null
           system_type: string
+          token_expires_at: string | null
           updated_at: string | null
         }
         Insert: {
@@ -790,9 +792,11 @@ export type Database = {
           is_active?: boolean | null
           last_sync_at?: string | null
           owner_id: string
+          refresh_token?: string | null
           sync_error?: string | null
           sync_status?: string | null
           system_type: string
+          token_expires_at?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -806,9 +810,11 @@ export type Database = {
           is_active?: boolean | null
           last_sync_at?: string | null
           owner_id?: string
+          refresh_token?: string | null
           sync_error?: string | null
           sync_status?: string | null
           system_type?: string
+          token_expires_at?: string | null
           updated_at?: string | null
         }
         Relationships: [

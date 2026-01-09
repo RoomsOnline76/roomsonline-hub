@@ -381,7 +381,7 @@ export default function PropertyForm() {
   const [connectingHostfullyOAuth, setConnectingHostfullyOAuth] = useState(false);
 
   // Hostfully OAuth Connect handler
-  const handleConnectHostfullyOAuth = () => {
+  const handleConnectHostfullyOAuth = (useSandbox = false) => {
     if (!user?.id) {
       toast({
         title: "Not Logged In",
@@ -393,23 +393,29 @@ export default function PropertyForm() {
 
     setConnectingHostfullyOAuth(true);
 
-    // Build state parameter with owner and property info
+    const environment = useSandbox ? 'sandbox' : 'production';
+
+    // Build state parameter with owner, property, and environment info
     const stateData = {
       owner_id: user.id,
       property_id: propertyId,
       credential_id: ownerPmsCredentialId || ownerHostfullyCredential?.id,
+      environment,
     };
     const state = btoa(JSON.stringify(stateData));
 
-    // Hostfully OAuth authorize URL
+    // Hostfully OAuth authorize URL - use sandbox or production based on environment
     const clientId = import.meta.env.VITE_HOSTFULLY_CLIENT_ID || '';
     const redirectUri = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/hostfully-oauth-callback`;
-    const scope = 'property.read,reservation.read,reservation.write';
     
-    const authUrl = new URL('https://pmp.hostfully.com/api/auth/oauth/authorize');
+    const baseUrl = useSandbox
+      ? 'https://sandbox-api.hostfully.com/api/v3.2/auth/oauth/authorize'
+      : 'https://pmp.hostfully.com/api/auth/oauth/authorize';
+    
+    const authUrl = new URL(baseUrl);
     authUrl.searchParams.set('clientId', clientId);
-    authUrl.searchParams.set('scope', scope);
-    authUrl.searchParams.set('grantType', 'authorization_code');
+    authUrl.searchParams.set('scope', 'FULL');
+    authUrl.searchParams.set('grantType', 'REFRESH_TOKEN');
     authUrl.searchParams.set('redirectUri', redirectUri);
     authUrl.searchParams.set('state', state);
 
@@ -3667,7 +3673,7 @@ export default function PropertyForm() {
                         variant="outline"
                         size="sm"
                         className="h-7 text-xs gap-1 border-blue-500/50 text-blue-600 hover:bg-blue-50"
-                        onClick={handleConnectHostfullyOAuth}
+                        onClick={() => handleConnectHostfullyOAuth()}
                         disabled={connectingHostfullyOAuth}
                       >
                         <Key className={cn("h-3 w-3", connectingHostfullyOAuth && "animate-pulse")} />
