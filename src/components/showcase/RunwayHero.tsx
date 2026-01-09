@@ -1,6 +1,7 @@
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useParallax } from '@/hooks/useScrollReveal';
-import { heroTitleReveal, taglineFade, imageReveal } from '@/lib/motion';
+import { heroTitleReveal, taglineFade } from '@/lib/motion';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -15,7 +16,7 @@ interface RunwayHeroProps {
 
 /**
  * Act I: The Reveal
- * Full-viewport hero with runway-inspired entrance
+ * Full-viewport hero with runway-inspired entrance and elegant image rotation
  */
 export function RunwayHero({
   name,
@@ -26,6 +27,18 @@ export function RunwayHero({
   onScrollDown,
 }: RunwayHeroProps) {
   const { ref: parallaxRef, offset } = useParallax(0.3);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // Auto-rotate images every 6 seconds for elegant pacing
+  useEffect(() => {
+    if (!images || images.length <= 1 || videoUrl) return;
+    
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % images.length);
+    }, 6000);
+    
+    return () => clearInterval(interval);
+  }, [images, videoUrl]);
 
   const hasMedia = videoUrl || (images && images.length > 0);
 
@@ -35,7 +48,9 @@ export function RunwayHero({
       <div className="absolute inset-0 overflow-hidden">
         {videoUrl ? (
           <motion.video
-            {...imageReveal}
+            initial={{ opacity: 0, scale: 1.1 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
             autoPlay
             muted
             loop
@@ -46,13 +61,22 @@ export function RunwayHero({
             <source src={videoUrl} type="video/mp4" />
           </motion.video>
         ) : images && images.length > 0 ? (
-          <motion.img
-            {...imageReveal}
-            src={images[0]}
-            alt={name}
-            className="w-full h-full object-cover"
-            style={{ transform: `translateY(${offset}px) scale(1.05)` }}
-          />
+          <AnimatePresence mode="wait">
+            <motion.img
+              key={currentImageIndex}
+              src={images[currentImageIndex]}
+              alt={`${name} - ${currentImageIndex + 1}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ 
+                duration: 1.5,
+                ease: [0.22, 1, 0.36, 1]
+              }}
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ transform: `translateY(${offset}px) scale(1.05)` }}
+            />
+          </AnimatePresence>
         ) : (
           <div 
             className="runway-gradient-map"
@@ -64,6 +88,23 @@ export function RunwayHero({
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-background/30 to-transparent" />
       </div>
+
+      {/* Progress Indicator Dots */}
+      {images && images.length > 1 && !videoUrl && (
+        <div className="absolute bottom-4 right-6 flex gap-1.5 z-10">
+          {images.map((_, idx) => (
+            <div 
+              key={idx}
+              className={cn(
+                "h-1.5 rounded-full transition-all duration-500",
+                idx === currentImageIndex 
+                  ? "bg-foreground/80 w-4" 
+                  : "bg-foreground/30 w-1.5"
+              )}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Content Layer */}
       <div className="relative z-10 p-6 sm:p-10 md:p-16 lg:p-20 pb-16 sm:pb-20 md:pb-24">
