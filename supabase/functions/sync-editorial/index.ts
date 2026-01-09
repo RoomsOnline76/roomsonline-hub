@@ -252,6 +252,33 @@ serve(async (req) => {
             }
             break;
         }
+    }
+    }
+
+    // === OPERATIONAL DATA SYNC (room_types, rate_types) ===
+    // These are always authoritative from PMS - calendar requires them to render
+    const pmsRoomTypes = adapterData?.room_types || adapterData?.roomTypes;
+    const pmsRateTypes = adapterData?.rate_types || adapterData?.rateTypes;
+
+    if ((Array.isArray(pmsRoomTypes) && pmsRoomTypes.length > 0) || 
+        (Array.isArray(pmsRateTypes) && pmsRateTypes.length > 0)) {
+      
+      // Get current amenities and merge operational data
+      const currentAmenities = updates.amenities || property.amenities || {};
+      
+      updates.amenities = {
+        ...currentAmenities,
+        ...(pmsRoomTypes?.length > 0 && { room_types: pmsRoomTypes }),
+        ...(pmsRateTypes?.length > 0 && { rate_types: pmsRateTypes }),
+      };
+
+      if (pmsRoomTypes?.length > 0) {
+        console.log(`[sync-editorial] Syncing ${pmsRoomTypes.length} room types`);
+        syncSummary.push({ field: 'room_types', action: `synced ${pmsRoomTypes.length} types`, authority: 'authoritative' });
+      }
+      if (pmsRateTypes?.length > 0) {
+        console.log(`[sync-editorial] Syncing ${pmsRateTypes.length} rate types`);
+        syncSummary.push({ field: 'rate_types', action: `synced ${pmsRateTypes.length} types`, authority: 'authoritative' });
       }
     }
 
