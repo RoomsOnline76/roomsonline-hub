@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getPropertyUrl } from "@/lib/config";
 import { ExternalSourceBadge } from "@/components/pms/ExternalSourceBadge";
 import { getPMSSystemByKey } from "@/lib/pmsSystemsConfig";
+import rolLogo from "@/assets/rol-logo.png";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -431,6 +432,7 @@ const PropertyOverview = () => {
                           </div>
                         </TableHead>
                         
+                        <TableHead className="py-1 text-xs w-10">ROL</TableHead>
                         <TableHead className="py-1 text-xs">TA ID</TableHead>
                         <TableHead className="text-right py-1 text-xs">ACTION</TableHead>
                       </TableRow>
@@ -475,12 +477,13 @@ const PropertyOverview = () => {
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
+                        <TableCell className="py-1"></TableCell>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {activeProperties.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={10} className="text-center py-6">
+                          <TableCell colSpan={11} className="text-center py-6">
                             {(searchName || searchPms || searchHero || searchPropertyType) ? (
                               <div>
                                 <AlertTriangle className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
@@ -580,6 +583,13 @@ const PropertyOverview = () => {
                             <span className="capitalize">{property.property_type?.replace(/_/g, ' ') || "-"}</span>
                           </TableCell>
                           <TableCell className="py-1 text-xs">{property.total_bookings || 0}</TableCell>
+                          <TableCell className="py-1">
+                            {(property as any).is_rol_property ? (
+                              <img src={rolLogo} alt="ROL" className="h-4 w-4" />
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
                           <TableCell className="py-1">
                             {(() => {
                               const amenities = property.amenities as any;
