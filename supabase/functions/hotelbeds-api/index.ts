@@ -261,6 +261,8 @@ async function getAvailability(
     hotels: {
       hotel: [parseInt(hotelCode) || hotelCode],
     },
+    // Request rates in South African Rand
+    currency: "ZAR",
   };
 
   return hotelbedsApiCall(
