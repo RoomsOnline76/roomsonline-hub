@@ -2792,9 +2792,12 @@ export default function PropertyForm() {
             setNoStreetAddress(amenities.address_details.no_street_address);
           }
 
-          // Load images if available
+          // Load images if available - handle both string[] and object[] formats
           if (data.images && Array.isArray(data.images)) {
-            setUploadedImages(data.images as string[]);
+            const imageUrls = data.images.map((img: any) => 
+              typeof img === 'string' ? img : (img.url || img)
+            ).filter(Boolean);
+            setUploadedImages(imageUrls);
           }
 
           // Load ROL Spec fields (direct columns)
