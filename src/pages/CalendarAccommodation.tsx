@@ -691,6 +691,8 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       if (error) throw error;
 
       const accommodationProperties = (data || []).filter((property: any) => {
+        // Exclude NightsBridge properties (they use iframe-based booking, not calendar sync)
+        if (property.external_system === 'nightsbridge') return false;
         return property.amenities?.offerings?.accommodation === true;
       });
 
