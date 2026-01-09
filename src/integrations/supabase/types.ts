@@ -1779,6 +1779,39 @@ export type Database = {
           },
         ]
       }
+      survey_responses: {
+        Row: {
+          business_name: string
+          client_email: string
+          contact_details: string | null
+          created_at: string | null
+          id: string
+          report_sent_at: string | null
+          response_data: Json
+          submitted_at: string | null
+        }
+        Insert: {
+          business_name: string
+          client_email: string
+          contact_details?: string | null
+          created_at?: string | null
+          id?: string
+          report_sent_at?: string | null
+          response_data: Json
+          submitted_at?: string | null
+        }
+        Update: {
+          business_name?: string
+          client_email?: string
+          contact_details?: string | null
+          created_at?: string | null
+          id?: string
+          report_sent_at?: string | null
+          response_data?: Json
+          submitted_at?: string | null
+        }
+        Relationships: []
+      }
       sync_logs: {
         Row: {
           booking_id: string | null

@@ -6,6 +6,9 @@ export const ADMIN_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
 // The public-facing domain for property and room showcase URLs
 export const PUBLIC_DOMAIN = "https://book.sleepinafrica.roomsonline.co.za";
 
+// The survey domain for project discovery questionnaire
+export const SURVEY_DOMAIN = "https://survey.roomsonline.co.za";
+
 // Helper to generate full property URL
 export const getPropertyUrl = (slugOrId: string) => `${PUBLIC_DOMAIN}/property/${slugOrId}`;
 

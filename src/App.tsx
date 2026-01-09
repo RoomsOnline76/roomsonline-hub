@@ -45,9 +45,13 @@ import AdminAudit from "./pages/AdminAudit";
 import AdminHelpArticles from "./pages/AdminHelpArticles";
 import HelpArticleEditor from "./pages/HelpArticleEditor";
 import AdminSystemHealth from "./pages/AdminSystemHealth";
+import ProjectDiscoverySurvey from "./pages/ProjectDiscoverySurvey";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
+
+// Check if we're on the survey domain
+const isSurveyDomain = window.location.hostname === 'survey.roomsonline.co.za';
 
 // Redirect component for /book path
 const BookRedirect = () => {
@@ -70,9 +74,11 @@ const App = () => (
             <BrowserRouter>
         <Routes>
           <Route path="/" element={
-            window.location.hostname === 'book.sleepinafrica.roomsonline.co.za' 
-              ? <Home /> 
-              : <Navigate to="/dashboard/reports" replace />
+            isSurveyDomain
+              ? <ProjectDiscoverySurvey />
+              : window.location.hostname === 'book.sleepinafrica.roomsonline.co.za' 
+                ? <Home /> 
+                : <Navigate to="/dashboard/reports" replace />
           } />
           <Route path="/book" element={<BookRedirect />} />
           <Route path="/home-old" element={<HomeOld />} />
