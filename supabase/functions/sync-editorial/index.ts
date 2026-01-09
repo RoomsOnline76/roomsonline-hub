@@ -269,7 +269,8 @@ serve(async (req) => {
       updates.amenities = {
         ...currentAmenities,
         ...(pmsRoomTypes?.length > 0 && { room_types: pmsRoomTypes }),
-        ...(pmsRateTypes?.length > 0 && { rate_types: pmsRateTypes }),
+        // Write to pms_rate_types (the key the UI reads from) for compatibility
+        ...(pmsRateTypes?.length > 0 && { pms_rate_types: pmsRateTypes, rate_types: pmsRateTypes }),
       };
 
       if (pmsRoomTypes?.length > 0) {
@@ -278,7 +279,7 @@ serve(async (req) => {
       }
       if (pmsRateTypes?.length > 0) {
         console.log(`[sync-editorial] Syncing ${pmsRateTypes.length} rate types`);
-        syncSummary.push({ field: 'rate_types', action: `synced ${pmsRateTypes.length} types`, authority: 'authoritative' });
+        syncSummary.push({ field: 'pms_rate_types', action: `synced ${pmsRateTypes.length} types`, authority: 'authoritative' });
       }
     }
 

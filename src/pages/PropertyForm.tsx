@@ -2749,9 +2749,41 @@ export default function PropertyForm() {
             setSelectedMealTypes(amenities.meal_types);
           }
 
-          // Load room types if available
+          // Load room types if available - transform from PMS format to UI format
           if (amenities?.room_types && Array.isArray(amenities.room_types) && amenities.room_types.length > 0) {
-            setRoomTypes(amenities.room_types);
+            // Transform PMS format (snake_case, room_type_id) to UI format (camelCase, id)
+            const transformedRooms = amenities.room_types.map((room: any, idx: number) => ({
+              id: room.id || room.room_type_id || `room-${idx}`,
+              name: room.name || "Unnamed Room",
+              url: room.url || "",
+              selected: room.selected || false,
+              numRooms: room.numRooms || room.num_rooms || 1,
+              pmsRoomType: room.pmsRoomType || room.pms_room_type || room.name || "",
+              pmsRoomId: room.pmsRoomId || room.pms_room_id || room.room_type_id || "",
+              description: room.description || "",
+              extraPersonPolicy: room.extraPersonPolicy || room.extra_person_policy || "",
+              bedConfiguration: room.bedConfiguration || room.bed_configuration || [],
+              roomSize: room.roomSize || room.room_size || 0,
+              bathrooms: room.bathrooms || 1,
+              maxPeople: room.maxPeople || room.max_guests || room.max_people || 2,
+              maxAdults: room.maxAdults || room.max_adults || room.max_guests || 2,
+              minGuests: room.minGuests || room.min_guests || 1,
+              maxChildren: room.maxChildren || room.max_children || 0,
+              minStay: room.minStay || room.min_stay || 1,
+              maxStay: room.maxStay || room.max_stay || 0,
+              rateType: room.rateType || room.rate_type || "per-unit",
+              splitPercent: room.splitPercent || room.split_percent || 0,
+              images: room.images || [],
+              facilities: room.facilities || [],
+              amenities: room.amenities || [],
+              linkedRateTypes: room.linkedRateTypes || room.linked_rate_type_ids || [],
+              pms_synced: true,
+            }));
+            setRoomTypes(transformedRooms);
+            // Auto-select first room on initial load
+            if (transformedRooms.length > 0 && !selectedRoomType) {
+              setSelectedRoomType(transformedRooms[0].id);
+            }
           } else if ((data as any).external_system === "hostfully" && data.id) {
             // For Hostfully properties with no room_types in amenities, load from hostfully_room_types table
             const { data: hfRooms } = await supabase
@@ -2822,6 +2854,23 @@ export default function PropertyForm() {
               }
             }
           }
+          
+          // Load rate types - check both pms_rate_types and rate_types for compatibility
+          const rawRateTypes = amenities?.pms_rate_types || amenities?.rate_types;
+          if (rawRateTypes && Array.isArray(rawRateTypes) && rawRateTypes.length > 0) {
+            const transformedRateTypes = rawRateTypes.map((rt: any, idx: number) => ({
+              id: rt.id ?? rt.rate_type_id ?? idx + 1,
+              name: rt.name || `Rate Type ${rt.id ?? rt.rate_type_id ?? idx + 1}`,
+              priceType: rt.priceType || rt.price_type || "UnitRate",
+              minStayDays: rt.minStayDays || rt.min_stay_days || 1,
+              maxStayDays: rt.maxStayDays || rt.max_stay_days || 0,
+              minAdvanceDays: rt.minAdvanceDays || rt.min_advance_days || 0,
+              maxAdvanceDays: rt.maxAdvanceDays || rt.max_advance_days || 0,
+              description: rt.description || "",
+              pms_synced: true,
+            }));
+            setPmsRateTypes(transformedRateTypes);
+          }
 
           // Load other saved data
           if (amenities?.star_rating) setStarRating(amenities.star_rating);
@@ -2831,7 +2880,7 @@ export default function PropertyForm() {
           if (amenities?.cancellation_policies) setCancellationPolicies(amenities.cancellation_policies);
           if (amenities?.seasons) setSeasons(amenities.seasons);
           if (amenities?.season_rates) setSeasonRates(amenities.season_rates);
-          if (amenities?.pms_rate_types) setPmsRateTypes(amenities.pms_rate_types);
+          // Note: pms_rate_types is loaded above with transformation
           if (amenities?.addons) setAddons(amenities.addons);
           if (amenities?.packages) setPackages(amenities.packages);
           if (amenities?.announcements) setAnnouncements(amenities.announcements);
