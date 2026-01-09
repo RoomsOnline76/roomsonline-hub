@@ -97,6 +97,7 @@ const baseRequestSchema = z.object({
     "get_reservations",
     "get_room_types",
     "get_rate_types",
+    "fetch_property_data",
   ]),
   property_id: z.string().uuid({ message: "Invalid property ID format" }).optional(),
 });
@@ -882,6 +883,73 @@ serve(async (req) => {
           JSON.stringify(createErrorResponse(
             error.code || ERROR_CODES.INTERNAL_ADAPTER_ERROR,
             error.message || "Failed to fetch reservations",
+            action
+          )),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // Fetch property data for editorial sync (per adapter-contract.ts)
+    if (action === "fetch_property_data") {
+      try {
+        // Fetch availability for a week to get hotel/room data
+        const today = new Date();
+        const startDate = today.toISOString().split('T')[0];
+        const endDate = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const availabilityData = await getAvailability(
+          apiKey,
+          apiSecret,
+          environment || "test",
+          hotelCode,
+          startDate,
+          endDate,
+          { rooms: 1, adults: 2, children: 0 }
+        );
+
+        const hotels = availabilityData?.hotels?.hotels || [];
+        const hotel = hotels[0]; // Get first hotel (our property)
+
+        // Extract room types and rate types
+        const roomTypes = transformRoomTypes(availabilityData);
+        const rateTypes = transformRateTypes(availabilityData);
+
+        // Per adapter-contract.ts hotelbeds rules:
+        // - name: authoritative
+        // - description: authoritative  
+        // - images: authoritative
+        // - location: not_available
+        // - geo: not_available
+        // - amenities: not_available
+        
+        const propertyData = {
+          property_name: hotel?.name || null,
+          description: hotel?.description || null,
+          location: null, // HotelBeds doesn't provide structured address
+          geo: null,      // Not available from this API
+          images: hotel?.images?.map((img: any) => img.path || img.url) || null,
+          amenities: null, // Not available
+          room_types: roomTypes,
+          rate_types: rateTypes,
+          charge_types: [],
+          payment_types: [],
+          check_in_time: null,
+          check_out_time: null,
+          star_rating: hotel?.categoryCode ? parseInt(hotel.categoryCode) : null,
+          max_guests: null,
+        };
+
+        return new Response(
+          JSON.stringify(createSuccessResponse(propertyData, action)),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (error: any) {
+        console.error("[HotelBeds] fetch_property_data failed:", error);
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            error.code || ERROR_CODES.INTERNAL_ADAPTER_ERROR,
+            error.message || "Failed to fetch property data",
             action
           )),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
