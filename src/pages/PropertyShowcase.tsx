@@ -285,17 +285,17 @@ export default function PropertyShowcase() {
         const availMap = new Map<string, AvailabilityData>();
         data.data.room_types.forEach((rt: any) => {
           const roomId = rt.room_type_id || rt.id;
-          if (rt.daily_availability?.length > 0) {
-            const todayData = rt.daily_availability.find((d: any) => d.date === today) || rt.daily_availability[0];
-            if (todayData) {
-              availMap.set(roomId, {
-                external_room_type_id: roomId,
-                available_units: todayData.available_units ?? 1,
-                rates: rt.rate_types || [],
-                date: todayData.date || today,
-              });
-            }
-          }
+          // HotelBeds uses rooms_available_per_night, not daily_availability
+          const availabilityArray = rt.rooms_available_per_night || rt.daily_availability || [];
+          const todayData = availabilityArray.find((d: any) => d.date === today) || availabilityArray[0];
+          
+          // Always set availability, even if no daily data (default to available)
+          availMap.set(roomId, {
+            external_room_type_id: roomId,
+            available_units: todayData?.available_units ?? 1,
+            rates: rt.rate_types || [],
+            date: todayData?.date || today,
+          });
         });
         setAvailability(availMap);
       }
@@ -336,24 +336,37 @@ export default function PropertyShowcase() {
   const getLowestRateForRoom = (room: RoomType): number | null => {
     const availData = getAvailabilityForRoom(room);
     if (availData?.rates) {
-      const rates = Array.isArray(availData.rates) ? availData.rates : [availData.rates];
+      const rateTypes = Array.isArray(availData.rates) ? availData.rates : [availData.rates];
       let lowest: number | null = null;
-      rates.forEach((rate: any) => {
-        // Standard formats
-        if (rate.room_amount && (lowest === null || rate.room_amount < lowest)) lowest = rate.room_amount;
-        if (rate.adult_amounts) {
-          Object.values(rate.adult_amounts).forEach((amount: any) => {
+      
+      rateTypes.forEach((rateType: any) => {
+        // Direct rate fields (standard formats)
+        if (rateType.room_amount && (lowest === null || rateType.room_amount < lowest)) {
+          lowest = rateType.room_amount;
+        }
+        if (rateType.adult_amounts) {
+          Object.values(rateType.adult_amounts).forEach((amount: any) => {
             if (typeof amount === 'number' && (lowest === null || amount < lowest)) lowest = amount;
           });
         }
-        // HotelBeds format: daily_rates array within rate types
-        if (rate.daily_rates?.length > 0) {
-          rate.daily_rates.forEach((dr: any) => {
+        
+        // HotelBeds format: rate_types[].rates[] array with daily rates
+        if (rateType.rates?.length > 0) {
+          rateType.rates.forEach((dailyRate: any) => {
+            const amt = dailyRate.room_amount || dailyRate.adult_amounts?.adult_amount_1;
+            if (typeof amt === 'number' && (lowest === null || amt < lowest)) lowest = amt;
+          });
+        }
+        
+        // Legacy format: daily_rates (fallback)
+        if (rateType.daily_rates?.length > 0) {
+          rateType.daily_rates.forEach((dr: any) => {
             const amt = dr.room_amount || dr.adult_amounts?.adult_amount_1;
             if (typeof amt === 'number' && (lowest === null || amt < lowest)) lowest = amt;
           });
         }
       });
+      
       if (lowest !== null) return lowest;
     }
     // Fallback to pms_rates
