@@ -2794,9 +2794,12 @@ export default function PropertyForm() {
 
           // Load images if available - handle both string[] and object[] formats
           if (data.images && Array.isArray(data.images)) {
-            const imageUrls = data.images.map((img: any) => 
-              typeof img === 'string' ? img : (img.url || img)
-            ).filter(Boolean);
+            const imageUrls = data.images.map((img: any) => {
+              if (typeof img === 'string') return img;
+              if (img && typeof img === 'object' && img.url) return img.url;
+              return null;
+            }).filter((url): url is string => typeof url === 'string' && url.startsWith('http'));
+            console.log('[PropertyForm] Loaded images:', { raw: data.images.length, extracted: imageUrls.length, sample: imageUrls[0] });
             setUploadedImages(imageUrls);
           }
 
