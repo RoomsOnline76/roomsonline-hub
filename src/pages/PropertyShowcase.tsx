@@ -254,11 +254,70 @@ export default function PropertyShowcase() {
     }
   };
 
+  // HotelBeds properties: fetch availability on-demand
+  const isHotelBedsProperty = property?.external_system === "hotelbeds";
+  
+  useEffect(() => {
+    if (isHotelBedsProperty && property?.id) {
+      fetchHotelBedsAvailability();
+    }
+  }, [property?.id, isHotelBedsProperty]);
+
+  const fetchHotelBedsAvailability = async () => {
+    if (!property?.id) return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 14);
+    const end = endDate.toISOString().split('T')[0];
+
+    try {
+      const { data, error } = await supabase.functions.invoke('hotelbeds-api', {
+        body: {
+          action: 'fetch_availability',
+          property_id: property.id,
+          start_date: today,
+          end_date: end,
+        }
+      });
+      
+      if (data?.success && data?.data?.room_types) {
+        const availMap = new Map<string, AvailabilityData>();
+        data.data.room_types.forEach((rt: any) => {
+          const roomId = rt.room_type_id || rt.id;
+          if (rt.daily_availability?.length > 0) {
+            const todayData = rt.daily_availability.find((d: any) => d.date === today) || rt.daily_availability[0];
+            if (todayData) {
+              availMap.set(roomId, {
+                external_room_type_id: roomId,
+                available_units: todayData.available_units ?? 1,
+                rates: rt.rate_types || [],
+                date: todayData.date || today,
+              });
+            }
+          }
+        });
+        setAvailability(availMap);
+      }
+    } catch (error) {
+      console.error('Failed to fetch HotelBeds availability:', error);
+    }
+  };
+
   const scrollToRooms = () => {
     document.getElementById("rooms-section")?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const getRoomTypes = (): RoomType[] => property?.amenities?.room_types || [];
+  const getRoomTypes = (): RoomType[] => {
+    const rawRooms = property?.amenities?.room_types || [];
+    return rawRooms.map((rt: any) => ({
+      ...rt,
+      // Normalize ID fields for HotelBeds compatibility
+      id: rt.id || rt.room_type_id,
+      pmsRoomId: rt.pmsRoomId || rt.room_type_id,
+      maxPeople: rt.maxPeople || rt.max_guests,
+    }));
+  };
   
   const getAvailabilityForRoom = (room: RoomType): AvailabilityData | undefined => {
     return availability.get(room.pmsRoomId || room.id);
@@ -280,17 +339,27 @@ export default function PropertyShowcase() {
       const rates = Array.isArray(availData.rates) ? availData.rates : [availData.rates];
       let lowest: number | null = null;
       rates.forEach((rate: any) => {
+        // Standard formats
         if (rate.room_amount && (lowest === null || rate.room_amount < lowest)) lowest = rate.room_amount;
         if (rate.adult_amounts) {
           Object.values(rate.adult_amounts).forEach((amount: any) => {
             if (typeof amount === 'number' && (lowest === null || amount < lowest)) lowest = amount;
           });
         }
+        // HotelBeds format: daily_rates array within rate types
+        if (rate.daily_rates?.length > 0) {
+          rate.daily_rates.forEach((dr: any) => {
+            const amt = dr.room_amount || dr.adult_amounts?.adult_amount_1;
+            if (typeof amt === 'number' && (lowest === null || amt < lowest)) lowest = amt;
+          });
+        }
       });
       if (lowest !== null) return lowest;
     }
     // Fallback to pms_rates
-    const roomData = property?.amenities?.room_types?.find((rt: any) => rt.id === room.id);
+    const roomData = property?.amenities?.room_types?.find((rt: any) => 
+      (rt.id || rt.room_type_id) === room.id
+    );
     if (roomData?.pms_rates) {
       let lowest: number | null = null;
       roomData.pms_rates.forEach((rate: any) => {
@@ -330,7 +399,7 @@ export default function PropertyShowcase() {
         return;
       }
     }
-    if (isBensonProperty && bookedRooms.length > 0) {
+    if ((isBensonProperty || isHotelBedsProperty) && bookedRooms.length > 0) {
       navigate(`/booking/${property?.slug || property?.id}`);
       return;
     }
@@ -475,8 +544,8 @@ export default function PropertyShowcase() {
         propertyName={property?.name}
       />
       
-      {/* Floating Date/Guest Picker for Benson properties */}
-      {isBensonProperty && (
+      {/* Floating Date/Guest Picker for Benson and HotelBeds properties */}
+      {(isBensonProperty || isHotelBedsProperty) && (
         <FloatingDateGuestPicker onContinue={scrollToRooms} ctaLabel="Check Rates" />
       )}
     </PublicLayout>
