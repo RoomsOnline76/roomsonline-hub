@@ -9494,6 +9494,31 @@ export default function PropertyForm() {
                               className="relative aspect-video rounded-lg overflow-hidden border border-border group"
                             >
                               <img src={imageUrl} alt={`Room ${index + 1}`} className="w-full h-full object-cover" />
+                              
+                              {/* Primary badge or set as primary button */}
+                              {index === 0 ? (
+                                <div className="absolute top-2 left-2 bg-primary rounded-full p-1.5" title="Primary room image">
+                                  <Heart className="h-3 w-3 text-white fill-white" />
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
+                                    if (currentRoom?.images) {
+                                      const newImages = [...currentRoom.images];
+                                      const [selected] = newImages.splice(index, 1);
+                                      newImages.unshift(selected);
+                                      updateRoomTypeField(selectedRoomType, "images", newImages);
+                                    }
+                                  }}
+                                  className="absolute top-2 left-2 bg-muted-foreground/60 hover:bg-primary rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title="Set as primary room image"
+                                >
+                                  <Heart className="h-3 w-3 text-white" />
+                                </button>
+                              )}
+                              
                               <button
                                 type="button"
                                 onClick={() => removeRoomImage(imageUrl)}
