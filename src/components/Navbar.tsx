@@ -21,6 +21,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { pmsIntegrationStatus, getCompletedMilestoneCount, getTotalMilestoneCount } from "@/components/ApiMilestones";
 import { ProfileModal } from "@/components/ProfileModal";
+import { useBookOpenNewTab } from "@/hooks/useFeatureFlags";
 import rolLogo from "@/assets/rol-logo.png";
 
 interface HealthIssue {
@@ -36,7 +37,7 @@ export const Navbar = () => {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [apiHealthStatus, setApiHealthStatus] = useState<{ healthy: number; unhealthy: number; issues: HealthIssue[] }>({ healthy: 0, unhealthy: 0, issues: [] });
-  const [bookOpenNewTab, setBookOpenNewTab] = useState(true);
+  const { openNewTab: bookOpenNewTab } = useBookOpenNewTab();
   
   const isSleepInAfricaDomain = window.location.hostname === "sleepinafrica.roomsonline.co.za" || 
                                  window.location.hostname === "book.sleepinafrica.roomsonline.co.za" ||
@@ -54,7 +55,6 @@ export const Navbar = () => {
     if (user) {
       loadProfile();
     }
-    loadBookOpenNewTabSetting();
   }, [user]);
 
   useEffect(() => {
@@ -64,17 +64,7 @@ export const Navbar = () => {
     }
   }, [isAdmin, isDev]);
 
-  const loadBookOpenNewTabSetting = async () => {
-    const { data } = await supabase
-      .from("api_keys")
-      .select("key_value")
-      .eq("key_name", "BOOK_OPEN_NEW_TAB")
-      .maybeSingle();
-    
-    if (data?.key_value) {
-      setBookOpenNewTab(data.key_value === "true");
-    }
-  };
+  // bookOpenNewTab now comes from useFeatureFlags hook
 
   // Check health of commissioned APIs based on milestone completion AND data freshness
   const checkApiHealth = async () => {

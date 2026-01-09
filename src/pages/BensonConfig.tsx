@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useBensonActiveEnvironment } from "@/hooks/useFeatureFlags";
 import { RefreshCw, CheckCircle2, AlertCircle, Loader2, Save, ChevronDown, ChevronRight, Database, ArrowRight, Eye, FlaskConical } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -118,6 +119,7 @@ const availableInternalFields = [
 export default function BensonConfig() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { environment: bensonActiveEnvironment } = useBensonActiveEnvironment();
   
   const [credentials, setCredentials] = useState<PMSCredentials | null>(null);
   const [properties, setProperties] = useState<Property[]>([]);
@@ -145,7 +147,7 @@ export default function BensonConfig() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [bensonActiveEnvironment]);
 
   useEffect(() => {
     if (selectedPropertyId) {
@@ -156,13 +158,7 @@ export default function BensonConfig() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const { data: envSetting } = await supabase
-        .from("api_keys")
-        .select("key_value")
-        .eq("key_name", "BENSON_ACTIVE_ENVIRONMENT")
-        .single();
-      
-      const activeEnv = envSetting?.key_value || "staging";
+      const activeEnv = bensonActiveEnvironment || "staging";
 
       const { data: creds } = await supabase
         .from("pms_credentials")

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getPropertyUrl } from "@/lib/config";
 import { ExternalSourceBadge } from "@/components/pms/ExternalSourceBadge";
 import { getPMSSystemByKey } from "@/lib/pmsSystemsConfig";
+import { useHomeIconOpenNewTab } from "@/hooks/useFeatureFlags";
 import rolLogo from "@/assets/rol-logo.png";
 import {
   AlertDialog,
@@ -36,6 +37,7 @@ type SortColumn = "name" | "external_system" | "hero_listing" | "has_images" | "
 const PropertyOverview = () => {
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
+  const { openNewTab: homeIconOpenNewTab } = useHomeIconOpenNewTab();
   const [propertyToDelete, setPropertyToDelete] = useState<{ id: string; name: string } | null>(null);
 
   // Search filters state
@@ -48,24 +50,7 @@ const PropertyOverview = () => {
   // Sort state
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
-  const [homeIconOpenNewTab, setHomeIconOpenNewTab] = useState(true);
   const [uploadingCell, setUploadingCell] = useState<string | null>(null);
-
-  // Load home icon new tab setting
-  useEffect(() => {
-    const loadHomeIconSetting = async () => {
-      const { data } = await supabase
-        .from("api_keys")
-        .select("key_value")
-        .eq("key_name", "HOME_ICON_OPEN_NEW_TAB")
-        .maybeSingle();
-      
-      if (data?.key_value) {
-        setHomeIconOpenNewTab(data.key_value === "true");
-      }
-    };
-    loadHomeIconSetting();
-  }, []);
 
   const { data: allProperties, isLoading, refetch } = useQuery({
     queryKey: ["properties", user?.id, isAdmin],
