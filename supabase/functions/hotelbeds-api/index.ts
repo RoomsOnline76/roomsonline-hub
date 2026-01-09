@@ -626,6 +626,20 @@ serve(async (req) => {
       );
     }
 
+    // Validate hotel code format (must be numeric)
+    const hotelCodeStr = hotelCode.toString().trim();
+    if (!/^\d+$/.test(hotelCodeStr)) {
+      console.error(`[HotelBeds] Invalid hotel code format: ${hotelCode}`);
+      return new Response(
+        JSON.stringify(createErrorResponse(
+          ERROR_CODES.INVALID_REQUEST,
+          `Invalid HotelBeds hotel code format. Expected numeric value, got: "${hotelCode}". Please update the property's HotelBeds hotel code.`,
+          action
+        )),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get HotelBeds credentials - prioritize Cloud secrets, fallback to pms_credentials
     let apiKey = Deno.env.get("HOTELBEDS_API_KEY");
     let apiSecret = Deno.env.get("HOTELBEDS_API_SECRET");
