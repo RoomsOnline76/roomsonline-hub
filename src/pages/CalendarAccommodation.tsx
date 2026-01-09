@@ -261,7 +261,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       const newUrl = `${window.location.pathname}?property=${selectedProperty}`;
       window.history.replaceState(null, '', newUrl);
     }
-  }, [selectedProperty]);
+  }, [selectedProperty, properties]);
 
   // Set all room types selected when roomTypes changes
   useEffect(() => {
