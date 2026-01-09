@@ -378,6 +378,70 @@ export default function PropertyForm() {
 
   const [ownerHostfullyCredential, setOwnerHostfullyCredential] = useState<any>(null);
   const [loadingOwnerCredential, setLoadingOwnerCredential] = useState(false);
+  const [connectingHostfullyOAuth, setConnectingHostfullyOAuth] = useState(false);
+
+  // Hostfully OAuth Connect handler
+  const handleConnectHostfullyOAuth = () => {
+    if (!user?.id) {
+      toast({
+        title: "Not Logged In",
+        description: "You must be logged in to connect Hostfully",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setConnectingHostfullyOAuth(true);
+
+    // Build state parameter with owner and property info
+    const stateData = {
+      owner_id: user.id,
+      property_id: propertyId,
+      credential_id: ownerPmsCredentialId || ownerHostfullyCredential?.id,
+    };
+    const state = btoa(JSON.stringify(stateData));
+
+    // Hostfully OAuth authorize URL
+    const clientId = import.meta.env.VITE_HOSTFULLY_CLIENT_ID || '';
+    const redirectUri = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/hostfully-oauth-callback`;
+    const scope = 'property.read,reservation.read,reservation.write';
+    
+    const authUrl = new URL('https://pmp.hostfully.com/api/auth/oauth/authorize');
+    authUrl.searchParams.set('clientId', clientId);
+    authUrl.searchParams.set('scope', scope);
+    authUrl.searchParams.set('grantType', 'authorization_code');
+    authUrl.searchParams.set('redirectUri', redirectUri);
+    authUrl.searchParams.set('state', state);
+
+    // Redirect to Hostfully OAuth
+    window.location.href = authUrl.toString();
+  };
+
+  // Check for OAuth callback result on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hostfullyConnected = urlParams.get('hostfully_connected');
+    const hostfullyError = urlParams.get('hostfully_error');
+    
+    if (hostfullyConnected === 'true') {
+      toast({
+        title: "Hostfully Connected",
+        description: "Your Hostfully account has been successfully connected.",
+      });
+      // Clean up URL
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+    } else if (hostfullyError) {
+      toast({
+        title: "Connection Failed",
+        description: decodeURIComponent(hostfullyError),
+        variant: "destructive",
+      });
+      // Clean up URL
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+    }
+  }, [toast]);
 
   // Load owner's Hostfully credential if they're an owner (not admin/dev)
   const isOwnerUser = user && !isAdmin && !isDev;
@@ -3593,6 +3657,32 @@ export default function PropertyForm() {
               )}
             </div>
             <div className="flex gap-2">
+              {/* Connect Hostfully OAuth button - only for Hostfully properties without active connection */}
+              {isEditMode && selectedPMS === 'hostfully' && !ownerHostfullyCredential?.api_key && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs gap-1 border-blue-500/50 text-blue-600 hover:bg-blue-50"
+                        onClick={handleConnectHostfullyOAuth}
+                        disabled={connectingHostfullyOAuth}
+                      >
+                        <Key className={cn("h-3 w-3", connectingHostfullyOAuth && "animate-pulse")} />
+                        {connectingHostfullyOAuth ? "Connecting..." : "Connect Hostfully"}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="text-xs">
+                        Authorize RoomsOnline to access your Hostfully account via OAuth.
+                        This enables syncing properties, rates, and availability.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               {/* Sync Editorial button - only visible when PMS supports sync and has property ID */}
               {isEditMode && selectedPMS && canSyncEditorial(selectedPMS) && hasPMSPropertyId(selectedPMS) && (() => {
                 const pmsCapability = getPMSEditorialCapability(selectedPMS);
