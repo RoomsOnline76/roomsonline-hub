@@ -87,6 +87,18 @@ function createErrorResponse(
   };
 }
 
+// Helper to ensure dates are in the future (HotelBeds requirement)
+function ensureFutureDate(dateStr: string): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const inputDate = new Date(dateStr);
+  
+  if (inputDate < today) {
+    return today.toISOString().split('T')[0];
+  }
+  return dateStr;
+}
+
 // Input validation schemas
 const baseRequestSchema = z.object({
   action: z.enum([
@@ -735,18 +747,35 @@ serve(async (req) => {
       const { start_date, end_date, occupancy } = validation.data;
       const occ = occupancy || { rooms: 1, adults: 2, children: 0 };
 
+      // Ensure dates are in the future (HotelBeds requirement)
+      const validStartDate = ensureFutureDate(start_date);
+      let validEndDate = end_date;
+
+      // If start date was adjusted, ensure end date is still after start
+      if (validStartDate !== start_date) {
+        const startD = new Date(validStartDate);
+        const endD = new Date(end_date);
+        if (endD <= startD) {
+          // Extend end date to at least 7 days after start
+          const newEnd = new Date(startD);
+          newEnd.setDate(newEnd.getDate() + 7);
+          validEndDate = newEnd.toISOString().split('T')[0];
+        }
+        console.log(`[HotelBeds] Adjusted dates: ${start_date} -> ${validStartDate}, ${end_date} -> ${validEndDate}`);
+      }
+
       try {
         const availabilityData = await getAvailability(
           apiKey,
           apiSecret,
           environment || "test",
           hotelCode,
-          start_date,
-          end_date,
+          validStartDate,
+          validEndDate,
           occ
         );
 
-        const transformed = transformAvailability(availabilityData, start_date, end_date);
+        const transformed = transformAvailability(availabilityData, validStartDate, validEndDate);
         
         return new Response(
           JSON.stringify(createSuccessResponse(transformed, action)),
