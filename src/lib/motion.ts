@@ -174,3 +174,132 @@ export function getAnimationProps<T extends object>(props: T): T | {} {
   }
   return props;
 }
+
+// =============================================
+// RUNWAY ANIMATIONS - Paris Fashion Week Edition
+// =============================================
+
+// Runway entrance - elements "strut" into view
+export const runwayEnter = {
+  initial: { opacity: 0, y: 60 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: 20 },
+  transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] },
+};
+
+// Stagger container for runway reveals
+export const staggerRunway = {
+  animate: {
+    transition: {
+      staggerChildren: 0.15,
+      delayChildren: 0.1,
+    },
+  },
+};
+
+// Hero title reveal - dramatic entrance
+export const heroTitleReveal = {
+  initial: { opacity: 0, y: 40, clipPath: 'inset(100% 0 0 0)' },
+  animate: { 
+    opacity: 1, 
+    y: 0, 
+    clipPath: 'inset(0% 0 0 0)',
+    transition: { 
+      duration: 1.2, 
+      ease: [0.22, 1, 0.36, 1],
+      clipPath: { duration: 0.8, delay: 0.2 }
+    }
+  },
+};
+
+// Tagline fade in with delay
+export const taglineFade = {
+  initial: { opacity: 0, y: 20 },
+  animate: { 
+    opacity: 1, 
+    y: 0,
+    transition: { 
+      duration: 0.6, 
+      delay: 0.6,
+      ease: [0.22, 1, 0.36, 1] 
+    }
+  },
+};
+
+// Section reveal - editorial entrance
+export const sectionReveal = {
+  initial: { opacity: 0, y: 30 },
+  animate: { 
+    opacity: 1, 
+    y: 0,
+    transition: { 
+      duration: 0.6, 
+      ease: [0.22, 1, 0.36, 1] 
+    }
+  },
+};
+
+// Room card strut - asymmetric entrance
+export const roomCardStrut = {
+  initial: { opacity: 0, x: -30, y: 20 },
+  animate: { 
+    opacity: 1, 
+    x: 0, 
+    y: 0,
+    transition: { 
+      duration: 0.7, 
+      ease: [0.22, 1, 0.36, 1] 
+    }
+  },
+};
+
+// Image reveal with scale
+export const imageReveal = {
+  initial: { opacity: 0, scale: 1.1 },
+  animate: { 
+    opacity: 1, 
+    scale: 1,
+    transition: { 
+      duration: 1.2, 
+      ease: [0.22, 1, 0.36, 1] 
+    }
+  },
+};
+
+// Parallax layer for depth
+export const parallaxLayer = (depth: number = 0.5) => ({
+  style: {
+    willChange: 'transform',
+  },
+});
+
+// Quote card reveal
+export const quoteReveal = {
+  initial: { opacity: 0, x: 20 },
+  animate: { 
+    opacity: 1, 
+    x: 0,
+    transition: { 
+      duration: 0.5, 
+      ease: [0.22, 1, 0.36, 1] 
+    }
+  },
+};
+
+// Sticky CTA animation
+export const stickyCtaReveal = {
+  initial: { y: 100, opacity: 0 },
+  animate: { 
+    y: 0, 
+    opacity: 1,
+    transition: { 
+      duration: 0.4, 
+      ease: [0.22, 1, 0.36, 1] 
+    }
+  },
+  exit: { 
+    y: 100, 
+    opacity: 0,
+    transition: { duration: 0.3 }
+  },
+};

@@ -445,3 +445,140 @@ html {
 .help-markdown .callout-info::before {
   content: "ℹ️ ";
 }
+
+/* =============================================
+   RUNWAY TYPOGRAPHY - Paris Fashion Week Edition
+   ============================================= */
+
+/* Hero Title - 72pt minimum equivalent */
+.runway-title {
+  @apply font-serif text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl;
+  @apply font-light tracking-tighter leading-[0.95];
+}
+
+/* Section Headers - Whisper quiet */
+.runway-section {
+  @apply font-sans text-[10px] sm:text-xs uppercase;
+  @apply tracking-[0.25em] text-muted-foreground;
+}
+
+/* Editorial Body Prose */
+.runway-prose {
+  @apply font-serif text-lg sm:text-xl lg:text-2xl;
+  @apply leading-relaxed text-foreground/80;
+}
+
+/* Quiet Facts - Discovery text */
+.runway-facts {
+  @apply font-serif text-base sm:text-lg italic;
+  @apply text-muted-foreground leading-relaxed;
+}
+
+/* Price - Strategic accent */
+.runway-price {
+  @apply font-sans text-sm font-medium text-primary;
+}
+
+/* Large Price Display */
+.runway-price-large {
+  @apply font-sans text-2xl sm:text-3xl font-bold text-primary;
+}
+
+/* Room Name */
+.runway-room-name {
+  @apply font-serif text-xl sm:text-2xl font-light tracking-tight;
+}
+
+/* Tagline - Evocative one-liner */
+.runway-tagline {
+  @apply font-serif text-lg sm:text-xl md:text-2xl;
+  @apply font-light italic text-foreground/70;
+}
+
+/* Quote Text */
+.runway-quote {
+  @apply font-serif text-lg sm:text-xl italic leading-relaxed;
+}
+
+/* Editorial Rating Badge */
+.runway-rating {
+  @apply inline-flex items-center gap-2 px-4 py-2;
+  @apply bg-primary/10 text-primary font-medium text-sm;
+  @apply border border-primary/20 rounded-full;
+}
+
+/* =============================================
+   RUNWAY LAYOUT UTILITIES
+   ============================================= */
+
+/* Full viewport hero */
+.runway-hero {
+  @apply relative min-h-[100vh] min-h-[100dvh];
+  @apply flex flex-col justify-end;
+}
+
+/* Section spacing - 48px rhythm */
+.runway-section-spacing {
+  @apply py-12 sm:py-16 lg:py-20;
+}
+
+/* Prose width constraint */
+.runway-prose-width {
+  @apply max-w-3xl;
+}
+
+/* Asymmetric grid */
+.runway-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 lg:gap-8;
+}
+
+/* Glass morphism for overlays */
+.runway-glass {
+  @apply bg-background/80 backdrop-blur-xl;
+  @apply border border-border/50;
+}
+
+/* Runway card with hover */
+.runway-card {
+  @apply bg-card rounded-xl overflow-hidden;
+  @apply border border-border/40;
+  transition: all 0.5s ease-out;
+}
+
+.runway-card:hover {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  border-color: hsl(var(--primary) / 0.2);
+}
+
+/* Runway image container */
+.runway-image {
+  @apply relative overflow-hidden;
+}
+
+.runway-image img {
+  @apply w-full h-full object-cover;
+  @apply transition-transform duration-700 ease-out;
+}
+
+.runway-card:hover .runway-image img {
+  @apply scale-105;
+}
+
+/* Sticky booking CTA */
+.runway-sticky-cta {
+  @apply fixed bottom-0 left-0 right-0 z-50;
+  @apply runway-glass shadow-luxury-lg;
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+
+/* Abstract gradient map fallback */
+.runway-gradient-map {
+  @apply absolute inset-0;
+  background: linear-gradient(135deg, hsl(220 30% 20%) 0%, hsl(345 30% 15%) 100%);
+}
+
+.runway-gradient-map::after {
+  content: '';
+  @apply absolute inset-0;
+  background: radial-gradient(circle at 30% 70%, hsl(38 70% 52% / 0.15) 0%, transparent 50%);
+}
