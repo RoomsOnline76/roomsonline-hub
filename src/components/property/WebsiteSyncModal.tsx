@@ -11,15 +11,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertTriangle, Check, ExternalLink } from "lucide-react";
+import { WebsiteSyncSuggestion } from "@/lib/api/websiteSync";
 
-export interface WebsiteSyncSuggestion {
-  stateVariable: string;
-  fieldLabel: string;
-  current: unknown;
-  suggested: unknown;
-  confidence: number;
-  source: string;
-}
+export type { WebsiteSyncSuggestion };
+
+// Safe URL hostname extraction to prevent crashes on invalid URLs
+const getHostname = (url: string): string => {
+  if (!url) return "Unknown";
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+};
 
 interface WebsiteSyncModalProps {
   open: boolean;
@@ -106,7 +110,7 @@ export function WebsiteSyncModal({
               rel="noopener noreferrer"
               className="text-primary hover:underline inline-flex items-center gap-1"
             >
-              {new URL(scrapedUrl).hostname}
+              {getHostname(scrapedUrl)}
               <ExternalLink className="h-3 w-3" />
             </a>
           </p>
