@@ -545,15 +545,15 @@ function transformRoomTypes(hotelbedsData: any, contentImages?: any[]): any[] {
     for (const room of (hotel.rooms || [])) {
       const roomCode = room.code?.toString();
       
-      // Filter images that match this room's code (HAB = room images with roomCode)
+      // Filter images that match this room's code exactly (strict matching)
+      // HotelBeds room codes: DBT.DX-1, DBT.DX-2, DBT.ST, etc.
+      // Only exact matches to prevent cross-pollution of images between room types
       const roomImages = contentImages
         ?.filter((img: any) => {
           const imgRoomCode = img.roomCode || img.room_code;
           if (!imgRoomCode || !roomCode) return false;
-          // Match exact code or base code (e.g., "DBT" matches "DBT.DX")
-          return imgRoomCode === roomCode || 
-                 roomCode.startsWith(imgRoomCode.split('.')[0]) ||
-                 imgRoomCode.startsWith(roomCode.split('.')[0]);
+          // Strict exact match only
+          return imgRoomCode === roomCode;
         })
         ?.map((img: any) => {
           if (img.path) return `https://photos.hotelbeds.com/giata/${img.path}`;
