@@ -11,6 +11,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   LogOut,
   KeyRound,
   Bell,
@@ -26,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusIndicator } from "@/components/ui/status-indicator";
@@ -109,6 +111,7 @@ export function AppSidebar() {
     const saved = localStorage.getItem("sidebar-collapsed");
     return saved ? JSON.parse(saved) : false;
   });
+  const [settingsOpen, setSettingsOpen] = useState(false); // Collapsed by default
   const [pendingRequests, setPendingRequests] = useState(0);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   useEffect(() => {
@@ -249,11 +252,27 @@ export function AppSidebar() {
           </div>
         </div>
 
-        {/* Settings */}
+        {/* Settings - Collapsible, collapsed by default */}
         {(isAdmin || isDev) && (
-          <div>
-            <SectionLabel>Settings</SectionLabel>
-            <div className="space-y-1">
+          <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+            <CollapsibleTrigger asChild>
+              <button
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
+                  "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  "text-sidebar-foreground/70"
+                )}
+              >
+                <Settings className="h-4 w-4 shrink-0" />
+                {!collapsed && (
+                  <>
+                    <span className="flex-1 text-left text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">Settings</span>
+                    <ChevronDown className={cn("h-3 w-3 transition-transform", settingsOpen && "rotate-180")} />
+                  </>
+                )}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-1 mt-1">
               {settingsItems.map((item) => (
                 <NavLink key={item.href} item={item} />
               ))}
@@ -268,8 +287,8 @@ export function AppSidebar() {
                   }}
                 />
               )}
-            </div>
-          </div>
+            </CollapsibleContent>
+          </Collapsible>
         )}
 
         {/* Help - visible to all authenticated users */}
