@@ -9,6 +9,7 @@ const corsHeaders = {
 // Fields we will extract - mapped from property-form-field-map.json
 // NEVER TOUCH: finance, owner_email, owner_name, PMS IDs, ROL Spec fields
 const EXTRACTABLE_FIELDS = [
+  // Contact & Location
   "telephone",
   "contact_email", 
   "address",
@@ -17,9 +18,24 @@ const EXTRACTABLE_FIELDS = [
   "country",
   "postal_code",
   "description",
+  // POI
   "restaurants_cafes",
   "public_transport",
   "closest_airport",
+  "restaurants_cafes_distance",
+  "public_transport_distance",
+  "closest_airport_distance",
+  // Property Details
+  "check_in_from",
+  "check_out_from",
+  "bedrooms",
+  "star_rating",
+  "property_type",
+  "name",
+  // Arrays
+  "facilities",
+  "activities",
+  "images",
 ];
 
 // Fields that should never be extracted (sensitive/system fields)
@@ -44,6 +60,29 @@ const PROTECTED_FIELDS = [
   "hostfully_property_uid",
   "littlehotelier_channel_code",
   "hotelbeds_hotel_code",
+];
+
+// Known activities to match against
+const KNOWN_ACTIVITIES = [
+  "Game Drives (Morning)",
+  "Game Drives (Evening)",
+  "Bird Watching",
+  "Bush Walks",
+  "Cultural Tours",
+  "Hiking",
+  "Fishing",
+  "Cycling",
+  "Walking Tours",
+  "Whale Watching",
+  "Wine Tasting",
+  "Spa Treatments",
+  "Stargazing",
+  "Photography Tours",
+  "Horse Riding",
+  "Water Sports",
+  "Golf",
+  "Tennis",
+  "Swimming",
 ];
 
 serve(async (req) => {
@@ -115,8 +154,8 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         url: property_url,
-        formats: ["markdown"],
-        onlyMainContent: true,
+        formats: ["markdown", "links"],
+        onlyMainContent: false, // Get full page to find images
       }),
     });
 
@@ -164,6 +203,7 @@ serve(async (req) => {
         parameters: {
           type: "object",
           properties: {
+            // Contact
             telephone: { 
               type: "string", 
               description: "Property phone number (international format preferred)" 
@@ -172,6 +212,7 @@ serve(async (req) => {
               type: "string", 
               description: "Property contact email address" 
             },
+            // Location
             address: { 
               type: "string", 
               description: "Street address of the property" 
@@ -192,26 +233,76 @@ serve(async (req) => {
               type: "string", 
               description: "Postal/ZIP code" 
             },
+            // Content
+            property_name: {
+              type: "string",
+              description: "Name of the property/hotel"
+            },
             description: { 
               type: "string", 
               description: "Property description (2-4 paragraphs about the property)" 
             },
+            // Property Details
+            check_in_time: { 
+              type: "string", 
+              description: "Check-in time in 24-hour format (e.g., '14:00'). Convert from 12-hour format if needed." 
+            },
+            check_out_time: { 
+              type: "string", 
+              description: "Check-out time in 24-hour format (e.g., '10:00'). Convert from 12-hour format if needed." 
+            },
+            total_rooms: { 
+              type: "integer", 
+              description: "Total number of rooms/units at the property" 
+            },
+            star_rating: { 
+              type: "integer", 
+              description: "Star rating (1-5) if explicitly mentioned" 
+            },
+            property_type: { 
+              type: "string", 
+              description: "Type of property: Hotel, Guesthouse, Lodge, B&B, Villa, Boutique Hotel, Safari Lodge, Game Lodge, etc." 
+            },
+            // POI
             restaurants_cafes: { 
               type: "string", 
               description: "Names of nearby restaurants or cafes mentioned" 
+            },
+            restaurants_cafes_distance: { 
+              type: "string", 
+              description: "Distance to restaurants (e.g., '500m', '5 min walk', 'on-site')" 
             },
             public_transport: { 
               type: "string", 
               description: "Public transport options mentioned" 
             },
+            public_transport_distance: { 
+              type: "string", 
+              description: "Distance to public transport" 
+            },
             closest_airport: { 
               type: "string", 
               description: "Nearest airport name" 
             },
+            closest_airport_distance: { 
+              type: "string", 
+              description: "Distance to nearest airport (e.g., '25 km', '30 min drive')" 
+            },
+            // Arrays
             facilities: {
               type: "array",
               items: { type: "string" },
-              description: "List of facilities/amenities mentioned (pool, spa, wifi, parking, etc.)"
+              description: "List of facilities/amenities: pool, spa, wifi, parking, restaurant, bar, gym, room service, laundry, etc."
+            },
+            activities: {
+              type: "array",
+              items: { type: "string" },
+              description: "Activities offered: Game Drives, Bird Watching, Hiking, Cultural Tours, Fishing, Cycling, Walking Tours, Wine Tasting, Spa Treatments, etc."
+            },
+            images: {
+              type: "array",
+              items: { type: "string" },
+              description: "URLs of property photos (only https URLs ending in .jpg, .jpeg, .png, .webp). Look for hero images, gallery images, room photos."
             }
           },
           additionalProperties: false,
@@ -222,15 +313,22 @@ serve(async (req) => {
     const systemPrompt = `You are a data extraction assistant for a hotel/accommodation booking platform. 
 Extract ONLY property information that is clearly stated on the website.
 Be precise and conservative - only extract data you are confident about.
-For phone numbers, use international format if possible.
-For descriptions, create a clean summary without marketing fluff.
+
+Guidelines:
+- Phone numbers: use international format if possible
+- Check-in/out times: convert to 24-hour format (e.g., "2 PM" → "14:00")
+- Star ratings: only extract if explicitly stated (1-5 stars)
+- Descriptions: create a clean summary without marketing fluff
+- Images: only extract absolute HTTPS URLs ending in .jpg, .jpeg, .png, .webp
+- Activities: match against common hospitality activities
+
 DO NOT make up information. Return null for any field you cannot find.`;
 
     const userPrompt = `Extract property information from this website content:
 
 ${websiteContent.substring(0, 15000)}
 
-Extract contact details, location, description, and any facilities mentioned.`;
+Extract: contact details, location, description, check-in/out times, star rating, property type, facilities, activities offered, and image URLs.`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -292,7 +390,7 @@ Extract contact details, location, description, and any facilities mentioned.`;
     }> = [];
 
     // Field mapping from extracted keys to form state variables
-    const fieldMapping: Record<string, { stateVariable: string; label: string }> = {
+    const fieldMapping: Record<string, { stateVariable: string; label: string; existingKey?: string }> = {
       telephone: { stateVariable: "formData.telephone", label: "Telephone" },
       contact_email: { stateVariable: "formData.contact_email", label: "Contact Email" },
       address: { stateVariable: "formData.address", label: "Street Address" },
@@ -300,10 +398,19 @@ Extract contact details, location, description, and any facilities mentioned.`;
       city: { stateVariable: "formData.city", label: "City" },
       country: { stateVariable: "formData.country", label: "Country" },
       postal_code: { stateVariable: "formData.postal_code", label: "Postal Code" },
+      property_name: { stateVariable: "formData.name", label: "Property Name", existingKey: "name" },
       description: { stateVariable: "formData.description", label: "Description" },
+      check_in_time: { stateVariable: "formData.check_in_from", label: "Check-in Time", existingKey: "check_in_from" },
+      check_out_time: { stateVariable: "formData.check_out_from", label: "Check-out Time", existingKey: "check_out_from" },
+      total_rooms: { stateVariable: "bedrooms", label: "Total Rooms", existingKey: "bedrooms" },
+      star_rating: { stateVariable: "starRating", label: "Star Rating", existingKey: "star_rating" },
+      property_type: { stateVariable: "formData.property_type", label: "Property Type" },
       restaurants_cafes: { stateVariable: "formData.restaurants_cafes", label: "Restaurants & Cafes" },
+      restaurants_cafes_distance: { stateVariable: "formData.restaurants_cafes_distance", label: "Restaurants Distance" },
       public_transport: { stateVariable: "formData.public_transport", label: "Public Transport" },
+      public_transport_distance: { stateVariable: "formData.public_transport_distance", label: "Public Transport Distance" },
       closest_airport: { stateVariable: "formData.closest_airport", label: "Closest Airport" },
+      closest_airport_distance: { stateVariable: "formData.closest_airport_distance", label: "Airport Distance" },
     };
 
     for (const [key, value] of Object.entries(extractedData)) {
@@ -313,7 +420,8 @@ Extract contact details, location, description, and any facilities mentioned.`;
       if (!mapping) continue;
 
       // Get current value from existing_data
-      const currentValue = existing_data?.[key] || null;
+      const existingKey = mapping.existingKey || key;
+      const currentValue = existing_data?.[existingKey] || null;
       
       // Calculate confidence based on whether it's filling empty or overwriting
       const isEmpty = !currentValue || (typeof currentValue === "string" && currentValue.trim() === "");
@@ -342,6 +450,71 @@ Extract contact details, location, description, and any facilities mentioned.`;
         confidence: isEmpty ? 0.85 : 0.65,
         source: "website",
       });
+    }
+
+    // Handle activities - normalize to known activities
+    if (extractedData.activities && Array.isArray(extractedData.activities)) {
+      const normalizedActivities: string[] = [];
+      for (const activity of extractedData.activities as string[]) {
+        const lowerActivity = activity.toLowerCase();
+        const matched = KNOWN_ACTIVITIES.find(known => 
+          lowerActivity.includes(known.toLowerCase().split(" ")[0]) ||
+          known.toLowerCase().includes(lowerActivity.split(" ")[0])
+        );
+        if (matched && !normalizedActivities.includes(matched)) {
+          normalizedActivities.push(matched);
+        }
+      }
+      
+      if (normalizedActivities.length > 0) {
+        const currentActivities = existing_data?.activities || [];
+        const isEmpty = !currentActivities || currentActivities.length === 0;
+        
+        suggestions.push({
+          stateVariable: "selectedActivities",
+          fieldLabel: "Activities",
+          current: currentActivities,
+          suggested: normalizedActivities,
+          confidence: isEmpty ? 0.85 : 0.65,
+          source: "website",
+        });
+      }
+    }
+
+    // Handle images - validate and filter
+    if (extractedData.images && Array.isArray(extractedData.images)) {
+      const validImages: string[] = [];
+      const imageExtensions = [".jpg", ".jpeg", ".png", ".webp"];
+      
+      for (const img of extractedData.images as string[]) {
+        if (typeof img !== "string") continue;
+        const url = img.trim();
+        
+        // Must be HTTPS and end with valid image extension
+        if (url.startsWith("https://")) {
+          const lowerUrl = url.toLowerCase();
+          if (imageExtensions.some(ext => lowerUrl.includes(ext))) {
+            validImages.push(url);
+          }
+        }
+        
+        // Limit to 10 images
+        if (validImages.length >= 10) break;
+      }
+      
+      if (validImages.length > 0) {
+        const currentImages = existing_data?.uploadedImages || [];
+        const isEmpty = !currentImages || currentImages.length === 0;
+        
+        suggestions.push({
+          stateVariable: "uploadedImages",
+          fieldLabel: "Property Images",
+          current: currentImages,
+          suggested: validImages,
+          confidence: isEmpty ? 0.80 : 0.60,
+          source: "website",
+        });
+      }
     }
 
     // Log the sync attempt
