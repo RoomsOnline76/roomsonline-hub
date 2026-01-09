@@ -71,8 +71,12 @@ export function useBensonActiveEnvironment() {
 }
 
 export function useGoogleMapsApiKey() {
-  const { data, isLoading } = useFeatureFlags();
-  return { apiKey: data?.google_maps_api_key ?? null, isLoading };
+  const { data, isLoading, isFetched } = useFeatureFlags();
+  return { 
+    apiKey: data?.google_maps_api_key ?? null, 
+    isLoading,
+    isReady: isFetched && !isLoading 
+  };
 }
 
 export function useRecaptchaSiteKey() {
