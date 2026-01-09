@@ -80,3 +80,7 @@ verify_jwt = false
 
 [functions.ai-website-sync]
 verify_jwt = true
+
+[functions.daily-health-report]
+verify_jwt = false
+schedule = "0 6 * * *"
