@@ -30,12 +30,16 @@ const PMSTrackerStatusDisplay = ({ tracker, compact = false }: PMSTrackerStatusP
   const progress = getProgressCount(tracker);
 
   const progressItems = [
-    { key: 'access', label: 'Access', value: tracker.has_access },
+    // Setup phase
+    { key: 'account', label: 'Account', value: tracker.has_account },
     { key: 'docs', label: 'Docs', value: tracker.has_docs },
     { key: 'edge', label: 'Edge', value: tracker.has_edge },
+    // Integration phase
+    { key: 'health', label: 'Health', value: tracker.has_health },
     { key: 'get', label: 'GET', value: tracker.has_get },
     { key: 'post', label: 'POST', value: tracker.has_post },
-    { key: 'prod', label: 'Prod', value: tracker.is_production },
+    { key: 'test', label: 'Test', value: tracker.has_soft_test },
+    { key: 'prod', label: 'Live', value: tracker.is_production },
   ];
 
   if (compact) {
