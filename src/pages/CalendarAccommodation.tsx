@@ -873,8 +873,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     if (selectedPropertyData?.amenities?.pms_rate_types) {
       const savedRateTypes = selectedPropertyData.amenities.pms_rate_types as any[];
       savedRateTypes.forEach(rt => {
-        if (rt.id && rt.name) {
-          const rtIdStr = String(rt.id);
+        const rateTypeId = rt.id || rt.rate_type_id;
+        if (rateTypeId && rt.name) {
+          const rtIdStr = String(rateTypeId);
           // Check if this rate type has any rates in the PMS data
           let hasRates = false;
           if (pmsData.roomTypes.length > 0) {
