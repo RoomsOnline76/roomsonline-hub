@@ -62,9 +62,17 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
   const [mapError, setMapError] = useState(false);
   const [properties, setProperties] = useState<Property[]>([]);
 
-  // Fetch properties with coordinates
+  // Fetch properties with coordinates and active PMS systems
   useEffect(() => {
     const fetchProperties = async () => {
+      // First, get PMS systems that are in production
+      const { data: activePmsSystems } = await supabase
+        .from("pms_tracker_status")
+        .select("system_type")
+        .eq("is_production", true);
+      
+      const activeSystemTypes = activePmsSystems?.map(s => s.system_type) || [];
+      
       const { data, error } = await supabase
         .from("public_properties")
         .select("id, name, slug, latitude, longitude, city, country, price_per_night, property_type, images, external_system, external_id, navigation_tags")
@@ -72,12 +80,14 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
         .not("longitude", "is", null);
 
       if (!error && data) {
-        // Parse images and navigation_tags if needed
-        const parsedData = data.map(p => ({
-          ...p,
-          images: Array.isArray(p.images) ? (p.images as string[]) : null,
-          navigation_tags: Array.isArray(p.navigation_tags) ? (p.navigation_tags as string[]) : null
-        }));
+        // Filter to only properties with active PMS systems and parse data
+        const parsedData = data
+          .filter(p => p.external_system && activeSystemTypes.includes(p.external_system))
+          .map(p => ({
+            ...p,
+            images: Array.isArray(p.images) ? (p.images as string[]) : null,
+            navigation_tags: Array.isArray(p.navigation_tags) ? (p.navigation_tags as string[]) : null
+          }));
         setProperties(parsedData);
       }
     };

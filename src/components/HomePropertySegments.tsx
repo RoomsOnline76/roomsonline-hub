@@ -140,15 +140,24 @@ export function useHomePropertySegments(filteredPropertyIds: string[] | null = n
     staleTime: 0, // Always fetch fresh data
   });
 
-  // Fetch all properties
+  // Fetch all properties with active PMS systems
   const { data: allProperties, isLoading } = useQuery({
     queryKey: ["properties-all-segments"],
     queryFn: async () => {
+      // First, get PMS systems that are in production
+      const { data: activePmsSystems } = await supabase
+        .from("pms_tracker_status")
+        .select("system_type")
+        .eq("is_production", true);
+      
+      const activeSystemTypes = activePmsSystems?.map(s => s.system_type) || [];
+      
+      // Fetch properties with active PMS systems
       const { data, error } = await supabase
         .from("properties")
         .select(`
           id, slug, name, city, country, images, description,
-          editorial_rating, navigation_tags,
+          editorial_rating, navigation_tags, external_system,
           why_we_chose_this_place, who_this_suits, 
           what_its_really_like, why_this_place_matters, who_its_not_for
         `)
@@ -156,7 +165,13 @@ export function useHomePropertySegments(filteredPropertyIds: string[] | null = n
         .is("permanently_deleted_at", null);
 
       if (error) throw error;
-      return data as PropertyData[];
+      
+      // Filter to only properties with active PMS systems
+      const filtered = (data || []).filter(p => 
+        p.external_system && activeSystemTypes.includes(p.external_system)
+      );
+      
+      return filtered as PropertyData[];
     },
   });
 

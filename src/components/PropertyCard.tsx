@@ -4,6 +4,7 @@ import { MapPin } from "lucide-react";
 import { EditorialRatingBadge } from "@/components/EditorialRatingBadge";
 import { WhoItsNotForBadge } from "@/components/WhoItsNotForBadge";
 import { useMemo } from "react";
+import rolLogo from "@/assets/rol-logo.png";
 
 interface PropertyCardProps {
   property: {
@@ -43,10 +44,8 @@ function getRandomEditorialBlurb(property: PropertyCardProps["property"]): strin
 }
 
 function getPrimaryImage(images: unknown): string {
-  const fallback = "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80";
-  
   if (!images || !Array.isArray(images) || images.length === 0) {
-    return fallback;
+    return rolLogo;
   }
   
   const firstImage = images[0];
@@ -54,7 +53,7 @@ function getPrimaryImage(images: unknown): string {
   if (firstImage && typeof firstImage === "object" && "url" in firstImage) {
     return (firstImage as { url: string }).url;
   }
-  return fallback;
+  return rolLogo;
 }
 
 export function PropertyCard({ property, variant = "default", showCautionBadge = false }: PropertyCardProps) {
@@ -72,7 +71,9 @@ export function PropertyCard({ property, variant = "default", showCautionBadge =
           <img
             src={imageUrl}
             alt={property.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className={`w-full h-full transition-transform duration-500 group-hover:scale-105 ${
+              imageUrl === rolLogo ? "object-contain bg-muted/30 p-8" : "object-cover"
+            }`}
           />
           {/* Gradient overlay for better badge visibility */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
