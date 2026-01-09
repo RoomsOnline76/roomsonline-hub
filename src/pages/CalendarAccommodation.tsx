@@ -484,6 +484,19 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       const responseData = data?.data || data;
       const roomTypes = responseData?.room_types || responseData?.roomTypes || [];
       
+      // Debug logging for rate types
+      console.log('[Calendar] Raw PMS response:', {
+        hasData: !!data,
+        hasDataData: !!data?.data,
+        roomTypeCount: roomTypes.length,
+        firstRoomSample: roomTypes[0] ? {
+          id: roomTypes[0].room_type_id,
+          name: roomTypes[0].room_type_name,
+          rateTypesCount: roomTypes[0].rate_types?.length || 0,
+          firstRateType: roomTypes[0].rate_types?.[0],
+        } : null,
+      });
+      
       if (Array.isArray(roomTypes)) {
         for (const roomType of roomTypes) {
           const roomData: PMSRoomTypeData = {
@@ -559,6 +572,17 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           transformedData.push(roomData);
         }
       }
+      
+      // Debug logging for transformed data
+      console.log('[Calendar] Transformed PMS data:', {
+        roomCount: transformedData.length,
+        firstRoom: transformedData[0] ? {
+          id: transformedData[0].roomTypeId,
+          name: transformedData[0].roomTypeName,
+          ratesCount: Object.keys(transformedData[0].ratesByDate).length,
+          sampleRates: transformedData[0].ratesByDate[Object.keys(transformedData[0].ratesByDate)[0]],
+        } : null,
+      });
 
       setPmsData({
         roomTypes: transformedData,

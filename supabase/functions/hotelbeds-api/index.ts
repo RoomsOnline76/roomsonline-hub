@@ -514,6 +514,22 @@ function transformAvailability(hotelbedsData: any, startDate: string, endDate: s
     }
   }
   
+  // Debug logging
+  console.log(`[HotelBeds] transformAvailability result:`, {
+    room_count: roomTypes.length,
+    first_room: roomTypes[0] ? {
+      id: roomTypes[0].room_type_id,
+      name: roomTypes[0].room_type_name,
+      rate_types_count: roomTypes[0].rate_types?.length || 0,
+      first_rate_type: roomTypes[0].rate_types?.[0] ? {
+        id: roomTypes[0].rate_types[0].rate_type_id,
+        name: roomTypes[0].rate_types[0].rate_type_name,
+        rates_count: roomTypes[0].rate_types[0].rates?.length || 0,
+        sample_rate: roomTypes[0].rate_types[0].rates?.[0],
+      } : null,
+    } : null,
+  });
+  
   return {
     room_types: roomTypes,
     currency: hotelbedsData?.hotels?.currency || "EUR",
