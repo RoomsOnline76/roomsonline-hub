@@ -769,7 +769,7 @@ export default function PropertyForm() {
 
       if (fetchError) throw fetchError;
       
-      console.log("[DEBUG] Found rooms:", existingRooms);
+      console.log("[DEBUG] Raw rooms from DB:", existingRooms?.map(r => r.name));
       
       if (!existingRooms || existingRooms.length === 0) {
         toast({
@@ -781,13 +781,20 @@ export default function PropertyForm() {
         return;
       }
 
+      // Sort rooms alphabetically with numeric awareness (104 before 206)
+      const sortedRooms = [...existingRooms].sort((a, b) => 
+        a.name.localeCompare(b.name, undefined, { numeric: true })
+      );
+      
+      console.log("[DEBUG] Sorted rooms:", sortedRooms.map(r => r.name));
+
       toast({
         title: "DEBUG: Rooms Found",
-        description: `${existingRooms.length} rooms with UIDs: ${existingRooms.map(r => r.name).join(', ')}`,
+        description: `${sortedRooms.length} rooms (sorted): ${sortedRooms.slice(0, 3).map(r => r.name).join(', ')}...`,
       });
 
-      // TEST: Limit to 2 rooms for debugging
-      const roomsToSync = existingRooms.slice(0, 2);
+      // TEST: Limit to 2 rooms for debugging - now from sorted list
+      const roomsToSync = sortedRooms.slice(0, 2);
       setSyncProgress({ 
         phase: "Syncing room data...", 
         current: 0, 
