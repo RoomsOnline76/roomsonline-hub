@@ -2794,13 +2794,20 @@ export default function PropertyForm() {
 
           // Load images if available - handle both string[] and object[] formats
           if (data.images && Array.isArray(data.images)) {
+            console.log('[PropertyForm] Raw images from DB:', data.images.slice(0, 3));
             const imageUrls = data.images.map((img: any) => {
               if (typeof img === 'string') return img;
+              // Handle HotelBeds format with url property
               if (img && typeof img === 'object' && img.url) return img.url;
+              // Handle alternative format with imageUrl property
+              if (img && typeof img === 'object' && img.imageUrl) return img.imageUrl;
+              console.log('[PropertyForm] Unrecognized image format:', img);
               return null;
             }).filter((url): url is string => typeof url === 'string' && url.startsWith('http'));
-            console.log('[PropertyForm] Loaded images:', { raw: data.images.length, extracted: imageUrls.length, sample: imageUrls[0] });
+            console.log('[PropertyForm] Loaded images:', { raw: data.images.length, extracted: imageUrls.length, sample: imageUrls.slice(0, 3) });
             setUploadedImages(imageUrls);
+          } else {
+            console.log('[PropertyForm] No images array found in data.images:', data.images);
           }
 
           // Load ROL Spec fields (direct columns)
