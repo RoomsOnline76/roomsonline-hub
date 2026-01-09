@@ -66,6 +66,14 @@ export function WebsiteSyncModal({
     });
   };
 
+  const handleSelectAll = () => {
+    setSelected(new Set(suggestions.map(s => s.stateVariable)));
+  };
+
+  const handleSelectNone = () => {
+    setSelected(new Set());
+  };
+
   const handleApply = () => {
     const selectedSuggestions = suggestions.filter((s) =>
       selected.has(s.stateVariable)
@@ -116,7 +124,32 @@ export function WebsiteSyncModal({
           </p>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-4">
+        {suggestions.length > 0 && (
+          <div className="flex items-center justify-between py-2 border-b">
+            <span className="text-sm text-muted-foreground">
+              {selected.size} of {suggestions.length} selected
+            </span>
+            <div className="flex gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={handleSelectAll}
+              >
+                Select All
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={handleSelectNone}
+                disabled={selected.size === 0}
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <ScrollArea className="flex-1 min-h-0 max-h-[50vh] pr-4">
           <div className="space-y-3">
             {suggestions.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">
