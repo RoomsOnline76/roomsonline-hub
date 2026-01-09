@@ -343,7 +343,8 @@ function transformAvailability(hotelbedsData: any, startDate: string, endDate: s
     const rooms = hotel.rooms || [];
     
     for (const room of rooms) {
-      const dailyAvailability: any[] = [];
+      // Use rooms_available_per_night format expected by CalendarAccommodation
+      const roomsAvailablePerNight: any[] = [];
       const rateTypes: any[] = [];
       
       // Generate daily entries for the date range
@@ -352,24 +353,22 @@ function transformAvailability(hotelbedsData: any, startDate: string, endDate: s
       
       for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
         const dateStr = d.toISOString().split('T')[0];
-        dailyAvailability.push({
+        roomsAvailablePerNight.push({
           date: dateStr,
           available_units: room.rates?.length > 0 ? 1 : 0,
-          restrictions: {
-            stop_sell: false,
-            closed_to_arrival: false,
-            closed_to_departure: false,
-            min_stay: null,
-            max_stay: null,
-            min_advance: null,
-            max_advance: null,
-          },
+          stop_sell: false,
+          closed_to_arrival: false,
+          closed_to_departure: false,
+          min_stay: null,
+          max_stay: null,
+          lead_days_advance: null,
+          lead_days_post: null,
         });
       }
       
-      // Process rates
+      // Process rates - use "rates" array format expected by CalendarAccommodation
       for (const rate of (room.rates || [])) {
-        const dailyRates: any[] = [];
+        const rates: any[] = [];
         const netAmount = parseFloat(rate.net) || 0;
         const nights = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
         const perNightRate = nights > 0 ? netAmount / nights : netAmount;
@@ -377,11 +376,13 @@ function transformAvailability(hotelbedsData: any, startDate: string, endDate: s
         // Create daily rate entries
         for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
           const dateStr = d.toISOString().split('T')[0];
-          dailyRates.push({
+          rates.push({
             date: dateStr,
             room_amount: perNightRate,
-            adult_amount_1: perNightRate,
-            adult_amount_2: perNightRate,
+            adult_amounts: {
+              adult_amount_1: perNightRate,
+              adult_amount_2: perNightRate,
+            },
             teen_amount: 0,
             child_amount: 0,
             infant_amount: 0,
@@ -391,21 +392,24 @@ function transformAvailability(hotelbedsData: any, startDate: string, endDate: s
         
         rateTypes.push({
           rate_type_id: rate.rateKey?.substring(0, 50) || `rate_${rateTypes.length}`,
+          rate_type_name: rate.boardName || rate.rateClass || "Standard",
           name: rate.boardName || rate.rateClass || "Standard",
           rate_key: rate.rateKey, // Store full rateKey for booking
           board_code: rate.boardCode,
           board_name: rate.boardName,
+          price_type: "UnitRate",
           cancellation_policies: rate.cancellationPolicies || [],
-          daily_rates: dailyRates,
+          rates: rates,
           net_total: netAmount,
         });
       }
       
       roomTypes.push({
         room_type_id: room.code?.toString() || `room_${roomTypes.length}`,
+        room_type_name: room.name || "Room",
         name: room.name || "Room",
         description: room.description || "",
-        daily_availability: dailyAvailability,
+        rooms_available_per_night: roomsAvailablePerNight,
         rate_types: rateTypes,
       });
     }
