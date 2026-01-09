@@ -117,6 +117,19 @@ const PropertyOverview = () => {
     },
   });
 
+  // Fetch PMS tracker status to check if integrations are enabled
+  const { data: pmsTrackerStatus } = useQuery({
+    queryKey: ["pms-tracker-status"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pms_tracker_status")
+        .select("system_type, is_production");
+      if (error) throw error;
+      // Create a map of system_type -> is_production
+      return new Map((data || []).map(t => [t.system_type?.toLowerCase(), t.is_production]));
+    },
+  });
+
   // Fetch book page images
   const { data: bookPageImages, refetch: refetchBookImages } = useQuery({
     queryKey: ["book-page-images"],
@@ -501,24 +514,59 @@ const PropertyOverview = () => {
                             </Button>
                           </TableCell>
                           <TableCell className="py-1">
-                            <StatusIndicator 
-                              status={property.external_system ? "healthy" : "stale"}
-                              showLabel={false}
-                              size="sm"
-                              tooltip={property.external_system ? `Connected: ${property.external_system}` : "No PMS connected"}
-                            />
+                            {(() => {
+                              const isPmsEnabled = property.external_system 
+                                ? pmsTrackerStatus?.get(property.external_system.toLowerCase()) === true
+                                : false;
+                              const hasConnection = !!property.external_system;
+                              
+                              let status: "healthy" | "warning" | "stale" = "stale";
+                              let tooltip = "No PMS connected";
+                              
+                              if (hasConnection && isPmsEnabled) {
+                                status = "healthy";
+                                tooltip = `Connected: ${property.external_system} (Active)`;
+                              } else if (hasConnection && !isPmsEnabled) {
+                                status = "warning";
+                                tooltip = `Connected: ${property.external_system} (Integration Disabled)`;
+                              }
+                              
+                              return (
+                                <StatusIndicator 
+                                  status={status}
+                                  showLabel={false}
+                                  size="sm"
+                                  tooltip={tooltip}
+                                />
+                              );
+                            })()}
                           </TableCell>
                           <TableCell className="font-medium py-1 text-xs">
                             <span>{property.name}</span>
                           </TableCell>
                           <TableCell className="py-1 text-xs">
                             {property.external_system ? (
-                              <ExternalSourceBadge
-                                systemType={property.external_system}
-                                status={property.pms_sync_status === 'error' ? 'error' : property.pms_sync_status === 'syncing' ? 'syncing' : 'active'}
-                                lastSyncAt={property.last_pms_sync_at}
-                                compact
-                              />
+                              (() => {
+                                const isPmsEnabled = pmsTrackerStatus?.get(property.external_system.toLowerCase()) === true;
+                                let badgeStatus: 'active' | 'error' | 'syncing' | 'disconnected' = 'active';
+                                
+                                if (!isPmsEnabled) {
+                                  badgeStatus = 'disconnected';
+                                } else if (property.pms_sync_status === 'error') {
+                                  badgeStatus = 'error';
+                                } else if (property.pms_sync_status === 'syncing') {
+                                  badgeStatus = 'syncing';
+                                }
+                                
+                                return (
+                                  <ExternalSourceBadge
+                                    systemType={property.external_system}
+                                    status={badgeStatus}
+                                    lastSyncAt={property.last_pms_sync_at}
+                                    compact
+                                  />
+                                );
+                              })()
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
