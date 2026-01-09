@@ -101,9 +101,18 @@ export function getHeroMedia(property: PropertyData): {
     return { type: 'video', src: property.hero_video_url };
   }
 
-  // Priority 2: Images
+  // Priority 2: Images (normalize objects to strings if needed)
   if (property.images && property.images.length > 0) {
-    return { type: 'image', images: property.images };
+    const normalizedImages = property.images.map((img: any) => {
+      // Handle both string URLs and image objects with url property (e.g., HotelBeds)
+      if (typeof img === 'string') return img;
+      if (img && typeof img === 'object' && img.url) return img.url;
+      return null;
+    }).filter((url: string | null): url is string => url !== null);
+
+    if (normalizedImages.length > 0) {
+      return { type: 'image', images: normalizedImages };
+    }
   }
 
   // Priority 3: Abstract gradient using coordinates
