@@ -26,25 +26,26 @@ export function useFeatureFlags() {
   return useQuery({
     queryKey: ["feature-flags"],
     queryFn: async (): Promise<FeatureFlags> => {
-      const { data, error } = await supabase.functions.invoke('get-feature-flags');
-      
-      if (error) {
-        console.error('Failed to fetch feature flags:', error);
-        throw error;
+      try {
+        const { data, error } = await supabase.functions.invoke('get-feature-flags');
+        
+        if (error || !data?.success) {
+          console.error('Feature flags error:', error || data?.error);
+          return DEFAULT_FLAGS;
+        }
+        
+        return {
+          ...DEFAULT_FLAGS,
+          ...data.data,
+        };
+      } catch (err) {
+        console.error('Feature flags fetch failed:', err);
+        return DEFAULT_FLAGS;
       }
-      
-      if (!data?.success) {
-        console.error('Feature flags request failed:', data?.error);
-        throw new Error(data?.error || 'Failed to fetch feature flags');
-      }
-      
-      return {
-        ...DEFAULT_FLAGS,
-        ...data.data,
-      };
     },
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
-    retry: 2,
+    staleTime: 1000 * 60 * 5,
+    retry: 1,
+    refetchOnWindowFocus: false,
   });
 }
 
