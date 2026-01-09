@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { AlertTriangle, Check, ExternalLink } from "lucide-react";
 import { WebsiteSyncSuggestion } from "@/lib/api/websiteSync";
 
@@ -104,7 +104,7 @@ export function WebsiteSyncModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Check className="h-5 w-5 text-primary" />
@@ -125,7 +125,7 @@ export function WebsiteSyncModal({
         </DialogHeader>
 
         {suggestions.length > 0 && (
-          <div className="flex items-center justify-between py-2 border-b">
+          <div className="flex items-center justify-between py-2 border-b shrink-0">
             <span className="text-sm text-muted-foreground">
               {selected.size} of {suggestions.length} selected
             </span>
@@ -149,8 +149,8 @@ export function WebsiteSyncModal({
           </div>
         )}
 
-        <ScrollArea className="flex-1 min-h-0 max-h-[50vh] pr-4">
-          <div className="space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto pr-2">
+          <div className="space-y-3 py-2">
             {suggestions.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">
                 No extractable information found on the website.
@@ -219,7 +219,7 @@ export function WebsiteSyncModal({
               })
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
