@@ -10074,18 +10074,22 @@ export default function PropertyForm() {
         suggestions={websiteSyncSuggestions}
         scrapedUrl={websiteSyncUrl}
         onApply={(selectedSuggestions) => {
+          let appliedCount = 0;
           selectedSuggestions.forEach((suggestion) => {
             const key = suggestion.stateVariable.replace("formData.", "");
             if (key === "selectedFacilities" && Array.isArray(suggestion.suggested)) {
               setSelectedFacilities(suggestion.suggested as string[]);
-            } else if (key in formData) {
-              setFormData((prev) => ({ ...prev, [key]: suggestion.suggested as string }));
+              appliedCount++;
+            } else {
+              // Always try to update formData - the key should exist if suggestion was generated
+              setFormData((prev) => ({ ...prev, [key]: suggestion.suggested }));
+              appliedCount++;
             }
           });
           setIsDirty(true);
           toast({
             title: "Fields updated",
-            description: `Applied ${selectedSuggestions.length} suggestion${selectedSuggestions.length !== 1 ? "s" : ""} from website`,
+            description: `Applied ${appliedCount} suggestion${appliedCount !== 1 ? "s" : ""} from website`,
           });
         }}
       />
