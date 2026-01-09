@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { getPropertyUrl } from "@/lib/config";
 import { ExternalSourceBadge } from "@/components/pms/ExternalSourceBadge";
+import { getPMSSystemByKey } from "@/lib/pmsSystemsConfig";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -547,24 +548,14 @@ const PropertyOverview = () => {
                           <TableCell className="py-1 text-xs">
                             {property.external_system ? (
                               (() => {
+                                const pmsConfig = getPMSSystemByKey(property.external_system);
+                                const pmsName = pmsConfig?.name || property.external_system;
                                 const isPmsEnabled = pmsTrackerStatus?.get(property.external_system.toLowerCase()) === true;
-                                let badgeStatus: 'active' | 'error' | 'syncing' | 'disconnected' = 'active';
-                                
-                                if (!isPmsEnabled) {
-                                  badgeStatus = 'disconnected';
-                                } else if (property.pms_sync_status === 'error') {
-                                  badgeStatus = 'error';
-                                } else if (property.pms_sync_status === 'syncing') {
-                                  badgeStatus = 'syncing';
-                                }
                                 
                                 return (
-                                  <ExternalSourceBadge
-                                    systemType={property.external_system}
-                                    status={badgeStatus}
-                                    lastSyncAt={property.last_pms_sync_at}
-                                    compact
-                                  />
+                                  <span className={isPmsEnabled ? "text-foreground" : "text-muted-foreground"}>
+                                    {pmsName}
+                                  </span>
                                 );
                               })()
                             ) : (
