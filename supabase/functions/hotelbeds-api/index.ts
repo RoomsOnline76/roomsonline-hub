@@ -537,16 +537,35 @@ function transformAvailability(hotelbedsData: any, startDate: string, endDate: s
   };
 }
 
-function transformRoomTypes(hotelbedsData: any): any[] {
+function transformRoomTypes(hotelbedsData: any, contentImages?: any[]): any[] {
   const roomTypes: any[] = [];
   const hotels = hotelbedsData?.hotels?.hotels || [];
   
   for (const hotel of hotels) {
     for (const room of (hotel.rooms || [])) {
+      const roomCode = room.code?.toString();
+      
+      // Filter images that match this room's code (HAB = room images with roomCode)
+      const roomImages = contentImages
+        ?.filter((img: any) => {
+          const imgRoomCode = img.roomCode || img.room_code;
+          if (!imgRoomCode || !roomCode) return false;
+          // Match exact code or base code (e.g., "DBT" matches "DBT.DX")
+          return imgRoomCode === roomCode || 
+                 roomCode.startsWith(imgRoomCode.split('.')[0]) ||
+                 imgRoomCode.startsWith(roomCode.split('.')[0]);
+        })
+        ?.map((img: any) => {
+          if (img.path) return `https://photos.hotelbeds.com/giata/${img.path}`;
+          return img.url;
+        })
+        ?.filter((url: string) => !!url) || [];
+      
       roomTypes.push({
-        room_type_id: room.code?.toString() || `room_${roomTypes.length}`,
+        room_type_id: roomCode || `room_${roomTypes.length}`,
         name: room.name || "Room",
         description: room.description || "",
+        images: roomImages, // Room-specific images from Content API
         max_guests: 4, // HotelBeds doesn't always provide this
         min_guests: 1,
         guest_rules: {
@@ -915,7 +934,7 @@ serve(async (req) => {
           { rooms: 1, adults: 2, children: 0 }
         );
 
-        const roomTypes = transformRoomTypes(availabilityData);
+        const roomTypes = transformRoomTypes(availabilityData, []);
         
         return new Response(
           JSON.stringify(createSuccessResponse({ room_types: roomTypes }, action)),
@@ -1086,7 +1105,8 @@ serve(async (req) => {
         let roomTypes: any[] = [];
         let rateTypes: any[] = [];
         if (availabilityData.status === 'fulfilled') {
-          roomTypes = transformRoomTypes(availabilityData.value);
+          // Pass Content API images for room-specific matching
+          roomTypes = transformRoomTypes(availabilityData.value, contentImages);
           rateTypes = transformRateTypes(availabilityData.value);
         }
 
