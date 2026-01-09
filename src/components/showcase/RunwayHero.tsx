@@ -89,22 +89,6 @@ export function RunwayHero({
         <div className="absolute inset-0 bg-gradient-to-r from-background/30 to-transparent" />
       </div>
 
-      {/* Progress Indicator Dots */}
-      {images && images.length > 1 && !videoUrl && (
-        <div className="absolute bottom-4 right-6 flex gap-1.5 z-10">
-          {images.map((_, idx) => (
-            <div 
-              key={idx}
-              className={cn(
-                "h-1.5 rounded-full transition-all duration-500",
-                idx === currentImageIndex 
-                  ? "bg-foreground/80 w-4" 
-                  : "bg-foreground/30 w-1.5"
-              )}
-            />
-          ))}
-        </div>
-      )}
 
       {/* Content Layer */}
       <div className="relative z-10 p-6 sm:p-10 md:p-16 lg:p-20 pb-16 sm:pb-20 md:pb-24">
