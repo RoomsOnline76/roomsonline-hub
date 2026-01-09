@@ -377,6 +377,7 @@ const PropertyOverview = () => {
                       <TableRow className="h-8">
                         <TableHead className="py-1 text-xs w-10">EDIT</TableHead>
                         <TableHead className="py-1 text-xs w-12">STATUS</TableHead>
+                        <TableHead className="py-1 text-xs w-10">ROL</TableHead>
                         <TableHead 
                           className="cursor-pointer hover:bg-muted/50 select-none py-1 text-xs"
                           onClick={() => handleSort("name")}
@@ -432,12 +433,12 @@ const PropertyOverview = () => {
                           </div>
                         </TableHead>
                         
-                        <TableHead className="py-1 text-xs w-10">ROL</TableHead>
                         <TableHead className="py-1 text-xs">TA ID</TableHead>
                         <TableHead className="text-right py-1 text-xs">ACTION</TableHead>
                       </TableRow>
                       {/* Search row */}
                       <TableRow className="hover:bg-transparent h-7">
+                        <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1">
@@ -545,6 +546,13 @@ const PropertyOverview = () => {
                               );
                             })()}
                           </TableCell>
+                          <TableCell className="py-1">
+                            {(property as any).is_rol_property ? (
+                              <img src={rolLogo} alt="ROL" className="h-4 w-4" />
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
                           <TableCell className="font-medium py-1 text-xs">
                             <span>{property.name}</span>
                           </TableCell>
@@ -583,13 +591,6 @@ const PropertyOverview = () => {
                             <span className="capitalize">{property.property_type?.replace(/_/g, ' ') || "-"}</span>
                           </TableCell>
                           <TableCell className="py-1 text-xs">{property.total_bookings || 0}</TableCell>
-                          <TableCell className="py-1">
-                            {(property as any).is_rol_property ? (
-                              <img src={rolLogo} alt="ROL" className="h-4 w-4" />
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
                           <TableCell className="py-1">
                             {(() => {
                               const amenities = property.amenities as any;
