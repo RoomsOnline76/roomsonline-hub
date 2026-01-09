@@ -42,6 +42,7 @@ const PropertyOverview = () => {
   const [searchName, setSearchName] = useState("");
   const [searchPms, setSearchPms] = useState("");
   const [searchHero, setSearchHero] = useState("");
+  const [searchRol, setSearchRol] = useState("");
   const [searchPropertyType, setSearchPropertyType] = useState("");
 
   // Sort state
@@ -231,6 +232,14 @@ const PropertyOverview = () => {
         filtered = filtered.filter(p => !p.hero_listing);
       }
     }
+    if (searchRol) {
+      const searchLower = searchRol.toLowerCase();
+      if (searchLower === 'yes') {
+        filtered = filtered.filter(p => (p as any).is_rol_property === true);
+      } else if (searchLower === 'no') {
+        filtered = filtered.filter(p => !(p as any).is_rol_property);
+      }
+    }
     if (searchPropertyType) {
       filtered = filtered.filter(p => 
         p.property_type?.toLowerCase().includes(searchPropertyType.toLowerCase())
@@ -267,7 +276,7 @@ const PropertyOverview = () => {
     }
 
     return filtered;
-  }, [allProperties, searchName, searchPms, searchHero, searchPropertyType, sortColumn, sortDirection]);
+  }, [allProperties, searchName, searchPms, searchHero, searchRol, searchPropertyType, sortColumn, sortDirection]);
 
   const deletedProperties = allProperties?.filter(p => !p.is_active) || [];
 
@@ -440,7 +449,14 @@ const PropertyOverview = () => {
                       <TableRow className="hover:bg-transparent h-7">
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
-                        <TableCell className="py-1"></TableCell>
+                        <TableCell className="py-1">
+                          <Input
+                            placeholder="Yes/No"
+                            value={searchRol}
+                            onChange={(e) => setSearchRol(e.target.value)}
+                            className="h-6 text-xs"
+                          />
+                        </TableCell>
                         <TableCell className="py-1">
                           <Input
                             placeholder="Search"
