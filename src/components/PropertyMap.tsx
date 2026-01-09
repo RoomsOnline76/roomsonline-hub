@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { MapPin } from "lucide-react";
+import { useGoogleMapsApiKey } from "@/hooks/useFeatureFlags";
 
 declare global {
   interface Window {
@@ -34,46 +34,24 @@ export function PropertyMap({
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [marker, setMarker] = useState<google.maps.marker.AdvancedMarkerElement | null>(null);
-  const [apiKey, setApiKey] = useState<string | null>(null);
+  const { apiKey, isLoading: apiKeyLoading } = useGoogleMapsApiKey();
   const [loading, setLoading] = useState(true);
   const [mapsLoaded, setMapsLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
 
-  // Fetch Google Maps API key from database
+  // Update loading state and show toast when api key is loaded from feature flags
   useEffect(() => {
-    const fetchApiKey = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("api_keys")
-          .select("key_value")
-          .eq("key_name", "google_maps_api_key")
-          .maybeSingle();
-
-        if (error) throw error;
-
-        if (data?.key_value && !data.key_value.startsWith("placeholder_key_")) {
-          setApiKey(data.key_value);
-        } else {
-          toast({
-            title: "Google Maps API Key Missing",
-            description: "Please configure your Google Maps API key in the API Keys page.",
-            variant: "destructive"
-          });
-        }
-      } catch (error) {
-        console.error("Error fetching API key:", error);
+    if (!apiKeyLoading) {
+      if (!apiKey || apiKey.startsWith("placeholder_key_")) {
         toast({
-          title: "Error",
-          description: "Failed to load Google Maps API key.",
+          title: "Google Maps API Key Missing",
+          description: "Please configure your Google Maps API key in the API Keys page.",
           variant: "destructive"
         });
-      } finally {
-        setLoading(false);
       }
-    };
-
-    fetchApiKey();
-  }, []);
+      setLoading(false);
+    }
+  }, [apiKeyLoading, apiKey]);
 
   // Load Google Maps script
   useEffect(() => {

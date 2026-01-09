@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useGoogleReCaptcha } from "react-google-recaptcha-v3";
-import { supabase } from "@/integrations/supabase/client";
+import { useRecaptchaSiteKey as useRecaptchaSiteKeyFromFlags } from "@/hooks/useFeatureFlags";
 
 interface RecaptchaState {
   isVerified: boolean;
@@ -11,25 +10,12 @@ interface RecaptchaState {
 }
 
 export function useRecaptchaSiteKey() {
-  return useQuery({
-    queryKey: ["recaptcha_site_key"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("api_keys")
-        .select("key_value")
-        .eq("key_name", "google_recaptcha_site_key")
-        .maybeSingle();
-      
-      if (error) {
-        console.error("Failed to fetch reCAPTCHA site key:", error);
-        return null;
-      }
-      
-      return data?.key_value || null;
-    },
-    staleTime: 1000 * 60 * 60, // Cache for 1 hour
-    retry: 2,
-  });
+  const { siteKey, isLoading } = useRecaptchaSiteKeyFromFlags();
+  return {
+    data: siteKey,
+    isLoading,
+    error: null,
+  };
 }
 
 export function useRecaptcha(action: string = "submit", scoreThreshold: number = 0.5) {

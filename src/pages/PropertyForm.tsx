@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -85,6 +85,7 @@ import { parseHostfullyProperties } from "@/lib/hostfullyBuildingParser";
 import { HostfullyRoomDetails } from "@/components/pms/HostfullyRoomDetails";
 import { WebsiteSyncModal, WebsiteSyncSuggestion } from "@/components/property/WebsiteSyncModal";
 import { syncFromWebsite } from "@/lib/api/websiteSync";
+import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -217,13 +218,17 @@ export default function PropertyForm() {
   const { id } = useParams(); // Can be UUID or slug
   const { toast } = useToast();
   const { isDev, isAdmin, user, profile, loading: authLoading } = useAuth();
+  const { data: featureFlags } = useFeatureFlags();
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [owners, setOwners] = useState<any[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [propertySlug, setPropertySlug] = useState<string>("");
   const [propertyId, setPropertyId] = useState<string | null>(null); // Actual UUID for DB operations
-  const [homeIconOpenNewTab, setHomeIconOpenNewTab] = useState(true);
+  
+  // Feature flags from secure edge function
+  const homeIconOpenNewTab = featureFlags?.home_icon_open_new_tab ?? true;
+  const roomsonlineActive = featureFlags?.roomsonline_active ?? false;
 
   // Warn user before leaving with unsaved changes
   useEffect(() => {
@@ -270,21 +275,7 @@ export default function PropertyForm() {
     loadOwners();
   }, []);
 
-  // Load home icon new tab setting
-  useEffect(() => {
-    const loadHomeIconSetting = async () => {
-      const { data } = await supabase
-        .from("api_keys")
-        .select("key_value")
-        .eq("key_name", "HOME_ICON_OPEN_NEW_TAB")
-        .maybeSingle();
-
-      if (data?.key_value) {
-        setHomeIconOpenNewTab(data.key_value === "true");
-      }
-    };
-    loadHomeIconSetting();
-  }, []);
+  // homeIconOpenNewTab now comes from useFeatureFlags hook
 
   // Offerings
   const [isAccommodation, setIsAccommodation] = useState(true);
@@ -1483,17 +1474,10 @@ export default function PropertyForm() {
         .select("system_type")
         .eq("is_active", true);
 
-      // Get RoomsOnline active status from api_keys
-      const { data: roomsonlineKey } = await supabase
-        .from("api_keys")
-        .select("key_value")
-        .eq("key_name", "ROOMSONLINE_ACTIVE")
-        .single();
-
       const activeSystemTypes = new Set(activeCredentials?.map((c) => c.system_type) || []);
 
-      // Add roomsonline if active
-      if (roomsonlineKey?.key_value === "true") {
+      // Add roomsonline if active (from feature flags)
+      if (roomsonlineActive) {
         activeSystemTypes.add("roomsonline");
       }
 
@@ -1506,7 +1490,7 @@ export default function PropertyForm() {
     };
 
     fetchActivePMSSystems();
-  }, []);
+  }, [roomsonlineActive]);
 
   // Location state
   const [latitude, setLatitude] = useState<number | null>(null);

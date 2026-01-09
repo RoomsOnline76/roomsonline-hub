@@ -5,6 +5,7 @@ import { MapPin, Loader2 } from "lucide-react";
 import { getPropertyUrl } from "@/lib/config";
 import { filterPropertiesByMapFilters } from "@/lib/mapFilters";
 import { MarkerClusterer, Renderer } from "@googlemaps/markerclusterer";
+import { useGoogleMapsApiKey } from "@/hooks/useFeatureFlags";
 
 // Global callback for Google Maps - iOS requires a real callback function
 declare global {
@@ -55,7 +56,7 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
   const clustererRef = useRef<MarkerClusterer | null>(null);
   const markersRef = useRef<PropertyMarker[]>([]);
   const openInfoWindowRef = useRef<google.maps.InfoWindow | null>(null);
-  const [apiKey, setApiKey] = useState<string | null>(null);
+  const { apiKey, isLoading: apiKeyLoading } = useGoogleMapsApiKey();
   const [loading, setLoading] = useState(true);
   const [mapsLoaded, setMapsLoaded] = useState(false);
   const [mapReady, setMapReady] = useState(false);
@@ -95,30 +96,12 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
     fetchProperties();
   }, []);
 
-  // Fetch Google Maps API key
+  // Update loading state when api key is loaded from feature flags
   useEffect(() => {
-    const fetchApiKey = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("api_keys")
-          .select("key_value")
-          .eq("key_name", "google_maps_api_key")
-          .maybeSingle();
-
-        if (error) throw error;
-
-        if (data?.key_value && !data.key_value.startsWith("placeholder_key_")) {
-          setApiKey(data.key_value);
-        }
-      } catch (error) {
-        console.error("Error fetching API key:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchApiKey();
-  }, []);
+    if (!apiKeyLoading) {
+      setLoading(false);
+    }
+  }, [apiKeyLoading]);
 
   // Setup global callback BEFORE loading script - critical for iOS
   useEffect(() => {
