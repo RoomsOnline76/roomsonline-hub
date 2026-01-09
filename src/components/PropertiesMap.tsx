@@ -56,8 +56,7 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
   const clustererRef = useRef<MarkerClusterer | null>(null);
   const markersRef = useRef<PropertyMarker[]>([]);
   const openInfoWindowRef = useRef<google.maps.InfoWindow | null>(null);
-  const { apiKey, isLoading: apiKeyLoading } = useGoogleMapsApiKey();
-  const [loading, setLoading] = useState(true);
+  const { apiKey, isReady: apiKeyReady } = useGoogleMapsApiKey();
   const [mapsLoaded, setMapsLoaded] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
@@ -96,13 +95,6 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
     fetchProperties();
   }, []);
 
-  // Update loading state when api key is loaded from feature flags
-  useEffect(() => {
-    if (!apiKeyLoading) {
-      setLoading(false);
-    }
-  }, [apiKeyLoading]);
-
   // Setup global callback BEFORE loading script - critical for iOS
   useEffect(() => {
     window.initGoogleMaps = () => {
@@ -117,7 +109,7 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
 
   // Load Google Maps script with real callback (iOS-safe)
   useEffect(() => {
-    if (!apiKey || loading) return;
+    if (!apiKeyReady || !apiKey) return;
 
     // Already loaded
     if (window.google?.maps?.Map) {
@@ -177,7 +169,7 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [apiKey, loading]);
+  }, [apiKey, apiKeyReady]);
 
   // Filter properties based on enabled types, map filters, and search filter
   const filteredProperties = useMemo(() => {
@@ -475,8 +467,8 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
     }
   }, [mapReady, filteredProperties, typeColors, autoOpenFirstMarker]);
 
-  // Loading state
-  if (loading || (apiKey && !mapsLoaded && !mapError)) {
+  // Loading state - waiting for API key or Google Maps script
+  if (!apiKeyReady || (apiKey && !mapsLoaded && !mapError)) {
     return (
       <div className="w-full h-full rounded-xl border border-border bg-muted flex items-center justify-center">
         <div className="text-center space-y-2">

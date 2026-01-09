@@ -34,28 +34,24 @@ export function PropertyMap({
   const mapRef = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [marker, setMarker] = useState<google.maps.marker.AdvancedMarkerElement | null>(null);
-  const { apiKey, isLoading: apiKeyLoading } = useGoogleMapsApiKey();
-  const [loading, setLoading] = useState(true);
+  const { apiKey, isReady: apiKeyReady } = useGoogleMapsApiKey();
   const [mapsLoaded, setMapsLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
 
-  // Update loading state and show toast when api key is loaded from feature flags
+  // Show toast when API key is missing after loading completes
   useEffect(() => {
-    if (!apiKeyLoading) {
-      if (!apiKey || apiKey.startsWith("placeholder_key_")) {
-        toast({
-          title: "Google Maps API Key Missing",
-          description: "Please configure your Google Maps API key in the API Keys page.",
-          variant: "destructive"
-        });
-      }
-      setLoading(false);
+    if (apiKeyReady && (!apiKey || apiKey.startsWith("placeholder_key_"))) {
+      toast({
+        title: "Google Maps API Key Missing",
+        description: "Please configure your Google Maps API key in the API Keys page.",
+        variant: "destructive"
+      });
     }
-  }, [apiKeyLoading, apiKey]);
+  }, [apiKeyReady, apiKey]);
 
   // Load Google Maps script
   useEffect(() => {
-    if (!apiKey || loading) return;
+    if (!apiKeyReady || !apiKey) return;
 
     if (window.google?.maps) {
       setMapsLoaded(true);
@@ -72,7 +68,7 @@ export function PropertyMap({
     return () => {
       // Cleanup if needed
     };
-  }, [apiKey, loading]);
+  }, [apiKey, apiKeyReady]);
 
   // Initialize map
   useEffect(() => {
@@ -162,7 +158,7 @@ export function PropertyMap({
     });
   }, [address, suburb, city, country, map, marker, onLocationUpdate]);
 
-  if (loading || (apiKey && !mapsLoaded)) {
+  if (!apiKeyReady || (apiKey && !mapsLoaded)) {
     return (
       <div className="w-full h-full min-h-[200px] rounded-lg border border-border bg-muted flex items-center justify-center">
         <p className="text-muted-foreground text-xs">Loading map...</p>
