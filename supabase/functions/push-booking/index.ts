@@ -517,6 +517,35 @@ Deno.serve(async (req) => {
           throw new Error('Checkfront property ID not configured');
         }
 
+        // =========================================================================
+        // RULE #1: Verify LIVE availability with PMS before ANY booking creation
+        // =========================================================================
+        console.log(`[RULE #1] Verifying LIVE availability with Checkfront`);
+
+        const availCheckResponse = await fetch(
+          `https://api.checkfront.com/v3/item/${checkfrontId}/availability?start_date=${booking.check_in_date}&end_date=${booking.check_out_date}`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Basic ${btoa(`${apiKeyValue}:`)}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (!availCheckResponse.ok) {
+          const availErrorText = await availCheckResponse.text();
+          console.error('Checkfront availability check failed:', availCheckResponse.status, availErrorText);
+          throw new Error(`AVAILABILITY_CHANGED: Unable to verify availability with Checkfront`);
+        }
+
+        const availData = await availCheckResponse.json();
+        if (availData.item?.status === 'STOP' || availData.available === false) {
+          throw new Error(`AVAILABILITY_CHANGED: Item is no longer available for selected dates`);
+        }
+
+        console.log(`Live Checkfront availability verified successfully`);
+
         const bookingData = {
           item_id: checkfrontId,
           start_date: booking.check_in_date,
@@ -610,6 +639,7 @@ Deno.serve(async (req) => {
           system: 'checkfront',
           success: false,
           error: errorMessage,
+          error_code: errorMessage.includes('AVAILABILITY_CHANGED') ? 'AVAILABILITY_CHANGED' : 'BOOKING_FAILED',
         });
       }
     }
@@ -649,6 +679,43 @@ Deno.serve(async (req) => {
               numberOfAdults: booking.adults || 1,
               numberOfChildren: booking.children || 0,
             }];
+
+        // =========================================================================
+        // RULE #1: Verify LIVE availability with PMS before ANY booking creation
+        // =========================================================================
+        console.log(`[RULE #1] Verifying LIVE availability with Cloudbeds`);
+
+        const availCheckResponse = await fetch(
+          `https://hotels.cloudbeds.com/api/v1.1/getAvailableRoomTypes?propertyID=${cloudbedsPropertyId}&startDate=${booking.check_in_date}&endDate=${booking.check_out_date}`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${api_key}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (!availCheckResponse.ok) {
+          const availErrorText = await availCheckResponse.text();
+          console.error('Cloudbeds availability check failed:', availCheckResponse.status, availErrorText);
+          throw new Error(`AVAILABILITY_CHANGED: Unable to verify availability with Cloudbeds`);
+        }
+
+        const availData = await availCheckResponse.json();
+        if (availData.success === false || !availData.data?.length) {
+          throw new Error(`AVAILABILITY_CHANGED: No rooms available for selected dates`);
+        }
+
+        // Validate each requested room type has availability
+        for (const room of bookingRooms) {
+          const roomTypeAvail = availData.data?.find((rt: any) => rt.roomTypeID === room.roomTypeId);
+          if (!roomTypeAvail || roomTypeAvail.roomsAvailable < 1) {
+            throw new Error(`AVAILABILITY_CHANGED: Room type ${room.roomTypeId} is no longer available`);
+          }
+        }
+
+        console.log(`Live Cloudbeds availability verified successfully`);
 
         // Build Cloudbeds reservation payload
         const reservationPayload = {
@@ -773,6 +840,7 @@ Deno.serve(async (req) => {
           system: 'cloudbeds',
           success: false,
           error: errorMessage,
+          error_code: errorMessage.includes('AVAILABILITY_CHANGED') ? 'AVAILABILITY_CHANGED' : 'BOOKING_FAILED',
         });
       }
     }
