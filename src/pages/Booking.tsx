@@ -303,15 +303,70 @@ const Booking = () => {
   );
   const nights = checkIn && checkOut ? differenceInDays(parseISO(checkOut), parseISO(checkIn)) : 0;
 
+  // Transform pms_availability_cache rows into the availability format expected by cost calculator
+  const transformCacheToAvailability = (cacheData: any[]) => {
+    // Group by room type
+    const roomTypeMap = new Map<string, any>();
+    
+    for (const row of cacheData) {
+      const rtId = row.external_room_type_id;
+      if (!roomTypeMap.has(rtId)) {
+        roomTypeMap.set(rtId, {
+          room_type_id: rtId,
+          room_type_name: row.raw_data?.roomTypeName || rtId,
+          rooms_available_per_night: [],
+          rate_types: [],
+        });
+      }
+      
+      const rt = roomTypeMap.get(rtId)!;
+      
+      // Add availability
+      rt.rooms_available_per_night.push({
+        date: row.date,
+        available_units: row.available_units,
+        ...(row.restrictions || {}),
+      });
+      
+      // Add rates (grouped by rate_type_id)
+      if (row.rates && Array.isArray(row.rates)) {
+        for (const rate of row.rates) {
+          let rateType = rt.rate_types.find((r: any) => r.rate_type_id === rate.rate_type_id);
+          if (!rateType) {
+            rateType = {
+              rate_type_id: rate.rate_type_id,
+              rate_type_name: rate.rate_type_name,
+              price_type: rate.price_type,
+              rate_key: rate.rate_key, // Critical for HotelBeds booking
+              rates: [],
+            };
+            rt.rate_types.push(rateType);
+          }
+          rateType.rates.push({
+            date: row.date,
+            room_amount: rate.room_amount,
+            adult_amounts: rate.adult_amounts,
+            teen_amount: rate.teen_amount,
+            child_amount: rate.child_amount,
+            infant_amount: rate.infant_amount,
+            currency: rate.currency,
+          });
+        }
+      }
+    }
+    
+    return { room_types: Array.from(roomTypeMap.values()) };
+  };
+
   // Calculate cost based on availability data
   const calculateCost = async () => {
     if (!property?.id || !checkIn || !checkOut || rooms.length === 0 || !selectedRateType) {
       return;
     }
 
-    // Only calculate for Benson properties
-    const isBensonProperty = property.external_system?.toLowerCase() === 'benson';
-    if (!isBensonProperty) {
+    // Skip cost calculation for NightsBridge (uses external booking)
+    const externalSystem = property.external_system?.toLowerCase();
+    if (externalSystem === 'nightsbridge') {
       return;
     }
 
@@ -320,18 +375,41 @@ const Booking = () => {
       // Fetch availability if not already fetched
       let availability = availabilityData;
       if (!availability) {
-        const { data, error } = await supabase.functions.invoke("benson-api", {
-          body: {
-            action: "fetch_availability",
-            property_id: property.id,
-            start_date: checkIn,
-            end_date: checkOut,
-          },
-        });
+        if (externalSystem === 'benson') {
+          // Benson: fetch from API directly
+          const { data, error } = await supabase.functions.invoke("benson-api", {
+            body: {
+              action: "fetch_availability",
+              property_id: property.id,
+              start_date: checkIn,
+              end_date: checkOut,
+            },
+          });
 
-        if (error) throw error;
-        // Unwrap adapter response - data may be in data.data or data directly
-        availability = data?.data || data;
+          if (error) throw error;
+          // Unwrap adapter response - data may be in data.data or data directly
+          availability = data?.data || data;
+        } else {
+          // Other PMS systems (HotelBeds, etc.): fetch from pms_availability_cache
+          const { data: cacheData, error } = await supabase
+            .from("pms_availability_cache")
+            .select("*")
+            .eq("property_id", property.id)
+            .gte("date", checkIn)
+            .lt("date", checkOut)
+            .order("date");
+          
+          if (error) throw error;
+          
+          if (!cacheData || cacheData.length === 0) {
+            console.warn("No cached availability data found for this property");
+            setCalculatingCost(false);
+            return;
+          }
+          
+          // Transform cache data into availability format
+          availability = transformCacheToAvailability(cacheData);
+        }
         setAvailabilityData(availability);
       }
 
@@ -652,6 +730,20 @@ const Booking = () => {
       bookingData.rate_type_id = selectedRateType;
       bookingData.rooms = rooms;
       bookingData.voucher = voucher || null;
+      
+      // For HotelBeds, include the rate_key from cached availability for push-booking
+      const pmsSystem = property?.external_system?.toLowerCase();
+      if (pmsSystem === 'hotelbeds' && availabilityData?.room_types) {
+        const roomType = availabilityData.room_types.find(
+          (rt: any) => String(rt.room_type_id) === rooms[0]?.roomTypeId
+        );
+        const rateType = roomType?.rate_types?.find(
+          (rt: any) => String(rt.rate_type_id) === selectedRateType
+        );
+        if (rateType?.rate_key) {
+          bookingData.rate_key = rateType.rate_key;
+        }
+      }
 
       const { data, error } = await supabase
         .from('bookings')
@@ -739,28 +831,20 @@ const Booking = () => {
     );
   }
 
-  // Check if this is a Benson property - the booking flow is specific to Benson PMS
-  const isBensonProperty = property.external_system?.toLowerCase() === 'benson';
-  
-  // For non-Benson properties, show a message and redirect to property page
-  if (!isBensonProperty) {
+  // NightsBridge uses its own iframe-based booking flow - redirect if somehow landed here
+  const externalSystem = property.external_system?.toLowerCase();
+  if (externalSystem === 'nightsbridge') {
     return (
       <PublicLayout backLabel="Back to Property" backTo={`/property/${property.slug || property.id}`}>
         <div className="container mx-auto px-4 py-24 text-center">
           <AlertCircle className="h-16 w-16 text-muted-foreground/30 mx-auto mb-6" />
-          <h1 className="font-display text-2xl sm:text-3xl mb-4">Online Booking Not Available</h1>
+          <h1 className="font-display text-2xl sm:text-3xl mb-4">NightsBridge Booking</h1>
           <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-            Online booking is not currently available for this property. 
-            Please contact the property directly for reservations.
+            This property uses NightsBridge for bookings. Please use the property page to book.
           </p>
-          <div className="flex gap-4 justify-center">
-            <Button asChild variant="outline">
-              <Link to={`/property/${property.slug || property.id}`}>View Property</Link>
-            </Button>
-            <Button asChild>
-              <Link to="/">Return to Home</Link>
-            </Button>
-          </div>
+          <Button asChild>
+            <Link to={`/property/${property.slug || property.id}`}>Go to Property Page</Link>
+          </Button>
         </div>
       </PublicLayout>
     );
