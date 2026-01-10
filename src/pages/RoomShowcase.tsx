@@ -140,6 +140,11 @@ export default function RoomShowcase() {
     return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
   };
 
+  // Scroll to top when page loads
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [propertySlug, roomSlug]);
+
   useEffect(() => {
     if (propertySlug && roomSlug) {
       fetchData();
@@ -846,7 +851,7 @@ export default function RoomShowcase() {
                       <ExternalLink className="mr-2 h-4 w-4" />
                       Book Now
                     </>
-                  ) : isBensonProperty ? (
+                  ) : (isBensonProperty || isHotelBedsProperty) ? (
                     <>
                       <Calendar className="mr-2 h-4 w-4" />
                       Check Availability
