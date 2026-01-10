@@ -902,6 +902,74 @@ serve(async (req) => {
 
         const transformed = transformAvailability(availabilityData, validStartDate, validEndDate);
         
+        // Cache availability data to pms_availability_cache (like other PMS adapters)
+        const roomTypes = transformed.room_types || [];
+        for (const roomType of roomTypes) {
+          const roomTypeId = roomType.room_type_id?.toString();
+          const roomTypeName = roomType.room_type_name || roomType.name;
+          
+          // Cache availability per night
+          for (const availability of (roomType.rooms_available_per_night || [])) {
+            const dateStr = availability.date;
+            
+            // Build restrictions object
+            const restrictions = {
+              stop_sell: availability.stop_sell ?? false,
+              min_stay: availability.min_stay ?? null,
+              max_stay: availability.max_stay ?? null,
+              closed_to_arrival: availability.closed_to_arrival ?? false,
+              closed_to_departure: availability.closed_to_departure ?? false,
+              lead_days_advance: availability.lead_days_advance ?? null,
+              lead_days_post: availability.lead_days_post ?? null,
+            };
+            
+            // Build rates array for this date from rate_types
+            const ratesForDate: any[] = [];
+            for (const rateType of (roomType.rate_types || [])) {
+              const rateForDate = rateType.rates?.find((r: any) => r.date === dateStr);
+              if (rateForDate) {
+                ratesForDate.push({
+                  rate_type_id: rateType.rate_type_id,
+                  rate_type_name: rateType.rate_type_name || rateType.name,
+                  price_type: rateType.price_type || "UnitRate",
+                  room_amount: rateForDate.room_amount || 0,
+                  adult_amounts: rateForDate.adult_amounts,
+                  teen_amount: rateForDate.teen_amount,
+                  child_amount: rateForDate.child_amount,
+                  infant_amount: rateForDate.infant_amount,
+                  currency: rateForDate.currency,
+                  rate_key: rateType.rate_key,
+                });
+              }
+            }
+            
+            // Upsert to cache
+            const { error: cacheError } = await supabaseClient.from("pms_availability_cache").upsert({
+              property_id: propertyId,
+              system_type: "hotelbeds",
+              external_room_type_id: roomTypeId,
+              date: dateStr,
+              available_units: availability.available_units ?? 0,
+              restrictions: restrictions,
+              rates: ratesForDate.length > 0 ? ratesForDate : null,
+              raw_data: {
+                roomTypeName: roomTypeName,
+                roomTypeId: roomTypeId,
+              },
+              source_timestamp: new Date().toISOString(),
+              fetched_at: new Date().toISOString(),
+            }, {
+              onConflict: "property_id,system_type,external_room_type_id,date"
+            });
+            
+            if (cacheError) {
+              console.error(`[HotelBeds] Cache upsert error for ${dateStr}:`, cacheError);
+            }
+          }
+        }
+
+        console.log(`[HotelBeds] Cached availability for ${roomTypes.length} room types`);
+        
         return new Response(
           JSON.stringify(createSuccessResponse(transformed, action)),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
