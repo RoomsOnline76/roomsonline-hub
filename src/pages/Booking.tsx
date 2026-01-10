@@ -731,22 +731,26 @@ const Booking = () => {
       bookingData.teens = rooms.reduce((sum: number, r: RoomBooking) => sum + r.numberOfTeens, 0);
       bookingData.room_type_id = rooms[0]?.roomTypeId || null;
       bookingData.rate_type_id = selectedRateType;
-      bookingData.rooms = rooms;
       bookingData.voucher = voucher || null;
       
-      // For HotelBeds, include the rate_key from cached availability for push-booking
+      // For HotelBeds, include the rate_key in rooms array for push-booking to extract
       const pmsSystem = property?.external_system?.toLowerCase();
-      if (pmsSystem === 'hotelbeds' && availabilityData?.room_types) {
-        const roomType = availabilityData.room_types.find(
-          (rt: any) => String(rt.room_type_id) === rooms[0]?.roomTypeId
-        );
-        const rateType = roomType?.rate_types?.find(
-          (rt: any) => String(rt.rate_type_id) === selectedRateType
-        );
-        if (rateType?.rate_key) {
-          bookingData.rate_key = rateType.rate_key;
+      const roomsWithRateKey = rooms.map((room) => {
+        const roomData = { ...room } as any;
+        if (pmsSystem === 'hotelbeds' && availabilityData?.room_types) {
+          const roomType = availabilityData.room_types.find(
+            (rt: any) => String(rt.room_type_id) === room.roomTypeId
+          );
+          const rateType = roomType?.rate_types?.find(
+            (rt: any) => String(rt.rate_type_id) === selectedRateType
+          );
+          if (rateType?.rate_key) {
+            roomData.rate_key = rateType.rate_key;
+          }
         }
-      }
+        return roomData;
+      });
+      bookingData.rooms = roomsWithRateKey;
 
       const { data, error } = await supabase
         .from('bookings')
