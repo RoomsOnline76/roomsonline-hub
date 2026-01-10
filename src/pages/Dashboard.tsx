@@ -151,7 +151,7 @@ const Dashboard = () => {
       
       const { data } = await supabase
         .from("nightsbridge_booking_sessions")
-        .select("id, status, created_at, match_confidence, estimated_revenue")
+        .select("id, status, created_at, match_confidence, estimated_revenue, property_name")
         .gte("created_at", lastMonthStart.toISOString());
       return data || [];
     },
@@ -194,6 +194,17 @@ const Dashboard = () => {
       .filter(s => s.status === 'matched' && s.estimated_revenue)
       .reduce((sum, s) => sum + (s.estimated_revenue || 0), 0);
     
+    // Property breakdown
+    const byProperty = thisMonthSessions.reduce((acc, s) => {
+      const name = s.property_name || 'Unknown';
+      acc[name] = (acc[name] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const propertyBreakdown = Object.entries(byProperty)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+    
     return {
       totalThisMonth,
       totalLastMonth,
@@ -203,6 +214,7 @@ const Dashboard = () => {
       momChange,
       matchedRevenue,
       conversionRate: totalThisMonth > 0 ? (matchedThisMonth / totalThisMonth) * 100 : 0,
+      propertyBreakdown,
     };
   }, [nbSessions, isAdmin]);
 
@@ -1527,48 +1539,6 @@ const Dashboard = () => {
                     <span className="text-[9px] text-muted-foreground block">acquisition rate</span>
                   </div>
                   
-                  {/* NightsBridge Booking Attempts - Intent Tracking */}
-                  {nbSessionStats && (
-                    <div className="p-2 rounded bg-secondary/30">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] font-medium text-muted-foreground">NB Attempts</span>
-                          <TooltipProvider delayDuration={100}>
-                            <UITooltip>
-                              <TooltipTrigger asChild>
-                                <HelpCircle className="h-2.5 w-2.5 text-muted-foreground cursor-help" />
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-xs text-xs">
-                                <p className="font-medium mb-1">Booking Intent Tracking</p>
-                                <p className="text-muted-foreground">
-                                  Counts users who clicked "Book Now" for NightsBridge properties. 
-                                  These are <strong>potential bookings</strong>, not confirmed reservations. 
-                                  Actual booking data requires NightsBridge API access (50+ properties).
-                                </p>
-                              </TooltipContent>
-                            </UITooltip>
-                          </TooltipProvider>
-                        </div>
-                        <MousePointerClick className="h-3 w-3 text-muted-foreground" />
-                      </div>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-xl font-bold">{nbSessionStats.totalThisMonth}</span>
-                        {nbSessionStats.momChange !== 0 && (
-                          <span className={cn(
-                            "text-[9px] font-medium px-1 rounded flex items-center",
-                            nbSessionStats.momChange > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
-                          )}>
-                            {nbSessionStats.momChange > 0 ? "+" : ""}{nbSessionStats.momChange.toFixed(0)}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
-                        <span className="text-yellow-600">{nbSessionStats.pendingThisMonth}⏳</span>
-                        <span className="text-green-600">{nbSessionStats.matchedThisMonth}✓</span>
-                        <span className="text-muted-foreground">{nbSessionStats.expiredThisMonth}✗</span>
-                      </div>
-                    </div>
-                  )}
                   
                   {/* Mini PMS Pie */}
                   <div className="p-2 rounded bg-secondary/30 flex items-center justify-center">
@@ -1670,7 +1640,7 @@ const Dashboard = () => {
         )}
 
         {/* Charts - compact */}
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className={cn("grid gap-3", isAdmin ? "lg:grid-cols-3" : "lg:grid-cols-2")}>
           <Card className="p-2">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-medium">Bookings{shouldAggregateByMonth && " (Monthly)"}</span>
@@ -1805,7 +1775,7 @@ const Dashboard = () => {
           )}
 
           {/* Recent Bookings - compact */}
-          <Card className={cn("p-2", isAdmin ? "" : "lg:col-span-2")}>
+          <Card className="p-2">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-medium">
                 Recent{drillDownDate && <span className="text-muted-foreground ml-1">— {drillDownDate}</span>}
@@ -1867,6 +1837,83 @@ const Dashboard = () => {
               })()}
             </div>
           </Card>
+
+          {/* NightsBridge Booking Attempts - Intent Tracking (admin only) */}
+          {isAdmin && nbSessionStats && (
+            <Card className="p-2">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <MousePointerClick className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium">NB Booking Attempts</span>
+                  <TooltipProvider delayDuration={100}>
+                    <UITooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        <p className="font-medium mb-1">Booking Intent Tracking</p>
+                        <p className="text-muted-foreground">
+                          Counts users who clicked "Book Now" for NightsBridge properties. 
+                          These are <strong>potential bookings</strong>, not confirmed reservations. 
+                          Actual booking data requires NightsBridge API access (50+ properties).
+                        </p>
+                      </TooltipContent>
+                    </UITooltip>
+                  </TooltipProvider>
+                </div>
+              </div>
+              
+              {/* Total count with MoM */}
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-2xl font-bold">{nbSessionStats.totalThisMonth}</span>
+                <span className="text-xs text-muted-foreground">this month</span>
+                {nbSessionStats.momChange !== 0 && (
+                  <span className={cn(
+                    "text-[10px] font-medium px-1.5 py-0.5 rounded",
+                    nbSessionStats.momChange > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                  )}>
+                    {nbSessionStats.momChange > 0 ? "+" : ""}{nbSessionStats.momChange.toFixed(0)}% MoM
+                  </span>
+                )}
+              </div>
+              
+              {/* Status breakdown */}
+              <div className="flex items-center gap-3 text-xs mb-3 pb-2 border-b border-border">
+                <span className="flex items-center gap-1 text-yellow-600">
+                  <span className="font-medium">{nbSessionStats.pendingThisMonth}</span>
+                  <span className="text-muted-foreground">pending ⏳</span>
+                </span>
+                <span className="flex items-center gap-1 text-green-600">
+                  <span className="font-medium">{nbSessionStats.matchedThisMonth}</span>
+                  <span className="text-muted-foreground">matched ✓</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="font-medium text-muted-foreground">{nbSessionStats.expiredThisMonth}</span>
+                  <span className="text-muted-foreground">expired ✗</span>
+                </span>
+              </div>
+              
+              {/* Property breakdown */}
+              {nbSessionStats.propertyBreakdown.length > 0 && (
+                <div>
+                  <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">By Property</span>
+                  <div className="mt-1 space-y-0.5">
+                    {nbSessionStats.propertyBreakdown.slice(0, 5).map((p) => (
+                      <div key={p.name} className="flex items-center justify-between text-xs">
+                        <span className="truncate max-w-[140px]">{p.name}</span>
+                        <span className="font-medium">{p.count}</span>
+                      </div>
+                    ))}
+                    {nbSessionStats.propertyBreakdown.length > 5 && (
+                      <p className="text-[10px] text-muted-foreground">
+                        +{nbSessionStats.propertyBreakdown.length - 5} more
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
         </div>
 
         {/* Property Breakdown Pie Charts - compact */}
