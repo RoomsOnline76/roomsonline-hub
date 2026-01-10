@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Plus, ExternalLink, Copy, Eye, EyeOff, Pencil, Trash2, User } from "lucide-react";
+import { Plus, ExternalLink, Copy, Eye, EyeOff, Pencil, Trash2, User, Mail } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -111,10 +111,18 @@ export default function SupportingSystems() {
         title="Supporting Systems"
         subtitle="Manage external tools and integrations used by the team"
         actions={
-          <Button onClick={() => setIsAddModalOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add System
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" asChild>
+              <a href="mailto:dev@roomsonline.co.za?subject=Supporting%20Systems%20Query">
+                <Mail className="h-4 w-4 mr-2" />
+                Email Dev
+              </a>
+            </Button>
+            <Button onClick={() => setIsAddModalOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add System
+            </Button>
+          </div>
         }
       />
 
