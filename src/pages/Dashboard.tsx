@@ -15,7 +15,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, differenceInDays, parseISO } from "date-fns";
-import { CalendarIcon, CalendarDays, XCircle, Building2, Download, TrendingUp, TrendingDown, Percent, BedDouble, Search, ChevronDown, Sparkles, Network, UserMinus } from "lucide-react";
+import { CalendarIcon, CalendarDays, XCircle, Building2, Download, TrendingUp, TrendingDown, Percent, BedDouble, Search, ChevronDown, Sparkles, Network, UserMinus, MousePointerClick, HelpCircle } from "lucide-react";
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, LineChart, Line, ComposedChart, Cell, ReferenceLine, PieChart, Pie } from "recharts";
 import { DateRange } from "react-day-picker";
@@ -138,6 +139,72 @@ const Dashboard = () => {
     },
     enabled: isAdmin,
   });
+
+  // Fetch NightsBridge booking sessions (intent tracking)
+  const { data: nbSessions = [] } = useQuery({
+    queryKey: ["dashboard-nb-sessions"],
+    queryFn: async () => {
+      const now = new Date();
+      const thisMonthStart = startOfMonth(now);
+      const lastMonthStart = startOfMonth(subMonths(now, 1));
+      const lastMonthEnd = endOfMonth(subMonths(now, 1));
+      
+      const { data } = await supabase
+        .from("nightsbridge_booking_sessions")
+        .select("id, status, created_at, match_confidence, estimated_revenue")
+        .gte("created_at", lastMonthStart.toISOString());
+      return data || [];
+    },
+    enabled: isAdmin,
+  });
+
+  // NightsBridge session stats (intent tracking)
+  const nbSessionStats = useMemo(() => {
+    if (!isAdmin) return null;
+    
+    const now = new Date();
+    const thisMonthStart = startOfMonth(now);
+    const lastMonthStart = startOfMonth(subMonths(now, 1));
+    const lastMonthEnd = endOfMonth(subMonths(now, 1));
+    
+    const thisMonthSessions = nbSessions.filter(s => 
+      s.created_at && parseISO(s.created_at) >= thisMonthStart
+    );
+    const lastMonthSessions = nbSessions.filter(s => {
+      if (!s.created_at) return false;
+      const d = parseISO(s.created_at);
+      return d >= lastMonthStart && d <= lastMonthEnd;
+    });
+    
+    const pendingThisMonth = thisMonthSessions.filter(s => s.status === 'pending').length;
+    const matchedThisMonth = thisMonthSessions.filter(s => s.status === 'matched').length;
+    const expiredThisMonth = thisMonthSessions.filter(s => s.status === 'expired').length;
+    
+    const pendingLastMonth = lastMonthSessions.filter(s => s.status === 'pending').length;
+    const matchedLastMonth = lastMonthSessions.filter(s => s.status === 'matched').length;
+    
+    const totalThisMonth = thisMonthSessions.length;
+    const totalLastMonth = lastMonthSessions.length;
+    const momChange = totalLastMonth > 0 
+      ? ((totalThisMonth - totalLastMonth) / totalLastMonth) * 100 
+      : (totalThisMonth > 0 ? 100 : 0);
+    
+    // Estimated revenue from matched sessions
+    const matchedRevenue = thisMonthSessions
+      .filter(s => s.status === 'matched' && s.estimated_revenue)
+      .reduce((sum, s) => sum + (s.estimated_revenue || 0), 0);
+    
+    return {
+      totalThisMonth,
+      totalLastMonth,
+      pendingThisMonth,
+      matchedThisMonth,
+      expiredThisMonth,
+      momChange,
+      matchedRevenue,
+      conversionRate: totalThisMonth > 0 ? (matchedThisMonth / totalThisMonth) * 100 : 0,
+    };
+  }, [nbSessions, isAdmin]);
 
   // Collapsible state for PMS section
   const [pmsExpanded, setPmsExpanded] = useState(false);
@@ -1459,6 +1526,49 @@ const Dashboard = () => {
                     <span className="text-xl font-bold">{pmsStats.avgPerMonth.toFixed(1)}</span>
                     <span className="text-[9px] text-muted-foreground block">acquisition rate</span>
                   </div>
+                  
+                  {/* NightsBridge Booking Attempts - Intent Tracking */}
+                  {nbSessionStats && (
+                    <div className="p-2 rounded bg-secondary/30">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] font-medium text-muted-foreground">NB Attempts</span>
+                          <TooltipProvider delayDuration={100}>
+                            <UITooltip>
+                              <TooltipTrigger asChild>
+                                <HelpCircle className="h-2.5 w-2.5 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs text-xs">
+                                <p className="font-medium mb-1">Booking Intent Tracking</p>
+                                <p className="text-muted-foreground">
+                                  Counts users who clicked "Book Now" for NightsBridge properties. 
+                                  These are <strong>potential bookings</strong>, not confirmed reservations. 
+                                  Actual booking data requires NightsBridge API access (50+ properties).
+                                </p>
+                              </TooltipContent>
+                            </UITooltip>
+                          </TooltipProvider>
+                        </div>
+                        <MousePointerClick className="h-3 w-3 text-muted-foreground" />
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xl font-bold">{nbSessionStats.totalThisMonth}</span>
+                        {nbSessionStats.momChange !== 0 && (
+                          <span className={cn(
+                            "text-[9px] font-medium px-1 rounded flex items-center",
+                            nbSessionStats.momChange > 0 ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                          )}>
+                            {nbSessionStats.momChange > 0 ? "+" : ""}{nbSessionStats.momChange.toFixed(0)}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                        <span className="text-yellow-600">{nbSessionStats.pendingThisMonth}⏳</span>
+                        <span className="text-green-600">{nbSessionStats.matchedThisMonth}✓</span>
+                        <span className="text-muted-foreground">{nbSessionStats.expiredThisMonth}✗</span>
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Mini PMS Pie */}
                   <div className="p-2 rounded bg-secondary/30 flex items-center justify-center">
