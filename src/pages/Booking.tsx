@@ -768,6 +768,21 @@ const Booking = () => {
           const pushResponse = await supabase.functions.invoke('push-booking', {
             body: { booking_id: data.id },
           });
+          
+          // Check for availability-specific errors (RULE #1: PMS is source of truth)
+          const availabilityError = pushResponse.data?.results?.find(
+            (r: any) => r.error_code === 'AVAILABILITY_CHANGED'
+          );
+          
+          if (availabilityError) {
+            // Delete the booking record since it can't be fulfilled
+            console.error('Availability changed during booking:', availabilityError.error);
+            await supabase.from('bookings').delete().eq('id', data.id);
+            
+            // Throw specific error to show user
+            throw new Error('AVAILABILITY_CHANGED: The selected dates or rooms are no longer available. Please choose again.');
+          }
+          
           // Extract all external reservation IDs from push response
           // For multi-room bookings with different dates, there may be multiple reservation IDs
           if (pushResponse.data?.external_reservation_ids && Array.isArray(pushResponse.data.external_reservation_ids)) {
@@ -778,8 +793,12 @@ const Booking = () => {
             externalRefIds = successfulResults.map((r: any) => String(r.external_booking_id));
           }
         } catch (pushError) {
+          // If it's an availability error, re-throw to show user
+          if (pushError instanceof Error && pushError.message.includes('AVAILABILITY_CHANGED')) {
+            throw pushError;
+          }
           console.error('Failed to push booking to external system:', pushError);
-          // Don't fail the booking, just log the error
+          // Don't fail the booking for other errors, just log
         }
       } else {
         // For non-PMS properties, send confirmation email directly
@@ -807,7 +826,16 @@ const Booking = () => {
       navigate(`/booking-confirmation/${data.id}${refParam}`);
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to create booking");
+      const message = error instanceof Error ? error.message : "Failed to create booking";
+      
+      // Special handling for availability errors (RULE #1: PMS is source of truth)
+      if (message.includes('AVAILABILITY_CHANGED')) {
+        toast.error("These dates are no longer available. Please select different dates or room.", {
+          duration: 6000,
+        });
+      } else {
+        toast.error(message);
+      }
     },
   });
 
