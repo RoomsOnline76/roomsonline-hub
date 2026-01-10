@@ -15,7 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, differenceInDays, parseISO } from "date-fns";
-import { CalendarIcon, CalendarDays, XCircle, Building2, Download, TrendingUp, TrendingDown, Percent, BedDouble, Search, ChevronDown, Sparkles, Network } from "lucide-react";
+import { CalendarIcon, CalendarDays, XCircle, Building2, Download, TrendingUp, TrendingDown, Percent, BedDouble, Search, ChevronDown, Sparkles, Network, UserMinus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, LineChart, Line, ComposedChart, Cell, ReferenceLine, PieChart, Pie } from "recharts";
 import { DateRange } from "react-day-picker";
@@ -111,11 +111,12 @@ const Dashboard = () => {
     enabled: !!user,
   });
 
-  // Fetch properties with PMS data for distribution tracking
+  // Fetch active properties with PMS data for distribution tracking
   const { data: properties = [] } = useQuery({
     queryKey: ["dashboard-properties", isAdmin, profile?.email],
     queryFn: async () => {
-      let query = supabase.from("properties").select("id, name, owner_email, owner_name, property_type, bedrooms, max_guests, external_system, created_at");
+      let query = supabase.from("properties").select("id, name, owner_email, owner_name, property_type, bedrooms, max_guests, external_system, created_at, is_active")
+        .eq("is_active", true);
       if (!isAdmin && profile?.email) {
         query = query.eq("owner_email", profile.email);
       }
@@ -123,6 +124,19 @@ const Dashboard = () => {
       return data || [];
     },
     enabled: !!user && (isAdmin || !!profile?.email),
+  });
+
+  // Fetch inactive properties for attrition tracking (admin only)
+  const { data: inactiveProperties = [] } = useQuery({
+    queryKey: ["dashboard-inactive-properties"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("properties")
+        .select("id, name, external_system, created_at, updated_at, is_active")
+        .eq("is_active", false);
+      return data || [];
+    },
+    enabled: isAdmin,
   });
 
   // Collapsible state for PMS section
@@ -139,13 +153,13 @@ const Dashboard = () => {
     const twoMonthsAgoStart = startOfMonth(subMonths(now, 2));
     const twoMonthsAgoEnd = endOfMonth(subMonths(now, 2));
     
-    // Group by PMS system
-    const pmsGroups: Record<string, { count: number; thisMonth: number; lastMonth: number; twoMonthsAgo: number }> = {};
+    // Group by PMS system (active properties only)
+    const pmsGroups: Record<string, { count: number; thisMonth: number; lastMonth: number; twoMonthsAgo: number; lost: number }> = {};
     
     properties.forEach(p => {
       const pmsKey = p.external_system || 'none';
       if (!pmsGroups[pmsKey]) {
-        pmsGroups[pmsKey] = { count: 0, thisMonth: 0, lastMonth: 0, twoMonthsAgo: 0 };
+        pmsGroups[pmsKey] = { count: 0, thisMonth: 0, lastMonth: 0, twoMonthsAgo: 0, lost: 0 };
       }
       pmsGroups[pmsKey].count++;
       
@@ -161,7 +175,16 @@ const Dashboard = () => {
       }
     });
     
-    // Property acquisition metrics
+    // Track attrition by PMS (inactive properties)
+    inactiveProperties.forEach(p => {
+      const pmsKey = p.external_system || 'none';
+      if (!pmsGroups[pmsKey]) {
+        pmsGroups[pmsKey] = { count: 0, thisMonth: 0, lastMonth: 0, twoMonthsAgo: 0, lost: 0 };
+      }
+      pmsGroups[pmsKey].lost++;
+    });
+    
+    // Property acquisition metrics (active only)
     const thisMonthAdded = properties.filter(p => p.created_at && parseISO(p.created_at) >= thisMonthStart).length;
     const lastMonthAdded = properties.filter(p => {
       if (!p.created_at) return false;
@@ -174,9 +197,30 @@ const Dashboard = () => {
       return d >= twoMonthsAgoStart && d <= twoMonthsAgoEnd;
     }).length;
     
+    // Attrition metrics (inactive properties)
+    const totalInactive = inactiveProperties.length;
+    const lostThisMonth = inactiveProperties.filter(p => {
+      if (!p.updated_at) return false;
+      const d = parseISO(p.updated_at);
+      return d >= thisMonthStart;
+    }).length;
+    const lostLastMonth = inactiveProperties.filter(p => {
+      if (!p.updated_at) return false;
+      const d = parseISO(p.updated_at);
+      return d >= lastMonthStart && d <= lastMonthEnd;
+    }).length;
+    
     const totalProperties = properties.length;
     const connectedToPMS = properties.filter(p => p.external_system && p.external_system !== 'none').length;
     const momGrowth = lastMonthAdded > 0 ? ((thisMonthAdded - lastMonthAdded) / lastMonthAdded) * 100 : (thisMonthAdded > 0 ? 100 : 0);
+    
+    // Churn rate = Lost this month / Total active properties at start of month
+    const totalAtStartOfMonth = totalProperties - thisMonthAdded + lostThisMonth;
+    const churnRate = totalAtStartOfMonth > 0 ? (lostThisMonth / totalAtStartOfMonth) * 100 : 0;
+    
+    // Net growth = Added - Lost
+    const netGrowthThisMonth = thisMonthAdded - lostThisMonth;
+    const netGrowthLastMonth = lastMonthAdded - lostLastMonth;
     
     // Calculate months since first property
     const firstProperty = properties.reduce((earliest, p) => {
@@ -206,6 +250,7 @@ const Dashboard = () => {
           count: data.count,
           thisMonth: data.thisMonth,
           lastMonth: data.lastMonth,
+          lost: data.lost,
           percentage,
           momChange,
           isNew: data.lastMonth === 0 && data.thisMonth > 0,
@@ -223,8 +268,15 @@ const Dashboard = () => {
       connectionRate: totalProperties > 0 ? (connectedToPMS / totalProperties) * 100 : 0,
       avgPerMonth,
       pmsBreakdown,
+      // Attrition metrics
+      totalInactive,
+      lostThisMonth,
+      lostLastMonth,
+      churnRate,
+      netGrowthThisMonth,
+      netGrowthLastMonth,
     };
-  }, [properties, isAdmin]);
+  }, [properties, inactiveProperties, isAdmin]);
 
   // Unique owners and types for filter dropdowns
   const uniqueOwners = useMemo(() => {
@@ -1313,7 +1365,7 @@ const Dashboard = () => {
               
               <CollapsibleContent>
                 {/* Property Acquisition KPIs */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 mt-3 pt-3 border-t">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mt-3 pt-3 border-t">
                   <div className="p-2 rounded bg-secondary/30">
                     <div className="text-[10px] font-medium text-muted-foreground mb-1">This Month</div>
                     <div className="flex items-baseline gap-1">
@@ -1346,6 +1398,44 @@ const Dashboard = () => {
                       ) : null}
                     </div>
                     <span className="text-[9px] text-muted-foreground">vs last month</span>
+                  </div>
+                  
+                  {/* Attrition Card */}
+                  <div className="p-2 rounded bg-secondary/30">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-medium text-muted-foreground">Attrition</span>
+                      <UserMinus className="h-3 w-3 text-muted-foreground" />
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className={cn(
+                        "text-xl font-bold",
+                        pmsStats.lostThisMonth > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
+                      )}>
+                        {pmsStats.lostThisMonth > 0 ? "-" : ""}{pmsStats.lostThisMonth}
+                      </span>
+                      {pmsStats.lostThisMonth > 0 && <TrendingDown className="h-3 w-3 text-red-600 dark:text-red-400" />}
+                    </div>
+                    <span className="text-[9px] text-muted-foreground">{pmsStats.totalInactive} total inactive</span>
+                  </div>
+                  
+                  {/* Net Growth Card */}
+                  <div className="p-2 rounded bg-secondary/30">
+                    <div className="text-[10px] font-medium text-muted-foreground mb-1">Net Growth</div>
+                    <div className="flex items-baseline gap-1">
+                      <span className={cn(
+                        "text-xl font-bold",
+                        pmsStats.netGrowthThisMonth > 0 ? "text-green-600 dark:text-green-400" : 
+                        pmsStats.netGrowthThisMonth < 0 ? "text-red-600 dark:text-red-400" : ""
+                      )}>
+                        {pmsStats.netGrowthThisMonth > 0 ? "+" : ""}{pmsStats.netGrowthThisMonth}
+                      </span>
+                      {pmsStats.netGrowthThisMonth > 0 ? (
+                        <TrendingUp className="h-3 w-3 text-green-600 dark:text-green-400" />
+                      ) : pmsStats.netGrowthThisMonth < 0 ? (
+                        <TrendingDown className="h-3 w-3 text-red-600 dark:text-red-400" />
+                      ) : null}
+                    </div>
+                    <span className="text-[9px] text-muted-foreground">added - lost</span>
                   </div>
                   
                   <div className="p-2 rounded bg-secondary/30">
@@ -1439,6 +1529,9 @@ const Dashboard = () => {
                           )}
                           {pms.thisMonth > 0 && (
                             <span className="text-[9px] text-muted-foreground">+{pms.thisMonth} this mo</span>
+                          )}
+                          {pms.lost > 0 && (
+                            <span className="text-[9px] text-red-600 dark:text-red-400">-{pms.lost} lost</span>
                           )}
                         </div>
                       </div>
