@@ -459,7 +459,8 @@ const Booking = () => {
         const priceType = (rateType.price_type || rateType.priceType || 'PER ROOM').toUpperCase();
         const roomTotalGuests = room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants;
 
-        if (priceType === 'PER ROOM' || priceType === 'PERROOM') {
+        // UnitRate from HotelBeds means per-room pricing
+        if (priceType === 'PER ROOM' || priceType === 'PERROOM' || priceType === 'UNITRATE') {
           let totalRoomAmount = 0;
           rates.forEach((rate: any) => {
             // Handle both snake_case and camelCase
@@ -485,8 +486,10 @@ const Booking = () => {
 
           rates.forEach((rate: any) => {
             // Handle both snake_case (contract) and camelCase (legacy)
-            const adultAmount1 = rate.adult_amount_1 || rate.adultAmount1 || rate.adult_amount || rate.adultAmount || 0;
-            const adultAmount2 = rate.adult_amount_2 || rate.adultAmount2 || rate.adult_amount || rate.adultAmount || 0;
+            // Also handle nested adult_amounts object (HotelBeds) or flat structure (Benson)
+            const adultAmounts = rate.adult_amounts || {};
+            const adultAmount1 = adultAmounts.adult_amount_1 || rate.adult_amount_1 || rate.adultAmount1 || rate.adult_amount || rate.adultAmount || 0;
+            const adultAmount2 = adultAmounts.adult_amount_2 || rate.adult_amount_2 || rate.adultAmount2 || rate.adult_amount || rate.adultAmount || 0;
             const teenAmount = rate.teen_amount || rate.teenAmount || 0;
             const childAmount = rate.child_amount || rate.childAmount || 0;
             const infantAmount = rate.infant_amount || rate.infantAmount || 0;
