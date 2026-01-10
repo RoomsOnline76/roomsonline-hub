@@ -2374,8 +2374,6 @@ export type Database = {
           amenities: Json | null
           bathrooms: number | null
           bedrooms: number | null
-          benson_property_code: string | null
-          checkfront_property_code: string | null
           city: string | null
           country: string | null
           created_at: string | null
@@ -2394,7 +2392,6 @@ export type Database = {
           price_per_night: number | null
           property_type: string | null
           property_url: string | null
-          siteminder_property_code: string | null
           slug: string | null
           updated_at: string | null
         }
@@ -2403,8 +2400,6 @@ export type Database = {
           amenities?: Json | null
           bathrooms?: number | null
           bedrooms?: number | null
-          benson_property_code?: string | null
-          checkfront_property_code?: string | null
           city?: string | null
           country?: string | null
           created_at?: string | null
@@ -2423,7 +2418,6 @@ export type Database = {
           price_per_night?: number | null
           property_type?: string | null
           property_url?: string | null
-          siteminder_property_code?: string | null
           slug?: string | null
           updated_at?: string | null
         }
@@ -2432,8 +2426,6 @@ export type Database = {
           amenities?: Json | null
           bathrooms?: number | null
           bedrooms?: number | null
-          benson_property_code?: string | null
-          checkfront_property_code?: string | null
           city?: string | null
           country?: string | null
           created_at?: string | null
@@ -2452,7 +2444,6 @@ export type Database = {
           price_per_night?: number | null
           property_type?: string | null
           property_url?: string | null
-          siteminder_property_code?: string | null
           slug?: string | null
           updated_at?: string | null
         }
