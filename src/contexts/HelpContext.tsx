@@ -1,7 +1,32 @@
-import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+
+// Section category definitions
+const ADMIN_SECTIONS = [
+  "getting_started",
+  "booking_flow",
+  "roles_permissions",
+  "data_authority",
+  "architecture",
+  "debugging",
+];
+
+const OWNER_SECTIONS = [
+  "owner_getting_started",
+  "booking_categories",
+  "availability_pricing",
+  "pms_integration",
+  "property_appearance",
+  "common_mistakes",
+  "troubleshooting",
+  "support",
+];
+
+const DEV_SECTIONS = [
+  "system_overview",
+];
 
 // Simple debounce function
 function debounce<T extends (...args: Parameters<T>) => void>(
@@ -47,6 +72,10 @@ interface HelpContextType {
   setCurrentArticleSlug: (slug: string | null) => void;
   articles: HelpArticle[];
   sections: HelpSection[];
+  adminSections: HelpSection[];
+  ownerSections: HelpSection[];
+  devSections: HelpSection[];
+  isAdminUser: boolean;
   isLoading: boolean;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
@@ -100,7 +129,9 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentArticleSlug, setCurrentArticleSlug] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const { user } = useAuth();
+  const { user, isAdmin, isDev } = useAuth();
+
+  const isAdminUser = isAdmin || isDev;
 
   const { data: articles = [], isLoading } = useQuery({
     queryKey: ["help-articles", user?.id],
@@ -123,25 +154,53 @@ export function HelpProvider({ children }: { children: ReactNode }) {
     enabled: !!user,
   });
 
-  const sections: HelpSection[] = Object.entries(
-    articles.reduce((acc, article) => {
-      if (!acc[article.section]) {
-        acc[article.section] = [];
-      }
-      acc[article.section].push(article);
-      return acc;
-    }, {} as Record<string, HelpArticle[]>)
-  )
-    .map(([name, sectionArticles]) => ({
-      name,
-      label: SECTION_LABELS[name] || name,
-      articles: sectionArticles.sort((a, b) => a.sort_order - b.sort_order),
-    }))
-    .sort((a, b) => {
-      const orderA = SECTION_ORDER.indexOf(a.name);
-      const orderB = SECTION_ORDER.indexOf(b.name);
-      return (orderA === -1 ? 999 : orderA) - (orderB === -1 ? 999 : orderB);
-    });
+  // Filter articles based on user role - owners only see their articles
+  const roleFilteredArticles = useMemo(() => {
+    if (isAdminUser) return articles;
+    // Regular users see only articles targeting 'user' or 'all'
+    return articles.filter(article => 
+      article.role_target.includes("user") || 
+      article.role_target.includes("all")
+    );
+  }, [articles, isAdminUser]);
+
+  const sections: HelpSection[] = useMemo(() => {
+    return Object.entries(
+      roleFilteredArticles.reduce((acc, article) => {
+        if (!acc[article.section]) {
+          acc[article.section] = [];
+        }
+        acc[article.section].push(article);
+        return acc;
+      }, {} as Record<string, HelpArticle[]>)
+    )
+      .map(([name, sectionArticles]) => ({
+        name,
+        label: SECTION_LABELS[name] || name,
+        articles: sectionArticles.sort((a, b) => a.sort_order - b.sort_order),
+      }))
+      .sort((a, b) => {
+        const orderA = SECTION_ORDER.indexOf(a.name);
+        const orderB = SECTION_ORDER.indexOf(b.name);
+        return (orderA === -1 ? 999 : orderA) - (orderB === -1 ? 999 : orderB);
+      });
+  }, [roleFilteredArticles]);
+
+  // Separate sections by category for admin view
+  const adminSections = useMemo(() => 
+    sections.filter(s => ADMIN_SECTIONS.includes(s.name)),
+    [sections]
+  );
+
+  const ownerSections = useMemo(() => 
+    sections.filter(s => OWNER_SECTIONS.includes(s.name)),
+    [sections]
+  );
+
+  const devSections = useMemo(() => 
+    sections.filter(s => DEV_SECTIONS.includes(s.name)),
+    [sections]
+  );
 
   const filteredArticles = searchQuery
     ? articles.filter(
@@ -234,8 +293,12 @@ export function HelpProvider({ children }: { children: ReactNode }) {
         toggleHelp,
         currentArticleSlug,
         setCurrentArticleSlug,
-        articles,
+        articles: roleFilteredArticles,
         sections,
+        adminSections,
+        ownerSections,
+        devSections,
+        isAdminUser,
         isLoading,
         searchQuery,
         setSearchQuery,

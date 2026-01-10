@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
-import { Plus, Loader2, HelpCircle, Search, Eye, ThumbsUp, AlertTriangle, AlertCircle, Info, BarChart3, ChevronDown, ChevronUp, Code2 } from "lucide-react";
+import { Plus, Loader2, HelpCircle, Search, Eye, AlertTriangle, AlertCircle, Info, BarChart3, ChevronDown, ChevronUp, Code2, Shield, Users } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -70,6 +69,28 @@ const SECTION_LABELS: Record<string, string> = {
   system_overview: "System Overview",
 };
 
+const ADMIN_SECTIONS = [
+  "getting_started",
+  "booking_flow",
+  "roles_permissions",
+  "data_authority",
+  "architecture",
+  "debugging",
+];
+
+const OWNER_SECTIONS = [
+  "owner_getting_started",
+  "booking_categories",
+  "availability_pricing",
+  "pms_integration",
+  "property_appearance",
+  "common_mistakes",
+  "troubleshooting",
+  "support",
+];
+
+const DEV_SECTIONS = ["system_overview"];
+
 const getImpactIcon = (level: string | null) => {
   switch (level) {
     case "critical":
@@ -82,6 +103,72 @@ const getImpactIcon = (level: string | null) => {
       return null;
   }
 };
+
+interface ArticleTableProps {
+  articles: HelpArticle[];
+  onArticleClick: (id: string) => void;
+}
+
+function ArticleTable({ articles, onArticleClick }: ArticleTableProps) {
+  if (articles.length === 0) return null;
+
+  return (
+    <div className="border border-border rounded-lg">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Title</TableHead>
+            <TableHead>Section</TableHead>
+            <TableHead>Audience</TableHead>
+            <TableHead>Impact</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Views</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {articles.map((article) => (
+            <TableRow 
+              key={article.id} 
+              className="cursor-pointer hover:bg-muted/50"
+              onClick={() => onArticleClick(article.id)}
+            >
+              <TableCell className="font-medium">{article.title}</TableCell>
+              <TableCell>
+                <Badge variant="outline">
+                  {SECTION_LABELS[article.section] || article.section}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <div className="flex gap-1">
+                  {article.role_target.includes("user") && (
+                    <Badge variant="secondary" className="text-xs">Owner</Badge>
+                  )}
+                  {(article.role_target.includes("admin") || article.role_target.includes("dev")) && (
+                    <Badge variant="secondary" className="text-xs">Admin</Badge>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center gap-1">
+                  {getImpactIcon(article.impact_level)}
+                  <span className="text-sm capitalize">{article.impact_level || "—"}</span>
+                </div>
+              </TableCell>
+              <TableCell>
+                <Badge variant={article.is_published ? "default" : "secondary"}>
+                  {article.is_published ? "Published" : "Draft"}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-right text-muted-foreground">
+                {article.view_count || 0}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
 
 export default function AdminHelpArticles() {
   const navigate = useNavigate();
@@ -99,6 +186,9 @@ export default function AdminHelpArticles() {
     totalViews: 0,
   });
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [adminSectionOpen, setAdminSectionOpen] = useState(true);
+  const [ownerSectionOpen, setOwnerSectionOpen] = useState(false);
+  const [devSectionOpen, setDevSectionOpen] = useState(false);
 
   useEffect(() => {
     loadArticles();
@@ -130,22 +220,42 @@ export default function AdminHelpArticles() {
     setLoading(false);
   };
 
-  const filteredArticles = articles.filter(article => {
-    const matchesSearch = searchQuery === "" || 
-      article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      article.section.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesSection = sectionFilter === "all" || article.section === sectionFilter;
-    
-    const matchesRole = roleFilter === "all" || 
-      (roleFilter === "owner" && article.role_target.includes("user")) ||
-      (roleFilter === "admin" && article.role_target.includes("admin")) ||
-      (roleFilter === "dev" && article.role_target.includes("dev"));
-    
-    return matchesSearch && matchesSection && matchesRole;
-  });
+  const filteredArticles = useMemo(() => {
+    return articles.filter(article => {
+      const matchesSearch = searchQuery === "" || 
+        article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        article.section.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesSection = sectionFilter === "all" || article.section === sectionFilter;
+      
+      const matchesRole = roleFilter === "all" || 
+        (roleFilter === "owner" && article.role_target.includes("user")) ||
+        (roleFilter === "admin" && article.role_target.includes("admin")) ||
+        (roleFilter === "dev" && article.role_target.includes("dev"));
+      
+      return matchesSearch && matchesSection && matchesRole;
+    });
+  }, [articles, searchQuery, sectionFilter, roleFilter]);
+
+  // Separate articles by category
+  const adminArticles = useMemo(() => 
+    filteredArticles.filter(a => ADMIN_SECTIONS.includes(a.section)),
+    [filteredArticles]
+  );
+
+  const ownerArticles = useMemo(() => 
+    filteredArticles.filter(a => OWNER_SECTIONS.includes(a.section)),
+    [filteredArticles]
+  );
+
+  const devArticles = useMemo(() => 
+    filteredArticles.filter(a => DEV_SECTIONS.includes(a.section)),
+    [filteredArticles]
+  );
 
   const uniqueSections = [...new Set(articles.map(a => a.section))];
+
+  const hasActiveFilters = roleFilter !== "all" || sectionFilter !== "all" || searchQuery !== "";
 
   return (
     <AppLayout>
@@ -270,7 +380,7 @@ export default function AdminHelpArticles() {
             <SelectItem value="dev">Dev Only</SelectItem>
           </SelectContent>
         </Select>
-        {(roleFilter !== "all" || sectionFilter !== "all") && (
+        {hasActiveFilters && (
           <Button 
             variant="ghost" 
             size="sm"
@@ -289,78 +399,116 @@ export default function AdminHelpArticles() {
         <div className="flex items-center justify-center h-[40vh]">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      ) : filteredArticles.length === 0 ? (
+      ) : articles.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-[40vh] text-center">
           <HelpCircle className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium mb-2">
-            {articles.length === 0 ? "No help articles yet" : "No matching articles"}
-          </h3>
+          <h3 className="text-lg font-medium mb-2">No help articles yet</h3>
           <p className="text-muted-foreground mb-4">
-            {articles.length === 0 
-              ? "Create your first help article to get started."
-              : "Try adjusting your search or filters."}
+            Create your first help article to get started.
           </p>
-          {articles.length === 0 && (
-            <Button onClick={() => navigate("/admin/help-articles/new")}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Article
-            </Button>
-          )}
+          <Button onClick={() => navigate("/admin/help-articles/new")}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Article
+          </Button>
         </div>
+      ) : hasActiveFilters ? (
+        // When filters are active, show flat table
+        filteredArticles.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-[40vh] text-center">
+            <HelpCircle className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">No matching articles</h3>
+            <p className="text-muted-foreground mb-4">
+              Try adjusting your search or filters.
+            </p>
+          </div>
+        ) : (
+          <ArticleTable 
+            articles={filteredArticles} 
+            onArticleClick={(id) => navigate(`/admin/help-articles/${id}`)} 
+          />
+        )
       ) : (
-        <div className="border border-border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Section</TableHead>
-                <TableHead>Audience</TableHead>
-                <TableHead>Impact</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Views</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredArticles.map((article) => (
-                <TableRow 
-                  key={article.id} 
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => navigate(`/admin/help-articles/${article.id}`)}
-                >
-                  <TableCell className="font-medium">{article.title}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {SECTION_LABELS[article.section] || article.section}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      {article.role_target.includes("user") && (
-                        <Badge variant="secondary" className="text-xs">Owner</Badge>
-                      )}
-                      {(article.role_target.includes("admin") || article.role_target.includes("dev")) && (
-                        <Badge variant="secondary" className="text-xs">Admin</Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      {getImpactIcon(article.impact_level)}
-                      <span className="text-sm capitalize">{article.impact_level || "—"}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={article.is_published ? "default" : "secondary"}>
-                      {article.is_published ? "Published" : "Draft"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {article.view_count || 0}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        // No filters - show grouped view
+        <div className="space-y-6">
+          {/* Admin & System Articles */}
+          <Collapsible open={adminSectionOpen} onOpenChange={setAdminSectionOpen}>
+            <CollapsibleTrigger className="flex items-center justify-between w-full py-3 px-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
+              <div className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-primary" />
+                <span className="font-semibold">Admin & System Articles</span>
+                <Badge variant="outline" className="ml-2">{adminArticles.length}</Badge>
+              </div>
+              {adminSectionOpen ? (
+                <ChevronUp className="h-5 w-5 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-muted-foreground" />
+              )}
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3">
+              {adminArticles.length > 0 ? (
+                <ArticleTable 
+                  articles={adminArticles} 
+                  onArticleClick={(id) => navigate(`/admin/help-articles/${id}`)} 
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  No admin articles yet
+                </p>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Owner Articles */}
+          <Collapsible open={ownerSectionOpen} onOpenChange={setOwnerSectionOpen}>
+            <CollapsibleTrigger className="flex items-center justify-between w-full py-3 px-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-muted-foreground" />
+                <span className="font-semibold">Owner Articles</span>
+                <Badge variant="outline" className="ml-2">{ownerArticles.length}</Badge>
+              </div>
+              {ownerSectionOpen ? (
+                <ChevronUp className="h-5 w-5 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-muted-foreground" />
+              )}
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3">
+              {ownerArticles.length > 0 ? (
+                <ArticleTable 
+                  articles={ownerArticles} 
+                  onArticleClick={(id) => navigate(`/admin/help-articles/${id}`)} 
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  No owner articles yet
+                </p>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Dev Docs */}
+          {devArticles.length > 0 && (
+            <Collapsible open={devSectionOpen} onOpenChange={setDevSectionOpen}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-3 px-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
+                <div className="flex items-center gap-2">
+                  <Code2 className="h-5 w-5 text-muted-foreground" />
+                  <span className="font-semibold">Dev Docs</span>
+                  <Badge variant="outline" className="ml-2">{devArticles.length}</Badge>
+                </div>
+                {devSectionOpen ? (
+                  <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                )}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-3">
+                <ArticleTable 
+                  articles={devArticles} 
+                  onArticleClick={(id) => navigate(`/admin/help-articles/${id}`)} 
+                />
+              </CollapsibleContent>
+            </Collapsible>
+          )}
         </div>
       )}
     </AppLayout>
