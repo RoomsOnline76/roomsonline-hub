@@ -52,7 +52,6 @@ interface Property {
   is_active: boolean;
   external_system: string | null;
   external_id: string | null;
-  benson_property_code: string | null;
   slug: string | null;
   editorial_rating?: string | null;
   why_we_chose_this_place?: string | null;
