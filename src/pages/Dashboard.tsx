@@ -1065,7 +1065,7 @@ const Dashboard = () => {
   return (
     <AppLayout>
       <PageHeader
-        title="Revenue Pulse"
+        title="Pulse"
         subtitle={`${format(dateRange?.from || new Date(), "MMM yyyy")}${isAdmin ? " · All properties" : ""}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
