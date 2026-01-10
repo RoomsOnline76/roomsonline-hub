@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getNightsBridgeBookingUrl } from "@/lib/config";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { useMobileBooking } from "@/contexts/MobileBookingContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useNightsBridgeTracking } from "@/hooks/useNightsBridgeTracking";
 import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 import TripAdvisorReviews from "@/components/TripAdvisorReviews";
 import { PublicLayout } from "@/components/layout/PublicLayout";
@@ -175,9 +176,11 @@ export default function PropertyShowcase() {
   const [searchParams] = useSearchParams();
   const { currency } = useCurrency();
   const { setProperty } = useMobileBooking();
+  const { createBookingSession } = useNightsBridgeTracking();
   const [property, setPropertyData] = useState<Property | null>(null);
   const [availability, setAvailability] = useState<Map<string, AvailabilityData>>(new Map());
   const [nightsBridgeAgentCode, setNightsBridgeAgentCode] = useState<string | null>(null);
+  const [nbTrackingRef, setNbTrackingRef] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [bookedRooms, setBookedRooms] = useState<BookingRoom[]>([]);
   const [showLeavingModal, setShowLeavingModal] = useState(false);
@@ -255,6 +258,22 @@ export default function PropertyShowcase() {
 
   // HotelBeds properties: fetch availability on-demand
   const isHotelBedsProperty = property?.external_system === "hotelbeds";
+  const isNightsBridgeProperty = property?.external_system === "nightsbridge";
+  
+  // NightsBridge tracking: create session when property loads
+  useEffect(() => {
+    if (isNightsBridgeProperty && property?.id && nightsBridgeAgentCode && !nbTrackingRef) {
+      createBookingSession({
+        propertyId: property.id,
+        propertyName: property.name,
+        currency,
+      }).then((trackingRef) => {
+        if (trackingRef) {
+          setNbTrackingRef(trackingRef);
+        }
+      });
+    }
+  }, [isNightsBridgeProperty, property?.id, nightsBridgeAgentCode, currency, createBookingSession, nbTrackingRef]);
   
   useEffect(() => {
     if (isHotelBedsProperty && property?.id) {
@@ -394,7 +413,6 @@ export default function PropertyShowcase() {
 
   const getFacilities = (): string[] => property?.amenities?.facilities || [];
   
-  const isNightsBridgeProperty = property?.external_system === "nightsbridge";
   const isBensonProperty = property?.external_system?.toLowerCase() === "benson";
   
   const getNightsBridgeBBID = (): string | null => {
@@ -451,7 +469,7 @@ export default function PropertyShowcase() {
   // NightsBridge properties: iframe view
   const bbid = getNightsBridgeBBID();
   if (property.external_system === "nightsbridge" && bbid && nightsBridgeAgentCode) {
-    const iframeUrl = getNightsBridgeBookingUrl(bbid, nightsBridgeAgentCode, undefined, undefined, currency);
+    const iframeUrl = getNightsBridgeBookingUrl(bbid, nightsBridgeAgentCode, undefined, undefined, currency, nbTrackingRef || undefined);
     return (
       <div className="min-h-screen bg-background flex flex-col">
         <div className="bg-background border-b border-border px-4 py-2 shrink-0">
