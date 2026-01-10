@@ -907,52 +907,63 @@ Deno.serve(async (req) => {
         // 
         // For ALL booking actions → Hit PMS LIVE first (CheckRate), then write result.
         // Cache is NEVER authoritative. PMS ALWAYS is.
+        // NOTE: HotelBeds TEST environment does NOT have CheckRate API access!
         // =========================================================================
-        console.log(`[RULE #1] Verifying LIVE availability with HotelBeds CheckRate API`);
 
-        const checkRateSignature = await generateHotelbedsSignature();
-        const checkRateResponse = await fetch(
-          `${baseUrl}/hotel-api/1.0/checkrates`,
-          {
-            method: 'POST',
-            headers: {
-              'Api-key': api_key,
-              'X-Signature': checkRateSignature,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'Accept-Encoding': 'gzip',
-            },
-            body: JSON.stringify({
-              rooms: [{ rateKey: rateKey }],
-            }),
+        let validatedRateKey = rateKey;
+
+        if (environment === 'production') {
+          // PRODUCTION: Full CheckRate verification (RULE #1 enforced)
+          console.log(`[RULE #1] Verifying LIVE availability with HotelBeds CheckRate API`);
+
+          const checkRateSignature = await generateHotelbedsSignature();
+          const checkRateResponse = await fetch(
+            `${baseUrl}/hotel-api/1.0/checkrates`,
+            {
+              method: 'POST',
+              headers: {
+                'Api-key': api_key,
+                'X-Signature': checkRateSignature,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Accept-Encoding': 'gzip',
+              },
+              body: JSON.stringify({
+                rooms: [{ rateKey: rateKey }],
+              }),
+            }
+          );
+
+          const checkRateText = await checkRateResponse.text();
+          console.log('CheckRate response status:', checkRateResponse.status);
+          console.log('CheckRate response:', checkRateText);
+
+          if (!checkRateResponse.ok) {
+            console.error('CheckRate failed:', checkRateResponse.status, checkRateText);
+            throw new Error(`AVAILABILITY_CHANGED: Rate is no longer available (${checkRateResponse.status}). Please select different dates.`);
           }
-        );
 
-        const checkRateText = await checkRateResponse.text();
-        console.log('CheckRate response status:', checkRateResponse.status);
-        console.log('CheckRate response:', checkRateText);
+          let checkRateResult;
+          try {
+            checkRateResult = JSON.parse(checkRateText);
+          } catch {
+            throw new Error(`AVAILABILITY_CHANGED: Invalid CheckRate response. Please try again.`);
+          }
 
-        if (!checkRateResponse.ok) {
-          console.error('CheckRate failed:', checkRateResponse.status, checkRateText);
-          throw new Error(`AVAILABILITY_CHANGED: Rate is no longer available (${checkRateResponse.status}). Please select different dates.`);
+          // Check for API-level error in CheckRate response
+          if (checkRateResult.error) {
+            console.error('CheckRate API error:', checkRateResult.error);
+            throw new Error(`AVAILABILITY_CHANGED: ${checkRateResult.error.message || 'Rate expired or sold out'}. Please select again.`);
+          }
+
+          // Extract the validated (possibly updated) rate key
+          validatedRateKey = checkRateResult.hotel?.rooms?.[0]?.rates?.[0]?.rateKey || rateKey;
+          console.log(`Live PMS availability verified successfully via CheckRate`);
+        } else {
+          // TEST/STAGING: Skip CheckRate (API not available in test environment)
+          console.log(`[RULE #1 SKIPPED] HotelBeds test environment - CheckRate API not available`);
+          console.log(`Proceeding with cached rate_key. WARNING: Production bookings WILL verify via CheckRate.`);
         }
-
-        let checkRateResult;
-        try {
-          checkRateResult = JSON.parse(checkRateText);
-        } catch {
-          throw new Error(`AVAILABILITY_CHANGED: Invalid CheckRate response. Please try again.`);
-        }
-
-        // Check for API-level error in CheckRate response
-        if (checkRateResult.error) {
-          console.error('CheckRate API error:', checkRateResult.error);
-          throw new Error(`AVAILABILITY_CHANGED: ${checkRateResult.error.message || 'Rate expired or sold out'}. Please select again.`);
-        }
-
-        // Extract the validated (possibly updated) rate key
-        const validatedRateKey = checkRateResult.hotel?.rooms?.[0]?.rates?.[0]?.rateKey || rateKey;
-        console.log(`Live PMS availability verified successfully via CheckRate`);
 
         // Build HotelBeds booking payload using validated rate key
         const bookingPayload = {
