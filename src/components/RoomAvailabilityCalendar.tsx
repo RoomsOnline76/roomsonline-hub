@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { ArrowLeft, Users, Calendar, ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { ArrowLeft, Users, Calendar, Minus, Plus, BedDouble, Utensils, Baby } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { 
@@ -15,7 +15,6 @@ import {
   endOfMonth, 
   eachDayOfInterval, 
   addMonths, 
-  subMonths, 
   isBefore, 
   startOfDay,
   isAfter,
@@ -23,13 +22,25 @@ import {
   differenceInDays,
   parseISO
 } from "date-fns";
-import { DayPicker, DateRange } from "react-day-picker";
+import { DayPicker, DateRange, DayContentProps } from "react-day-picker";
 
 interface AvailabilityData {
   date: string;
   available_units: number;
   rates?: any;
   restrictions?: any;
+}
+
+interface RateDetails {
+  room_amount?: number;
+  adult_amounts?: {
+    adultAmount1?: number;
+    adultAmount2?: number;
+    adultAmount3?: number;
+    adultAmount4?: number;
+  };
+  rate_type_name?: string;
+  price_type?: string;
 }
 
 interface RoomTypeData {
@@ -283,7 +294,7 @@ export default function RoomAvailabilityCalendar({
     return availData && availData.available_units > 0;
   };
 
-  // Get rate for a date
+  // Get rate for a date (returns lowest rate)
   const getRateForDate = (date: Date): number | null => {
     const dateStr = format(date, "yyyy-MM-dd");
     const availData = availability.get(dateStr);
@@ -299,6 +310,162 @@ export default function RoomAvailabilityCalendar({
     }
     return null;
   };
+
+  // Get full rate details for a date (for tooltip)
+  const getRateDetailsForDate = (date: Date): RateDetails | null => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    const availData = availability.get(dateStr);
+    if (!availData?.rates) return null;
+    
+    const ratesArray = Array.isArray(availData.rates) ? availData.rates : [availData.rates];
+    return ratesArray[0] || null;
+  };
+
+  // Format rate compactly for display in cell
+  const formatCompactRate = (rate: number): string => {
+    if (rate >= 10000) {
+      return `${(rate / 1000).toFixed(0)}k`;
+    }
+    if (rate >= 1000) {
+      return `${(rate / 1000).toFixed(1)}k`.replace('.0k', 'k');
+    }
+    return rate.toString();
+  };
+
+  // Custom day content component
+  const CustomDayContent = useMemo(() => {
+    return function DayContent({ date, displayMonth }: DayContentProps) {
+      const dateStr = format(date, "yyyy-MM-dd");
+      const availData = availability.get(dateStr);
+      const rate = getRateForDate(date);
+      const rateDetails = getRateDetailsForDate(date);
+      const isAvailable = availData && availData.available_units > 0;
+      const isSoldOut = availData && !isAvailable;
+      const isPast = isBefore(date, startOfDay(new Date()));
+      const hasData = availability.has(dateStr);
+      
+      // For desktop, show rate in cell with hover tooltip
+      const dayContent = (
+        <div className="flex flex-col items-center justify-center w-full h-full">
+          <span className="text-sm">{date.getDate()}</span>
+          {!isMobile && !isPast && hasData && (
+            <span className={cn(
+              "text-[9px] leading-none mt-0.5",
+              isSoldOut ? "text-destructive font-medium" : "text-muted-foreground"
+            )}>
+              {isSoldOut ? "SOLD" : rate ? formatCompactRate(rate) : "—"}
+            </span>
+          )}
+        </div>
+      );
+
+      // Build tooltip content
+      const tooltipContent = (
+        <div className="space-y-3 text-sm">
+          <div className="font-medium border-b pb-2">
+            {format(date, "EEE, d MMMM yyyy")}
+          </div>
+          
+          {isPast ? (
+            <p className="text-muted-foreground">Past date</p>
+          ) : !hasData ? (
+            <p className="text-muted-foreground">No availability data</p>
+          ) : isSoldOut ? (
+            <p className="text-destructive font-medium">Sold Out</p>
+          ) : (
+            <>
+              {/* Occupancy */}
+              <div className="flex items-center gap-2">
+                <BedDouble className="h-4 w-4 text-muted-foreground" />
+                <span>Max {roomTypeData?.max_guests || 2} guests</span>
+              </div>
+
+              {/* Child Policy */}
+              {roomTypeData && (
+                <div className="flex items-start gap-2">
+                  <Baby className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  <div className="text-xs text-muted-foreground">
+                    {roomTypeData.allow_children ? (
+                      <>Children allowed{roomTypeData.child_min_age != null && roomTypeData.child_max_age != null && ` (${roomTypeData.child_min_age}–${roomTypeData.child_max_age} yrs)`}</>
+                    ) : (
+                      "Adults only"
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Meal Plan */}
+              {rateDetails?.rate_type_name && (
+                <div className="flex items-center gap-2">
+                  <Utensils className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs">{rateDetails.rate_type_name}</span>
+                </div>
+              )}
+
+              {/* Pricing */}
+              {rateDetails && (
+                <div className="pt-2 border-t space-y-1">
+                  <p className="text-xs text-muted-foreground mb-1">Rate per night:</p>
+                  {rateDetails.room_amount ? (
+                    <div className="flex justify-between">
+                      <span>Room rate</span>
+                      <span className="font-semibold">R {rateDetails.room_amount.toLocaleString()}</span>
+                    </div>
+                  ) : rateDetails.adult_amounts && (
+                    <>
+                      {rateDetails.adult_amounts.adultAmount1 && (
+                        <div className="flex justify-between text-xs">
+                          <span>1 Adult</span>
+                          <span className="font-medium">R {rateDetails.adult_amounts.adultAmount1.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {rateDetails.adult_amounts.adultAmount2 && (
+                        <div className="flex justify-between text-xs">
+                          <span>2 Adults</span>
+                          <span className="font-medium">R {rateDetails.adult_amounts.adultAmount2.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {rateDetails.adult_amounts.adultAmount3 && (
+                        <div className="flex justify-between text-xs">
+                          <span>3 Adults</span>
+                          <span className="font-medium">R {rateDetails.adult_amounts.adultAmount3.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {rateDetails.adult_amounts.adultAmount4 && (
+                        <div className="flex justify-between text-xs">
+                          <span>4 Adults</span>
+                          <span className="font-medium">R {rateDetails.adult_amounts.adultAmount4.toLocaleString()}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      );
+
+      // Wrap in HoverCard for both mobile (tap) and desktop (hover)
+      return (
+        <HoverCard openDelay={100} closeDelay={50}>
+          <HoverCardTrigger asChild>
+            <div className="w-full h-full cursor-pointer">
+              {dayContent}
+            </div>
+          </HoverCardTrigger>
+          <HoverCardContent 
+            side="top" 
+            align="center" 
+            className="w-56 p-3 z-50"
+            sideOffset={5}
+          >
+            {tooltipContent}
+          </HoverCardContent>
+        </HoverCard>
+      );
+    };
+  }, [availability, roomTypeData, isMobile]);
 
   const handleProceedToBooking = () => {
     if (dateRange?.from && dateRange?.to) {
@@ -387,8 +554,8 @@ export default function RoomAvailabilityCalendar({
                     }}
                     modifiersStyles={{
                       available: { backgroundColor: 'hsl(142 76% 36% / 0.15)' },
-                      unavailable: { backgroundColor: 'hsl(0 84% 60% / 0.2)', color: 'hsl(var(--muted-foreground))', textDecoration: 'line-through' },
-                      nodata: { backgroundColor: 'hsl(0 84% 60% / 0.2)', color: 'hsl(var(--muted-foreground))', textDecoration: 'line-through' },
+                      unavailable: { backgroundColor: 'hsl(0 84% 60% / 0.2)', color: 'hsl(var(--muted-foreground))' },
+                      nodata: { backgroundColor: 'hsl(0 84% 60% / 0.2)', color: 'hsl(var(--muted-foreground))' },
                     }}
                     className="pointer-events-auto"
                     classNames={{
@@ -404,7 +571,10 @@ export default function RoomAvailabilityCalendar({
                       nav_button_next: "absolute right-1",
                       table: "w-full border-collapse",
                       head_row: "flex",
-                      head_cell: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem] flex-1 text-center",
+                      head_cell: cn(
+                        "text-muted-foreground rounded-md font-normal text-[0.8rem] flex-1 text-center",
+                        "w-9 sm:w-12" // Wider on desktop for rate display
+                      ),
                       row: "flex w-full mt-1",
                       cell: cn(
                         "flex-1 text-center text-sm p-0 relative focus-within:relative focus-within:z-20",
@@ -414,7 +584,8 @@ export default function RoomAvailabilityCalendar({
                         "last:[&:has([aria-selected])]:rounded-r-md"
                       ),
                       day: cn(
-                        "h-9 w-9 p-0 font-normal mx-auto rounded-md transition-colors",
+                        "p-0 font-normal mx-auto rounded-md transition-colors",
+                        "h-10 w-10 sm:h-12 sm:w-12", // Taller on desktop for rate display
                         "hover:bg-primary hover:text-primary-foreground",
                         "focus:bg-primary focus:text-primary-foreground",
                         "aria-selected:opacity-100"
@@ -427,6 +598,9 @@ export default function RoomAvailabilityCalendar({
                       day_disabled: "text-muted-foreground opacity-50 cursor-not-allowed",
                       day_range_middle: "day-range-middle aria-selected:bg-primary/40 aria-selected:text-foreground rounded-none",
                       day_hidden: "invisible",
+                    }}
+                    components={{
+                      DayContent: CustomDayContent,
                     }}
                   />
                 )}
