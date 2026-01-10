@@ -381,6 +381,7 @@ Deno.serve(async (req) => {
           system: 'benson',
           success: false,
           error: errorMessage,
+          error_code: errorMessage.includes('Insufficient availability') ? 'AVAILABILITY_CHANGED' : 'BOOKING_FAILED',
         });
       }
     }
@@ -803,35 +804,96 @@ Deno.serve(async (req) => {
           throw new Error('HotelBeds API key and secret not configured');
         }
 
-        // Generate HotelBeds signature
-        const timestamp = Math.floor(Date.now() / 1000).toString();
-        const signatureData = api_key + apiSecret + timestamp;
-        const encoder = new TextEncoder();
-        const data = encoder.encode(signatureData);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        // Helper to generate fresh HotelBeds signature (signature expires quickly)
+        const generateHotelbedsSignature = async (): Promise<string> => {
+          const timestamp = Math.floor(Date.now() / 1000).toString();
+          const signatureData = api_key + apiSecret + timestamp;
+          const encoder = new TextEncoder();
+          const data = encoder.encode(signatureData);
+          const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        };
 
         const baseUrl = environment === 'production' 
           ? 'https://api.hotelbeds.com' 
           : 'https://api.test.hotelbeds.com';
 
-        // Build HotelBeds booking payload
         // Extract rate_key from the rooms JSONB (stored during booking creation)
         const roomsData = booking.rooms as any[];
         const rateKey = roomsData?.[0]?.rate_key;
         
         if (!rateKey) {
-          throw new Error('Missing rate_key for HotelBeds booking - availability may have expired');
+          throw new Error('AVAILABILITY_CHANGED: Missing rate_key - availability may have expired. Please select dates again.');
         }
-        
+
+        // =========================================================================
+        // ██████╗ ██╗   ██╗██╗     ███████╗     ██╗
+        // ██╔══██╗██║   ██║██║     ██╔════╝    ███║
+        // ██████╔╝██║   ██║██║     █████╗      ╚██║
+        // ██╔══██╗██║   ██║██║     ██╔══╝       ██║
+        // ██║  ██║╚██████╔╝███████╗███████╗     ██║
+        // ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝     ╚═╝
+        // 
+        // UNBREAKABLE RULE: NO BOOKING IS EVER CREATED FROM CACHE DATA ALONE
+        // 
+        // For ALL booking actions → Hit PMS LIVE first (CheckRate), then write result.
+        // Cache is NEVER authoritative. PMS ALWAYS is.
+        // =========================================================================
+        console.log(`[RULE #1] Verifying LIVE availability with HotelBeds CheckRate API`);
+
+        const checkRateSignature = await generateHotelbedsSignature();
+        const checkRateResponse = await fetch(
+          `${baseUrl}/hotel-api/1.0/checkrates`,
+          {
+            method: 'POST',
+            headers: {
+              'Api-key': api_key,
+              'X-Signature': checkRateSignature,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Accept-Encoding': 'gzip',
+            },
+            body: JSON.stringify({
+              rooms: [{ rateKey: rateKey }],
+            }),
+          }
+        );
+
+        const checkRateText = await checkRateResponse.text();
+        console.log('CheckRate response status:', checkRateResponse.status);
+        console.log('CheckRate response:', checkRateText);
+
+        if (!checkRateResponse.ok) {
+          console.error('CheckRate failed:', checkRateResponse.status, checkRateText);
+          throw new Error(`AVAILABILITY_CHANGED: Rate is no longer available (${checkRateResponse.status}). Please select different dates.`);
+        }
+
+        let checkRateResult;
+        try {
+          checkRateResult = JSON.parse(checkRateText);
+        } catch {
+          throw new Error(`AVAILABILITY_CHANGED: Invalid CheckRate response. Please try again.`);
+        }
+
+        // Check for API-level error in CheckRate response
+        if (checkRateResult.error) {
+          console.error('CheckRate API error:', checkRateResult.error);
+          throw new Error(`AVAILABILITY_CHANGED: ${checkRateResult.error.message || 'Rate expired or sold out'}. Please select again.`);
+        }
+
+        // Extract the validated (possibly updated) rate key
+        const validatedRateKey = checkRateResult.hotel?.rooms?.[0]?.rates?.[0]?.rateKey || rateKey;
+        console.log(`Live PMS availability verified successfully via CheckRate`);
+
+        // Build HotelBeds booking payload using validated rate key
         const bookingPayload = {
           holder: {
             name: booking.guest_name.split(' ')[0] || 'Guest',
             surname: booking.guest_name.split(' ').slice(1).join(' ') || 'Guest',
           },
           rooms: [{
-            rateKey: rateKey,
+            rateKey: validatedRateKey,
             paxes: [
               {
                 roomId: 1,
@@ -847,13 +909,16 @@ Deno.serve(async (req) => {
 
         console.log('HotelBeds booking payload:', JSON.stringify(bookingPayload, null, 2));
 
+        // Generate fresh signature for the booking call (signatures expire quickly)
+        const bookingSignature = await generateHotelbedsSignature();
+
         const response = await fetch(
           `${baseUrl}/hotel-api/1.0/bookings`,
           {
             method: 'POST',
             headers: {
               'Api-key': api_key,
-              'X-Signature': signature,
+              'X-Signature': bookingSignature,
               'Content-Type': 'application/json',
               'Accept': 'application/json',
               'Accept-Encoding': 'gzip',
@@ -953,6 +1018,7 @@ Deno.serve(async (req) => {
           system: 'hotelbeds',
           success: false,
           error: errorMessage,
+          error_code: errorMessage.includes('AVAILABILITY_CHANGED') ? 'AVAILABILITY_CHANGED' : 'BOOKING_FAILED',
         });
       }
     }
