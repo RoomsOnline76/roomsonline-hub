@@ -856,6 +856,7 @@ Deno.serve(async (req) => {
               'X-Signature': signature,
               'Content-Type': 'application/json',
               'Accept': 'application/json',
+              'Accept-Encoding': 'gzip',
             },
             body: JSON.stringify(bookingPayload),
           }
