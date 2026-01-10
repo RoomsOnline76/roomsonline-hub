@@ -1639,8 +1639,8 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Charts - compact */}
-        <div className={cn("grid gap-3", isAdmin ? "lg:grid-cols-3" : "lg:grid-cols-2")}>
+        {/* Charts Row - Bookings & Revenue */}
+        <div className="grid gap-3 lg:grid-cols-2">
           <Card className="p-2">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-medium">Bookings{shouldAggregateByMonth && " (Monthly)"}</span>
@@ -1773,7 +1773,10 @@ const Dashboard = () => {
               </div>
             </Card>
           )}
+        </div>
 
+        {/* Bookings Row - Recent & NB Attempts */}
+        <div className="grid gap-3 lg:grid-cols-2">
           {/* Recent Bookings - compact */}
           <Card className="p-2">
             <div className="flex items-center justify-between mb-1">
