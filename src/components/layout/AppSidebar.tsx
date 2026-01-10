@@ -90,7 +90,7 @@ const workspaceItems: NavItem[] = [
 ];
 
 const insightsItems: NavItem[] = [
-  { title: "Revenue Pulse", icon: BarChart3, href: "/dashboard/reports" },
+  { title: "Pulse", icon: BarChart3, href: "/dashboard/reports" },
   { title: "Intelligence", icon: Search, href: "/dashboard/insights", requireAdmin: true },
   { title: "Journals", icon: Newspaper, href: "/admin/journals", requireAdmin: true },
 ];
