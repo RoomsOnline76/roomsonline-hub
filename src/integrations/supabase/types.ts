@@ -260,6 +260,13 @@ export type Database = {
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "booking_sync_status_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bookings: {
@@ -271,8 +278,11 @@ export type Database = {
           created_at: string | null
           external_reservation_id: string | null
           guest_email: string
+          guest_email_encrypted: string | null
           guest_name: string
+          guest_name_encrypted: string | null
           guest_phone: string | null
+          guest_phone_encrypted: string | null
           id: string
           infants: number | null
           paid_at: string | null
@@ -300,8 +310,11 @@ export type Database = {
           created_at?: string | null
           external_reservation_id?: string | null
           guest_email: string
+          guest_email_encrypted?: string | null
           guest_name: string
+          guest_name_encrypted?: string | null
           guest_phone?: string | null
+          guest_phone_encrypted?: string | null
           id?: string
           infants?: number | null
           paid_at?: string | null
@@ -329,8 +342,11 @@ export type Database = {
           created_at?: string | null
           external_reservation_id?: string | null
           guest_email?: string
+          guest_email_encrypted?: string | null
           guest_name?: string
+          guest_name_encrypted?: string | null
           guest_phone?: string | null
+          guest_phone_encrypted?: string | null
           id?: string
           infants?: number | null
           paid_at?: string | null
@@ -870,6 +886,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transactions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
             referencedColumns: ["id"]
           },
         ]
@@ -1867,6 +1890,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sync_logs_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "sync_logs_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
@@ -2074,6 +2104,120 @@ export type Database = {
       }
     }
     Views: {
+      bookings_decrypted: {
+        Row: {
+          adults: number | null
+          check_in_date: string | null
+          check_out_date: string | null
+          children: number | null
+          created_at: string | null
+          external_reservation_id: string | null
+          guest_email: string | null
+          guest_email_encrypted: string | null
+          guest_name: string | null
+          guest_name_encrypted: string | null
+          guest_phone: string | null
+          guest_phone_encrypted: string | null
+          id: string | null
+          infants: number | null
+          paid_at: string | null
+          payment_intent_id: string | null
+          payment_method: string | null
+          payment_reference: string | null
+          payment_status: string | null
+          property_id: string | null
+          rate_type_id: string | null
+          room_type_id: string | null
+          rooms: Json | null
+          special_requests: string | null
+          status: string | null
+          teens: number | null
+          total_price: number | null
+          updated_at: string | null
+          user_id: string | null
+          voucher: string | null
+        }
+        Insert: {
+          adults?: number | null
+          check_in_date?: string | null
+          check_out_date?: string | null
+          children?: number | null
+          created_at?: string | null
+          external_reservation_id?: string | null
+          guest_email?: never
+          guest_email_encrypted?: string | null
+          guest_name?: never
+          guest_name_encrypted?: string | null
+          guest_phone?: never
+          guest_phone_encrypted?: string | null
+          id?: string | null
+          infants?: number | null
+          paid_at?: string | null
+          payment_intent_id?: string | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          payment_status?: string | null
+          property_id?: string | null
+          rate_type_id?: string | null
+          room_type_id?: string | null
+          rooms?: Json | null
+          special_requests?: string | null
+          status?: string | null
+          teens?: number | null
+          total_price?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          voucher?: string | null
+        }
+        Update: {
+          adults?: number | null
+          check_in_date?: string | null
+          check_out_date?: string | null
+          children?: number | null
+          created_at?: string | null
+          external_reservation_id?: string | null
+          guest_email?: never
+          guest_email_encrypted?: string | null
+          guest_name?: never
+          guest_name_encrypted?: string | null
+          guest_phone?: never
+          guest_phone_encrypted?: string | null
+          id?: string | null
+          infants?: number | null
+          paid_at?: string | null
+          payment_intent_id?: string | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          payment_status?: string | null
+          property_id?: string | null
+          rate_type_id?: string | null
+          room_type_id?: string | null
+          rooms?: Json | null
+          special_requests?: string | null
+          status?: string | null
+          teens?: number | null
+          total_price?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          voucher?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       public_nightsbridge_config: {
         Row: {
           agent_code: string | null
@@ -2172,6 +2316,11 @@ export type Database = {
       }
     }
     Functions: {
+      decrypt_sensitive_text: {
+        Args: { encrypted_data: string }
+        Returns: string
+      }
+      encrypt_sensitive_text: { Args: { plaintext: string }; Returns: string }
       generate_journal_slug: {
         Args: { journal_id: string; journal_title: string }
         Returns: string
@@ -2180,6 +2329,7 @@ export type Database = {
         Args: { property_id: string; property_name: string }
         Returns: string
       }
+      get_booking_encryption_key: { Args: never; Returns: string }
       get_user_audit_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["audit_user_role"]
