@@ -4,20 +4,20 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfMonth, endOfMonth, parseISO } from "date-fns";
-import { CalendarIcon, Search, Sparkles, Send, Loader2, TrendingUp, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Sparkles, Send, Loader2, TrendingUp, ArrowUpDown, ChevronLeft, ChevronRight, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DateRange } from "react-day-picker";
 import { toast } from "sonner";
+import { AccountingDashboard } from "@/components/insights/AccountingDashboard";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -156,8 +156,8 @@ const Insights = () => {
   return (
     <AppLayout>
       <PageHeader
-        title="Search Intelligence"
-        subtitle={`${searchLogs.length} searches · ${searchTermStats.length} unique terms · ${avgMatches} avg matches`}
+        title="Intelligence"
+        subtitle="Search analytics and financial tracking"
         actions={
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => setDateRange({ from: subDays(new Date(), 7), to: new Date() })}>7d</Button>
@@ -167,9 +167,22 @@ const Insights = () => {
         }
       />
 
-      {/* AI Analysis - compact inline */}
-      <Card className="mb-4">
-          <CardContent className="py-3">
+      <Tabs defaultValue="search" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="search" className="gap-2">
+            <Search className="h-4 w-4" />
+            Search Intelligence
+          </TabsTrigger>
+          <TabsTrigger value="accounting" className="gap-2">
+            <Receipt className="h-4 w-4" />
+            Accounting
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="search" className="space-y-4">
+          {/* AI Analysis - compact inline */}
+          <Card>
+            <CardContent className="py-3">
             <div className="flex items-center gap-3">
               <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
               <Input
@@ -265,9 +278,15 @@ const Insights = () => {
                   </TableBody>
                 </Table>
               )}
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
+        </TabsContent>
+
+        <TabsContent value="accounting">
+          <AccountingDashboard />
+        </TabsContent>
+      </Tabs>
     </AppLayout>
   );
 };
