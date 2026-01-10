@@ -31,6 +31,7 @@ interface SupportingSystem {
   login_password_encrypted: string | null;
   system_function: string | null;
   category: string | null;
+  account_owner: string | null;
   is_active: boolean;
 }
 
@@ -49,6 +50,11 @@ const CATEGORIES = [
   { value: "general", label: "General" },
 ];
 
+const ACCOUNT_OWNERS = [
+  { value: "dawie", label: "Dawie" },
+  { value: "carike", label: "Carike" },
+];
+
 export function AddSupportingSystemModal({
   open,
   onOpenChange,
@@ -61,6 +67,7 @@ export function AddSupportingSystemModal({
     login_password: "",
     system_function: "",
     category: "general",
+    account_owner: "",
     is_active: true,
   });
 
@@ -76,6 +83,7 @@ export function AddSupportingSystemModal({
         login_password: "", // Don't prefill password
         system_function: editingSystem.system_function || "",
         category: editingSystem.category || "general",
+        account_owner: editingSystem.account_owner || "",
         is_active: editingSystem.is_active,
       });
     } else {
@@ -86,6 +94,7 @@ export function AddSupportingSystemModal({
         login_password: "",
         system_function: "",
         category: "general",
+        account_owner: "",
         is_active: true,
       });
     }
@@ -101,6 +110,7 @@ export function AddSupportingSystemModal({
         login_username: data.login_username || null,
         system_function: data.system_function || null,
         category: data.category,
+        account_owner: data.account_owner || null,
         is_active: data.is_active,
         created_by: userData.user?.id,
       };
@@ -208,25 +218,47 @@ export function AddSupportingSystemModal({
               </div>
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="category">Category</Label>
-              <Select
-                value={formData.category}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, category: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((cat) => (
-                    <SelectItem key={cat.value} value={cat.value}>
-                      {cat.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="category">Category</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, category: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="account_owner">Account Owner</Label>
+                <Select
+                  value={formData.account_owner}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, account_owner: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select owner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ACCOUNT_OWNERS.map((owner) => (
+                      <SelectItem key={owner.value} value={owner.value}>
+                        {owner.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="grid gap-2">

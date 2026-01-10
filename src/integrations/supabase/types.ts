@@ -1912,6 +1912,7 @@ export type Database = {
       }
       supporting_systems: {
         Row: {
+          account_owner: string | null
           category: string | null
           created_at: string | null
           created_by: string | null
@@ -1925,6 +1926,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          account_owner?: string | null
           category?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -1938,6 +1940,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          account_owner?: string | null
           category?: string | null
           created_at?: string | null
           created_by?: string | null
