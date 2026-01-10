@@ -41,22 +41,32 @@ export function AccountingDashboard() {
   });
 
   const latestMetric = metrics?.[0];
+  const exchangeRate = latestMetric?.exchange_rate || 18.5;
 
-  // Calculate invoice stats
+  // Helper to get ZAR value (use cost_zar if available, otherwise convert from USD)
+  const getZarValue = (invoice: { cost_zar: number | null; cost_usd: number }) => {
+    return invoice.cost_zar ?? (Number(invoice.cost_usd) * exchangeRate);
+  };
+
+  // Calculate invoice stats in ZAR
   const monthlyTotal = invoices
     ?.filter((inv) => inv.billing_type === "monthly" && !inv.is_paid)
-    ?.reduce((sum, inv) => sum + Number(inv.cost_usd), 0) || 0;
+    ?.reduce((sum, inv) => sum + getZarValue(inv), 0) || 0;
 
   const unpaidTotal = invoices
     ?.filter((inv) => !inv.is_paid)
-    ?.reduce((sum, inv) => sum + Number(inv.cost_usd), 0) || 0;
+    ?.reduce((sum, inv) => sum + getZarValue(inv), 0) || 0;
 
   const ytdTotal = invoices
     ?.filter((inv) => {
       const date = new Date(inv.invoice_date);
       return date.getFullYear() === new Date().getFullYear();
     })
-    ?.reduce((sum, inv) => sum + Number(inv.cost_usd), 0) || 0;
+    ?.reduce((sum, inv) => sum + getZarValue(inv), 0) || 0;
+
+  // Calculate cash balance in ZAR
+  const cashBalanceZar = latestMetric?.cash_balance_zar ?? 
+    (latestMetric?.cash_balance_usd ? latestMetric.cash_balance_usd * exchangeRate : null);
 
   return (
     <div className="space-y-6">
@@ -65,7 +75,7 @@ export function AccountingDashboard() {
         unpaidTotal={unpaidTotal}
         ytdTotal={ytdTotal}
         runwayMonths={latestMetric?.runway_months}
-        cashBalance={latestMetric?.cash_balance_usd}
+        cashBalance={cashBalanceZar}
         isLoading={invoicesLoading || metricsLoading}
       />
 

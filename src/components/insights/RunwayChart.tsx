@@ -8,9 +8,11 @@ interface FinancialMetric {
   id: string;
   metric_date: string;
   cash_balance_usd: number | null;
+  cash_balance_zar: number | null;
   monthly_burn_usd: number | null;
   monthly_revenue_usd: number | null;
   runway_months: number | null;
+  exchange_rate: number | null;
 }
 
 interface RunwayChartProps {
@@ -32,19 +34,34 @@ export function RunwayChart({ metrics, isLoading }: RunwayChartProps) {
     (a, b) => new Date(a.metric_date).getTime() - new Date(b.metric_date).getTime()
   );
 
-  const chartData = sortedMetrics.map((m) => ({
-    date: format(new Date(m.metric_date), "MMM yy"),
-    fullDate: m.metric_date,
-    runway: m.runway_months,
-    cash: m.cash_balance_usd ? m.cash_balance_usd / 1000 : null, // Show in thousands
-    burn: m.monthly_burn_usd,
-    revenue: m.monthly_revenue_usd,
-  }));
+  // Get ZAR value (use ZAR if available, otherwise convert from USD)
+  const getZarCash = (m: FinancialMetric) => {
+    if (m.cash_balance_zar) return m.cash_balance_zar;
+    if (m.cash_balance_usd) return m.cash_balance_usd * (m.exchange_rate || 18.5);
+    return null;
+  };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-US", {
+  const getZarBurn = (m: FinancialMetric) => {
+    if (m.monthly_burn_usd) return m.monthly_burn_usd * (m.exchange_rate || 18.5);
+    return null;
+  };
+
+  const chartData = sortedMetrics.map((m) => {
+    const cashZar = getZarCash(m);
+    return {
+      date: format(new Date(m.metric_date), "MMM yy"),
+      fullDate: m.metric_date,
+      runway: m.runway_months,
+      cash: cashZar ? cashZar / 1000 : null, // Show in thousands (ZAR)
+      burn: getZarBurn(m),
+      revenue: m.monthly_revenue_usd ? m.monthly_revenue_usd * (m.exchange_rate || 18.5) : null,
+    };
+  });
+
+  const formatZAR = (value: number) => {
+    return new Intl.NumberFormat("en-ZA", {
       style: "currency",
-      currency: "USD",
+      currency: "ZAR",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
@@ -119,8 +136,8 @@ export function RunwayChart({ metrics, isLoading }: RunwayChartProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Cash & Burn</CardTitle>
-          <CardDescription>Cash balance (K) and monthly burn rate</CardDescription>
+          <CardTitle className="text-base">Cash & Burn (ZAR)</CardTitle>
+          <CardDescription>Cash balance (K) and monthly burn rate in Rand</CardDescription>
         </CardHeader>
         <CardContent>
           {chartData.length === 0 ? (
@@ -142,8 +159,8 @@ export function RunwayChart({ metrics, isLoading }: RunwayChartProps) {
                   }}
                   labelStyle={{ color: "hsl(var(--foreground))" }}
                   formatter={(value: number, name: string) => {
-                    if (name === "cash") return [formatCurrency(value * 1000), "Cash Balance"];
-                    return [formatCurrency(value), "Monthly Burn"];
+                    if (name === "cash") return [formatZAR(value * 1000), "Cash Balance"];
+                    return [formatZAR(value), "Monthly Burn"];
                   }}
                 />
                 <Line

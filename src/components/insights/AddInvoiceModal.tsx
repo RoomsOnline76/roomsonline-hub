@@ -156,8 +156,8 @@ export function AddInvoiceModal({
       toast.error("Description is required");
       return;
     }
-    if (!formData.cost_usd || isNaN(parseFloat(formData.cost_usd))) {
-      toast.error("Valid USD amount is required");
+    if (!formData.cost_zar || isNaN(parseFloat(formData.cost_zar))) {
+      toast.error("Valid ZAR amount is required");
       return;
     }
     mutation.mutate(formData);
@@ -188,20 +188,7 @@ export function AddInvoiceModal({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="cost_usd">Amount (USD) *</Label>
-                <Input
-                  id="cost_usd"
-                  type="number"
-                  step="0.01"
-                  value={formData.cost_usd}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, cost_usd: e.target.value }))
-                  }
-                  placeholder="0.00"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="cost_zar">Amount (ZAR)</Label>
+                <Label htmlFor="cost_zar">Amount (ZAR) *</Label>
                 <Input
                   id="cost_zar"
                   type="number"
@@ -211,6 +198,20 @@ export function AddInvoiceModal({
                     setFormData((prev) => ({ ...prev, cost_zar: e.target.value }))
                   }
                   placeholder="0.00"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="cost_usd" className="text-muted-foreground">Amount (USD)</Label>
+                <Input
+                  id="cost_usd"
+                  type="number"
+                  step="0.01"
+                  value={formData.cost_usd}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, cost_usd: e.target.value }))
+                  }
+                  placeholder="0.00"
+                  className="border-muted"
                 />
               </div>
             </div>
