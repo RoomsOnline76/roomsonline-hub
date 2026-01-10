@@ -69,8 +69,8 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
   },
   // Future PMS systems
   {
-    key: 'guestly',
-    name: 'Guestly',
+    key: 'guesty',
+    name: 'Guesty',
     description: 'Property management and guest experience platform for vacation rentals',
   },
   {
