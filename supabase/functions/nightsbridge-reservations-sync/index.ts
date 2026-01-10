@@ -219,14 +219,25 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Match booking sessions to synced reservations
+    console.log("Matching booking sessions to reservations...");
+    const matchResult = await matchSessionsToReservations(supabase, reservations);
+    console.log(`Session matching complete: ${matchResult.matched} matched, ${matchResult.unmatched} unmatched`);
+
     // Log the sync operation
     await supabase.from("sync_logs").insert({
       external_system: "nightsbridge",
       sync_type: "reservations",
       status: errorCount === 0 ? "success" : errorCount < syncedCount ? "partial" : "failed",
-      message: `Synced ${syncedCount} reservations, ${errorCount} errors`,
+      message: `Synced ${syncedCount} reservations, ${errorCount} errors, ${matchResult.matched} sessions matched`,
       request_data: { start_date: startDate, end_date: endDate, property_id: propertyId },
-      response_data: { total_received: reservations.length, synced: syncedCount, errors: errorCount },
+      response_data: { 
+        total_received: reservations.length, 
+        synced: syncedCount, 
+        errors: errorCount,
+        sessions_matched: matchResult.matched,
+        sessions_unmatched: matchResult.unmatched,
+      },
     });
 
     return new Response(
@@ -237,6 +248,8 @@ Deno.serve(async (req) => {
           total_received: reservations.length,
           synced: syncedCount,
           errors: errorCount,
+          sessions_matched: matchResult.matched,
+          sessions_unmatched: matchResult.unmatched,
           error_details: errors.length > 0 ? errors.slice(0, 10) : undefined,
         },
       }),
@@ -272,4 +285,116 @@ function mapNightsBridgeStatus(nbStatus: string): string {
   };
   
   return statusMap[nbStatus?.toLowerCase()] || nbStatus || "unknown";
+}
+
+// Match synced reservations to pending booking sessions
+async function matchSessionsToReservations(
+  supabase: any,
+  reservations: NightsBridgeReservation[]
+): Promise<{ matched: number; unmatched: number }> {
+  let matched = 0;
+  let unmatched = 0;
+
+  for (const res of reservations) {
+    // Get the reservation creation time (or use check_in as fallback)
+    const reservationTime = res.created_at 
+      ? new Date(res.created_at) 
+      : new Date(res.check_in);
+    
+    // Look for pending sessions within a 2-hour window before/30 min after reservation
+    const windowStart = new Date(reservationTime.getTime() - 2 * 60 * 60 * 1000);
+    const windowEnd = new Date(reservationTime.getTime() + 30 * 60 * 1000);
+
+    // Find the property_id for this reservation
+    let mappedPropertyId: string | null = null;
+    if (res.property_id) {
+      const { data: property } = await supabase
+        .from("properties")
+        .select("id")
+        .eq("external_id", res.property_id)
+        .eq("external_system", "nightsbridge")
+        .maybeSingle();
+      mappedPropertyId = property?.id || null;
+    }
+
+    if (!mappedPropertyId) {
+      unmatched++;
+      continue;
+    }
+
+    // Query for matching pending sessions
+    const { data: sessions, error } = await supabase
+      .from("nightsbridge_booking_sessions")
+      .select("*")
+      .eq("property_id", mappedPropertyId)
+      .eq("status", "pending")
+      .gte("session_started_at", windowStart.toISOString())
+      .lte("session_started_at", windowEnd.toISOString());
+
+    if (error) {
+      console.error("Error querying sessions:", error);
+      unmatched++;
+      continue;
+    }
+
+    if (!sessions || sessions.length === 0) {
+      unmatched++;
+      continue;
+    }
+
+    // Determine match confidence based on session count and date matching
+    let bestMatch = sessions[0];
+    let confidence: "high" | "medium" | "low" = "low";
+
+    if (sessions.length === 1) {
+      // Single session = high confidence
+      bestMatch = sessions[0];
+      confidence = "high";
+    } else {
+      // Multiple sessions - try to match by dates
+      const dateMatches = sessions.filter((s: any) => 
+        s.check_in_date === res.check_in && s.check_out_date === res.check_out
+      );
+      
+      if (dateMatches.length === 1) {
+        bestMatch = dateMatches[0];
+        confidence = "medium";
+      } else if (dateMatches.length > 1) {
+        // Multiple date matches - use the most recent
+        bestMatch = dateMatches.sort((a: any, b: any) => 
+          new Date(b.session_started_at).getTime() - new Date(a.session_started_at).getTime()
+        )[0];
+        confidence = "low";
+      } else {
+        // No date matches - use most recent session
+        bestMatch = sessions.sort((a: any, b: any) => 
+          new Date(b.session_started_at).getTime() - new Date(a.session_started_at).getTime()
+        )[0];
+        confidence = "low";
+      }
+    }
+
+    // Update the matched session
+    const { error: updateError } = await supabase
+      .from("nightsbridge_booking_sessions")
+      .update({
+        matched_reservation_id: res.reference || res.id,
+        matched_at: new Date().toISOString(),
+        match_confidence: confidence,
+        estimated_revenue: res.total_amount,
+        revenue_currency: res.currency || "ZAR",
+        status: "matched",
+      })
+      .eq("id", bestMatch.id);
+
+    if (updateError) {
+      console.error("Error updating session:", updateError);
+      unmatched++;
+    } else {
+      matched++;
+      console.log(`Matched session ${bestMatch.tracking_ref} to reservation ${res.reference} (${confidence} confidence)`);
+    }
+  }
+
+  return { matched, unmatched };
 }

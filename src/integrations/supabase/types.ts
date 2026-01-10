@@ -877,6 +877,84 @@ export type Database = {
         }
         Relationships: []
       }
+      nightsbridge_booking_sessions: {
+        Row: {
+          check_in_date: string | null
+          check_out_date: string | null
+          created_at: string | null
+          currency: string | null
+          estimated_revenue: number | null
+          expires_at: string | null
+          id: string
+          match_confidence: string | null
+          matched_at: string | null
+          matched_reservation_id: string | null
+          property_id: string | null
+          property_name: string | null
+          revenue_currency: string | null
+          session_started_at: string | null
+          status: string | null
+          tracking_ref: string
+          updated_at: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          check_in_date?: string | null
+          check_out_date?: string | null
+          created_at?: string | null
+          currency?: string | null
+          estimated_revenue?: number | null
+          expires_at?: string | null
+          id?: string
+          match_confidence?: string | null
+          matched_at?: string | null
+          matched_reservation_id?: string | null
+          property_id?: string | null
+          property_name?: string | null
+          revenue_currency?: string | null
+          session_started_at?: string | null
+          status?: string | null
+          tracking_ref: string
+          updated_at?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          check_in_date?: string | null
+          check_out_date?: string | null
+          created_at?: string | null
+          currency?: string | null
+          estimated_revenue?: number | null
+          expires_at?: string | null
+          id?: string
+          match_confidence?: string | null
+          matched_at?: string | null
+          matched_reservation_id?: string | null
+          property_id?: string | null
+          property_name?: string | null
+          revenue_currency?: string | null
+          session_started_at?: string | null
+          status?: string | null
+          tracking_ref?: string
+          updated_at?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nightsbridge_booking_sessions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nightsbridge_booking_sessions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       owner_pms_credentials: {
         Row: {
           api_key: string | null
