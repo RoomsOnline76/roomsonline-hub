@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronDown, ChevronRight, X, BookOpen, FileText, Users, Shield, Code2 } from "lucide-react";
+import { ChevronLeft, ChevronDown, ChevronRight, X, BookOpen, FileText, Users, Shield, Code2, Mail } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -183,8 +183,21 @@ export function HelpDrawer() {
                   <ImpactBadge level={currentArticle.impact_level} />
                 )}
                 <HelpMarkdownRenderer content={currentArticle.content_markdown} />
-                <div className="pt-4 border-t border-border">
+                <div className="pt-4 border-t border-border space-y-4">
                   <HelpFeedback articleId={currentArticle.id} />
+                  <div className="flex justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      asChild
+                    >
+                      <a href={`mailto:dev@roomsonline.co.za?subject=Help Request: ${encodeURIComponent(currentArticle.title)}`}>
+                        <Mail className="h-4 w-4" />
+                        Email us about this
+                      </a>
+                    </Button>
+                  </div>
                 </div>
               </div>
             ) : searchQuery ? (
