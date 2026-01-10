@@ -2503,6 +2503,7 @@ export type Database = {
         Returns: boolean
       }
       is_property_active: { Args: { prop_id: string }; Returns: boolean }
+      trigger_daily_health_report: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "user" | "dev"
