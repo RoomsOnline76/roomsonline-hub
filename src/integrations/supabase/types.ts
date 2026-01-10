@@ -2573,6 +2573,7 @@ export type Database = {
       }
       is_property_active: { Args: { prop_id: string }; Returns: boolean }
       trigger_daily_health_report: { Args: never; Returns: undefined }
+      trigger_system_health_check: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "user" | "dev"
