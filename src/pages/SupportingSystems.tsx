@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Plus, ExternalLink, Copy, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
+import { Plus, ExternalLink, Copy, Eye, EyeOff, Pencil, Trash2, User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -28,6 +28,7 @@ interface SupportingSystem {
   login_password_encrypted: string | null;
   system_function: string | null;
   category: string | null;
+  account_owner: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -164,12 +165,20 @@ export default function SupportingSystems() {
                             </CardDescription>
                           )}
                         </div>
-                        <Badge 
-                          variant="outline" 
-                          className={CATEGORY_COLORS[system.category || "general"]}
-                        >
-                          {system.category || "general"}
-                        </Badge>
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge 
+                            variant="outline" 
+                            className={CATEGORY_COLORS[system.category || "general"]}
+                          >
+                            {system.category || "general"}
+                          </Badge>
+                          {system.account_owner && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <User className="h-3 w-3" />
+                              {system.account_owner}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3">
