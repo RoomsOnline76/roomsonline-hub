@@ -323,13 +323,14 @@ export default function RoomAvailabilityCalendar({
 
   // Format rate compactly for display in cell
   const formatCompactRate = (rate: number): string => {
-    if (rate >= 10000) {
-      return `${(rate / 1000).toFixed(0)}k`;
+    const rounded = Math.round(rate * 100) / 100;
+    if (rounded >= 10000) {
+      return `${(rounded / 1000).toFixed(0)}k`;
     }
-    if (rate >= 1000) {
-      return `${(rate / 1000).toFixed(1)}k`.replace('.0k', 'k');
+    if (rounded >= 1000) {
+      return `${(rounded / 1000).toFixed(1)}k`.replace('.0k', 'k');
     }
-    return rate.toString();
+    return rounded.toFixed(2);
   };
 
   // Custom day content component
