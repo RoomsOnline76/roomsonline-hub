@@ -94,10 +94,18 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
     return true;
   });
 
-  const formatCurrency = (value: number, currency: string = "USD") => {
+  const formatZAR = (value: number) => {
+    return new Intl.NumberFormat("en-ZA", {
+      style: "currency",
+      currency: "ZAR",
+      minimumFractionDigits: 2,
+    }).format(value);
+  };
+
+  const formatUSD = (value: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency,
+      currency: "USD",
       minimumFractionDigits: 2,
     }).format(value);
   };
@@ -148,8 +156,8 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
               <TableHead>Description</TableHead>
               <TableHead>Vendor</TableHead>
               <TableHead>Type</TableHead>
-              <TableHead className="text-right">USD</TableHead>
               <TableHead className="text-right">ZAR</TableHead>
+              <TableHead className="text-right text-muted-foreground">USD</TableHead>
               <TableHead>Date</TableHead>
               <TableHead className="w-10"></TableHead>
             </TableRow>
@@ -189,11 +197,11 @@ export function InvoiceTable({ invoices, isLoading, onEdit }: InvoiceTableProps)
                       {invoice.billing_type.replace("_", "-")}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {formatCurrency(invoice.cost_usd)}
+                  <TableCell className="text-right font-mono font-semibold">
+                    {invoice.cost_zar ? formatZAR(invoice.cost_zar) : "-"}
                   </TableCell>
-                  <TableCell className="text-right font-mono text-muted-foreground">
-                    {invoice.cost_zar ? formatCurrency(invoice.cost_zar, "ZAR") : "-"}
+                  <TableCell className="text-right font-mono text-muted-foreground text-sm">
+                    {invoice.cost_usd ? formatUSD(invoice.cost_usd) : "-"}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {format(new Date(invoice.invoice_date), "MMM d, yyyy")}

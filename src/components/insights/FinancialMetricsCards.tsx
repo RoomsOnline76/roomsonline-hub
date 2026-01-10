@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, TrendingDown, Calendar, Gauge } from "lucide-react";
+import { TrendingDown, Calendar, Gauge } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface FinancialMetricsCardsProps {
@@ -19,10 +19,10 @@ export function FinancialMetricsCards({
   cashBalance,
   isLoading,
 }: FinancialMetricsCardsProps) {
-  const formatCurrency = (value: number, currency: string = "USD") => {
-    return new Intl.NumberFormat("en-US", {
+  const formatZAR = (value: number) => {
+    return new Intl.NumberFormat("en-ZA", {
       style: "currency",
-      currency,
+      currency: "ZAR",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
@@ -59,7 +59,7 @@ export function FinancialMetricsCards({
           <TrendingDown className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(monthlyBurn)}</div>
+          <div className="text-2xl font-bold">{formatZAR(monthlyBurn)}</div>
           <p className="text-xs text-muted-foreground">Recurring monthly costs</p>
         </CardContent>
       </Card>
@@ -67,10 +67,10 @@ export function FinancialMetricsCards({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Unpaid Invoices</CardTitle>
-          <DollarSign className="h-4 w-4 text-muted-foreground" />
+          <TrendingDown className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(unpaidTotal)}</div>
+          <div className="text-2xl font-bold">{formatZAR(unpaidTotal)}</div>
           <p className="text-xs text-muted-foreground">Outstanding balance</p>
         </CardContent>
       </Card>
@@ -81,7 +81,7 @@ export function FinancialMetricsCards({
           <Calendar className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(ytdTotal)}</div>
+          <div className="text-2xl font-bold">{formatZAR(ytdTotal)}</div>
           <p className="text-xs text-muted-foreground">Total this year</p>
         </CardContent>
       </Card>
@@ -96,7 +96,7 @@ export function FinancialMetricsCards({
             {runwayMonths ? `${runwayMonths.toFixed(1)} months` : "—"}
           </div>
           <p className="text-xs text-muted-foreground">
-            {cashBalance ? `${formatCurrency(cashBalance)} cash` : "Add metrics to calculate"}
+            {cashBalance ? `${formatZAR(cashBalance)} cash` : "Add metrics to calculate"}
           </p>
         </CardContent>
       </Card>
