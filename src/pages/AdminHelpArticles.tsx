@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { Plus, Loader2, HelpCircle, Search, Eye, ThumbsUp, AlertTriangle, AlertCircle, Info, BarChart3, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Loader2, HelpCircle, Search, Eye, ThumbsUp, AlertTriangle, AlertCircle, Info, BarChart3, ChevronDown, ChevronUp, Code2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -45,6 +45,7 @@ interface HelpStats {
   published: number;
   owner: number;
   admin: number;
+  dev: number;
   totalViews: number;
 }
 
@@ -65,6 +66,8 @@ const SECTION_LABELS: Record<string, string> = {
   common_mistakes: "Common Mistakes to Avoid",
   troubleshooting: "Troubleshooting",
   support: "Getting Help",
+  // Dev sections (auto-generated)
+  system_overview: "System Overview",
 };
 
 const getImpactIcon = (level: string | null) => {
@@ -92,6 +95,7 @@ export default function AdminHelpArticles() {
     published: 0,
     owner: 0,
     admin: 0,
+    dev: 0,
     totalViews: 0,
   });
   const [showAnalytics, setShowAnalytics] = useState(false);
@@ -117,10 +121,11 @@ export default function AdminHelpArticles() {
       const total = data?.length || 0;
       const published = data?.filter(a => a.is_published).length || 0;
       const owner = data?.filter(a => a.role_target.includes("user")).length || 0;
-      const admin = data?.filter(a => a.role_target.includes("admin") || a.role_target.includes("dev")).length || 0;
+      const admin = data?.filter(a => a.role_target.includes("admin")).length || 0;
+      const dev = data?.filter(a => a.role_target.includes("dev")).length || 0;
       const totalViews = data?.reduce((sum, a) => sum + (a.view_count || 0), 0) || 0;
       
-      setStats({ total, published, owner, admin, totalViews });
+      setStats({ total, published, owner, admin, dev, totalViews });
     }
     setLoading(false);
   };
@@ -134,7 +139,8 @@ export default function AdminHelpArticles() {
     
     const matchesRole = roleFilter === "all" || 
       (roleFilter === "owner" && article.role_target.includes("user")) ||
-      (roleFilter === "admin" && (article.role_target.includes("admin") || article.role_target.includes("dev")));
+      (roleFilter === "admin" && article.role_target.includes("admin")) ||
+      (roleFilter === "dev" && article.role_target.includes("dev"));
     
     return matchesSearch && matchesSection && matchesRole;
   });
@@ -173,7 +179,7 @@ export default function AdminHelpArticles() {
       </Collapsible>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Articles</CardTitle>
@@ -196,6 +202,24 @@ export default function AdminHelpArticles() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.admin}</div>
+          </CardContent>
+        </Card>
+        <Card 
+          className="cursor-pointer hover:bg-secondary/50 transition-colors"
+          onClick={() => {
+            setRoleFilter("dev");
+            setSectionFilter("system_overview");
+          }}
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+              <Code2 className="h-4 w-4" />
+              Dev Docs
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.dev}</div>
+            <p className="text-xs text-muted-foreground">Click to filter</p>
           </CardContent>
         </Card>
         <Card>
@@ -242,9 +266,23 @@ export default function AdminHelpArticles() {
           <SelectContent>
             <SelectItem value="all">All Audiences</SelectItem>
             <SelectItem value="owner">Owners Only</SelectItem>
-            <SelectItem value="admin">Admins/Devs Only</SelectItem>
+            <SelectItem value="admin">Admins Only</SelectItem>
+            <SelectItem value="dev">Dev Only</SelectItem>
           </SelectContent>
         </Select>
+        {(roleFilter !== "all" || sectionFilter !== "all") && (
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => {
+              setRoleFilter("all");
+              setSectionFilter("all");
+              setSearchQuery("");
+            }}
+          >
+            Clear filters
+          </Button>
+        )}
       </div>
 
       {loading ? (
