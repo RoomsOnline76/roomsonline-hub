@@ -817,14 +817,21 @@ Deno.serve(async (req) => {
           : 'https://api.test.hotelbeds.com';
 
         // Build HotelBeds booking payload
-        // Note: HotelBeds requires a rateKey from availability check - this should be stored in the booking
+        // Extract rate_key from the rooms JSONB (stored during booking creation)
+        const roomsData = booking.rooms as any[];
+        const rateKey = roomsData?.[0]?.rate_key;
+        
+        if (!rateKey) {
+          throw new Error('Missing rate_key for HotelBeds booking - availability may have expired');
+        }
+        
         const bookingPayload = {
           holder: {
             name: booking.guest_name.split(' ')[0] || 'Guest',
             surname: booking.guest_name.split(' ').slice(1).join(' ') || 'Guest',
           },
           rooms: [{
-            rateKey: (booking as any).rate_key || '', // Should be stored from availability check
+            rateKey: rateKey,
             paxes: [
               {
                 roomId: 1,
