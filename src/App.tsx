@@ -46,6 +46,7 @@ import AdminHelpArticles from "./pages/AdminHelpArticles";
 import HelpArticleEditor from "./pages/HelpArticleEditor";
 import AdminSystemHealth from "./pages/AdminSystemHealth";
 import ProjectDiscoverySurvey from "./pages/ProjectDiscoverySurvey";
+import SupportingSystems from "./pages/SupportingSystems";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -297,6 +298,14 @@ const App = () => (
             element={
               <ProtectedRoute requireDev={true}>
                 <AdminSystemHealth />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/supporting-systems"
+            element={
+              <ProtectedRoute requireDev={true}>
+                <SupportingSystems />
               </ProtectedRoute>
             }
           />

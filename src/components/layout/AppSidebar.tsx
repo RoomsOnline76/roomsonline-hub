@@ -98,6 +98,7 @@ const insightsItems: NavItem[] = [
 const settingsItems: NavItem[] = [
   { title: "Team", icon: Users, href: "/admin-users", requireAdmin: true },
   { title: "Integrations", icon: KeyRound, href: "/admin-keys", requireDev: true },
+  { title: "Supporting Systems", icon: Settings, href: "/admin/supporting-systems", requireDev: true },
   { title: "System Health", icon: HeartPulse, href: "/admin/system-health", requireDev: true },
   { title: "Audit Log", icon: FileSearch, href: "/admin/audit", requireAdmin: true },
   { title: "Help Articles", icon: BookOpenCheck, href: "/admin/help-articles", requireAdmin: true },

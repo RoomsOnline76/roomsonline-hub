@@ -446,6 +446,51 @@ export type Database = {
           },
         ]
       }
+      financial_metrics: {
+        Row: {
+          cash_balance_usd: number | null
+          cash_balance_zar: number | null
+          created_at: string | null
+          created_by: string | null
+          exchange_rate: number | null
+          id: string
+          metric_date: string
+          monthly_burn_usd: number | null
+          monthly_revenue_usd: number | null
+          notes: string | null
+          runway_months: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          cash_balance_usd?: number | null
+          cash_balance_zar?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          exchange_rate?: number | null
+          id?: string
+          metric_date: string
+          monthly_burn_usd?: number | null
+          monthly_revenue_usd?: number | null
+          notes?: string | null
+          runway_months?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          cash_balance_usd?: number | null
+          cash_balance_zar?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          exchange_rate?: number | null
+          id?: string
+          metric_date?: string
+          monthly_burn_usd?: number | null
+          monthly_revenue_usd?: number | null
+          notes?: string | null
+          runway_months?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       help_articles: {
         Row: {
           content_markdown: string
@@ -687,6 +732,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      invoices: {
+        Row: {
+          billing_type: string
+          category: string | null
+          cost_usd: number
+          cost_zar: number | null
+          created_at: string | null
+          created_by: string | null
+          description: string
+          due_date: string | null
+          id: string
+          invoice_date: string | null
+          is_paid: boolean | null
+          notes: string | null
+          paid_at: string | null
+          updated_at: string | null
+          vendor: string | null
+        }
+        Insert: {
+          billing_type: string
+          category?: string | null
+          cost_usd: number
+          cost_zar?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          description: string
+          due_date?: string | null
+          id?: string
+          invoice_date?: string | null
+          is_paid?: boolean | null
+          notes?: string | null
+          paid_at?: string | null
+          updated_at?: string | null
+          vendor?: string | null
+        }
+        Update: {
+          billing_type?: string
+          category?: string | null
+          cost_usd?: number
+          cost_zar?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string
+          due_date?: string | null
+          id?: string
+          invoice_date?: string | null
+          is_paid?: boolean | null
+          notes?: string | null
+          paid_at?: string | null
+          updated_at?: string | null
+          vendor?: string | null
+        }
+        Relationships: []
       }
       journals: {
         Row: {
@@ -1811,6 +1910,48 @@ export type Database = {
           },
         ]
       }
+      supporting_systems: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          login_password_encrypted: string | null
+          login_username: string | null
+          system_function: string | null
+          system_name: string
+          system_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          login_password_encrypted?: string | null
+          login_username?: string | null
+          system_function?: string | null
+          system_name: string
+          system_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          login_password_encrypted?: string | null
+          login_username?: string | null
+          system_function?: string | null
+          system_name?: string
+          system_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       survey_responses: {
         Row: {
           business_name: string
@@ -2320,7 +2461,12 @@ export type Database = {
         Args: { encrypted_data: string }
         Returns: string
       }
+      decrypt_system_password: {
+        Args: { encrypted_data: string }
+        Returns: string
+      }
       encrypt_sensitive_text: { Args: { plaintext: string }; Returns: string }
+      encrypt_system_password: { Args: { plaintext: string }; Returns: string }
       generate_journal_slug: {
         Args: { journal_id: string; journal_title: string }
         Returns: string
