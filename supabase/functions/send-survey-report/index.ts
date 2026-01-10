@@ -521,7 +521,7 @@ const handler = async (req: Request): Promise<Response> => {
       },
       body: JSON.stringify({
         from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
-        to: ["dev@roomsonline.co.za"],
+        to: ["dev@roomsonline.co.za", "carike@roomsonline.co.za", "design@roomsonline.co.za"],
         subject: `New Project Discovery - ${data.businessName}`,
         html: htmlReport,
       }),
