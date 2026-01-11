@@ -51,5 +51,5 @@ INSERT INTO public.pms_tracker_status (system_type, status, contact_person, has_
   ('roomkey', 'No Action', null, false, false, false, false, false, false, null),
   ('roomracoon', 'Review', null, false, false, false, false, false, false, '{"url": "https://roomraccoon.com/"}'::jsonb),
   ('siteminder', 'Wait Debbie Access', 'Debbie', false, false, false, false, false, false, null),
-  ('guestly', 'No Action', null, false, false, false, false, false, false, null),
+  ('guesty', 'No Action', null, false, false, false, false, false, false, null),
   ('roomsonline', 'COMPLETE', 'Angus', true, true, true, true, true, true, null);
