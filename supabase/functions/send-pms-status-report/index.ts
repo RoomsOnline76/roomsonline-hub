@@ -39,62 +39,57 @@ interface NoteLogEntry {
 
 const getPMSDisplayName = (key: string): string => {
   const names: Record<string, string> = {
-    benson: 'Benson',
-    checkfront: 'Checkfront',
-    cloudbeds: 'Cloudbeds',
-    guestly: 'Guestly',
-    hostfully: 'Hostfully',
-    hotelbeds: 'HotelBeds',
-    littlehotelier: 'Little Hotelier',
-    nightsbridge: 'NightsBridge',
-    roomkey: 'RoomKey',
-    roomracoon: 'RoomRaccoon',
-    semper: 'Semper',
-    siteminder: 'SiteMinder',
-    roomsonline: 'RoomsOnline PMS',
+    benson: "Benson",
+    checkfront: "Checkfront",
+    cloudbeds: "Cloudbeds",
+    guestly: "Guesty",
+    hostfully: "Hostfully",
+    hotelbeds: "HotelBeds",
+    littlehotelier: "Little Hotelier",
+    nightsbridge: "NightsBridge",
+    roomkey: "RoomKey",
+    roomracoon: "RoomRaccoon",
+    semper: "Semper",
+    siteminder: "SiteMinder",
+    roomsonline: "RoomsOnline PMS",
   };
   return names[key] || key.charAt(0).toUpperCase() + key.slice(1);
 };
 
 const getStatusColor = (status: string): string => {
-  const normalized = status?.toLowerCase() || '';
-  if (normalized === 'complete') return '#22c55e';
-  if (normalized.includes('wait') || normalized.includes('access')) return '#f59e0b';
-  if (normalized === 'register' || normalized === 'to apply' || normalized === 'researching') return '#3b82f6';
-  if (normalized === 'in progress' || normalized === 'in dev') return '#a855f7';
-  return '#6b7280';
+  const normalized = status?.toLowerCase() || "";
+  if (normalized === "complete") return "#22c55e";
+  if (normalized.includes("wait") || normalized.includes("access")) return "#f59e0b";
+  if (normalized === "register" || normalized === "to apply" || normalized === "researching") return "#3b82f6";
+  if (normalized === "in progress" || normalized === "in dev") return "#a855f7";
+  return "#6b7280";
 };
 
 const formatNoteDate = (dateStr: string): string => {
   try {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-ZA', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    return date.toLocaleDateString("en-ZA", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   } catch {
     return dateStr;
   }
 };
 
-const generateEmailHtml = (
-  trackerData: TrackerData[], 
-  notesLog: NoteLogEntry[],
-  generatedDate: string
-): string => {
-  const completedCount = trackerData.filter(t => t.status?.toLowerCase() === 'complete').length;
-  const inProgressCount = trackerData.filter(t => 
-    t.status?.toLowerCase().includes('wait') || 
-    t.status?.toLowerCase() === 'in progress'
+const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[], generatedDate: string): string => {
+  const completedCount = trackerData.filter((t) => t.status?.toLowerCase() === "complete").length;
+  const inProgressCount = trackerData.filter(
+    (t) => t.status?.toLowerCase().includes("wait") || t.status?.toLowerCase() === "in progress",
   ).length;
   const pendingCount = trackerData.length - completedCount - inProgressCount;
 
   // Build a map of latest note per system
   const latestNoteBySystem: Record<string, NoteLogEntry> = {};
-  notesLog.forEach(note => {
+  notesLog.forEach((note) => {
     if (!latestNoteBySystem[note.system_type]) {
       latestNoteBySystem[note.system_type] = note;
     }
@@ -102,7 +97,7 @@ const generateEmailHtml = (
 
   // Group all notes by system_type for full log
   const notesBySystem: Record<string, NoteLogEntry[]> = {};
-  notesLog.forEach(note => {
+  notesLog.forEach((note) => {
     if (!notesBySystem[note.system_type]) {
       notesBySystem[note.system_type] = [];
     }
@@ -112,61 +107,67 @@ const generateEmailHtml = (
   // Sort by status priority: COMPLETE first, then In Progress, then others
   const sortedData = [...trackerData].sort((a, b) => {
     const statusOrder = (s: string) => {
-      const lower = s?.toLowerCase() || '';
-      if (lower === 'complete') return 0;
-      if (lower.includes('wait') || lower === 'in progress') return 1;
+      const lower = s?.toLowerCase() || "";
+      if (lower === "complete") return 0;
+      if (lower.includes("wait") || lower === "in progress") return 1;
       return 2;
     };
     return statusOrder(a.status) - statusOrder(b.status);
   });
 
-  const tableRows = sortedData.map(row => {
-    // Setup phase: Account, Docs, Edge
-    const setupFlags = [row.has_account || row.has_access, row.has_docs, row.has_edge];
-    // Integration phase: Health, GET, POST, Test, Live
-    const integrationFlags = [row.has_health, row.has_get, row.has_post, row.has_soft_test, row.is_production];
-    const allFlags = [...setupFlags, ...integrationFlags];
-    const statusColor = getStatusColor(row.status);
-    
-    // Build contact display
-    const contactParts: string[] = [];
-    if (row.contact_name) contactParts.push(row.contact_name);
-    else if (row.contact_person) contactParts.push(row.contact_person);
-    const contactDisplay = contactParts.length > 0 ? contactParts.join(' ') : '—';
+  const tableRows = sortedData
+    .map((row) => {
+      // Setup phase: Account, Docs, Edge
+      const setupFlags = [row.has_account || row.has_access, row.has_docs, row.has_edge];
+      // Integration phase: Health, GET, POST, Test, Live
+      const integrationFlags = [row.has_health, row.has_get, row.has_post, row.has_soft_test, row.is_production];
+      const allFlags = [...setupFlags, ...integrationFlags];
+      const statusColor = getStatusColor(row.status);
 
-    // Get latest note for this system
-    const latestNote = latestNoteBySystem[row.system_type];
-    let latestNoteDisplay = '—';
-    if (latestNote) {
-      // Truncate note if too long (max 80 chars)
-      const truncatedNote = latestNote.note_content.length > 80 
-        ? latestNote.note_content.substring(0, 77) + '...' 
-        : latestNote.note_content;
-      latestNoteDisplay = truncatedNote;
-    }
+      // Build contact display
+      const contactParts: string[] = [];
+      if (row.contact_name) contactParts.push(row.contact_name);
+      else if (row.contact_person) contactParts.push(row.contact_person);
+      const contactDisplay = contactParts.length > 0 ? contactParts.join(" ") : "—";
 
-    // Setup progress dots (Account, Docs, Edge)
-    const setupLabels = ['Ac', 'Do', 'Ed'];
-    const setupDots = setupFlags.map((flag, i) => {
-      return `<span style="display: inline-block; width: 20px; height: 18px; border-radius: 3px; background: ${flag ? '#22c55e' : '#e2e8f0'}; color: ${flag ? '#fff' : '#94a3b8'}; font-size: 9px; line-height: 18px; text-align: center; margin-right: 2px;" title="${['Account', 'Docs', 'Edge'][i]}">${setupLabels[i]}</span>`;
-    }).join('');
+      // Get latest note for this system
+      const latestNote = latestNoteBySystem[row.system_type];
+      let latestNoteDisplay = "—";
+      if (latestNote) {
+        // Truncate note if too long (max 80 chars)
+        const truncatedNote =
+          latestNote.note_content.length > 80
+            ? latestNote.note_content.substring(0, 77) + "..."
+            : latestNote.note_content;
+        latestNoteDisplay = truncatedNote;
+      }
 
-    // Integration progress dots (Health, GET, POST, Test, Live)
-    const integrationLabels = ['He', 'Gt', 'Ps', 'Te', 'Lv'];
-    const integrationDots = integrationFlags.map((flag, i) => {
-      return `<span style="display: inline-block; width: 20px; height: 18px; border-radius: 3px; background: ${flag ? '#22c55e' : '#e2e8f0'}; color: ${flag ? '#fff' : '#94a3b8'}; font-size: 9px; line-height: 18px; text-align: center; margin-right: 2px;" title="${['Health', 'GET', 'POST', 'Test', 'Live'][i]}">${integrationLabels[i]}</span>`;
-    }).join('');
+      // Setup progress dots (Account, Docs, Edge)
+      const setupLabels = ["Ac", "Do", "Ed"];
+      const setupDots = setupFlags
+        .map((flag, i) => {
+          return `<span style="display: inline-block; width: 20px; height: 18px; border-radius: 3px; background: ${flag ? "#22c55e" : "#e2e8f0"}; color: ${flag ? "#fff" : "#94a3b8"}; font-size: 9px; line-height: 18px; text-align: center; margin-right: 2px;" title="${["Account", "Docs", "Edge"][i]}">${setupLabels[i]}</span>`;
+        })
+        .join("");
 
-    const completedCount = allFlags.filter(Boolean).length;
-    
-    return `
-      <tr style="background: ${row.status?.toLowerCase() === 'complete' ? '#f0fdf4' : '#ffffff'};">
+      // Integration progress dots (Health, GET, POST, Test, Live)
+      const integrationLabels = ["He", "Gt", "Ps", "Te", "Lv"];
+      const integrationDots = integrationFlags
+        .map((flag, i) => {
+          return `<span style="display: inline-block; width: 20px; height: 18px; border-radius: 3px; background: ${flag ? "#22c55e" : "#e2e8f0"}; color: ${flag ? "#fff" : "#94a3b8"}; font-size: 9px; line-height: 18px; text-align: center; margin-right: 2px;" title="${["Health", "GET", "POST", "Test", "Live"][i]}">${integrationLabels[i]}</span>`;
+        })
+        .join("");
+
+      const completedCount = allFlags.filter(Boolean).length;
+
+      return `
+      <tr style="background: ${row.status?.toLowerCase() === "complete" ? "#f0fdf4" : "#ffffff"};">
         <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #1a1a2e;">
           ${getPMSDisplayName(row.system_type)}
         </td>
         <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0;">
           <span style="background: ${statusColor}; color: white; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;">
-            ${row.status || 'Unknown'}
+            ${row.status || "Unknown"}
           </span>
         </td>
         <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">
@@ -184,30 +185,38 @@ const generateEmailHtml = (
         </td>
       </tr>
     `;
-  }).join('');
+    })
+    .join("");
 
   // Build full notes log section with timestamps
   const notesSection = Object.entries(notesBySystem)
     .sort(([a], [b]) => getPMSDisplayName(a).localeCompare(getPMSDisplayName(b)))
-    .map(([systemType, notes]) => `
+    .map(
+      ([systemType, notes]) => `
       <tr>
         <td style="padding: 0 40px 16px;">
           <div style="background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%); border-left: 4px solid #1a1a2e; padding: 16px 20px; border-radius: 0 8px 8px 0;">
             <strong style="color: #1a1a2e; font-size: 14px;">${getPMSDisplayName(systemType)}</strong>
             <div style="margin-top: 12px;">
-              ${notes.map(note => `
+              ${notes
+                .map(
+                  (note) => `
                 <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
                   <div style="font-size: 11px; color: #718096; margin-bottom: 4px;">
-                    <strong>${note.created_by_name || 'Unknown'}</strong> • ${formatNoteDate(note.created_at)}
+                    <strong>${note.created_by_name || "Unknown"}</strong> • ${formatNoteDate(note.created_at)}
                   </div>
                   <p style="margin: 0; color: #4a5568; font-size: 13px; line-height: 1.6; white-space: pre-wrap;">${note.note_content}</p>
                 </div>
-              `).join('')}
+              `,
+                )
+                .join("")}
             </div>
           </div>
         </td>
       </tr>
-    `).join('');
+    `,
+    )
+    .join("");
 
   return `
 <!DOCTYPE html>
@@ -300,14 +309,18 @@ const generateEmailHtml = (
           </tr>
           
           <!-- Dev Notes Log Section (Full History) -->
-          ${notesSection ? `
+          ${
+            notesSection
+              ? `
           <tr>
             <td style="padding: 0 40px 10px;">
               <h2 style="margin: 0 0 16px; color: #1a1a2e; font-size: 18px; font-weight: 600; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">Development Notes Log</h2>
             </td>
           </tr>
           ${notesSection}
-          ` : ''}
+          `
+              : ""
+          }
           
           <!-- Footer -->
           <tr>
@@ -340,9 +353,9 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Fetch tracker data
     const { data: trackerData, error: trackerError } = await supabase
-      .from('pms_tracker_status')
-      .select('*')
-      .order('system_type');
+      .from("pms_tracker_status")
+      .select("*")
+      .order("system_type");
 
     if (trackerError) {
       console.error("Error fetching tracker data:", trackerError);
@@ -351,9 +364,9 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Fetch notes log with timestamps (ordered descending so first match is latest)
     const { data: notesLog, error: notesError } = await supabase
-      .from('pms_dev_notes_log')
-      .select('system_type, note_content, created_at, created_by_name')
-      .order('created_at', { ascending: false });
+      .from("pms_dev_notes_log")
+      .select("system_type, note_content, created_at, created_by_name")
+      .order("created_at", { ascending: false });
 
     if (notesError) {
       console.error("Error fetching notes log:", notesError);
@@ -362,13 +375,13 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Fetched ${trackerData?.length || 0} tracker records, ${notesLog?.length || 0} notes`);
 
-    const generatedDate = new Date().toLocaleDateString('en-ZA', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    const generatedDate = new Date().toLocaleDateString("en-ZA", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
 
     const emailHtml = generateEmailHtml(trackerData || [], notesLog || [], generatedDate);
@@ -383,7 +396,7 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
         to: ["dev@roomsonline.co.za"],
-        subject: `PMS Integration Status Report - ${new Date().toLocaleDateString('en-ZA')}`,
+        subject: `PMS Integration Status Report - ${new Date().toLocaleDateString("en-ZA")}`,
         html: emailHtml,
       }),
     });
@@ -397,25 +410,22 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         message: "Status report sent successfully",
-        emailId: emailResult.id 
+        emailId: emailResult.id,
       }),
       {
         status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      },
     );
   } catch (error: any) {
     console.error("Error in send-pms-status-report:", error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    return new Response(JSON.stringify({ success: false, error: error.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
   }
 };
 
