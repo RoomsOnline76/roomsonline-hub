@@ -42,7 +42,7 @@ const getPMSDisplayName = (key: string): string => {
     benson: "Benson",
     checkfront: "Checkfront",
     cloudbeds: "Cloudbeds",
-    guestly: "Guesty",
+    guesty: "Guesty",
     hostfully: "Hostfully",
     hotelbeds: "HotelBeds",
     littlehotelier: "Little Hotelier",
