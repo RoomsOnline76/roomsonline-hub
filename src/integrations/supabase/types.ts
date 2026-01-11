@@ -2572,6 +2572,10 @@ export type Database = {
         Returns: boolean
       }
       is_property_active: { Args: { prop_id: string }; Returns: boolean }
+      is_property_owner: {
+        Args: { _property_id: string; _user_id: string }
+        Returns: boolean
+      }
       trigger_daily_health_report: { Args: never; Returns: undefined }
       trigger_system_health_check: { Args: never; Returns: undefined }
     }
