@@ -3437,7 +3437,7 @@ export default function AdminKeys() {
           {renderCloudbedsCard()}
           {renderPlaceholderPMSCard(
             "Guesty",
-            "guestly",
+            "guesty",
             "Property management and guest experience platform for vacation rentals",
           )}
           {renderHostfullyCard()}
