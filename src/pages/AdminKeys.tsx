@@ -56,7 +56,7 @@ const getPMSIcon = (systemType: string | null): LucideIcon => {
     case "littlehotelier":
     case "cloudbeds":
     case "hostfully":
-    case "guestly":
+    case "guesty":
     case "hotelbeds":
     case "roomkey":
     case "roomracoon":
@@ -163,7 +163,7 @@ export default function AdminKeys() {
   const [hostfullyListingSelectorOpen, setHostfullyListingSelectorOpen] = useState(false);
   const [hostfullyListingsCount, setHostfullyListingsCount] = useState<number | null>(null);
   const [hostfullyLastSyncAt, setHostfullyLastSyncAt] = useState<string | null>(null);
-  const [hostfullySyncStatus, setHostfullySyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
+  const [hostfullySyncStatus, setHostfullySyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
 
   // Cloudbeds-specific state
   const [cloudbedsCredentials, setCloudbedsCredentials] = useState<PMSCredentials | null>(null);
@@ -245,16 +245,14 @@ export default function AdminKeys() {
   }, []);
 
   const fetchTrackerData = async () => {
-    const { data, error } = await supabase
-      .from('pms_tracker_status')
-      .select('*');
-    
+    const { data, error } = await supabase.from("pms_tracker_status").select("*");
+
     if (data && !error) {
       const mapped: Record<string, PMSTrackerStatus> = {};
       data.forEach((row) => {
         mapped[row.system_type] = {
           system_type: row.system_type,
-          status: row.status || 'Unknown',
+          status: row.status || "Unknown",
           contact_person: row.contact_person || undefined,
           contact_name: row.contact_name || undefined,
           contact_tel: row.contact_tel || undefined,
@@ -272,7 +270,7 @@ export default function AdminKeys() {
           // Legacy field
           has_access: row.has_access || false,
           notes: row.notes || undefined,
-          additional_info: row.additional_info as PMSTrackerStatus['additional_info'],
+          additional_info: row.additional_info as PMSTrackerStatus["additional_info"],
         };
       });
       setTrackerData(mapped);
@@ -282,16 +280,16 @@ export default function AdminKeys() {
   const sendStatusReport = async () => {
     setSendingStatusReport(true);
     try {
-      const { data, error } = await supabase.functions.invoke('send-pms-status-report');
-      
+      const { data, error } = await supabase.functions.invoke("send-pms-status-report");
+
       if (error) throw error;
-      
+
       toast({
         title: "Status report sent",
         description: "PMS integration status report has been sent to dev@roomsonline.co.za",
       });
     } catch (error: any) {
-      console.error('Error sending status report:', error);
+      console.error("Error sending status report:", error);
       toast({
         title: "Error sending report",
         description: error.message || "Failed to send status report",
@@ -317,11 +315,7 @@ export default function AdminKeys() {
   };
 
   const fetchTripadvisorConfig = async () => {
-    const { data } = await supabase
-      .from("api_keys")
-      .select("*")
-      .eq("key_name", "TRIPADVISOR_API_KEY")
-      .maybeSingle();
+    const { data } = await supabase.from("api_keys").select("*").eq("key_name", "TRIPADVISOR_API_KEY").maybeSingle();
 
     if (data?.key_value) {
       setTripadvisorApiKey(data.key_value);
@@ -623,100 +617,100 @@ export default function AdminKeys() {
   };
 
   const handleHostfullySyncListings = async () => {
-    setHostfullySyncStatus('syncing');
+    setHostfullySyncStatus("syncing");
     try {
-      const { data, error } = await supabase.functions.invoke('hostfully-api', {
-        body: { action: 'list_properties' },
+      const { data, error } = await supabase.functions.invoke("hostfully-api", {
+        body: { action: "list_properties" },
       });
 
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error?.message || 'Failed to sync listings');
+      if (!data?.success) throw new Error(data?.error?.message || "Failed to sync listings");
 
       const properties = data.data?.properties || [];
-      
+
       // Update pms_credentials with the listings
       const { error: updateError } = await supabase
-        .from('pms_credentials')
+        .from("pms_credentials")
         .update({
           available_listings: { properties, count: properties.length, agency_uid: data.data?.agency_uid },
           last_sync_at: new Date().toISOString(),
-          sync_status: 'connected',
+          sync_status: "connected",
         })
-        .eq('system_type', 'hostfully');
+        .eq("system_type", "hostfully");
 
       if (updateError) throw updateError;
 
       setHostfullyListingsCount(properties.length);
       setHostfullyLastSyncAt(new Date().toISOString());
-      setHostfullySyncStatus('success');
-      
+      setHostfullySyncStatus("success");
+
       toast({
-        title: 'Listings synced',
+        title: "Listings synced",
         description: `Found ${properties.length} listings from Hostfully`,
       });
 
       // Refresh credentials to get updated data
       fetchHostfullyCredentials();
     } catch (err: any) {
-      console.error('Error syncing Hostfully listings:', err);
-      setHostfullySyncStatus('error');
+      console.error("Error syncing Hostfully listings:", err);
+      setHostfullySyncStatus("error");
       toast({
-        title: 'Sync failed',
-        description: err.message || 'Failed to sync listings from Hostfully',
-        variant: 'destructive',
+        title: "Sync failed",
+        description: err.message || "Failed to sync listings from Hostfully",
+        variant: "destructive",
       });
     }
   };
 
   const handleHostfullyImportListings = async (
     listings: PMSListing[],
-    mode: 'create' | 'attach',
-    targetPropertyId?: string
+    mode: "create" | "attach",
+    targetPropertyId?: string,
   ) => {
     try {
-      if (mode === 'create') {
+      if (mode === "create") {
         // Create new properties from listings
         for (const listing of listings) {
           const propertyData = {
             name: listing.name,
-            address: listing.address || 'Address pending',
-            city: listing.city || 'City pending',
-            country: listing.country || 'Country pending',
-            property_type: listing.type || 'Property',
+            address: listing.address || "Address pending",
+            city: listing.city || "City pending",
+            country: listing.country || "Country pending",
+            property_type: listing.type || "Property",
             max_guests: listing.max_guests || 2,
             bedrooms: listing.bedrooms || 1,
             bathrooms: listing.bathrooms || 1,
             price_per_night: listing.base_price || 0,
-            external_system: 'hostfully',
+            external_system: "hostfully",
             external_id: listing.id,
             hostfully_property_uid: listing.id,
             external_metadata: listing._raw || {},
-            pms_managed_fields: ['availability', 'rates', 'max_guests', 'bedrooms', 'bathrooms'],
-            pms_sync_status: 'active',
+            pms_managed_fields: ["availability", "rates", "max_guests", "bedrooms", "bathrooms"],
+            pms_sync_status: "active",
             last_pms_sync_at: new Date().toISOString(),
             is_active: true,
           };
 
-          const { error } = await supabase.from('properties').insert(propertyData);
+          const { error } = await supabase.from("properties").insert(propertyData);
           if (error) {
-            console.error('Error creating property:', error);
+            console.error("Error creating property:", error);
             throw new Error(`Failed to create property "${listing.name}": ${error.message}`);
           }
         }
 
         toast({
-          title: 'Properties created',
+          title: "Properties created",
           description: `Successfully imported ${listings.length} properties from Hostfully`,
         });
-      } else if (mode === 'attach' && targetPropertyId) {
+      } else if (mode === "attach" && targetPropertyId) {
         // For attach mode, we'd create room types - simplified for now
         toast({
-          title: 'Coming soon',
-          description: 'Attaching listings to existing properties is under development',
+          title: "Coming soon",
+          description: "Attaching listings to existing properties is under development",
         });
       }
     } catch (err: any) {
-      console.error('Error importing listings:', err);
+      console.error("Error importing listings:", err);
       throw err;
     }
   };
@@ -1353,15 +1347,16 @@ export default function AdminKeys() {
   const handleToggleRoomsonline = async (enabled: boolean) => {
     setTogglingRoomsonline(true);
     // Store RoomsOnline active status in api_keys table
-    const { error } = await supabase
-      .from("api_keys")
-      .upsert({
+    const { error } = await supabase.from("api_keys").upsert(
+      {
         key_name: "ROOMSONLINE_ACTIVE",
         name: "RoomsOnline API Active",
         key_value: enabled ? "true" : "false",
         system_type: "roomsonline",
         is_required: false,
-      }, { onConflict: "key_name" });
+      },
+      { onConflict: "key_name" },
+    );
 
     if (error) {
       toast({
@@ -1380,11 +1375,7 @@ export default function AdminKeys() {
   };
 
   const fetchRoomsonlineStatus = async () => {
-    const { data } = await supabase
-      .from("api_keys")
-      .select("key_value")
-      .eq("key_name", "ROOMSONLINE_ACTIVE")
-      .single();
+    const { data } = await supabase.from("api_keys").select("key_value").eq("key_name", "ROOMSONLINE_ACTIVE").single();
 
     if (data?.key_value === "true") {
       setRoomsonlineActive(true);
@@ -1394,7 +1385,7 @@ export default function AdminKeys() {
   // Handler for saving refresh intervals
   const handleSaveRefreshInterval = async (systemType: string, intervalMinutes: number) => {
     setSavingRefreshInterval(systemType);
-    
+
     // Get the credential IDs to update
     let credentialIds: string[] = [];
     if (systemType === "benson") {
@@ -1437,7 +1428,7 @@ export default function AdminKeys() {
 
     toast({
       title: "Refresh interval saved",
-      description: `${systemType.charAt(0).toUpperCase() + systemType.slice(1)} data will refresh every ${intervalMinutes} minute${intervalMinutes !== 1 ? 's' : ''}`,
+      description: `${systemType.charAt(0).toUpperCase() + systemType.slice(1)} data will refresh every ${intervalMinutes} minute${intervalMinutes !== 1 ? "s" : ""}`,
     });
     setSavingRefreshInterval(null);
   };
@@ -1468,13 +1459,18 @@ export default function AdminKeys() {
     const isConfigured = !!cloudbedsCredentials?.api_key;
 
     return (
-      <AccordionItem value="cloudbeds" className={`border rounded-lg px-4 ${!cloudbedsCredentials?.is_active ? "opacity-60" : ""}`}>
+      <AccordionItem
+        value="cloudbeds"
+        className={`border rounded-lg px-4 ${!cloudbedsCredentials?.is_active ? "opacity-60" : ""}`}
+      >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
               <BedDouble className="h-5 w-5 text-primary" />
               <span className="font-semibold">Cloudbeds</span>
-              <Badge variant="outline" className="text-xs">API Key</Badge>
+              <Badge variant="outline" className="text-xs">
+                API Key
+              </Badge>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
@@ -1516,14 +1512,18 @@ export default function AdminKeys() {
                 <p className="text-xs text-muted-foreground">API calls will use {cloudbedsEnvironment} endpoint</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`text-sm ${cloudbedsEnvironment === "staging" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
+                <span
+                  className={`text-sm ${cloudbedsEnvironment === "staging" ? "font-semibold text-primary" : "text-muted-foreground"}`}
+                >
                   Sandbox
                 </span>
                 <Switch
                   checked={cloudbedsEnvironment === "production"}
                   onCheckedChange={(checked) => handleCloudbedsEnvironmentChange(checked ? "production" : "staging")}
                 />
-                <span className={`text-sm ${cloudbedsEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
+                <span
+                  className={`text-sm ${cloudbedsEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}
+                >
                   Production
                 </span>
               </div>
@@ -1547,7 +1547,13 @@ export default function AdminKeys() {
                   <Button onClick={handleSaveCloudbedsCredentials} disabled={savingCloudbeds}>
                     {savingCloudbeds ? "Saving..." : "Save"}
                   </Button>
-                  <Button variant="outline" onClick={() => { setEditingCloudbeds(false); setCloudbedsApiKey(""); }}>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingCloudbeds(false);
+                      setCloudbedsApiKey("");
+                    }}
+                  >
                     Cancel
                   </Button>
                 </div>
@@ -1571,15 +1577,19 @@ export default function AdminKeys() {
                   </div>
                 </div>
 
-                <PMSProgressToggles systemType="cloudbeds" trackerData={trackerData.cloudbeds} onUpdated={fetchTrackerData} />
+                <PMSProgressToggles
+                  systemType="cloudbeds"
+                  trackerData={trackerData.cloudbeds}
+                  onUpdated={fetchTrackerData}
+                />
 
                 {/* PMS IT Contact */}
-                <PMSContactDetails 
+                <PMSContactDetails
                   systemType="cloudbeds"
                   initialData={{
-                    contact_name: trackerData['cloudbeds']?.contact_name,
-                    contact_tel: trackerData['cloudbeds']?.contact_tel,
-                    contact_email: trackerData['cloudbeds']?.contact_email,
+                    contact_name: trackerData["cloudbeds"]?.contact_name,
+                    contact_tel: trackerData["cloudbeds"]?.contact_tel,
+                    contact_email: trackerData["cloudbeds"]?.contact_email,
                   }}
                   onUpdated={() => fetchTrackerData()}
                 />
@@ -1620,11 +1630,7 @@ export default function AdminKeys() {
   // Only show Semper and SiteMinder in the generic PMS cards (Benson, NightsBridge, Checkfront have custom cards)
   const allowedPmsTypes = ["semper", "siteminder"];
   const pmsKeys = apiKeys
-    .filter(
-      (k) =>
-        k.system_type &&
-        allowedPmsTypes.includes(k.system_type),
-    )
+    .filter((k) => k.system_type && allowedPmsTypes.includes(k.system_type))
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
   // Filter out Resend email config keys from additionalKeys since we handle them in custom card
@@ -1814,9 +1820,7 @@ export default function AdminKeys() {
                     onChange={(e) => setTripadvisorApiKey(e.target.value)}
                     placeholder="Enter TripAdvisor API key"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Get your API key from TripAdvisor Content API
-                  </p>
+                  <p className="text-xs text-muted-foreground">Get your API key from TripAdvisor Content API</p>
                 </div>
 
                 <div className="flex gap-2">
@@ -1879,7 +1883,7 @@ export default function AdminKeys() {
     const isEditing = editingKey === apiKey.id;
     const IconComponent = getPMSIcon(apiKey.system_type);
     const isConfigured = !isPlaceholderValue;
-    
+
     // Get auth type label based on system type
     const getAuthTypeLabel = (systemType: string | null) => {
       switch (systemType) {
@@ -1894,9 +1898,9 @@ export default function AdminKeys() {
     const authTypeLabel = getAuthTypeLabel(apiKey.system_type);
 
     return (
-      <AccordionItem 
-        key={apiKey.id} 
-        value={apiKey.id} 
+      <AccordionItem
+        key={apiKey.id}
+        value={apiKey.id}
         className={`border rounded-lg px-4 ${!isConfigured ? "opacity-60" : ""}`}
       >
         <AccordionTrigger className="hover:no-underline">
@@ -1905,7 +1909,9 @@ export default function AdminKeys() {
               <IconComponent className="h-5 w-5 text-primary" />
               <span className="font-semibold">{apiKey.name}</span>
               {authTypeLabel && (
-                <Badge variant="outline" className="text-xs">{authTypeLabel}</Badge>
+                <Badge variant="outline" className="text-xs">
+                  {authTypeLabel}
+                </Badge>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -1939,9 +1945,7 @@ export default function AdminKeys() {
         </AccordionTrigger>
         <AccordionContent>
           <div className="pt-4">
-            {apiKey.description && (
-              <p className="text-sm text-muted-foreground mb-4">{apiKey.description}</p>
-            )}
+            {apiKey.description && <p className="text-sm text-muted-foreground mb-4">{apiKey.description}</p>}
             {isEditing ? (
               <div className="space-y-3">
                 <div className="space-y-2">
@@ -1979,13 +1983,17 @@ export default function AdminKeys() {
                   </div>
                 </div>
 
-              {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
-                  <PMSProgressToggles systemType={apiKey.system_type} trackerData={trackerData[apiKey.system_type]} onUpdated={fetchTrackerData} />
+                {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
+                  <PMSProgressToggles
+                    systemType={apiKey.system_type}
+                    trackerData={trackerData[apiKey.system_type]}
+                    onUpdated={fetchTrackerData}
+                  />
                 )}
 
                 {/* PMS IT Contact */}
                 {apiKey.system_type && !additionalServiceTypes.includes(apiKey.system_type) && (
-                  <PMSContactDetails 
+                  <PMSContactDetails
                     systemType={apiKey.system_type}
                     initialData={{
                       contact_name: trackerData[apiKey.system_type]?.contact_name,
@@ -2158,7 +2166,9 @@ export default function AdminKeys() {
             <div className="flex items-center gap-3">
               <Briefcase className="h-5 w-5 text-primary" />
               <span className="font-semibold">Benson PMS</span>
-              <Badge variant="outline" className="text-xs">Basic Auth</Badge>
+              <Badge variant="outline" className="text-xs">
+                Basic Auth
+              </Badge>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
@@ -2234,12 +2244,12 @@ export default function AdminKeys() {
             <PMSProgressToggles systemType="benson" trackerData={trackerData.benson} onUpdated={fetchTrackerData} />
 
             {/* PMS IT Contact */}
-            <PMSContactDetails 
+            <PMSContactDetails
               systemType="benson"
               initialData={{
-                contact_name: trackerData['benson']?.contact_name,
-                contact_tel: trackerData['benson']?.contact_tel,
-                contact_email: trackerData['benson']?.contact_email,
+                contact_name: trackerData["benson"]?.contact_name,
+                contact_tel: trackerData["benson"]?.contact_tel,
+                contact_email: trackerData["benson"]?.contact_email,
               }}
               onUpdated={() => fetchTrackerData()}
             />
@@ -2272,13 +2282,18 @@ export default function AdminKeys() {
     const isConfigured = !!nightsbridgeCredentials?.agent_code;
 
     return (
-      <AccordionItem value="nightsbridge" className={`border rounded-lg px-4 ${!nightsbridgeCredentials?.is_active ? "opacity-60" : ""}`}>
+      <AccordionItem
+        value="nightsbridge"
+        className={`border rounded-lg px-4 ${!nightsbridgeCredentials?.is_active ? "opacity-60" : ""}`}
+      >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
               <BedDouble className="h-5 w-5 text-primary" />
               <span className="font-semibold">NightsBridge</span>
-              <Badge variant="outline" className="text-xs">Agent Code</Badge>
+              <Badge variant="outline" className="text-xs">
+                Agent Code
+              </Badge>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
@@ -2288,7 +2303,9 @@ export default function AdminKeys() {
                   disabled={togglingNightsbridge || !isConfigured}
                   className={!isConfigured ? "opacity-50" : ""}
                 />
-                <span className="text-xs text-muted-foreground">{nightsbridgeCredentials?.is_active ? "On" : "Off"}</span>
+                <span className="text-xs text-muted-foreground">
+                  {nightsbridgeCredentials?.is_active ? "On" : "Off"}
+                </span>
               </div>
               {isConfigured ? (
                 <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
@@ -2347,7 +2364,9 @@ export default function AdminKeys() {
                     </span>
                     <Switch
                       checked={nightsbridgeEnvironment === "production"}
-                      onCheckedChange={(checked) => handleNightsbridgeEnvironmentChange(checked ? "production" : "staging")}
+                      onCheckedChange={(checked) =>
+                        handleNightsbridgeEnvironmentChange(checked ? "production" : "staging")
+                      }
                     />
                     <span
                       className={`text-sm ${nightsbridgeEnvironment === "production" ? "font-medium" : "text-muted-foreground"}`}
@@ -2402,7 +2421,9 @@ export default function AdminKeys() {
                 <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
                   <div className="space-y-1">
                     <Label className="text-sm font-medium">Data Refresh Interval</Label>
-                    <p className="text-xs text-muted-foreground">Auto-refresh API data when older than this (minutes)</p>
+                    <p className="text-xs text-muted-foreground">
+                      Auto-refresh API data when older than this (minutes)
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Input
@@ -2423,15 +2444,19 @@ export default function AdminKeys() {
                   </div>
                 </div>
 
-                <PMSProgressToggles systemType="nightsbridge" trackerData={trackerData.nightsbridge} onUpdated={fetchTrackerData} />
+                <PMSProgressToggles
+                  systemType="nightsbridge"
+                  trackerData={trackerData.nightsbridge}
+                  onUpdated={fetchTrackerData}
+                />
 
                 {/* PMS IT Contact */}
-                <PMSContactDetails 
+                <PMSContactDetails
                   systemType="nightsbridge"
                   initialData={{
-                    contact_name: trackerData['nightsbridge']?.contact_name,
-                    contact_tel: trackerData['nightsbridge']?.contact_tel,
-                    contact_email: trackerData['nightsbridge']?.contact_email,
+                    contact_name: trackerData["nightsbridge"]?.contact_name,
+                    contact_tel: trackerData["nightsbridge"]?.contact_tel,
+                    contact_email: trackerData["nightsbridge"]?.contact_email,
                   }}
                   onUpdated={() => fetchTrackerData()}
                 />
@@ -2455,7 +2480,11 @@ export default function AdminKeys() {
                     variant="outline"
                     onClick={handleSyncNightsbridgeReservations}
                     disabled={syncingNightsbridgeReservations || !nightsbridgeCredentials?.api_key}
-                    title={!nightsbridgeCredentials?.api_key ? "API key required for reservation sync" : "Sync reservations from NightsBridge"}
+                    title={
+                      !nightsbridgeCredentials?.api_key
+                        ? "API key required for reservation sync"
+                        : "Sync reservations from NightsBridge"
+                    }
                   >
                     {syncingNightsbridgeReservations ? (
                       <>
@@ -2491,7 +2520,9 @@ export default function AdminKeys() {
             <div className="flex items-center gap-3">
               <CheckCircle className="h-5 w-5 text-primary" />
               <span className="font-semibold">Checkfront</span>
-              <Badge variant="outline" className="text-xs">Token / OAuth2</Badge>
+              <Badge variant="outline" className="text-xs">
+                Token / OAuth2
+              </Badge>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
@@ -2534,7 +2565,9 @@ export default function AdminKeys() {
                       onChange={(e) => setCheckfrontHost(e.target.value)}
                       placeholder={checkfrontCredentials?.base_url || "yourcompany.checkfront.com"}
                     />
-                    <p className="text-xs text-muted-foreground">Your Checkfront subdomain (e.g., yourcompany.checkfront.com)</p>
+                    <p className="text-xs text-muted-foreground">
+                      Your Checkfront subdomain (e.g., yourcompany.checkfront.com)
+                    </p>
                   </div>
 
                   {/* Auth Method Toggle */}
@@ -2615,7 +2648,9 @@ export default function AdminKeys() {
                       </span>
                       <Switch
                         checked={checkfrontEnvironment === "production"}
-                        onCheckedChange={(checked) => handleCheckfrontEnvironmentChange(checked ? "production" : "staging")}
+                        onCheckedChange={(checked) =>
+                          handleCheckfrontEnvironmentChange(checked ? "production" : "staging")
+                        }
                       />
                       <span
                         className={`text-sm ${checkfrontEnvironment === "production" ? "font-medium" : "text-muted-foreground"}`}
@@ -2649,9 +2684,7 @@ export default function AdminKeys() {
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                     <div>
                       <Label className="text-muted-foreground">Host</Label>
-                      <p className="font-medium truncate text-xs">
-                        {checkfrontCredentials?.base_url || "Not set"}
-                      </p>
+                      <p className="font-medium truncate text-xs">{checkfrontCredentials?.base_url || "Not set"}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Auth Method</Label>
@@ -2679,7 +2712,9 @@ export default function AdminKeys() {
                   <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
                     <div className="space-y-1">
                       <Label className="text-sm font-medium">Data Refresh Interval</Label>
-                      <p className="text-xs text-muted-foreground">Auto-refresh API data when older than this (minutes)</p>
+                      <p className="text-xs text-muted-foreground">
+                        Auto-refresh API data when older than this (minutes)
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Input
@@ -2700,15 +2735,19 @@ export default function AdminKeys() {
                     </div>
                   </div>
 
-                  <PMSProgressToggles systemType="checkfront" trackerData={trackerData.checkfront} onUpdated={fetchTrackerData} />
+                  <PMSProgressToggles
+                    systemType="checkfront"
+                    trackerData={trackerData.checkfront}
+                    onUpdated={fetchTrackerData}
+                  />
 
                   {/* PMS IT Contact */}
-                  <PMSContactDetails 
+                  <PMSContactDetails
                     systemType="checkfront"
                     initialData={{
-                      contact_name: trackerData['checkfront']?.contact_name,
-                      contact_tel: trackerData['checkfront']?.contact_tel,
-                      contact_email: trackerData['checkfront']?.contact_email,
+                      contact_name: trackerData["checkfront"]?.contact_name,
+                      contact_tel: trackerData["checkfront"]?.contact_tel,
+                      contact_email: trackerData["checkfront"]?.contact_email,
                     }}
                     onUpdated={() => fetchTrackerData()}
                   />
@@ -2720,14 +2759,14 @@ export default function AdminKeys() {
                     <Button variant="outline" onClick={() => setEditingCheckfront(true)}>
                       {isConfigured ? "Update Credentials" : "Configure"}
                     </Button>
-                  <Button
-                    variant="default"
-                    onClick={() => navigate("/admin/pms-config/checkfront")}
-                    disabled={!isConfigured}
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
-                    Field Mappings
-                  </Button>
+                    <Button
+                      variant="default"
+                      onClick={() => navigate("/admin/pms-config/checkfront")}
+                      disabled={!isConfigured}
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      Field Mappings
+                    </Button>
                   </div>
                 </div>
               )}
@@ -2743,13 +2782,18 @@ export default function AdminKeys() {
     const isConfigured = !!littlehotelierCredentials?.agent_code;
 
     return (
-      <AccordionItem value="littlehotelier" className={`border rounded-lg px-4 ${!littlehotelierCredentials?.is_active ? "opacity-60" : ""}`}>
+      <AccordionItem
+        value="littlehotelier"
+        className={`border rounded-lg px-4 ${!littlehotelierCredentials?.is_active ? "opacity-60" : ""}`}
+      >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
               <BedDouble className="h-5 w-5 text-primary" />
               <span className="font-semibold">Little Hotelier</span>
-              <Badge variant="outline" className="text-xs">Channel Code</Badge>
+              <Badge variant="outline" className="text-xs">
+                Channel Code
+              </Badge>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
@@ -2759,7 +2803,9 @@ export default function AdminKeys() {
                   disabled={togglingLittlehotelier || !isConfigured}
                   className={!isConfigured ? "opacity-50" : ""}
                 />
-                <span className="text-xs text-muted-foreground">{littlehotelierCredentials?.is_active ? "On" : "Off"}</span>
+                <span className="text-xs text-muted-foreground">
+                  {littlehotelierCredentials?.is_active ? "On" : "Off"}
+                </span>
               </div>
               {isConfigured ? (
                 <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
@@ -2794,7 +2840,9 @@ export default function AdminKeys() {
                     onChange={(e) => setLittlehotelierChannelCode(e.target.value)}
                     placeholder={littlehotelierCredentials?.agent_code || "Enter channel code"}
                   />
-                  <p className="text-xs text-muted-foreground">Public channel code from Little Hotelier for Rates API access</p>
+                  <p className="text-xs text-muted-foreground">
+                    Public channel code from Little Hotelier for Rates API access
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -2845,15 +2893,19 @@ export default function AdminKeys() {
                   </div>
                 </div>
 
-                <PMSProgressToggles systemType="littlehotelier" trackerData={trackerData.littlehotelier} onUpdated={fetchTrackerData} />
+                <PMSProgressToggles
+                  systemType="littlehotelier"
+                  trackerData={trackerData.littlehotelier}
+                  onUpdated={fetchTrackerData}
+                />
 
                 {/* PMS IT Contact */}
-                <PMSContactDetails 
+                <PMSContactDetails
                   systemType="littlehotelier"
                   initialData={{
-                    contact_name: trackerData['littlehotelier']?.contact_name,
-                    contact_tel: trackerData['littlehotelier']?.contact_tel,
-                    contact_email: trackerData['littlehotelier']?.contact_email,
+                    contact_name: trackerData["littlehotelier"]?.contact_name,
+                    contact_tel: trackerData["littlehotelier"]?.contact_tel,
+                    contact_email: trackerData["littlehotelier"]?.contact_email,
                   }}
                   onUpdated={() => fetchTrackerData()}
                 />
@@ -2887,13 +2939,18 @@ export default function AdminKeys() {
     const isConfigured = !!hostfullyCredentials?.api_key;
 
     return (
-      <AccordionItem value="hostfully" className={`border rounded-lg px-4 ${!hostfullyCredentials?.is_active ? "opacity-60" : ""}`}>
+      <AccordionItem
+        value="hostfully"
+        className={`border rounded-lg px-4 ${!hostfullyCredentials?.is_active ? "opacity-60" : ""}`}
+      >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
               <BedDouble className="h-5 w-5 text-primary" />
               <span className="font-semibold">Hostfully</span>
-              <Badge variant="outline" className="text-xs">API Key</Badge>
+              <Badge variant="outline" className="text-xs">
+                API Key
+              </Badge>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
@@ -2921,9 +2978,7 @@ export default function AdminKeys() {
         </AccordionTrigger>
         <AccordionContent>
           <div className="pt-4 space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Property management platform for vacation rental managers
-            </p>
+            <p className="text-sm text-muted-foreground">Property management platform for vacation rental managers</p>
             <div className="text-xs text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-2 py-1 rounded-md inline-block">
               ⓘ Rate Limit: 10,000 API calls per hour
             </div>
@@ -2935,14 +2990,18 @@ export default function AdminKeys() {
                 <p className="text-xs text-muted-foreground">API calls will use {hostfullyEnvironment} endpoint</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`text-sm ${hostfullyEnvironment === "staging" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
+                <span
+                  className={`text-sm ${hostfullyEnvironment === "staging" ? "font-semibold text-primary" : "text-muted-foreground"}`}
+                >
                   Sandbox
                 </span>
                 <Switch
                   checked={hostfullyEnvironment === "production"}
                   onCheckedChange={(checked) => handleHostfullyEnvironmentChange(checked ? "production" : "staging")}
                 />
-                <span className={`text-sm ${hostfullyEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}>
+                <span
+                  className={`text-sm ${hostfullyEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}
+                >
                   Production
                 </span>
               </div>
@@ -2959,7 +3018,9 @@ export default function AdminKeys() {
                     onChange={(e) => setHostfullyApiKey(e.target.value)}
                     placeholder={hostfullyCredentials?.api_key ? "••••••••" : "Enter API key from Agency Settings"}
                   />
-                  <p className="text-xs text-muted-foreground">Find this in your Hostfully Agency Settings → API Access</p>
+                  <p className="text-xs text-muted-foreground">
+                    Find this in your Hostfully Agency Settings → API Access
+                  </p>
                 </div>
 
                 <div className="flex gap-2">
@@ -3008,9 +3069,11 @@ export default function AdminKeys() {
                           variant="outline"
                           size="sm"
                           onClick={handleHostfullySyncListings}
-                          disabled={hostfullySyncStatus === 'syncing'}
+                          disabled={hostfullySyncStatus === "syncing"}
                         >
-                          <RefreshCw className={`h-4 w-4 mr-2 ${hostfullySyncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+                          <RefreshCw
+                            className={`h-4 w-4 mr-2 ${hostfullySyncStatus === "syncing" ? "animate-spin" : ""}`}
+                          />
                           Sync
                         </Button>
                         <Button
@@ -3047,7 +3110,9 @@ export default function AdminKeys() {
                 <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/50">
                   <div className="space-y-1">
                     <Label className="text-sm font-medium">Data Refresh Interval</Label>
-                    <p className="text-xs text-muted-foreground">Auto-refresh API data when older than this (minutes)</p>
+                    <p className="text-xs text-muted-foreground">
+                      Auto-refresh API data when older than this (minutes)
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Input
@@ -3068,15 +3133,19 @@ export default function AdminKeys() {
                   </div>
                 </div>
 
-                <PMSProgressToggles systemType="hostfully" trackerData={trackerData.hostfully} onUpdated={fetchTrackerData} />
+                <PMSProgressToggles
+                  systemType="hostfully"
+                  trackerData={trackerData.hostfully}
+                  onUpdated={fetchTrackerData}
+                />
 
                 {/* PMS IT Contact */}
-                <PMSContactDetails 
+                <PMSContactDetails
                   systemType="hostfully"
                   initialData={{
-                    contact_name: trackerData['hostfully']?.contact_name,
-                    contact_tel: trackerData['hostfully']?.contact_tel,
-                    contact_email: trackerData['hostfully']?.contact_email,
+                    contact_name: trackerData["hostfully"]?.contact_name,
+                    contact_tel: trackerData["hostfully"]?.contact_tel,
+                    contact_email: trackerData["hostfully"]?.contact_email,
                   }}
                   onUpdated={() => fetchTrackerData()}
                 />
@@ -3127,7 +3196,9 @@ export default function AdminKeys() {
             <div className="flex items-center gap-3">
               <Icon className="h-5 w-5 text-muted-foreground" />
               <span className="font-semibold">{name}</span>
-              <Badge variant="outline" className="text-xs">Coming Soon</Badge>
+              <Badge variant="outline" className="text-xs">
+                Coming Soon
+              </Badge>
             </div>
             <div className="flex items-center gap-2">
               {tracker && <PMSTrackerStatusDisplay tracker={tracker} compact />}
@@ -3141,12 +3212,12 @@ export default function AdminKeys() {
         <AccordionContent>
           <div className="pt-4 space-y-4">
             <p className="text-sm text-muted-foreground">{description}</p>
-            
+
             {/* Tracker Status */}
             <PMSTrackerStatusDisplay tracker={tracker} />
-            
+
             {/* PMS IT Contact */}
-            <PMSContactDetails 
+            <PMSContactDetails
               systemType={systemType}
               initialData={{
                 contact_name: tracker?.contact_name,
@@ -3155,13 +3226,13 @@ export default function AdminKeys() {
               }}
               onUpdated={() => fetchTrackerData()}
             />
-            
+
             <div className="p-4 rounded-lg border bg-muted/50 text-center">
               <p className="text-sm text-muted-foreground">
                 This integration is planned for a future release. Contact support for more information.
               </p>
             </div>
-            
+
             {/* Dev Notes */}
             <PMSDevNotes systemType={systemType} />
           </div>
@@ -3189,12 +3260,14 @@ export default function AdminKeys() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-status-healthy transition-all" 
+                <div
+                  className="h-full bg-status-healthy transition-all"
                   style={{ width: `${(configuredPMSCount / totalPMSCount) * 100}%` }}
                 />
               </div>
-              <span className="text-xs text-muted-foreground">{Math.round((configuredPMSCount / totalPMSCount) * 100)}%</span>
+              <span className="text-xs text-muted-foreground">
+                {Math.round((configuredPMSCount / totalPMSCount) * 100)}%
+              </span>
             </div>
             <Button
               variant="outline"
@@ -3203,327 +3276,369 @@ export default function AdminKeys() {
               disabled={sendingStatusReport}
               className="gap-1"
             >
-              {sendingStatusReport ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              {sendingStatusReport ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
               Status Report
             </Button>
           </div>
         }
       />
 
-          {/* Global Settings Section */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">Global Settings</h2>
-            <Accordion type="multiple" className="space-y-4">
-              <AccordionItem value="navigation-settings" className="border rounded-lg px-4">
-                <AccordionTrigger className="hover:no-underline">
-                  <div className="flex items-center gap-3">
-                    <Settings className="h-5 w-5 text-primary" />
-                    <span className="font-semibold">Navigation Settings</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="pt-4 space-y-6">
+      {/* Global Settings Section */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold mb-4">Global Settings</h2>
+        <Accordion type="multiple" className="space-y-4">
+          <AccordionItem value="navigation-settings" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-3">
+                <Settings className="h-5 w-5 text-primary" />
+                <span className="font-semibold">Navigation Settings</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="pt-4 space-y-6">
+                <p className="text-sm text-muted-foreground">
+                  Configure global navigation behavior for the application
+                </p>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="book-new-tab">Open Book page in new tab</Label>
                     <p className="text-sm text-muted-foreground">
-                      Configure global navigation behavior for the application
+                      When enabled, clicking the "Book" button in the navbar opens the booking page in a new browser tab
                     </p>
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="book-new-tab">Open Book page in new tab</Label>
-                        <p className="text-sm text-muted-foreground">
-                          When enabled, clicking the "Book" button in the navbar opens the booking page in a new browser tab
-                        </p>
-                      </div>
-                      <Switch
-                        id="book-new-tab"
-                        checked={bookOpenNewTab}
-                        onCheckedChange={handleSaveBookOpenNewTab}
-                        disabled={savingBookOpenNewTab}
+                  </div>
+                  <Switch
+                    id="book-new-tab"
+                    checked={bookOpenNewTab}
+                    onCheckedChange={handleSaveBookOpenNewTab}
+                    disabled={savingBookOpenNewTab}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="home-icon-new-tab">Open Home icon in new tab</Label>
+                    <p className="text-sm text-muted-foreground">
+                      When enabled, clicking the Home icon in property edit pages opens in a new browser tab
+                    </p>
+                  </div>
+                  <Switch
+                    id="home-icon-new-tab"
+                    checked={homeIconOpenNewTab}
+                    onCheckedChange={handleSaveHomeIconOpenNewTab}
+                    disabled={savingHomeIconOpenNewTab}
+                  />
+                </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
+
+      {/* RoomsOnline API Section */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold mb-4">RoomsOnline API</h2>
+        <Accordion type="multiple" className="space-y-4">
+          <AccordionItem
+            value="roomsonline"
+            className={`border rounded-lg px-4 border-primary/30 bg-primary/5 ${!roomsonlineActive ? "opacity-60" : ""}`}
+          >
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center justify-between w-full pr-4">
+                <div className="flex items-center gap-3">
+                  <Key className="h-5 w-5 text-primary" />
+                  <span className="font-semibold">RoomsOnline API</span>
+                  <Badge variant="default" className="text-xs">
+                    Internal API
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
+                    <Switch
+                      checked={roomsonlineActive}
+                      onCheckedChange={handleToggleRoomsonline}
+                      disabled={togglingRoomsonline}
+                    />
+                    <span className="text-xs text-muted-foreground">{roomsonlineActive ? "On" : "Off"}</span>
+                  </div>
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    In Development
+                  </Badge>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="pt-4 space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  RoomsOnline's proprietary API for direct property management.
+                  <strong>
+                    This will become the primary interface for properties not using third-party PMS systems.
+                  </strong>
+                </p>
+                <div className="p-4 rounded-lg border bg-background text-center space-y-2">
+                  <p className="text-sm font-medium">Planned Capabilities</p>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    <Badge variant="secondary">Direct Availability</Badge>
+                    <Badge variant="secondary">Native Rate Management</Badge>
+                    <Badge variant="secondary">Booking Engine</Badge>
+                    <Badge variant="secondary">Channel Manager</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Development in progress. This API will follow the standardized adapter contract.
+                  </p>
+                </div>
+
+                <PMSProgressToggles
+                  systemType="roomsonline"
+                  trackerData={trackerData.roomsonline}
+                  onUpdated={fetchTrackerData}
+                />
+
+                {/* PMS IT Contact */}
+                <PMSContactDetails
+                  systemType="roomsonline"
+                  initialData={{
+                    contact_name: trackerData["roomsonline"]?.contact_name,
+                    contact_tel: trackerData["roomsonline"]?.contact_tel,
+                    contact_email: trackerData["roomsonline"]?.contact_email,
+                  }}
+                  onUpdated={() => fetchTrackerData()}
+                />
+
+                {/* Dev Notes */}
+                <PMSDevNotes systemType="roomsonline" />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
+
+      {/* PMS Systems Section - Alphabetically ordered */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Property Management Systems</h2>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={sendStatusReport}
+            disabled={sendingStatusReport}
+            className="gap-2"
+          >
+            {sendingStatusReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Email Status Report
+          </Button>
+        </div>
+        <Accordion type="multiple" className="space-y-4">
+          {renderBensonCard()}
+          {renderCheckfrontCard()}
+          {renderCloudbedsCard()}
+          {renderPlaceholderPMSCard(
+            "Guestly",
+            "guestly",
+            "Property management and guest experience platform for vacation rentals",
+          )}
+          {renderHostfullyCard()}
+          {/* HotelBeds - Custom card with API key/secret */}
+          <AccordionItem
+            value="hotelbeds"
+            className={`border rounded-lg px-4 ${!hotelbedsCredentials?.is_active ? "opacity-60" : ""}`}
+          >
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center justify-between w-full pr-4">
+                <div className="flex items-center gap-3">
+                  <BedDouble className="h-5 w-5 text-primary" />
+                  <span className="font-semibold">HotelBeds</span>
+                  <Badge variant="outline" className="text-xs">
+                    API Key + Secret
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
+                    <Switch
+                      checked={hotelbedsCredentials?.is_active ?? false}
+                      onCheckedChange={handleToggleHotelbeds}
+                      disabled={togglingHotelbeds || !hotelbedsCredentials?.api_key}
+                      className={!hotelbedsCredentials?.api_key ? "opacity-50" : ""}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {hotelbedsCredentials?.is_active ? "On" : "Off"}
+                    </span>
+                  </div>
+                  {hotelbedsCredentials?.api_key ? (
+                    <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Configured
+                    </Badge>
+                  ) : (
+                    <Badge variant="destructive" className="flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      Not Configured
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="pt-4 space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Global bedbank and travel distribution platform for hotels
+                </p>
+                <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded-md inline-block">
+                  ⓘ Test environment: 50 requests/day limit
+                </div>
+
+                {editingHotelbeds ? (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="hotelbeds-apikey">API Key</Label>
+                      <Input
+                        id="hotelbeds-apikey"
+                        name="hotelbeds-api-key-input"
+                        autoComplete="off"
+                        value={hotelbedsApiKey}
+                        onChange={(e) => setHotelbedsApiKey(e.target.value)}
+                        placeholder={hotelbedsCredentials?.api_key ? "••••••••" : "Enter API key"}
                       />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="home-icon-new-tab">Open Home icon in new tab</Label>
-                        <p className="text-sm text-muted-foreground">
-                          When enabled, clicking the Home icon in property edit pages opens in a new browser tab
-                        </p>
-                      </div>
-                      <Switch
-                        id="home-icon-new-tab"
-                        checked={homeIconOpenNewTab}
-                        onCheckedChange={handleSaveHomeIconOpenNewTab}
-                        disabled={savingHomeIconOpenNewTab}
+                    <div className="space-y-2">
+                      <Label htmlFor="hotelbeds-secret">API Secret</Label>
+                      <Input
+                        id="hotelbeds-secret"
+                        name="hotelbeds-api-secret-input"
+                        type="password"
+                        autoComplete="new-password"
+                        value={hotelbedsApiSecret}
+                        onChange={(e) => setHotelbedsApiSecret(e.target.value)}
+                        placeholder={hotelbedsCredentials?.password ? "••••••••" : "Enter API secret"}
                       />
                     </div>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          </div>
-
-          {/* RoomsOnline API Section */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">RoomsOnline API</h2>
-            <Accordion type="multiple" className="space-y-4">
-              <AccordionItem value="roomsonline" className={`border rounded-lg px-4 border-primary/30 bg-primary/5 ${!roomsonlineActive ? "opacity-60" : ""}`}>
-                <AccordionTrigger className="hover:no-underline">
-                  <div className="flex items-center justify-between w-full pr-4">
-                    <div className="flex items-center gap-3">
-                      <Key className="h-5 w-5 text-primary" />
-                      <span className="font-semibold">RoomsOnline API</span>
-                      <Badge variant="default" className="text-xs">Internal API</Badge>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
-                        <Switch
-                          checked={roomsonlineActive}
-                          onCheckedChange={handleToggleRoomsonline}
-                          disabled={togglingRoomsonline}
-                        />
-                        <span className="text-xs text-muted-foreground">{roomsonlineActive ? "On" : "Off"}</span>
+                    <div className="space-y-2">
+                      <Label>Environment</Label>
+                      <div className="flex items-center gap-4">
+                        <Button
+                          variant={hotelbedsEnvironment === "staging" ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handleHotelbedsEnvironmentChange("staging")}
+                        >
+                          Test
+                        </Button>
+                        <Button
+                          variant={hotelbedsEnvironment === "production" ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handleHotelbedsEnvironmentChange("production")}
+                        >
+                          Production
+                        </Button>
                       </div>
-                      <Badge variant="outline" className="flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" />
-                        In Development
-                      </Badge>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={handleSaveHotelbedsCredentials} disabled={savingHotelbeds}>
+                        {savingHotelbeds ? "Saving..." : "Save"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setEditingHotelbeds(false);
+                          setHotelbedsApiKey("");
+                          setHotelbedsApiSecret("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
                     </div>
                   </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="pt-4 space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      RoomsOnline's proprietary API for direct property management. 
-                      <strong>This will become the primary interface for properties not using third-party PMS systems.</strong>
-                    </p>
-                    <div className="p-4 rounded-lg border bg-background text-center space-y-2">
-                      <p className="text-sm font-medium">Planned Capabilities</p>
-                      <div className="flex flex-wrap gap-2 justify-center">
-                        <Badge variant="secondary">Direct Availability</Badge>
-                        <Badge variant="secondary">Native Rate Management</Badge>
-                        <Badge variant="secondary">Booking Engine</Badge>
-                        <Badge variant="secondary">Channel Manager</Badge>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <Label className="text-muted-foreground">API Key</Label>
+                        <p className={`font-medium ${hotelbedsCredentials?.api_key ? "text-green-600" : ""}`}>
+                          {hotelbedsCredentials?.api_key ? "Configured" : "Not set"}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Development in progress. This API will follow the standardized adapter contract.
-                      </p>
+                      <div>
+                        <Label className="text-muted-foreground">Environment</Label>
+                        <p className="font-medium capitalize">{hotelbedsCredentials?.environment || "Test"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Status</Label>
+                        <p className="font-medium">{hotelbedsCredentials?.is_active ? "Active" : "Inactive"}</p>
+                      </div>
                     </div>
-
-                    <PMSProgressToggles systemType="roomsonline" trackerData={trackerData.roomsonline} onUpdated={fetchTrackerData} />
+                    <PMSProgressToggles
+                      systemType="hotelbeds"
+                      trackerData={trackerData.hotelbeds}
+                      onUpdated={fetchTrackerData}
+                    />
 
                     {/* PMS IT Contact */}
-                    <PMSContactDetails 
-                      systemType="roomsonline"
+                    <PMSContactDetails
+                      systemType="hotelbeds"
                       initialData={{
-                        contact_name: trackerData['roomsonline']?.contact_name,
-                        contact_tel: trackerData['roomsonline']?.contact_tel,
-                        contact_email: trackerData['roomsonline']?.contact_email,
+                        contact_name: trackerData["hotelbeds"]?.contact_name,
+                        contact_tel: trackerData["hotelbeds"]?.contact_tel,
+                        contact_email: trackerData["hotelbeds"]?.contact_email,
                       }}
                       onUpdated={() => fetchTrackerData()}
                     />
 
                     {/* Dev Notes */}
-                    <PMSDevNotes systemType="roomsonline" />
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          </div>
+                    <PMSDevNotes systemType="hotelbeds" />
 
-          {/* PMS Systems Section - Alphabetically ordered */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Property Management Systems</h2>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={sendStatusReport}
-                disabled={sendingStatusReport}
-                className="gap-2"
-              >
-                {sendingStatusReport ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => setEditingHotelbeds(true)}>
+                        {hotelbedsCredentials?.api_key ? "Update Credentials" : "Configure"}
+                      </Button>
+                      <Button
+                        variant="default"
+                        onClick={() => navigate("/admin/pms-config/hotelbeds")}
+                        disabled={!hotelbedsCredentials?.api_key}
+                      >
+                        <Settings className="h-4 w-4 mr-2" />
+                        Field Mappings
+                      </Button>
+                    </div>
+                  </div>
                 )}
-                Email Status Report
-              </Button>
-            </div>
-            <Accordion type="multiple" className="space-y-4">
-              {renderBensonCard()}
-              {renderCheckfrontCard()}
-              {renderCloudbedsCard()}
-              {renderPlaceholderPMSCard("Guestly", "guestly", "Property management and guest experience platform for vacation rentals")}
-              {renderHostfullyCard()}
-              {/* HotelBeds - Custom card with API key/secret */}
-              <AccordionItem value="hotelbeds" className={`border rounded-lg px-4 ${!hotelbedsCredentials?.is_active ? "opacity-60" : ""}`}>
-                <AccordionTrigger className="hover:no-underline">
-                  <div className="flex items-center justify-between w-full pr-4">
-                    <div className="flex items-center gap-3">
-                      <BedDouble className="h-5 w-5 text-primary" />
-                      <span className="font-semibold">HotelBeds</span>
-                      <Badge variant="outline" className="text-xs">API Key + Secret</Badge>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
-                        <Switch
-                          checked={hotelbedsCredentials?.is_active ?? false}
-                          onCheckedChange={handleToggleHotelbeds}
-                          disabled={togglingHotelbeds || !hotelbedsCredentials?.api_key}
-                          className={!hotelbedsCredentials?.api_key ? "opacity-50" : ""}
-                        />
-                        <span className="text-xs text-muted-foreground">{hotelbedsCredentials?.is_active ? "On" : "Off"}</span>
-                      </div>
-                      {hotelbedsCredentials?.api_key ? (
-                        <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Configured
-                        </Badge>
-                      ) : (
-                        <Badge variant="destructive" className="flex items-center gap-1">
-                          <AlertCircle className="h-3 w-3" />
-                          Not Configured
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="pt-4 space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      Global bedbank and travel distribution platform for hotels
-                    </p>
-                    <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded-md inline-block">
-                      ⓘ Test environment: 50 requests/day limit
-                    </div>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+          {renderLittlehotelierCard()}
+          {renderNightsbridgeCard()}
+          {renderPlaceholderPMSCard(
+            "RoomKey",
+            "roomkey",
+            "Hotel booking platform with direct connections to major hotel chains",
+          )}
+          {renderPlaceholderPMSCard(
+            "RoomRaccoon",
+            "roomracoon",
+            "All-in-one hotel management system with channel manager and booking engine",
+          )}
+          {pmsKeys.map(renderKeyCard)}
+        </Accordion>
+      </div>
 
-                    {editingHotelbeds ? (
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="hotelbeds-apikey">API Key</Label>
-                          <Input
-                            id="hotelbeds-apikey"
-                            name="hotelbeds-api-key-input"
-                            autoComplete="off"
-                            value={hotelbedsApiKey}
-                            onChange={(e) => setHotelbedsApiKey(e.target.value)}
-                            placeholder={hotelbedsCredentials?.api_key ? "••••••••" : "Enter API key"}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="hotelbeds-secret">API Secret</Label>
-                          <Input
-                            id="hotelbeds-secret"
-                            name="hotelbeds-api-secret-input"
-                            type="password"
-                            autoComplete="new-password"
-                            value={hotelbedsApiSecret}
-                            onChange={(e) => setHotelbedsApiSecret(e.target.value)}
-                            placeholder={hotelbedsCredentials?.password ? "••••••••" : "Enter API secret"}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Environment</Label>
-                          <div className="flex items-center gap-4">
-                            <Button
-                              variant={hotelbedsEnvironment === "staging" ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => handleHotelbedsEnvironmentChange("staging")}
-                            >
-                              Test
-                            </Button>
-                            <Button
-                              variant={hotelbedsEnvironment === "production" ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => handleHotelbedsEnvironmentChange("production")}
-                            >
-                              Production
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button onClick={handleSaveHotelbedsCredentials} disabled={savingHotelbeds}>
-                            {savingHotelbeds ? "Saving..." : "Save"}
-                          </Button>
-                          <Button variant="outline" onClick={() => { setEditingHotelbeds(false); setHotelbedsApiKey(""); setHotelbedsApiSecret(""); }}>
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <Label className="text-muted-foreground">API Key</Label>
-                            <p className={`font-medium ${hotelbedsCredentials?.api_key ? "text-green-600" : ""}`}>
-                              {hotelbedsCredentials?.api_key ? "Configured" : "Not set"}
-                            </p>
-                          </div>
-                          <div>
-                            <Label className="text-muted-foreground">Environment</Label>
-                            <p className="font-medium capitalize">{hotelbedsCredentials?.environment || "Test"}</p>
-                          </div>
-                          <div>
-                            <Label className="text-muted-foreground">Status</Label>
-                            <p className="font-medium">{hotelbedsCredentials?.is_active ? "Active" : "Inactive"}</p>
-                          </div>
-                        </div>
-                        <PMSProgressToggles systemType="hotelbeds" trackerData={trackerData.hotelbeds} onUpdated={fetchTrackerData} />
-
-                        {/* PMS IT Contact */}
-                        <PMSContactDetails 
-                          systemType="hotelbeds"
-                          initialData={{
-                            contact_name: trackerData['hotelbeds']?.contact_name,
-                            contact_tel: trackerData['hotelbeds']?.contact_tel,
-                            contact_email: trackerData['hotelbeds']?.contact_email,
-                          }}
-                          onUpdated={() => fetchTrackerData()}
-                        />
-
-                        {/* Dev Notes */}
-                        <PMSDevNotes systemType="hotelbeds" />
-
-                        <div className="flex gap-2">
-                          <Button variant="outline" onClick={() => setEditingHotelbeds(true)}>
-                            {hotelbedsCredentials?.api_key ? "Update Credentials" : "Configure"}
-                          </Button>
-                          <Button
-                            variant="default"
-                            onClick={() => navigate("/admin/pms-config/hotelbeds")}
-                            disabled={!hotelbedsCredentials?.api_key}
-                          >
-                            <Settings className="h-4 w-4 mr-2" />
-                            Field Mappings
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-              {renderLittlehotelierCard()}
-              {renderNightsbridgeCard()}
-              {renderPlaceholderPMSCard("RoomKey", "roomkey", "Hotel booking platform with direct connections to major hotel chains")}
-              {renderPlaceholderPMSCard("RoomRaccoon", "roomracoon", "All-in-one hotel management system with channel manager and booking engine")}
-              {pmsKeys.map(renderKeyCard)}
-            </Accordion>
-          </div>
-
-          {/* Additional Services Section */}
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Additional Services</h2>
-            <Accordion type="multiple" className="space-y-4">
-              {renderResendCard()}
-              {renderTripadvisorCard()}
-              {additionalKeys
-                .filter((k) => 
-                  k.key_name !== "RESEND_API_KEY" && 
-                  !k.key_name.startsWith("TRIPADVISOR_") &&
-                  k.key_name !== "BOOK_OPEN_NEW_TAB" &&
-                  k.key_name !== "HOME_ICON_OPEN_NEW_TAB"
-                )
-                .map(renderKeyCard)}
-          </Accordion>
-        </div>
+      {/* Additional Services Section */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Additional Services</h2>
+        <Accordion type="multiple" className="space-y-4">
+          {renderResendCard()}
+          {renderTripadvisorCard()}
+          {additionalKeys
+            .filter(
+              (k) =>
+                k.key_name !== "RESEND_API_KEY" &&
+                !k.key_name.startsWith("TRIPADVISOR_") &&
+                k.key_name !== "BOOK_OPEN_NEW_TAB" &&
+                k.key_name !== "HOME_ICON_OPEN_NEW_TAB",
+            )
+            .map(renderKeyCard)}
+        </Accordion>
+      </div>
       {renderHostfullyListingSelector()}
     </AppLayout>
   );
