@@ -48,6 +48,7 @@ import AdminSystemHealth from "./pages/AdminSystemHealth";
 import ProjectDiscoverySurvey from "./pages/ProjectDiscoverySurvey";
 import SupportingSystems from "./pages/SupportingSystems";
 import ContractSign from "./pages/ContractSign";
+import PropertyOnboarding from "./pages/PropertyOnboarding";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -312,6 +313,8 @@ const App = () => (
             />
             {/* Contract signing - public route */}
             <Route path="/contract/sign/:token" element={<ContractSign />} />
+            {/* Property onboarding - requires auth */}
+            <Route path="/onboarding/:token" element={<PropertyOnboarding />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

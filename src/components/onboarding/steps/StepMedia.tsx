@@ -17,7 +17,7 @@ export function StepMedia({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const images = (Array.isArray(propertyData.images) ? propertyData.images : []) as OnboardingImage[];
+  const images = (Array.isArray(propertyData.images) ? propertyData.images : []) as unknown as OnboardingImage[];
 
   const handleFileUpload = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;

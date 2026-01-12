@@ -87,6 +87,7 @@ import { WebsiteSyncModal, WebsiteSyncSuggestion } from "@/components/property/W
 import { syncFromWebsite } from "@/lib/api/websiteSync";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { ContractManagementPanel } from "@/components/contract";
+import { PropertyOnboardingWizard } from "@/components/onboarding";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -3803,6 +3804,7 @@ export default function PropertyForm() {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
             <TabsList className="bg-secondary h-8">
               {[
+                { value: "onboarding", icon: Sparkles, label: "Onboarding", highlight: true, onboardingOnly: true },
                 { value: "general", icon: Home, label: "General", highlight: false },
                 { value: "rol-spec", icon: Sparkles, label: "ROL Spec", highlight: true },
                 { value: "info-facilities", icon: Building2, label: "Info & Facilities", highlight: false },
@@ -3817,12 +3819,16 @@ export default function PropertyForm() {
                 { value: "announcements", icon: Bell, label: "Announcements", highlight: false },
               ]
                 .filter(
-                  (tab) =>
-                    selectedPMS !== "nightsbridge" ||
-                    tab.value === "general" ||
-                    tab.value === "rol-spec" ||
-                    tab.value === "images" ||
-                    tab.value === "rooms",
+                  (tab) => {
+                    // Hide onboarding tab for new properties
+                    if (tab.value === "onboarding" && !propertyId) return false;
+                    // NightsBridge filtering
+                    if (selectedPMS === "nightsbridge") {
+                      return tab.value === "general" || tab.value === "rol-spec" || 
+                             tab.value === "images" || tab.value === "rooms" || tab.value === "onboarding";
+                    }
+                    return true;
+                  }
                 )
                 .map((tab) => {
                   const isActive = activeTab === tab.value;
@@ -3865,6 +3871,27 @@ export default function PropertyForm() {
                   );
                 })}
             </TabsList>
+
+            {/* Onboarding Tab - Full-screen wizard */}
+            <TabsContent value="onboarding" className="mt-0">
+              {propertyId ? (
+                <div className="rounded-lg border bg-card">
+                  <PropertyOnboardingWizard
+                    propertyId={propertyId}
+                    mode="embedded"
+                    onComplete={() => setActiveTab("general")}
+                  />
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <p className="text-muted-foreground">
+                      Save the property first to access the onboarding wizard.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
 
             <TabsContent value="general">
               <form onSubmit={handleSubmit} className="space-y-3">

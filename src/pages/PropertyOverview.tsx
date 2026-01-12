@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star, Eye, EyeOff, FileCheck, FileX, FileWarning, Send } from "lucide-react";
+import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star, Eye, EyeOff, FileCheck, FileX, FileWarning, Send, Mail, Loader2 } from "lucide-react";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -54,6 +54,7 @@ const PropertyOverview = () => {
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [uploadingCell, setUploadingCell] = useState<string | null>(null);
+  const [sendingOnboarding, setSendingOnboarding] = useState<string | null>(null);
 
   const { data: allProperties, isLoading, refetch } = useQuery({
     queryKey: ["properties", user?.id, isAdmin],
@@ -194,6 +195,39 @@ const PropertyOverview = () => {
       toast.error("Failed to upload image");
     } finally {
       setUploadingCell(null);
+    }
+  };
+
+  const handleSendOnboarding = async (property: any) => {
+    if (!property.owner_email) {
+      toast.error("No owner email set for this property");
+      return;
+    }
+
+    setSendingOnboarding(property.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-onboarding-email", {
+        body: {
+          propertyId: property.id,
+          ownerEmail: property.owner_email,
+          ownerName: property.owner_name,
+          propertyName: property.name,
+          createdBy: user?.id
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success(`Onboarding email sent to ${property.owner_email}`);
+      } else {
+        throw new Error(data?.error || "Failed to send email");
+      }
+    } catch (error: any) {
+      console.error("Send onboarding error:", error);
+      toast.error(error.message || "Failed to send onboarding email");
+    } finally {
+      setSendingOnboarding(null);
     }
   };
 
@@ -739,6 +773,20 @@ const PropertyOverview = () => {
                                 title="View Property Showcase"
                               >
                                 <Home className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => handleSendOnboarding(property)}
+                                disabled={sendingOnboarding === property.id || !property.owner_email}
+                                title={property.owner_email ? `Send onboarding to ${property.owner_email}` : "No owner email set"}
+                              >
+                                {sendingOnboarding === property.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Mail className="h-3 w-3" />
+                                )}
                               </Button>
                               <Button
                                 variant="ghost"
