@@ -63,10 +63,10 @@ Deno.serve(async (req) => {
     const resendKey = Deno.env.get("RESEND_API_KEY");
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const { property_id, owner_email, owner_name, resend: isResend } = await req.json();
+    const { property_id, owner_email: providedEmail, owner_name, resend: isResend } = await req.json();
 
-    if (!property_id || !owner_email) {
-      return new Response(JSON.stringify({ error: "property_id and owner_email required" }), {
+    if (!property_id) {
+      return new Response(JSON.stringify({ error: "property_id required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -86,8 +86,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Build property details for contract
+    // Build property details for contract - always use fresh DB data
     const amenities = property.amenities as Record<string, any> || {};
+    
+    // Determine the actual email to send to - prioritize amenities.contact_email, then property.owner_email
+    const owner_email = amenities.contact_email || property.owner_email || providedEmail;
+    
+    if (!owner_email) {
+      return new Response(JSON.stringify({ error: "No owner email found for this property" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
     const propertyDetails: PropertyContractDetails = {
       name: property.name,
       registeredName: amenities.registered_business_name || property.name,
@@ -95,7 +106,7 @@ Deno.serve(async (req) => {
       vatNumber: amenities.vat_number,
       telephone: amenities.telephone,
       mobileNumber: amenities.mobile_number || amenities.telephone,
-      email: amenities.contact_email || property.owner_email,
+      email: owner_email,
       physicalAddress: [property.address, property.city, property.country].filter(Boolean).join(", "),
       postalAddress: amenities.postal_address,
       keyRepresentative: property.owner_name || owner_name,
