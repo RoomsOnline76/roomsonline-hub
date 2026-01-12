@@ -37,7 +37,12 @@ import {
   Send,
   Loader2,
   Building2,
+  FlaskConical,
+  Search,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Map PMS system types to icons
 const getPMSIcon = (systemType: string | null): LucideIcon => {
@@ -166,6 +171,25 @@ export default function AdminKeys() {
   const [hostfullyListingsCount, setHostfullyListingsCount] = useState<number | null>(null);
   const [hostfullyLastSyncAt, setHostfullyLastSyncAt] = useState<string | null>(null);
   const [hostfullySyncStatus, setHostfullySyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
+  
+  // Sandbox query state
+  const [sandboxQueryDialogOpen, setSandboxQueryDialogOpen] = useState(false);
+  const [sandboxProperties, setSandboxProperties] = useState<Array<{
+    id: string;
+    name: string;
+    type: string;
+    bedrooms?: number;
+    bathrooms?: number;
+    max_guests?: number;
+    address?: string;
+    city?: string;
+    country?: string;
+    base_price?: number;
+    _raw?: Record<string, unknown>;
+  }>>([]);
+  const [querySandboxLoading, setQuerySandboxLoading] = useState(false);
+  const [selectedSandboxIds, setSelectedSandboxIds] = useState<Set<string>>(new Set());
+  const [creatingSandboxProperties, setCreatingSandboxProperties] = useState(false);
 
   // Cloudbeds-specific state
   const [cloudbedsCredentials, setCloudbedsCredentials] = useState<PMSCredentials | null>(null);
@@ -999,6 +1023,116 @@ export default function AdminKeys() {
       fetchHostfullyCredentials();
     }
     setSavingHostfully(false);
+  };
+
+  // Sandbox query handlers
+  const handleQuerySandboxProperties = async () => {
+    setQuerySandboxLoading(true);
+    setSandboxProperties([]);
+    setSelectedSandboxIds(new Set());
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("hostfully-api", {
+        body: { 
+          action: "list_properties",
+          api_key: hostfullyCredentials?.api_key,
+          environment: "sandbox",
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error?.message || "Failed to query sandbox");
+
+      const properties = (data.data?.properties || []).map((p: Record<string, unknown>) => ({
+        id: p.id as string,
+        name: p.name as string,
+        type: (p._raw as Record<string, unknown>)?.type as string || 'Property',
+        bedrooms: p.bedrooms as number,
+        bathrooms: p.bathrooms as number,
+        max_guests: p.max_guests as number,
+        address: p.address as string,
+        city: p.city as string,
+        country: p.country as string,
+        base_price: p.base_price as number,
+        _raw: p._raw as Record<string, unknown>,
+      }));
+
+      setSandboxProperties(properties);
+      setSandboxQueryDialogOpen(true);
+
+      toast({
+        title: "Properties found",
+        description: `Found ${properties.length} properties in Hostfully sandbox`,
+      });
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to query Hostfully sandbox";
+      toast({
+        title: "Query failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setQuerySandboxLoading(false);
+    }
+  };
+
+  const handleCreateSandboxProperties = async () => {
+    setCreatingSandboxProperties(true);
+    
+    try {
+      const selectedProperties = sandboxProperties.filter(p => selectedSandboxIds.has(p.id));
+      let created = 0;
+      
+      for (const listing of selectedProperties) {
+        const propertyData = {
+          name: `[SANDBOX] ${listing.name}`,
+          address: listing.address || "Sandbox Address",
+          city: listing.city || "Sandbox City",
+          country: listing.country || "ZA",
+          property_type: listing.type || "Property",
+          max_guests: listing.max_guests || 2,
+          bedrooms: listing.bedrooms || 1,
+          bathrooms: listing.bathrooms || 1,
+          price_per_night: listing.base_price || 0,
+          external_system: "hostfully",
+          external_id: listing.id,
+          hostfully_property_uid: listing.id,
+          external_metadata: { 
+            ...listing._raw, 
+            is_sandbox: true,
+            imported_from: "sandbox_query"
+          },
+          pms_managed_fields: ["availability", "rates", "max_guests", "bedrooms", "bathrooms"],
+          pms_sync_status: "active",
+          last_pms_sync_at: new Date().toISOString(),
+          is_active: false,
+        };
+
+        const { error } = await supabase.from("properties").insert(propertyData);
+        if (error) {
+          console.error("Error creating sandbox property:", error);
+        } else {
+          created++;
+        }
+      }
+
+      toast({
+        title: "Test properties created",
+        description: `Created ${created} of ${selectedProperties.length} test properties from sandbox`,
+      });
+
+      setSandboxQueryDialogOpen(false);
+      setSelectedSandboxIds(new Set());
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to create test properties";
+      toast({
+        title: "Creation failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingSandboxProperties(false);
+    }
   };
 
   const handleSaveCloudbedsCredentials = async () => {
@@ -3092,6 +3226,41 @@ export default function AdminKeys() {
               </div>
             </div>
 
+            {/* Sandbox Testing Section - Only visible when staging is selected */}
+            {hostfullyEnvironment === "staging" && isConfigured && (
+              <div className="p-4 rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/30 dark:border-yellow-800">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="font-medium flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
+                      <FlaskConical className="h-4 w-4" />
+                      Sandbox Testing
+                    </p>
+                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                      Query and import test properties from Hostfully sandbox
+                    </p>
+                  </div>
+                  <Button 
+                    variant="outline"
+                    onClick={handleQuerySandboxProperties}
+                    disabled={querySandboxLoading}
+                    className="border-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-900/50"
+                  >
+                    {querySandboxLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Querying...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="h-4 w-4 mr-2" />
+                        Query Properties
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {editingHostfully ? (
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -3301,6 +3470,107 @@ export default function AdminKeys() {
       onImport={handleHostfullyImportListings}
       existingProperties={[]}
     />
+  );
+
+  // Sandbox Query Dialog
+  const renderSandboxQueryDialog = () => (
+    <Dialog open={sandboxQueryDialogOpen} onOpenChange={setSandboxQueryDialogOpen}>
+      <DialogContent className="max-w-2xl max-h-[80vh]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FlaskConical className="h-5 w-5 text-yellow-600" />
+            Sandbox Properties
+          </DialogTitle>
+          <DialogDescription>
+            Select properties to create as test properties linked to Hostfully
+          </DialogDescription>
+        </DialogHeader>
+        
+        <ScrollArea className="h-[400px] pr-4">
+          {sandboxProperties.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">
+              No properties found in sandbox
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {/* Select All */}
+              <div className="flex items-center gap-3 pb-2 border-b">
+                <Checkbox 
+                  checked={selectedSandboxIds.size === sandboxProperties.length && sandboxProperties.length > 0}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setSelectedSandboxIds(new Set(sandboxProperties.map(p => p.id)));
+                    } else {
+                      setSelectedSandboxIds(new Set());
+                    }
+                  }}
+                />
+                <span className="text-sm font-medium">Select All ({sandboxProperties.length})</span>
+              </div>
+              
+              {/* Property List */}
+              {sandboxProperties.map((property) => (
+                <div 
+                  key={property.id}
+                  className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer"
+                  onClick={() => {
+                    const newSet = new Set(selectedSandboxIds);
+                    if (newSet.has(property.id)) {
+                      newSet.delete(property.id);
+                    } else {
+                      newSet.add(property.id);
+                    }
+                    setSelectedSandboxIds(newSet);
+                  }}
+                >
+                  <Checkbox
+                    checked={selectedSandboxIds.has(property.id)}
+                    onCheckedChange={(checked) => {
+                      const newSet = new Set(selectedSandboxIds);
+                      if (checked) {
+                        newSet.add(property.id);
+                      } else {
+                        newSet.delete(property.id);
+                      }
+                      setSelectedSandboxIds(newSet);
+                    }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{property.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {property.city || 'Unknown'}, {property.country || 'ZA'} · 
+                      {property.bedrooms || 0} bed · {property.max_guests || 0} guests
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-xs shrink-0">
+                    {property.type}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setSandboxQueryDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleCreateSandboxProperties}
+            disabled={selectedSandboxIds.size === 0 || creatingSandboxProperties}
+          >
+            {creatingSandboxProperties ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              `Create ${selectedSandboxIds.size} Test Properties`
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 
   // Placeholder card for upcoming PMS integrations
@@ -3771,6 +4041,7 @@ export default function AdminKeys() {
         </Accordion>
       </div>
       {renderHostfullyListingSelector()}
+      {renderSandboxQueryDialog()}
     </AppLayout>
   );
 }
