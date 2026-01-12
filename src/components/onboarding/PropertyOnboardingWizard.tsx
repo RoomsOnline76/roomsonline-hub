@@ -23,6 +23,7 @@ import { StepReviewSubmit } from "./steps/StepReviewSubmit";
 export interface PropertyOnboardingWizardProps {
   propertyId: string;
   mode: 'fullscreen' | 'embedded';
+  ownerEmail?: string;
   onComplete?: () => void;
   onClose?: () => void;
 }
@@ -44,6 +45,7 @@ const STEP_COMPONENTS = [
 export function PropertyOnboardingWizard({
   propertyId,
   mode,
+  ownerEmail,
   onComplete,
   onClose
 }: PropertyOnboardingWizardProps) {
@@ -64,7 +66,7 @@ export function PropertyOnboardingWizard({
     nextStep,
     prevStep,
     getAmenityValue
-  } = usePropertyOnboarding(propertyId);
+  } = usePropertyOnboarding(propertyId, ownerEmail);
 
   const CurrentStepComponent = STEP_COMPONENTS[currentStep];
   const currentSection = WIZARD_SECTIONS[currentStep];

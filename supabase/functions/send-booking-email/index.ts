@@ -127,7 +127,7 @@ function wrapCustomTemplate(customContent: string, property: any): string {
               <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
                 RoomsOnline on behalf of <strong>${property.name}</strong>
               </p>
-              <img src="https://roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
+              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
             </td>
           </tr>
           
@@ -339,7 +339,7 @@ function generateSuccessEmail(booking: any, property: any): string {
               <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
                 RoomsOnline on behalf of <strong>${property.name}</strong>
               </p>
-              <img src="https://roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
+              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
             </td>
           </tr>
           
@@ -435,7 +435,7 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
               <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
                 RoomsOnline on behalf of <strong>${property.name}</strong>
               </p>
-              <img src="https://roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
+              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
             </td>
           </tr>
           

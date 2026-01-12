@@ -38,10 +38,11 @@ interface OnboardingState {
 
 const DEBOUNCE_MS = 2000;
 
-export function usePropertyOnboarding(propertyId: string) {
+export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: string) {
   const { toast } = useToast();
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingChangesRef = useRef<Partial<PropertyData>>({});
+  const emailPrePopulatedRef = useRef(false);
 
   const [state, setState] = useState<OnboardingState>({
     currentStep: 0,
@@ -70,8 +71,26 @@ export function usePropertyOnboarding(propertyId: string) {
 
       if (error) throw error;
 
-      const propertyData = data as PropertyData;
+      let propertyData = data as PropertyData;
       const pmsManagedFields = (propertyData.pms_managed_fields || []) as string[];
+      
+      // Pre-populate owner email if provided and contact_email is empty
+      if (initialOwnerEmail && !emailPrePopulatedRef.current) {
+        const currentAmenities = (propertyData.amenities || {}) as Record<string, unknown>;
+        if (!currentAmenities.contact_email) {
+          const newAmenities = { ...currentAmenities, contact_email: initialOwnerEmail };
+          propertyData = { ...propertyData, amenities: newAmenities as Json };
+          
+          // Save the pre-populated email
+          await supabase
+            .from("properties")
+            .update({ amenities: newAmenities })
+            .eq("id", propertyId);
+          
+          emailPrePopulatedRef.current = true;
+        }
+      }
+      
       const { completionPercent, score } = calculateScores(propertyData);
 
       setState(prev => ({
