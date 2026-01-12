@@ -84,11 +84,19 @@ export function ContractManagementPanel({
 
     const htmlContent = generateSignedContractHTML(propertyDetails, signatureData, metadata, coveredProps);
     
-    // Open in new window for print
+    // Open in new window for print - with delay to allow content to render
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(htmlContent);
       printWindow.document.close();
+      
+      // Wait for images (base64) to render before triggering print
+      printWindow.onload = () => {
+        setTimeout(() => {
+          printWindow.focus();
+          printWindow.print();
+        }, 300);
+      };
     }
   };
 
