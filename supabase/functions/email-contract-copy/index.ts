@@ -91,7 +91,7 @@ const handler = async (req: Request): Promise<Response> => {
     const propertyDetailsHTML = generatePropertyDetailsHTML(property_details);
 
     const emailResponse = await resend.emails.send({
-      from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
+      from: "RoomsOnline <hello@notify.roomsonline.co.za>",
       to: [email],
       subject: `RoomsOnline Agreement for ${property_name} - For Your Review`,
       html: `

@@ -447,7 +447,7 @@ Deno.serve(async (req) => {
       .eq("key_name", "RESEND_FROM_EMAIL")
       .maybeSingle();
 
-    const fromEmail = emailConfig?.key_value || "RoomsOnline <noreply@notify.roomsonline.co.za>";
+    const fromEmail = emailConfig?.key_value || "RoomsOnline <hello@notify.roomsonline.co.za>";
 
     // Send email
     const { error: emailError } = await resend.emails.send({

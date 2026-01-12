@@ -74,7 +74,7 @@ serve(async (req) => {
         Authorization: `Bearer ${resendApiKey}`,
       },
       body: JSON.stringify({
-        from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
+        from: "RoomsOnline <hello@notify.roomsonline.co.za>",
         to: [ownerEmail],
         subject: `Complete Your Property Profile - ${propertyName || "Your Property"}`,
         html: `
