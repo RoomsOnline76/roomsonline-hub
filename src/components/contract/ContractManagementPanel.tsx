@@ -8,7 +8,7 @@ import { useOwnerContract } from "@/hooks/useOwnerContract";
 import { useAuth } from "@/hooks/useAuth";
 import { FileText, Send, RefreshCw, Download, Shield, AlertTriangle, Building2, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
-import { generateSignedContractHTML, PropertyContractDetails, SignatureData } from "@/lib/contractAgreementText";
+import { generateSignedContractHTML, PropertyContractDetails, SignatureData, ContractMetadata, CoveredProperty } from "@/lib/contractAgreementText";
 
 interface ContractManagementPanelProps {
   propertyId: string;
@@ -54,7 +54,7 @@ export function ContractManagementPanel({
   const canSend = !!ownerEmail;
   const showWarning = showOnWebsite && !hasValidContract;
 
-  // Generate and download contract as HTML (printable)
+  // Generate and download contract as branded HTML (printable)
   const handleDownloadContract = () => {
     if (!contract || contract.status !== "signed") return;
 
@@ -73,40 +73,20 @@ export function ContractManagementPanel({
       signedAt: contract.signed_at || new Date().toISOString(),
     };
 
-    const htmlContent = generateSignedContractHTML(propertyDetails, signatureData);
+    const metadata = {
+      contractId: contract.id,
+      downloadedAt: new Date().toISOString(),
+      version: contract.version,
+    };
+
+    const coveredProps = ownerProperties.map(p => ({ name: p.name }));
+
+    const htmlContent = generateSignedContractHTML(propertyDetails, signatureData, metadata, coveredProps);
     
-    // Create a printable document
+    // Open in new window for print
     const printWindow = window.open('', '_blank');
     if (printWindow) {
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Signed Contract - ${ownerName || ownerEmail}</title>
-          <style>
-            body { 
-              font-family: Georgia, serif; 
-              max-width: 800px; 
-              margin: 40px auto; 
-              padding: 20px;
-              line-height: 1.6;
-            }
-            @media print {
-              body { margin: 0; padding: 20px; }
-            }
-          </style>
-        </head>
-        <body>
-          ${htmlContent}
-          <script>
-            // Auto-trigger print dialog
-            window.onload = function() {
-              window.print();
-            }
-          </script>
-        </body>
-        </html>
-      `);
+      printWindow.document.write(htmlContent);
       printWindow.document.close();
     }
   };
