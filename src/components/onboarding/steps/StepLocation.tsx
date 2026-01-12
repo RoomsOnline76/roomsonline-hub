@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { MapPin, Loader2, AlertTriangle, CheckCircle } from "lucide-react";
+import { MapPin, Loader2, AlertTriangle, CheckCircle, Building2 } from "lucide-react";
 import { StepProps } from "./types";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -11,7 +11,8 @@ import { useToast } from "@/hooks/use-toast";
 export function StepLocation({
   propertyData,
   updateField,
-  isPMSManaged
+  isPMSManaged,
+  getAmenityValue
 }: StepProps) {
   const { toast } = useToast();
   const [isGeocoding, setIsGeocoding] = useState(false);
@@ -21,6 +22,11 @@ export function StepLocation({
   const isPMSCountry = isPMSManaged("country");
 
   const hasCoordinates = propertyData.latitude && propertyData.longitude;
+
+  // Surroundings distances
+  const restaurantsCafesKm = getAmenityValue<number | null>("restaurants_cafes_km", null);
+  const publicTransportKm = getAmenityValue<number | null>("public_transport_km", null);
+  const closestAirportKm = getAmenityValue<number | null>("closest_airport_km", null);
 
   const handleGeocode = async () => {
     if (!propertyData.address || !propertyData.city) {
@@ -192,6 +198,58 @@ export function StepLocation({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Surroundings Section */}
+      <div className="space-y-4 pt-4 border-t">
+        <div className="flex items-center gap-2">
+          <Building2 className="h-5 w-5 text-primary" />
+          <h3 className="font-semibold">Surroundings</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Approximate distance to nearby amenities and transport.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="restaurants_cafes_km">Restaurants/Cafés (km)</Label>
+            <Input
+              id="restaurants_cafes_km"
+              type="number"
+              min={0}
+              step={0.1}
+              value={restaurantsCafesKm || ""}
+              onChange={(e) => updateField("amenities.restaurants_cafes_km", e.target.value ? parseFloat(e.target.value) : null)}
+              placeholder="e.g., 0.5"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="public_transport_km">Public Transport (km)</Label>
+            <Input
+              id="public_transport_km"
+              type="number"
+              min={0}
+              step={0.1}
+              value={publicTransportKm || ""}
+              onChange={(e) => updateField("amenities.public_transport_km", e.target.value ? parseFloat(e.target.value) : null)}
+              placeholder="e.g., 1.2"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="closest_airport_km">Closest Airport (km)</Label>
+            <Input
+              id="closest_airport_km"
+              type="number"
+              min={0}
+              step={0.1}
+              value={closestAirportKm || ""}
+              onChange={(e) => updateField("amenities.closest_airport_km", e.target.value ? parseFloat(e.target.value) : null)}
+              placeholder="e.g., 45"
+            />
+          </div>
+        </div>
       </div>
 
       {/* PMS Warning */}

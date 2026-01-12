@@ -7,7 +7,7 @@ import { PROPERTY_TYPES } from "@/config/onboardingFieldSchema";
 import { StepProps } from "./types";
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
-  apartment: "Apartment",
+  apartment: "Apartments",
   bed_and_breakfast: "Bed & Breakfast",
   boutique_hotel: "Boutique Hotel",
   guest_house: "Guest House",
@@ -18,14 +18,30 @@ const PROPERTY_TYPE_LABELS: Record<string, string> = {
   other: "Other"
 };
 
+const STAR_GRADING_OPTIONS = [
+  { value: "tgcsa_1", label: "TGCSA 1 Star" },
+  { value: "tgcsa_2", label: "TGCSA 2 Star" },
+  { value: "tgcsa_3", label: "TGCSA 3 Star" },
+  { value: "tgcsa_4", label: "TGCSA 4 Star" },
+  { value: "tgcsa_5", label: "TGCSA 5 Star" },
+  { value: "none", label: "Not Graded" }
+];
+
 export function StepPropertyIdentity({
   propertyData,
   updateField,
-  isPMSManaged
+  isPMSManaged,
+  getAmenityValue
 }: StepProps) {
   const isPMSName = isPMSManaged("name");
   const isPMSType = isPMSManaged("property_type");
   const isPMSUrl = isPMSManaged("property_url");
+
+  const numberOfFloors = getAmenityValue<number | null>("number_of_floors", null);
+  const starGrading = getAmenityValue<string>("star_grading", "");
+  const tripadvisorId = getAmenityValue<string>("tripadvisor_id", "");
+  const pmsName = getAmenityValue<string>("pms_name", "");
+  const channelManager = getAmenityValue<string>("channel_manager", "");
 
   return (
     <div className="space-y-6">
@@ -52,34 +68,70 @@ export function StepPropertyIdentity({
         </p>
       </div>
 
-      {/* Property Type */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Property Type */}
+        <div className="space-y-2">
+          <Label htmlFor="property_type" className="flex items-center gap-2">
+            Property Type *
+            {isPMSType && (
+              <span className="text-xs text-amber-600 flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                PMS managed
+              </span>
+            )}
+          </Label>
+          <Select
+            value={propertyData.property_type || ""}
+            onValueChange={(value) => updateField("property_type", value)}
+          >
+            <SelectTrigger id="property_type">
+              <SelectValue placeholder="Select property type" />
+            </SelectTrigger>
+            <SelectContent>
+              {PROPERTY_TYPES.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {PROPERTY_TYPE_LABELS[type] || type}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Number of Floors */}
+        <div className="space-y-2">
+          <Label htmlFor="number_of_floors">Number of Floors</Label>
+          <Input
+            id="number_of_floors"
+            type="number"
+            min={1}
+            max={100}
+            value={numberOfFloors || ""}
+            onChange={(e) => updateField("amenities.number_of_floors", e.target.value ? parseInt(e.target.value) : null)}
+            placeholder="e.g., 3"
+          />
+        </div>
+      </div>
+
+      {/* Star Grading */}
       <div className="space-y-2">
-        <Label htmlFor="property_type" className="flex items-center gap-2">
-          Property Type *
-          {isPMSType && (
-            <span className="text-xs text-amber-600 flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3" />
-              PMS managed
-            </span>
-          )}
-        </Label>
+        <Label htmlFor="star_grading">Star Grading (TGCSA)</Label>
         <Select
-          value={propertyData.property_type || ""}
-          onValueChange={(value) => updateField("property_type", value)}
+          value={starGrading}
+          onValueChange={(value) => updateField("amenities.star_grading", value)}
         >
-          <SelectTrigger id="property_type">
-            <SelectValue placeholder="Select property type" />
+          <SelectTrigger id="star_grading">
+            <SelectValue placeholder="Select star grading" />
           </SelectTrigger>
           <SelectContent>
-            {PROPERTY_TYPES.map((type) => (
-              <SelectItem key={type} value={type}>
-                {PROPERTY_TYPE_LABELS[type] || type}
+            {STAR_GRADING_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">
-          Choose the category that best describes your property
+          Tourism Grading Council of South Africa rating (if applicable)
         </p>
       </div>
 
@@ -101,9 +153,49 @@ export function StepPropertyIdentity({
           onChange={(e) => updateField("property_url", e.target.value)}
           placeholder="https://www.yourproperty.com"
         />
+      </div>
+
+      {/* TripAdvisor ID */}
+      <div className="space-y-2">
+        <Label htmlFor="tripadvisor_id">TripAdvisor ID</Label>
+        <Input
+          id="tripadvisor_id"
+          value={tripadvisorId}
+          onChange={(e) => updateField("amenities.tripadvisor_id", e.target.value)}
+          placeholder="e.g., d123456"
+        />
         <p className="text-xs text-muted-foreground">
-          Your property's official website (optional)
+          Your TripAdvisor location ID for review integration
         </p>
+      </div>
+
+      {/* Systems Section */}
+      <div className="space-y-4 pt-4 border-t">
+        <h3 className="font-medium text-sm text-muted-foreground">Systems & Integrations</h3>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Property Management System */}
+          <div className="space-y-2">
+            <Label htmlFor="pms_name">Property Management System</Label>
+            <Input
+              id="pms_name"
+              value={pmsName}
+              onChange={(e) => updateField("amenities.pms_name", e.target.value)}
+              placeholder="e.g., Hostfully, NightsBridge"
+            />
+          </div>
+
+          {/* Channel Manager */}
+          <div className="space-y-2">
+            <Label htmlFor="channel_manager">Channel Manager</Label>
+            <Input
+              id="channel_manager"
+              value={channelManager}
+              onChange={(e) => updateField("amenities.channel_manager", e.target.value)}
+              placeholder="e.g., SiteMinder, Cloudbeds"
+            />
+          </div>
+        </div>
       </div>
 
       {/* PMS Warning */}
