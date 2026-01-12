@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -9,11 +8,68 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface PropertyContractDetails {
+  name: string;
+  registeredName?: string;
+  registrationNumber?: string;
+  vatNumber?: string;
+  telephone?: string;
+  mobileNumber?: string;
+  email?: string;
+  physicalAddress?: string;
+  postalAddress?: string;
+  keyRepresentative?: string;
+}
+
 interface EmailContractRequest {
   contract_id: string;
   email: string;
   property_name: string;
   signing_url: string;
+  property_details?: PropertyContractDetails;
+}
+
+function generatePropertyDetailsHTML(property?: PropertyContractDetails): string {
+  if (!property) {
+    return '<p style="color: #718096; font-size: 14px; font-style: italic;">[Property details will be displayed on the signing page]</p>';
+  }
+
+  return `
+    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 8px 0; font-weight: 600; width: 40%; color: #2d3748;">Registered Name</td>
+        <td style="padding: 8px 0; color: #4a5568;">${property.registeredName || property.name || 'N/A'}</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">Registration Number</td>
+        <td style="padding: 8px 0; color: #4a5568;">${property.registrationNumber || 'N/A'}</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">VAT Number</td>
+        <td style="padding: 8px 0; color: #4a5568;">${property.vatNumber || 'N/A'}</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">Telephone</td>
+        <td style="padding: 8px 0; color: #4a5568;">${property.telephone || 'N/A'}</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">E-mail</td>
+        <td style="padding: 8px 0; color: #4a5568;">${property.email || 'N/A'}</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">Physical Address</td>
+        <td style="padding: 8px 0; color: #4a5568;">${property.physicalAddress || 'N/A'}</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">Postal Address</td>
+        <td style="padding: 8px 0; color: #4a5568;">${property.postalAddress || property.physicalAddress || 'N/A'}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">Key Representative</td>
+        <td style="padding: 8px 0; color: #4a5568;">${property.keyRepresentative || 'N/A'}</td>
+      </tr>
+    </table>
+  `;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -22,7 +78,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { contract_id, email, property_name, signing_url }: EmailContractRequest = await req.json();
+    const { contract_id, email, property_name, signing_url, property_details }: EmailContractRequest = await req.json();
 
     if (!email || !property_name) {
       return new Response(
@@ -32,6 +88,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const logoUrl = "https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png";
+    const propertyDetailsHTML = generatePropertyDetailsHTML(property_details);
 
     const emailResponse = await resend.emails.send({
       from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
@@ -74,7 +131,18 @@ const handler = async (req: Request): Promise<Response> => {
                     This Agreement sets out the terms and conditions on which Roomsonline provides online accommodation listing, booking facilitation, payment collection, and related distribution services to accommodation establishments.
                   </p>
                   
-                  <h3 style="color: #2d3748; font-size: 15px; margin: 20px 0 8px 0; font-weight: 600;">Key Terms:</h3>
+                  <h3 style="color: #2d3748; font-size: 15px; margin: 20px 0 8px 0; font-weight: 600;">1. ROOMSONLINE</h3>
+                  <p style="color: #4a5568; font-size: 14px; line-height: 1.7; margin: 0 0 16px 0;">
+                    Sleep in Africa (Pty) Ltd t/a Roomsonline<br>
+                    Registration: 2014012490<br>
+                    Contact: 082 323 8115 | Carike@roomsonline.co.za<br>
+                    Address: 29 Woodlands Close, Parklands, 7441
+                  </p>
+
+                  <h3 style="color: #2d3748; font-size: 15px; margin: 20px 0 12px 0; font-weight: 600;">2. THE PROPERTY</h3>
+                  ${propertyDetailsHTML}
+                  
+                  <h3 style="color: #2d3748; font-size: 15px; margin: 20px 0 8px 0; font-weight: 600;">3. Key Terms:</h3>
                   <ul style="color: #4a5568; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
                     <li><strong>Commission:</strong> 10% (VAT exclusive) of Total Booking Value</li>
                     <li><strong>Payment Agent:</strong> Roomsonline acts as collection agent</li>
@@ -83,18 +151,10 @@ const handler = async (req: Request): Promise<Response> => {
                     <li><strong>Delisting:</strong> 5 business days upon request</li>
                     <li><strong>Governing Law:</strong> Laws of South Africa</li>
                   </ul>
-                  
-                  <h3 style="color: #2d3748; font-size: 15px; margin: 20px 0 8px 0; font-weight: 600;">RoomsOnline Details:</h3>
-                  <p style="color: #4a5568; font-size: 14px; line-height: 1.7; margin: 0;">
-                    Sleep in Africa (Pty) Ltd t/a Roomsonline<br>
-                    Registration: 2014012490<br>
-                    Contact: 082 323 8115 | Carike@roomsonline.co.za<br>
-                    Address: 29 Woodlands Close, Parklands, 7441
-                  </p>
                 </div>
                 
                 <p style="color: #4a5568; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
-                  When you're ready to sign, click the button below to complete the electronic signature process:
+                  When you're ready to sign, click the button below to complete the electronic signature process. You'll be able to view the full contract text on the signing page.
                 </p>
                 
                 <!-- CTA Button -->

@@ -13,7 +13,18 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import { Send, Check, AlertTriangle, Clock, Loader2, Mail, ChevronDown, ChevronUp, FileText } from "lucide-react";
 import rolLogo from "@/assets/rol-logo.png";
-import { CONTRACT_AGREEMENT_HTML } from "@/lib/contractAgreementText";
+import { generateContractHTML, PropertyContractDetails } from "@/lib/contractAgreementText";
+
+interface PropertyData {
+  id: string;
+  name: string;
+  owner_name: string | null;
+  owner_email: string | null;
+  address: string;
+  city: string;
+  country: string;
+  amenities: any;
+}
 
 interface ContractData {
   id: string;
@@ -21,9 +32,8 @@ interface ContractData {
   status: string;
   token_expires_at: string | null;
   unsigned_pdf_url: string | null;
-  property?: {
-    name: string;
-  };
+  sent_to_email: string | null;
+  property?: PropertyData;
 }
 
 export default function ContractSign() {
@@ -45,6 +55,20 @@ export default function ContractSign() {
 
   // Email for review state
   const [emailForReview, setEmailForReview] = useState("");
+
+  // Build property details for contract
+  const propertyDetails: PropertyContractDetails | undefined = contract?.property ? {
+    name: contract.property.name,
+    registeredName: contract.property.amenities?.registered_business_name || contract.property.name,
+    registrationNumber: contract.property.amenities?.registration_number,
+    vatNumber: contract.property.amenities?.vat_number,
+    telephone: contract.property.amenities?.telephone,
+    mobileNumber: contract.property.amenities?.mobile_number || contract.property.amenities?.telephone,
+    email: contract.property.amenities?.contact_email || contract.property.owner_email || undefined,
+    physicalAddress: [contract.property.address, contract.property.city, contract.property.country].filter(Boolean).join(", "),
+    postalAddress: contract.property.amenities?.postal_address,
+    keyRepresentative: contract.property.owner_name || undefined,
+  } : undefined;
 
   // Load contract data
   useEffect(() => {
@@ -87,9 +111,10 @@ export default function ContractSign() {
           return;
         }
 
+        // Fetch full property details including amenities
         const { data: property } = await supabase
           .from("properties")
-          .select("name")
+          .select("id, name, owner_name, owner_email, address, city, country, amenities")
           .eq("id", data.property_id)
           .single();
 
@@ -139,6 +164,7 @@ export default function ContractSign() {
           signee_email: signeeEmail,
           signee_designation: signeeDesignation,
           signature_data_url: signatureDataUrl,
+          property_details: propertyDetails,
         },
       });
 
@@ -173,6 +199,7 @@ export default function ContractSign() {
           email: emailForReview,
           property_name: contract.property?.name || "Your Property",
           signing_url: signingUrl,
+          property_details: propertyDetails,
         },
       });
 
@@ -300,7 +327,7 @@ export default function ContractSign() {
                   <ScrollArea className="h-[400px] p-4">
                     <div 
                       className="prose prose-sm max-w-none"
-                      dangerouslySetInnerHTML={{ __html: CONTRACT_AGREEMENT_HTML }}
+                      dangerouslySetInnerHTML={{ __html: generateContractHTML(propertyDetails) }}
                     />
                   </ScrollArea>
                 </CollapsibleContent>
