@@ -1766,6 +1766,7 @@ export type Database = {
           price_per_night: number
           property_type: string
           property_url: string | null
+          show_on_website: boolean | null
           siteminder_property_code: string | null
           slug: string | null
           updated_at: string | null
@@ -1818,6 +1819,7 @@ export type Database = {
           price_per_night: number
           property_type: string
           property_url?: string | null
+          show_on_website?: boolean | null
           siteminder_property_code?: string | null
           slug?: string | null
           updated_at?: string | null
@@ -1870,6 +1872,7 @@ export type Database = {
           price_per_night?: number
           property_type?: string
           property_url?: string | null
+          show_on_website?: boolean | null
           siteminder_property_code?: string | null
           slug?: string | null
           updated_at?: string | null

@@ -152,7 +152,7 @@ export function useHomePropertySegments(filteredPropertyIds: string[] | null = n
       
       const activeSystemTypes = activePmsSystems?.map(s => s.system_type) || [];
       
-      // Fetch properties with active PMS systems
+      // Fetch properties with active PMS systems that are visible on website
       const { data, error } = await supabase
         .from("properties")
         .select(`
@@ -162,6 +162,7 @@ export function useHomePropertySegments(filteredPropertyIds: string[] | null = n
           what_its_really_like, why_this_place_matters, who_its_not_for
         `)
         .eq("is_active", true)
+        .eq("show_on_website", true)
         .is("permanently_deleted_at", null);
 
       if (error) throw error;
