@@ -58,6 +58,11 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     hasCustomCard: true,
   },
   {
+    key: 'semper',
+    name: 'Semper',
+    description: 'Property management and channel management system',
+  },
+  {
     key: 'siteminder',
     name: 'SiteMinder',
     description: 'Hotel commerce platform with channel management',

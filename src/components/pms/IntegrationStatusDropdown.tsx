@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
   Select,
   SelectContent,
@@ -65,11 +65,19 @@ export function IntegrationStatusDropdown({
   compact = false,
 }: IntegrationStatusDropdownProps) {
   const [isUpdating, setIsUpdating] = useState(false);
-  const status = currentStatus || 'coming_soon';
-  const config = INTEGRATION_STATUS_CONFIG[status];
+  const [localStatus, setLocalStatus] = useState<PmsIntegrationStatus>(currentStatus || 'coming_soon');
+  
+  // Sync localStatus when prop changes
+  React.useEffect(() => {
+    if (currentStatus) {
+      setLocalStatus(currentStatus);
+    }
+  }, [currentStatus]);
+  
+  const config = INTEGRATION_STATUS_CONFIG[localStatus];
 
   const handleStatusChange = async (newStatus: PmsIntegrationStatus) => {
-    if (newStatus === status) return;
+    if (newStatus === localStatus) return;
     
     setIsUpdating(true);
     try {
@@ -87,6 +95,8 @@ export function IntegrationStatusDropdown({
 
       if (error) throw error;
 
+      // Update local state immediately for better UX
+      setLocalStatus(newStatus);
       toast.success(`${systemType} status updated to ${INTEGRATION_STATUS_CONFIG[newStatus].label}`);
       onStatusChange?.(newStatus);
     } catch (error) {
@@ -99,7 +109,7 @@ export function IntegrationStatusDropdown({
 
   return (
     <Select
-      value={status}
+      value={localStatus}
       onValueChange={(value) => handleStatusChange(value as PmsIntegrationStatus)}
       disabled={disabled || isUpdating}
     >
