@@ -6,6 +6,52 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface PropertyContractDetails {
+  name: string;
+  registeredName?: string;
+  registrationNumber?: string;
+  vatNumber?: string;
+  telephone?: string;
+  mobileNumber?: string;
+  email?: string;
+  physicalAddress?: string;
+  postalAddress?: string;
+  keyRepresentative?: string;
+}
+
+function generatePropertyDetailsHTML(property: PropertyContractDetails): string {
+  return `
+    <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin: 16px 0;">
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 8px 0; font-weight: 600; width: 40%; color: #2d3748;">Property Name</td>
+        <td style="padding: 8px 0; color: #4a5568;">${property.registeredName || property.name}</td>
+      </tr>
+      ${property.registrationNumber ? `
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">Registration Number</td>
+        <td style="padding: 8px 0; color: #4a5568;">${property.registrationNumber}</td>
+      </tr>` : ''}
+      ${property.vatNumber ? `
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">VAT Number</td>
+        <td style="padding: 8px 0; color: #4a5568;">${property.vatNumber}</td>
+      </tr>` : ''}
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">Contact</td>
+        <td style="padding: 8px 0; color: #4a5568;">${property.telephone || 'N/A'} | ${property.email || 'N/A'}</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">Address</td>
+        <td style="padding: 8px 0; color: #4a5568;">${property.physicalAddress || 'N/A'}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px 0; font-weight: 600; color: #2d3748;">Key Representative</td>
+        <td style="padding: 8px 0; color: #4a5568;">${property.keyRepresentative || 'N/A'}</td>
+      </tr>
+    </table>
+  `;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -26,10 +72,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get property details
+    // Get full property details including amenities
     const { data: property, error: propError } = await supabase
       .from("properties")
-      .select("name, slug")
+      .select("id, name, slug, owner_name, owner_email, address, city, country, amenities")
       .eq("id", property_id)
       .single();
 
@@ -39,6 +85,21 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Build property details for contract
+    const amenities = property.amenities as Record<string, any> || {};
+    const propertyDetails: PropertyContractDetails = {
+      name: property.name,
+      registeredName: amenities.registered_business_name || property.name,
+      registrationNumber: amenities.registration_number,
+      vatNumber: amenities.vat_number,
+      telephone: amenities.telephone,
+      mobileNumber: amenities.mobile_number || amenities.telephone,
+      email: amenities.contact_email || property.owner_email,
+      physicalAddress: [property.address, property.city, property.country].filter(Boolean).join(", "),
+      postalAddress: amenities.postal_address,
+      keyRepresentative: property.owner_name || owner_name,
+    };
 
     // Get next version number
     const { data: existing } = await supabase
@@ -80,6 +141,7 @@ Deno.serve(async (req) => {
     // Send email if Resend is configured
     if (resendKey) {
       const resend = new Resend(resendKey);
+      const propertyDetailsHTML = generatePropertyDetailsHTML(propertyDetails);
 
       await resend.emails.send({
         from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
@@ -105,9 +167,15 @@ Deno.serve(async (req) => {
           </tr>
           <tr>
             <td style="padding: 20px 40px;">
-              <p style="color: #333; line-height: 1.6;">Dear ${owner_name || "Property Owner"},</p>
-              <p style="color: #333; line-height: 1.6;">Your RoomsOnline partnership agreement for <strong>${property.name}</strong> is ready for your signature.</p>
-              <p style="color: #333; line-height: 1.6;">Please click the button below to review and sign the contract electronically:</p>
+              <p style="color: #333; line-height: 1.6;">Dear ${propertyDetails.keyRepresentative || owner_name || "Property Owner"},</p>
+              <p style="color: #333; line-height: 1.6;">Your RoomsOnline partnership agreement is ready for your signature.</p>
+              
+              <div style="background-color: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 24px 0;">
+                <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #2d3748;">Property Details</h3>
+                ${propertyDetailsHTML}
+              </div>
+              
+              <p style="color: #333; line-height: 1.6;">Please click the button below to review the full contract and sign electronically:</p>
               <div style="text-align: center; margin: 30px 0;">
                 <a href="${signingUrl}" style="display: inline-block; padding: 14px 32px; background-color: #e91e8c; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">Review & Sign Contract</a>
               </div>

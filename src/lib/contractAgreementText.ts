@@ -1,5 +1,37 @@
-// Full contract agreement text for inline display on signing page
-export const CONTRACT_AGREEMENT_HTML = `
+// Contract agreement text generator with dynamic property details
+
+export interface PropertyContractDetails {
+  name: string;
+  registeredName?: string;
+  registrationNumber?: string;
+  vatNumber?: string;
+  telephone?: string;
+  mobileNumber?: string;
+  email?: string;
+  physicalAddress?: string;
+  postalAddress?: string;
+  keyRepresentative?: string;
+}
+
+// Generate contract HTML with property details
+export function generateContractHTML(property?: PropertyContractDetails): string {
+  const propertySection = property ? `
+  <table class="w-full mb-6 text-sm border-collapse">
+    <tbody>
+      <tr class="border-b"><td class="py-2 font-medium w-40">Registered Name</td><td>${property.registeredName || property.name || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">Registration number</td><td>${property.registrationNumber || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">VAT number</td><td>${property.vatNumber || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">Telephone number</td><td>${property.telephone || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">Mobile number</td><td>${property.mobileNumber || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">E-mail address</td><td>${property.email || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">Physical address</td><td>${property.physicalAddress || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">Postal address</td><td>${property.postalAddress || property.physicalAddress || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">Key Representative</td><td>${property.keyRepresentative || 'N/A'}</td></tr>
+    </tbody>
+  </table>
+  ` : `<p class="mb-6 text-sm italic text-muted-foreground">[Property details will be displayed here]</p>`;
+
+  return `
 <div class="contract-text">
   <h1 class="text-2xl font-bold text-center mb-6">ROOMSONLINE ACCOMMODATION LISTING & DISTRIBUTION AGREEMENT</h1>
   
@@ -26,7 +58,7 @@ export const CONTRACT_AGREEMENT_HTML = `
   </table>
 
   <h2 class="text-lg font-semibold mb-3">2. THE PROPERTY</h2>
-  <p class="mb-6 text-sm italic text-muted-foreground">[Property details as provided during onboarding]</p>
+  ${propertySection}
 
   <h2 class="text-lg font-semibold mb-3">3. COMMISSION AND FEES</h2>
   <p class="mb-6 text-sm leading-relaxed">
@@ -154,9 +186,23 @@ export const CONTRACT_AGREEMENT_HTML = `
   </p>
 </div>
 `;
+}
 
-// Plain text version for emails
-export const CONTRACT_AGREEMENT_PLAIN = `ROOMSONLINE ACCOMMODATION LISTING & DISTRIBUTION AGREEMENT
+// Generate plain text version for emails
+export function generateContractPlainText(property?: PropertyContractDetails): string {
+  const propertySection = property ? `
+Registered Name: ${property.registeredName || property.name || 'N/A'}
+Registration number: ${property.registrationNumber || 'N/A'}
+VAT number: ${property.vatNumber || 'N/A'}
+Telephone number: ${property.telephone || 'N/A'}
+Mobile number: ${property.mobileNumber || 'N/A'}
+E-mail address: ${property.email || 'N/A'}
+Physical address: ${property.physicalAddress || 'N/A'}
+Postal address: ${property.postalAddress || property.physicalAddress || 'N/A'}
+Key Representative: ${property.keyRepresentative || 'N/A'}
+` : '[Property details will be displayed here]';
+
+  return `ROOMSONLINE ACCOMMODATION LISTING & DISTRIBUTION AGREEMENT
 
 This Agreement sets out the terms and conditions on which Roomsonline provides online accommodation listing, booking facilitation, payment collection, and related distribution services to accommodation establishments, and the basis upon which the Establishment agrees to be listed and promoted on the Roomsonline platform.
 
@@ -174,7 +220,7 @@ Bank account details: Bank: FNB | Account holder: Sleep in Africa (PTY) LTD | Ac
 
 2. THE PROPERTY
 
-[Property details as provided during onboarding]
+${propertySection}
 
 3. COMMISSION AND FEES
 
@@ -300,3 +346,4 @@ This Agreement is governed by the laws of South Africa.
 
 This Agreement may be accepted electronically or by conduct and is enforceable in terms of the Electronic Communications and Transactions Act 25 of 2002.
 `;
+}
