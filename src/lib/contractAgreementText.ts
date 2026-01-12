@@ -189,6 +189,51 @@ export function generateContractHTML(property?: PropertyContractDetails): string
 }
 
 // Generate plain text version for emails
+// Generate signature block HTML for signed contracts
+export interface SignatureData {
+  signedByName: string;
+  signedByEmail: string;
+  signedByDesignation?: string;
+  signatureImageUrl: string;
+  signedAt: string;
+}
+
+export function generateSignatureBlockHTML(signature: SignatureData): string {
+  const signedDate = new Date(signature.signedAt).toLocaleDateString('en-ZA', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  
+  return `
+  <div class="signature-block mt-8 pt-6 border-t-2 border-primary">
+    <h2 class="text-lg font-semibold mb-4">SIGNED</h2>
+    <div class="grid grid-cols-2 gap-6">
+      <div>
+        <p class="text-sm font-medium mb-1">For the Establishment:</p>
+        <p class="text-sm"><strong>Name:</strong> ${signature.signedByName}</p>
+        <p class="text-sm"><strong>Email:</strong> ${signature.signedByEmail}</p>
+        ${signature.signedByDesignation ? `<p class="text-sm"><strong>Designation:</strong> ${signature.signedByDesignation}</p>` : ''}
+        <p class="text-sm"><strong>Date:</strong> ${signedDate}</p>
+      </div>
+      <div>
+        <p class="text-sm font-medium mb-2">Signature:</p>
+        <img src="${signature.signatureImageUrl}" alt="Signature" class="max-h-24 border rounded p-2 bg-white" />
+      </div>
+    </div>
+  </div>
+  `;
+}
+
+// Generate full signed contract HTML (agreement + signature)
+export function generateSignedContractHTML(property?: PropertyContractDetails, signature?: SignatureData): string {
+  const agreementHtml = generateContractHTML(property);
+  if (!signature) return agreementHtml;
+  
+  // Insert signature block before the closing div
+  return agreementHtml.replace('</div>\n', generateSignatureBlockHTML(signature) + '</div>\n');
+}
+
 export function generateContractPlainText(property?: PropertyContractDetails): string {
   const propertySection = property ? `
 Registered Name: ${property.registeredName || property.name || 'N/A'}

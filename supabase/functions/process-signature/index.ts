@@ -84,11 +84,13 @@ Deno.serve(async (req) => {
       .from("signatures")
       .getPublicUrl(signatureFileName);
 
-    // Update contract as signed
+    // Update contract as signed - INVALIDATE TOKEN for one-time use
     const { error: updateError } = await supabase
       .from("property_contracts")
       .update({
         status: "signed",
+        signing_token: null,  // Invalidate token - one-time use only
+        token_expires_at: null,
         signed_at: new Date().toISOString(),
         signed_by_name: signee_name,
         signed_by_email: signee_email,

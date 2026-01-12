@@ -13,7 +13,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import { Send, Check, AlertTriangle, Clock, Loader2, Mail, ChevronDown, ChevronUp, FileText } from "lucide-react";
 import rolLogo from "@/assets/rol-logo.png";
-import { generateContractHTML, PropertyContractDetails } from "@/lib/contractAgreementText";
+import { generateContractHTML, generateSignedContractHTML, PropertyContractDetails, SignatureData } from "@/lib/contractAgreementText";
 
 interface PropertyData {
   id: string;
@@ -32,7 +32,13 @@ interface ContractData {
   status: string;
   token_expires_at: string | null;
   unsigned_pdf_url: string | null;
+  pdf_url: string | null;
   sent_to_email: string | null;
+  signed_at: string | null;
+  signed_by_name: string | null;
+  signed_by_email: string | null;
+  signed_by_designation: string | null;
+  signature_image_url: string | null;
   property?: PropertyData;
 }
 
@@ -88,25 +94,26 @@ export default function ContractSign() {
             status,
             token_expires_at,
             unsigned_pdf_url,
-            sent_to_email
+            pdf_url,
+            sent_to_email,
+            signed_at,
+            signed_by_name,
+            signed_by_email,
+            signed_by_designation,
+            signature_image_url
           `)
           .eq("signing_token", token)
           .single();
 
         if (fetchError || !data) {
-          setError("Contract not found or link has expired");
-          setLoading(false);
-          return;
-        }
-
-        if (data.status === "signed") {
-          setError("This contract has already been signed");
+          // Token not found - could be invalid or already used (nullified after signing)
+          setError("This link is invalid or has already been used. Please request another link from RoomsOnline.");
           setLoading(false);
           return;
         }
 
         if (data.token_expires_at && new Date(data.token_expires_at) < new Date()) {
-          setError("This signing link has expired. Please contact RoomsOnline for a new link.");
+          setError("This signing link has expired. Please request another link from RoomsOnline.");
           setLoading(false);
           return;
         }
@@ -249,28 +256,85 @@ export default function ContractSign() {
     );
   }
 
-  // Success state (after signing)
+  // Success state (after signing) - Show the full signed contract
   if (contract?.status === "signed") {
+    const signatureData: SignatureData | undefined = contract.signed_at && contract.signed_by_name && contract.signature_image_url ? {
+      signedByName: contract.signed_by_name,
+      signedByEmail: contract.signed_by_email || '',
+      signedByDesignation: contract.signed_by_designation || undefined,
+      signatureImageUrl: contract.signature_image_url,
+      signedAt: contract.signed_at,
+    } : undefined;
+
+    const signedDate = contract.signed_at 
+      ? new Date(contract.signed_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })
+      : null;
+
     return (
-      <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <img src={rolLogo} alt="RoomsOnline" className="h-10 mx-auto mb-6" />
+      <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background">
+        {/* Header */}
+        <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+          <div className="container flex h-16 items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img src={rolLogo} alt="RoomsOnline" className="h-8" />
+              <span className="text-lg font-semibold hidden sm:inline">Contract Signed</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-green-600">
+              <Check className="h-4 w-4" />
+              Signed & Verified
+            </div>
+          </div>
+        </header>
+
+        <main className="container py-6 sm:py-8 max-w-3xl">
+          <Card>
+            <CardHeader className="text-center pb-4">
               <div className="h-16 w-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check className="h-8 w-8 text-green-600" />
               </div>
-              <h1 className="text-xl font-semibold mb-2">Contract Signed Successfully!</h1>
-              <p className="text-muted-foreground mb-6">
-                Thank you for signing the contract for {contract.property?.name || "your property"}.
-                A copy has been sent to your email.
+              <CardTitle className="text-xl sm:text-2xl">
+                Contract Successfully Signed
+              </CardTitle>
+              <CardDescription className="text-base space-y-1">
+                <span className="block font-medium">{contract.property?.name || "Property"}</span>
+                {signedDate && <span className="block">Signed by {contract.signed_by_name} on {signedDate}</span>}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Signed Contract Display */}
+              <div className="border rounded-lg">
+                <div className="flex items-center gap-3 p-4 border-b bg-muted/30">
+                  <FileText className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="font-medium">Signed Agreement</p>
+                    <p className="text-sm text-muted-foreground">Full contract with signature</p>
+                  </div>
+                </div>
+                <ScrollArea className="h-[500px] p-4">
+                  <div 
+                    className="prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: generateSignedContractHTML(propertyDetails, signatureData) }}
+                  />
+                </ScrollArea>
+              </div>
+
+              {/* Download PDF if available */}
+              {contract.pdf_url && (
+                <Button asChild variant="outline" className="w-full">
+                  <a href={contract.pdf_url} target="_blank" rel="noopener noreferrer">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Download Signed PDF
+                  </a>
+                </Button>
+              )}
+
+              {/* Contact Info */}
+              <p className="text-sm text-center text-muted-foreground">
+                Need help? Contact <a href="mailto:info@roomsonline.co.za" className="text-primary hover:underline">info@roomsonline.co.za</a>
               </p>
-              <Button onClick={() => window.close()} variant="outline">
-                Close this page
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </main>
       </div>
     );
   }
