@@ -7,7 +7,7 @@
  * the wizard UI.
  */
 
-export const WIZARD_VERSION = "1.0";
+export const WIZARD_VERSION = "1.1";
 
 export const PROPERTY_TYPES = [
   "apartment",
@@ -22,6 +22,7 @@ export const PROPERTY_TYPES = [
 ] as const;
 
 export const MEAL_PLAN_OPTIONS = [
+  "all_inclusive",
   "room_only",
   "bed_and_breakfast",
   "half_board",
@@ -54,6 +55,14 @@ export interface OnboardingImage {
   type: 'gallery' | 'hero' | 'video';
   is_favourite: boolean;
   caption?: string;
+}
+
+export interface PropertyDocument {
+  url: string;
+  name: string;
+  type: 'rate_sheet' | 'license' | 'insurance' | 'policy' | 'other';
+  uploaded_at: string;
+  file_size?: number;
 }
 
 export interface WizardSection {
@@ -142,9 +151,17 @@ export const WIZARD_SECTIONS: WizardSection[] = [
     id: "media",
     title: "Images & Media",
     description: "Property photos and videos",
-    weight: 10,
+    weight: 5,
     icon: "Image",
     estimatedMinutes: 10
+  },
+  {
+    id: "documents",
+    title: "Documents",
+    description: "Rate sheets and supporting documents",
+    weight: 5,
+    icon: "FileUp",
+    estimatedMinutes: 5
   },
   {
     id: "review",
@@ -166,7 +183,8 @@ export const SCORE_WEIGHTS = {
   description_and_meals: 10,
   facilities: 10,
   rooms_overview: 10,
-  media: 10
+  media: 5,
+  documents: 5
 } as const;
 
 export const SCORE_BANDS = [
@@ -189,22 +207,29 @@ export const PMS_SENSITIVE_FIELDS = [
 export const FACILITY_CATEGORIES = {
   general: [
     "wifi", "parking", "reception_24h", "concierge", "luggage_storage",
-    "business_center", "laundry", "dry_cleaning", "ironing"
+    "business_center", "laundry", "dry_cleaning", "ironing", "non_smoking_rooms",
+    "air_conditioning"
   ],
   outdoor: [
     "garden", "terrace", "bbq", "outdoor_furniture", "outdoor_pool",
-    "beach_access", "sun_loungers", "playground"
+    "beach", "beach_access", "sun_loungers", "playground"
   ],
   wellness: [
-    "spa", "sauna", "gym", "massage", "indoor_pool", "jacuzzi", "steam_room"
+    "spa", "sauna", "gym", "massage", "indoor_pool", "jacuzzi", "steam_room",
+    "yoga_classes", "kids_pool"
   ],
   dining: [
-    "restaurant", "bar", "room_service", "breakfast_included", "kitchen",
-    "shared_kitchen", "coffee_machine", "minibar"
+    "restaurant", "bar", "room_service", "breakfast_included", "breakfast_in_room",
+    "kitchen", "shared_kitchen", "coffee_machine", "coffee_house", "minibar",
+    "wine_champagne", "kids_meals"
+  ],
+  activities: [
+    "game_drives", "walking_tours", "bike_tours", "live_music", "golf_course",
+    "water_sports", "hiking", "cycling", "fishing", "horseback_riding"
   ],
   family: [
     "kids_club", "babysitting", "crib", "high_chair", "family_rooms",
-    "playground", "game_room"
+    "game_room"
   ],
   accessibility: [
     "wheelchair_accessible", "elevator", "accessible_parking",
@@ -212,7 +237,7 @@ export const FACILITY_CATEGORIES = {
   ],
   security: [
     "cctv", "safe", "security_guard", "fire_extinguisher", "smoke_detector",
-    "first_aid_kit"
+    "first_aid_kit", "carbon_monoxide_detector"
   ]
 } as const;
 

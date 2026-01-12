@@ -8,5 +8,6 @@ export { StepDescription } from "./StepDescription";
 export { StepFacilities } from "./StepFacilities";
 export { StepRoomsOverview } from "./StepRoomsOverview";
 export { StepMedia } from "./StepMedia";
+export { StepDocuments } from "./StepDocuments";
 export { StepReviewSubmit } from "./StepReviewSubmit";
 export type { StepProps, PropertyData } from "./types";

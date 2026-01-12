@@ -2,8 +2,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Shield, Building2 } from "lucide-react";
 import { StepProps } from "./types";
+
+const ACCOUNT_TYPES = [
+  { value: "cheque", label: "Cheque/Current Account" },
+  { value: "savings", label: "Savings Account" },
+  { value: "transmission", label: "Transmission Account" },
+  { value: "business", label: "Business Account" }
+];
 
 export function StepBanking({
   updateField,
@@ -20,6 +28,7 @@ export function StepBanking({
   const branchCode = getAmenityValue<string>("branch_code", "");
   const accountHolder = getAmenityValue<string>("account_holder", "");
   const accountNumber = getAmenityValue<string>("account_number", "");
+  const accountType = getAmenityValue<string>("account_type", "");
   const swiftCode = getAmenityValue<string>("swift_code", "");
 
   return (
@@ -145,6 +154,26 @@ export function StepBanking({
               For international payments
             </p>
           </div>
+        </div>
+
+        {/* Account Type */}
+        <div className="space-y-2">
+          <Label htmlFor="account_type">Account Type</Label>
+          <Select
+            value={accountType}
+            onValueChange={(value) => updateField("amenities.account_type", value)}
+          >
+            <SelectTrigger id="account_type">
+              <SelectValue placeholder="Select account type" />
+            </SelectTrigger>
+            <SelectContent>
+              {ACCOUNT_TYPES.map((type) => (
+                <SelectItem key={type.value} value={type.value}>
+                  {type.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Account Holder */}

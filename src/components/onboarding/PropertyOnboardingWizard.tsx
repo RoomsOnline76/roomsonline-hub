@@ -18,6 +18,7 @@ import { StepDescription } from "./steps/StepDescription";
 import { StepFacilities } from "./steps/StepFacilities";
 import { StepRoomsOverview } from "./steps/StepRoomsOverview";
 import { StepMedia } from "./steps/StepMedia";
+import { StepDocuments } from "./steps/StepDocuments";
 import { StepReviewSubmit } from "./steps/StepReviewSubmit";
 
 export interface PropertyOnboardingWizardProps {
@@ -39,6 +40,7 @@ const STEP_COMPONENTS = [
   StepFacilities,
   StepRoomsOverview,
   StepMedia,
+  StepDocuments,
   StepReviewSubmit
 ];
 

@@ -2,6 +2,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Clock } from "lucide-react";
 import { StepProps } from "./types";
 
 export function StepPolicies({
@@ -13,6 +14,10 @@ export function StepPolicies({
   const petsAllowed = getAmenityValue<boolean>("pets_allowed", false);
   const petsPolicy = getAmenityValue<string>("pets_policy", "");
   const paymentPolicy = getAmenityValue<string>("payment_policy", "");
+  const cancellationPolicy = getAmenityValue<string>("cancellation_policy", "");
+  const checkInTime = getAmenityValue<string>("check_in_time", "");
+  const checkOutTime = getAmenityValue<string>("check_out_time", "");
+  const reception24h = getAmenityValue<boolean>("twenty_four_hour_reception", false);
 
   return (
     <div className="space-y-8">
@@ -20,6 +25,60 @@ export function StepPolicies({
         Define the policies that govern your property. Clear policies help set 
         guest expectations and prevent misunderstandings.
       </p>
+
+      {/* Check-in/Check-out Times */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Clock className="h-5 w-5 text-primary" />
+          <h3 className="font-semibold">Check-in & Check-out</h3>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="check_in_time">Check-in Time</Label>
+            <Input
+              id="check_in_time"
+              type="time"
+              value={checkInTime}
+              onChange={(e) => updateField("amenities.check_in_time", e.target.value)}
+              placeholder="14:00"
+            />
+            <p className="text-xs text-muted-foreground">
+              Earliest time guests can check in
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="check_out_time">Check-out Time</Label>
+            <Input
+              id="check_out_time"
+              type="time"
+              value={checkOutTime}
+              onChange={(e) => updateField("amenities.check_out_time", e.target.value)}
+              placeholder="11:00"
+            />
+            <p className="text-xs text-muted-foreground">
+              Latest time guests must check out
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="space-y-0.5">
+            <Label htmlFor="reception_24h" className="text-base font-medium cursor-pointer">
+              24-Hour Reception
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              Is someone available at reception around the clock?
+            </p>
+          </div>
+          <Switch
+            id="reception_24h"
+            checked={reception24h}
+            onCheckedChange={(checked) => updateField("amenities.twenty_four_hour_reception", checked)}
+          />
+        </div>
+      </div>
 
       {/* Age Policies */}
       <div className="space-y-4">
@@ -94,6 +153,25 @@ export function StepPolicies({
         )}
       </div>
 
+      {/* Cancellation Policy */}
+      <div className="space-y-4">
+        <h3 className="font-medium">Cancellation Policy</h3>
+        
+        <div className="space-y-2">
+          <Label htmlFor="cancellation_policy">Cancellation Terms</Label>
+          <Textarea
+            id="cancellation_policy"
+            value={cancellationPolicy}
+            onChange={(e) => updateField("amenities.cancellation_policy", e.target.value)}
+            placeholder="Describe your cancellation policy (e.g., free cancellation up to 48 hours before arrival, 50% refund for cancellations 24-48 hours before)"
+            rows={4}
+          />
+          <p className="text-xs text-muted-foreground">
+            Clear cancellation terms help manage guest expectations and reduce disputes.
+          </p>
+        </div>
+      </div>
+
       {/* Payment Policy */}
       <div className="space-y-4">
         <h3 className="font-medium">Payment Policy</h3>
@@ -120,6 +198,7 @@ export function StepPolicies({
           <li>• Be specific about pet size limits and breeds if applicable</li>
           <li>• Clearly state any additional cleaning or pet fees</li>
           <li>• Include information about deposits and cancellation</li>
+          <li>• Specify check-in/out times clearly for guest convenience</li>
         </ul>
       </div>
     </div>
