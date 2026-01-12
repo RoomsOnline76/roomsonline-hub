@@ -189,24 +189,40 @@ export function PropertyOnboardingWizard({
           </div>
         </div>
 
-        {/* Step navigation (desktop) */}
-        <nav className="hidden lg:flex border-t overflow-x-auto">
-          {WIZARD_SECTIONS.map((section, index) => (
+        {/* Step navigation (desktop) - show only prev/current/next */}
+        <nav className="hidden lg:flex items-center justify-center border-t py-2 px-4 gap-2">
+          {/* Previous step */}
+          {currentStep > 0 && (
             <button
-              key={section.id}
-              onClick={() => goToStep(index)}
-              className={cn(
-                "flex-1 min-w-[100px] px-3 py-2 text-xs font-medium transition-colors border-b-2",
-                index === currentStep
-                  ? "border-primary text-primary bg-primary/5"
-                  : index < currentStep
-                  ? "border-transparent text-muted-foreground hover:text-foreground"
-                  : "border-transparent text-muted-foreground/50 hover:text-muted-foreground"
-              )}
+              onClick={() => goToStep(currentStep - 1)}
+              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              <span className="truncate">{section.title}</span>
+              {WIZARD_SECTIONS[currentStep - 1].title}
             </button>
-          ))}
+          )}
+          
+          {/* Divider */}
+          {currentStep > 0 && <ChevronRight className="h-4 w-4 text-muted-foreground/50" />}
+          
+          {/* Current step */}
+          <span className="px-3 py-1.5 text-sm font-medium text-primary bg-primary/10 rounded-full">
+            {currentSection?.title}
+          </span>
+          
+          {/* Divider */}
+          {currentStep < WIZARD_SECTIONS.length - 1 && (
+            <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+          )}
+          
+          {/* Next step */}
+          {currentStep < WIZARD_SECTIONS.length - 1 && (
+            <button
+              onClick={() => goToStep(currentStep + 1)}
+              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {WIZARD_SECTIONS[currentStep + 1].title}
+            </button>
+          )}
         </nav>
       </header>
 

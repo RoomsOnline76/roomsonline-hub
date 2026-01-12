@@ -4,7 +4,8 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   SCORE_WEIGHTS, 
   getScoreBand,
-  PMS_SENSITIVE_FIELDS 
+  PMS_SENSITIVE_FIELDS,
+  WIZARD_SECTIONS 
 } from "@/config/onboardingFieldSchema";
 import { Json } from "@/integrations/supabase/types";
 
@@ -286,11 +287,11 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
 
   // Navigate steps
   const goToStep = useCallback((step: number) => {
-    setState(prev => ({ ...prev, currentStep: Math.max(0, Math.min(10, step)) }));
+    setState(prev => ({ ...prev, currentStep: Math.max(0, Math.min(WIZARD_SECTIONS.length - 1, step)) }));
   }, []);
 
   const nextStep = useCallback(() => {
-    setState(prev => ({ ...prev, currentStep: Math.min(10, prev.currentStep + 1) }));
+    setState(prev => ({ ...prev, currentStep: Math.min(WIZARD_SECTIONS.length - 1, prev.currentStep + 1) }));
   }, []);
 
   const prevStep = useCallback(() => {

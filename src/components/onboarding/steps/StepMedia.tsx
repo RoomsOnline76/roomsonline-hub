@@ -1,13 +1,40 @@
 import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Upload, X, Star, Image as ImageIcon, Loader2 } from "lucide-react";
 import { StepProps } from "./types";
 import { OnboardingImage } from "@/config/onboardingFieldSchema";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { Json } from "@/integrations/supabase/types";
+
+// Normalize image data - handles both legacy string URLs and new object format
+const normalizeImages = (imageData: Json | null): OnboardingImage[] => {
+  if (!imageData || !Array.isArray(imageData)) return [];
+  
+  return imageData.map((img, index) => {
+    // If it's already an object with url property
+    if (typeof img === 'object' && img !== null && 'url' in img) {
+      const imgObj = img as Record<string, unknown>;
+      return {
+        url: String(imgObj.url),
+        type: (imgObj.type as 'hero' | 'gallery' | 'room') || (index === 0 ? 'hero' : 'gallery'),
+        is_favourite: Boolean(imgObj.is_favourite),
+        caption: imgObj.caption ? String(imgObj.caption) : undefined
+      } as OnboardingImage;
+    }
+    // If it's a string URL, convert to object
+    if (typeof img === 'string') {
+      return {
+        url: img,
+        type: index === 0 ? 'hero' : 'gallery',
+        is_favourite: false
+      } as OnboardingImage;
+    }
+    return null;
+  }).filter((img): img is OnboardingImage => img !== null);
+};
 
 export function StepMedia({
   propertyData,
@@ -17,7 +44,7 @@ export function StepMedia({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const images = (Array.isArray(propertyData.images) ? propertyData.images : []) as unknown as OnboardingImage[];
+  const images = normalizeImages(propertyData.images);
 
   const handleFileUpload = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
