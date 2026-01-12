@@ -87,7 +87,7 @@ serve(async (req) => {
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
   <div style="text-align: center; margin-bottom: 30px;">
-    <img src="https://roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="height: 50px;">
+    <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="height: 50px;">
   </div>
   
   <h1 style="color: #E1306C; font-size: 24px; margin-bottom: 20px;">

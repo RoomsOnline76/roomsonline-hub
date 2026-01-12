@@ -149,6 +149,7 @@ export default function PropertyOnboarding() {
       <PropertyOnboardingWizard
         propertyId={tokenData.property_id}
         mode="fullscreen"
+        ownerEmail={tokenData.owner_email}
         onComplete={handleComplete}
         onClose={handleClose}
       />

@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
         <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
           <tr>
             <td style="padding: 40px 40px 20px; text-align: center;">
-              <img src="https://roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
+              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
               <h1 style="margin: 0; font-size: 24px; color: #333;">Contract Ready for Signature</h1>
             </td>
           </tr>
