@@ -186,6 +186,11 @@ export async function writeIngestion(
           extra_guest_fee: room.extra_guest_fee,
           security_deposit: room.security_deposit,
           amenities: room.amenities,
+          // Extended room fields
+          extra_person_policy: room.extra_person_policy,
+          bed_configuration: room.bed_configuration || [],
+          facilities_raw: room.facilities_raw || [],
+          rate_type: room.rate_type || 'per-unit',
           linked_rate_type_ids: room.linked_rate_type_ids || [],
           pms_synced_fields: room.pms_synced_fields,
           last_synced_at: room.last_synced_at,
