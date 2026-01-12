@@ -19,6 +19,7 @@ import PMSContactDetails from "@/components/PMSContactDetails";
 import { PMSTrackerStatus } from "@/lib/pmsTrackerConfig";
 import { PMSListingSelector, type PMSListing } from "@/components/pms/PMSListingSelector";
 import { SyncStatusIndicator } from "@/components/pms/SyncStatusIndicator";
+import { IntegrationStatusDropdown, type PmsIntegrationStatus } from "@/components/pms/IntegrationStatusDropdown";
 import {
   Key,
   AlertCircle,
@@ -253,6 +254,7 @@ export default function AdminKeys() {
         mapped[row.system_type] = {
           system_type: row.system_type,
           status: row.status || "Unknown",
+          integration_status: row.integration_status as PmsIntegrationStatus | undefined,
           contact_person: row.contact_person || undefined,
           contact_name: row.contact_name || undefined,
           contact_tel: row.contact_tel || undefined,
@@ -1473,6 +1475,14 @@ export default function AdminKeys() {
               </Badge>
             </div>
             <div className="flex items-center gap-2">
+              <div onClick={(e) => e.stopPropagation()}>
+                <IntegrationStatusDropdown
+                  systemType="cloudbeds"
+                  currentStatus={trackerData.cloudbeds?.integration_status || null}
+                  onStatusChange={() => fetchTrackerData()}
+                  compact
+                />
+              </div>
               <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
                 <Switch
                   checked={cloudbedsCredentials?.is_active ?? false}
@@ -2171,6 +2181,14 @@ export default function AdminKeys() {
               </Badge>
             </div>
             <div className="flex items-center gap-2">
+              <div onClick={(e) => e.stopPropagation()}>
+                <IntegrationStatusDropdown
+                  systemType="benson"
+                  currentStatus={trackerData.benson?.integration_status || null}
+                  onStatusChange={() => fetchTrackerData()}
+                  compact
+                />
+              </div>
               <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
                 <Switch
                   checked={isBensonActive}
@@ -2296,6 +2314,14 @@ export default function AdminKeys() {
               </Badge>
             </div>
             <div className="flex items-center gap-2">
+              <div onClick={(e) => e.stopPropagation()}>
+                <IntegrationStatusDropdown
+                  systemType="nightsbridge"
+                  currentStatus={trackerData.nightsbridge?.integration_status || null}
+                  onStatusChange={() => fetchTrackerData()}
+                  compact
+                />
+              </div>
               <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
                 <Switch
                   checked={nightsbridgeCredentials?.is_active ?? false}
@@ -2525,6 +2551,14 @@ export default function AdminKeys() {
               </Badge>
             </div>
             <div className="flex items-center gap-2">
+              <div onClick={(e) => e.stopPropagation()}>
+                <IntegrationStatusDropdown
+                  systemType="checkfront"
+                  currentStatus={trackerData.checkfront?.integration_status || null}
+                  onStatusChange={() => fetchTrackerData()}
+                  compact
+                />
+              </div>
               <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
                 <Switch
                   checked={checkfrontCredentials?.is_active ?? false}
@@ -2796,6 +2830,14 @@ export default function AdminKeys() {
               </Badge>
             </div>
             <div className="flex items-center gap-2">
+              <div onClick={(e) => e.stopPropagation()}>
+                <IntegrationStatusDropdown
+                  systemType="littlehotelier"
+                  currentStatus={trackerData.littlehotelier?.integration_status || null}
+                  onStatusChange={() => fetchTrackerData()}
+                  compact
+                />
+              </div>
               <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
                 <Switch
                   checked={littlehotelierCredentials?.is_active ?? false}
@@ -2953,6 +2995,14 @@ export default function AdminKeys() {
               </Badge>
             </div>
             <div className="flex items-center gap-2">
+              <div onClick={(e) => e.stopPropagation()}>
+                <IntegrationStatusDropdown
+                  systemType="hostfully"
+                  currentStatus={trackerData.hostfully?.integration_status || null}
+                  onStatusChange={() => fetchTrackerData()}
+                  compact
+                />
+              </div>
               <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
                 <Switch
                   checked={hostfullyCredentials?.is_active ?? false}
@@ -3196,11 +3246,16 @@ export default function AdminKeys() {
             <div className="flex items-center gap-3">
               <Icon className="h-5 w-5 text-muted-foreground" />
               <span className="font-semibold">{name}</span>
-              <Badge variant="outline" className="text-xs">
-                Coming Soon
-              </Badge>
             </div>
             <div className="flex items-center gap-2">
+              <div onClick={(e) => e.stopPropagation()}>
+                <IntegrationStatusDropdown
+                  systemType={systemType}
+                  currentStatus={tracker?.integration_status || null}
+                  onStatusChange={() => fetchTrackerData()}
+                  compact
+                />
+              </div>
               {tracker && <PMSTrackerStatusDisplay tracker={tracker} compact />}
               <Badge variant="secondary" className="flex items-center gap-1">
                 <AlertCircle className="h-3 w-3" />
@@ -3456,6 +3511,14 @@ export default function AdminKeys() {
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2">
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <IntegrationStatusDropdown
+                      systemType="hotelbeds"
+                      currentStatus={trackerData.hotelbeds?.integration_status || null}
+                      onStatusChange={() => fetchTrackerData()}
+                      compact
+                    />
+                  </div>
                   <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
                     <Switch
                       checked={hotelbedsCredentials?.is_active ?? false}

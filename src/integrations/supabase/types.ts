@@ -1613,6 +1613,9 @@ export type Database = {
           has_post: boolean | null
           has_soft_test: boolean | null
           id: string
+          integration_status:
+            | Database["public"]["Enums"]["pms_integration_status"]
+            | null
           is_production: boolean | null
           notes: string | null
           status: string | null
@@ -1635,6 +1638,9 @@ export type Database = {
           has_post?: boolean | null
           has_soft_test?: boolean | null
           id?: string
+          integration_status?:
+            | Database["public"]["Enums"]["pms_integration_status"]
+            | null
           is_production?: boolean | null
           notes?: string | null
           status?: string | null
@@ -1657,6 +1663,9 @@ export type Database = {
           has_post?: boolean | null
           has_soft_test?: boolean | null
           id?: string
+          integration_status?:
+            | Database["public"]["Enums"]["pms_integration_status"]
+            | null
           is_production?: boolean | null
           notes?: string | null
           status?: string | null
@@ -2600,6 +2609,12 @@ export type Database = {
       component_type: "pms" | "internal" | "external" | "infrastructure"
       health_status: "healthy" | "degraded" | "failed" | "unknown"
       help_impact_level: "critical" | "warning" | "info"
+      pms_integration_status:
+        | "coming_soon"
+        | "in_development"
+        | "parked"
+        | "in_testing"
+        | "deployed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2749,6 +2764,13 @@ export const Constants = {
       component_type: ["pms", "internal", "external", "infrastructure"],
       health_status: ["healthy", "degraded", "failed", "unknown"],
       help_impact_level: ["critical", "warning", "info"],
+      pms_integration_status: [
+        "coming_soon",
+        "in_development",
+        "parked",
+        "in_testing",
+        "deployed",
+      ],
     },
   },
 } as const

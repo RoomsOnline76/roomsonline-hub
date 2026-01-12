@@ -1,8 +1,16 @@
 // PMS Tracker Status Types and Configuration
 
+export type PmsIntegrationStatus = 
+  | 'coming_soon'
+  | 'in_development'
+  | 'parked'
+  | 'in_testing'
+  | 'deployed';
+
 export interface PMSTrackerStatus {
   system_type: string;
   status: string;
+  integration_status?: PmsIntegrationStatus;
   contact_person?: string;
   contact_name?: string;
   contact_tel?: string;
