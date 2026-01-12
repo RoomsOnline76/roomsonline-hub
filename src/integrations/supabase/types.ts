@@ -605,6 +605,7 @@ export type Database = {
           is_active: boolean | null
           last_synced_at: string | null
           latitude: number | null
+          linked_rate_type_ids: string[] | null
           longitude: number | null
           max_guests: number | null
           max_stay: number | null
@@ -651,6 +652,7 @@ export type Database = {
           is_active?: boolean | null
           last_synced_at?: string | null
           latitude?: number | null
+          linked_rate_type_ids?: string[] | null
           longitude?: number | null
           max_guests?: number | null
           max_stay?: number | null
@@ -697,6 +699,7 @@ export type Database = {
           is_active?: boolean | null
           last_synced_at?: string | null
           latitude?: number | null
+          linked_rate_type_ids?: string[] | null
           longitude?: number | null
           max_guests?: number | null
           max_stay?: number | null

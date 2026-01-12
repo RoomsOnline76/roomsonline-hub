@@ -10,6 +10,7 @@ import {
   TransformedData,
   TransformedPropertyData,
   TransformedRoomData,
+  TransformedRateTypeData,
   TransformedSeasonData,
   PropertyImage,
   HostfullyRulePayload,
@@ -266,7 +267,7 @@ function getFeeByType(fees: HostfullyFeePayload[], type: string): number | undef
 }
 
 /**
- * Transform rooms with fee data
+ * Transform rooms with fee data and rate type linkage
  */
 function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
   if (!ctx.rooms || !Array.isArray(ctx.rooms)) return [];
@@ -297,6 +298,8 @@ function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
       extra_guest_fee: getFeeByType(fees, 'EXTRA_GUEST'),
       security_deposit: getFeeByType(fees, 'SECURITY_DEPOSIT'),
       amenities: room.amenities ? { items: room.amenities } : undefined,
+      // Link all rooms to the synthetic "per-unit" rate type
+      linked_rate_type_ids: ['per-unit'],
       pms_synced_fields: lockedFields,
       last_synced_at: syncedAt,
     };
@@ -307,11 +310,28 @@ function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
     if (transformed.security_deposit !== undefined) lockedFields.push('security_deposit');
     if (room.checkInTime) lockedFields.push('check_in_time');
     if (room.checkOutTime) lockedFields.push('check_out_time');
+    lockedFields.push('linked_rate_type_ids');
     
     transformed.pms_synced_fields = lockedFields;
     
     return transformed;
   });
+}
+
+/**
+ * Transform rate types (synthetic for Hostfully since it doesn't have discrete rate entities)
+ */
+function transformRateTypes(_ctx: IngestionContext): TransformedRateTypeData[] {
+  // Hostfully uses "per-unit" as the standard rate type
+  // This is a synthetic rate type since Hostfully doesn't have discrete rate entities
+  return [
+    {
+      external_rate_type_id: 'per-unit',
+      name: 'Per Unit Rate',
+      description: 'Standard nightly rate per unit',
+      price_type: 'per-unit',
+    },
+  ];
 }
 
 /**
@@ -367,7 +387,10 @@ export function transformFullIngestion(ctx: IngestionContext): TransformedData {
   // 6. Transform rooms
   const rooms = transformRooms(ctx);
   
-  // 7. Transform seasons
+  // 7. Transform rate types
+  const rateTypes = transformRateTypes(ctx);
+  
+  // 8. Transform seasons
   const seasons = transformSeasons(ctx);
   
   // Merge all amenities updates
@@ -395,6 +418,7 @@ export function transformFullIngestion(ctx: IngestionContext): TransformedData {
       lockedFieldNames: allLockedFields,
     } as TransformedPropertyData,
     rooms,
+    rateTypes,
     seasons,
     lockedFieldNames: allLockedFields,
     roomLockedFields,

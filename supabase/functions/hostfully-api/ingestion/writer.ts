@@ -20,6 +20,7 @@ interface WriteResult {
   error?: string;
   propertyUpdated: boolean;
   roomsUpserted: number;
+  rateTypesUpserted: number;
 }
 
 // ============================================================================\\
@@ -44,6 +45,7 @@ export async function writeIngestion(
     success: false,
     propertyUpdated: false,
     roomsUpserted: 0,
+    rateTypesUpserted: 0,
   };
   
   try {
@@ -134,7 +136,34 @@ export async function writeIngestion(
     
     result.propertyUpdated = true;
     
-    // 4. Upsert rooms (if any)
+    // 4. Upsert rate types (if any)
+    if (data.rateTypes && data.rateTypes.length > 0) {
+      console.log(`[Writer] Upserting ${data.rateTypes.length} rate types...`);
+      
+      for (const rateType of data.rateTypes) {
+        const { error: rateError } = await supabase
+          .from("pms_rate_types_cache")
+          .upsert({
+            property_id: rolPropertyId,
+            system_type: 'hostfully',
+            external_rate_type_id: rateType.external_rate_type_id,
+            name: rateType.name,
+            description: rateType.description,
+            price_type: rateType.price_type,
+            fetched_at: new Date().toISOString(),
+          }, {
+            onConflict: 'property_id,system_type,external_rate_type_id',
+          });
+        
+        if (rateError) {
+          console.error(`[Writer] Rate type upsert error for ${rateType.external_rate_type_id}:`, rateError);
+        } else {
+          result.rateTypesUpserted++;
+        }
+      }
+    }
+    
+    // 5. Upsert rooms (if any)
     if (data.rooms.length > 0) {
       console.log(`[Writer] Upserting ${data.rooms.length} rooms...`);
       
@@ -157,6 +186,7 @@ export async function writeIngestion(
           extra_guest_fee: room.extra_guest_fee,
           security_deposit: room.security_deposit,
           amenities: room.amenities,
+          linked_rate_type_ids: room.linked_rate_type_ids || [],
           pms_synced_fields: room.pms_synced_fields,
           last_synced_at: room.last_synced_at,
           is_active: true,
@@ -180,9 +210,9 @@ export async function writeIngestion(
       }
     }
     
-    // 5. Success
+    // 6. Success
     result.success = true;
-    console.log(`[Writer] Write complete. Property: ${result.propertyUpdated}, Rooms: ${result.roomsUpserted}`);
+    console.log(`[Writer] Write complete. Property: ${result.propertyUpdated}, Rooms: ${result.roomsUpserted}, RateTypes: ${result.rateTypesUpserted}`);
     
     return result;
     
