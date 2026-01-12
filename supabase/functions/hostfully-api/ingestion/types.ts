@@ -211,9 +211,19 @@ export interface TransformedRoomData {
   amenities?: unknown;
   images?: unknown;
   
+  // Rate type linkage
+  linked_rate_type_ids?: string[];
+  
   // Metadata
   pms_synced_fields: string[];
   last_synced_at: string;
+}
+
+export interface TransformedRateTypeData {
+  external_rate_type_id: string;
+  name: string;
+  description?: string;
+  price_type: string;
 }
 
 export interface TransformedSeasonData {
@@ -232,6 +242,7 @@ export interface TransformedSeasonData {
 export interface TransformedData {
   property: TransformedPropertyData;
   rooms: TransformedRoomData[];
+  rateTypes: TransformedRateTypeData[];
   seasons: TransformedSeasonData[];
   lockedFieldNames: string[];
   roomLockedFields: string[];

@@ -1036,6 +1036,7 @@ export default function PropertyForm() {
           images: hr.images || [],
           facilities: [],
           amenities: hr.amenities || [],
+          linkedRateTypeIds: hr.linked_rate_type_ids || ['per-unit'],
           checkInTime: hr.check_in_time ? `${String(hr.check_in_time).padStart(2, '0')}:00` : null,
           checkOutTime: hr.check_out_time ? `${String(hr.check_out_time).padStart(2, '0')}:00` : null,
           propertyType: hr.property_type,
@@ -2912,6 +2913,7 @@ export default function PropertyForm() {
                 images: hr.images || [],
                 facilities: [],
                 amenities: hr.amenities || [],
+                linkedRateTypeIds: hr.linked_rate_type_ids || ['per-unit'],
                 // New Hostfully fields
                 checkInTime: hr.check_in_time ? `${String(hr.check_in_time).padStart(2, '0')}:00` : null,
                 checkOutTime: hr.check_out_time ? `${String(hr.check_out_time).padStart(2, '0')}:00` : null,
@@ -2961,6 +2963,28 @@ export default function PropertyForm() {
               pms_synced: true,
             }));
             setPmsRateTypes(transformedRateTypes);
+          } else if ((data as any).external_system === "hostfully" && data.id) {
+            // For Hostfully properties, fetch rate types from pms_rate_types_cache
+            const { data: cachedRateTypes } = await supabase
+              .from("pms_rate_types_cache")
+              .select("*")
+              .eq("property_id", data.id)
+              .eq("system_type", "hostfully");
+            
+            if (cachedRateTypes && cachedRateTypes.length > 0) {
+              const transformedRateTypes = cachedRateTypes.map((rt: any) => ({
+                id: rt.external_rate_type_id,
+                name: rt.name || "Per Unit Rate",
+                priceType: rt.price_type || "per-unit",
+                minStayDays: rt.min_stay_days || 1,
+                maxStayDays: rt.max_stay_days || 0,
+                minAdvanceDays: rt.min_advance_days || 0,
+                maxAdvanceDays: rt.max_advance_days || 0,
+                description: rt.description || "",
+                pms_synced: true,
+              }));
+              setPmsRateTypes(transformedRateTypes);
+            }
           }
 
           // Load other saved data
