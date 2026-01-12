@@ -1,17 +1,19 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SignatureCanvas } from "@/components/contract/SignatureCanvas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { FileText, Send, Check, AlertTriangle, Clock, Download, Loader2 } from "lucide-react";
+import { Send, Check, AlertTriangle, Clock, Loader2, Mail, ChevronDown, ChevronUp, FileText } from "lucide-react";
 import rolLogo from "@/assets/rol-logo.png";
+import { CONTRACT_AGREEMENT_HTML } from "@/lib/contractAgreementText";
 
 interface ContractData {
   id: string;
@@ -26,12 +28,13 @@ interface ContractData {
 
 export default function ContractSign() {
   const { token } = useParams<{ token: string }>();
-  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [contract, setContract] = useState<ContractData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [agreementExpanded, setAgreementExpanded] = useState(true);
 
   // Form state
   const [signeeName, setSigneeName] = useState("");
@@ -39,6 +42,9 @@ export default function ContractSign() {
   const [signeeDesignation, setSigneeDesignation] = useState("");
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  // Email for review state
+  const [emailForReview, setEmailForReview] = useState("");
 
   // Load contract data
   useEffect(() => {
@@ -50,7 +56,6 @@ export default function ContractSign() {
       }
 
       try {
-        // Fetch contract by signing token
         const { data, error: fetchError } = await supabase
           .from("property_contracts")
           .select(`
@@ -70,30 +75,27 @@ export default function ContractSign() {
           return;
         }
 
-        // Check if already signed
         if (data.status === "signed") {
           setError("This contract has already been signed");
           setLoading(false);
           return;
         }
 
-        // Check if token expired
         if (data.token_expires_at && new Date(data.token_expires_at) < new Date()) {
           setError("This signing link has expired. Please contact RoomsOnline for a new link.");
           setLoading(false);
           return;
         }
 
-        // Fetch property name
         const { data: property } = await supabase
           .from("properties")
           .select("name")
           .eq("id", data.property_id)
           .single();
 
-        // Pre-fill email if available
         if (data.sent_to_email) {
           setSigneeEmail(data.sent_to_email);
+          setEmailForReview(data.sent_to_email);
         }
 
         setContract({
@@ -101,7 +103,6 @@ export default function ContractSign() {
           property: property || undefined,
         });
 
-        // Mark as viewed
         await supabase
           .from("property_contracts")
           .update({ viewed_at: new Date().toISOString(), status: "viewed" })
@@ -145,8 +146,6 @@ export default function ContractSign() {
       if (data?.error) throw new Error(data.error);
 
       toast.success("Contract signed successfully!");
-      
-      // Show success state
       setContract(prev => prev ? { ...prev, status: "signed" } : null);
 
     } catch (err) {
@@ -154,6 +153,37 @@ export default function ContractSign() {
       toast.error("Failed to submit signature. Please try again.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleEmailForReview = async () => {
+    if (!emailForReview || !contract) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
+    setSendingEmail(true);
+
+    try {
+      const signingUrl = window.location.href;
+      
+      const { data, error } = await supabase.functions.invoke("email-contract-copy", {
+        body: {
+          contract_id: contract.id,
+          email: emailForReview,
+          property_name: contract.property?.name || "Your Property",
+          signing_url: signingUrl,
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success(`Contract sent to ${emailForReview}`);
+    } catch (err) {
+      console.error("Error sending contract email:", err);
+      toast.error("Failed to send email. Please try again.");
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -178,9 +208,13 @@ export default function ContractSign() {
         <Card className="max-w-md w-full">
           <CardContent className="pt-6">
             <div className="text-center">
+              <img src={rolLogo} alt="RoomsOnline" className="h-10 mx-auto mb-6" />
               <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
               <h1 className="text-xl font-semibold mb-2">Unable to Load Contract</h1>
-              <p className="text-muted-foreground">{error}</p>
+              <p className="text-muted-foreground mb-6">{error}</p>
+              <p className="text-sm text-muted-foreground">
+                Need help? Contact <a href="mailto:info@roomsonline.co.za" className="text-primary hover:underline">info@roomsonline.co.za</a>
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -195,6 +229,7 @@ export default function ContractSign() {
         <Card className="max-w-md w-full">
           <CardContent className="pt-6">
             <div className="text-center">
+              <img src={rolLogo} alt="RoomsOnline" className="h-10 mx-auto mb-6" />
               <div className="h-16 w-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Check className="h-8 w-8 text-green-600" />
               </div>
@@ -217,11 +252,11 @@ export default function ContractSign() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background">
       {/* Header */}
-      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={rolLogo} alt="RoomsOnline" className="h-8" />
-            <span className="text-lg font-semibold">Contract Signing</span>
+            <span className="text-lg font-semibold hidden sm:inline">Contract Signing</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Clock className="h-4 w-4" />
@@ -230,89 +265,132 @@ export default function ContractSign() {
         </div>
       </header>
 
-      <main className="container py-8 max-w-2xl">
+      <main className="container py-6 sm:py-8 max-w-3xl">
         <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">
-              Property Agreement Contract
+          <CardHeader className="text-center pb-4">
+            <CardTitle className="text-xl sm:text-2xl">
+              Property Partnership Agreement
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-base">
               {contract?.property?.name || "Property Contract"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Contract Preview */}
-            {contract?.unsigned_pdf_url && (
-              <div className="space-y-2">
-                <Label>Contract Document</Label>
-                <div className="border rounded-lg bg-muted/30 p-4">
-                  <div className="flex items-center justify-between">
+            {/* Agreement Text Section */}
+            <Collapsible open={agreementExpanded} onOpenChange={setAgreementExpanded}>
+              <div className="border rounded-lg">
+                <CollapsibleTrigger asChild>
+                  <button className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors text-left">
                     <div className="flex items-center gap-3">
-                      <FileText className="h-8 w-8 text-primary" />
+                      <FileText className="h-5 w-5 text-primary" />
                       <div>
-                        <p className="font-medium">RoomsOnline Property Agreement</p>
-                        <p className="text-sm text-muted-foreground">PDF Document</p>
+                        <p className="font-medium">Full Agreement Text</p>
+                        <p className="text-sm text-muted-foreground">Click to {agreementExpanded ? "collapse" : "expand"}</p>
                       </div>
                     </div>
+                    {agreementExpanded ? (
+                      <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <Separator />
+                  <ScrollArea className="h-[400px] p-4">
+                    <div 
+                      className="prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{ __html: CONTRACT_AGREEMENT_HTML }}
+                    />
+                  </ScrollArea>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+
+            {/* Email for Review Section */}
+            <div className="bg-muted/30 border rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-3">
+                  <div>
+                    <p className="font-medium text-sm">Not ready to sign yet?</p>
+                    <p className="text-sm text-muted-foreground">
+                      Send a copy to your email to review at your convenience.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      type="email"
+                      placeholder="your@email.com"
+                      value={emailForReview}
+                      onChange={(e) => setEmailForReview(e.target.value)}
+                      className="flex-1"
+                    />
                     <Button
+                      type="button"
                       variant="outline"
-                      size="sm"
-                      onClick={() => window.open(contract.unsigned_pdf_url!, "_blank")}
+                      onClick={handleEmailForReview}
+                      disabled={sendingEmail || !emailForReview}
                     >
-                      <Download className="h-4 w-4 mr-2" />
-                      View PDF
+                      {sendingEmail ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Mail className="h-4 w-4 mr-2" />
+                          Send
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Please review the contract before signing below.
-                </p>
               </div>
-            )}
+            </div>
 
             <Separator />
 
             {/* Signing Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Signee Details */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="signee-name">
-                    Full Name <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="signee-name"
-                    value={signeeName}
-                    onChange={(e) => setSigneeName(e.target.value)}
-                    placeholder="John Smith"
-                    required
-                  />
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Signatory Details</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="signee-name">
+                      Full Name <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="signee-name"
+                      value={signeeName}
+                      onChange={(e) => setSigneeName(e.target.value)}
+                      placeholder="John Smith"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signee-email">
+                      Email Address <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="signee-email"
+                      type="email"
+                      value={signeeEmail}
+                      onChange={(e) => setSigneeEmail(e.target.value)}
+                      placeholder="john@example.com"
+                      required
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signee-email">
-                    Email Address <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="signee-email"
-                    type="email"
-                    value={signeeEmail}
-                    onChange={(e) => setSigneeEmail(e.target.value)}
-                    placeholder="john@example.com"
-                    required
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="signee-designation">
-                  Designation / Title (Optional)
-                </Label>
-                <Input
-                  id="signee-designation"
-                  value={signeeDesignation}
-                  onChange={(e) => setSigneeDesignation(e.target.value)}
-                  placeholder="Owner, Director, Manager, etc."
-                />
+                <div className="space-y-2 mt-4">
+                  <Label htmlFor="signee-designation">
+                    Designation / Title (Optional)
+                  </Label>
+                  <Input
+                    id="signee-designation"
+                    value={signeeDesignation}
+                    onChange={(e) => setSigneeDesignation(e.target.value)}
+                    placeholder="Owner, Director, Manager, etc."
+                  />
+                </div>
               </div>
 
               {/* Signature */}
@@ -360,7 +438,7 @@ export default function ContractSign() {
             {/* Footer Note */}
             <p className="text-xs text-center text-muted-foreground">
               By signing, you agree to receive a copy of the signed contract via email.
-              This electronic signature is legally binding.
+              This electronic signature is legally binding under the Electronic Communications and Transactions Act 25 of 2002.
             </p>
           </CardContent>
         </Card>
