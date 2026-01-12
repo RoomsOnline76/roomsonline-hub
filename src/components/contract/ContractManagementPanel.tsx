@@ -6,8 +6,9 @@ import { ContractStatusBadge } from "./ContractStatusBadge";
 import { ContractOverrideModal } from "./ContractOverrideModal";
 import { useOwnerContract } from "@/hooks/useOwnerContract";
 import { useAuth } from "@/hooks/useAuth";
-import { FileText, Send, RefreshCw, Download, Shield, AlertTriangle, Building2 } from "lucide-react";
+import { FileText, Send, RefreshCw, Download, Shield, AlertTriangle, Building2, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
+import { generateSignedContractHTML, PropertyContractDetails, SignatureData } from "@/lib/contractAgreementText";
 
 interface ContractManagementPanelProps {
   propertyId: string;
@@ -52,6 +53,63 @@ export function ContractManagementPanel({
 
   const canSend = !!ownerEmail;
   const showWarning = showOnWebsite && !hasValidContract;
+
+  // Generate and download contract as HTML (printable)
+  const handleDownloadContract = () => {
+    if (!contract || contract.status !== "signed") return;
+
+    // Build property details for contract generation
+    const propertyDetails: PropertyContractDetails = {
+      name: ownerProperties[0]?.name || ownerName || "Property Owner",
+      registeredName: ownerName || ownerEmail || "Property Owner",
+      email: ownerEmail,
+    };
+
+    const signatureData: SignatureData = {
+      signedByName: contract.signed_by_name || "Unknown",
+      signedByEmail: contract.signed_by_email || "",
+      signedByDesignation: contract.signed_by_designation || undefined,
+      signatureImageUrl: contract.signature_image_url || "",
+      signedAt: contract.signed_at || new Date().toISOString(),
+    };
+
+    const htmlContent = generateSignedContractHTML(propertyDetails, signatureData);
+    
+    // Create a printable document
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Signed Contract - ${ownerName || ownerEmail}</title>
+          <style>
+            body { 
+              font-family: Georgia, serif; 
+              max-width: 800px; 
+              margin: 40px auto; 
+              padding: 20px;
+              line-height: 1.6;
+            }
+            @media print {
+              body { margin: 0; padding: 20px; }
+            }
+          </style>
+        </head>
+        <body>
+          ${htmlContent}
+          <script>
+            // Auto-trigger print dialog
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+  };
 
   return (
     <>
@@ -170,19 +228,33 @@ export function ContractManagementPanel({
               </Button>
             )}
 
-            {/* Download Signed PDF */}
-            {contract?.status === "signed" && contract.pdf_url && (
-              <Button
-                size="sm"
-                variant="outline"
-                asChild
-                className="h-7 text-xs gap-1"
-              >
-                <a href={contract.pdf_url} target="_blank" rel="noopener noreferrer">
-                  <Download className="h-3 w-3" />
-                  Download Signed PDF
-                </a>
-              </Button>
+            {/* Download Signed Contract */}
+            {contract?.status === "signed" && (
+              <>
+                {contract.pdf_url ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    asChild
+                    className="h-7 text-xs gap-1"
+                  >
+                    <a href={contract.pdf_url} target="_blank" rel="noopener noreferrer">
+                      <Download className="h-3 w-3" />
+                      Download PDF
+                    </a>
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDownloadContract}
+                    className="h-7 text-xs gap-1"
+                  >
+                    <Download className="h-3 w-3" />
+                    Download Contract
+                  </Button>
+                )}
+              </>
             )}
 
             {/* For overridden contracts, show note */}
