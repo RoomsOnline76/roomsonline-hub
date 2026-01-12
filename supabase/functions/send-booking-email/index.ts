@@ -127,7 +127,7 @@ function wrapCustomTemplate(customContent: string, property: any): string {
               <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
                 RoomsOnline on behalf of <strong>${property.name}</strong>
               </p>
-              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
+              <img src="https://roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
             </td>
           </tr>
           
@@ -339,7 +339,7 @@ function generateSuccessEmail(booking: any, property: any): string {
               <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
                 RoomsOnline on behalf of <strong>${property.name}</strong>
               </p>
-              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
+              <img src="https://roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
             </td>
           </tr>
           
@@ -423,7 +423,7 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
             <td style="padding: 0 40px 30px;">
               <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; text-align: center;">
                 <p style="margin: 0 0 10px; color: #666; font-size: 14px;">Need help? Contact our support team</p>
-                <a href="mailto:support@roomsonline.co.za" style="color: #e91e8c; font-weight: 600; text-decoration: none;">support@roomsonline.co.za</a>
+                <a href="mailto:info@roomsonline.co.za" style="color: #e91e8c; font-weight: 600; text-decoration: none;">info@roomsonline.co.za</a>
               </div>
             </td>
           </tr>
@@ -435,7 +435,7 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
               <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
                 RoomsOnline on behalf of <strong>${property.name}</strong>
               </p>
-              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
+              <img src="https://roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
             </td>
           </tr>
           
