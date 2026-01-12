@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
 
       // Send to signee
       await resend.emails.send({
-        from: "RoomsOnline <noreply@roomsonline.co.za>",
+        from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
         to: signee_email,
         subject: `Contract Signed - ${property?.name || "Property"}`,
         html: emailHtml,
@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
 
       // Send to Carike
       await resend.emails.send({
-        from: "RoomsOnline <noreply@roomsonline.co.za>",
+        from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
         to: "carike@roomsonline.co.za",
         subject: `[Contract Signed] ${property?.name || "Property"} - ${signee_name}`,
         html: emailHtml.replace("Dear " + signee_name, "Dear Carike") + 
