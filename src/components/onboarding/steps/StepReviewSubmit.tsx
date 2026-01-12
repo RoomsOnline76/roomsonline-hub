@@ -2,8 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle, AlertCircle, Send, FileText, Award } from "lucide-react";
+import { Loader2, CheckCircle, AlertCircle, Send, Award } from "lucide-react";
 import { StepProps } from "./types";
 import { WIZARD_SECTIONS, SCORE_WEIGHTS, getScoreBand } from "@/config/onboardingFieldSchema";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,12 +27,13 @@ export function StepReviewSubmit({
 
   const amenities = (propertyData.amenities || {}) as Record<string, unknown>;
 
-  // Calculate section scores
   const calculateSectionScores = (): SectionStatus[] => {
     const sections: SectionStatus[] = [];
 
-    // Property Identity
-    const identityFields = [propertyData.name, propertyData.property_type, propertyData.property_url].filter(Boolean).length;
+    // Property Identity (includes offerings & business)
+    const offerings = amenities.offerings as Record<string, boolean> | undefined;
+    const offeringCount = offerings ? Object.values(offerings).filter(Boolean).length : 0;
+    const identityFields = [propertyData.name, propertyData.property_type, offeringCount > 0].filter(Boolean).length;
     sections.push({
       id: "property_identity",
       title: "Property Identity",
@@ -46,21 +46,10 @@ export function StepReviewSubmit({
     const contactFields = [amenities.telephone, amenities.contact_email].filter(Boolean).length;
     sections.push({
       id: "contact_details",
-      title: "Contact Details",
+      title: "Contact & Team",
       score: Math.round((contactFields / 2) * SCORE_WEIGHTS.contact_details),
       maxScore: SCORE_WEIGHTS.contact_details,
       isComplete: contactFields >= 1
-    });
-
-    // Offerings
-    const offerings = amenities.offerings as Record<string, boolean> | undefined;
-    const offeringCount = offerings ? Object.values(offerings).filter(Boolean).length : 0;
-    sections.push({
-      id: "offerings",
-      title: "Offerings",
-      score: offeringCount > 0 ? SCORE_WEIGHTS.offerings : 0,
-      maxScore: SCORE_WEIGHTS.offerings,
-      isComplete: offeringCount > 0
     });
 
     // Location
@@ -73,33 +62,23 @@ export function StepReviewSubmit({
       isComplete: locationFields >= 3
     });
 
-    // Policies
-    const policyFields = [amenities.min_check_in_age, amenities.pets_allowed !== undefined, amenities.payment_policy].filter(Boolean).length;
+    // Policies & Pricing (merged policies + banking)
+    const policyFields = [amenities.check_in_time, amenities.bank_name, amenities.account_number].filter(Boolean).length;
     sections.push({
-      id: "policies",
-      title: "Policies & Rules",
-      score: Math.round((policyFields / 3) * SCORE_WEIGHTS.policies),
-      maxScore: SCORE_WEIGHTS.policies,
+      id: "policies_pricing",
+      title: "Policies & Pricing",
+      score: Math.round((policyFields / 3) * SCORE_WEIGHTS.policies_pricing),
+      maxScore: SCORE_WEIGHTS.policies_pricing,
       isComplete: policyFields >= 1
     });
 
-    // Banking
-    const bankingFields = [amenities.bank_name, amenities.account_number].filter(Boolean).length;
-    sections.push({
-      id: "banking",
-      title: "Banking Details",
-      score: Math.round((bankingFields / 2) * SCORE_WEIGHTS.banking),
-      maxScore: SCORE_WEIGHTS.banking,
-      isComplete: bankingFields >= 2
-    });
-
-    // Description & Meals
+    // Guest Experience (description + meals)
     const descFields = [propertyData.description, amenities.meal_plan].filter(Boolean).length;
     sections.push({
-      id: "description_and_meals",
-      title: "Description & Meals",
-      score: Math.round((descFields / 2) * SCORE_WEIGHTS.description_and_meals),
-      maxScore: SCORE_WEIGHTS.description_and_meals,
+      id: "guest_experience",
+      title: "Guest Experience",
+      score: Math.round((descFields / 2) * SCORE_WEIGHTS.guest_experience),
+      maxScore: SCORE_WEIGHTS.guest_experience,
       isComplete: propertyData.description ? true : false
     });
 
@@ -117,20 +96,20 @@ export function StepReviewSubmit({
     const roomTypes = amenities.room_types as unknown[] | undefined;
     sections.push({
       id: "rooms_overview",
-      title: "Rooms Overview",
+      title: "Rooms",
       score: roomTypes && roomTypes.length > 0 ? SCORE_WEIGHTS.rooms_overview : 0,
       maxScore: SCORE_WEIGHTS.rooms_overview,
       isComplete: (roomTypes?.length || 0) >= 1
     });
 
-    // Media
+    // Media & Documents
     const images = (propertyData.images || []) as unknown[];
     const imageScore = Math.min(1, images.length / 3);
     sections.push({
-      id: "media",
-      title: "Images & Media",
-      score: Math.round(imageScore * SCORE_WEIGHTS.media),
-      maxScore: SCORE_WEIGHTS.media,
+      id: "media_documents",
+      title: "Media & Documents",
+      score: Math.round(imageScore * SCORE_WEIGHTS.media_documents),
+      maxScore: SCORE_WEIGHTS.media_documents,
       isComplete: images.length >= 3
     });
 
@@ -146,7 +125,6 @@ export function StepReviewSubmit({
     setIsSubmitting(true);
 
     try {
-      // Update onboarding metadata
       const updatedAmenities = {
         ...amenities,
         onboarding_completion_percent: totalScore,
@@ -163,17 +141,12 @@ export function StepReviewSubmit({
 
       toast({
         title: "Onboarding complete!",
-        description: `Your property profile is ${totalScore}% complete with a ${scoreBand.label} rating.`
+        description: `Your property profile is ${totalScore}% complete.`
       });
 
       onComplete?.();
     } catch (error) {
-      console.error("Submit error:", error);
-      toast({
-        title: "Submission failed",
-        description: "Could not complete onboarding. Please try again.",
-        variant: "destructive"
-      });
+      toast({ title: "Submission failed", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -181,7 +154,6 @@ export function StepReviewSubmit({
 
   return (
     <div className="space-y-6">
-      {/* Score summary card */}
       <Card className="border-2">
         <CardHeader className="text-center pb-2">
           <CardTitle className="flex items-center justify-center gap-2">
@@ -199,86 +171,30 @@ export function StepReviewSubmit({
         </CardContent>
       </Card>
 
-      {/* Section breakdown */}
       <div className="space-y-2">
-        <h3 className="font-medium">Section Breakdown</h3>
-        <div className="space-y-2">
-          {sectionScores.map((section) => (
-            <div
-              key={section.id}
-              className="flex items-center gap-3 rounded-lg border p-3"
-            >
-              <div className={cn(
-                "flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center",
-                section.isComplete ? "bg-green-100 text-green-600" : "bg-muted text-muted-foreground"
-              )}>
-                {section.isComplete ? (
-                  <CheckCircle className="h-4 w-4" />
-                ) : (
-                  <AlertCircle className="h-4 w-4" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{section.title}</p>
-              </div>
-              <div className="flex-shrink-0 text-sm">
-                <span className={section.isComplete ? "text-green-600" : "text-muted-foreground"}>
-                  {section.score}
-                </span>
-                <span className="text-muted-foreground">/{section.maxScore}</span>
-              </div>
+        {sectionScores.map((section) => (
+          <div key={section.id} className="flex items-center gap-3 rounded-lg border p-3">
+            <div className={cn(
+              "flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center",
+              section.isComplete ? "bg-green-100 text-green-600" : "bg-muted text-muted-foreground"
+            )}>
+              {section.isComplete ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
             </div>
-          ))}
-        </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{section.title}</p>
+            </div>
+            <div className="flex-shrink-0 text-sm">
+              <span className={section.isComplete ? "text-green-600" : "text-muted-foreground"}>{section.score}</span>
+              <span className="text-muted-foreground">/{section.maxScore}</span>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Improvement suggestions */}
-      {totalScore < 85 && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="pt-4">
-            <h4 className="font-medium text-amber-800 mb-2">Quick Wins to Improve Your Score</h4>
-            <ul className="text-sm text-amber-700 space-y-1">
-              {!sectionScores.find(s => s.id === "media")?.isComplete && (
-                <li>• Add at least 3 property images</li>
-              )}
-              {!sectionScores.find(s => s.id === "rooms_overview")?.isComplete && (
-                <li>• Add at least one room type</li>
-              )}
-              {!sectionScores.find(s => s.id === "facilities")?.isComplete && (
-                <li>• Select your property facilities</li>
-              )}
-              {!sectionScores.find(s => s.id === "description_and_meals")?.isComplete && (
-                <li>• Write a property description</li>
-              )}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Submit button */}
-      <div className="flex flex-col gap-3">
-        <Button
-          size="lg"
-          onClick={handleSubmit}
-          disabled={isSubmitting}
-          className="w-full gap-2"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Completing...
-            </>
-          ) : (
-            <>
-              <Send className="h-4 w-4" />
-              Complete Onboarding
-            </>
-          )}
-        </Button>
-        <p className="text-xs text-center text-muted-foreground">
-          You can always return to update your property details later
-        </p>
-      </div>
+      <Button size="lg" onClick={handleSubmit} disabled={isSubmitting} className="w-full gap-2">
+        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        {isSubmitting ? "Completing..." : "Complete Onboarding"}
+      </Button>
     </div>
   );
 }
