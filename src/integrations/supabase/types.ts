@@ -586,6 +586,7 @@ export type Database = {
           address_street: string | null
           amenities: Json | null
           bathrooms: number | null
+          bed_configuration: Json | null
           bedrooms: number | null
           beds: number | null
           cancellation_policy: string | null
@@ -598,6 +599,8 @@ export type Database = {
           daily_rate: number | null
           description: string | null
           extra_guest_fee: number | null
+          extra_person_policy: string | null
+          facilities_raw: string[] | null
           hostfully_room_id: string | null
           house_rules: string | null
           id: string
@@ -615,6 +618,7 @@ export type Database = {
           pms_synced_fields: string[] | null
           property_id: string
           property_type: string | null
+          rate_type: string | null
           raw_data: Json | null
           room_size: number | null
           room_size_unit: string | null
@@ -633,6 +637,7 @@ export type Database = {
           address_street?: string | null
           amenities?: Json | null
           bathrooms?: number | null
+          bed_configuration?: Json | null
           bedrooms?: number | null
           beds?: number | null
           cancellation_policy?: string | null
@@ -645,6 +650,8 @@ export type Database = {
           daily_rate?: number | null
           description?: string | null
           extra_guest_fee?: number | null
+          extra_person_policy?: string | null
+          facilities_raw?: string[] | null
           hostfully_room_id?: string | null
           house_rules?: string | null
           id?: string
@@ -662,6 +669,7 @@ export type Database = {
           pms_synced_fields?: string[] | null
           property_id: string
           property_type?: string | null
+          rate_type?: string | null
           raw_data?: Json | null
           room_size?: number | null
           room_size_unit?: string | null
@@ -680,6 +688,7 @@ export type Database = {
           address_street?: string | null
           amenities?: Json | null
           bathrooms?: number | null
+          bed_configuration?: Json | null
           bedrooms?: number | null
           beds?: number | null
           cancellation_policy?: string | null
@@ -692,6 +701,8 @@ export type Database = {
           daily_rate?: number | null
           description?: string | null
           extra_guest_fee?: number | null
+          extra_person_policy?: string | null
+          facilities_raw?: string[] | null
           hostfully_room_id?: string | null
           house_rules?: string | null
           id?: string
@@ -709,6 +720,7 @@ export type Database = {
           pms_synced_fields?: string[] | null
           property_id?: string
           property_type?: string | null
+          rate_type?: string | null
           raw_data?: Json | null
           room_size?: number | null
           room_size_unit?: string | null

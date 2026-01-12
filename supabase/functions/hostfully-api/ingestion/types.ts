@@ -98,6 +98,11 @@ export interface HostfullyRoomPayload {
   checkOutTime?: string;
   baseDailyRate?: number;
   currency?: string;
+  // Extended fields for room enhancement
+  extraPersonPolicy?: string;
+  bedTypes?: Array<{ type: string; count: number }>;
+  rateType?: string;
+  photos?: HostfullyPhotoPayload[];
 }
 
 export interface HostfullyFeePayload {
@@ -210,6 +215,12 @@ export interface TransformedRoomData {
   security_deposit?: number;
   amenities?: unknown;
   images?: unknown;
+  
+  // Extended room fields
+  extra_person_policy?: string;
+  bed_configuration?: Array<{ type: string; count: number }>;
+  facilities_raw?: string[];
+  rate_type?: string;
   
   // Rate type linkage
   linked_rate_type_ids?: string[];

@@ -267,7 +267,53 @@ function getFeeByType(fees: HostfullyFeePayload[], type: string): number | undef
 }
 
 /**
- * Transform rooms with fee data and rate type linkage
+ * Transform bed configuration from Hostfully format to ROL format
+ */
+function transformBedConfiguration(
+  beds: unknown
+): Array<{ type: string; count: number }> {
+  const BED_TYPE_MAP: Record<string, string> = {
+    'KING': 'king',
+    'KING_BED': 'king',
+    'QUEEN': 'queen',
+    'QUEEN_BED': 'queen',
+    'DOUBLE': 'double',
+    'DOUBLE_BED': 'double',
+    'TWIN': 'twin',
+    'TWIN_BED': 'twin',
+    'SINGLE': 'single',
+    'SINGLE_BED': 'single',
+    'SOFA_BED': 'sofa-bed',
+    'SOFABED': 'sofa-bed',
+    'BUNK': 'bunk',
+    'BUNK_BED': 'bunk',
+  };
+  
+  // If it's already an array of bed objects
+  if (Array.isArray(beds)) {
+    return beds.map((b: unknown) => {
+      if (typeof b === 'object' && b !== null) {
+        const bed = b as Record<string, unknown>;
+        const rawType = String(bed.type || bed.bedType || 'bed').toUpperCase();
+        return {
+          type: BED_TYPE_MAP[rawType] || rawType.toLowerCase() || 'bed',
+          count: Number(bed.count || bed.quantity || 1),
+        };
+      }
+      return { type: 'bed', count: 1 };
+    });
+  }
+  
+  // If it's just a number (total bed count)
+  if (typeof beds === 'number' && beds > 0) {
+    return [{ type: 'bed', count: beds }];
+  }
+  
+  return [];
+}
+
+/**
+ * Transform rooms with fee data, rate type linkage, and extended fields
  */
 function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
   if (!ctx.rooms || !Array.isArray(ctx.rooms)) return [];
@@ -280,6 +326,15 @@ function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
     
     // Core fields (HOSTFULLY_AT_INGEST)
     lockedFields.push('hostfully_room_id', 'name', 'max_guests', 'bedrooms', 'bathrooms', 'beds');
+    
+    // Determine rate type from room data
+    const rateType = room.rateType || 'per-unit';
+    
+    // Transform bed configuration
+    const bedConfig = transformBedConfiguration(room.bedTypes || room.beds);
+    
+    // Extract raw amenities for correlation
+    const facilitiesRaw = room.amenities || [];
     
     const transformed: TransformedRoomData = {
       hostfully_room_id: room.uid,
@@ -298,8 +353,13 @@ function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
       extra_guest_fee: getFeeByType(fees, 'EXTRA_GUEST'),
       security_deposit: getFeeByType(fees, 'SECURITY_DEPOSIT'),
       amenities: room.amenities ? { items: room.amenities } : undefined,
-      // Link all rooms to the synthetic "per-unit" rate type
-      linked_rate_type_ids: ['per-unit'],
+      // Extended fields
+      extra_person_policy: room.extraPersonPolicy,
+      bed_configuration: bedConfig,
+      facilities_raw: facilitiesRaw,
+      rate_type: rateType,
+      // Link rooms to their rate type
+      linked_rate_type_ids: [rateType],
       pms_synced_fields: lockedFields,
       last_synced_at: syncedAt,
     };
@@ -310,7 +370,10 @@ function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
     if (transformed.security_deposit !== undefined) lockedFields.push('security_deposit');
     if (room.checkInTime) lockedFields.push('check_in_time');
     if (room.checkOutTime) lockedFields.push('check_out_time');
-    lockedFields.push('linked_rate_type_ids');
+    if (room.extraPersonPolicy) lockedFields.push('extra_person_policy');
+    if (bedConfig.length > 0) lockedFields.push('bed_configuration');
+    if (facilitiesRaw.length > 0) lockedFields.push('facilities_raw');
+    lockedFields.push('rate_type', 'linked_rate_type_ids');
     
     transformed.pms_synced_fields = lockedFields;
     

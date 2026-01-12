@@ -118,7 +118,13 @@ const ROOM_CORE: FieldMapEntry[] = [
   { hf: "rooms[].amenities", rol: "hostfully_room_types.amenities", authority: "SEED_ONLY", scope: "room" },
   { hf: "rooms[].notes", rol: "hostfully_room_types.notes", authority: "SEED_ONLY", scope: "room" },
   { hf: "rooms[].checkInTime", rol: "hostfully_room_types.check_in_time", authority: "HOSTFULLY_AT_INGEST", scope: "room" },
-  { hf: "rooms[].checkOutTime", rol: "hostfully_room_types.check_out_time", authority: "HOSTFULLY_AT_INGEST", scope: "room" }
+  { hf: "rooms[].checkOutTime", rol: "hostfully_room_types.check_out_time", authority: "HOSTFULLY_AT_INGEST", scope: "room" },
+  // Extended room fields
+  { hf: "rooms[].extraPersonPolicy", rol: "hostfully_room_types.extra_person_policy", authority: "SEED_ONLY", scope: "room" },
+  { hf: "rooms[].bedTypes", rol: "hostfully_room_types.bed_configuration", authority: "HOSTFULLY_AT_INGEST", scope: "room" },
+  { hf: "rooms[].rateType", rol: "hostfully_room_types.rate_type", authority: "HOSTFULLY_AT_INGEST", scope: "room" },
+  { hf: "rooms[].photos", rol: "hostfully_room_types.images", authority: "SEED_ONLY", scope: "room" },
+  { hf: "rooms[].amenities", rol: "hostfully_room_types.facilities_raw", authority: "SEED_ONLY", scope: "room" },
 ];
 
 /**
@@ -148,7 +154,7 @@ const FEES_AND_SEASONS: FieldMapEntry[] = [
 
 /**
  * =========================
- * EXPORT – TOTAL: 68 FIELDS
+ * EXPORT – TOTAL: 73 FIELDS
  * =========================
  */
 export const HOSTFULLY_FIELD_MAP: FieldMapEntry[] = [

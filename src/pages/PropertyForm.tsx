@@ -1007,61 +1007,75 @@ export default function PropertyForm() {
 
       if (!refreshError && refreshedRooms && refreshedRooms.length > 0) {
         // Convert DB format to UI state format
-        const convertedRooms = refreshedRooms.map(hr => ({
-          id: hr.id,
-          name: hr.name || "Unnamed Room",
-          url: "",
-          selected: false,
-          numRooms: 1,
-          pmsRoomType: hr.name,
-          pmsRoomId: hr.hostfully_room_id,
-          hostfullyId: hr.hostfully_room_id,
-          description: hr.description || "",
-          extraPersonPolicy: "",
-          bedConfiguration: Array.isArray(hr.beds) 
-            ? hr.beds 
-            : (typeof hr.beds === 'number' && hr.beds > 0 
-                ? [{ type: 'bed', count: hr.beds }] 
-                : []),
-          roomSize: hr.room_size || 0,
-          bathrooms: hr.bathrooms || 1,
-          maxPeople: hr.max_guests || 2,
-          maxAdults: hr.max_guests || 2,
-          minGuests: hr.min_guests || 1,
-          maxChildren: 0,
-          minStay: hr.min_stay || 1,
-          maxStay: hr.max_stay || 0,
-          rateType: "per-unit",
-          splitPercent: 0,
-          images: hr.images || [],
-          facilities: [],
-          amenities: hr.amenities || [],
-          linkedRateTypeIds: hr.linked_rate_type_ids || ['per-unit'],
-          checkInTime: hr.check_in_time ? `${String(hr.check_in_time).padStart(2, '0')}:00` : null,
-          checkOutTime: hr.check_out_time ? `${String(hr.check_out_time).padStart(2, '0')}:00` : null,
-          propertyType: hr.property_type,
-          dailyRate: hr.daily_rate,
-          currency: hr.currency || 'ZAR',
-          cleaningFee: hr.cleaning_fee,
-          securityDeposit: hr.security_deposit,
-          extraGuestFee: hr.extra_guest_fee,
-          taxRate: hr.tax_rate,
-          wifiNetwork: hr.wifi_network,
-          wifiPassword: hr.wifi_password,
-          houseRules: hr.house_rules,
-          checkInInstructions: hr.check_in_instructions,
-          cancellationPolicy: hr.cancellation_policy,
-          addressStreet: hr.address_street,
-          addressCity: hr.address_city,
-          addressState: hr.address_state,
-          addressPostalCode: hr.address_postal_code,
-          addressCountry: hr.address_country,
-          latitude: hr.latitude,
-          longitude: hr.longitude,
-          thumbnailUrl: hr.thumbnail_url,
-          lastSyncedAt: hr.last_synced_at,
-          pms_synced_fields: hr.pms_synced_fields || [],
-        }));
+        const convertedRooms = refreshedRooms.map(hr => {
+          // Use bed_configuration if available, otherwise fallback to beds count
+          const bedConfig = Array.isArray(hr.bed_configuration) && hr.bed_configuration.length > 0
+            ? hr.bed_configuration
+            : (Array.isArray(hr.beds) 
+                ? hr.beds 
+                : (typeof hr.beds === 'number' && hr.beds > 0 
+                    ? [{ type: 'bed', count: hr.beds }] 
+                    : []));
+          
+          // Get rate type from DB or default
+          const roomRateType = hr.rate_type || 'per-unit';
+          
+          // Get facilities from facilities_raw if available
+          const facilitiesRaw = hr.facilities_raw || [];
+          
+          return {
+            id: hr.id,
+            name: hr.name || "Unnamed Room",
+            url: "",
+            selected: false,
+            numRooms: 1,
+            pmsRoomType: hr.name,
+            pmsRoomId: hr.hostfully_room_id,
+            hostfullyId: hr.hostfully_room_id,
+            description: hr.description || "",
+            extraPersonPolicy: hr.extra_person_policy || "",
+            bedConfiguration: bedConfig,
+            roomSize: hr.room_size || 0,
+            bathrooms: hr.bathrooms || 1,
+            maxPeople: hr.max_guests || 2,
+            maxAdults: hr.max_guests || 2,
+            minGuests: hr.min_guests || 1,
+            maxChildren: 0,
+            minStay: hr.min_stay || 1,
+            maxStay: hr.max_stay || 0,
+            rateType: roomRateType,
+            splitPercent: 0,
+            images: hr.images || [],
+            facilities: facilitiesRaw,
+            facilitiesRaw: facilitiesRaw,
+            amenities: hr.amenities || [],
+            linkedRateTypeIds: hr.linked_rate_type_ids || [roomRateType],
+            checkInTime: hr.check_in_time ? `${String(hr.check_in_time).padStart(2, '0')}:00` : null,
+            checkOutTime: hr.check_out_time ? `${String(hr.check_out_time).padStart(2, '0')}:00` : null,
+            propertyType: hr.property_type,
+            dailyRate: hr.daily_rate,
+            currency: hr.currency || 'ZAR',
+            cleaningFee: hr.cleaning_fee,
+            securityDeposit: hr.security_deposit,
+            extraGuestFee: hr.extra_guest_fee,
+            taxRate: hr.tax_rate,
+            wifiNetwork: hr.wifi_network,
+            wifiPassword: hr.wifi_password,
+            houseRules: hr.house_rules,
+            checkInInstructions: hr.check_in_instructions,
+            cancellationPolicy: hr.cancellation_policy,
+            addressStreet: hr.address_street,
+            addressCity: hr.address_city,
+            addressState: hr.address_state,
+            addressPostalCode: hr.address_postal_code,
+            addressCountry: hr.address_country,
+            latitude: hr.latitude,
+            longitude: hr.longitude,
+            thumbnailUrl: hr.thumbnail_url,
+            lastSyncedAt: hr.last_synced_at,
+            pms_synced_fields: hr.pms_synced_fields || [],
+          };
+        });
         
         setRoomTypes(convertedRooms);
         setHostfullyRoomCount(convertedRooms.length);
