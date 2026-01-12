@@ -47,6 +47,7 @@ import HelpArticleEditor from "./pages/HelpArticleEditor";
 import AdminSystemHealth from "./pages/AdminSystemHealth";
 import ProjectDiscoverySurvey from "./pages/ProjectDiscoverySurvey";
 import SupportingSystems from "./pages/SupportingSystems";
+import ContractSign from "./pages/ContractSign";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -308,7 +309,9 @@ const App = () => (
                 <SupportingSystems />
               </ProtectedRoute>
             }
-          />
+            />
+            {/* Contract signing - public route */}
+            <Route path="/contract/sign/:token" element={<ContractSign />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

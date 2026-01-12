@@ -1955,6 +1955,108 @@ export type Database = {
           },
         ]
       }
+      property_contracts: {
+        Row: {
+          created_at: string | null
+          id: string
+          override_at: string | null
+          override_by: string | null
+          override_reason: string | null
+          pdf_url: string | null
+          property_id: string
+          sent_at: string | null
+          sent_to_email: string | null
+          signature_data: Json | null
+          signature_image_url: string | null
+          signature_ip: unknown
+          signature_user_agent: string | null
+          signed_at: string | null
+          signed_by_designation: string | null
+          signed_by_email: string | null
+          signed_by_name: string | null
+          signing_token: string | null
+          status: string
+          template_hash: string | null
+          template_version: string
+          token_expires_at: string | null
+          unsigned_pdf_url: string | null
+          updated_at: string | null
+          version: number
+          viewed_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          override_at?: string | null
+          override_by?: string | null
+          override_reason?: string | null
+          pdf_url?: string | null
+          property_id: string
+          sent_at?: string | null
+          sent_to_email?: string | null
+          signature_data?: Json | null
+          signature_image_url?: string | null
+          signature_ip?: unknown
+          signature_user_agent?: string | null
+          signed_at?: string | null
+          signed_by_designation?: string | null
+          signed_by_email?: string | null
+          signed_by_name?: string | null
+          signing_token?: string | null
+          status?: string
+          template_hash?: string | null
+          template_version?: string
+          token_expires_at?: string | null
+          unsigned_pdf_url?: string | null
+          updated_at?: string | null
+          version?: number
+          viewed_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          override_at?: string | null
+          override_by?: string | null
+          override_reason?: string | null
+          pdf_url?: string | null
+          property_id?: string
+          sent_at?: string | null
+          sent_to_email?: string | null
+          signature_data?: Json | null
+          signature_image_url?: string | null
+          signature_ip?: unknown
+          signature_user_agent?: string | null
+          signed_at?: string | null
+          signed_by_designation?: string | null
+          signed_by_email?: string | null
+          signed_by_name?: string | null
+          signing_token?: string | null
+          status?: string
+          template_hash?: string | null
+          template_version?: string
+          token_expires_at?: string | null
+          unsigned_pdf_url?: string | null
+          updated_at?: string | null
+          version?: number
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_contracts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_contracts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_rates: {
         Row: {
           amount: number
