@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
       const propertyDetailsHTML = generatePropertyDetailsHTML(propertyDetails);
 
       await resend.emails.send({
-        from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
+        from: "RoomsOnline <hello@notify.roomsonline.co.za>",
         to: owner_email,
         subject: `Contract for ${property.name} - Signature Required`,
         html: `

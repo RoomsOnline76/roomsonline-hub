@@ -108,7 +108,7 @@ serve(async (req) => {
       .in("key_name", ["RESEND_FROM_EMAIL"]);
 
     const fromEmailConfig = emailConfig?.find((k: any) => k.key_name === "RESEND_FROM_EMAIL")?.key_value;
-    const fromEmail = fromEmailConfig || "RoomsOnline <noreply@notify.roomsonline.co.za>";
+    const fromEmail = fromEmailConfig || "RoomsOnline <hello@notify.roomsonline.co.za>";
 
     // The action link from Supabase
     const resetLink = resetData.properties.action_link;

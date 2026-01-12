@@ -500,7 +500,7 @@ Deno.serve(async (req) => {
       .eq("key_name", "RESEND_FROM_EMAIL")
       .maybeSingle();
 
-    const fromEmail = emailConfig?.key_value || "RoomsOnline <onboarding@resend.dev>";
+    const fromEmail = emailConfig?.key_value || "RoomsOnline <hello@notify.roomsonline.co.za>";
 
     // Check for custom template in property amenities
     const amenities = property.amenities || {};

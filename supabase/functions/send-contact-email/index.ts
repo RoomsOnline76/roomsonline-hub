@@ -219,7 +219,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Send confirmation email to user with ROL branding
     const userEmailResponse = await resend.emails.send({
-      from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
+      from: "RoomsOnline <hello@notify.roomsonline.co.za>",
       to: [email],
       subject: "We've received your message - RoomsOnline",
       html: getUserConfirmationHtml(name, message),

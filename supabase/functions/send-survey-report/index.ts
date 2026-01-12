@@ -520,7 +520,7 @@ const handler = async (req: Request): Promise<Response> => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
+        from: "RoomsOnline <hello@notify.roomsonline.co.za>",
         to: ["dev@roomsonline.co.za", "carike@roomsonline.co.za", "design@roomsonline.co.za"],
         subject: `New Project Discovery - ${data.businessName}`,
         html: htmlReport,
@@ -538,7 +538,7 @@ const handler = async (req: Request): Promise<Response> => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
+        from: "RoomsOnline <hello@notify.roomsonline.co.za>",
         to: [data.clientEmail],
         subject: `Your Project Questionnaire - RoomsOnline`,
         html: clientConfirmation + "<hr style='margin: 40px 0; border: none; border-top: 1px solid #eee;'>" + htmlReport,
