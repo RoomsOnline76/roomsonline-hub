@@ -235,7 +235,8 @@ function HomeContent() {
           .from("properties")
           .select("images, hero_video_url, name, city, country")
           .eq("hero_listing", true)
-          .eq("is_active", true);
+          .eq("is_active", true)
+          .eq("show_on_website", true);
 
         if (heroProperties && heroProperties.length > 0) {
           const validProperties: {

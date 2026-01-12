@@ -45,6 +45,7 @@ export function PropertySegmentSection({
           what_its_really_like, why_this_place_matters, who_its_not_for
         `)
         .eq("is_active", true)
+        .eq("show_on_website", true)
         .is("permanently_deleted_at", null);
 
       if (error) throw error;

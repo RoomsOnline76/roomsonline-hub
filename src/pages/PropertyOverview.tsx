@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star, Eye, EyeOff } from "lucide-react";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -36,7 +37,7 @@ type SortColumn = "name" | "external_system" | "hero_listing" | "has_images" | "
 
 const PropertyOverview = () => {
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isDev } = useAuth();
   const { openNewTab: homeIconOpenNewTab } = useHomeIconOpenNewTab();
   const [propertyToDelete, setPropertyToDelete] = useState<{ id: string; name: string } | null>(null);
 
@@ -45,7 +46,9 @@ const PropertyOverview = () => {
   const [searchPms, setSearchPms] = useState("");
   const [searchHero, setSearchHero] = useState("");
   const [searchRol, setSearchRol] = useState("");
+  const [searchShow, setSearchShow] = useState("");
   const [searchPropertyType, setSearchPropertyType] = useState("");
+  const [isTogglingShow, setIsTogglingShow] = useState<string | null>(null);
 
   // Sort state
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
@@ -230,6 +233,14 @@ const PropertyOverview = () => {
         p.property_type?.toLowerCase().includes(searchPropertyType.toLowerCase())
       );
     }
+    if (searchShow) {
+      const searchLower = searchShow.toLowerCase();
+      if (searchLower === 'yes') {
+        filtered = filtered.filter(p => (p as any).show_on_website === true);
+      } else if (searchLower === 'no') {
+        filtered = filtered.filter(p => !(p as any).show_on_website);
+      }
+    }
 
     // Apply sorting
     if (sortColumn && sortDirection) {
@@ -261,7 +272,26 @@ const PropertyOverview = () => {
     }
 
     return filtered;
-  }, [allProperties, searchName, searchPms, searchHero, searchRol, searchPropertyType, sortColumn, sortDirection]);
+  }, [allProperties, searchName, searchPms, searchHero, searchRol, searchShow, searchPropertyType, sortColumn, sortDirection]);
+
+  // Handle toggle show on website
+  const handleToggleShowOnWebsite = async (propertyId: string, show: boolean) => {
+    setIsTogglingShow(propertyId);
+    try {
+      const { error } = await supabase
+        .from("properties")
+        .update({ show_on_website: show })
+        .eq("id", propertyId);
+      
+      if (error) throw error;
+      toast.success(show ? "Property now visible on website" : "Property hidden from website");
+      refetch();
+    } catch (error) {
+      toast.error("Failed to update visibility");
+    } finally {
+      setIsTogglingShow(null);
+    }
+  };
 
   const deletedProperties = allProperties?.filter(p => !p.is_active) || [];
 
@@ -371,6 +401,7 @@ const PropertyOverview = () => {
                       <TableRow className="h-8">
                         <TableHead className="py-1 text-xs w-10">EDIT</TableHead>
                         <TableHead className="py-1 text-xs w-12">STATUS</TableHead>
+                        <TableHead className="py-1 text-xs w-12">SHOW</TableHead>
                         <TableHead className="py-1 text-xs w-10">ROL</TableHead>
                         <TableHead 
                           className="cursor-pointer hover:bg-muted/50 select-none py-1 text-xs"
@@ -434,6 +465,14 @@ const PropertyOverview = () => {
                       <TableRow className="hover:bg-transparent h-7">
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
+                        <TableCell className="py-1">
+                          <Input
+                            placeholder="Yes/No"
+                            value={searchShow}
+                            onChange={(e) => setSearchShow(e.target.value)}
+                            className="h-6 text-xs"
+                          />
+                        </TableCell>
                         <TableCell className="py-1">
                           <Input
                             placeholder="Yes/No"
@@ -546,6 +585,24 @@ const PropertyOverview = () => {
                                 />
                               );
                             })()}
+                          </TableCell>
+                          <TableCell className="py-1">
+                            {(isAdmin || isDev) ? (
+                              <Switch
+                                checked={(property as any).show_on_website ?? false}
+                                onCheckedChange={(checked) => handleToggleShowOnWebsite(property.id, checked)}
+                                disabled={isTogglingShow === property.id}
+                                className="scale-75"
+                              />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                {(property as any).show_on_website ? (
+                                  <Eye className="h-3 w-3" />
+                                ) : (
+                                  <EyeOff className="h-3 w-3 opacity-50" />
+                                )}
+                              </span>
+                            )}
                           </TableCell>
                           <TableCell className="py-1">
                             {(property as any).is_rol_property ? (
