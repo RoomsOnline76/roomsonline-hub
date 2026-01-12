@@ -319,7 +319,8 @@ export function generateSignedContractHTML(
     .header img {
       max-width: 180px;
       height: auto;
-      margin-bottom: 8px;
+      margin: 0 auto 8px auto;
+      display: block;
     }
     
     .tagline {
@@ -328,6 +329,7 @@ export function generateSignedContractHTML(
       color: #666;
       text-transform: uppercase;
       margin-top: 4px;
+      text-align: center;
     }
     
     /* Title */
