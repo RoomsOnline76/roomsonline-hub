@@ -5,9 +5,11 @@
  * This file defines the structure and validation for all wizard fields,
  * mapping them to their database locations and providing metadata for
  * the wizard UI.
+ * 
+ * REORGANIZED: 12 steps → 9 steps for streamlined UX
  */
 
-export const WIZARD_VERSION = "1.1";
+export const WIZARD_VERSION = "2.0";
 
 export const PROPERTY_TYPES = [
   "apartment",
@@ -52,7 +54,7 @@ export interface OnboardingRoomType {
 
 export interface OnboardingImage {
   url: string;
-  type: 'gallery' | 'hero' | 'video';
+  type: 'gallery' | 'hero' | 'video' | 'room';
   is_favourite: boolean;
   caption?: string;
 }
@@ -74,94 +76,71 @@ export interface WizardSection {
   estimatedMinutes: number;
 }
 
+// 9-step wizard sections
 export const WIZARD_SECTIONS: WizardSection[] = [
   {
     id: "property_identity",
     title: "Property Identity",
-    description: "Basic property information",
-    weight: 15,
+    description: "Basic info, offerings & business details",
+    weight: 20,
     icon: "Building2",
-    estimatedMinutes: 3
+    estimatedMinutes: 5
   },
   {
     id: "contact_details",
-    title: "Contact Details", 
-    description: "Contact information for guests",
+    title: "Contact & Team", 
+    description: "Who can be reached at this property",
     weight: 5,
     icon: "Phone",
-    estimatedMinutes: 2
-  },
-  {
-    id: "offerings",
-    title: "Offerings",
-    description: "What services does your property offer?",
-    weight: 5,
-    icon: "Sparkles",
-    estimatedMinutes: 2
+    estimatedMinutes: 3
   },
   {
     id: "location",
     title: "Location",
-    description: "Property address and coordinates",
+    description: "Property address and surroundings",
     weight: 15,
     icon: "MapPin",
-    estimatedMinutes: 4
+    estimatedMinutes: 3
   },
   {
-    id: "policies",
-    title: "Policies & Rules",
-    description: "Check-in, pets, and payment policies",
-    weight: 10,
+    id: "policies_pricing",
+    title: "Policies & Pricing",
+    description: "Rules, banking & terms",
+    weight: 15,
     icon: "FileText",
-    estimatedMinutes: 5
+    estimatedMinutes: 6
   },
   {
-    id: "banking",
-    title: "Banking Details",
-    description: "Payment and banking information",
-    weight: 10,
-    icon: "Landmark",
-    estimatedMinutes: 5
-  },
-  {
-    id: "description_and_meals",
-    title: "Description & Meals",
-    description: "Property description and meal options",
+    id: "guest_experience",
+    title: "Guest Experience",
+    description: "Description and meal options",
     weight: 10,
     icon: "PenLine",
     estimatedMinutes: 5
   },
   {
     id: "facilities",
-    title: "Facilities & Amenities",
-    description: "Available facilities and features",
+    title: "Facilities",
+    description: "Available amenities and features",
     weight: 10,
     icon: "Wifi",
-    estimatedMinutes: 10
+    estimatedMinutes: 8
   },
   {
     id: "rooms_overview",
-    title: "Rooms Overview",
+    title: "Rooms",
     description: "Room types and configuration",
     weight: 10,
     icon: "Bed",
-    estimatedMinutes: 15
+    estimatedMinutes: 8
   },
   {
-    id: "media",
-    title: "Images & Media",
-    description: "Property photos and videos",
-    weight: 5,
+    id: "media_documents",
+    title: "Media & Documents",
+    description: "Photos, videos & rate sheets",
+    weight: 15,
     icon: "Image",
     estimatedMinutes: 10
-  },
-  {
-    id: "documents",
-    title: "Documents",
-    description: "Rate sheets and supporting documents",
-    weight: 5,
-    icon: "FileUp",
-    estimatedMinutes: 5
   },
   {
     id: "review",
@@ -169,22 +148,19 @@ export const WIZARD_SECTIONS: WizardSection[] = [
     description: "Review and submit your property",
     weight: 0,
     icon: "CheckCircle",
-    estimatedMinutes: 5
+    estimatedMinutes: 3
   }
 ];
 
 export const SCORE_WEIGHTS = {
-  property_identity: 15,
+  property_identity: 20,
   contact_details: 5,
-  offerings: 5,
   location: 15,
-  policies: 10,
-  banking: 10,
-  description_and_meals: 10,
+  policies_pricing: 15,
+  guest_experience: 10,
   facilities: 10,
   rooms_overview: 10,
-  media: 5,
-  documents: 5
+  media_documents: 15
 } as const;
 
 export const SCORE_BANDS = [
