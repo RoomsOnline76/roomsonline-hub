@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const MEAL_PLAN_LABELS: Record<string, string> = {
+  all_inclusive: "All Inclusive",
   room_only: "Room Only",
   bed_and_breakfast: "Bed & Breakfast",
   half_board: "Half Board",

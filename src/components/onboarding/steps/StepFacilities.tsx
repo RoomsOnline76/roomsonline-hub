@@ -3,7 +3,7 @@ import { Label } from "@/components/ui/label";
 import { FACILITY_CATEGORIES } from "@/config/onboardingFieldSchema";
 import { StepProps } from "./types";
 import { 
-  Wifi, Car, Building2, Trees, Heart, Utensils, Users, Shield, Accessibility
+  Building2, Trees, Heart, Utensils, Users, Shield, Accessibility, Compass
 } from "lucide-react";
 
 const CATEGORY_CONFIG = {
@@ -11,12 +11,14 @@ const CATEGORY_CONFIG = {
   outdoor: { label: "Outdoor", icon: Trees },
   wellness: { label: "Wellness & Spa", icon: Heart },
   dining: { label: "Dining & Kitchen", icon: Utensils },
+  activities: { label: "Activities", icon: Compass },
   family: { label: "Family Friendly", icon: Users },
   accessibility: { label: "Accessibility", icon: Accessibility },
   security: { label: "Safety & Security", icon: Shield }
 } as const;
 
 const FACILITY_LABELS: Record<string, string> = {
+  // General
   wifi: "WiFi",
   parking: "Parking",
   reception_24h: "24h Reception",
@@ -26,14 +28,19 @@ const FACILITY_LABELS: Record<string, string> = {
   laundry: "Laundry Service",
   dry_cleaning: "Dry Cleaning",
   ironing: "Ironing Service",
+  non_smoking_rooms: "Non-Smoking Rooms",
+  air_conditioning: "Air Conditioning",
+  // Outdoor
   garden: "Garden",
   terrace: "Terrace",
   bbq: "BBQ/Braai",
   outdoor_furniture: "Outdoor Furniture",
   outdoor_pool: "Outdoor Pool",
+  beach: "Beach",
   beach_access: "Beach Access",
   sun_loungers: "Sun Loungers",
   playground: "Playground",
+  // Wellness
   spa: "Spa",
   sauna: "Sauna",
   gym: "Gym/Fitness Center",
@@ -41,31 +48,53 @@ const FACILITY_LABELS: Record<string, string> = {
   indoor_pool: "Indoor Pool",
   jacuzzi: "Jacuzzi/Hot Tub",
   steam_room: "Steam Room",
+  yoga_classes: "Yoga Classes",
+  kids_pool: "Kids Pool",
+  // Dining
   restaurant: "Restaurant",
   bar: "Bar",
   room_service: "Room Service",
   breakfast_included: "Breakfast Included",
+  breakfast_in_room: "Breakfast in Room",
   kitchen: "Kitchen",
   shared_kitchen: "Shared Kitchen",
   coffee_machine: "Coffee Machine",
+  coffee_house: "Coffee House",
   minibar: "Minibar",
+  wine_champagne: "Wine/Champagne",
+  kids_meals: "Kids Meals",
+  // Activities
+  game_drives: "Game Drives",
+  walking_tours: "Walking Tours",
+  bike_tours: "Bike Tours",
+  live_music: "Live Music/Entertainment",
+  golf_course: "Golf Course",
+  water_sports: "Water Sports",
+  hiking: "Hiking",
+  cycling: "Cycling",
+  fishing: "Fishing",
+  horseback_riding: "Horseback Riding",
+  // Family
   kids_club: "Kids Club",
   babysitting: "Babysitting",
   crib: "Crib/Cot",
   high_chair: "High Chair",
   family_rooms: "Family Rooms",
   game_room: "Game Room",
+  // Accessibility
   wheelchair_accessible: "Wheelchair Accessible",
   elevator: "Elevator",
   accessible_parking: "Accessible Parking",
   accessible_bathroom: "Accessible Bathroom",
   braille_signage: "Braille Signage",
+  // Security
   cctv: "CCTV",
   safe: "Safe",
   security_guard: "Security Guard",
   fire_extinguisher: "Fire Extinguisher",
   smoke_detector: "Smoke Detector",
-  first_aid_kit: "First Aid Kit"
+  first_aid_kit: "First Aid Kit",
+  carbon_monoxide_detector: "Carbon Monoxide Detector"
 };
 
 export function StepFacilities({
