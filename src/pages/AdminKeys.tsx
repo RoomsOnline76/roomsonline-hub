@@ -1925,6 +1925,16 @@ export default function AdminKeys() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              {apiKey.system_type && (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <IntegrationStatusDropdown
+                    systemType={apiKey.system_type}
+                    currentStatus={trackerData[apiKey.system_type]?.integration_status || null}
+                    onStatusChange={() => fetchTrackerData()}
+                    compact
+                  />
+                </div>
+              )}
               <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
                 <Switch
                   checked={isConfigured}
@@ -2175,7 +2185,7 @@ export default function AdminKeys() {
           <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
               <Briefcase className="h-5 w-5 text-primary" />
-              <span className="font-semibold">Benson PMS</span>
+              <span className="font-semibold">Benson</span>
               <Badge variant="outline" className="text-xs">
                 Basic Auth
               </Badge>
