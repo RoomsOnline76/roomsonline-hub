@@ -203,7 +203,7 @@ export function StepPropertyIdentity({
         <Alert className="border-amber-200 bg-amber-50">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
           <AlertDescription className="text-amber-800 text-sm">
-            Some fields are managed by your PMS. Changes made here may be overwritten during the next sync.
+            Some fields might be managed by your PMS. Changes made here may be overwritten during the next sync.
           </AlertDescription>
         </Alert>
       )}

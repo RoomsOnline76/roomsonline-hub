@@ -257,7 +257,7 @@ export function StepLocation({
         <Alert className="border-amber-200 bg-amber-50">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
           <AlertDescription className="text-amber-800 text-sm">
-            Location fields are managed by your PMS. Changes may be overwritten during sync.
+            Location fields might be managed by your PMS. Changes may be overwritten during sync.
           </AlertDescription>
         </Alert>
       )}
