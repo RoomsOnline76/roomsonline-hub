@@ -175,12 +175,21 @@ export function ContractManagementPanel({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => window.open(contract.pdf_url!, "_blank")}
+                asChild
                 className="h-7 text-xs gap-1"
               >
-                <Download className="h-3 w-3" />
-                Download PDF
+                <a href={contract.pdf_url} target="_blank" rel="noopener noreferrer">
+                  <Download className="h-3 w-3" />
+                  Download Signed PDF
+                </a>
               </Button>
+            )}
+
+            {/* For overridden contracts, show note */}
+            {contract?.status === "overridden" && (
+              <span className="text-xs text-muted-foreground italic">
+                Contract requirement overridden — no PDF available
+              </span>
             )}
 
             {/* Admin Override */}

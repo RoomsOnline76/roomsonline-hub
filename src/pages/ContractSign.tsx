@@ -26,6 +26,12 @@ interface PropertyData {
   amenities: any;
 }
 
+interface CoveredProperty {
+  id: string;
+  name: string;
+  slug: string | null;
+}
+
 interface ContractData {
   id: string;
   property_id: string;
@@ -40,6 +46,10 @@ interface ContractData {
   signed_by_designation: string | null;
   signature_image_url: string | null;
   property?: PropertyData;
+  properties?: CoveredProperty[]; // For owner-level contracts
+  owner_name?: string | null;
+  owner_email?: string | null;
+  contract_type?: 'owner' | 'property';
 }
 
 export default function ContractSign() {
@@ -49,6 +59,7 @@ export default function ContractSign() {
   const [submitting, setSubmitting] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [contract, setContract] = useState<ContractData | null>(null);
+  const [coveredProperties, setCoveredProperties] = useState<CoveredProperty[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [agreementExpanded, setAgreementExpanded] = useState(true);
 
@@ -129,6 +140,13 @@ export default function ContractSign() {
 
         const contractData = data.contract;
         const propertyData = data.property;
+        const propertiesList = data.properties || [];
+        const contractType = data.contract_type || 'property';
+
+        // Store covered properties for owner contracts
+        if (contractType === 'owner' && propertiesList.length > 0) {
+          setCoveredProperties(propertiesList);
+        }
 
         // Fetch full property details including amenities (for contract text generation)
         let fullProperty = propertyData;
@@ -145,25 +163,30 @@ export default function ContractSign() {
         }
 
         // Pre-fill signee email if available
-        if (contractData.sent_to_email) {
-          setSigneeEmail(contractData.sent_to_email);
-          setEmailForReview(contractData.sent_to_email);
+        const emailToUse = contractData.sent_to_email || contractData.owner_email;
+        if (emailToUse) {
+          setSigneeEmail(emailToUse);
+          setEmailForReview(emailToUse);
         }
 
         setContract({
           id: contractData.id,
-          property_id: contractData.property_id,
+          property_id: contractData.property_id || "",
           status: contractData.status,
-          token_expires_at: contractData.signing_token_expires_at,
-          unsigned_pdf_url: null,
-          pdf_url: null,
-          sent_to_email: contractData.sent_to_email || null,
+          token_expires_at: contractData.signing_token_expires_at || contractData.token_expires_at,
+          unsigned_pdf_url: contractData.unsigned_pdf_url || null,
+          pdf_url: contractData.pdf_url || null,
+          sent_to_email: contractData.sent_to_email || contractData.owner_email || null,
           signed_at: null,
           signed_by_name: null,
           signed_by_email: null,
           signed_by_designation: null,
           signature_image_url: null,
           property: fullProperty || undefined,
+          properties: propertiesList,
+          owner_name: contractData.owner_name,
+          owner_email: contractData.owner_email,
+          contract_type: contractType,
         });
 
       } catch (err) {
@@ -388,8 +411,26 @@ export default function ContractSign() {
               Property Partnership Agreement
             </CardTitle>
             <CardDescription className="text-base">
-              {contract?.property?.name || "Property Contract"}
+              {contract?.contract_type === 'owner' && contract.owner_name 
+                ? `For: ${contract.owner_name}`
+                : contract?.property?.name || "Property Contract"}
             </CardDescription>
+            {/* Show covered properties for owner contracts */}
+            {coveredProperties.length > 0 && (
+              <div className="mt-3 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground mb-1">Properties Covered by This Agreement:</p>
+                <div className="flex flex-wrap justify-center gap-1.5">
+                  {coveredProperties.map((prop) => (
+                    <span
+                      key={prop.id}
+                      className="inline-block px-2 py-0.5 bg-muted rounded-md text-xs"
+                    >
+                      {prop.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Agreement Text Section */}

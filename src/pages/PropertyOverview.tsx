@@ -98,34 +98,34 @@ const PropertyOverview = () => {
         (profilesData || []).map(p => [p.email, p])
       );
 
-      // Fetch contract status for all properties
-      const propertyIds = (propertiesData || []).map(p => p.id);
-      const { data: contractsData } = propertyIds.length > 0
+      // Fetch owner contract status for all unique owner emails
+      const { data: ownerContractsData } = ownerEmails.length > 0
         ? await supabase
-            .from("property_contracts")
-            .select("property_id, status, version, signed_at, override_at")
-            .in("property_id", propertyIds)
+            .from("owner_contracts")
+            .select("owner_email, status, version, signed_at, override_at, pdf_url")
+            .in("owner_email", ownerEmails)
             .order("version", { ascending: false })
         : { data: [] };
 
-      // Group contracts by property_id (get latest version for each)
-      const contractsByPropertyId = new Map<string, { status: string; signed_at?: string; override_at?: string }>();
-      (contractsData || []).forEach(c => {
-        if (!contractsByPropertyId.has(c.property_id)) {
-          contractsByPropertyId.set(c.property_id, { 
+      // Group contracts by owner_email (get latest version for each)
+      const contractsByOwnerEmail = new Map<string, { status: string; signed_at?: string; override_at?: string; pdf_url?: string }>();
+      (ownerContractsData || []).forEach(c => {
+        if (!contractsByOwnerEmail.has(c.owner_email)) {
+          contractsByOwnerEmail.set(c.owner_email, { 
             status: c.status, 
             signed_at: c.signed_at ?? undefined, 
-            override_at: c.override_at ?? undefined 
+            override_at: c.override_at ?? undefined,
+            pdf_url: c.pdf_url ?? undefined,
           });
         }
       });
 
-      // Map properties with profiles and contract status
+      // Map properties with profiles and contract status (now by owner_email)
       const propertiesWithExtras = (propertiesData || []).map((property) => ({
         ...property,
         total_bookings: 0, // Skip N+1 booking queries for now
         owner_profile: property.owner_email ? profilesByEmail.get(property.owner_email) || null : null,
-        contract_status: contractsByPropertyId.get(property.id) || null,
+        contract_status: property.owner_email ? contractsByOwnerEmail.get(property.owner_email) || null : null,
       }));
       
       return propertiesWithExtras;
