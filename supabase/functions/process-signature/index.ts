@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
     <p style="color: #333;">Thank you for signing the RoomsOnline partnership agreement for <strong>${property?.name || "your property"}</strong>.</p>
     <p style="color: #333;">Your signed contract is now on file. Welcome to RoomsOnline!</p>
     <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-    <p style="color: #666; font-size: 14px; text-align: center;">The RoomsOnline Team</p>
+    <p style="color: #666; font-size: 14px; text-align: center;">The RoomsOnline Team<br><a href="mailto:info@roomsonline.co.za" style="color: #e91e8c;">info@roomsonline.co.za</a></p>
   </div>
 </body>
 </html>`;

@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
         <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
           <tr>
             <td style="padding: 40px 40px 20px; text-align: center;">
-              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
+              <img src="https://roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto; margin-bottom: 20px;" />
               <h1 style="margin: 0; font-size: 24px; color: #333;">Contract Ready for Signature</h1>
             </td>
           </tr>
@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
               <div style="text-align: center; margin: 30px 0;">
                 <a href="${signingUrl}" style="display: inline-block; padding: 14px 32px; background-color: #e91e8c; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">Review & Sign Contract</a>
               </div>
-              <p style="color: #666; font-size: 14px; line-height: 1.6;">This link will expire in 7 days. If you have any questions, please contact us.</p>
+              <p style="color: #666; font-size: 14px; line-height: 1.6;">This link will expire in 7 days. If you have any questions, contact us at <a href="mailto:info@roomsonline.co.za" style="color: #e91e8c;">info@roomsonline.co.za</a></p>
             </td>
           </tr>
           <tr>
