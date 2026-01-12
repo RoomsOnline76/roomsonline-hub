@@ -65,13 +65,14 @@ export function ContractManagementPanel({
       email: ownerEmail,
     };
 
-    const signatureData: SignatureData = {
-      signedByName: contract.signed_by_name || "Unknown",
-      signedByEmail: contract.signed_by_email || "",
-      signedByDesignation: contract.signed_by_designation || undefined,
-      signatureImageUrl: contract.signature_image_url || "",
-      signedAt: contract.signed_at || new Date().toISOString(),
-    };
+      const signatureData: SignatureData = {
+        signedByName: contract.signed_by_name || "Unknown",
+        signedByEmail: contract.signed_by_email || "",
+        signedByDesignation: contract.signed_by_designation || undefined,
+        // Use dataUrl from signature_data (base64) for reliable PDF display
+        signatureImageUrl: (contract.signature_data as any)?.dataUrl || contract.signature_image_url || "",
+        signedAt: contract.signed_at || new Date().toISOString(),
+      };
 
     const metadata = {
       contractId: contract.id,
