@@ -156,6 +156,7 @@ export default function AdminKeys() {
   // Hostfully-specific state
   const [hostfullyCredentials, setHostfullyCredentials] = useState<PMSCredentials | null>(null);
   const [hostfullyApiKey, setHostfullyApiKey] = useState("");
+  const [hostfullyAgencyUid, setHostfullyAgencyUid] = useState("");
   const [hostfullyEnvironment, setHostfullyEnvironment] = useState<"staging" | "production">("staging");
   const [editingHostfully, setEditingHostfully] = useState(false);
   const [savingHostfully, setSavingHostfully] = useState(false);
@@ -607,6 +608,10 @@ export default function AdminKeys() {
       if (data.refresh_interval_minutes) {
         setHostfullyRefreshInterval(data.refresh_interval_minutes);
       }
+      // Load agency UID from agent_code field
+      if (data.agent_code) {
+        setHostfullyAgencyUid(data.agent_code);
+      }
       // Load available listings count and last sync time
       if (data.available_listings) {
         const listings = data.available_listings as { properties?: any[] };
@@ -964,6 +969,7 @@ export default function AdminKeys() {
       system_type: "hostfully",
       environment: hostfullyEnvironment,
       api_key: hostfullyApiKey || hostfullyCredentials?.api_key || null,
+      agent_code: hostfullyAgencyUid || hostfullyCredentials?.agent_code || null,
       is_active: true,
     };
 
@@ -989,6 +995,7 @@ export default function AdminKeys() {
       });
       setEditingHostfully(false);
       setHostfullyApiKey("");
+      setHostfullyAgencyUid("");
       fetchHostfullyCredentials();
     }
     setSavingHostfully(false);
@@ -3006,7 +3013,7 @@ export default function AdminKeys() {
 
   // Hostfully-specific card with sandbox/production toggle
   const renderHostfullyCard = () => {
-    const isConfigured = !!hostfullyCredentials?.api_key;
+    const isConfigured = !!hostfullyCredentials?.api_key && !!hostfullyCredentials?.agent_code;
 
     return (
       <AccordionItem
@@ -3019,7 +3026,7 @@ export default function AdminKeys() {
               <BedDouble className="h-5 w-5 text-primary" />
               <span className="font-semibold">Hostfully</span>
               <Badge variant="outline" className="text-xs">
-                API Key
+                Agency UID + API Key
               </Badge>
             </div>
             <div className="flex items-center gap-2">
@@ -3088,7 +3095,23 @@ export default function AdminKeys() {
             {editingHostfully ? (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="hostfully-apikey">API Key</Label>
+                  <Label htmlFor="hostfully-agency-uid">Agency UID</Label>
+                  <Input
+                    id="hostfully-agency-uid"
+                    value={hostfullyAgencyUid}
+                    onChange={(e) => setHostfullyAgencyUid(e.target.value)}
+                    placeholder={hostfullyCredentials?.agent_code || "Enter your Hostfully Agency UID (UUID format)"}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Your unique Agency identifier from Hostfully
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="hostfully-apikey">API Key</Label>
+                    <Key className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
                   <Input
                     id="hostfully-apikey"
                     type="password"
@@ -3097,7 +3120,7 @@ export default function AdminKeys() {
                     placeholder={hostfullyCredentials?.api_key ? "••••••••" : "Enter API key from Agency Settings"}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Find this in your Hostfully Agency Settings → API Access
+                    Find in Agency Settings → API Access. Also stored in secrets as <code className="px-1 py-0.5 rounded bg-muted text-xs">HOSTFULLY_API_KEY</code>
                   </p>
                 </div>
 
@@ -3110,6 +3133,7 @@ export default function AdminKeys() {
                     onClick={() => {
                       setEditingHostfully(false);
                       setHostfullyApiKey("");
+                      setHostfullyAgencyUid("");
                     }}
                   >
                     Cancel
@@ -3167,9 +3191,19 @@ export default function AdminKeys() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <Label className="text-muted-foreground">API Key</Label>
+                    <Label className="text-muted-foreground">Agency UID</Label>
+                    <p className={`font-medium ${hostfullyCredentials?.agent_code ? "text-green-600" : ""}`}>
+                      {hostfullyCredentials?.agent_code 
+                        ? `${hostfullyCredentials.agent_code.slice(0, 8)}...` 
+                        : "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground flex items-center gap-1">
+                      API Key <Key className="h-3 w-3" />
+                    </Label>
                     <p className={`font-medium ${hostfullyCredentials?.api_key ? "text-green-600" : ""}`}>
                       {hostfullyCredentials?.api_key ? "Configured" : "Not set"}
                     </p>
@@ -3182,6 +3216,12 @@ export default function AdminKeys() {
                     <Label className="text-muted-foreground">Status</Label>
                     <p className="font-medium">{hostfullyCredentials?.is_active ? "Active" : "Inactive"}</p>
                   </div>
+                </div>
+                
+                {/* Secrets Link Info */}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+                  <Key className="h-3.5 w-3.5" />
+                  <span>API Key also stored in secrets: <code className="px-1 py-0.5 rounded bg-background">HOSTFULLY_API_KEY</code>, <code className="px-1 py-0.5 rounded bg-background">HOSTFULLY_CLIENT_ID</code>, <code className="px-1 py-0.5 rounded bg-background">HOSTFULLY_CLIENT_SECRET</code></span>
                 </div>
 
                 {/* Refresh Interval Setting */}
