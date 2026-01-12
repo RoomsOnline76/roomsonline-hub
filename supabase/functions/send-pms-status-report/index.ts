@@ -11,6 +11,7 @@ const corsHeaders = {
 interface TrackerData {
   system_type: string;
   status: string;
+  integration_status: 'coming_soon' | 'in_development' | 'parked' | 'in_testing' | 'deployed' | null;
   contact_person: string | null;
   contact_name: string | null;
   contact_tel: string | null;
@@ -65,6 +66,17 @@ const getStatusColor = (status: string): string => {
   return "#6b7280";
 };
 
+const getIntegrationStatusConfig = (status: string | null): { label: string; bg: string; text: string } => {
+  switch (status) {
+    case 'deployed': return { label: 'Deployed', bg: '#22c55e', text: '#fff' };
+    case 'in_testing': return { label: 'In Testing', bg: '#f59e0b', text: '#fff' };
+    case 'in_development': return { label: 'In Dev', bg: '#3b82f6', text: '#fff' };
+    case 'parked': return { label: 'Parked', bg: '#6b7280', text: '#fff' };
+    case 'coming_soon': return { label: 'Coming Soon', bg: '#a855f7', text: '#fff' };
+    default: return { label: 'Unknown', bg: '#e2e8f0', text: '#64748b' };
+  }
+};
+
 const formatNoteDate = (dateStr: string): string => {
   try {
     const date = new Date(dateStr);
@@ -81,11 +93,26 @@ const formatNoteDate = (dateStr: string): string => {
 };
 
 const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[], generatedDate: string): string => {
-  const completedCount = trackerData.filter((t) => t.status?.toLowerCase() === "complete").length;
-  const inProgressCount = trackerData.filter(
-    (t) => t.status?.toLowerCase().includes("wait") || t.status?.toLowerCase() === "in progress",
-  ).length;
-  const pendingCount = trackerData.length - completedCount - inProgressCount;
+  // New integration status counts
+  const deployedCount = trackerData.filter((t) => t.integration_status === "deployed").length;
+  const inTestingCount = trackerData.filter((t) => t.integration_status === "in_testing").length;
+  const inDevCount = trackerData.filter((t) => t.integration_status === "in_development").length;
+  const parkedCount = trackerData.filter((t) => t.integration_status === "parked").length;
+  const comingSoonCount = trackerData.filter((t) => t.integration_status === "coming_soon" || !t.integration_status).length;
+  
+  // Calculate total milestones
+  let totalMilestones = 0;
+  trackerData.forEach((t) => {
+    if (t.has_account) totalMilestones++;
+    if (t.has_docs) totalMilestones++;
+    if (t.has_edge) totalMilestones++;
+    if (t.has_health) totalMilestones++;
+    if (t.has_get) totalMilestones++;
+    if (t.has_post) totalMilestones++;
+    if (t.has_soft_test) totalMilestones++;
+    if (t.is_production) totalMilestones++;
+  });
+  const maxMilestones = trackerData.length * 8;
 
   // Build a map of latest note per system
   const latestNoteBySystem: Record<string, NoteLogEntry> = {};
@@ -104,15 +131,16 @@ const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[],
     notesBySystem[note.system_type].push(note);
   });
 
-  // Sort by status priority: COMPLETE first, then In Progress, then others
+  // Sort by integration status priority: deployed first, then in_testing, then in_development, then others
   const sortedData = [...trackerData].sort((a, b) => {
-    const statusOrder = (s: string) => {
-      const lower = s?.toLowerCase() || "";
-      if (lower === "complete") return 0;
-      if (lower.includes("wait") || lower === "in progress") return 1;
-      return 2;
+    const statusOrder = (s: string | null) => {
+      if (s === 'deployed') return 0;
+      if (s === 'in_testing') return 1;
+      if (s === 'in_development') return 2;
+      if (s === 'parked') return 4;
+      return 3; // coming_soon or null
     };
-    return statusOrder(a.status) - statusOrder(b.status);
+    return statusOrder(a.integration_status) - statusOrder(b.integration_status);
   });
 
   const tableRows = sortedData
@@ -122,7 +150,6 @@ const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[],
       // Integration phase: Health, GET, POST, Test, Live
       const integrationFlags = [row.has_health, row.has_get, row.has_post, row.has_soft_test, row.is_production];
       const allFlags = [...setupFlags, ...integrationFlags];
-      const statusColor = getStatusColor(row.status);
 
       // Build contact display
       const contactParts: string[] = [];
@@ -158,16 +185,19 @@ const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[],
         })
         .join("");
 
-      const completedCount = allFlags.filter(Boolean).length;
+      const flagsCompleted = allFlags.filter(Boolean).length;
+      
+      // Get integration status badge config
+      const integrationConfig = getIntegrationStatusConfig(row.integration_status);
 
       return `
-      <tr style="background: ${row.status?.toLowerCase() === "complete" ? "#f0fdf4" : "#ffffff"};">
+      <tr style="background: ${row.integration_status === "deployed" ? "#f0fdf4" : "#ffffff"};">
         <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #1a1a2e;">
           ${getPMSDisplayName(row.system_type)}
         </td>
         <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0;">
-          <span style="background: ${statusColor}; color: white; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;">
-            ${row.status || "Unknown"}
+          <span style="background: ${integrationConfig.bg}; color: ${integrationConfig.text}; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;">
+            ${integrationConfig.label}
           </span>
         </td>
         <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">
@@ -175,7 +205,7 @@ const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[],
             <div style="margin-bottom: 2px;">${setupDots}</div>
             <div>${integrationDots}</div>
           </div>
-          <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">${completedCount}/8</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">${flagsCompleted}/8</div>
         </td>
         <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; color: #4a5568; font-size: 13px;">
           ${contactDisplay}
@@ -249,19 +279,27 @@ const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[],
           <!-- Summary Cards -->
           <tr>
             <td style="padding: 0 40px 30px;">
-              <table width="100%" style="border-collapse: separate; border-spacing: 12px 0;">
+              <table width="100%" style="border-collapse: separate; border-spacing: 8px 0;">
                 <tr>
-                  <td width="33%" style="background: linear-gradient(135deg, #22c55e20 0%, #22c55e10 100%); padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #22c55e30;">
-                    <div style="font-size: 32px; font-weight: 700; color: #22c55e;">${completedCount}</div>
-                    <div style="font-size: 12px; color: #166534; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">Complete</div>
+                  <td style="background: linear-gradient(135deg, #22c55e20 0%, #22c55e10 100%); padding: 16px 12px; border-radius: 10px; text-align: center; border: 1px solid #22c55e30;">
+                    <div style="font-size: 28px; font-weight: 700; color: #22c55e;">${deployedCount}</div>
+                    <div style="font-size: 11px; color: #166534; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">Deployed</div>
                   </td>
-                  <td width="33%" style="background: linear-gradient(135deg, #f59e0b20 0%, #f59e0b10 100%); padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #f59e0b30;">
-                    <div style="font-size: 32px; font-weight: 700; color: #f59e0b;">${inProgressCount}</div>
-                    <div style="font-size: 12px; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">In Progress</div>
+                  <td style="background: linear-gradient(135deg, #f59e0b20 0%, #f59e0b10 100%); padding: 16px 12px; border-radius: 10px; text-align: center; border: 1px solid #f59e0b30;">
+                    <div style="font-size: 28px; font-weight: 700; color: #f59e0b;">${inTestingCount}</div>
+                    <div style="font-size: 11px; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">In Testing</div>
                   </td>
-                  <td width="33%" style="background: linear-gradient(135deg, #6b728020 0%, #6b728010 100%); padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #6b728030;">
-                    <div style="font-size: 32px; font-weight: 700; color: #6b7280;">${pendingCount}</div>
-                    <div style="font-size: 12px; color: #4b5563; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">Pending</div>
+                  <td style="background: linear-gradient(135deg, #3b82f620 0%, #3b82f610 100%); padding: 16px 12px; border-radius: 10px; text-align: center; border: 1px solid #3b82f630;">
+                    <div style="font-size: 28px; font-weight: 700; color: #3b82f6;">${inDevCount}</div>
+                    <div style="font-size: 11px; color: #1d4ed8; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">In Dev</div>
+                  </td>
+                  <td style="background: linear-gradient(135deg, #a855f720 0%, #a855f710 100%); padding: 16px 12px; border-radius: 10px; text-align: center; border: 1px solid #a855f730;">
+                    <div style="font-size: 28px; font-weight: 700; color: #a855f7;">${comingSoonCount}</div>
+                    <div style="font-size: 11px; color: #7c3aed; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">Coming Soon</div>
+                  </td>
+                  <td style="background: linear-gradient(135deg, #1a1a2e20 0%, #1a1a2e10 100%); padding: 16px 12px; border-radius: 10px; text-align: center; border: 1px solid #1a1a2e30;">
+                    <div style="font-size: 28px; font-weight: 700; color: #1a1a2e;">${totalMilestones}/${maxMilestones}</div>
+                    <div style="font-size: 11px; color: #4b5563; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">Milestones</div>
                   </td>
                 </tr>
               </table>
@@ -275,7 +313,7 @@ const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[],
                 <thead>
                   <tr style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
                     <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">System</th>
-                    <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Status</th>
+                    <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Integration</th>
                     <th style="padding: 12px 10px; text-align: center; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Progress</th>
                     <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Contact</th>
                     <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Latest Note</th>
