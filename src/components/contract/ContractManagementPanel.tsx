@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ContractStatusBadge } from "./ContractStatusBadge";
 import { ContractOverrideModal } from "./ContractOverrideModal";
-import { usePropertyContract } from "@/hooks/usePropertyContract";
+import { useOwnerContract } from "@/hooks/useOwnerContract";
 import { useAuth } from "@/hooks/useAuth";
-import { FileText, Send, RefreshCw, Download, Shield, AlertTriangle, ExternalLink } from "lucide-react";
+import { FileText, Send, RefreshCw, Download, Shield, AlertTriangle, Building2 } from "lucide-react";
 import { format } from "date-fns";
 
 interface ContractManagementPanelProps {
@@ -32,7 +32,8 @@ export function ContractManagementPanel({
     overrideContract,
     resendContract,
     hasValidContract,
-  } = usePropertyContract(propertyId);
+    ownerProperties,
+  } = useOwnerContract(ownerEmail);
 
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
 
@@ -40,7 +41,7 @@ export function ContractManagementPanel({
     if (!ownerEmail) {
       return;
     }
-    sendContract.mutate({ ownerEmail, ownerName });
+    sendContract.mutate({ ownerName });
   };
 
   const handleOverride = (reason: string) => {
@@ -58,7 +59,7 @@ export function ContractManagementPanel({
         <CardHeader className="py-2 px-4">
           <CardTitle className="text-sm flex items-center gap-2">
             <FileText className="h-4 w-4" />
-            Contract Status
+            Owner Contract Status
             {contract && (
               <ContractStatusBadge
                 status={contract.status}
@@ -83,6 +84,28 @@ export function ContractManagementPanel({
                 This poses legal and financial risks.
               </AlertDescription>
             </Alert>
+          )}
+
+          {/* Properties covered by this contract */}
+          {ownerProperties.length > 0 && (
+            <div className="text-xs text-muted-foreground border rounded-md p-2 bg-muted/30">
+              <div className="flex items-center gap-1 font-medium text-foreground mb-1">
+                <Building2 className="h-3 w-3" />
+                Properties Covered ({ownerProperties.length})
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {ownerProperties.slice(0, 5).map((prop) => (
+                  <span key={prop.id} className="inline-block px-1.5 py-0.5 bg-background rounded text-[10px]">
+                    {prop.name}
+                  </span>
+                ))}
+                {ownerProperties.length > 5 && (
+                  <span className="text-[10px] text-muted-foreground">
+                    +{ownerProperties.length - 5} more
+                  </span>
+                )}
+              </div>
+            </div>
           )}
 
           {/* Contract Details */}
@@ -187,7 +210,7 @@ export function ContractManagementPanel({
         open={overrideModalOpen}
         onOpenChange={setOverrideModalOpen}
         onConfirm={handleOverride}
-        propertyName={propertyName}
+        propertyName={ownerEmail ? `Owner: ${ownerEmail}` : propertyName}
         isLoading={overrideContract.isPending}
       />
     </>

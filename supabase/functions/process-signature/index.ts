@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
     
-    const { contract_id, signing_token, signee_name, signee_email, signee_designation, signature_data_url } = await req.json();
+    const { contract_id, signing_token, signee_name, signee_email, signee_designation, signature_data_url, contract_type } = await req.json();
 
     // Validate inputs
     if (!contract_id || !signing_token || !signee_name || !signee_email || !signature_data_url) {
@@ -28,10 +28,13 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Determine which table to use
+    const tableName = contract_type === "owner" ? "owner_contracts" : "property_contracts";
+    
     // Verify contract and token
     const { data: contract, error: fetchError } = await supabase
-      .from("property_contracts")
-      .select("*, property_id")
+      .from(tableName)
+      .select("*")
       .eq("id", contract_id)
       .eq("signing_token", signing_token)
       .single();
@@ -86,7 +89,7 @@ Deno.serve(async (req) => {
 
     // Update contract as signed - INVALIDATE TOKEN for one-time use
     const { error: updateError } = await supabase
-      .from("property_contracts")
+      .from(tableName)
       .update({
         status: "signed",
         signing_token: null,  // Invalidate token - one-time use only
@@ -110,12 +113,30 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get property details for email
-    const { data: property } = await supabase
-      .from("properties")
-      .select("name")
-      .eq("id", contract.property_id)
-      .single();
+    // Get properties for email
+    let propertiesText = "your properties";
+    let propertiesCount = 1;
+    
+    if (contract_type === "owner") {
+      // Owner contract - get all properties
+      const { data: properties } = await supabase
+        .from("properties")
+        .select("name")
+        .eq("owner_email", contract.owner_email)
+        .is("permanently_deleted_at", null);
+      
+      propertiesCount = properties?.length || 0;
+      propertiesText = properties?.map(p => p.name).join(", ") || "your properties";
+    } else {
+      // Legacy property contract
+      const { data: property } = await supabase
+        .from("properties")
+        .select("name")
+        .eq("id", contract.property_id)
+        .single();
+      
+      propertiesText = property?.name || "your property";
+    }
 
     // Send confirmation emails
     if (resendKey) {
@@ -132,7 +153,7 @@ Deno.serve(async (req) => {
       <h1 style="color: #333; margin: 10px 0;">Contract Signed Successfully</h1>
     </div>
     <p style="color: #333;">Dear ${signee_name},</p>
-    <p style="color: #333;">Thank you for signing the RoomsOnline partnership agreement for <strong>${property?.name || "your property"}</strong>.</p>
+    <p style="color: #333;">Thank you for signing the RoomsOnline partnership agreement${propertiesCount > 1 ? ` covering ${propertiesCount} properties` : ''} (${propertiesText}).</p>
     <p style="color: #333;">Your signed contract is now on file. Welcome to RoomsOnline!</p>
     <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
     <p style="color: #666; font-size: 14px; text-align: center;">The RoomsOnline Team<br><a href="mailto:info@roomsonline.co.za" style="color: #e91e8c;">info@roomsonline.co.za</a></p>
@@ -144,7 +165,7 @@ Deno.serve(async (req) => {
       await resend.emails.send({
         from: "RoomsOnline <hello@notify.roomsonline.co.za>",
         to: signee_email,
-        subject: `Contract Signed - ${property?.name || "Property"}`,
+        subject: `Contract Signed - ${propertiesText}`,
         html: emailHtml,
       });
 
@@ -152,7 +173,7 @@ Deno.serve(async (req) => {
       await resend.emails.send({
         from: "RoomsOnline <hello@notify.roomsonline.co.za>",
         to: "carike@roomsonline.co.za",
-        subject: `[Contract Signed] ${property?.name || "Property"} - ${signee_name}`,
+        subject: `[Contract Signed] ${propertiesText} - ${signee_name}`,
         html: emailHtml.replace("Dear " + signee_name, "Dear Carike") + 
           `<p style="color: #666; font-size: 12px;">Signed by: ${signee_name} (${signee_email}) from IP: ${clientIp}</p>`,
       });

@@ -11,106 +11,118 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
     const { token } = await req.json();
 
     if (!token) {
-      return new Response(
-        JSON.stringify({ error: "Missing signing token" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Token required", code: "MISSING_TOKEN" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // Use service role to bypass RLS
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    // First try owner_contracts table (new system)
+    const { data: ownerContract } = await supabase
+      .from("owner_contracts")
+      .select("*")
+      .eq("signing_token", token)
+      .maybeSingle();
 
-    // Fetch contract by signing token
-    const { data: contract, error: contractError } = await supabase
+    if (ownerContract) {
+      if (ownerContract.status === "signed") {
+        return new Response(JSON.stringify({ 
+          contract: ownerContract,
+          properties: [],
+          code: "ALREADY_SIGNED",
+          contract_type: "owner",
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      if (ownerContract.token_expires_at && new Date(ownerContract.token_expires_at) < new Date()) {
+        return new Response(JSON.stringify({ error: "Signing link has expired", code: "EXPIRED" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: properties } = await supabase
+        .from("properties")
+        .select("id, name, slug, address, city, country, amenities")
+        .eq("owner_email", ownerContract.owner_email)
+        .is("permanently_deleted_at", null)
+        .order("name");
+
+      if (!ownerContract.viewed_at) {
+        await supabase
+          .from("owner_contracts")
+          .update({ viewed_at: new Date().toISOString(), status: "viewed" })
+          .eq("id", ownerContract.id);
+      }
+
+      return new Response(JSON.stringify({
+        contract: ownerContract,
+        properties: properties || [],
+        contract_type: "owner",
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Fallback: try legacy property_contracts table
+    const { data: propContract } = await supabase
       .from("property_contracts")
       .select("*")
       .eq("signing_token", token)
-      .single();
+      .maybeSingle();
 
-    if (contractError || !contract) {
-      console.error("Contract fetch error:", contractError);
-      return new Response(
-        JSON.stringify({ error: "Contract not found", code: "NOT_FOUND" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Check if already signed
-    if (contract.status === "signed") {
-      return new Response(
-        JSON.stringify({ 
-          error: "Contract already signed",
+    if (propContract) {
+      if (propContract.status === "signed") {
+        return new Response(JSON.stringify({ 
+          contract: propContract,
+          properties: [],
           code: "ALREADY_SIGNED",
-          contract: {
-            id: contract.id,
-            status: contract.status,
-            signed_at: contract.signed_at,
-            signee_name: contract.signee_name,
-            signee_email: contract.signee_email,
-            signee_designation: contract.signee_designation,
-          }
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Check if token has expired
-    if (contract.signing_token_expires_at) {
-      const expiryDate = new Date(contract.signing_token_expires_at);
-      if (expiryDate < new Date()) {
-        return new Response(
-          JSON.stringify({ error: "Signing link has expired", code: "EXPIRED" }),
-          { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+          contract_type: "property",
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
+
+      if (propContract.token_expires_at && new Date(propContract.token_expires_at) < new Date()) {
+        return new Response(JSON.stringify({ error: "Signing link has expired", code: "EXPIRED" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: property } = await supabase
+        .from("properties")
+        .select("*")
+        .eq("id", propContract.property_id)
+        .single();
+
+      if (!propContract.viewed_at) {
+        await supabase
+          .from("property_contracts")
+          .update({ viewed_at: new Date().toISOString(), status: "viewed" })
+          .eq("id", propContract.id);
+      }
+
+      return new Response(JSON.stringify({
+        contract: propContract,
+        properties: property ? [property] : [],
+        contract_type: "property",
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Fetch property details
-    const { data: property, error: propertyError } = await supabase
-      .from("properties")
-      .select("id, name, address, city, country, owner_name, owner_email")
-      .eq("id", contract.property_id)
-      .single();
+    return new Response(JSON.stringify({ error: "Invalid or expired signing link", code: "NOT_FOUND" }), {
+      status: 404,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 
-    if (propertyError) {
-      console.error("Property fetch error:", propertyError);
-    }
-
-    // Update viewed_at if first view
-    if (!contract.viewed_at) {
-      await supabase
-        .from("property_contracts")
-        .update({ viewed_at: new Date().toISOString(), status: "viewed" })
-        .eq("id", contract.id);
-    }
-
-    // Return sanitized contract data
-    return new Response(
-      JSON.stringify({
-        contract: {
-          id: contract.id,
-          property_id: contract.property_id,
-          status: contract.status,
-          version: contract.version,
-          sent_at: contract.sent_at,
-          viewed_at: contract.viewed_at,
-          signing_token_expires_at: contract.signing_token_expires_at,
-        },
-        property: property || null,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error in get-contract-by-token:", error);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: "Internal server error", code: "INTERNAL_ERROR" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
