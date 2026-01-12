@@ -1440,21 +1440,40 @@ export default function AdminKeys() {
   };
 
   // Calculate configured PMS/API count based on actual credentials
-  const getConfiguredPMSCount = () => {
-    let count = 0;
-    // Check Benson (either staging or production configured)
-    if (bensonStagingCredentials?.username || bensonProductionCredentials?.username) count++;
-    // Check NightsBridge
-    if (nightsbridgeCredentials?.agent_code) count++;
-    // Check Checkfront
-    if (checkfrontCredentials?.api_key || checkfrontCredentials?.username) count++;
-    // Check Hostfully
-    if (hostfullyCredentials?.api_key) count++;
-    // Check Cloudbeds
-    if (cloudbedsCredentials?.api_key) count++;
-    // RoomsOnline API is always "in development" - count as 0 until implemented
-    return count;
+  // Calculate total progress across all trackable systems (8 flags × 12 systems = 96 milestones)
+  // Excludes roomsonline (internal), recaptcha, maps
+  const getProgressStats = () => {
+    const trackableSystems = Object.entries(trackerData)
+      .filter(([key]) => !['roomsonline', 'recaptcha', 'google_maps'].includes(key));
+    
+    let completedFlags = 0;
+    const totalFlags = trackableSystems.length * 8; // 8 flags per system
+    let deployedCount = 0;
+    
+    trackableSystems.forEach(([_, data]) => {
+      // Count completed flags
+      if (data.has_account) completedFlags++;
+      if (data.has_docs) completedFlags++;
+      if (data.has_edge) completedFlags++;
+      if (data.has_health) completedFlags++;
+      if (data.has_get) completedFlags++;
+      if (data.has_post) completedFlags++;
+      if (data.has_soft_test) completedFlags++;
+      if (data.is_production) completedFlags++;
+      
+      // Count deployed systems
+      if (data.integration_status === 'deployed') deployedCount++;
+    });
+    
+    return { 
+      completedFlags, 
+      totalFlags: totalFlags || 96, // Default to 96 if no tracker data yet
+      deployedCount,
+      systemCount: trackableSystems.length || 12
+    };
   };
+  
+  const progressStats = getProgressStats();
 
   // Cloudbeds card renderer
   const renderCloudbedsCard = () => {
@@ -1628,7 +1647,6 @@ export default function AdminKeys() {
     );
   };
 
-  const configuredPMSCount = getConfiguredPMSCount();
   const totalPMSCount = TOTAL_PMS_SYSTEMS_COUNT;
 
   // Legacy count for other API keys (Google Maps, etc.)
@@ -3320,18 +3338,18 @@ export default function AdminKeys() {
     <AppLayout>
       <PageHeader
         title="Integrations"
-        subtitle={`${configuredPMSCount} of ${totalPMSCount} systems configured`}
+        subtitle={`${progressStats.completedFlags} of ${progressStats.totalFlags} milestones · ${progressStats.deployedCount} deployed`}
         actions={
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+              <div className="w-40 h-2 bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-full bg-status-healthy transition-all"
-                  style={{ width: `${(configuredPMSCount / totalPMSCount) * 100}%` }}
+                  style={{ width: `${(progressStats.completedFlags / progressStats.totalFlags) * 100}%` }}
                 />
               </div>
               <span className="text-xs text-muted-foreground">
-                {Math.round((configuredPMSCount / totalPMSCount) * 100)}%
+                {Math.round((progressStats.completedFlags / progressStats.totalFlags) * 100)}%
               </span>
             </div>
             <Button
