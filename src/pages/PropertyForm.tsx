@@ -86,6 +86,7 @@ import { HostfullyRoomDetails } from "@/components/pms/HostfullyRoomDetails";
 import { WebsiteSyncModal, WebsiteSyncSuggestion } from "@/components/property/WebsiteSyncModal";
 import { syncFromWebsite } from "@/lib/api/websiteSync";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
+import { ContractManagementPanel } from "@/components/contract";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -4897,6 +4898,16 @@ export default function PropertyForm() {
                       </div>
                     </CardContent>
                   </Card>
+                )}
+
+                {/* Contract Management - Only show for existing properties */}
+                {propertyId && (
+                  <ContractManagementPanel
+                    propertyId={propertyId}
+                    propertyName={formData.name}
+                    ownerEmail={formData.owner_email}
+                    ownerName={formData.owner_name}
+                  />
                 )}
 
                 <div className="flex justify-end gap-2">

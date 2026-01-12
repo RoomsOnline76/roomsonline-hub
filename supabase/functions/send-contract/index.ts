@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
       const resend = new Resend(resendKey);
 
       await resend.emails.send({
-        from: "RoomsOnline <noreply@roomsonline.co.za>",
+        from: "RoomsOnline <noreply@notify.roomsonline.co.za>",
         to: owner_email,
         subject: `Contract for ${property.name} - Signature Required`,
         html: `

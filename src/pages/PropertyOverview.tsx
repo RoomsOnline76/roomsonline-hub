@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star, Eye, EyeOff } from "lucide-react";
+import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star, Eye, EyeOff, FileCheck, FileX, FileWarning, Send } from "lucide-react";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -97,11 +97,34 @@ const PropertyOverview = () => {
         (profilesData || []).map(p => [p.email, p])
       );
 
-      // Map properties with profiles (skip individual booking counts for speed)
+      // Fetch contract status for all properties
+      const propertyIds = (propertiesData || []).map(p => p.id);
+      const { data: contractsData } = propertyIds.length > 0
+        ? await supabase
+            .from("property_contracts")
+            .select("property_id, status, version, signed_at, override_at")
+            .in("property_id", propertyIds)
+            .order("version", { ascending: false })
+        : { data: [] };
+
+      // Group contracts by property_id (get latest version for each)
+      const contractsByPropertyId = new Map<string, { status: string; signed_at?: string; override_at?: string }>();
+      (contractsData || []).forEach(c => {
+        if (!contractsByPropertyId.has(c.property_id)) {
+          contractsByPropertyId.set(c.property_id, { 
+            status: c.status, 
+            signed_at: c.signed_at ?? undefined, 
+            override_at: c.override_at ?? undefined 
+          });
+        }
+      });
+
+      // Map properties with profiles and contract status
       const propertiesWithExtras = (propertiesData || []).map((property) => ({
         ...property,
         total_bookings: 0, // Skip N+1 booking queries for now
         owner_profile: property.owner_email ? profilesByEmail.get(property.owner_email) || null : null,
+        contract_status: contractsByPropertyId.get(property.id) || null,
       }));
       
       return propertiesWithExtras;
@@ -457,7 +480,7 @@ const PropertyOverview = () => {
                             {getSortIcon("total_bookings")}
                           </div>
                         </TableHead>
-                        
+                        <TableHead className="py-1 text-xs w-16">CONTRACT</TableHead>
                         <TableHead className="py-1 text-xs">TA ID</TableHead>
                         <TableHead className="text-right py-1 text-xs">ACTION</TableHead>
                       </TableRow>
@@ -519,12 +542,13 @@ const PropertyOverview = () => {
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
+                        <TableCell className="py-1"></TableCell>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {activeProperties.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={11} className="text-center py-6">
+                          <TableCell colSpan={12} className="text-center py-6">
                             {(searchName || searchPms || searchHero || searchPropertyType) ? (
                               <div>
                                 <AlertTriangle className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
@@ -649,6 +673,44 @@ const PropertyOverview = () => {
                             <span className="capitalize">{property.property_type?.replace(/_/g, ' ') || "-"}</span>
                           </TableCell>
                           <TableCell className="py-1 text-xs">{property.total_bookings || 0}</TableCell>
+                          <TableCell className="py-1">
+                            {(() => {
+                              const contractStatus = (property as any).contract_status;
+                              if (!contractStatus) {
+                                return (
+                                  <span className="flex items-center gap-1 text-muted-foreground">
+                                    <FileX className="h-3 w-3" />
+                                  </span>
+                                );
+                              }
+                              if (contractStatus.status === 'signed') {
+                                return (
+                                  <span className="flex items-center gap-1 text-green-600" title={`Signed ${contractStatus.signed_at ? new Date(contractStatus.signed_at).toLocaleDateString() : ''}`}>
+                                    <FileCheck className="h-3 w-3" />
+                                  </span>
+                                );
+                              }
+                              if (contractStatus.status === 'overridden') {
+                                return (
+                                  <span className="flex items-center gap-1 text-amber-600" title={`Overridden ${contractStatus.override_at ? new Date(contractStatus.override_at).toLocaleDateString() : ''}`}>
+                                    <FileWarning className="h-3 w-3" />
+                                  </span>
+                                );
+                              }
+                              if (contractStatus.status === 'sent') {
+                                return (
+                                  <span className="flex items-center gap-1 text-blue-600" title="Awaiting signature">
+                                    <Send className="h-3 w-3" />
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span className="flex items-center gap-1 text-muted-foreground">
+                                  <FileX className="h-3 w-3" />
+                                </span>
+                              );
+                            })()}
+                          </TableCell>
                           <TableCell className="py-1">
                             {(() => {
                               const amenities = property.amenities as any;
