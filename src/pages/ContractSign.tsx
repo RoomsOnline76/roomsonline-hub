@@ -76,7 +76,7 @@ export default function ContractSign() {
     keyRepresentative: contract.property.owner_name || undefined,
   } : undefined;
 
-  // Load contract data
+  // Load contract data via edge function (works for unauthenticated users)
   useEffect(() => {
     async function loadContract() {
       if (!token) {
@@ -86,60 +86,85 @@ export default function ContractSign() {
       }
 
       try {
-        const { data, error: fetchError } = await supabase
-          .from("property_contracts")
-          .select(`
-            id,
-            property_id,
-            status,
-            token_expires_at,
-            unsigned_pdf_url,
-            pdf_url,
-            sent_to_email,
-            signed_at,
-            signed_by_name,
-            signed_by_email,
-            signed_by_designation,
-            signature_image_url
-          `)
-          .eq("signing_token", token)
-          .single();
+        const { data, error: fetchError } = await supabase.functions.invoke("get-contract-by-token", {
+          body: { token },
+        });
 
-        if (fetchError || !data) {
-          // Token not found - could be invalid or already used (nullified after signing)
-          setError("This link is invalid or has already been used. Please request another link from RoomsOnline.");
+        if (fetchError) {
+          console.error("Edge function error:", fetchError);
+          setError("Failed to load contract. Please try again.");
           setLoading(false);
           return;
         }
 
-        if (data.token_expires_at && new Date(data.token_expires_at) < new Date()) {
-          setError("This signing link has expired. Please request another link from RoomsOnline.");
+        if (data?.error) {
+          if (data.code === "NOT_FOUND") {
+            setError("This link is invalid or has already been used. Please request another link from RoomsOnline.");
+          } else if (data.code === "EXPIRED") {
+            setError("This signing link has expired. Please request another link from RoomsOnline.");
+          } else if (data.code === "ALREADY_SIGNED") {
+            // Contract already signed - show success state
+            setContract({
+              id: data.contract.id,
+              property_id: "",
+              status: "signed",
+              token_expires_at: null,
+              unsigned_pdf_url: null,
+              pdf_url: null,
+              sent_to_email: data.contract.signee_email,
+              signed_at: data.contract.signed_at,
+              signed_by_name: data.contract.signee_name,
+              signed_by_email: data.contract.signee_email,
+              signed_by_designation: data.contract.signee_designation,
+              signature_image_url: null,
+            });
+            setLoading(false);
+            return;
+          } else {
+            setError(data.error);
+          }
           setLoading(false);
           return;
         }
 
-        // Fetch full property details including amenities
-        const { data: property } = await supabase
-          .from("properties")
-          .select("id, name, owner_name, owner_email, address, city, country, amenities")
-          .eq("id", data.property_id)
-          .single();
+        const contractData = data.contract;
+        const propertyData = data.property;
 
-        if (data.sent_to_email) {
-          setSigneeEmail(data.sent_to_email);
-          setEmailForReview(data.sent_to_email);
+        // Fetch full property details including amenities (for contract text generation)
+        let fullProperty = propertyData;
+        if (propertyData?.id) {
+          const { data: propWithAmenities } = await supabase
+            .from("properties")
+            .select("id, name, owner_name, owner_email, address, city, country, amenities")
+            .eq("id", propertyData.id)
+            .maybeSingle();
+          
+          if (propWithAmenities) {
+            fullProperty = propWithAmenities;
+          }
+        }
+
+        // Pre-fill signee email if available
+        if (contractData.sent_to_email) {
+          setSigneeEmail(contractData.sent_to_email);
+          setEmailForReview(contractData.sent_to_email);
         }
 
         setContract({
-          ...data,
-          property: property || undefined,
+          id: contractData.id,
+          property_id: contractData.property_id,
+          status: contractData.status,
+          token_expires_at: contractData.signing_token_expires_at,
+          unsigned_pdf_url: null,
+          pdf_url: null,
+          sent_to_email: contractData.sent_to_email || null,
+          signed_at: null,
+          signed_by_name: null,
+          signed_by_email: null,
+          signed_by_designation: null,
+          signature_image_url: null,
+          property: fullProperty || undefined,
         });
-
-        await supabase
-          .from("property_contracts")
-          .update({ viewed_at: new Date().toISOString(), status: "viewed" })
-          .eq("id", data.id)
-          .eq("status", "sent");
 
       } catch (err) {
         console.error("Error loading contract:", err);
