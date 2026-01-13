@@ -21,6 +21,8 @@ import {
   HeartPulse,
   BookOpenCheck,
   UserCircle,
+  Server,
+  PenSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -92,14 +94,23 @@ const workspaceItems: NavItem[] = [
 const insightsItems: NavItem[] = [
   { title: "Pulse", icon: BarChart3, href: "/dashboard/reports" },
   { title: "Intelligence", icon: Search, href: "/dashboard/insights", requireAdmin: true },
-  { title: "Journals", icon: Newspaper, href: "/admin/journals", requireAdmin: true },
 ];
 
-const settingsItems: NavItem[] = [
+// Core settings - Admin only
+const coreSettingsItems: NavItem[] = [
   { title: "Team", icon: Users, href: "/admin-users", requireAdmin: true },
+];
+
+// System menu - Dev only technical items
+const systemItems: NavItem[] = [
   { title: "Integrations", icon: KeyRound, href: "/admin-keys", requireDev: true },
   { title: "Supporting Systems", icon: Settings, href: "/admin/supporting-systems", requireDev: true },
   { title: "System Health", icon: HeartPulse, href: "/admin/system-health", requireDev: true },
+];
+
+// Edit & Audit menu - Admin only content management
+const editAuditItems: NavItem[] = [
+  { title: "Journals", icon: Newspaper, href: "/admin/journals", requireAdmin: true },
   { title: "Audit Log", icon: FileSearch, href: "/admin/audit", requireAdmin: true },
   { title: "Help Articles", icon: BookOpenCheck, href: "/admin/help-articles", requireAdmin: true },
 ];
@@ -112,9 +123,12 @@ export function AppSidebar() {
     const saved = localStorage.getItem("sidebar-collapsed");
     return saved ? JSON.parse(saved) : false;
   });
-  const [settingsOpen, setSettingsOpen] = useState(false); // Collapsed by default
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [systemOpen, setSystemOpen] = useState(false);
+  const [editAuditOpen, setEditAuditOpen] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  
   useEffect(() => {
     localStorage.setItem("sidebar-collapsed", JSON.stringify(collapsed));
   }, [collapsed]);
@@ -213,6 +227,54 @@ export function AppSidebar() {
     );
   };
 
+  // Collapsible menu component
+  const CollapsibleMenu = ({ 
+    title, 
+    icon: Icon, 
+    items, 
+    open, 
+    onOpenChange,
+    extraItems,
+  }: { 
+    title: string; 
+    icon: React.ElementType; 
+    items: NavItem[]; 
+    open: boolean; 
+    onOpenChange: (open: boolean) => void;
+    extraItems?: React.ReactNode;
+  }) => {
+    const hasVisibleItems = items.some(item => canAccess(item)) || extraItems;
+    if (!hasVisibleItems) return null;
+
+    return (
+      <Collapsible open={open} onOpenChange={onOpenChange}>
+        <CollapsibleTrigger asChild>
+          <button
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
+              "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              "text-sidebar-foreground/70"
+            )}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            {!collapsed && (
+              <>
+                <span className="flex-1 text-left text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">{title}</span>
+                <ChevronDown className={cn("h-3 w-3 transition-transform", open && "rotate-180")} />
+              </>
+            )}
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-1 mt-1">
+          {items.map((item) => (
+            <NavLink key={item.href} item={item} />
+          ))}
+          {extraItems}
+        </CollapsibleContent>
+      </Collapsible>
+    );
+  };
+
   return (
     <aside
       className={cn(
@@ -253,31 +315,16 @@ export function AppSidebar() {
           </div>
         </div>
 
-        {/* Settings - Collapsible, collapsed by default */}
-        {(isAdmin || isDev) && (
-          <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
-            <CollapsibleTrigger asChild>
-              <button
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
-                  "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  "text-sidebar-foreground/70"
-                )}
-              >
-                <Settings className="h-4 w-4 shrink-0" />
-                {!collapsed && (
-                  <>
-                    <span className="flex-1 text-left text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">Settings</span>
-                    <ChevronDown className={cn("h-3 w-3 transition-transform", settingsOpen && "rotate-180")} />
-                  </>
-                )}
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-1 mt-1">
-              {settingsItems.map((item) => (
-                <NavLink key={item.href} item={item} />
-              ))}
-              {isAdmin && pendingRequests > 0 && (
+        {/* Settings - Admin only */}
+        {isAdmin && (
+          <CollapsibleMenu
+            title="Settings"
+            icon={Settings}
+            items={coreSettingsItems}
+            open={settingsOpen}
+            onOpenChange={setSettingsOpen}
+            extraItems={
+              pendingRequests > 0 ? (
                 <NavLink
                   item={{
                     title: "Access Requests",
@@ -287,9 +334,31 @@ export function AppSidebar() {
                     requireAdmin: true,
                   }}
                 />
-              )}
-            </CollapsibleContent>
-          </Collapsible>
+              ) : null
+            }
+          />
+        )}
+
+        {/* System - Dev only */}
+        {isDev && (
+          <CollapsibleMenu
+            title="System"
+            icon={Server}
+            items={systemItems}
+            open={systemOpen}
+            onOpenChange={setSystemOpen}
+          />
+        )}
+
+        {/* Edit & Audit - Admin only */}
+        {isAdmin && (
+          <CollapsibleMenu
+            title="Edit & Audit"
+            icon={PenSquare}
+            items={editAuditItems}
+            open={editAuditOpen}
+            onOpenChange={setEditAuditOpen}
+          />
         )}
 
         {/* Help - visible to all authenticated users */}

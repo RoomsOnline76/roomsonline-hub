@@ -3804,7 +3804,7 @@ export default function PropertyForm() {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
             <TabsList className="bg-secondary h-8">
               {[
-                { value: "onboarding", icon: Sparkles, label: "Onboarding", highlight: true, onboardingOnly: true },
+                { value: "onboarding", icon: Sparkles, label: "Onboarding", highlight: false, highlightBlue: true, onboardingOnly: true },
                 { value: "general", icon: Home, label: "General", highlight: false },
                 { value: "rol-spec", icon: Sparkles, label: "ROL Spec", highlight: true },
                 { value: "info-facilities", icon: Building2, label: "Info & Facilities", highlight: false },
@@ -3843,6 +3843,8 @@ export default function PropertyForm() {
                           "gap-1 text-xs py-1",
                           tab.highlight &&
                             "bg-primary/10 text-primary border border-primary/30 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
+                          tab.highlightBlue &&
+                            "bg-blue-500/10 text-blue-600 border border-blue-500/30 data-[state=active]:bg-blue-600 data-[state=active]:text-white",
                         )}
                       >
                         <Icon className="h-3 w-3" />
@@ -3859,6 +3861,7 @@ export default function PropertyForm() {
                           className={cn(
                             "px-2 py-1",
                             tab.highlight && "bg-primary/10 text-primary border border-primary/30",
+                            tab.highlightBlue && "bg-blue-500/10 text-blue-600 border border-blue-500/30",
                           )}
                         >
                           <Icon className="h-3 w-3" />
