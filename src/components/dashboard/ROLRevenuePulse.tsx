@@ -21,6 +21,7 @@ import { ROLKPICard } from "./ROLKPICard";
 import { ChannelBreakdownChart } from "./ChannelBreakdownChart";
 import { TopPropertiesTable } from "./TopPropertiesTable";
 import { RiskIndicators } from "./RiskIndicators";
+import { PropertyAcquisitionTracker } from "./PropertyAcquisitionTracker";
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("en-ZA", {
@@ -274,6 +275,9 @@ export function ROLRevenuePulse() {
           isLoading={isLoading}
         />
       </div>
+
+      {/* Property Acquisition & PMS Distribution */}
+      <PropertyAcquisitionTracker />
     </div>
   );
 }

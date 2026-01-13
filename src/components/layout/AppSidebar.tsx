@@ -98,7 +98,7 @@ const workspaceItems: NavItem[] = [
 
 const insightsItems: NavItem[] = [
   { title: "Property Pulse", icon: BarChart3, href: "/dashboard/reports" },
-  { title: "Revenue Pulse", icon: TrendingUp, href: "/pulse", requireAdmin: true },
+  { title: "Revenue Pulse", icon: TrendingUp, href: "/pulse" },
   { title: "Intelligence", icon: Search, href: "/dashboard/insights", requireAdmin: true },
 ];
 
