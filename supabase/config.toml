@@ -99,3 +99,9 @@ verify_jwt = false
 
 [functions.multi-push-booking]
 verify_jwt = true
+
+[functions.generate-itinerary-pdf]
+verify_jwt = false
+
+[functions.send-itinerary-email]
+verify_jwt = true
