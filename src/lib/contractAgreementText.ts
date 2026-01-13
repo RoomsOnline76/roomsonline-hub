@@ -234,11 +234,7 @@ export function generateSignatureBlockHTML(signature: SignatureData): string {
   `;
 }
 
-// ROL Logo as base64 data URL - works in about:blank without network requests
-const ROL_LOGO_BASE64 = "data:image/png;base64,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";
-
 // Generate full signed contract HTML with professional branding (for download/print)
-// Self-contained - no external dependencies (fonts, images embedded)
 export function generateSignedContractHTML(
   property?: PropertyContractDetails, 
   signature?: SignatureData,
@@ -255,27 +251,32 @@ export function generateSignedContractHTML(
         month: 'long', 
         year: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        timeZoneName: 'short'
       })
     : new Date().toLocaleString('en-ZA', { 
         day: 'numeric', 
         month: 'long', 
         year: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        timeZoneName: 'short'
       });
 
-  const coveredPropertiesInline = coveredProperties && coveredProperties.length > 0
-    ? coveredProperties.map(p => p.name).join(', ')
-    : 'All properties under this owner';
+  const coveredPropertiesList = coveredProperties && coveredProperties.length > 0
+    ? coveredProperties.map(p => `<li>${p.name}</li>`).join('')
+    : '<li>All properties under this owner</li>';
 
   const propertySection = property ? `
     <table class="info-table">
       <tr><td class="label">Registered Name</td><td>${property.registeredName || property.name || 'N/A'}</td></tr>
-      <tr><td class="label">Reg. / VAT No.</td><td>${property.registrationNumber || 'N/A'} / ${property.vatNumber || 'N/A'}</td></tr>
-      <tr><td class="label">Tel / Mobile</td><td>${property.telephone || 'N/A'} / ${property.mobileNumber || 'N/A'}</td></tr>
-      <tr><td class="label">E-mail</td><td>${property.email || 'N/A'}</td></tr>
-      <tr><td class="label">Address</td><td>${property.physicalAddress || 'N/A'}</td></tr>
+      <tr><td class="label">Registration number</td><td>${property.registrationNumber || 'N/A'}</td></tr>
+      <tr><td class="label">VAT number</td><td>${property.vatNumber || 'N/A'}</td></tr>
+      <tr><td class="label">Telephone number</td><td>${property.telephone || 'N/A'}</td></tr>
+      <tr><td class="label">Mobile number</td><td>${property.mobileNumber || 'N/A'}</td></tr>
+      <tr><td class="label">E-mail address</td><td>${property.email || 'N/A'}</td></tr>
+      <tr><td class="label">Physical address</td><td>${property.physicalAddress || 'N/A'}</td></tr>
+      <tr><td class="label">Postal address</td><td>${property.postalAddress || property.physicalAddress || 'N/A'}</td></tr>
       <tr><td class="label">Key Representative</td><td>${property.keyRepresentative || 'N/A'}</td></tr>
     </table>
   ` : '<p class="placeholder">[Property details will be displayed here]</p>';
@@ -288,11 +289,7 @@ export function generateSignedContractHTML(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Signed Contract - ${property?.name || 'Roomsonline Agreement'}</title>
   <style>
-    /* Page setup - removes browser headers/footers */
-    @page {
-      size: A4;
-      margin: 12mm 15mm !important;
-    }
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@400;500;600&display=swap');
     
     * {
       margin: 0;
@@ -300,340 +297,389 @@ export function generateSignedContractHTML(
       box-sizing: border-box;
     }
     
-    html, body {
-      margin: 0 !important;
-      padding: 0 !important;
-    }
-    
     body {
-      font-family: Georgia, 'Times New Roman', Times, serif;
-      font-size: 10pt;
-      line-height: 1.45;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 11pt;
+      line-height: 1.6;
       color: #1a1a1a;
-      max-width: 100%;
-      padding: 15px;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px;
       background: #fff;
     }
     
     /* Header */
     .header {
       text-align: center;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 1.5px solid #1a1a1a;
+      margin-bottom: 40px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #1a1a1a;
     }
     
     .header img {
-      max-width: 140px;
+      max-width: 180px;
       height: auto;
-      margin: 0 auto 4px auto;
+      margin: 0 auto 8px auto;
       display: block;
     }
     
     .tagline {
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 8pt;
-      letter-spacing: 2px;
+      font-size: 9pt;
+      letter-spacing: 3px;
       color: #666;
       text-transform: uppercase;
-      margin-top: 2px;
+      margin-top: 4px;
       text-align: center;
     }
     
     /* Title */
     h1 {
-      font-family: Georgia, 'Times New Roman', serif;
-      font-size: 14pt;
-      font-weight: bold;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 20pt;
+      font-weight: 600;
       text-align: center;
-      margin: 12px 0 10px 0;
-      letter-spacing: -0.3px;
+      margin: 30px 0;
+      letter-spacing: -0.5px;
     }
     
     h2 {
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 9pt;
-      font-weight: bold;
-      margin: 10px 0 4px 0;
+      font-family: 'Inter', sans-serif;
+      font-size: 12pt;
+      font-weight: 600;
+      margin: 24px 0 12px 0;
       color: #1a1a1a;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
     }
     
     p {
-      margin-bottom: 6px;
+      margin-bottom: 12px;
       text-align: justify;
-    }
-    
-    .intro {
-      font-size: 9pt;
-      margin-bottom: 10px;
     }
     
     /* Tables */
     .info-table {
       width: 100%;
       border-collapse: collapse;
-      margin: 6px 0 10px 0;
-      font-size: 9pt;
+      margin: 16px 0 24px 0;
+      font-size: 10pt;
     }
     
     .info-table td {
-      padding: 4px 8px;
-      border: 1px solid #ccc;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
       vertical-align: top;
     }
     
     .info-table .label {
-      width: 120px;
-      font-weight: bold;
-      background: #f5f5f5;
+      width: 180px;
+      font-weight: 500;
+      background: #f8f8f8;
     }
     
     /* Lists */
     ul, ol {
-      margin: 4px 0 8px 18px;
+      margin: 12px 0 20px 24px;
     }
     
     li {
-      margin-bottom: 2px;
-      font-size: 9pt;
+      margin-bottom: 6px;
     }
     
     /* Covered Properties Section */
     .covered-properties {
       background: #f8f9fa;
-      border: 1px solid #ddd;
-      border-radius: 3px;
-      padding: 8px 12px;
-      margin: 10px 0;
-      font-size: 9pt;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      padding: 16px 20px;
+      margin: 20px 0;
     }
     
-    .covered-properties strong {
-      font-weight: bold;
+    .covered-properties h3 {
+      font-size: 11pt;
+      font-weight: 600;
+      margin-bottom: 10px;
     }
     
-    /* Definitions - compact inline format */
-    .definitions {
-      font-size: 9pt;
-      margin-bottom: 8px;
+    .covered-properties ul {
+      margin: 0;
+      padding-left: 20px;
     }
     
-    .definitions p {
+    .covered-properties li {
       margin-bottom: 4px;
     }
     
-    /* Combined sections */
-    .section-group {
-      margin-bottom: 8px;
-    }
-    
-    .section-group h2 {
-      margin-bottom: 4px;
-    }
-    
-    .section-group p {
-      font-size: 9pt;
-      margin-bottom: 4px;
-    }
-    
-    /* Signature Block - TABLE layout for reliable print */
+    /* Signature Block */
     .signature-block {
-      margin-top: 20px;
-      padding-top: 15px;
+      margin-top: 40px;
+      padding-top: 24px;
       border-top: 2px solid #1a1a1a;
-      page-break-inside: avoid;
     }
     
     .signature-block h2 {
-      font-family: Georgia, 'Times New Roman', serif;
-      font-size: 12pt;
-      margin-bottom: 12px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 14pt;
+      margin-bottom: 20px;
     }
     
-    .signature-table {
-      width: 100%;
-      border-collapse: collapse;
+    .signature-grid {
+      display: flex;
+      gap: 40px;
     }
     
-    .signature-table td {
-      padding: 0;
-      border: none;
-      vertical-align: top;
-      width: 50%;
+    .signature-details {
+      flex: 1;
     }
     
     .signature-details p {
-      margin-bottom: 4px;
+      margin-bottom: 6px;
       text-align: left;
-      font-size: 9pt;
+    }
+    
+    .signature-image-container {
+      flex: 1;
     }
     
     .signature-label {
-      font-weight: bold;
-      margin-bottom: 6px;
-      font-size: 9pt;
-      display: block;
+      font-weight: 500;
+      margin-bottom: 8px;
     }
     
-    .signature-img {
-      max-height: 80px;
-      max-width: 200px;
+    .signature-image {
+      max-height: 100px;
+      max-width: 250px;
       border: 1px solid #ddd;
-      border-radius: 3px;
-      padding: 6px;
+      border-radius: 4px;
+      padding: 8px;
       background: #fff;
     }
     
     .signature-placeholder {
-      width: 200px;
-      height: 60px;
+      width: 250px;
+      height: 80px;
       border: 1px dashed #999;
-      border-radius: 3px;
-      display: table-cell;
-      vertical-align: middle;
-      text-align: center;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       color: #666;
       font-style: italic;
-      font-size: 9pt;
+      font-size: 10pt;
       background: #fafafa;
     }
     
     /* Footer */
     .footer {
-      margin-top: 15px;
-      padding-top: 10px;
+      margin-top: 40px;
+      padding-top: 16px;
       border-top: 1px solid #ddd;
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 8pt;
+      font-size: 9pt;
       color: #666;
     }
     
     .footer p {
-      margin-bottom: 2px;
+      margin-bottom: 4px;
       text-align: left;
     }
     
-    /* Print Styles - removes browser headers/footers */
+    /* Print Styles */
     @media print {
-      @page {
-        size: A4;
-        margin: 10mm 12mm !important;
-      }
-      
-      html, body {
-        margin: 0 !important;
-        padding: 0 !important;
-        width: 100% !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-      
       body {
-        padding: 0 !important;
+        padding: 20px;
+        font-size: 10pt;
+      }
+      
+      .header {
+        margin-bottom: 24px;
+      }
+      
+      h1 {
+        font-size: 16pt;
+        margin: 20px 0;
+      }
+      
+      h2 {
+        font-size: 11pt;
+        margin: 16px 0 8px 0;
+      }
+      
+      .info-table td {
+        padding: 6px 10px;
       }
       
       .signature-block {
         page-break-inside: avoid;
       }
+      
+      .footer {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        right: 20px;
+      }
     }
   </style>
 </head>
 <body>
-  <!-- Header with embedded Logo -->
+  <!-- Header with Logo -->
   <div class="header">
-    <img src="${ROL_LOGO_BASE64}" alt="Roomsonline" />
+    <img src="/images/rol-logo.png" alt="Roomsonline" onerror="this.style.display='none'" />
     <p class="tagline">Strategize • Optimize • Maximize</p>
   </div>
 
-  <h1>ROOMSONLINE LISTING & DISTRIBUTION AGREEMENT</h1>
+  <h1>ROOMSONLINE ACCOMMODATION LISTING & DISTRIBUTION AGREEMENT</h1>
 
-  <!-- Covered Properties - inline format -->
+  <!-- Covered Properties -->
   <div class="covered-properties">
-    <strong>Covered Properties:</strong> ${coveredPropertiesInline}
+    <h3>This agreement covers the following properties:</h3>
+    <ul>
+      ${coveredPropertiesList}
+    </ul>
   </div>
 
-  <p class="intro">This Agreement sets out terms on which Roomsonline provides online accommodation listing, booking facilitation, payment collection, and distribution services. The Establishment remains solely responsible for its accommodation business and delivery of services to Customers.</p>
+  <p>
+    This Agreement sets out the terms and conditions on which Roomsonline provides online accommodation listing, booking facilitation, payment collection, and related distribution services to accommodation establishments, and the basis upon which the Establishment agrees to be listed and promoted on the Roomsonline platform.
+  </p>
+  
+  <p>
+    The parties acknowledge that Roomsonline operates solely as a booking and distribution platform and does not own, manage, or control the Establishment. The Establishment remains solely responsible for the operation of its accommodation business and for the delivery of accommodation services to Customers.
+  </p>
 
   <h2>1. ROOMSONLINE</h2>
   <table class="info-table">
     <tr><td class="label">Registered Name</td><td>Sleep in Africa (Pty) Ltd t/a Roomsonline</td></tr>
-    <tr><td class="label">Reg. No. / Mobile</td><td>2014012490 / 082 323 8115</td></tr>
-    <tr><td class="label">E-mail</td><td>Carike@roomsonline.co.za</td></tr>
-    <tr><td class="label">Address</td><td>29 Woodlands Close, Parklands, 7441</td></tr>
-    <tr><td class="label">Bank Details</td><td>FNB | Sleep in Africa (PTY) LTD | 62453541700 | Branch: 203809</td></tr>
+    <tr><td class="label">Registration number</td><td>2014012490</td></tr>
+    <tr><td class="label">Mobile number</td><td>082 323 8115</td></tr>
+    <tr><td class="label">E-mail address</td><td>Carike@roomsonline.co.za</td></tr>
+    <tr><td class="label">Physical address</td><td>29 Woodlands Close, Parklands, 7441</td></tr>
+    <tr><td class="label">Postal address</td><td>29 Woodlands Close, Parklands, 7441</td></tr>
+    <tr><td class="label">Key Representative</td><td>Carike Ligthelm</td></tr>
+    <tr><td class="label">Bank account details</td><td>Bank: FNB | Account holder: Sleep in Africa (PTY) LTD | Account: 62453541700 | Branch: 203809</td></tr>
   </table>
 
   <h2>2. THE PROPERTY</h2>
   ${propertySection}
 
-  <h2>3. COMMISSION</h2>
-  <p>Roomsonline charges <strong>10% commission</strong> (VAT exclusive) of the Total Booking Value for all bookings via the Roomsonline Software, unless otherwise agreed in writing.</p>
+  <h2>3. COMMISSION AND FEES</h2>
+  <p>Roomsonline charges a commission of <strong>ten percent (10%)</strong> (VAT exclusive) of the Total Booking Value for all bookings made via the Roomsonline Software, unless otherwise agreed in writing.</p>
 
   <h2>4. DEFINITIONS</h2>
-  <div class="definitions">
-    <p><strong>"Roomsonline"</strong> means Sleep in Africa (Pty) Ltd. <strong>"You"</strong> means the accommodation establishment listed on the Roomsonline Software. <strong>"Roomsonline Software"</strong> means all websites, apps, systems, and platforms operated by Roomsonline. <strong>"Establishment"</strong> means the accommodation listed on the Software. <strong>"Content"</strong> means all information supplied by you (descriptions, photos, rates, availability). <strong>"Listing"</strong> means the display of the Establishment on the Software. <strong>"Customer"</strong> means any person who makes a booking. <strong>"Total Booking Value"</strong> means the full booking value including fees. <strong>"Applicable Cancellation Policy"</strong> means the policy applicable at time of confirmation.</p>
-  </div>
+  <p>In this Agreement, unless the context indicates otherwise:</p>
+  <ul>
+    <li><strong>"Roomsonline"</strong>, "we", "us" or "our" means Sleep in Africa (Pty) Ltd trading as Roomsonline.</li>
+    <li><strong>"You"</strong> or "your" means the accommodation establishment listed, or seeking to be listed, on the Roomsonline Software, including any authorised representative thereof.</li>
+    <li><strong>"Roomsonline Software"</strong> means all websites, applications, systems, databases, and platforms owned, operated, or controlled by Roomsonline, including third-party platforms making use of Roomsonline data.</li>
+    <li><strong>"Establishment"</strong> means the accommodation establishment listed or proposed to be listed on the Roomsonline Software.</li>
+    <li><strong>"Content"</strong> means all information supplied by you relating to the Establishment, including descriptions, photographs, rates, availability, and related information.</li>
+    <li><strong>"Listing"</strong> means the public or private display of the Establishment on the Roomsonline Software.</li>
+    <li><strong>"Customer"</strong> means any person who makes or benefits from a booking at the Establishment through the Roomsonline Software.</li>
+    <li><strong>"Total Booking Value"</strong> means the full value of a booking, including accommodation, fees, and included services.</li>
+    <li><strong>"Applicable Cancellation Policy"</strong> means the cancellation policy applicable to a particular booking at the time of confirmation.</li>
+    <li><strong>"Satisfactory Stay"</strong> and <strong>"Unsatisfactory Stay"</strong> have the meanings assigned to them in this Agreement.</li>
+  </ul>
+  <p>Words in the singular include the plural and vice versa.</p>
 
-  <h2>5. LISTING</h2>
-  <p>Roomsonline may approve, decline, withdraw, or suspend any Listing at its discretion and shall not be liable for any loss arising therefrom. Certain establishments associated with unethical or illegal activities may be declined.</p>
+  <h2>5. LISTING OF THE ESTABLISHMENT</h2>
+  <ol>
+    <li>Roomsonline may, acting reasonably and in its discretion, approve, decline, withdraw, or suspend the Listing of any Establishment.</li>
+    <li>Roomsonline shall not be liable for any loss arising from the withdrawal or suspension of a Listing.</li>
+    <li>Certain categories of establishments may be declined, including those associated with unethical or illegal activities.</li>
+    <li>Roomsonline may determine the placement and presentation of Listings at its discretion.</li>
+  </ol>
 
   <h2>6. DELISTING</h2>
-  <p>Roomsonline may Delist an Establishment at any time. Upon request, Roomsonline will Delist within 5 business days. Existing confirmed bookings must be honoured.</p>
+  <ol>
+    <li>Roomsonline may Delist an Establishment at any time.</li>
+    <li>Upon request by the Establishment, Roomsonline will Delist within five (5) business days. Existing confirmed bookings must be honoured.</li>
+    <li>No right to continued listing is created by this Agreement.</li>
+  </ol>
 
-  <h2>7. CONTENT & IP</h2>
-  <p>You warrant that all Content is accurate, lawful, and owned or licensed by you. You grant Roomsonline a perpetual, royalty-free right to use, adapt, and publish the Content for marketing and operational purposes.</p>
+  <h2>7. CONTENT AND INTELLECTUAL PROPERTY</h2>
+  <ol>
+    <li>You warrant that all Content is accurate, lawful, and owned or licensed by you.</li>
+    <li>You grant Roomsonline a perpetual, royalty-free right to use, adapt, and publish the Content for marketing and operational purposes.</li>
+  </ol>
 
-  <h2>8. BOOKINGS & PAYMENTS</h2>
-  <p>Roomsonline acts as payment collection agent. Payouts are made subject to commission deductions and verification of a Satisfactory Stay. Roomsonline may withhold payments for up to 7 days after checkout.</p>
+  <h2>8. BOOKINGS AND PAYMENTS</h2>
+  <ol>
+    <li>Roomsonline acts as payment collection agent for the Establishment.</li>
+    <li>Payouts will be made subject to commission deductions and verification of a Satisfactory Stay.</li>
+    <li>Roomsonline may withhold payments for up to seven (7) days after checkout.</li>
+  </ol>
 
-  <h2>9. CUSTOMER PROTECTION</h2>
-  <p>Where a Customer experiences an Unsatisfactory Stay or non-delivery, Roomsonline may refund the Customer and recover amounts from the Establishment.</p>
+  <h2>9. NON-DELIVERY AND CUSTOMER PROTECTION</h2>
+  <p>Where a Customer experiences an Unsatisfactory Stay or non-delivery, Roomsonline may refund the Customer and recover such amounts from the Establishment.</p>
 
-  <h2>10. CANCELLATIONS</h2>
-  <p>Cancellations are governed by the Applicable Cancellation Policy. Ambiguity shall be interpreted in favour of the Customer.</p>
+  <h2>10. CANCELLATIONS AND REFUNDS</h2>
+  <ol>
+    <li>Cancellations are governed by the Applicable Cancellation Policy.</li>
+    <li>Any ambiguity shall be interpreted in favour of the Customer.</li>
+  </ol>
 
-  <div class="section-group">
-    <h2>11–15. GENERAL PROVISIONS</h2>
-    <p><strong>Fraud:</strong> The Establishment remains responsible for fraudulent or reversed payments. <strong>Operations:</strong> The Establishment is solely responsible for legal compliance, insurance, staffing, and operations. <strong>Affiliates:</strong> Roomsonline may collaborate with affiliate partners. <strong>Data Protection:</strong> Both parties shall comply with POPIA. <strong>Records:</strong> Roomsonline records prevail in disputes.</p>
-  </div>
+  <h2>11. FRAUD AND PAYMENT REVERSALS</h2>
+  <p>The Establishment remains responsible for fraudulent or reversed payments.</p>
 
-  <div class="section-group">
-    <h2>16–22. ADMINISTRATIVE TERMS</h2>
-    <p><strong>Changes:</strong> Roomsonline may amend this Agreement upon 48 hours' notice. <strong>Liability:</strong> Roomsonline's liability is limited to commission paid. <strong>Software:</strong> The Software is provided "as-is". <strong>Force Majeure:</strong> Neither party is liable for events beyond reasonable control. <strong>Confidentiality:</strong> Confidential Information shall be kept private for 3 years post-termination. <strong>Relationship:</strong> The parties are independent contractors. <strong>Governing Law:</strong> This Agreement is governed by South African law.</p>
-  </div>
+  <h2>12. OPERATION OF THE ESTABLISHMENT</h2>
+  <p>The Establishment remains solely responsible for legal compliance, insurance, staffing, and operations.</p>
 
-  <h2>23. ELECTRONIC SIGNATURES</h2>
-  <p>This Agreement may be accepted electronically and is enforceable under the Electronic Communications and Transactions Act 25 of 2002.</p>
+  <h2>13. AFFILIATES AND PARTNERS</h2>
+  <p>Roomsonline may collaborate with affiliate partners to promote Listings.</p>
 
-  <!-- Signature Block - TABLE layout for reliable print -->
+  <h2>14. DATA PROTECTION</h2>
+  <p>Both parties shall comply with the Protection of Personal Information Act.</p>
+
+  <h2>15. AUTHORITATIVE RECORDS</h2>
+  <p>Roomsonline records shall prevail in the event of disputes.</p>
+
+  <h2>16. CHANGES TO THE AGREEMENT</h2>
+  <p>Roomsonline may amend this Agreement upon forty-eight (48) hours' notice.</p>
+
+  <h2>17. LIMITATION OF LIABILITY AND INDEMNITY</h2>
+  <p>Roomsonline's liability is limited to the commission paid by the Establishment.</p>
+
+  <h2>18. SOFTWARE DISCLAIMER</h2>
+  <p>The Roomsonline Software is provided on an "as-is" basis.</p>
+
+  <h2>19. FORCE MAJEURE</h2>
+  <p>Neither party shall be liable for failure to perform due to events beyond reasonable control.</p>
+
+  <h2>20. CONFIDENTIALITY</h2>
+  <p>Each party shall keep Confidential Information private for three (3) years following termination.</p>
+
+  <h2>21. INDEPENDENT CONTRACTOR</h2>
+  <p>The parties act as independent contractors and no partnership or employment relationship is created.</p>
+
+  <h2>22. GOVERNING LAW</h2>
+  <p>This Agreement is governed by the laws of South Africa.</p>
+
+  <h2>23. ELECTRONIC SIGNATURES AND ACCEPTANCE</h2>
+  <p>This Agreement may be accepted electronically or by conduct and is enforceable in terms of the Electronic Communications and Transactions Act 25 of 2002.</p>
+
+  <!-- Signature Block -->
   ${signature ? `
   <div class="signature-block">
     <h2>SIGNED</h2>
-    <table class="signature-table">
-      <tr>
-        <td class="signature-details">
-          <p><strong>Name:</strong> ${signature.signedByName}</p>
-          <p><strong>Email:</strong> ${signature.signedByEmail}</p>
-          ${signature.signedByDesignation ? `<p><strong>Designation:</strong> ${signature.signedByDesignation}</p>` : ''}
-          <p><strong>Date:</strong> ${signedDate}</p>
-        </td>
-        <td>
-          <span class="signature-label">Signature:</span>
-          ${signature.signatureImageUrl 
-            ? `<img src="${signature.signatureImageUrl}" alt="Signature" class="signature-img" />`
-            : `<div class="signature-placeholder">Signature on file</div>`
-          }
-        </td>
-      </tr>
-    </table>
+    <div class="signature-grid">
+      <div class="signature-details">
+        <p><strong>Name:</strong> ${signature.signedByName}</p>
+        <p><strong>Email:</strong> ${signature.signedByEmail}</p>
+        ${signature.signedByDesignation ? `<p><strong>Designation:</strong> ${signature.signedByDesignation}</p>` : ''}
+        <p><strong>Date:</strong> ${signedDate}</p>
+      </div>
+      <div class="signature-image-container">
+        <p class="signature-label">Signature:</p>
+        ${signature.signatureImageUrl 
+          ? `<img src="${signature.signatureImageUrl}" alt="Signature" class="signature-image" onerror="this.parentElement.innerHTML='<div class=\\'signature-placeholder\\'>Signature on file</div>'" />`
+          : `<div class="signature-placeholder">Signature on file</div>`
+        }
+      </div>
+    </div>
   </div>
   ` : ''}
 
   <!-- Footer -->
   <div class="footer">
-    <p><strong>Downloaded:</strong> ${downloadDate} | <strong>Contract ID:</strong> ${metadata?.contractId || 'N/A'}${metadata?.version ? ` | Version: ${metadata.version}` : ''}</p>
+    <p><strong>Downloaded:</strong> ${downloadDate}</p>
+    ${metadata?.contractId ? `<p><strong>Contract ID:</strong> ${metadata.contractId}${metadata.version ? ` | Version: ${metadata.version}` : ''}</p>` : ''}
   </div>
 </body>
 </html>
