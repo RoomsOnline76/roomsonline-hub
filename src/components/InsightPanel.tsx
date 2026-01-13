@@ -146,14 +146,25 @@ export function InsightPanel({
 
 // Floating trigger button for use anywhere
 export function InsightPanelTrigger({
+  title,
+  description,
+  placeholder,
   onAnalyze,
   className,
 }: {
+  title?: string;
+  description?: string;
+  placeholder?: string;
   onAnalyze: (prompt: string) => Promise<string | null>;
   className?: string;
 }) {
   return (
-    <InsightPanel onAnalyze={onAnalyze}>
+    <InsightPanel
+      title={title}
+      description={description}
+      placeholder={placeholder}
+      onAnalyze={onAnalyze}
+    >
       <Button
         size="icon"
         className={cn(

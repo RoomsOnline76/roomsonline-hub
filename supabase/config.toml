@@ -87,3 +87,9 @@ schedule = "0 6 * * *"
 
 [functions.get-feature-flags]
 verify_jwt = false
+
+[functions.revenue-pulse-insights]
+verify_jwt = false
+
+[functions.bank-export-api]
+verify_jwt = true

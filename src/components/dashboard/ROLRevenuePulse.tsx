@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { format, subDays } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,9 @@ import { RiskIndicators } from "./RiskIndicators";
 import { PropertyAcquisitionTracker } from "./PropertyAcquisitionTracker";
 import { AccountingDashboard } from "@/components/insights/AccountingDashboard";
 import { BankExportDashboard } from "@/components/bank-export";
+import { InsightPanelTrigger } from "@/components/InsightPanel";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("en-ZA", {
@@ -311,6 +314,43 @@ export function ROLRevenuePulse() {
       <TabsContent value="accounting" className="mt-0">
         <AccountingDashboard />
       </TabsContent>
+
+      <InsightPanelTrigger
+        title="Revenue Pulse AI"
+        description="Ask questions about revenue, commissions, channels, or property performance."
+        placeholder="e.g., What's driving our revenue this month?"
+        onAnalyze={async (prompt) => {
+          try {
+            const { data: fnData, error: fnError } = await supabase.functions.invoke(
+              "revenue-pulse-insights",
+              {
+                body: {
+                  prompt,
+                  context: {
+                    tier1: data?.tier1,
+                    tier2: data?.tier2,
+                    tier3: data?.tier3,
+                    timeline: data?.timeline,
+                    dateRange,
+                    showYoY,
+                  },
+                },
+              }
+            );
+
+            if (fnError) {
+              toast.error("Failed to get insight", { description: fnError.message });
+              return "Error: " + fnError.message;
+            }
+
+            return fnData?.insight || "No insight generated.";
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "Unknown error";
+            toast.error("AI Assistant Error", { description: message });
+            return "Error: " + message;
+          }
+        }}
+      />
     </Tabs>
   );
 }
