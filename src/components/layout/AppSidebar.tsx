@@ -329,7 +329,7 @@ export function AppSidebar() {
         {/* Settings - Admin only (not collapsible, always visible) */}
         {isAdmin && (
           <div>
-            <SectionLabel>Settings</SectionLabel>
+            <SectionLabel>Admin</SectionLabel>
             <div className="space-y-1">
               {coreSettingsItems.map((item) => (
                 <NavLink key={item.href} item={item} />
