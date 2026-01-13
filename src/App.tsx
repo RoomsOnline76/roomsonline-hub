@@ -237,7 +237,7 @@ const App = () => (
           <Route
             path="/pulse"
             element={
-              <ProtectedRoute requireAdmin={true}>
+              <ProtectedRoute>
                 <ROLPulse />
               </ProtectedRoute>
             }
