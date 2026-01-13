@@ -17,6 +17,7 @@ import CalendarConference from "./pages/CalendarConference";
 import Promotion from "./pages/Promotion";
 import Bookings from "./pages/Bookings";
 import Dashboard from "./pages/Dashboard";
+import ROLPulse from "./pages/ROLPulse";
 import Insights from "./pages/Insights";
 import AdminKeys from "./pages/AdminKeys";
 import AdminUsers from "./pages/AdminUsers";
@@ -230,6 +231,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/pulse"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <ROLPulse />
               </ProtectedRoute>
             }
           />
