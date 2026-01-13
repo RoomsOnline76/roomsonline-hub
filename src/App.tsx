@@ -49,6 +49,8 @@ import ProjectDiscoverySurvey from "./pages/ProjectDiscoverySurvey";
 import SupportingSystems from "./pages/SupportingSystems";
 import ContractSign from "./pages/ContractSign";
 import PropertyOnboarding from "./pages/PropertyOnboarding";
+import AdminContracts from "./pages/AdminContracts";
+import AdminOnboarding from "./pages/AdminOnboarding";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -315,6 +317,23 @@ const App = () => (
             <Route path="/contract/sign/:token" element={<ContractSign />} />
             {/* Property onboarding - requires auth */}
             <Route path="/onboarding/:token" element={<PropertyOnboarding />} />
+            {/* Admin contract and onboarding management */}
+            <Route
+              path="/admin/contracts"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminContracts />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/onboarding"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminOnboarding />
+                </ProtectedRoute>
+              }
+            />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
