@@ -446,6 +446,145 @@ export type Database = {
           },
         ]
       }
+      contract_template_versions: {
+        Row: {
+          activated_at: string | null
+          activated_by: string | null
+          content_markdown: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          status: string | null
+          template_id: string | null
+          variables_schema: Json
+          version_number: number
+        }
+        Insert: {
+          activated_at?: string | null
+          activated_by?: string | null
+          content_markdown: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          status?: string | null
+          template_id?: string | null
+          variables_schema?: Json
+          version_number: number
+        }
+        Update: {
+          activated_at?: string | null
+          activated_by?: string | null
+          content_markdown?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          status?: string | null
+          template_id?: string | null
+          variables_schema?: Json
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_template_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contract_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_templates: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          current_version_id: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          current_version_id?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          current_version_id?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_current_version"
+            columns: ["current_version_id"]
+            isOneToOne: false
+            referencedRelation: "contract_template_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      field_registry: {
+        Row: {
+          created_at: string | null
+          data_type: string | null
+          db_column: string | null
+          db_table: string | null
+          field_key: string
+          id: string
+          is_required: boolean | null
+          notes: string | null
+          pms_lockable: boolean | null
+          pms_populated: boolean | null
+          section: string | null
+          tab: string | null
+          ui_label: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          data_type?: string | null
+          db_column?: string | null
+          db_table?: string | null
+          field_key: string
+          id?: string
+          is_required?: boolean | null
+          notes?: string | null
+          pms_lockable?: boolean | null
+          pms_populated?: boolean | null
+          section?: string | null
+          tab?: string | null
+          ui_label: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data_type?: string | null
+          db_column?: string | null
+          db_table?: string | null
+          field_key?: string
+          id?: string
+          is_required?: boolean | null
+          notes?: string | null
+          pms_lockable?: boolean | null
+          pms_populated?: boolean | null
+          section?: string | null
+          tab?: string | null
+          ui_label?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       financial_metrics: {
         Row: {
           cash_balance_usd: number | null
@@ -970,6 +1109,154 @@ export type Database = {
           },
         ]
       }
+      onboarding_fields: {
+        Row: {
+          created_at: string | null
+          field_key: string
+          help_text: string | null
+          id: string
+          is_active: boolean | null
+          is_pms_lockable: boolean | null
+          is_required: boolean | null
+          label_override: string | null
+          order_index: number
+          score_weight: number | null
+          step_id: string | null
+          updated_at: string | null
+          validation_rules: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          field_key: string
+          help_text?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_pms_lockable?: boolean | null
+          is_required?: boolean | null
+          label_override?: string | null
+          order_index: number
+          score_weight?: number | null
+          step_id?: string | null
+          updated_at?: string | null
+          validation_rules?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          field_key?: string
+          help_text?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_pms_lockable?: boolean | null
+          is_required?: boolean | null
+          label_override?: string | null
+          order_index?: number
+          score_weight?: number | null
+          step_id?: string | null
+          updated_at?: string | null
+          validation_rules?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_fields_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onboarding_steps: {
+        Row: {
+          component_type: string | null
+          created_at: string | null
+          custom_component_path: string | null
+          description: string | null
+          estimated_minutes: number | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          is_required: boolean | null
+          order_index: number
+          step_key: string
+          title: string
+          updated_at: string | null
+          weight: number | null
+          wizard_id: string | null
+        }
+        Insert: {
+          component_type?: string | null
+          created_at?: string | null
+          custom_component_path?: string | null
+          description?: string | null
+          estimated_minutes?: number | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_required?: boolean | null
+          order_index: number
+          step_key: string
+          title: string
+          updated_at?: string | null
+          weight?: number | null
+          wizard_id?: string | null
+        }
+        Update: {
+          component_type?: string | null
+          created_at?: string | null
+          custom_component_path?: string | null
+          description?: string | null
+          estimated_minutes?: number | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_required?: boolean | null
+          order_index?: number
+          step_key?: string
+          title?: string
+          updated_at?: string | null
+          weight?: number | null
+          wizard_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_steps_wizard_id_fkey"
+            columns: ["wizard_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_wizards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onboarding_wizards: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       owner_contracts: {
         Row: {
           created_at: string | null
@@ -992,6 +1279,7 @@ export type Database = {
           signing_token: string | null
           status: string
           template_version: string
+          template_version_id: string | null
           token_expires_at: string | null
           unsigned_pdf_url: string | null
           updated_at: string | null
@@ -1019,6 +1307,7 @@ export type Database = {
           signing_token?: string | null
           status?: string
           template_version?: string
+          template_version_id?: string | null
           token_expires_at?: string | null
           unsigned_pdf_url?: string | null
           updated_at?: string | null
@@ -1046,13 +1335,22 @@ export type Database = {
           signing_token?: string | null
           status?: string
           template_version?: string
+          template_version_id?: string | null
           token_expires_at?: string | null
           unsigned_pdf_url?: string | null
           updated_at?: string | null
           version?: number
           viewed_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "owner_contracts_template_version_id_fkey"
+            columns: ["template_version_id"]
+            isOneToOne: false
+            referencedRelation: "contract_template_versions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       owner_pms_credentials: {
         Row: {
@@ -2582,6 +2880,39 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      wizard_audit_log: {
+        Row: {
+          action: string | null
+          after_state: Json | null
+          before_state: Json | null
+          changed_at: string | null
+          changed_by: string | null
+          entity_id: string
+          entity_type: string | null
+          id: string
+        }
+        Insert: {
+          action?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          changed_at?: string | null
+          changed_by?: string | null
+          entity_id: string
+          entity_type?: string | null
+          id?: string
+        }
+        Update: {
+          action?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          changed_at?: string | null
+          changed_by?: string | null
+          entity_id?: string
+          entity_type?: string | null
+          id?: string
         }
         Relationships: []
       }
