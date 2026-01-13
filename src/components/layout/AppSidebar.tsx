@@ -131,7 +131,6 @@ export function AppSidebar() {
     const saved = localStorage.getItem("sidebar-collapsed");
     return saved ? JSON.parse(saved) : false;
   });
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [systemOpen, setSystemOpen] = useState(false);
   const [editAuditOpen, setEditAuditOpen] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
@@ -323,28 +322,11 @@ export function AppSidebar() {
           </div>
         </div>
 
-        {/* Settings - Admin only with nested sub-menus */}
+        {/* Settings - Admin only (not collapsible, always visible) */}
         {isAdmin && (
-          <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
-            <CollapsibleTrigger asChild>
-              <button
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
-                  "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  "text-sidebar-foreground/70"
-                )}
-              >
-                <Settings className="h-4 w-4 shrink-0" />
-                {!collapsed && (
-                  <>
-                    <span className="flex-1 text-left text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">Settings</span>
-                    <ChevronDown className={cn("h-3 w-3 transition-transform", settingsOpen && "rotate-180")} />
-                  </>
-                )}
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-1 mt-1">
-              {/* Core settings items */}
+          <div>
+            <SectionLabel>Settings</SectionLabel>
+            <div className="space-y-1">
               {coreSettingsItems.map((item) => (
                 <NavLink key={item.href} item={item} />
               ))}
@@ -359,62 +341,68 @@ export function AppSidebar() {
                   }}
                 />
               )}
+            </div>
+          </div>
+        )}
 
-              {/* System sub-menu - Dev only */}
-              {isDev && (
-                <Collapsible open={systemOpen} onOpenChange={setSystemOpen}>
-                  <CollapsibleTrigger asChild>
-                    <button
-                      className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all ml-2",
-                        "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                        "text-sidebar-foreground/60"
-                      )}
-                    >
-                      <Server className="h-3.5 w-3.5 shrink-0" />
-                      {!collapsed && (
-                        <>
-                          <span className="flex-1 text-left text-[9px] font-semibold uppercase tracking-wider">System</span>
-                          <ChevronDown className={cn("h-3 w-3 transition-transform", systemOpen && "rotate-180")} />
-                        </>
-                      )}
-                    </button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="space-y-1 mt-1 ml-4">
-                    {systemItems.map((item) => (
-                      <NavLink key={item.href} item={item} />
-                    ))}
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
+        {/* System - Dev only (collapsible, collapsed by default) */}
+        {isDev && (
+          <div>
+            <Collapsible open={systemOpen} onOpenChange={setSystemOpen}>
+              <CollapsibleTrigger asChild>
+                <button
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
+                    "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    "text-sidebar-foreground/70"
+                  )}
+                >
+                  <Server className="h-4 w-4 shrink-0" />
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1 text-left text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">System</span>
+                      <ChevronDown className={cn("h-3 w-3 transition-transform", systemOpen && "rotate-180")} />
+                    </>
+                  )}
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-1 mt-1">
+                {systemItems.map((item) => (
+                  <NavLink key={item.href} item={item} />
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+        )}
 
-              {/* Edit & Audit sub-menu */}
-              <Collapsible open={editAuditOpen} onOpenChange={setEditAuditOpen}>
-                <CollapsibleTrigger asChild>
-                  <button
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all ml-2",
-                      "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                      "text-sidebar-foreground/60"
-                    )}
-                  >
-                    <PenSquare className="h-3.5 w-3.5 shrink-0" />
-                    {!collapsed && (
-                      <>
-                        <span className="flex-1 text-left text-[9px] font-semibold uppercase tracking-wider">Edit & Audit</span>
-                        <ChevronDown className={cn("h-3 w-3 transition-transform", editAuditOpen && "rotate-180")} />
-                      </>
-                    )}
-                  </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-1 mt-1 ml-4">
-                  {editAuditItems.map((item) => (
-                    <NavLink key={item.href} item={item} />
-                  ))}
-                </CollapsibleContent>
-              </Collapsible>
-            </CollapsibleContent>
-          </Collapsible>
+        {/* Edit & Audit - Admin only (collapsible, collapsed by default) */}
+        {isAdmin && (
+          <div>
+            <Collapsible open={editAuditOpen} onOpenChange={setEditAuditOpen}>
+              <CollapsibleTrigger asChild>
+                <button
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
+                    "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    "text-sidebar-foreground/70"
+                  )}
+                >
+                  <PenSquare className="h-4 w-4 shrink-0" />
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1 text-left text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">Edit & Audit</span>
+                      <ChevronDown className={cn("h-3 w-3 transition-transform", editAuditOpen && "rotate-180")} />
+                    </>
+                  )}
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-1 mt-1">
+                {editAuditItems.map((item) => (
+                  <NavLink key={item.href} item={item} />
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
         )}
 
         {/* Help - visible to all authenticated users */}
