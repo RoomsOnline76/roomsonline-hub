@@ -953,6 +953,144 @@ export type Database = {
         }
         Relationships: []
       }
+      itineraries: {
+        Row: {
+          brochure_generated_at: string | null
+          brochure_pdf_url: string | null
+          created_at: string
+          currency: string
+          expires_at: string | null
+          guest_email: string | null
+          guest_name: string | null
+          guest_phone: string | null
+          id: string
+          session_id: string | null
+          special_requests: string | null
+          status: string
+          stays: Json
+          title: string | null
+          total_nights: number
+          total_price: number
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          brochure_generated_at?: string | null
+          brochure_pdf_url?: string | null
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          guest_email?: string | null
+          guest_name?: string | null
+          guest_phone?: string | null
+          id?: string
+          session_id?: string | null
+          special_requests?: string | null
+          status?: string
+          stays?: Json
+          title?: string | null
+          total_nights?: number
+          total_price?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          brochure_generated_at?: string | null
+          brochure_pdf_url?: string | null
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          guest_email?: string | null
+          guest_name?: string | null
+          guest_phone?: string | null
+          id?: string
+          session_id?: string | null
+          special_requests?: string | null
+          status?: string
+          stays?: Json
+          title?: string | null
+          total_nights?: number
+          total_price?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      itinerary_bookings: {
+        Row: {
+          booking_id: string
+          created_at: string
+          error_message: string | null
+          external_reservation_id: string | null
+          id: string
+          itinerary_id: string
+          property_id: string | null
+          status: string
+          stay_index: number
+          updated_at: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          error_message?: string | null
+          external_reservation_id?: string | null
+          id?: string
+          itinerary_id: string
+          property_id?: string | null
+          status?: string
+          stay_index: number
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          error_message?: string | null
+          external_reservation_id?: string | null
+          id?: string
+          itinerary_id?: string
+          property_id?: string | null
+          status?: string
+          stay_index?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "itinerary_bookings_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "itinerary_bookings_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "itinerary_bookings_itinerary_id_fkey"
+            columns: ["itinerary_id"]
+            isOneToOne: false
+            referencedRelation: "itineraries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "itinerary_bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "itinerary_bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journals: {
         Row: {
           author_id: string | null

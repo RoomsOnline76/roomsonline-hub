@@ -5,7 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { MobileBookingProvider } from "@/contexts/MobileBookingContext";
+import { ItineraryProvider } from "@/contexts/ItineraryContext";
 import { RecaptchaProvider } from "@/components/RecaptchaProvider";
+import JourneyReview from "./pages/JourneyReview";
 import Home from "./pages/Home";
 import HomeOld from "./pages/HomeOld";
 import StagingBook from "./pages/StagingBook";
@@ -75,6 +77,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <CurrencyProvider>
       <MobileBookingProvider>
+        <ItineraryProvider>
         <RecaptchaProvider>
           <TooltipProvider>
             <Toaster />
@@ -377,12 +380,15 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            {/* Journey routes */}
+            <Route path="/journey/review" element={<JourneyReview />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
           </BrowserRouter>
         </TooltipProvider>
       </RecaptchaProvider>
+      </ItineraryProvider>
     </MobileBookingProvider>
     </CurrencyProvider>
   </QueryClientProvider>
