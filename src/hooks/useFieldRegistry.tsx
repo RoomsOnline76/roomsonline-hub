@@ -19,21 +19,72 @@ export interface FieldRegistryEntry {
   updated_at: string;
 }
 
-// Local field map type from JSON
-interface LocalFieldEntry {
-  ui_label: string;
-  db_table: string;
-  db_column: string;
-  data_type: string;
-  is_required: boolean;
-  pms_populated: boolean;
-  pms_lockable: boolean;
-  section: string;
-  tab?: string;
+// Local field map JSON structure
+interface JsonFieldEntry {
+  uiLabel: string;
+  stateVariable: string;
+  dbTable: string | null;
+  dbColumn: string | null;
+  dataType: string;
+  required: boolean;
+  pmsPopulated: boolean;
+  pmsLockable: boolean;
   notes?: string;
 }
 
-type LocalFieldMap = Record<string, LocalFieldEntry>;
+interface JsonSection {
+  sectionLabel: string;
+  fields: JsonFieldEntry[];
+}
+
+interface JsonTab {
+  tabLabel: string;
+  tabValue: string;
+  description: string;
+  sections: Record<string, JsonSection>;
+}
+
+interface PropertyFieldMap {
+  version: string;
+  lastUpdated: string;
+  description: string;
+  databaseTables: Record<string, string>;
+  tabs: Record<string, JsonTab>;
+  summary: Record<string, unknown>;
+}
+
+// Helper to flatten the nested JSON structure
+function flattenFieldMap(fieldMap: PropertyFieldMap): Omit<FieldRegistryEntry, "id" | "created_at" | "updated_at">[] {
+  const entries: Omit<FieldRegistryEntry, "id" | "created_at" | "updated_at">[] = [];
+
+  for (const [tabKey, tab] of Object.entries(fieldMap.tabs)) {
+    for (const [sectionKey, section] of Object.entries(tab.sections)) {
+      for (const field of section.fields) {
+        // Generate a unique field_key from stateVariable
+        const fieldKey = field.stateVariable
+          .replace("formData.", "")
+          .replace("roomFormData.", "room_")
+          .replace(/\./g, "_");
+
+        entries.push({
+          field_key: fieldKey,
+          ui_label: field.uiLabel,
+          db_table: field.dbTable,
+          db_column: field.dbColumn,
+          data_type: field.dataType,
+          is_required: field.required,
+          pms_populated: field.pmsPopulated,
+          pms_lockable: field.pmsLockable,
+          section: section.sectionLabel,
+          tab: tab.tabLabel,
+          notes: field.notes || null,
+        });
+      }
+    }
+  }
+
+  return entries;
+}
 
 export function useFieldRegistry() {
   return useQuery({
@@ -58,25 +109,9 @@ export function useLocalFieldMap() {
     queryFn: async () => {
       // Dynamically import the field map
       const fieldMapModule = await import("@/../docs/property-form-field-map.json");
-      const fieldMap = fieldMapModule.default as LocalFieldMap;
+      const fieldMap = fieldMapModule.default as unknown as PropertyFieldMap;
       
-      // Transform to array format
-      const entries: Omit<FieldRegistryEntry, "id" | "created_at" | "updated_at">[] = 
-        Object.entries(fieldMap).map(([key, value]) => ({
-          field_key: key,
-          ui_label: value.ui_label,
-          db_table: value.db_table,
-          db_column: value.db_column,
-          data_type: value.data_type,
-          is_required: value.is_required,
-          pms_populated: value.pms_populated,
-          pms_lockable: value.pms_lockable,
-          section: value.section,
-          tab: value.tab || null,
-          notes: value.notes || null,
-        }));
-
-      return entries;
+      return flattenFieldMap(fieldMap);
     },
   });
 }
@@ -106,7 +141,8 @@ export function useSyncFieldRegistry() {
     mutationFn: async () => {
       // Dynamically import the field map
       const fieldMapModule = await import("@/../docs/property-form-field-map.json");
-      const fieldMap = fieldMapModule.default as LocalFieldMap;
+      const fieldMap = fieldMapModule.default as unknown as PropertyFieldMap;
+      
       // Get existing entries
       const { data: existing } = await supabase
         .from("field_registry")
@@ -114,20 +150,8 @@ export function useSyncFieldRegistry() {
 
       const existingKeys = new Set(existing?.map((e) => e.field_key) || []);
 
-      // Prepare entries to insert/update
-      const entries = Object.entries(fieldMap).map(([key, value]) => ({
-        field_key: key,
-        ui_label: value.ui_label,
-        db_table: value.db_table,
-        db_column: value.db_column,
-        data_type: value.data_type,
-        is_required: value.is_required,
-        pms_populated: value.pms_populated,
-        pms_lockable: value.pms_lockable,
-        section: value.section,
-        tab: value.tab || null,
-        notes: value.notes || null,
-      }));
+      // Flatten and prepare entries
+      const entries = flattenFieldMap(fieldMap);
 
       // Upsert all entries
       const { error } = await supabase

@@ -89,7 +89,7 @@ export function useContractTemplate(templateId: string | undefined) {
       const typedVersions = (versions || []).map(v => ({
         ...v,
         status: v.status as ContractTemplateVersion["status"],
-        variables_schema: (v.variables_schema || {}) as VariablesSchema,
+        variables_schema: (v.variables_schema as unknown as VariablesSchema) || {},
       }));
 
       const currentVersion = typedVersions.find(
