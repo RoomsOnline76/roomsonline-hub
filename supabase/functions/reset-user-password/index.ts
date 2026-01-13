@@ -41,19 +41,19 @@ serve(async (req) => {
       );
     }
 
-    // Use admin client to verify the JWT token - this works server-side
+    // Use getClaims to validate the JWT token server-side
     const token = authHeader.replace('Bearer ', '');
-    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+    const { data: claimsData, error: claimsError } = await supabaseAdmin.auth.getClaims(token);
 
-    if (userError || !userData?.user) {
-      console.error('Auth error:', userError);
+    if (claimsError || !claimsData?.claims) {
+      console.error('Auth error:', claimsError);
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const userId = userData.user.id;
+    const userId = claimsData.claims.sub as string;
 
     // Check if user is admin or dev
     const { data: roleData, error: roleError } = await supabaseAdmin
