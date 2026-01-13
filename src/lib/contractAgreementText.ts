@@ -57,7 +57,7 @@ export function generateContractHTML(property?: PropertyContractDetails): string
     </tbody>
   </table>
 
-  <h2 class="text-lg font-semibold mb-3">2. THE PROPERTY</h2>
+  <h2 class="text-lg font-semibold mb-3">2. THE PROPERTY and/or PORTFOLIO</h2>
   ${propertySection}
 
   <h2 class="text-lg font-semibold mb-3">3. COMMISSION AND FEES</h2>
