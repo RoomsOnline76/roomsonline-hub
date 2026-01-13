@@ -20,6 +20,7 @@ import { PMSTrackerStatus } from "@/lib/pmsTrackerConfig";
 import { PMSListingSelector, type PMSListing } from "@/components/pms/PMSListingSelector";
 import { SyncStatusIndicator } from "@/components/pms/SyncStatusIndicator";
 import { IntegrationStatusDropdown, type PmsIntegrationStatus } from "@/components/pms/IntegrationStatusDropdown";
+import { BankExportConfigCard } from "@/components/bank-export";
 import {
   Key,
   AlertCircle,
@@ -4021,6 +4022,14 @@ export default function AdminKeys() {
           )}
           {pmsKeys.map(renderKeyCard)}
         </Accordion>
+      </div>
+
+      {/* Financial Services Section */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Financial Services</h2>
+        <div className="space-y-4">
+          <BankExportConfigCard />
+        </div>
       </div>
 
       {/* Additional Services Section */}
