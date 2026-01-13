@@ -6,10 +6,11 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
   requireDev?: boolean;
+  requireDevOrFearless?: boolean;
 }
 
-export function ProtectedRoute({ children, requireAdmin = false, requireDev = false }: ProtectedRouteProps) {
-  const { user, loading, isAdmin, isDev } = useAuth();
+export function ProtectedRoute({ children, requireAdmin = false, requireDev = false, requireDevOrFearless = false }: ProtectedRouteProps) {
+  const { user, loading, isAdmin, isDev, isFearlessLeader } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -20,9 +21,11 @@ export function ProtectedRoute({ children, requireAdmin = false, requireDev = fa
         navigate("/");
       } else if (requireDev && !isDev) {
         navigate("/");
+      } else if (requireDevOrFearless && !isDev && !isFearlessLeader) {
+        navigate("/");
       }
     }
-  }, [user, loading, isAdmin, isDev, requireAdmin, requireDev, navigate]);
+  }, [user, loading, isAdmin, isDev, isFearlessLeader, requireAdmin, requireDev, requireDevOrFearless, navigate]);
 
   if (loading) {
     return (
@@ -32,7 +35,7 @@ export function ProtectedRoute({ children, requireAdmin = false, requireDev = fa
     );
   }
 
-  if (!user || (requireAdmin && !isAdmin) || (requireDev && !isDev)) {
+  if (!user || (requireAdmin && !isAdmin) || (requireDev && !isDev) || (requireDevOrFearless && !isDev && !isFearlessLeader)) {
     return null;
   }
 

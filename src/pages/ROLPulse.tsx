@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
 
 const ROLPulse = () => {
-  const { isAdmin, isDev, loading } = useAuth();
+  const { isDev, isFearlessLeader, loading } = useAuth();
 
   // Wait for auth to resolve before checking permissions
   if (loading) {
@@ -18,8 +18,8 @@ const ROLPulse = () => {
     );
   }
 
-  // Only admin/dev can access this page
-  if (!isAdmin && !isDev) {
+  // Only dev/fearless_leader can access - admins excluded
+  if (!isDev && !isFearlessLeader) {
     return <Navigate to="/dashboard/reports" replace />;
   }
 

@@ -3248,7 +3248,7 @@ export type Database = {
       trigger_system_health_check: { Args: never; Returns: undefined }
     }
     Enums: {
-      app_role: "admin" | "user" | "dev"
+      app_role: "admin" | "user" | "dev" | "fearless_leader"
       audit_action_type:
         | "create"
         | "update"
@@ -3401,7 +3401,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user", "dev"],
+      app_role: ["admin", "user", "dev", "fearless_leader"],
       audit_action_type: [
         "create",
         "update",
