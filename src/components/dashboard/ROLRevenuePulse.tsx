@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { CalendarIcon, DollarSign, Percent, Hash, TrendingUp, Receipt } from "lucide-react";
+import { CalendarIcon, DollarSign, Percent, Hash, TrendingUp, Receipt, Landmark } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -26,6 +26,7 @@ import { TopPropertiesTable } from "./TopPropertiesTable";
 import { RiskIndicators } from "./RiskIndicators";
 import { PropertyAcquisitionTracker } from "./PropertyAcquisitionTracker";
 import { AccountingDashboard } from "@/components/insights/AccountingDashboard";
+import { BankExportDashboard } from "@/components/bank-export";
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("en-ZA", {
@@ -111,6 +112,10 @@ export function ROLRevenuePulse() {
           <TabsTrigger value="revenue" className="gap-2">
             <TrendingUp className="h-4 w-4" />
             Revenue
+          </TabsTrigger>
+          <TabsTrigger value="bank-exports" className="gap-2">
+            <Landmark className="h-4 w-4" />
+            Bank Exports
           </TabsTrigger>
           <TabsTrigger value="accounting" className="gap-2">
             <Receipt className="h-4 w-4" />
@@ -297,6 +302,10 @@ export function ROLRevenuePulse() {
 
       {/* Property Acquisition & PMS Distribution */}
       <PropertyAcquisitionTracker />
+      </TabsContent>
+
+      <TabsContent value="bank-exports" className="mt-0">
+        <BankExportDashboard />
       </TabsContent>
 
       <TabsContent value="accounting" className="mt-0">
