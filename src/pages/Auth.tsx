@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -31,11 +31,13 @@ function AuthContent() {
   const [forgotEmailSent, setForgotEmailSent] = useState(false);
   
   // Password reset state - check URL hash for recovery token on initial load
-  const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
-    // Check if URL contains recovery token to prevent flash
+  // Use ref to track synchronously (prevents race condition with SIGNED_IN event)
+  const initialRecoveryCheck = () => {
     const hash = window.location.hash;
     return hash.includes('type=recovery') || hash.includes('type=signup');
-  });
+  };
+  const isRecoveryModeRef = useRef<boolean>(initialRecoveryCheck());
+  const [isRecoveryMode, setIsRecoveryMode] = useState(isRecoveryModeRef.current);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   
@@ -51,17 +53,20 @@ function AuthContent() {
   useEffect(() => {
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth event:', event);
+      console.log('Auth event:', event, 'isRecoveryModeRef:', isRecoveryModeRef.current);
       
       if (event === 'PASSWORD_RECOVERY') {
         // User clicked the password reset link - show password reset form
+        // Update ref synchronously to prevent race condition with SIGNED_IN event
+        isRecoveryModeRef.current = true;
         setIsRecoveryMode(true);
         toast({
           title: "Set your new password",
           description: "Please enter a new password below",
         });
-      } else if (event === 'SIGNED_IN' && session && !isRecoveryMode) {
+      } else if (event === 'SIGNED_IN' && session && !isRecoveryModeRef.current) {
         // Normal sign in (not during password recovery)
+        // Use ref for synchronous check - state may not have updated yet
         toast({
           title: "Welcome back!",
           description: "Successfully logged in",
@@ -71,14 +76,15 @@ function AuthContent() {
     });
 
     // Check for existing session (but not if we're in recovery mode)
+    // Use ref for synchronous check
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session && !isRecoveryMode) {
+      if (session && !isRecoveryModeRef.current) {
         navigate("/");
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, toast, isRecoveryMode]);
+  }, [navigate, toast]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,6 +184,8 @@ function AuthContent() {
         description: "Your password has been reset successfully",
       });
       
+      // Reset both ref and state
+      isRecoveryModeRef.current = false;
       setIsRecoveryMode(false);
       setNewPassword("");
       setConfirmPassword("");
