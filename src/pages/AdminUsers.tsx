@@ -115,11 +115,13 @@ export default function AdminUsers() {
       // Get property counts for each user
       const usersWithData = await Promise.all(
         (profiles || []).map(async (profile) => {
-          // Get all roles for this user and prioritize: dev > admin > user
+          // Get all roles for this user and prioritize: dev > fearless_leader > admin > user
           const userRoles = roles?.filter(r => r.user_id === profile.id).map(r => r.role) || [];
           let primaryRole = "user";
           if (userRoles.includes("dev")) {
             primaryRole = "dev";
+          } else if (userRoles.includes("fearless_leader")) {
+            primaryRole = "fearless_leader";
           } else if (userRoles.includes("admin")) {
             primaryRole = "admin";
           } else if (userRoles.includes("user")) {
@@ -495,6 +497,11 @@ export default function AdminUsers() {
                                 <div className="flex items-center gap-1 px-2 py-1 border rounded bg-muted/50 w-fit">
                                   <Shield className="h-3 w-3 text-primary" />
                                   <span className="text-xs font-medium">Dev</span>
+                                </div>
+                              ) : user.role === "fearless_leader" ? (
+                                <div className="flex items-center gap-1 px-2 py-1 border rounded bg-muted/50 w-fit">
+                                  <Shield className="h-3 w-3 text-accent" />
+                                  <span className="text-xs font-medium">Fearless Leader</span>
                                 </div>
                               ) : (
                                 <Select

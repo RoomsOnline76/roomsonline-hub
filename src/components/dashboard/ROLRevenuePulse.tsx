@@ -4,7 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, DollarSign, Percent, Hash, TrendingUp } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { CalendarIcon, DollarSign, Percent, Hash, TrendingUp, Receipt } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -22,6 +25,7 @@ import { ChannelBreakdownChart } from "./ChannelBreakdownChart";
 import { TopPropertiesTable } from "./TopPropertiesTable";
 import { RiskIndicators } from "./RiskIndicators";
 import { PropertyAcquisitionTracker } from "./PropertyAcquisitionTracker";
+import { AccountingDashboard } from "@/components/insights/AccountingDashboard";
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("en-ZA", {
@@ -57,8 +61,9 @@ export function ROLRevenuePulse() {
     from: subDays(new Date(), 30),
     to: new Date(),
   });
+  const [showYoY, setShowYoY] = useState(false);
 
-  const { data, isLoading, error } = useROLPulseData(dateRange);
+  const { data, isLoading, error } = useROLPulseData(dateRange, showYoY);
 
   const handleDateSelect = (range: CalendarRange | undefined) => {
     if (range?.from && range?.to) {
@@ -100,11 +105,23 @@ export function ROLRevenuePulse() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Date Range Selector */}
+    <Tabs defaultValue="revenue" className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">ROL Revenue Pulse</h2>
-        <div className="flex items-center gap-2">
+        <TabsList>
+          <TabsTrigger value="revenue" className="gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Revenue
+          </TabsTrigger>
+          <TabsTrigger value="accounting" className="gap-2">
+            <Receipt className="h-4 w-4" />
+            Accounting
+          </TabsTrigger>
+        </TabsList>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Switch id="yoy-mode" checked={showYoY} onCheckedChange={setShowYoY} />
+            <Label htmlFor="yoy-mode" className="text-xs cursor-pointer">Y-on-Y</Label>
+          </div>
           {presetRanges.map((preset) => (
             <Button
               key={preset.label}
@@ -136,6 +153,8 @@ export function ROLRevenuePulse() {
           </Popover>
         </div>
       </div>
+
+      <TabsContent value="revenue" className="space-y-4 mt-0">
 
       {/* Tier 1: KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -278,6 +297,11 @@ export function ROLRevenuePulse() {
 
       {/* Property Acquisition & PMS Distribution */}
       <PropertyAcquisitionTracker />
-    </div>
+      </TabsContent>
+
+      <TabsContent value="accounting" className="mt-0">
+        <AccountingDashboard />
+      </TabsContent>
+    </Tabs>
   );
 }

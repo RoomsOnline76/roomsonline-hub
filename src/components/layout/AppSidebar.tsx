@@ -100,7 +100,7 @@ const workspaceItems: NavItem[] = [
 const insightsItems: NavItem[] = [
   { title: "Property Pulse", icon: BarChart3, href: "/dashboard/reports" },
   { title: "Revenue Pulse", icon: TrendingUp, href: "/pulse", requireDevOrFearless: true },
-  { title: "Intelligence", icon: Search, href: "/dashboard/insights", requireAdmin: true },
+  { title: "Intelligence", icon: Search, href: "/dashboard/insights", requireDevOrFearless: true },
 ];
 
 // Settings - Admin only

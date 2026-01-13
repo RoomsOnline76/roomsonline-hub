@@ -245,7 +245,7 @@ const App = () => (
           <Route
             path="/dashboard/insights"
             element={
-              <ProtectedRoute requireAdmin={true}>
+              <ProtectedRoute requireDevOrFearless={true}>
                 <Insights />
               </ProtectedRoute>
             }
