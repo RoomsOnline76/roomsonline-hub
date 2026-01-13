@@ -6,3 +6,4 @@ export { ImpactBadge } from "./ImpactBadge";
 export { HelpSearch } from "./HelpSearch";
 export { HelpFeedback } from "./HelpFeedback";
 export { HelpMarkdownRenderer } from "./HelpMarkdownRenderer";
+export { TobiAssistant } from "./TobiAssistant";
