@@ -131,7 +131,7 @@ export function HelpDrawer() {
     getArticleBySlug,
   } = useHelp();
 
-  const [activeTab, setActiveTab] = useState<"browse" | "tobi">("browse");
+  const [activeTab, setActiveTab] = useState<"browse" | "tobi">("tobi");
 
   const currentArticle = currentArticleSlug
     ? getArticleBySlug(currentArticleSlug)
@@ -201,13 +201,13 @@ export function HelpDrawer() {
             <div className="pt-3 space-y-3">
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "browse" | "tobi")}>
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="browse" className="gap-2">
-                    <BookOpen className="h-4 w-4" />
-                    Browse Articles
-                  </TabsTrigger>
                   <TabsTrigger value="tobi" className="gap-2">
                     <Cat className="h-4 w-4" />
                     Ask TOBI
+                  </TabsTrigger>
+                  <TabsTrigger value="browse" className="gap-2">
+                    <BookOpen className="h-4 w-4" />
+                    Browse Articles
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
