@@ -61,16 +61,23 @@ serve(async (req) => {
       }
     );
 
-    // Check if user is admin
+    // Check if user is admin or dev
     const { data: roleData, error: roleError } = await supabaseAdmin
       .from('user_roles')
       .select('role')
       .eq('user_id', userId)
-      .eq('role', 'admin')
-      .maybeSingle();
+      .in('role', ['admin', 'dev']);
 
-    if (roleError || !roleData) {
+    if (roleError) {
       console.error('Role check error:', roleError);
+      return new Response(
+        JSON.stringify({ error: 'Error checking permissions' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!roleData || roleData.length === 0) {
+      console.error('User lacks admin/dev role:', userId);
       return new Response(
         JSON.stringify({ error: 'Unauthorized - Admin access required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
