@@ -1,4 +1,4 @@
-// Bank Export System Types - Phase 1
+// Bank Export System Types - Phase 1 & 2
 
 export type LedgerSourceType = 'booking' | 'adjustment' | 'refund' | 'fee';
 export type LedgerStatus = 'pending' | 'eligible' | 'locked' | 'exported' | 'reversed';
@@ -109,13 +109,27 @@ export type BankExportAction =
   | 'promote_to_eligible'
   | 'get_ledger_summary'
   | 'get_eligible_entries'
-  | 'health_check';
+  | 'health_check'
+  // Phase 2 actions
+  | 'create_batch'
+  | 'get_batches'
+  | 'get_batch_details'
+  | 'validate_batch'
+  | 'submit_signoff'
+  | 'generate_csv'
+  | 'cancel_batch';
 
 export interface BankExportRequest {
   action: BankExportAction;
   booking_id?: string;
   ledger_id?: string;
   property_id?: string;
+  batch_id?: string;
+  bank_provider?: BankProvider;
+  property_ids?: string[];
+  acknowledgment_text?: string;
+  reason?: string;
+  status?: BatchStatus;
   filters?: {
     status?: LedgerStatus;
     property_id?: string;
@@ -174,4 +188,40 @@ export interface BookingForLedger {
   check_out_date: string;
   status: string;
   payment_status: string | null;
+}
+
+// Batch Validation Result
+export interface BatchValidationResult {
+  batch_id: string;
+  is_valid: boolean;
+  errors: string[];
+  warnings: string[];
+  total_amount: number;
+  record_count: number;
+}
+
+// Batch Details Response
+export interface BatchDetailsResponse {
+  batch: ExportBatch & {
+    profiles?: { email: string; full_name: string };
+  };
+  lines: (ExportLine & { properties?: { name: string } })[];
+  signoffs: FinancialSignoff[];
+  has_dev_signoff: boolean;
+  has_fl_signoff: boolean;
+}
+
+// CSV Generation Response
+export interface CSVGenerationResponse {
+  csv_content: string;
+  filename: string;
+  total_amount: number;
+  record_count: number;
+}
+
+// Create Batch Response
+export interface CreateBatchResponse {
+  batch: ExportBatch;
+  lines: ExportLine[];
+  skipped_properties: Array<{ property_id: string; reason: string }>;
 }

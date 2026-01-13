@@ -50,6 +50,81 @@ interface LedgerEntry {
   };
 }
 
+interface ExportBatch {
+  id: string;
+  batch_reference: string;
+  batch_sequence: number;
+  bank_provider: string;
+  export_format: string;
+  total_records: number;
+  total_amount: number;
+  status: string;
+  created_by: string;
+  created_at: string;
+  exported_at: string | null;
+  profiles?: {
+    email: string;
+    full_name: string;
+  };
+}
+
+interface ExportLine {
+  id: string;
+  batch_id: string;
+  property_id: string;
+  beneficiary_name: string;
+  bank_name: string;
+  branch_code: string;
+  account_number_masked: string;
+  amount: number;
+  payment_reference: string;
+  ledger_ids: string[];
+  ledger_count: number;
+  status: string;
+  properties?: {
+    name: string;
+  };
+}
+
+interface FinancialSignoff {
+  id: string;
+  batch_id: string;
+  user_id: string;
+  user_email: string;
+  user_role: string;
+  signed_at: string;
+}
+
+interface BatchDetails {
+  batch: ExportBatch;
+  lines: ExportLine[];
+  signoffs: FinancialSignoff[];
+  has_dev_signoff: boolean;
+  has_fl_signoff: boolean;
+}
+
+interface BatchValidationResult {
+  batch_id: string;
+  is_valid: boolean;
+  errors: string[];
+  warnings: string[];
+  total_amount: number;
+  record_count: number;
+}
+
+interface CreateBatchResponse {
+  batch: ExportBatch;
+  lines: ExportLine[];
+  skipped_properties: Array<{ property_id: string; reason: string }>;
+}
+
+interface CSVGenerationResponse {
+  csv_content: string;
+  filename: string;
+  total_amount: number;
+  record_count: number;
+}
+
 interface BankExportResponse<T> {
   success: boolean;
   data: T | null;
@@ -76,6 +151,8 @@ async function callBankExportApi<T>(action: string, params: Record<string, unkno
   return data.data as T;
 }
 
+// ==================== PHASE 1 HOOKS ====================
+
 // Hook: Get ledger summary
 export function useLedgerSummary() {
   const { user, isDev, isFearlessLeader } = useAuth();
@@ -85,7 +162,7 @@ export function useLedgerSummary() {
     queryKey: ["bank-export", "ledger-summary"],
     queryFn: () => callBankExportApi<LedgerSummary>("get_ledger_summary"),
     enabled: !!user && hasAccess,
-    staleTime: 30000, // 30 seconds
+    staleTime: 30000,
   });
 }
 
@@ -157,7 +234,7 @@ export function useBankExportHealthCheck() {
     queryKey: ["bank-export", "health"],
     queryFn: () => callBankExportApi<{ status: string; timestamp: string }>("health_check"),
     enabled: !!user && hasAccess,
-    staleTime: 60000, // 1 minute
+    staleTime: 60000,
   });
 }
 
@@ -203,5 +280,136 @@ export function useAllBankDetails() {
       return data;
     },
     enabled: !!user && hasAccess,
+  });
+}
+
+// ==================== PHASE 2 HOOKS ====================
+
+// Hook: Get all batches
+export function useBatches(status?: string) {
+  const { user, isDev, isFearlessLeader } = useAuth();
+  const hasAccess = isDev || isFearlessLeader;
+
+  return useQuery({
+    queryKey: ["bank-export", "batches", status],
+    queryFn: () => callBankExportApi<ExportBatch[]>("get_batches", {
+      status: status || undefined,
+    }),
+    enabled: !!user && hasAccess,
+  });
+}
+
+// Hook: Get batch details
+export function useBatchDetails(batchId?: string) {
+  const { user, isDev, isFearlessLeader } = useAuth();
+  const hasAccess = isDev || isFearlessLeader;
+
+  return useQuery({
+    queryKey: ["bank-export", "batch-details", batchId],
+    queryFn: () => callBankExportApi<BatchDetails>("get_batch_details", { batch_id: batchId }),
+    enabled: !!user && hasAccess && !!batchId,
+  });
+}
+
+// Hook: Create batch
+export function useCreateBatch() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ bankProvider, propertyIds }: { bankProvider: string; propertyIds?: string[] }) =>
+      callBankExportApi<CreateBatchResponse>("create_batch", {
+        bank_provider: bankProvider,
+        property_ids: propertyIds,
+      }),
+    onSuccess: (data) => {
+      toast.success(`Batch ${data.batch.batch_reference} created with ${data.lines.length} payouts`);
+      queryClient.invalidateQueries({ queryKey: ["bank-export"] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to create batch: ${error.message}`);
+    },
+  });
+}
+
+// Hook: Validate batch
+export function useValidateBatch() {
+  return useMutation({
+    mutationFn: (batchId: string) =>
+      callBankExportApi<BatchValidationResult>("validate_batch", { batch_id: batchId }),
+    onError: (error: Error) => {
+      toast.error(`Validation failed: ${error.message}`);
+    },
+  });
+}
+
+// Hook: Submit signoff
+export function useSubmitSignoff() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ batchId, acknowledgmentText }: { batchId: string; acknowledgmentText: string }) =>
+      callBankExportApi<{ signoff: FinancialSignoff; batch_status: string; has_both_signoffs: boolean }>(
+        "submit_signoff",
+        { batch_id: batchId, acknowledgment_text: acknowledgmentText }
+      ),
+    onSuccess: (data) => {
+      if (data.has_both_signoffs) {
+        toast.success("Batch approved! Both signoffs received.");
+      } else {
+        toast.success("Signoff recorded. Awaiting second signoff.");
+      }
+      queryClient.invalidateQueries({ queryKey: ["bank-export"] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Signoff failed: ${error.message}`);
+    },
+  });
+}
+
+// Hook: Generate CSV
+export function useGenerateCSV() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (batchId: string) =>
+      callBankExportApi<CSVGenerationResponse>("generate_csv", { batch_id: batchId }),
+    onSuccess: (data) => {
+      // Trigger download
+      const blob = new Blob([data.csv_content], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = data.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast.success(`Exported ${data.filename}`);
+      queryClient.invalidateQueries({ queryKey: ["bank-export"] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Export failed: ${error.message}`);
+    },
+  });
+}
+
+// Hook: Cancel batch
+export function useCancelBatch() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ batchId, reason }: { batchId: string; reason?: string }) =>
+      callBankExportApi<{ batch_id: string; status: string; unlocked_entries: number }>(
+        "cancel_batch",
+        { batch_id: batchId, reason }
+      ),
+    onSuccess: (data) => {
+      toast.success(`Batch cancelled. ${data.unlocked_entries} entries unlocked.`);
+      queryClient.invalidateQueries({ queryKey: ["bank-export"] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Cancel failed: ${error.message}`);
+    },
   });
 }
