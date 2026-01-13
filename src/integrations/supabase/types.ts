@@ -2349,6 +2349,78 @@ export type Database = {
           },
         ]
       }
+      property_bank_details: {
+        Row: {
+          account_holder: string
+          account_number_encrypted: string
+          account_number_masked: string
+          account_type: string | null
+          bank_name: string
+          branch_code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_verified: boolean
+          property_id: string
+          swift_code: string | null
+          updated_at: string
+          verification_method: string | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          account_holder: string
+          account_number_encrypted: string
+          account_number_masked: string
+          account_type?: string | null
+          bank_name: string
+          branch_code: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_verified?: boolean
+          property_id: string
+          swift_code?: string | null
+          updated_at?: string
+          verification_method?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          account_holder?: string
+          account_number_encrypted?: string
+          account_number_masked?: string
+          account_type?: string | null
+          bank_name?: string
+          branch_code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_verified?: boolean
+          property_id?: string
+          swift_code?: string | null
+          updated_at?: string
+          verification_method?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_bank_details_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_bank_details_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_commercial_terms: {
         Row: {
           contract_status: string | null
@@ -2618,6 +2690,286 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rol_bank_export_batches: {
+        Row: {
+          bank_provider: string
+          batch_reference: string
+          batch_sequence: number
+          created_at: string
+          created_by: string
+          export_file_url: string | null
+          export_format: string
+          exported_at: string | null
+          exported_by: string | null
+          failed_at: string | null
+          failure_reason: string | null
+          id: string
+          status: string
+          total_amount: number
+          total_records: number
+          updated_at: string
+        }
+        Insert: {
+          bank_provider: string
+          batch_reference: string
+          batch_sequence?: number
+          created_at?: string
+          created_by: string
+          export_file_url?: string | null
+          export_format?: string
+          exported_at?: string | null
+          exported_by?: string | null
+          failed_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          status?: string
+          total_amount?: number
+          total_records?: number
+          updated_at?: string
+        }
+        Update: {
+          bank_provider?: string
+          batch_reference?: string
+          batch_sequence?: number
+          created_at?: string
+          created_by?: string
+          export_file_url?: string | null
+          export_format?: string
+          exported_at?: string | null
+          exported_by?: string | null
+          failed_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          status?: string
+          total_amount?: number
+          total_records?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      rol_bank_export_lines: {
+        Row: {
+          account_number_encrypted: string
+          account_number_masked: string
+          amount: number
+          bank_name: string
+          batch_id: string
+          beneficiary_name: string
+          branch_code: string
+          created_at: string
+          currency: string
+          failure_code: string | null
+          failure_reason: string | null
+          id: string
+          ledger_count: number
+          ledger_ids: string[]
+          payment_reference: string
+          property_id: string
+          status: string
+        }
+        Insert: {
+          account_number_encrypted: string
+          account_number_masked: string
+          amount: number
+          bank_name: string
+          batch_id: string
+          beneficiary_name: string
+          branch_code: string
+          created_at?: string
+          currency?: string
+          failure_code?: string | null
+          failure_reason?: string | null
+          id?: string
+          ledger_count: number
+          ledger_ids: string[]
+          payment_reference: string
+          property_id: string
+          status?: string
+        }
+        Update: {
+          account_number_encrypted?: string
+          account_number_masked?: string
+          amount?: number
+          bank_name?: string
+          batch_id?: string
+          beneficiary_name?: string
+          branch_code?: string
+          created_at?: string
+          currency?: string
+          failure_code?: string | null
+          failure_reason?: string | null
+          id?: string
+          ledger_count?: number
+          ledger_ids?: string[]
+          payment_reference?: string
+          property_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rol_bank_export_lines_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "rol_bank_export_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rol_bank_export_lines_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rol_bank_export_lines_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rol_financial_signoffs: {
+        Row: {
+          acknowledgment_text: string
+          batch_id: string
+          id: string
+          ip_address: string
+          ip_hash: string
+          signature_hash: string
+          signed_at: string
+          user_agent: string | null
+          user_email: string
+          user_id: string
+          user_role: string
+        }
+        Insert: {
+          acknowledgment_text: string
+          batch_id: string
+          id?: string
+          ip_address: string
+          ip_hash: string
+          signature_hash: string
+          signed_at?: string
+          user_agent?: string | null
+          user_email: string
+          user_id: string
+          user_role: string
+        }
+        Update: {
+          acknowledgment_text?: string
+          batch_id?: string
+          id?: string
+          ip_address?: string
+          ip_hash?: string
+          signature_hash?: string
+          signed_at?: string
+          user_agent?: string | null
+          user_email?: string
+          user_id?: string
+          user_role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rol_financial_signoffs_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "rol_bank_export_batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rol_revenue_ledger: {
+        Row: {
+          commission_amount: number
+          commission_rate: number
+          created_at: string
+          currency: string
+          eligible_at: string | null
+          escrow_release_date: string | null
+          export_batch_id: string | null
+          exported_at: string | null
+          gross_amount: number
+          id: string
+          idempotency_key: string
+          immutable_hash: string
+          net_amount: number
+          property_id: string
+          reversal_reason: string | null
+          reverses_ledger_id: string | null
+          source_id: string
+          source_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          commission_amount: number
+          commission_rate: number
+          created_at?: string
+          currency?: string
+          eligible_at?: string | null
+          escrow_release_date?: string | null
+          export_batch_id?: string | null
+          exported_at?: string | null
+          gross_amount: number
+          id?: string
+          idempotency_key: string
+          immutable_hash: string
+          net_amount?: number
+          property_id: string
+          reversal_reason?: string | null
+          reverses_ledger_id?: string | null
+          source_id: string
+          source_type: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          commission_amount?: number
+          commission_rate?: number
+          created_at?: string
+          currency?: string
+          eligible_at?: string | null
+          escrow_release_date?: string | null
+          export_batch_id?: string | null
+          exported_at?: string | null
+          gross_amount?: number
+          id?: string
+          idempotency_key?: string
+          immutable_hash?: string
+          net_amount?: number
+          property_id?: string
+          reversal_reason?: string | null
+          reverses_ledger_id?: string | null
+          source_id?: string
+          source_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rol_revenue_ledger_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rol_revenue_ledger_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rol_revenue_ledger_reverses_ledger_id_fkey"
+            columns: ["reverses_ledger_id"]
+            isOneToOne: false
+            referencedRelation: "rol_revenue_ledger"
             referencedColumns: ["id"]
           },
         ]
