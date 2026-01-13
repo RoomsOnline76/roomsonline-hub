@@ -73,8 +73,7 @@ serve(async (req) => {
           property_id,
           properties (
             id,
-            name,
-            pms_system
+            name
           )
         `)
         .gte("check_in_date", startDate)
@@ -93,7 +92,7 @@ serve(async (req) => {
       // Calculate Tier 2: Channel breakdown
       const channelBreakdown: Record<string, { gbv: number; commission: number; count: number }> = {};
       paidBookings.forEach(b => {
-        const channel = b.properties?.pms_system || b.booking_channel || "Direct";
+        const channel = b.booking_channel || "Direct";
         if (!channelBreakdown[channel]) {
           channelBreakdown[channel] = { gbv: 0, commission: 0, count: 0 };
         }
