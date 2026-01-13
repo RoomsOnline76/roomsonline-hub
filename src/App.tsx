@@ -51,6 +51,8 @@ import ContractSign from "./pages/ContractSign";
 import PropertyOnboarding from "./pages/PropertyOnboarding";
 import AdminContracts from "./pages/AdminContracts";
 import AdminOnboarding from "./pages/AdminOnboarding";
+import AdminContractEditor from "./pages/AdminContractEditor";
+import AdminWizardEditor from "./pages/AdminWizardEditor";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -331,6 +333,38 @@ const App = () => (
               element={
                 <ProtectedRoute requireAdmin={true}>
                   <AdminOnboarding />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/contract-editor"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminContractEditor />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/contract-editor/:templateId"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminContractEditor />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/wizard-editor"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminWizardEditor />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/wizard-editor/:wizardId"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminWizardEditor />
                 </ProtectedRoute>
               }
             />
