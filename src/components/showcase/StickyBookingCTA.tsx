@@ -1,10 +1,12 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { stickyCtaReveal } from '@/lib/motion';
 import { Button } from '@/components/ui/button';
 import { FormattedPrice } from '@/components/FormattedPrice';
-import { ArrowRight, ExternalLink, Check } from 'lucide-react';
+import { ArrowRight, ExternalLink, Check, MapPin, Compass } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useItinerary } from '@/contexts/ItineraryContext';
 
 interface StickyBookingCTAProps {
   onBook: () => void;
@@ -12,10 +14,15 @@ interface StickyBookingCTAProps {
   isExternal?: boolean;
   bookedRoomsCount?: number;
   propertyName?: string;
+  propertyId?: string;
+  propertySlug?: string;
+  propertyImage?: string;
+  externalSystem?: string;
 }
 
 /**
  * Scroll-aware sticky CTA that evolves with context
+ * Now supports "Add to Your Journey" flow
  */
 export function StickyBookingCTA({
   onBook,
@@ -23,7 +30,13 @@ export function StickyBookingCTA({
   isExternal = false,
   bookedRoomsCount = 0,
   propertyName,
+  propertyId,
+  propertySlug,
+  propertyImage,
+  externalSystem,
 }: StickyBookingCTAProps) {
+  const navigate = useNavigate();
+  const { hasStays, stayCount } = useItinerary();
   const [isVisible, setIsVisible] = useState(false);
   const [scrollContext, setScrollContext] = useState<'hero' | 'rooms' | 'checkout'>('hero');
 
@@ -51,7 +64,12 @@ export function StickyBookingCTA({
     return () => window.removeEventListener('scroll', handleScroll);
   }, [bookedRoomsCount]);
 
+  const handleViewJourney = () => {
+    navigate('/journey/review');
+  };
+
   const getButtonContent = () => {
+    // If user has rooms selected for this property, show checkout
     if (bookedRoomsCount > 0) {
       return (
         <>
@@ -61,6 +79,7 @@ export function StickyBookingCTA({
       );
     }
 
+    // External properties still use "Book Now"
     if (isExternal) {
       return (
         <>
@@ -70,18 +89,20 @@ export function StickyBookingCTA({
       );
     }
 
+    // Journey-based CTAs
     switch (scrollContext) {
       case 'rooms':
         return (
           <>
-            Select Your Room
-            <ArrowRight className="ml-2 h-4 w-4" />
+            <Compass className="mr-2 h-4 w-4" />
+            Add to Journey
           </>
         );
       default:
         return (
           <>
-            Book Your Escape
+            <MapPin className="mr-2 h-4 w-4" />
+            Explore Rooms
             <ArrowRight className="ml-2 h-4 w-4" />
           </>
         );
@@ -116,18 +137,33 @@ export function StickyBookingCTA({
                 ) : null}
               </div>
 
-              {/* CTA Button */}
-              <Button
-                size="lg"
-                onClick={onBook}
-                className={cn(
-                  "flex-1 sm:flex-none min-w-[200px]",
-                  "bg-primary hover:bg-primary/90 text-primary-foreground",
-                  "shadow-lg spring-bounce"
+              <div className="flex items-center gap-3 flex-1 sm:flex-none justify-end">
+                {/* View Journey button if user has stays */}
+                {hasStays && (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={handleViewJourney}
+                    className="hidden sm:flex items-center gap-2"
+                  >
+                    <MapPin className="h-4 w-4" />
+                    View Journey ({stayCount})
+                  </Button>
                 )}
-              >
-                {getButtonContent()}
-              </Button>
+
+                {/* Main CTA Button */}
+                <Button
+                  size="lg"
+                  onClick={onBook}
+                  className={cn(
+                    "flex-1 sm:flex-none min-w-[200px]",
+                    "bg-primary hover:bg-primary/90 text-primary-foreground",
+                    "shadow-lg spring-bounce"
+                  )}
+                >
+                  {getButtonContent()}
+                </Button>
+              </div>
             </div>
           </div>
         </motion.div>

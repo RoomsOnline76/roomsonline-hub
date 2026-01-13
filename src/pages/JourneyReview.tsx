@@ -41,7 +41,7 @@ export default function JourneyReview() {
     }).format(amount);
   };
 
-  const handleProceedToCheckout = async () => {
+  const handleProceedToCheckout = () => {
     if (!guestDetails.name || !guestDetails.email) {
       toast({
         title: 'Guest details required',
@@ -51,23 +51,8 @@ export default function JourneyReview() {
       return;
     }
 
-    setIsSaving(true);
-    const itineraryId = await saveToDatabase();
-    setIsSaving(false);
-
-    if (itineraryId) {
-      toast({
-        title: 'Journey saved',
-        description: 'Proceeding to checkout...'
-      });
-      navigate(`/journey/checkout/${itineraryId}`);
-    } else {
-      toast({
-        title: 'Error saving journey',
-        description: 'Please try again.',
-        variant: 'destructive'
-      });
-    }
+    // Navigate to checkout page (saving happens there)
+    navigate('/journey/checkout');
   };
 
   if (!hasStays) {

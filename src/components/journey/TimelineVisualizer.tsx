@@ -6,9 +6,10 @@ import { cn } from '@/lib/utils';
 interface TimelineVisualizerProps {
   stays: ItineraryStay[];
   className?: string;
+  compact?: boolean;
 }
 
-export function TimelineVisualizer({ stays, className }: TimelineVisualizerProps) {
+export function TimelineVisualizer({ stays, className, compact = false }: TimelineVisualizerProps) {
   if (stays.length === 0) return null;
 
   // Sort stays by check-in date
@@ -38,6 +39,34 @@ export function TimelineVisualizer({ stays, className }: TimelineVisualizerProps
       checkOutDate
     };
   });
+
+  // Compact view for smaller spaces
+  if (compact) {
+    return (
+      <div className={cn("flex items-center gap-2 overflow-x-auto pb-2", className)}>
+        {sortedStays.map((stay, index) => (
+          <div key={stay.id} className="flex items-center">
+            <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg whitespace-nowrap">
+              <MapPin className="h-3 w-3 text-primary" />
+              <span className="text-sm font-medium">{stay.property_name}</span>
+              <span className="text-xs text-muted-foreground">
+                {format(new Date(stay.dates.check_in), 'MMM d')}
+              </span>
+            </div>
+            {index < sortedStays.length - 1 && (
+              <div className="w-6 h-px bg-border mx-1" />
+            )}
+          </div>
+        ))}
+        <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg whitespace-nowrap">
+          <Plane className="h-3 w-3 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">
+            {format(lastCheckOut, 'MMM d')}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("py-8", className)}>
