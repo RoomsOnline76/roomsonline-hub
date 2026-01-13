@@ -272,9 +272,13 @@ export type Database = {
       bookings: {
         Row: {
           adults: number
+          booking_channel: string | null
+          calculated_commission: number | null
           check_in_date: string
           check_out_date: string
           children: number | null
+          commission_calculated_at: string | null
+          commission_rate_applied: number | null
           created_at: string | null
           external_reservation_id: string | null
           guest_email: string
@@ -304,9 +308,13 @@ export type Database = {
         }
         Insert: {
           adults?: number
+          booking_channel?: string | null
+          calculated_commission?: number | null
           check_in_date: string
           check_out_date: string
           children?: number | null
+          commission_calculated_at?: string | null
+          commission_rate_applied?: number | null
           created_at?: string | null
           external_reservation_id?: string | null
           guest_email: string
@@ -336,9 +344,13 @@ export type Database = {
         }
         Update: {
           adults?: number
+          booking_channel?: string | null
+          calculated_commission?: number | null
           check_in_date?: string
           check_out_date?: string
           children?: number | null
+          commission_calculated_at?: string | null
+          commission_rate_applied?: number | null
           created_at?: string | null
           external_reservation_id?: string | null
           guest_email?: string
@@ -2337,6 +2349,69 @@ export type Database = {
           },
         ]
       }
+      property_commercial_terms: {
+        Row: {
+          contract_status: string | null
+          created_at: string | null
+          created_by: string | null
+          document_url: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          notes: string | null
+          property_id: string
+          revenue_share_percent: number
+          signed_at: string | null
+          signed_by: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          contract_status?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          document_url?: string | null
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          notes?: string | null
+          property_id: string
+          revenue_share_percent?: number
+          signed_at?: string | null
+          signed_by?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          contract_status?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          document_url?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          notes?: string | null
+          property_id?: string
+          revenue_share_percent?: number
+          signed_at?: string | null
+          signed_by?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_commercial_terms_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_commercial_terms_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_contracts: {
         Row: {
           created_at: string | null
@@ -3121,6 +3196,7 @@ export type Database = {
       }
     }
     Functions: {
+      can_view_rol_pulse: { Args: { user_id: string }; Returns: boolean }
       decrypt_sensitive_text: {
         Args: { encrypted_data: string }
         Returns: string

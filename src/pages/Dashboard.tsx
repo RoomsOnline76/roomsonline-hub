@@ -22,6 +22,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 import { getPMSSystemByKey } from "@/lib/pmsSystemsConfig";
+import { PulseViewToggle, ROLRevenuePulse } from "@/components/dashboard";
 
 // Colors for pie charts - using HSL values that work in both light/dark modes
 const PIE_COLORS = [
@@ -36,7 +37,8 @@ const PIE_COLORS = [
 ];
 
 const Dashboard = () => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isDev } = useAuth();
+  const [pulseView, setPulseView] = useState<"property" | "rol">("property");
   const [period, setPeriod] = useState("this_month");
   const [comparePrevYear, setComparePrevYear] = useState(true);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("all");
