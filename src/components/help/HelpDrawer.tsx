@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronDown, ChevronRight, X, BookOpen, FileText, Users, Shield, Code2, Mail } from "lucide-react";
+import { ChevronLeft, ChevronDown, ChevronRight, X, BookOpen, FileText, Users, Shield, Code2, Mail, Printer } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -26,6 +26,7 @@ import { HelpFeedback } from "./HelpFeedback";
 import { ImpactBadge } from "./ImpactBadge";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { printHelpArticle, printHelpSection } from "./HelpPrintUtils";
 
 interface SectionGroupProps {
   title: string;
@@ -34,14 +35,20 @@ interface SectionGroupProps {
   defaultOpen?: boolean;
   onArticleClick: (slug: string) => void;
   defaultExpandedSections?: string[];
+  onPrintSection?: (sectionLabel: string, articles: any[]) => void;
 }
 
-function SectionGroup({ title, icon, sections, defaultOpen = false, onArticleClick, defaultExpandedSections = [] }: SectionGroupProps) {
+function SectionGroup({ title, icon, sections, defaultOpen = false, onArticleClick, defaultExpandedSections = [], onPrintSection }: SectionGroupProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   if (sections.length === 0) return null;
 
   const articleCount = sections.reduce((sum, s) => sum + s.articles.length, 0);
+
+  const handlePrintSection = (e: React.MouseEvent, sectionLabel: string, articles: any[]) => {
+    e.stopPropagation();
+    onPrintSection?.(sectionLabel, articles);
+  };
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -61,9 +68,20 @@ function SectionGroup({ title, icon, sections, defaultOpen = false, onArticleCli
         <Accordion type="multiple" defaultValue={defaultExpandedSections}>
           {sections.map((section) => (
             <AccordionItem key={section.name} value={section.name} className="border-none">
-              <AccordionTrigger className="text-sm font-medium hover:no-underline py-2">
-                {section.label}
-              </AccordionTrigger>
+              <div className="flex items-center justify-between">
+                <AccordionTrigger className="text-sm font-medium hover:no-underline py-2 flex-1">
+                  {section.label}
+                </AccordionTrigger>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-60 hover:opacity-100"
+                  onClick={(e) => handlePrintSection(e, section.label, section.articles)}
+                  title={`Print ${section.label}`}
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                </Button>
+              </div>
               <AccordionContent>
                 <div className="space-y-1 pl-1">
                   {section.articles.map((article) => (
@@ -185,7 +203,20 @@ export function HelpDrawer() {
                 <HelpMarkdownRenderer content={currentArticle.content_markdown} />
                 <div className="pt-4 border-t border-border space-y-4">
                   <HelpFeedback articleId={currentArticle.id} />
-                  <div className="flex justify-center">
+                  <div className="flex justify-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => printHelpArticle({
+                        title: currentArticle.title,
+                        content_markdown: currentArticle.content_markdown,
+                        impact_level: currentArticle.impact_level
+                      })}
+                    >
+                      <Printer className="h-4 w-4" />
+                      Print
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -254,6 +285,7 @@ export function HelpDrawer() {
                   defaultOpen={true}
                   onArticleClick={setCurrentArticleSlug}
                   defaultExpandedSections={adminSections.length > 0 ? [adminSections[0].name] : []}
+                  onPrintSection={(label, articles) => printHelpSection(label, articles)}
                 />
                 
                 <SectionGroup
@@ -262,6 +294,7 @@ export function HelpDrawer() {
                   sections={ownerSections}
                   defaultOpen={false}
                   onArticleClick={setCurrentArticleSlug}
+                  onPrintSection={(label, articles) => printHelpSection(label, articles)}
                 />
                 
                 {devSections.length > 0 && (
@@ -271,6 +304,7 @@ export function HelpDrawer() {
                     sections={devSections}
                     defaultOpen={false}
                     onArticleClick={setCurrentArticleSlug}
+                    onPrintSection={(label, articles) => printHelpSection(label, articles)}
                   />
                 )}
               </div>
@@ -279,9 +313,23 @@ export function HelpDrawer() {
               <Accordion type="multiple" defaultValue={sections.length > 0 ? [sections[0].name] : []}>
                 {sections.map((section) => (
                   <AccordionItem key={section.name} value={section.name}>
-                    <AccordionTrigger className="text-sm font-medium hover:no-underline">
-                      {section.label}
-                    </AccordionTrigger>
+                    <div className="flex items-center justify-between">
+                      <AccordionTrigger className="text-sm font-medium hover:no-underline flex-1">
+                        {section.label}
+                      </AccordionTrigger>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 opacity-60 hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          printHelpSection(section.label, section.articles);
+                        }}
+                        title={`Print ${section.label}`}
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                     <AccordionContent>
                       <div className="space-y-1 pl-1">
                         {section.articles.map((article) => (
