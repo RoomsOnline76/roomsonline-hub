@@ -23,6 +23,8 @@ import {
   UserCircle,
   Server,
   PenSquare,
+  FileSignature,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -110,6 +112,8 @@ const systemItems: NavItem[] = [
 
 // Edit & Audit menu - Admin only content management
 const editAuditItems: NavItem[] = [
+  { title: "Contracts", icon: FileSignature, href: "/admin/contracts", requireAdmin: true },
+  { title: "Onboarding", icon: Sparkles, href: "/admin/onboarding", requireAdmin: true },
   { title: "Journals", icon: Newspaper, href: "/admin/journals", requireAdmin: true },
   { title: "Audit Log", icon: FileSearch, href: "/admin/audit", requireAdmin: true },
   { title: "Help Articles", icon: BookOpenCheck, href: "/admin/help-articles", requireAdmin: true },
