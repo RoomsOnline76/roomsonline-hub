@@ -37,21 +37,21 @@ serve(async (req) => {
       );
     }
 
-    // Check if user has admin/dev role
+    // Check if user has admin/dev/fearless_leader role
     const { data: roles } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
-      .in("role", ["admin", "dev"]);
+      .in("role", ["admin", "dev", "fearless_leader"]);
 
     if (!roles || roles.length === 0) {
       return new Response(
-        JSON.stringify({ error: "Access denied. Admin or dev role required." }),
+        JSON.stringify({ error: "Access denied. Admin, dev or fearless_leader role required." }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const { action, dateRange } = await req.json();
+    const { action, dateRange, showYoY } = await req.json();
     const startDate = dateRange?.start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const endDate = dateRange?.end || new Date().toISOString().split('T')[0];
 

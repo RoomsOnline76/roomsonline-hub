@@ -46,12 +46,12 @@ interface DateRange {
   end: string;
 }
 
-export function useROLPulseData(dateRange: DateRange) {
+export function useROLPulseData(dateRange: DateRange, showYoY: boolean = false) {
   const { isAdmin, isDev } = useAuth();
   const canView = isAdmin || isDev;
 
   return useQuery<ROLPulseData>({
-    queryKey: ["rol-pulse", dateRange.start, dateRange.end],
+    queryKey: ["rol-pulse", dateRange.start, dateRange.end, showYoY],
     queryFn: async () => {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
@@ -63,7 +63,8 @@ export function useROLPulseData(dateRange: DateRange) {
       const response = await supabase.functions.invoke("revenue-pulse-api", {
         body: { 
           action: "get_rol_pulse", 
-          dateRange 
+          dateRange,
+          showYoY
         },
       });
 

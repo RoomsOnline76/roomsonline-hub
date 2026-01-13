@@ -13,11 +13,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfMonth, endOfMonth, parseISO } from "date-fns";
-import { Search, Sparkles, Send, Loader2, TrendingUp, ArrowUpDown, ChevronLeft, ChevronRight, Receipt } from "lucide-react";
+import { Search, Sparkles, Send, Loader2, TrendingUp, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DateRange } from "react-day-picker";
 import { toast } from "sonner";
-import { AccountingDashboard } from "@/components/insights/AccountingDashboard";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -167,19 +166,7 @@ const Insights = () => {
         }
       />
 
-      <Tabs defaultValue="search" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="search" className="gap-2">
-            <Search className="h-4 w-4" />
-            Search Intelligence
-          </TabsTrigger>
-          <TabsTrigger value="accounting" className="gap-2">
-            <Receipt className="h-4 w-4" />
-            Accounting
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="search" className="space-y-4">
+      <div className="space-y-4">
           {/* AI Analysis - compact inline */}
           <Card>
             <CardContent className="py-3">
@@ -281,12 +268,7 @@ const Insights = () => {
             </CardContent>
           </Card>
         </div>
-        </TabsContent>
-
-        <TabsContent value="accounting">
-          <AccountingDashboard />
-        </TabsContent>
-      </Tabs>
+      </div>
     </AppLayout>
   );
 };
