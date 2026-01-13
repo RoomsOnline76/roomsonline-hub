@@ -100,9 +100,20 @@ const insightsItems: NavItem[] = [
   { title: "Intelligence", icon: Search, href: "/dashboard/insights", requireAdmin: true },
 ];
 
-// Core settings - Admin only
+// Settings - Admin only
 const coreSettingsItems: NavItem[] = [
   { title: "Team", icon: Users, href: "/admin-users", requireAdmin: true },
+  { title: "Contracts", icon: FileSignature, href: "/admin/contracts", requireAdmin: true },
+  { title: "Onboarding", icon: Sparkles, href: "/admin/onboarding", requireAdmin: true },
+];
+
+// Edit & Audit menu - Admin only content management
+const editAuditItems: NavItem[] = [
+  { title: "Journals", icon: Newspaper, href: "/admin/journals", requireAdmin: true },
+  { title: "Help Articles", icon: BookOpenCheck, href: "/admin/help-articles", requireAdmin: true },
+  { title: "Contract Editor", icon: FileEdit, href: "/admin/contract-editor", requireAdmin: true },
+  { title: "Wizard Editor", icon: Wand2, href: "/admin/wizard-editor", requireAdmin: true },
+  { title: "Audit Log", icon: FileSearch, href: "/admin/audit", requireAdmin: true },
 ];
 
 // System menu - Dev only technical items
@@ -110,17 +121,6 @@ const systemItems: NavItem[] = [
   { title: "Integrations", icon: KeyRound, href: "/admin-keys", requireDev: true },
   { title: "Supporting Systems", icon: Settings, href: "/admin/supporting-systems", requireDev: true },
   { title: "System Health", icon: HeartPulse, href: "/admin/system-health", requireDev: true },
-];
-
-// Edit & Audit menu - Admin only content management
-const editAuditItems: NavItem[] = [
-  { title: "Contracts", icon: FileSignature, href: "/admin/contracts", requireAdmin: true },
-  { title: "Contract Editor", icon: FileEdit, href: "/admin/contract-editor", requireAdmin: true },
-  { title: "Onboarding", icon: Sparkles, href: "/admin/onboarding", requireAdmin: true },
-  { title: "Wizard Editor", icon: Wand2, href: "/admin/wizard-editor", requireAdmin: true },
-  { title: "Journals", icon: Newspaper, href: "/admin/journals", requireAdmin: true },
-  { title: "Audit Log", icon: FileSearch, href: "/admin/audit", requireAdmin: true },
-  { title: "Help Articles", icon: BookOpenCheck, href: "/admin/help-articles", requireAdmin: true },
 ];
 
 export function AppSidebar() {
