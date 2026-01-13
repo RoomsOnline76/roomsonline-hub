@@ -315,9 +315,20 @@ function AuthContent() {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
                     minLength={6}
+                    className={confirmPassword && newPassword !== confirmPassword ? "border-destructive" : ""}
                   />
+                  {confirmPassword && newPassword !== confirmPassword && (
+                    <p className="text-sm text-destructive">Passwords do not match</p>
+                  )}
+                  {confirmPassword && newPassword === confirmPassword && confirmPassword.length >= 6 && (
+                    <p className="text-sm text-green-600">Passwords match ✓</p>
+                  )}
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={loading || !newPassword || !confirmPassword || newPassword !== confirmPassword || newPassword.length < 6}
+                >
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
