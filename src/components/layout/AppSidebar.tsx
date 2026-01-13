@@ -97,8 +97,8 @@ const workspaceItems: NavItem[] = [
 ];
 
 const insightsItems: NavItem[] = [
-  { title: "Pulse", icon: BarChart3, href: "/dashboard/reports" },
-  { title: "ROL Revenue Pulse", icon: TrendingUp, href: "/pulse", requireAdmin: true },
+  { title: "Property Pulse", icon: BarChart3, href: "/dashboard/reports" },
+  { title: "Revenue Pulse", icon: TrendingUp, href: "/pulse", requireAdmin: true },
   { title: "Intelligence", icon: Search, href: "/dashboard/insights", requireAdmin: true },
 ];
 
