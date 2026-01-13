@@ -96,3 +96,6 @@ verify_jwt = true
 
 [functions.validate-itinerary-availability]
 verify_jwt = false
+
+[functions.multi-push-booking]
+verify_jwt = true

@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { PublicHeader } from "./PublicHeader";
 import { PublicFooter } from "./PublicFooter";
+import { JourneyBuilder } from "@/components/journey";
 import { cn } from "@/lib/utils";
 
 interface PublicLayoutProps {
@@ -11,6 +12,7 @@ interface PublicLayoutProps {
   showCurrency?: boolean;
   hideHeader?: boolean;
   hideFooter?: boolean;
+  hideJourneyBuilder?: boolean;
   className?: string;
   contentClassName?: string;
 }
@@ -23,6 +25,7 @@ export function PublicLayout({
   showCurrency = true,
   hideHeader = false,
   hideFooter = false,
+  hideJourneyBuilder = false,
   className,
   contentClassName,
 }: PublicLayoutProps) {
@@ -47,6 +50,9 @@ export function PublicLayout({
       </main>
 
       {!hideFooter && <PublicFooter />}
+      
+      {/* Floating Journey Builder */}
+      {!hideJourneyBuilder && <JourneyBuilder />}
     </div>
   );
 }
