@@ -5,7 +5,18 @@ import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
 
 const ROLPulse = () => {
-  const { isAdmin, isDev } = useAuth();
+  const { isAdmin, isDev, loading } = useAuth();
+
+  // Wait for auth to resolve before checking permissions
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </AppLayout>
+    );
+  }
 
   // Only admin/dev can access this page
   if (!isAdmin && !isDev) {
