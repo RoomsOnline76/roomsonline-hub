@@ -255,22 +255,23 @@ serve(async (req) => {
       .update({ status: finalStatus })
       .eq("id", itinerary_id);
 
-    // If successful, trigger confirmation email
+    // If successful, trigger itinerary confirmation email
     if (!hasFailure) {
       try {
-        await fetch(`${supabaseUrl}/functions/v1/send-booking-email`, {
+        await fetch(`${supabaseUrl}/functions/v1/send-itinerary-email`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${supabaseKey}`
           },
           body: JSON.stringify({ 
-            itineraryId: itinerary_id,
-            bookingIds: successfulBookings.map(b => b.booking_id)
+            itinerary_id,
+            status: 'success'
           })
         });
+        console.log('Itinerary confirmation email triggered');
       } catch (emailError) {
-        console.error('Email notification failed:', emailError);
+        console.error('Itinerary email notification failed:', emailError);
       }
     }
 

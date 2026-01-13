@@ -9,6 +9,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { TimelineVisualizer } from '@/components/journey';
 import { ItineraryStay } from '@/contexts/ItineraryContext';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
+import html2pdf from 'html2pdf.js';
 
 export default function JourneyConfirmation() {
   const navigate = useNavigate();
@@ -46,16 +48,40 @@ export default function JourneyConfirmation() {
     setIsGeneratingPdf(true);
     
     try {
+      // Fetch HTML brochure from edge function
       const { data, error } = await supabase.functions.invoke('generate-itinerary-pdf', {
         body: { itinerary_id: itineraryId }
       });
       
       if (error) throw error;
-      if (data?.pdf_url) {
-        window.open(data.pdf_url, '_blank');
-      }
+      if (!data?.html) throw new Error('No brochure content received');
+      
+      // Create temporary container for HTML
+      const container = document.createElement('div');
+      container.innerHTML = data.html;
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      document.body.appendChild(container);
+      
+      // Generate PDF using html2pdf.js (client-side, bypasses browser print headers)
+      const opt = {
+        margin: 0,
+        filename: `journey-brochure-${itineraryId.substring(0, 8)}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      
+      await html2pdf().set(opt).from(container).save();
+      
+      // Cleanup
+      document.body.removeChild(container);
+      toast.success('Brochure downloaded!');
+      
     } catch (e) {
       console.error('PDF generation failed:', e);
+      toast.error('Failed to generate brochure. Please try again.');
     } finally {
       setIsGeneratingPdf(false);
     }
