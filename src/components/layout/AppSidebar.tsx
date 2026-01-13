@@ -88,6 +88,7 @@ interface NavItem {
   badge?: number;
   requireAdmin?: boolean;
   requireDev?: boolean;
+  requireDevOrFearless?: boolean;
 }
 
 const workspaceItems: NavItem[] = [
@@ -98,7 +99,7 @@ const workspaceItems: NavItem[] = [
 
 const insightsItems: NavItem[] = [
   { title: "Property Pulse", icon: BarChart3, href: "/dashboard/reports" },
-  { title: "Revenue Pulse", icon: TrendingUp, href: "/pulse" },
+  { title: "Revenue Pulse", icon: TrendingUp, href: "/pulse", requireDevOrFearless: true },
   { title: "Intelligence", icon: Search, href: "/dashboard/insights", requireAdmin: true },
 ];
 
@@ -118,17 +119,17 @@ const editAuditItems: NavItem[] = [
   { title: "Audit Log", icon: FileSearch, href: "/admin/audit", requireAdmin: true },
 ];
 
-// System menu - Dev only technical items
+// System menu - Dev/Fearless Leader technical items (Integrations dev-only)
 const systemItems: NavItem[] = [
   { title: "Integrations", icon: KeyRound, href: "/admin-keys", requireDev: true },
-  { title: "Supporting Systems", icon: Settings, href: "/admin/supporting-systems", requireDev: true },
-  { title: "System Health", icon: HeartPulse, href: "/admin/system-health", requireDev: true },
+  { title: "Supporting Systems", icon: Settings, href: "/admin/supporting-systems", requireDevOrFearless: true },
+  { title: "System Health", icon: HeartPulse, href: "/admin/system-health", requireDevOrFearless: true },
 ];
 
 export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAdmin, isDev, profile, signOut } = useAuth();
+  const { user, isAdmin, isDev, isFearlessLeader, profile, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
     return saved ? JSON.parse(saved) : false;
@@ -160,6 +161,7 @@ export function AppSidebar() {
   
   const canAccess = (item: NavItem) => {
     if (item.requireDev && !isDev) return false;
+    if (item.requireDevOrFearless && !isDev && !isFearlessLeader) return false;
     if (item.requireAdmin && !isAdmin) return false;
     return true;
   };
@@ -347,8 +349,8 @@ export function AppSidebar() {
           </div>
         )}
 
-        {/* System - Dev only (collapsible, collapsed by default) */}
-        {isDev && (
+        {/* System - Dev/Fearless Leader (collapsible, collapsed by default) */}
+        {(isDev || isFearlessLeader) && (
           <div>
             <Collapsible open={systemOpen} onOpenChange={setSystemOpen}>
               <CollapsibleTrigger asChild>
@@ -463,7 +465,7 @@ export function AppSidebar() {
             </button>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium truncate">{profile?.full_name || "User"}</p>
-              <p className="text-[10px] text-muted-foreground capitalize">{isDev ? "Developer" : isAdmin ? "Admin" : "Owner"}</p>
+              <p className="text-[10px] text-muted-foreground">{isDev ? "Developer" : isFearlessLeader ? "Fearless Leader" : isAdmin ? "Admin" : "Owner"}</p>
             </div>
             <Tooltip>
               <TooltipTrigger asChild>

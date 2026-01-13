@@ -16,6 +16,7 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isDev, setIsDev] = useState(false);
+  const [isFearlessLeader, setIsFearlessLeader] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
@@ -38,9 +39,11 @@ export function useAuth() {
       if (mounted) {
         const roles = rolesData?.map(r => r.role) || [];
         const hasDev = roles.includes("dev");
-        // Dev users get admin access + dev access
-        setIsAdmin(roles.includes("admin") || hasDev);
+        const hasFearlessLeader = roles.includes("fearless_leader");
+        // Dev and Fearless Leader users get admin access
+        setIsAdmin(roles.includes("admin") || hasDev || hasFearlessLeader);
         setIsDev(hasDev);
+        setIsFearlessLeader(hasFearlessLeader);
         setProfile(profileData || null);
         setLoading(false);
       }
@@ -60,6 +63,7 @@ export function useAuth() {
         } else {
           setIsAdmin(false);
           setIsDev(false);
+          setIsFearlessLeader(false);
           setProfile(null);
           setLoading(false);
         }
@@ -90,5 +94,5 @@ export function useAuth() {
     await supabase.auth.signOut();
   };
 
-  return { user, session, loading, isAdmin, isDev, profile, signOut };
+  return { user, session, loading, isAdmin, isDev, isFearlessLeader, profile, signOut };
 }

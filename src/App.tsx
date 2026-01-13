@@ -311,7 +311,7 @@ const App = () => (
           <Route
             path="/admin/system-health"
             element={
-              <ProtectedRoute requireDev={true}>
+              <ProtectedRoute requireDevOrFearless={true}>
                 <AdminSystemHealth />
               </ProtectedRoute>
             }
@@ -319,7 +319,7 @@ const App = () => (
           <Route
             path="/admin/supporting-systems"
             element={
-              <ProtectedRoute requireDev={true}>
+              <ProtectedRoute requireDevOrFearless={true}>
                 <SupportingSystems />
               </ProtectedRoute>
             }
