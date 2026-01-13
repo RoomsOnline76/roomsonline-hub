@@ -27,6 +27,7 @@ import {
   FileEdit,
   Wand2,
   Sparkles,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -97,6 +98,7 @@ const workspaceItems: NavItem[] = [
 
 const insightsItems: NavItem[] = [
   { title: "Pulse", icon: BarChart3, href: "/dashboard/reports" },
+  { title: "ROL Revenue Pulse", icon: TrendingUp, href: "/pulse", requireAdmin: true },
   { title: "Intelligence", icon: Search, href: "/dashboard/insights", requireAdmin: true },
 ];
 
