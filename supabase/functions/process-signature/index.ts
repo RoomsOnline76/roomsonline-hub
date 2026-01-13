@@ -177,6 +177,15 @@ Deno.serve(async (req) => {
         html: emailHtml.replace("Dear " + signee_name, "Dear Carike") + 
           `<p style="color: #666; font-size: 12px;">Signed by: ${signee_name} (${signee_email}) from IP: ${clientIp}</p>`,
       });
+
+      // Send to info@roomsonline.co.za
+      await resend.emails.send({
+        from: "RoomsOnline <hello@notify.roomsonline.co.za>",
+        to: "info@roomsonline.co.za",
+        subject: `[Contract Signed] ${propertiesText} - ${signee_name}`,
+        html: emailHtml.replace("Dear " + signee_name, "Dear Team") + 
+          `<p style="color: #666; font-size: 12px;">Signed by: ${signee_name} (${signee_email}) from IP: ${clientIp}</p>`,
+      });
     }
 
     return new Response(JSON.stringify({ success: true }), {
