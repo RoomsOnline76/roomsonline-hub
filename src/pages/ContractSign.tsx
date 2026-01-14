@@ -200,9 +200,39 @@ export default function ContractSign() {
     );
   }, [contract, coveredProperties, propertyDetails]);
 
+  // Convert image URL to base64 for PDF embedding
+  const imageToBase64 = (src: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        } else {
+          reject(new Error('Failed to get canvas context'));
+        }
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = src;
+    });
+  };
+
   // Handle PDF download for signed contracts
   const handleDownloadPDF = async () => {
     if (!contract) return;
+
+    // Convert logo to base64 for reliable PDF embedding
+    let logoBase64: string | undefined;
+    try {
+      logoBase64 = await imageToBase64(rolLogo);
+    } catch (e) {
+      console.warn('Failed to convert logo to base64:', e);
+    }
 
     const signatureData: SignatureData | undefined = contract.signed_at && contract.signed_by_name ? {
       signedByName: contract.signed_by_name,
@@ -258,7 +288,8 @@ export default function ContractSign() {
       pdfHtml = generatePdfFromDynamicTemplate(
         templateHtml,
         signatureData,
-        { contractId: contract.id, version: 1, downloadedAt: new Date().toISOString() }
+        { contractId: contract.id, version: 1, downloadedAt: new Date().toISOString() },
+        logoBase64
       );
     } else {
       // Fallback to hardcoded HTML
