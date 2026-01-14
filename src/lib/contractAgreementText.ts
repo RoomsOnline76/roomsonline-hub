@@ -554,9 +554,9 @@ export function generateSignedContractHTML(
   </style>
 </head>
 <body>
-  <!-- Header with Logo - Base64 embedded for PDF reliability -->
+  <!-- Header with Logo -->
   <div class="header">
-    <img src="${ROL_LOGO_BASE64}" alt="Roomsonline" style="max-width: 180px;" />
+    <img src="/images/rol-logo.png" alt="Roomsonline" style="max-width: 180px; height: auto; display: block; margin: 0 auto 8px auto;" crossorigin="anonymous" />
     <p class="tagline">Strategize • Optimize • Maximize</p>
   </div>
 

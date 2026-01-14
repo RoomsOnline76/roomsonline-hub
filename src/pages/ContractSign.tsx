@@ -192,14 +192,32 @@ export default function ContractSign() {
 
     const container = document.createElement('div');
     container.innerHTML = signedHtml;
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
     document.body.appendChild(container);
+
+    // Wait for images to load before generating PDF
+    const images = container.querySelectorAll('img');
+    await Promise.all(
+      Array.from(images).map(
+        (img) =>
+          new Promise<void>((resolve) => {
+            if (img.complete) {
+              resolve();
+            } else {
+              img.onload = () => resolve();
+              img.onerror = () => resolve(); // Continue even if image fails
+            }
+          })
+      )
+    );
 
     try {
       await html2pdf()
         .set({
           margin: [10, 10, 20, 10],
           filename: `ROL-Contract-${contract.owner_email || contract.property?.name || 'signed'}.pdf`,
-          html2canvas: { scale: 2, useCORS: true },
+          html2canvas: { scale: 2, useCORS: true, allowTaint: true },
           jsPDF: { orientation: 'portrait', format: 'a4' }
         })
         .from(container)
