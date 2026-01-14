@@ -59,6 +59,22 @@ interface ContractData {
   template_content?: string | null;
 }
 
+// Error state with more context
+interface ErrorState {
+  message: string;
+  type: 'expired' | 'not_found' | 'already_signed' | 'generic';
+  contractData?: {
+    id: string;
+    signed_at: string | null;
+    signed_by_name: string | null;
+    signed_by_email: string | null;
+    signed_by_designation: string | null;
+    signature_image_url: string | null;
+    owner_name: string | null;
+    owner_email: string | null;
+  };
+}
+
 export default function ContractSign() {
   const { token } = useParams<{ token: string }>();
 
@@ -67,7 +83,7 @@ export default function ContractSign() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [contract, setContract] = useState<ContractData | null>(null);
   const [coveredProperties, setCoveredProperties] = useState<CoveredProperty[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [errorState, setErrorState] = useState<ErrorState | null>(null);
   const [agreementExpanded, setAgreementExpanded] = useState(true);
 
   // Form state
@@ -265,7 +281,7 @@ export default function ContractSign() {
   useEffect(() => {
     async function loadContract() {
       if (!token) {
-        setError("Invalid signing link");
+        setErrorState({ message: "Invalid signing link", type: 'not_found' });
         setLoading(false);
         return;
       }
@@ -277,36 +293,40 @@ export default function ContractSign() {
 
         if (fetchError) {
           console.error("Edge function error:", fetchError);
-          setError("Failed to load contract. Please try again.");
+          setErrorState({ message: "Failed to load contract. Please try again.", type: 'generic' });
           setLoading(false);
           return;
         }
 
         if (data?.error) {
           if (data.code === "NOT_FOUND") {
-            setError("This link is invalid or has already been used. Please request another link from RoomsOnline.");
-          } else if (data.code === "EXPIRED") {
-            setError("This signing link has expired. Please request another link from RoomsOnline.");
-          } else if (data.code === "ALREADY_SIGNED") {
-            // Contract already signed - show success state
-            setContract({
-              id: data.contract.id,
-              property_id: "",
-              status: "signed",
-              token_expires_at: null,
-              unsigned_pdf_url: null,
-              pdf_url: null,
-              sent_to_email: data.contract.signee_email,
-              signed_at: data.contract.signed_at,
-              signed_by_name: data.contract.signee_name,
-              signed_by_email: data.contract.signee_email,
-              signed_by_designation: data.contract.signee_designation,
-              signature_image_url: null,
+            setErrorState({ 
+              message: "This link is invalid or has already been used.", 
+              type: 'not_found' 
             });
-            setLoading(false);
-            return;
+          } else if (data.code === "EXPIRED") {
+            setErrorState({ 
+              message: "This signing link has expired.", 
+              type: 'expired' 
+            });
+          } else if (data.code === "ALREADY_SIGNED") {
+            // Contract already signed - show special "already signed" state with download option
+            setErrorState({
+              message: "This contract has already been signed.",
+              type: 'already_signed',
+              contractData: {
+                id: data.contract.id,
+                signed_at: data.contract.signed_at,
+                signed_by_name: data.contract.signee_name,
+                signed_by_email: data.contract.signee_email,
+                signed_by_designation: data.contract.signee_designation,
+                signature_image_url: data.contract.signature_image_url || null,
+                owner_name: data.contract.owner_name,
+                owner_email: data.contract.owner_email,
+              }
+            });
           } else {
-            setError(data.error);
+            setErrorState({ message: data.error, type: 'generic' });
           }
           setLoading(false);
           return;
@@ -366,7 +386,7 @@ export default function ContractSign() {
 
       } catch (err) {
         console.error("Error loading contract:", err);
-        setError("Failed to load contract");
+        setErrorState({ message: "Failed to load contract", type: 'generic' });
       } finally {
         setLoading(false);
       }
@@ -459,8 +479,83 @@ export default function ContractSign() {
     );
   }
 
-  // Error state
-  if (error) {
+  // Error state - with different UI based on error type
+  if (errorState) {
+    // Already signed - show success message with option to request download
+    if (errorState.type === 'already_signed') {
+      const signedDate = errorState.contractData?.signed_at 
+        ? new Date(errorState.contractData.signed_at).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })
+        : null;
+      
+      return (
+        <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background flex items-center justify-center p-4">
+          <Card className="max-w-md w-full">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <img src={rolLogo} alt="RoomsOnline" className="h-10 mx-auto mb-6" />
+                <div className="h-16 w-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Check className="h-8 w-8 text-green-600" />
+                </div>
+                <h1 className="text-xl font-semibold mb-2 text-green-700">Contract Already Signed</h1>
+                <p className="text-muted-foreground mb-2">
+                  This contract was signed{errorState.contractData?.signed_by_name ? ` by ${errorState.contractData.signed_by_name}` : ''}{signedDate ? ` on ${signedDate}` : ''}.
+                </p>
+                <p className="text-sm text-muted-foreground mb-6">
+                  A signed copy was sent to the email address on file.
+                </p>
+                <div className="space-y-3">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => window.location.href = `mailto:info@roomsonline.co.za?subject=Request%20Signed%20Contract%20Copy&body=Hi%20RoomsOnline%2C%0A%0APlease%20send%20me%20another%20copy%20of%20my%20signed%20contract.%0A%0AEmail%3A%20${encodeURIComponent(errorState.contractData?.signed_by_email || errorState.contractData?.owner_email || '')}%0A%0AThank%20you.`}
+                  >
+                    <Mail className="h-4 w-4 mr-2" />
+                    Request Copy via Email
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Need help? Contact <a href="mailto:info@roomsonline.co.za" className="text-primary hover:underline">info@roomsonline.co.za</a>
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    // Expired link - show message to request new link
+    if (errorState.type === 'expired') {
+      return (
+        <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background flex items-center justify-center p-4">
+          <Card className="max-w-md w-full">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <img src={rolLogo} alt="RoomsOnline" className="h-10 mx-auto mb-6" />
+                <Clock className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+                <h1 className="text-xl font-semibold mb-2">Signing Link Expired</h1>
+                <p className="text-muted-foreground mb-6">
+                  This signing link is no longer valid. For security reasons, contract links expire after a set period.
+                </p>
+                <div className="space-y-3">
+                  <Button
+                    className="w-full"
+                    onClick={() => window.location.href = `mailto:info@roomsonline.co.za?subject=Request%20New%20Contract%20Signing%20Link&body=Hi%20RoomsOnline%2C%0A%0AMy%20contract%20signing%20link%20has%20expired.%20Please%20send%20me%20a%20new%20link.%0A%0AThank%20you.`}
+                  >
+                    <Mail className="h-4 w-4 mr-2" />
+                    Request New Signing Link
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Email <a href="mailto:info@roomsonline.co.za" className="text-primary hover:underline">info@roomsonline.co.za</a> and we'll send you a fresh link.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
+    // Not found or generic error
     return (
       <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
@@ -469,7 +564,7 @@ export default function ContractSign() {
               <img src={rolLogo} alt="RoomsOnline" className="h-10 mx-auto mb-6" />
               <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
               <h1 className="text-xl font-semibold mb-2">Unable to Load Contract</h1>
-              <p className="text-muted-foreground mb-6">{error}</p>
+              <p className="text-muted-foreground mb-6">{errorState.message}</p>
               <p className="text-sm text-muted-foreground">
                 Need help? Contact <a href="mailto:info@roomsonline.co.za" className="text-primary hover:underline">info@roomsonline.co.za</a>
               </p>
