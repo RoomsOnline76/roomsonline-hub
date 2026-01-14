@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
 
       const { data: properties } = await supabase
         .from("properties")
-        .select("id, name, slug, address, city, country, amenities")
+        .select("id, name, slug, address, city, country, property_type, amenities")
         .eq("owner_email", ownerContract.owner_email)
         .is("permanently_deleted_at", null)
         .order("name");

@@ -13,7 +13,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import { Send, Check, AlertTriangle, Clock, Loader2, Mail, ChevronDown, ChevronUp, FileText } from "lucide-react";
 import rolLogo from "@/assets/rol-logo.png";
-import { generateContractHTML, generateSignedContractHTML, PropertyContractDetails, SignatureData } from "@/lib/contractAgreementText";
+import { generateContractHTML, generateSignedContractHTML, PropertyContractDetails, SignatureData, CoveredProperty as ContractCoveredProperty } from "@/lib/contractAgreementText";
 
 interface PropertyData {
   id: string;
@@ -30,6 +30,10 @@ interface CoveredProperty {
   id: string;
   name: string;
   slug: string | null;
+  address?: string;
+  city?: string;
+  country?: string;
+  property_type?: string;
 }
 
 interface ContractData {
@@ -361,7 +365,20 @@ export default function ContractSign() {
                 <ScrollArea className="h-[500px] p-4">
                   <div 
                     className="prose prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{ __html: generateSignedContractHTML(propertyDetails, signatureData) }}
+                    dangerouslySetInnerHTML={{ 
+                      __html: generateSignedContractHTML(
+                        propertyDetails, 
+                        signatureData,
+                        { contractId: contract.id, version: 1 },
+                        coveredProperties.map(p => ({
+                          name: p.name,
+                          address: p.address,
+                          city: p.city,
+                          country: p.country,
+                          property_type: p.property_type,
+                        }))
+                      ) 
+                    }}
                   />
                 </ScrollArea>
               </div>
