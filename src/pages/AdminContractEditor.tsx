@@ -48,6 +48,7 @@ import {
   ContractTemplateVersion,
   VariablesSchema,
 } from "@/hooks/useContractTemplates";
+import { supabase } from "@/integrations/supabase/client";
 import { ContractVersionEditor } from "@/components/contract-editor/ContractVersionEditor";
 import { ContractVariablesPanel } from "@/components/contract-editor/ContractVariablesPanel";
 import { ContractPreviewPane } from "@/components/contract-editor/ContractPreviewPane";
@@ -114,10 +115,30 @@ export default function AdminContractEditor() {
     const sourceTemplate = templates?.find((t) => t.id === sourceTemplateId);
     if (!sourceTemplate) return;
 
+    // Get the source template's active version (or latest)
+    const { data: sourceVersions } = await supabase
+      .from("contract_template_versions")
+      .select("*")
+      .eq("template_id", sourceTemplateId)
+      .order("version_number", { ascending: false })
+      .limit(1);
+
+    const sourceVersion = sourceVersions?.[0];
+
+    // Create new template
     const result = await createTemplate.mutateAsync({
       name: `${sourceTemplate.name} (Copy)`,
       description: sourceTemplate.description || undefined,
     });
+
+    // If source has a version, copy its content and variables to the new template
+    if (sourceVersion) {
+      await createVersion.mutateAsync({
+        template_id: result.id,
+        content_markdown: sourceVersion.content_markdown,
+        variables_schema: (sourceVersion.variables_schema as unknown as VariablesSchema) || {},
+      });
+    }
 
     navigate(`/admin/contract-editor/${result.id}`);
   };

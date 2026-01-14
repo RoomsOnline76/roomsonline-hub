@@ -2620,6 +2620,13 @@ export default function PropertyForm() {
     fontColor: "#FFFFFF",
   });
 
+  // Business Registration fields for contract variables
+  const [registeredBusinessName, setRegisteredBusinessName] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
+  const [postalAddress, setPostalAddress] = useState("");
+  const [keyRepresentative, setKeyRepresentative] = useState("");
+
+
   // Load property data if editing (wait for owners to load first)
   useEffect(() => {
     const loadProperty = async () => {
@@ -3027,7 +3034,12 @@ export default function PropertyForm() {
           if (houseStyle.motar_api) setMotarApi(houseStyle.motar_api);
           if (houseStyle.website_colors) setWebsiteColors(houseStyle.website_colors);
 
-          // Load templates
+          // Load Business Registration fields
+          if (amenities?.registered_business_name) setRegisteredBusinessName(amenities.registered_business_name);
+          if (amenities?.mobile_number) setMobileNumber(amenities.mobile_number);
+          if (amenities?.postal_address) setPostalAddress(amenities.postal_address);
+          if (amenities?.key_representative) setKeyRepresentative(amenities.key_representative);
+
           const templates = amenities?.templates || {};
           if (templates.selected_template) setSelectedTemplate(templates.selected_template);
           // Only override default template content if one exists in the database
@@ -3417,6 +3429,14 @@ export default function PropertyForm() {
             no_street_address: noStreetAddress,
           },
           currency: formData.currency,
+          // Business Registration fields (root level for contract variables)
+          registered_business_name: registeredBusinessName || null,
+          registration_number: formData.property_registration || null,
+          vat_number: formData.has_vat ? formData.vat_number : null,
+          telephone: formData.telephone || null,
+          mobile_number: mobileNumber || null,
+          postal_address: postalAddress || null,
+          key_representative: keyRepresentative || formData.owner_name || null,
           banking: {
             has_vat: formData.has_vat,
             vat_number: formData.has_vat ? formData.vat_number : null,
@@ -4775,6 +4795,79 @@ export default function PropertyForm() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Business Registration - For Contract Variables */}
+                {selectedPMS !== "nightsbridge" && (
+                  <Card>
+                    <CardHeader className="py-2 px-4">
+                      <CardTitle className="text-sm">Business Registration</CardTitle>
+                    </CardHeader>
+                    <CardContent className="py-2 px-4 space-y-3">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="registered_business_name" className="text-xs">
+                            Registered Business Name
+                          </Label>
+                          <Input
+                            id="registered_business_name"
+                            value={registeredBusinessName}
+                            onChange={(e) => {
+                              setRegisteredBusinessName(e.target.value);
+                              setIsDirty(true);
+                            }}
+                            placeholder="e.g., Safari Lodge (Pty) Ltd"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="mobile_number" className="text-xs">
+                            Mobile Number
+                          </Label>
+                          <Input
+                            id="mobile_number"
+                            value={mobileNumber}
+                            onChange={(e) => {
+                              setMobileNumber(e.target.value);
+                              setIsDirty(true);
+                            }}
+                            placeholder="e.g., +27 82 123 4567"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Label htmlFor="key_representative" className="text-xs">
+                            Key Representative
+                          </Label>
+                          <Input
+                            id="key_representative"
+                            value={keyRepresentative}
+                            onChange={(e) => {
+                              setKeyRepresentative(e.target.value);
+                              setIsDirty(true);
+                            }}
+                            placeholder="e.g., John Smith"
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="postal_address" className="text-xs">
+                          Postal Address
+                        </Label>
+                        <Textarea
+                          id="postal_address"
+                          value={postalAddress}
+                          onChange={(e) => {
+                            setPostalAddress(e.target.value);
+                            setIsDirty(true);
+                          }}
+                          placeholder="e.g., PO Box 123, Hoedspruit, 1380"
+                          className="text-xs min-h-[50px]"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Property and Banking Details - Hidden for NightsBridge */}
                 {selectedPMS !== "nightsbridge" && (
