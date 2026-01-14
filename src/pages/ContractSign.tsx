@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { Send, Check, AlertTriangle, Clock, Loader2, Mail, ChevronDown, ChevronUp, FileText, Download } from "lucide-react";
+import { Send, Check, AlertTriangle, Clock, Loader2, Mail, ChevronDown, ChevronUp, FileText, Download, Building2 } from "lucide-react";
 import rolLogo from "@/assets/rol-logo.png";
 import { generateContractHTML, generateSignedContractHTML, generatePdfFromDynamicTemplate, PropertyContractDetails, SignatureData, CoveredProperty as ContractCoveredProperty } from "@/lib/contractAgreementText";
 import { renderContractWithVariables } from "@/hooks/useContractTemplates";
@@ -58,6 +59,23 @@ interface ContractData {
   owner_email?: string | null;
   contract_type?: 'owner' | 'property';
   template_content?: string | null;
+  is_new_owner?: boolean;
+  requires_property_details?: boolean;
+}
+
+interface PendingPropertyData {
+  property_name: string;
+  property_type: string;
+  address: string;
+  city: string;
+  country: string;
+  registered_business_name?: string;
+  registration_number?: string;
+  vat_number?: string;
+  telephone?: string;
+  mobile_number?: string;
+  postal_address?: string;
+  key_representative?: string;
 }
 
 // Error state with more context
@@ -93,6 +111,16 @@ export default function ContractSign() {
   const [signeeDesignation, setSigneeDesignation] = useState("");
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  // New owner property details form state
+  const [requiresPropertyDetails, setRequiresPropertyDetails] = useState(false);
+  const [pendingPropertyData, setPendingPropertyData] = useState<PendingPropertyData>({
+    property_name: "",
+    property_type: "",
+    address: "",
+    city: "",
+    country: "South Africa",
+  });
 
   // Email for review state
   const [emailForReview, setEmailForReview] = useState("");
@@ -408,6 +436,10 @@ export default function ContractSign() {
           setEmailForReview(emailToUse);
         }
 
+        // Check if this is a new owner who needs to provide property details
+        const needsPropertyDetails = data.requires_property_details === true;
+        setRequiresPropertyDetails(needsPropertyDetails);
+
         setContract({
           id: contractData.id,
           property_id: contractData.property_id || "",
@@ -427,6 +459,8 @@ export default function ContractSign() {
           owner_email: contractData.owner_email,
           contract_type: contractType,
           template_content: data.template_content || null,
+          is_new_owner: data.is_new_owner || false,
+          requires_property_details: needsPropertyDetails,
         });
 
       } catch (err) {
@@ -448,6 +482,15 @@ export default function ContractSign() {
       return;
     }
 
+    // Validate property details if required
+    if (requiresPropertyDetails) {
+      if (!pendingPropertyData.property_name || !pendingPropertyData.property_type || 
+          !pendingPropertyData.address || !pendingPropertyData.city || !pendingPropertyData.country) {
+        toast.error("Please complete all required property details");
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     try {
@@ -461,6 +504,7 @@ export default function ContractSign() {
           signature_data_url: signatureDataUrl,
           property_details: propertyDetails,
           contract_type: contract.contract_type || 'property',
+          pending_property_data: requiresPropertyDetails ? pendingPropertyData : undefined,
         },
       });
 
@@ -510,7 +554,11 @@ export default function ContractSign() {
     }
   };
 
-  const isFormValid = signeeName && signeeEmail && signatureDataUrl && agreedToTerms;
+  const isPropertyFormValid = !requiresPropertyDetails || (
+    pendingPropertyData.property_name && pendingPropertyData.property_type &&
+    pendingPropertyData.address && pendingPropertyData.city && pendingPropertyData.country
+  );
+  const isFormValid = signeeName && signeeEmail && signatureDataUrl && agreedToTerms && isPropertyFormValid;
 
   // Loading state
   if (loading) {
@@ -844,6 +892,106 @@ export default function ContractSign() {
             </div>
 
             <Separator />
+
+            {/* Property Details Form - for new owners */}
+            {requiresPropertyDetails && (
+              <div className="border rounded-lg p-4 bg-amber-50/50 border-amber-200">
+                <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-amber-600" />
+                  Property Details
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Please provide details about your property to complete the agreement.
+                </p>
+                <div className="grid gap-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Property Name <span className="text-destructive">*</span></Label>
+                      <Input
+                        value={pendingPropertyData.property_name}
+                        onChange={(e) => setPendingPropertyData(p => ({ ...p, property_name: e.target.value }))}
+                        placeholder="My Guest House"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Property Type <span className="text-destructive">*</span></Label>
+                      <Select
+                        value={pendingPropertyData.property_type}
+                        onValueChange={(val) => setPendingPropertyData(p => ({ ...p, property_type: val }))}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select type..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Hotel">Hotel</SelectItem>
+                          <SelectItem value="Guest House">Guest House</SelectItem>
+                          <SelectItem value="Self-Catering">Self-Catering</SelectItem>
+                          <SelectItem value="Bed & Breakfast">Bed & Breakfast</SelectItem>
+                          <SelectItem value="Lodge">Lodge</SelectItem>
+                          <SelectItem value="Boutique Hotel">Boutique Hotel</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Street Address <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={pendingPropertyData.address}
+                      onChange={(e) => setPendingPropertyData(p => ({ ...p, address: e.target.value }))}
+                      placeholder="123 Main Street"
+                    />
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>City <span className="text-destructive">*</span></Label>
+                      <Input
+                        value={pendingPropertyData.city}
+                        onChange={(e) => setPendingPropertyData(p => ({ ...p, city: e.target.value }))}
+                        placeholder="Cape Town"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Country <span className="text-destructive">*</span></Label>
+                      <Input
+                        value={pendingPropertyData.country}
+                        onChange={(e) => setPendingPropertyData(p => ({ ...p, country: e.target.value }))}
+                        placeholder="South Africa"
+                      />
+                    </div>
+                  </div>
+                  <Separator className="my-2" />
+                  <p className="text-sm font-medium">Business Registration (Optional)</p>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Registered Business Name</Label>
+                      <Input
+                        value={pendingPropertyData.registered_business_name || ""}
+                        onChange={(e) => setPendingPropertyData(p => ({ ...p, registered_business_name: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Registration Number</Label>
+                      <Input
+                        value={pendingPropertyData.registration_number || ""}
+                        onChange={(e) => setPendingPropertyData(p => ({ ...p, registration_number: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>VAT Number</Label>
+                      <Input
+                        value={pendingPropertyData.vat_number || ""}
+                        onChange={(e) => setPendingPropertyData(p => ({ ...p, vat_number: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Telephone</Label>
+                      <Input
+                        value={pendingPropertyData.telephone || ""}
+                        onChange={(e) => setPendingPropertyData(p => ({ ...p, telephone: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Signing Form */}
             <form onSubmit={handleSubmit} className="space-y-6">

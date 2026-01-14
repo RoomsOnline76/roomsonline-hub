@@ -26,11 +26,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get all properties for this owner
+    const normalizedEmail = owner_email.toLowerCase().trim();
+
+    // Check if properties exist for this owner (determines if new owner)
     const { data: properties, error: propError } = await supabase
       .from("properties")
       .select("id, name, slug, address, city, country, property_type, amenities")
-      .eq("owner_email", owner_email)
+      .eq("owner_email", normalizedEmail)
       .is("permanently_deleted_at", null)
       .order("name");
 
@@ -42,18 +44,64 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!properties || properties.length === 0) {
-      return new Response(JSON.stringify({ error: "No properties found for this owner" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const isNewOwner = !properties || properties.length === 0;
+
+    // Check if user exists and create if needed
+    let userId: string | null = null;
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("email", normalizedEmail)
+      .maybeSingle();
+
+    if (!existingProfile && isNewOwner) {
+      // Create new user with temporary password
+      const tempPassword = crypto.randomUUID();
+      const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+        email: normalizedEmail,
+        password: tempPassword,
+        email_confirm: true,
+        user_metadata: {
+          full_name: owner_name || "",
+        },
       });
+
+      if (authError && !authError.message.includes("already registered")) {
+        console.error("Error creating user:", authError);
+        // Continue anyway - user might exist
+      } else if (authUser?.user) {
+        userId = authUser.user.id;
+        console.log("Created new user:", userId);
+
+        // Create profile if it wasn't auto-created by trigger
+        const { data: profileCheck } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (!profileCheck) {
+          await supabase.from("profiles").insert({
+            id: userId,
+            email: normalizedEmail,
+            full_name: owner_name || "",
+            role: "user",
+          });
+        }
+
+        // Assign user role
+        await supabase.from("user_roles").upsert({
+          user_id: userId,
+          role: "user",
+        }, { onConflict: "user_id,role" });
+      }
     }
 
     // Get next version number
     const { data: existing } = await supabase
       .from("owner_contracts")
       .select("version")
-      .eq("owner_email", owner_email)
+      .eq("owner_email", normalizedEmail)
       .order("version", { ascending: false })
       .limit(1);
 
@@ -70,18 +118,20 @@ Deno.serve(async (req) => {
       .single();
 
     console.log("Active template version:", activeTemplate?.id || "none found");
+    console.log("Is new owner:", isNewOwner);
 
-    // Create contract record with template_version_id
+    // Create contract record with template_version_id and is_new_owner flag
     const { data: contract, error: createError } = await supabase
       .from("owner_contracts")
       .insert({
-        owner_email,
+        owner_email: normalizedEmail,
         owner_name: owner_name || null,
         status: "sent",
         version: nextVersion,
         sent_at: new Date().toISOString(),
         token_expires_at: tokenExpiresAt,
         template_version_id: activeTemplate?.id || null,
+        is_new_owner: isNewOwner,
       })
       .select()
       .single();
@@ -98,12 +148,45 @@ Deno.serve(async (req) => {
     const baseUrl = Deno.env.get("SITE_URL") || "https://roomsonline.co.za";
     const signingUrl = `${baseUrl}/contract/sign/${contract.signing_token}`;
 
-    // Generate property list HTML for email with full details
-    const propertyListHTML = properties.map(p => {
-      const location = [p.address, p.city, p.country].filter(Boolean).join(", ");
-      const propertyType = p.property_type ? ` (${p.property_type})` : '';
-      return `<li style="margin-bottom: 8px;"><strong>${p.name}</strong>${propertyType}${location ? `<br /><span style="color: #666; font-size: 12px;">${location}</span>` : ''}</li>`;
-    }).join("");
+    // Email content differs based on whether they're a new owner
+    let emailSubject: string;
+    let emailIntroHtml: string;
+    let propertiesSection: string;
+
+    if (isNewOwner) {
+      emailSubject = "Welcome to RoomsOnline - Partnership Agreement";
+      emailIntroHtml = `
+        <p style="color: #333; line-height: 1.6;">Your RoomsOnline partnership agreement is ready. As part of the signing process, you'll be able to provide details about your property.</p>
+        <p style="color: #333; line-height: 1.6;">Once you've signed, you'll receive a welcome email with instructions to set up your account and complete your property listing.</p>
+      `;
+      propertiesSection = `
+        <div style="background-color: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 16px; margin: 24px 0;">
+          <h3 style="margin: 0 0 8px 0; font-size: 16px; color: #92400e;">📝 New Property Registration</h3>
+          <p style="margin: 0; color: #78350f; font-size: 14px;">
+            When you sign the contract, you'll be asked to provide basic details about your property. This is quick and easy!
+          </p>
+        </div>
+      `;
+    } else {
+      emailSubject = "RoomsOnline Partnership Agreement - Signature Required";
+      emailIntroHtml = `
+        <p style="color: #333; line-height: 1.6;">Your RoomsOnline partnership agreement is ready for your signature. This agreement covers all your properties listed with us.</p>
+      `;
+      const propertyListHTML = properties!.map(p => {
+        const location = [p.address, p.city, p.country].filter(Boolean).join(", ");
+        const propertyType = p.property_type ? ` (${p.property_type})` : '';
+        return `<li style="margin-bottom: 8px;"><strong>${p.name}</strong>${propertyType}${location ? `<br /><span style="color: #666; font-size: 12px;">${location}</span>` : ''}</li>`;
+      }).join("");
+      
+      propertiesSection = `
+        <div style="background-color: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 24px 0;">
+          <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #2d3748;">Properties Covered (${properties!.length})</h3>
+          <ul style="margin: 0; padding-left: 20px; color: #4a5568;">
+            ${propertyListHTML}
+          </ul>
+        </div>
+      `;
+    }
 
     // Send email if Resend is configured
     if (resendKey) {
@@ -111,8 +194,8 @@ Deno.serve(async (req) => {
 
       await resend.emails.send({
         from: "RoomsOnline <hello@notify.roomsonline.co.za>",
-        to: owner_email,
-        subject: `RoomsOnline Partnership Agreement - Signature Required`,
+        to: normalizedEmail,
+        subject: emailSubject,
         html: `
 <!DOCTYPE html>
 <html>
@@ -134,15 +217,8 @@ Deno.serve(async (req) => {
           <tr>
             <td style="padding: 20px 40px;">
               <p style="color: #333; line-height: 1.6;">Dear ${owner_name || "Property Owner"},</p>
-              <p style="color: #333; line-height: 1.6;">Your RoomsOnline partnership agreement is ready for your signature. This agreement covers all your properties listed with us.</p>
-              
-              <div style="background-color: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 24px 0;">
-                <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #2d3748;">Properties Covered (${properties.length})</h3>
-                <ul style="margin: 0; padding-left: 20px; color: #4a5568;">
-                  ${propertyListHTML}
-                </ul>
-              </div>
-              
+              ${emailIntroHtml}
+              ${propertiesSection}
               <p style="color: #333; line-height: 1.6;">Please click the button below to review the full contract and sign electronically:</p>
               <div style="text-align: center; margin: 30px 0;">
                 <a href="${signingUrl}" style="display: inline-block; padding: 14px 32px; background-color: #e91e8c; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">Review & Sign Contract</a>
@@ -169,7 +245,8 @@ Deno.serve(async (req) => {
       success: true, 
       contract_id: contract.id,
       signing_url: signingUrl,
-      properties_count: properties.length,
+      properties_count: properties?.length || 0,
+      is_new_owner: isNewOwner,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

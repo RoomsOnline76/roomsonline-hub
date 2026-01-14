@@ -40,6 +40,10 @@ Deno.serve(async (req) => {
         .is("permanently_deleted_at", null)
         .order("name");
 
+      // Determine if this is a new owner who needs to provide property details
+      const isNewOwner = ownerContract.is_new_owner === true;
+      const requiresPropertyDetails = isNewOwner && (!properties || properties.length === 0);
+
       // Fetch template content if template_version_id exists
       let templateContent: string | null = null;
       let templateVariablesSchema: Record<string, unknown> | null = null;
@@ -93,6 +97,8 @@ Deno.serve(async (req) => {
         contract_type: "owner",
         template_content: templateContent,
         template_variables_schema: templateVariablesSchema,
+        requires_property_details: requiresPropertyDetails,
+        is_new_owner: isNewOwner,
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
