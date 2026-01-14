@@ -447,6 +447,9 @@ export function generateSignedContractHTML(
       margin-top: 40px;
       padding-top: 24px;
       border-top: 2px solid #1a1a1a;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      page-break-before: auto;
     }
     
     .signature-block h2 {
@@ -508,6 +511,8 @@ export function generateSignedContractHTML(
       border-top: 1px solid #ddd;
       font-size: 9pt;
       color: #666;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     
     .footer p {
