@@ -105,3 +105,9 @@ verify_jwt = false
 
 [functions.send-itinerary-email]
 verify_jwt = true
+
+[functions.process-signature]
+verify_jwt = false
+
+[functions.get-contract-by-token]
+verify_jwt = false
