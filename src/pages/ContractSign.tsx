@@ -11,7 +11,8 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { Send, Check, AlertTriangle, Clock, Loader2, Mail, ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { Send, Check, AlertTriangle, Clock, Loader2, Mail, ChevronDown, ChevronUp, FileText, Download } from "lucide-react";
+import html2pdf from 'html2pdf.js';
 import rolLogo from "@/assets/rol-logo.png";
 import { generateContractHTML, generateSignedContractHTML, PropertyContractDetails, SignatureData, CoveredProperty as ContractCoveredProperty } from "@/lib/contractAgreementText";
 import { renderContractWithVariables } from "@/hooks/useContractTemplates";
@@ -157,6 +158,56 @@ export default function ContractSign() {
       }))
     );
   }, [contract, coveredProperties, propertyDetails]);
+
+  // Handle PDF download for signed contracts
+  const handleDownloadPDF = async () => {
+    if (!contract) return;
+
+    const signatureData: SignatureData | undefined = contract.signed_at && contract.signed_by_name ? {
+      signedByName: contract.signed_by_name,
+      signedByEmail: contract.signed_by_email || '',
+      signedByDesignation: contract.signed_by_designation || undefined,
+      signatureImageUrl: signatureDataUrl || contract.signature_image_url || '',
+      signedAt: contract.signed_at,
+    } : signeeName && signatureDataUrl ? {
+      signedByName: signeeName,
+      signedByEmail: signeeEmail,
+      signedByDesignation: signeeDesignation || undefined,
+      signatureImageUrl: signatureDataUrl,
+      signedAt: new Date().toISOString(),
+    } : undefined;
+
+    const signedHtml = generateSignedContractHTML(
+      propertyDetails,
+      signatureData,
+      { contractId: contract.id, version: 1, downloadedAt: new Date().toISOString() },
+      coveredProperties.map(p => ({
+        name: p.name,
+        address: p.address,
+        city: p.city,
+        country: p.country,
+        property_type: p.property_type,
+      }))
+    );
+
+    const container = document.createElement('div');
+    container.innerHTML = signedHtml;
+    document.body.appendChild(container);
+
+    try {
+      await html2pdf()
+        .set({
+          margin: [10, 10, 20, 10],
+          filename: `ROL-Contract-${contract.owner_email || contract.property?.name || 'signed'}.pdf`,
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { orientation: 'portrait', format: 'a4' }
+        })
+        .from(container)
+        .save();
+    } finally {
+      document.body.removeChild(container);
+    }
+  };
 
   // Simple markdown to HTML converter
   function convertMarkdownToHtml(markdown: string): string {
@@ -486,15 +537,11 @@ export default function ContractSign() {
                 </ScrollArea>
               </div>
 
-              {/* Download PDF if available */}
-              {contract.pdf_url && (
-                <Button asChild variant="outline" className="w-full">
-                  <a href={contract.pdf_url} target="_blank" rel="noopener noreferrer">
-                    <FileText className="h-4 w-4 mr-2" />
-                    Download Signed PDF
-                  </a>
-                </Button>
-              )}
+              {/* Download PDF */}
+              <Button variant="outline" className="w-full" onClick={handleDownloadPDF}>
+                <Download className="h-4 w-4 mr-2" />
+                Download Signed Contract (PDF)
+              </Button>
 
               {/* Contact Info */}
               <p className="text-sm text-center text-muted-foreground">
