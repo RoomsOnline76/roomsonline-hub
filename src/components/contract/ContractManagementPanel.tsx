@@ -8,7 +8,9 @@ import { useOwnerContract } from "@/hooks/useOwnerContract";
 import { useAuth } from "@/hooks/useAuth";
 import { FileText, Send, RefreshCw, Download, Shield, AlertTriangle, Building2, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
-import { generateSignedContractHTML, PropertyContractDetails, SignatureData, ContractMetadata, CoveredProperty } from "@/lib/contractAgreementText";
+import { generateSignedContractHTML, generatePdfFromDynamicTemplate, PropertyContractDetails, SignatureData, ContractMetadata, CoveredProperty } from "@/lib/contractAgreementText";
+import { supabase } from "@/integrations/supabase/client";
+import { renderContractWithVariables } from "@/hooks/useContractTemplates";
 
 interface ContractManagementPanelProps {
   propertyId: string;
@@ -54,8 +56,8 @@ export function ContractManagementPanel({
   const canSend = !!ownerEmail;
   const showWarning = showOnWebsite && !hasValidContract;
 
-  // Generate and download contract as branded HTML (printable)
-  const handleDownloadContract = () => {
+  // Generate and download contract as branded HTML (printable) - uses dynamic template if available
+  const handleDownloadContract = async () => {
     if (!contract || contract.status !== "signed") return;
 
     // Build property details for contract generation
@@ -65,24 +67,86 @@ export function ContractManagementPanel({
       email: ownerEmail,
     };
 
-      const signatureData: SignatureData = {
-        signedByName: contract.signed_by_name || "Unknown",
-        signedByEmail: contract.signed_by_email || "",
-        signedByDesignation: contract.signed_by_designation || undefined,
-        // Use dataUrl from signature_data (base64) for reliable PDF display
-        signatureImageUrl: (contract.signature_data as any)?.dataUrl || contract.signature_image_url || "",
-        signedAt: contract.signed_at || new Date().toISOString(),
-      };
+    const signatureData: SignatureData = {
+      signedByName: contract.signed_by_name || "Unknown",
+      signedByEmail: contract.signed_by_email || "",
+      signedByDesignation: contract.signed_by_designation || undefined,
+      // Use dataUrl from signature_data (base64) for reliable PDF display
+      signatureImageUrl: (contract.signature_data as any)?.dataUrl || contract.signature_image_url || "",
+      signedAt: contract.signed_at || new Date().toISOString(),
+    };
 
-    const metadata = {
+    const metadata: ContractMetadata = {
       contractId: contract.id,
       downloadedAt: new Date().toISOString(),
       version: contract.version,
     };
 
-    const coveredProps = ownerProperties.map(p => ({ name: p.name }));
+    let htmlContent: string;
 
-    const htmlContent = generateSignedContractHTML(propertyDetails, signatureData, metadata, coveredProps);
+    // Try to fetch dynamic template content if template_version_id exists
+    if (contract.template_version_id) {
+      try {
+        const { data: templateVersion } = await supabase
+          .from('contract_template_versions')
+          .select('content_markdown')
+          .eq('id', contract.template_version_id)
+          .single();
+
+        if (templateVersion?.content_markdown) {
+          // Build covered properties list for template
+          const propertiesListHtml = ownerProperties.length > 0
+            ? `<div class="covered-properties-list">
+                <p><strong>Properties covered by this agreement:</strong></p>
+                <ul>
+                  ${ownerProperties.map(p => `<li><strong>${p.name}</strong></li>`).join('')}
+                </ul>
+              </div>`
+            : '<p><em>No properties currently linked to this owner.</em></p>';
+
+          // Render template with variables
+          const renderedMarkdown = renderContractWithVariables(
+            templateVersion.content_markdown,
+            { covered_properties_list: propertiesListHtml }
+          );
+
+          // Convert markdown to HTML
+          const renderedHtml = convertMarkdownToHtml(renderedMarkdown);
+
+          // Use dynamic template generator
+          htmlContent = generatePdfFromDynamicTemplate(
+            renderedHtml,
+            signatureData,
+            metadata
+          );
+        } else {
+          // Fallback to hardcoded generator
+          htmlContent = generateSignedContractHTML(
+            propertyDetails, 
+            signatureData, 
+            metadata, 
+            ownerProperties.map(p => ({ name: p.name }))
+          );
+        }
+      } catch (error) {
+        console.error('Failed to fetch template:', error);
+        // Fallback to hardcoded generator
+        htmlContent = generateSignedContractHTML(
+          propertyDetails, 
+          signatureData, 
+          metadata, 
+          ownerProperties.map(p => ({ name: p.name }))
+        );
+      }
+    } else {
+      // No template version - use hardcoded generator
+      htmlContent = generateSignedContractHTML(
+        propertyDetails, 
+        signatureData, 
+        metadata, 
+        ownerProperties.map(p => ({ name: p.name }))
+      );
+    }
     
     // Open in new window for print
     const printWindow = window.open('', '_blank');
@@ -91,6 +155,40 @@ export function ContractManagementPanel({
       printWindow.document.close();
     }
   };
+
+  // Simple markdown to HTML converter (same as ContractSign.tsx)
+  function convertMarkdownToHtml(markdown: string): string {
+    const ESCAPED_PIPE_PLACEHOLDER = '___PIPE___';
+    
+    return markdown
+      .replace(/\\\|/g, ESCAPED_PIPE_PLACEHOLDER)
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2 style="margin-top: 24px; margin-bottom: 12px; font-size: 1.25rem; font-weight: 600;">$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1 style="margin-bottom: 16px; font-size: 1.5rem; font-weight: 700; text-align: center;">$1</h1>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/^---$/gm, '<hr style="margin: 16px 0; border: none; border-top: 1px solid #e5e7eb;" />')
+      .replace(/\|(.+)\|/g, (match, content) => {
+        if (content.includes('---')) return '';
+        const cells = content.split('|').map((cell: string) => cell.trim());
+        const isHeader = content.includes('Field') || content.includes('Value');
+        const tag = isHeader ? 'th' : 'td';
+        const isBankRow = content.includes('Bank account');
+        const labelStyle = `padding: 8px; border: 1px solid #e5e7eb; text-align: left;${isBankRow ? ' vertical-align: top;' : ''}`;
+        const valueStyle = `padding: 8px; border: 1px solid #e5e7eb; text-align: left;`;
+        return `<tr>${cells.map((cell: string, idx: number) => {
+          const style = idx === 0 ? labelStyle : valueStyle;
+          const formattedCell = cell.replace(new RegExp(ESCAPED_PIPE_PLACEHOLDER, 'g'), '<br/>');
+          return `<${tag} style="${style}">${formattedCell}</${tag}>`;
+        }).join('')}</tr>`;
+      })
+      .replace(/(<tr>.*?<\/tr>\s*)+/gs, '<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">$&</table>')
+      .replace(new RegExp(ESCAPED_PIPE_PLACEHOLDER, 'g'), '|')
+      .replace(/^- (.+)$/gm, '<li style="margin-left: 20px;">$1</li>')
+      .replace(/^(\d+\.\d+) (.+)$/gm, '<p style="margin-left: 20px; margin-bottom: 8px;"><strong>$1</strong> $2</p>')
+      .replace(/^(?!<[h|t|l|p|u|d|hr])(.+)$/gm, '<p style="margin-bottom: 12px; line-height: 1.6;">$1</p>')
+      .replace(/<p[^>]*>\s*<\/p>/g, '');
+  }
 
   return (
     <>

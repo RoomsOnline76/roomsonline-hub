@@ -13,7 +13,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import { Send, Check, AlertTriangle, Clock, Loader2, Mail, ChevronDown, ChevronUp, FileText, Download } from "lucide-react";
 import rolLogo from "@/assets/rol-logo.png";
-import { generateContractHTML, generateSignedContractHTML, PropertyContractDetails, SignatureData, CoveredProperty as ContractCoveredProperty } from "@/lib/contractAgreementText";
+import { generateContractHTML, generateSignedContractHTML, generatePdfFromDynamicTemplate, PropertyContractDetails, SignatureData, CoveredProperty as ContractCoveredProperty } from "@/lib/contractAgreementText";
 import { renderContractWithVariables } from "@/hooks/useContractTemplates";
 
 interface PropertyData {
@@ -199,16 +199,17 @@ export default function ContractSign() {
     );
   }, [contract, coveredProperties, propertyDetails]);
 
-  // Handle PDF download for signed contracts - use same approach as ContractManagementPanel
+  // Handle PDF download for signed contracts - uses dynamic template if available
   const handleDownloadPDF = () => {
     if (!contract) return;
 
+    // Get signature data with base64 dataUrl for reliable display
+    const signatureImageSrc = (contract as any).signature_data?.dataUrl || signatureDataUrl || contract.signature_image_url || '';
     const signatureData: SignatureData | undefined = contract.signed_at && contract.signed_by_name ? {
       signedByName: contract.signed_by_name,
       signedByEmail: contract.signed_by_email || '',
       signedByDesignation: contract.signed_by_designation || undefined,
-      // Use dataUrl from signature_data (base64) for reliable display
-      signatureImageUrl: (contract as any).signature_data?.dataUrl || signatureDataUrl || contract.signature_image_url || '',
+      signatureImageUrl: signatureImageSrc,
       signedAt: contract.signed_at,
     } : signeeName && signatureDataUrl ? {
       signedByName: signeeName,
@@ -224,21 +225,32 @@ export default function ContractSign() {
       version: 1,
     };
 
-    // Always use the reliable hardcoded HTML generator
-    const htmlContent = generateSignedContractHTML(
-      propertyDetails,
-      signatureData,
-      metadata,
-      coveredProperties.map(p => ({
-        name: p.name,
-        address: p.address,
-        city: p.city,
-        country: p.country,
-        property_type: p.property_type,
-      }))
-    );
+    let htmlContent: string;
     
-    // Open in new window for print (same as ContractManagementPanel)
+    // If dynamic template is available and rendered, use it for full contract content
+    if (contract.template_content && renderedContractHtml) {
+      htmlContent = generatePdfFromDynamicTemplate(
+        renderedContractHtml,
+        signatureData,
+        metadata
+      );
+    } else {
+      // Fallback to hardcoded generator (only has 3 sections)
+      htmlContent = generateSignedContractHTML(
+        propertyDetails,
+        signatureData,
+        metadata,
+        coveredProperties.map(p => ({
+          name: p.name,
+          address: p.address,
+          city: p.city,
+          country: p.country,
+          property_type: p.property_type,
+        }))
+      );
+    }
+    
+    // Open in new window for print
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(htmlContent);
@@ -608,11 +620,13 @@ export default function ContractSign() {
 
   // Success state (after signing) - Show the full signed contract
   if (contract?.status === "signed") {
-    const signatureData: SignatureData | undefined = contract.signed_at && contract.signed_by_name && contract.signature_image_url ? {
+    // Prioritize base64 dataUrl from signature_data for reliable display
+    const signatureImageSrc = (contract as any).signature_data?.dataUrl || contract.signature_image_url || '';
+    const signatureData: SignatureData | undefined = contract.signed_at && contract.signed_by_name && signatureImageSrc ? {
       signedByName: contract.signed_by_name,
       signedByEmail: contract.signed_by_email || '',
       signedByDesignation: contract.signed_by_designation || undefined,
-      signatureImageUrl: contract.signature_image_url,
+      signatureImageUrl: signatureImageSrc,
       signedAt: contract.signed_at,
     } : undefined;
 
