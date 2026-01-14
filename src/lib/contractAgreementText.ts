@@ -56,7 +56,7 @@ export function generateContractHTML(property?: PropertyContractDetails, covered
   return `
 <div class="contract-text">
   <div class="text-center mb-6">
-    <img src="${ROL_LOGO_BASE64}" alt="RoomsOnline" class="h-12 mx-auto" />
+    <img src="${ROL_LOGO_URL}" alt="RoomsOnline" class="h-12 mx-auto" />
   </div>
   <h1 class="text-2xl font-bold text-center mb-6">ROOMSONLINE ACCOMMODATION LISTING & DISTRIBUTION AGREEMENT</h1>
   
@@ -561,7 +561,7 @@ export function generateSignedContractHTML(
 <body>
   <!-- Header with Logo - Base64 embedded for PDF reliability -->
   <div class="header">
-    <img src="${ROL_LOGO_BASE64}" alt="Roomsonline" style="max-width: 180px; height: auto; display: block; margin: 0 auto 8px auto;" />
+    <img src="${ROL_LOGO_URL}" alt="Roomsonline" style="max-width: 180px; height: auto; display: block; margin: 0 auto 8px auto;" />
     <p class="tagline">Strategize • Optimize • Maximize</p>
   </div>
 
