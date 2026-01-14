@@ -32,22 +32,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (ownerContract) {
-      if (ownerContract.status === "signed") {
-        return new Response(JSON.stringify({ 
-          contract: ownerContract,
-          properties: [],
-          code: "ALREADY_SIGNED",
-          contract_type: "owner",
-        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-
-      if (ownerContract.token_expires_at && new Date(ownerContract.token_expires_at) < new Date()) {
-        return new Response(JSON.stringify({ error: "Signing link has expired", code: "EXPIRED" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
+      // Fetch properties for this owner (needed for both signed and unsigned contracts)
       const { data: properties } = await supabase
         .from("properties")
         .select("id, name, slug, address, city, country, property_type, amenities")
@@ -69,6 +54,30 @@ Deno.serve(async (req) => {
           templateContent = templateVersion.content_markdown;
           templateVariablesSchema = templateVersion.variables_schema as Record<string, unknown>;
         }
+      }
+
+      if (ownerContract.status === "signed") {
+        // Return signed contract with all data needed for display/download
+        return new Response(JSON.stringify({ 
+          contract: {
+            ...ownerContract,
+            signee_name: ownerContract.signed_by_name,
+            signee_email: ownerContract.signed_by_email,
+            signee_designation: ownerContract.signed_by_designation,
+          },
+          properties: properties || [],
+          code: "ALREADY_SIGNED",
+          contract_type: "owner",
+          template_content: templateContent,
+          template_variables_schema: templateVariablesSchema,
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      if (ownerContract.token_expires_at && new Date(ownerContract.token_expires_at) < new Date()) {
+        return new Response(JSON.stringify({ error: "Signing link has expired", code: "EXPIRED" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       if (!ownerContract.viewed_at) {
