@@ -9,6 +9,7 @@ export interface OwnerContract {
   status: 'draft' | 'sent' | 'viewed' | 'signed' | 'declined' | 'overridden';
   version: number;
   template_version: string;
+  template_version_id: string | null;
   sent_at: string | null;
   signing_token: string | null;
   token_expires_at: string | null;
