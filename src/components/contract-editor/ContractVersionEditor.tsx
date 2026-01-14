@@ -65,7 +65,10 @@ export function ContractVersionEditor({
   };
 
   const handleCreateNewVersion = async () => {
-    await onCreateVersion(content, version?.variables_schema || {});
+    // Use current version's content as the base for the new version
+    const baseContent = version?.content_markdown || content;
+    const baseSchema = version?.variables_schema || {};
+    await onCreateVersion(baseContent, baseSchema);
     setHasChanges(false);
   };
 

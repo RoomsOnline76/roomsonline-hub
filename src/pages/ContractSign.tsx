@@ -224,6 +224,7 @@ export default function ContractSign() {
           signee_designation: signeeDesignation,
           signature_data_url: signatureDataUrl,
           property_details: propertyDetails,
+          contract_type: contract.contract_type || 'property',
         },
       });
 
@@ -474,7 +475,18 @@ export default function ContractSign() {
                   <ScrollArea className="h-[400px] p-4">
                     <div 
                       className="prose prose-sm max-w-none"
-                      dangerouslySetInnerHTML={{ __html: generateContractHTML(propertyDetails) }}
+                      dangerouslySetInnerHTML={{ 
+                        __html: generateContractHTML(
+                          propertyDetails,
+                          coveredProperties.map(p => ({
+                            name: p.name,
+                            address: p.address,
+                            city: p.city,
+                            country: p.country,
+                            property_type: p.property_type,
+                          }))
+                        ) 
+                      }}
                     />
                   </ScrollArea>
                 </CollapsibleContent>
