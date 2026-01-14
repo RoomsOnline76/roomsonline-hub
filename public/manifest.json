@@ -9,13 +9,13 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/images/rol-logo.png",
+      "src": "/images/rol-wreath-icon.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/images/rol-logo.png",
+      "src": "/images/rol-wreath-icon.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
