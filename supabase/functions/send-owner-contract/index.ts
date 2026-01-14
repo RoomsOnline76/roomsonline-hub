@@ -60,7 +60,18 @@ Deno.serve(async (req) => {
     const nextVersion = (existing?.[0]?.version || 0) + 1;
     const tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
 
-    // Create contract record
+    // Fetch the active contract template version
+    const { data: activeTemplate } = await supabase
+      .from("contract_template_versions")
+      .select("id")
+      .eq("status", "active")
+      .order("version_number", { ascending: false })
+      .limit(1)
+      .single();
+
+    console.log("Active template version:", activeTemplate?.id || "none found");
+
+    // Create contract record with template_version_id
     const { data: contract, error: createError } = await supabase
       .from("owner_contracts")
       .insert({
@@ -70,6 +81,7 @@ Deno.serve(async (req) => {
         version: nextVersion,
         sent_at: new Date().toISOString(),
         token_expires_at: tokenExpiresAt,
+        template_version_id: activeTemplate?.id || null,
       })
       .select()
       .single();
