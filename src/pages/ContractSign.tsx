@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SignatureCanvas } from "@/components/contract/SignatureCanvas";
@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Send, Check, AlertTriangle, Clock, Loader2, Mail, ChevronDown, ChevronUp, FileText } from "lucide-react";
 import rolLogo from "@/assets/rol-logo.png";
 import { generateContractHTML, generateSignedContractHTML, PropertyContractDetails, SignatureData, CoveredProperty as ContractCoveredProperty } from "@/lib/contractAgreementText";
+import { renderContractWithVariables } from "@/hooks/useContractTemplates";
 
 interface PropertyData {
   id: string;
@@ -54,6 +55,7 @@ interface ContractData {
   owner_name?: string | null;
   owner_email?: string | null;
   contract_type?: 'owner' | 'property';
+  template_content?: string | null;
 }
 
 export default function ContractSign() {
@@ -90,6 +92,105 @@ export default function ContractSign() {
     postalAddress: contract.property.amenities?.postal_address,
     keyRepresentative: contract.property.owner_name || undefined,
   } : undefined;
+
+  // Render the contract template with variables (uses dynamic template if available)
+  const renderedContractHtml = useMemo(() => {
+    if (!contract) return "";
+    
+    // If we have template content from the contract editor, render it
+    if (contract.template_content) {
+      // Build properties list HTML for Section 2
+      const propertiesListHtml = coveredProperties.length > 0
+        ? `<div class="covered-properties-list">
+            <p><strong>Properties covered by this agreement:</strong></p>
+            <ul>
+              ${coveredProperties.map(p => {
+                const location = [p.address, p.city, p.country].filter(Boolean).join(', ');
+                return `<li><strong>${p.name}</strong>${p.property_type ? ` (${p.property_type})` : ''}${location ? `<br/><span style="color: #666; font-size: 0.9em;">${location}</span>` : ''}</li>`;
+              }).join('')}
+            </ul>
+          </div>`
+        : '';
+
+      // Build variables map for template substitution
+      const firstProperty = coveredProperties[0];
+      const variables: Record<string, string> = {
+        owner_registered_name: contract.owner_name || propertyDetails?.registeredName || 'N/A',
+        owner_registration_number: propertyDetails?.registrationNumber || 'N/A',
+        owner_vat_number: propertyDetails?.vatNumber || 'N/A',
+        owner_telephone: propertyDetails?.telephone || 'N/A',
+        owner_mobile: propertyDetails?.mobileNumber || 'N/A',
+        owner_email: contract.owner_email || propertyDetails?.email || 'N/A',
+        owner_physical_address: firstProperty ? [firstProperty.address, firstProperty.city, firstProperty.country].filter(Boolean).join(', ') : propertyDetails?.physicalAddress || 'N/A',
+        owner_postal_address: propertyDetails?.postalAddress || 'N/A',
+        owner_key_representative: contract.owner_name || propertyDetails?.keyRepresentative || 'N/A',
+        commission_percentage: 'ten percent (10%)',
+        covered_properties_list: propertiesListHtml,
+      };
+
+      // Render markdown with variable substitution
+      const renderedMarkdown = renderContractWithVariables(contract.template_content, variables);
+      
+      // Simple markdown to HTML conversion for the contract
+      const htmlContent = convertMarkdownToHtml(renderedMarkdown);
+      
+      // Add logo at the top
+      return `
+        <div class="contract-content">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <img src="${rolLogo}" alt="RoomsOnline" style="max-height: 48px;" />
+          </div>
+          ${htmlContent}
+        </div>
+      `;
+    }
+    
+    // Fallback to hardcoded HTML if no template
+    return generateContractHTML(
+      propertyDetails,
+      coveredProperties.map(p => ({
+        name: p.name,
+        address: p.address,
+        city: p.city,
+        country: p.country,
+        property_type: p.property_type,
+      }))
+    );
+  }, [contract, coveredProperties, propertyDetails]);
+
+  // Simple markdown to HTML converter
+  function convertMarkdownToHtml(markdown: string): string {
+    return markdown
+      // Headers
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2 style="margin-top: 24px; margin-bottom: 12px; font-size: 1.25rem; font-weight: 600;">$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1 style="margin-bottom: 16px; font-size: 1.5rem; font-weight: 700; text-align: center;">$1</h1>')
+      // Bold
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      // Italic
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      // Horizontal rules
+      .replace(/^---$/gm, '<hr style="margin: 16px 0; border: none; border-top: 1px solid #e5e7eb;" />')
+      // Tables (simple conversion)
+      .replace(/\|(.+)\|/g, (match, content) => {
+        if (content.includes('---')) return ''; // Skip separator rows
+        const cells = content.split('|').map((cell: string) => cell.trim());
+        const isHeader = content.includes('Field') || content.includes('Value');
+        const tag = isHeader ? 'th' : 'td';
+        const cellStyle = 'padding: 8px; border: 1px solid #e5e7eb; text-align: left;';
+        return `<tr>${cells.map((cell: string) => `<${tag} style="${cellStyle}">${cell}</${tag}>`).join('')}</tr>`;
+      })
+      // Wrap consecutive table rows
+      .replace(/(<tr>.*?<\/tr>\s*)+/gs, '<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">$&</table>')
+      // Lists
+      .replace(/^- (.+)$/gm, '<li style="margin-left: 20px;">$1</li>')
+      // Numbered lists (5.1, 5.2, etc.)
+      .replace(/^(\d+\.\d+) (.+)$/gm, '<p style="margin-left: 20px; margin-bottom: 8px;"><strong>$1</strong> $2</p>')
+      // Paragraphs (lines not already wrapped)
+      .replace(/^(?!<[h|t|l|p|u|d|hr])(.+)$/gm, '<p style="margin-bottom: 12px; line-height: 1.6;">$1</p>')
+      // Clean up empty paragraphs
+      .replace(/<p[^>]*>\s*<\/p>/g, '');
+  }
 
   // Load contract data via edge function (works for unauthenticated users)
   useEffect(() => {
@@ -191,6 +292,7 @@ export default function ContractSign() {
           owner_name: contractData.owner_name,
           owner_email: contractData.owner_email,
           contract_type: contractType,
+          template_content: data.template_content || null,
         });
 
       } catch (err) {
@@ -475,18 +577,7 @@ export default function ContractSign() {
                   <ScrollArea className="h-[400px] p-4">
                     <div 
                       className="prose prose-sm max-w-none"
-                      dangerouslySetInnerHTML={{ 
-                        __html: generateContractHTML(
-                          propertyDetails,
-                          coveredProperties.map(p => ({
-                            name: p.name,
-                            address: p.address,
-                            city: p.city,
-                            country: p.country,
-                            property_type: p.property_type,
-                          }))
-                        ) 
-                      }}
+                      dangerouslySetInnerHTML={{ __html: renderedContractHtml }}
                     />
                   </ScrollArea>
                 </CollapsibleContent>

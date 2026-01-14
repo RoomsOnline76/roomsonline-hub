@@ -55,6 +55,22 @@ Deno.serve(async (req) => {
         .is("permanently_deleted_at", null)
         .order("name");
 
+      // Fetch template content if template_version_id exists
+      let templateContent: string | null = null;
+      let templateVariablesSchema: Record<string, unknown> | null = null;
+      if (ownerContract.template_version_id) {
+        const { data: templateVersion } = await supabase
+          .from("contract_template_versions")
+          .select("content_markdown, variables_schema")
+          .eq("id", ownerContract.template_version_id)
+          .single();
+        
+        if (templateVersion) {
+          templateContent = templateVersion.content_markdown;
+          templateVariablesSchema = templateVersion.variables_schema as Record<string, unknown>;
+        }
+      }
+
       if (!ownerContract.viewed_at) {
         await supabase
           .from("owner_contracts")
@@ -66,6 +82,8 @@ Deno.serve(async (req) => {
         contract: ownerContract,
         properties: properties || [],
         contract_type: "owner",
+        template_content: templateContent,
+        template_variables_schema: templateVariablesSchema,
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
