@@ -667,7 +667,7 @@ export default function ContractSign() {
                       __html: generateSignedContractHTML(
                         propertyDetails, 
                         signatureData,
-                        { contractId: contract.id, version: 1 },
+                        { contractId: contract.id, version: 1, downloadedAt: new Date().toISOString() },
                         coveredProperties.map(p => ({
                           name: p.name,
                           address: p.address,
