@@ -1411,12 +1411,14 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          is_new_owner: boolean | null
           override_at: string | null
           override_by: string | null
           override_reason: string | null
           owner_email: string
           owner_name: string | null
           pdf_url: string | null
+          pending_property_data: Json | null
           sent_at: string | null
           signature_data: Json | null
           signature_image_url: string | null
@@ -1439,12 +1441,14 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
+          is_new_owner?: boolean | null
           override_at?: string | null
           override_by?: string | null
           override_reason?: string | null
           owner_email: string
           owner_name?: string | null
           pdf_url?: string | null
+          pending_property_data?: Json | null
           sent_at?: string | null
           signature_data?: Json | null
           signature_image_url?: string | null
@@ -1467,12 +1471,14 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
+          is_new_owner?: boolean | null
           override_at?: string | null
           override_by?: string | null
           override_reason?: string | null
           owner_email?: string
           owner_name?: string | null
           pdf_url?: string | null
+          pending_property_data?: Json | null
           sent_at?: string | null
           signature_data?: Json | null
           signature_image_url?: string | null

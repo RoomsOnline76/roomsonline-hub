@@ -565,7 +565,7 @@ export default function AdminContracts() {
         </Table>
       </div>
 
-      {/* Send Contract Modal */}
+      {/* Send Contract Modal - Simplified for contract-first workflow */}
       <Dialog open={sendModalOpen} onOpenChange={(open) => {
         setSendModalOpen(open);
         if (!open) resetSendModal();
@@ -604,21 +604,15 @@ export default function AdminContracts() {
               />
             </div>
 
-            {/* Property validation feedback */}
+            {/* New owner badge - shown when no properties exist */}
             {noPropertiesWarning && !validatingEmail && sendEmail && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <p className="font-medium">No properties linked to this email</p>
+              <Alert className="bg-amber-50 border-amber-200">
+                <Building2 className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-800">
+                  <p className="font-medium">New Owner Onboarding</p>
                   <p className="text-sm mt-1">
-                    Before sending a contract, ensure at least one property has this owner email set.
+                    A new user account will be created. The owner will provide property details when signing the contract.
                   </p>
-                  <Button size="sm" variant="outline" className="mt-3" asChild>
-                    <Link to="/admin/onboarding" target="_blank">
-                      <Building2 className="h-4 w-4 mr-2" />
-                      Create Property
-                    </Link>
-                  </Button>
                 </AlertDescription>
               </Alert>
             )}
@@ -646,9 +640,9 @@ export default function AdminContracts() {
             </Button>
             <Button 
               onClick={handleSendContract} 
-              disabled={sending || !sendEmail || noPropertiesWarning || linkedProperties.length === 0}
+              disabled={sending || !sendEmail}
             >
-              {sending ? "Sending..." : "Send Contract"}
+              {sending ? "Sending..." : noPropertiesWarning ? "Send & Create Owner" : "Send Contract"}
             </Button>
           </DialogFooter>
         </DialogContent>
