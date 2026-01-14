@@ -18,26 +18,32 @@ const ROL_LOGO_BASE64 = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAABQC
 
 // Generate contract HTML with property details
 export function generateContractHTML(property?: PropertyContractDetails, coveredProperties?: CoveredProperty[]): string {
-  const propertySection = property ? `
+  // Build effective property from first covered property if no direct property provided
+  const effectiveProperty: PropertyContractDetails | undefined = property || (coveredProperties?.[0] ? {
+    name: coveredProperties[0].name,
+    physicalAddress: [coveredProperties[0].address, coveredProperties[0].city, coveredProperties[0].country].filter(Boolean).join(', '),
+  } : undefined);
+
+  const propertySection = effectiveProperty ? `
   <table class="w-full mb-6 text-sm border-collapse">
     <tbody>
-      <tr class="border-b"><td class="py-2 font-medium w-40">Registered Name</td><td>${property.registeredName || property.name || 'N/A'}</td></tr>
-      <tr class="border-b"><td class="py-2 font-medium">Registration number</td><td>${property.registrationNumber || 'N/A'}</td></tr>
-      <tr class="border-b"><td class="py-2 font-medium">VAT number</td><td>${property.vatNumber || 'N/A'}</td></tr>
-      <tr class="border-b"><td class="py-2 font-medium">Telephone number</td><td>${property.telephone || 'N/A'}</td></tr>
-      <tr class="border-b"><td class="py-2 font-medium">Mobile number</td><td>${property.mobileNumber || 'N/A'}</td></tr>
-      <tr class="border-b"><td class="py-2 font-medium">E-mail address</td><td>${property.email || 'N/A'}</td></tr>
-      <tr class="border-b"><td class="py-2 font-medium">Physical address</td><td>${property.physicalAddress || 'N/A'}</td></tr>
-      <tr class="border-b"><td class="py-2 font-medium">Postal address</td><td>${property.postalAddress || property.physicalAddress || 'N/A'}</td></tr>
-      <tr class="border-b"><td class="py-2 font-medium">Key Representative</td><td>${property.keyRepresentative || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium w-40">Registered Name</td><td>${effectiveProperty.registeredName || effectiveProperty.name || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">Registration number</td><td>${effectiveProperty.registrationNumber || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">VAT number</td><td>${effectiveProperty.vatNumber || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">Telephone number</td><td>${effectiveProperty.telephone || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">Mobile number</td><td>${effectiveProperty.mobileNumber || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">E-mail address</td><td>${effectiveProperty.email || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">Physical address</td><td>${effectiveProperty.physicalAddress || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">Postal address</td><td>${effectiveProperty.postalAddress || effectiveProperty.physicalAddress || 'N/A'}</td></tr>
+      <tr class="border-b"><td class="py-2 font-medium">Key Representative</td><td>${effectiveProperty.keyRepresentative || 'N/A'}</td></tr>
     </tbody>
   </table>
   ` : `<p class="mb-6 text-sm italic text-muted-foreground">[Property details will be displayed here]</p>`;
 
-  // Covered properties section for owner-level contracts
+  // Covered properties section for owner-level contracts - now placed INSIDE Section 2
   const coveredPropertiesSection = coveredProperties && coveredProperties.length > 0 ? `
   <div class="mb-6 p-4 bg-muted/30 rounded-lg border">
-    <h3 class="text-base font-semibold mb-3">Properties Covered by This Agreement</h3>
+    <h3 class="text-base font-semibold mb-3">Properties Covered by This Agreement (${coveredProperties.length})</h3>
     <ul class="list-disc pl-5 space-y-1 text-sm">
       ${coveredProperties.map(p => {
         const location = [p.address, p.city, p.country].filter(Boolean).join(', ');
@@ -52,7 +58,6 @@ export function generateContractHTML(property?: PropertyContractDetails, covered
   <div class="text-center mb-6">
     <img src="${ROL_LOGO_BASE64}" alt="RoomsOnline" class="h-12 mx-auto" />
   </div>
-  ${coveredPropertiesSection}
   <h1 class="text-2xl font-bold text-center mb-6">ROOMSONLINE ACCOMMODATION LISTING & DISTRIBUTION AGREEMENT</h1>
   
   <p class="mb-4 text-sm leading-relaxed">
@@ -79,6 +84,7 @@ export function generateContractHTML(property?: PropertyContractDetails, covered
 
   <h2 class="text-lg font-semibold mb-3">2. THE PROPERTY and/or PORTFOLIO</h2>
   ${propertySection}
+  ${coveredPropertiesSection}
 
   <h2 class="text-lg font-semibold mb-3">3. COMMISSION AND FEES</h2>
   <p class="mb-6 text-sm leading-relaxed">
