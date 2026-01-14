@@ -54,7 +54,7 @@ export function useOwnerContract(ownerEmail: string | undefined) {
     enabled: !!ownerEmail,
   });
 
-  // Fetch all properties for this owner
+  // Fetch all properties for this owner (including amenities for contract variables)
   const { data: ownerProperties } = useQuery({
     queryKey: ["owner-properties", ownerEmail],
     queryFn: async () => {
@@ -62,7 +62,7 @@ export function useOwnerContract(ownerEmail: string | undefined) {
       
       const { data, error } = await supabase
         .from("properties")
-        .select("id, name, slug")
+        .select("id, name, slug, amenities, address, city, country, property_type")
         .eq("owner_email", ownerEmail)
         .is("permanently_deleted_at", null)
         .order("name");
