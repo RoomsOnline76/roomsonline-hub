@@ -12,9 +12,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { Send, Check, AlertTriangle, Clock, Loader2, Mail, ChevronDown, ChevronUp, FileText, Download } from "lucide-react";
-import html2pdf from 'html2pdf.js';
 import rolLogo from "@/assets/rol-logo.png";
-import { generateContractHTML, generateSignedContractHTML, generatePdfFromDynamicTemplate, PropertyContractDetails, SignatureData, CoveredProperty as ContractCoveredProperty } from "@/lib/contractAgreementText";
+import { generateContractHTML, generateSignedContractHTML, PropertyContractDetails, SignatureData, CoveredProperty as ContractCoveredProperty } from "@/lib/contractAgreementText";
 import { renderContractWithVariables } from "@/hooks/useContractTemplates";
 
 interface PropertyData {
@@ -200,45 +199,16 @@ export default function ContractSign() {
     );
   }, [contract, coveredProperties, propertyDetails]);
 
-  // Convert image URL to base64 for PDF embedding
-  const imageToBase64 = (src: string): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL('image/png'));
-        } else {
-          reject(new Error('Failed to get canvas context'));
-        }
-      };
-      img.onerror = () => reject(new Error('Failed to load image'));
-      img.src = src;
-    });
-  };
-
-  // Handle PDF download for signed contracts
-  const handleDownloadPDF = async () => {
+  // Handle PDF download for signed contracts - use same approach as ContractManagementPanel
+  const handleDownloadPDF = () => {
     if (!contract) return;
-
-    // Convert logo to base64 for reliable PDF embedding
-    let logoBase64: string | undefined;
-    try {
-      logoBase64 = await imageToBase64(rolLogo);
-    } catch (e) {
-      console.warn('Failed to convert logo to base64:', e);
-    }
 
     const signatureData: SignatureData | undefined = contract.signed_at && contract.signed_by_name ? {
       signedByName: contract.signed_by_name,
       signedByEmail: contract.signed_by_email || '',
       signedByDesignation: contract.signed_by_designation || undefined,
-      signatureImageUrl: signatureDataUrl || contract.signature_image_url || '',
+      // Use dataUrl from signature_data (base64) for reliable display
+      signatureImageUrl: (contract as any).signature_data?.dataUrl || signatureDataUrl || contract.signature_image_url || '',
       signedAt: contract.signed_at,
     } : signeeName && signatureDataUrl ? {
       signedByName: signeeName,
@@ -248,99 +218,31 @@ export default function ContractSign() {
       signedAt: new Date().toISOString(),
     } : undefined;
 
-    let pdfHtml: string;
+    const metadata = {
+      contractId: contract.id,
+      downloadedAt: new Date().toISOString(),
+      version: 1,
+    };
 
-    // Use dynamic template if available, otherwise fallback to hardcoded
-    if (contract.template_content) {
-      // Build properties list HTML for Section 2
-      const propertiesListHtml = coveredProperties.length > 0
-        ? `<div class="covered-properties-list">
-            <p><strong>Properties covered by this agreement:</strong></p>
-            <ul>
-              ${coveredProperties.map(p => {
-                const location = [p.address, p.city, p.country].filter(Boolean).join(', ');
-                return `<li><strong>${p.name}</strong>${p.property_type ? ` (${p.property_type})` : ''}${location ? `<br/><span style="color: #666; font-size: 0.9em;">${location}</span>` : ''}</li>`;
-              }).join('')}
-            </ul>
-          </div>`
-        : '';
-
-      // Build variables map for template substitution
-      const firstProperty = coveredProperties[0];
-      const variables: Record<string, string> = {
-        owner_registered_name: contract.owner_name || propertyDetails?.registeredName || 'N/A',
-        owner_registration_number: propertyDetails?.registrationNumber || 'N/A',
-        owner_vat_number: propertyDetails?.vatNumber || 'N/A',
-        owner_telephone: propertyDetails?.telephone || 'N/A',
-        owner_mobile: propertyDetails?.mobileNumber || 'N/A',
-        owner_email: contract.owner_email || propertyDetails?.email || 'N/A',
-        owner_physical_address: firstProperty ? [firstProperty.address, firstProperty.city, firstProperty.country].filter(Boolean).join(', ') : propertyDetails?.physicalAddress || 'N/A',
-        owner_postal_address: propertyDetails?.postalAddress || 'N/A',
-        owner_key_representative: contract.owner_name || propertyDetails?.keyRepresentative || 'N/A',
-        commission_percentage: 'ten percent (10%)',
-        covered_properties_list: propertiesListHtml,
-      };
-
-      // Render markdown with variable substitution
-      const renderedMarkdown = renderContractWithVariables(contract.template_content, variables);
-      const templateHtml = convertMarkdownToHtml(renderedMarkdown);
-      
-      pdfHtml = generatePdfFromDynamicTemplate(
-        templateHtml,
-        signatureData,
-        { contractId: contract.id, version: 1, downloadedAt: new Date().toISOString() },
-        logoBase64
-      );
-    } else {
-      // Fallback to hardcoded HTML
-      pdfHtml = generateSignedContractHTML(
-        propertyDetails,
-        signatureData,
-        { contractId: contract.id, version: 1, downloadedAt: new Date().toISOString() },
-        coveredProperties.map(p => ({
-          name: p.name,
-          address: p.address,
-          city: p.city,
-          country: p.country,
-          property_type: p.property_type,
-        }))
-      );
-    }
-
-    const container = document.createElement('div');
-    container.innerHTML = pdfHtml;
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    document.body.appendChild(container);
-
-    // Wait for images to load before generating PDF
-    const images = container.querySelectorAll('img');
-    await Promise.all(
-      Array.from(images).map(
-        (img) =>
-          new Promise<void>((resolve) => {
-            if (img.complete) {
-              resolve();
-            } else {
-              img.onload = () => resolve();
-              img.onerror = () => resolve(); // Continue even if image fails
-            }
-          })
-      )
+    // Always use the reliable hardcoded HTML generator
+    const htmlContent = generateSignedContractHTML(
+      propertyDetails,
+      signatureData,
+      metadata,
+      coveredProperties.map(p => ({
+        name: p.name,
+        address: p.address,
+        city: p.city,
+        country: p.country,
+        property_type: p.property_type,
+      }))
     );
-
-    try {
-      await html2pdf()
-        .set({
-          margin: [10, 10, 20, 10],
-          filename: `ROL-Contract-${contract.owner_email || contract.property?.name || 'signed'}.pdf`,
-          html2canvas: { scale: 2, useCORS: true, allowTaint: true },
-          jsPDF: { orientation: 'portrait', format: 'a4' }
-        })
-        .from(container)
-        .save();
-    } finally {
-      document.body.removeChild(container);
+    
+    // Open in new window for print (same as ContractManagementPanel)
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
     }
   };
 
