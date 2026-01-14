@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     // Get all properties for this owner
     const { data: properties, error: propError } = await supabase
       .from("properties")
-      .select("id, name, slug, address, city, country, amenities")
+      .select("id, name, slug, address, city, country, property_type, amenities")
       .eq("owner_email", owner_email)
       .is("permanently_deleted_at", null)
       .order("name");
@@ -86,10 +86,11 @@ Deno.serve(async (req) => {
     const baseUrl = Deno.env.get("SITE_URL") || "https://roomsonline.co.za";
     const signingUrl = `${baseUrl}/contract/sign/${contract.signing_token}`;
 
-    // Generate property list HTML for email
+    // Generate property list HTML for email with full details
     const propertyListHTML = properties.map(p => {
-      const location = [p.city, p.country].filter(Boolean).join(", ");
-      return `<li style="margin-bottom: 8px;"><strong>${p.name}</strong>${location ? ` <span style="color: #666;">(${location})</span>` : ''}</li>`;
+      const location = [p.address, p.city, p.country].filter(Boolean).join(", ");
+      const propertyType = p.property_type ? ` (${p.property_type})` : '';
+      return `<li style="margin-bottom: 8px;"><strong>${p.name}</strong>${propertyType}${location ? `<br /><span style="color: #666; font-size: 12px;">${location}</span>` : ''}</li>`;
     }).join("");
 
     // Send email if Resend is configured
