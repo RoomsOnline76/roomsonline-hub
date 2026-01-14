@@ -28,6 +28,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -47,9 +48,12 @@ import {
   FileText,
   History,
   ExternalLink,
+  Loader2,
+  Building2,
 } from "lucide-react";
 import { ContractOverrideModal } from "@/components/contract/ContractOverrideModal";
 import { Label } from "@/components/ui/label";
+import { Link } from "react-router-dom";
 
 interface OwnerContract {
   id: string;
@@ -65,12 +69,19 @@ interface OwnerContract {
   signed_by_email: string | null;
   signed_by_designation: string | null;
   signature_image_url: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  signature_data: any;
   pdf_url: string | null;
   unsigned_pdf_url: string | null;
   override_at: string | null;
   override_by: string | null;
   override_reason: string | null;
   created_at: string | null;
+}
+
+interface LinkedProperty {
+  id: string;
+  name: string;
 }
 
 type StatusFilter = "all" | "pending" | "sent" | "viewed" | "signed" | "overridden";
@@ -105,6 +116,11 @@ export default function AdminContracts() {
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const [historyEmail, setHistoryEmail] = useState<string | null>(null);
   const [historyContracts, setHistoryContracts] = useState<OwnerContract[]>([]);
+  
+  // Property validation for new contracts
+  const [validatingEmail, setValidatingEmail] = useState(false);
+  const [linkedProperties, setLinkedProperties] = useState<LinkedProperty[]>([]);
+  const [noPropertiesWarning, setNoPropertiesWarning] = useState(false);
 
   useEffect(() => {
     loadContracts();
@@ -246,9 +262,46 @@ export default function AdminContracts() {
     }
   };
 
-  const handleViewSignature = (url: string) => {
-    setSignatureUrl(url);
+  const handleViewSignature = (contract: OwnerContract) => {
+    // Prioritize base64 data URL for reliable display
+    const sigUrl = (contract.signature_data?.dataUrl as string) || contract.signature_image_url;
+    setSignatureUrl(sigUrl || null);
     setSignaturePreviewOpen(true);
+  };
+
+  const validateOwnerEmail = async (email: string) => {
+    if (!email || !email.includes("@")) {
+      setLinkedProperties([]);
+      setNoPropertiesWarning(false);
+      return;
+    }
+    
+    setValidatingEmail(true);
+    try {
+      const { data: properties, error } = await supabase
+        .from("properties")
+        .select("id, name")
+        .eq("owner_email", email.toLowerCase().trim())
+        .is("permanently_deleted_at", null);
+      
+      if (error) throw error;
+      
+      setLinkedProperties(properties || []);
+      setNoPropertiesWarning(!properties || properties.length === 0);
+    } catch (error) {
+      console.error("Error validating email:", error);
+      setLinkedProperties([]);
+      setNoPropertiesWarning(true);
+    } finally {
+      setValidatingEmail(false);
+    }
+  };
+
+  const resetSendModal = () => {
+    setSendEmail("");
+    setSendName("");
+    setLinkedProperties([]);
+    setNoPropertiesWarning(false);
   };
 
   const handleViewHistory = async (email: string) => {
@@ -413,8 +466,8 @@ export default function AdminContracts() {
                             Resend Contract
                           </DropdownMenuItem>
                         )}
-                        {contract.signature_image_url && (
-                          <DropdownMenuItem onClick={() => handleViewSignature(contract.signature_image_url!)}>
+                        {(contract.signature_data?.dataUrl || contract.signature_image_url) && (
+                          <DropdownMenuItem onClick={() => handleViewSignature(contract)}>
                             <FileSignature className="h-4 w-4 mr-2" />
                             View Signature
                           </DropdownMenuItem>
@@ -471,8 +524,11 @@ export default function AdminContracts() {
       </div>
 
       {/* Send Contract Modal */}
-      <Dialog open={sendModalOpen} onOpenChange={setSendModalOpen}>
-        <DialogContent>
+      <Dialog open={sendModalOpen} onOpenChange={(open) => {
+        setSendModalOpen(open);
+        if (!open) resetSendModal();
+      }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Send New Contract</DialogTitle>
             <DialogDescription>
@@ -482,13 +538,19 @@ export default function AdminContracts() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="email">Owner Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="owner@example.com"
-                value={sendEmail}
-                onChange={(e) => setSendEmail(e.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="owner@example.com"
+                  value={sendEmail}
+                  onChange={(e) => setSendEmail(e.target.value)}
+                  onBlur={() => validateOwnerEmail(sendEmail)}
+                />
+                {validatingEmail && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="name">Owner Name (optional)</Label>
@@ -499,12 +561,51 @@ export default function AdminContracts() {
                 onChange={(e) => setSendName(e.target.value)}
               />
             </div>
+
+            {/* Property validation feedback */}
+            {noPropertiesWarning && !validatingEmail && sendEmail && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <p className="font-medium">No properties linked to this email</p>
+                  <p className="text-sm mt-1">
+                    Before sending a contract, ensure at least one property has this owner email set.
+                  </p>
+                  <Button size="sm" variant="outline" className="mt-3" asChild>
+                    <Link to="/admin/onboarding" target="_blank">
+                      <Building2 className="h-4 w-4 mr-2" />
+                      Create Property
+                    </Link>
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {linkedProperties.length > 0 && (
+              <div className="bg-muted/30 rounded-lg p-3 border border-border">
+                <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <Check className="h-4 w-4 text-green-600" />
+                  Properties to be covered ({linkedProperties.length}):
+                </p>
+                <ul className="text-sm text-muted-foreground space-y-1 ml-6">
+                  {linkedProperties.map(p => (
+                    <li key={p.id}>• {p.name}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSendModalOpen(false)}>
+            <Button variant="outline" onClick={() => {
+              setSendModalOpen(false);
+              resetSendModal();
+            }}>
               Cancel
             </Button>
-            <Button onClick={handleSendContract} disabled={sending || !sendEmail}>
+            <Button 
+              onClick={handleSendContract} 
+              disabled={sending || !sendEmail || noPropertiesWarning || linkedProperties.length === 0}
+            >
               {sending ? "Sending..." : "Send Contract"}
             </Button>
           </DialogFooter>
