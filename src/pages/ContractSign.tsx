@@ -245,7 +245,12 @@ export default function ContractSign() {
 
   // Simple markdown to HTML converter
   function convertMarkdownToHtml(markdown: string): string {
+    // Placeholder for escaped pipes to preserve them during table parsing
+    const ESCAPED_PIPE_PLACEHOLDER = '___PIPE___';
+    
     return markdown
+      // First, replace escaped pipes with placeholder
+      .replace(/\\\|/g, ESCAPED_PIPE_PLACEHOLDER)
       // Headers
       .replace(/^### (.+)$/gm, '<h3>$1</h3>')
       .replace(/^## (.+)$/gm, '<h2 style="margin-top: 24px; margin-bottom: 12px; font-size: 1.25rem; font-weight: 600;">$1</h2>')
@@ -262,11 +267,21 @@ export default function ContractSign() {
         const cells = content.split('|').map((cell: string) => cell.trim());
         const isHeader = content.includes('Field') || content.includes('Value');
         const tag = isHeader ? 'th' : 'td';
-        const cellStyle = 'padding: 8px; border: 1px solid #e5e7eb; text-align: left;';
-        return `<tr>${cells.map((cell: string) => `<${tag} style="${cellStyle}">${cell}</${tag}>`).join('')}</tr>`;
+        // For bank details row, use vertical-align top
+        const isBankRow = content.includes('Bank account');
+        const labelStyle = `padding: 8px; border: 1px solid #e5e7eb; text-align: left;${isBankRow ? ' vertical-align: top;' : ''}`;
+        const valueStyle = `padding: 8px; border: 1px solid #e5e7eb; text-align: left;`;
+        return `<tr>${cells.map((cell: string, idx: number) => {
+          const style = idx === 0 ? labelStyle : valueStyle;
+          // Replace placeholder back with visual separator (line breaks for bank details)
+          const formattedCell = cell.replace(new RegExp(ESCAPED_PIPE_PLACEHOLDER, 'g'), '<br/>');
+          return `<${tag} style="${style}">${formattedCell}</${tag}>`;
+        }).join('')}</tr>`;
       })
       // Wrap consecutive table rows
       .replace(/(<tr>.*?<\/tr>\s*)+/gs, '<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">$&</table>')
+      // Restore any remaining placeholders (shouldn't happen, but safety)
+      .replace(new RegExp(ESCAPED_PIPE_PLACEHOLDER, 'g'), '|')
       // Lists
       .replace(/^- (.+)$/gm, '<li style="margin-left: 20px;">$1</li>')
       // Numbered lists (5.1, 5.2, etc.)
