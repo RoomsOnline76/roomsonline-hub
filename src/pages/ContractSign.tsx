@@ -51,6 +51,7 @@ interface ContractData {
   signed_by_email: string | null;
   signed_by_designation: string | null;
   signature_image_url: string | null;
+  signature_data?: { dataUrl?: string } | null;
   property?: PropertyData;
   properties?: CoveredProperty[]; // For owner-level contracts
   owner_name?: string | null;
@@ -348,6 +349,7 @@ export default function ContractSign() {
             signed_by_email: contractData.signed_by_email || contractData.signee_email,
             signed_by_designation: contractData.signed_by_designation || contractData.signee_designation,
             signature_image_url: contractData.signature_image_url || null,
+            signature_data: contractData.signature_data || null,
             owner_name: contractData.owner_name,
             owner_email: contractData.owner_email,
             contract_type: data.contract_type || 'owner',
@@ -621,7 +623,7 @@ export default function ContractSign() {
   // Success state (after signing) - Show the full signed contract
   if (contract?.status === "signed") {
     // Prioritize base64 dataUrl from signature_data for reliable display
-    const signatureImageSrc = (contract as any).signature_data?.dataUrl || contract.signature_image_url || '';
+    const signatureImageSrc = contract.signature_data?.dataUrl || contract.signature_image_url || '';
     const signatureData: SignatureData | undefined = contract.signed_at && contract.signed_by_name && signatureImageSrc ? {
       signedByName: contract.signed_by_name,
       signedByEmail: contract.signed_by_email || '',
