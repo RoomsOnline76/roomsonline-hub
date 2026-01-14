@@ -890,9 +890,12 @@ This Agreement may be accepted electronically or by conduct and is enforceable i
 export function generatePdfFromDynamicTemplate(
   templateHtml: string,
   signature?: SignatureData,
-  metadata?: ContractMetadata
+  metadata?: ContractMetadata,
+  logoBase64?: string
 ): string {
-  const signedDate = signature?.signedAt 
+  // Use provided logo or fall back to stored base64
+  const logoSrc = logoBase64 || ROL_LOGO_BASE64;
+  const signedDate = signature?.signedAt
     ? new Date(signature.signedAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })
     : '';
   
@@ -986,7 +989,7 @@ export function generatePdfFromDynamicTemplate(
 </head>
 <body>
   <div class="header">
-    <img src="${ROL_LOGO_BASE64}" alt="Roomsonline" />
+    <img src="${logoSrc}" alt="Roomsonline" />
     <p class="tagline">Strategize • Optimize • Maximize</p>
   </div>
   
