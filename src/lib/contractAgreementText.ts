@@ -78,7 +78,7 @@ export function generateContractHTML(property?: PropertyContractDetails, covered
       <tr class="border-b"><td class="py-1 font-medium">Physical address</td><td>29 Woodlands Close, Parklands, 7441</td></tr>
       <tr class="border-b"><td class="py-1 font-medium">Postal address</td><td>29 Woodlands Close, Parklands, 7441</td></tr>
       <tr class="border-b"><td class="py-1 font-medium">Key Representative</td><td>Carike Ligthelm</td></tr>
-      <tr class="border-b"><td class="py-1 font-medium">Bank account details</td><td>Bank: FNB | Account holder: Sleep in Africa (PTY) LTD | Account: 62453541700 | Branch: 203809</td></tr>
+      <tr class="border-b"><td class="py-1 font-medium align-top">Bank account details</td><td>Bank: FNB<br/>Account holder: Sleep in Africa (PTY) LTD<br/>Account: 62453541700<br/>Branch: 203809</td></tr>
     </tbody>
   </table>
 
@@ -592,7 +592,7 @@ export function generateSignedContractHTML(
     <tr><td class="label">Physical address</td><td>29 Woodlands Close, Parklands, 7441</td></tr>
     <tr><td class="label">Postal address</td><td>29 Woodlands Close, Parklands, 7441</td></tr>
     <tr><td class="label">Key Representative</td><td>Carike Ligthelm</td></tr>
-    <tr><td class="label">Bank account details</td><td>Bank: FNB | Account holder: Sleep in Africa (PTY) LTD | Account: 62453541700 | Branch: 203809</td></tr>
+    <tr><td class="label" style="vertical-align: top;">Bank account details</td><td>Bank: FNB<br/>Account holder: Sleep in Africa (PTY) LTD<br/>Account: 62453541700<br/>Branch: 203809</td></tr>
   </table>
 
   <h2>2. THE PROPERTY</h2>
