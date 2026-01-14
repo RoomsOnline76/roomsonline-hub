@@ -665,7 +665,7 @@ export default function ContractSign() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Signed Contract Display */}
+              {/* Signed Contract Display - uses dynamic template if available */}
               <div className="border rounded-lg">
                 <div className="flex items-center gap-3 p-4 border-b bg-muted/30">
                   <FileText className="h-5 w-5 text-primary" />
@@ -675,23 +675,35 @@ export default function ContractSign() {
                   </div>
                 </div>
                 <ScrollArea className="h-[500px] p-4">
-                  <div 
-                    className="prose prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{ 
-                      __html: generateSignedContractHTML(
-                        propertyDetails, 
-                        signatureData,
-                        { contractId: contract.id, version: 1, downloadedAt: new Date().toISOString() },
-                        coveredProperties.map(p => ({
-                          name: p.name,
-                          address: p.address,
-                          city: p.city,
-                          country: p.country,
-                          property_type: p.property_type,
-                        }))
-                      ) 
-                    }}
-                  />
+                  <div className="prose prose-sm max-w-none">
+                    {/* Render the full contract content (dynamic template if available) */}
+                    <div dangerouslySetInnerHTML={{ __html: renderedContractHtml }} />
+                    
+                    {/* Signature block */}
+                    {signatureData && (
+                      <div className="mt-8 p-4 border rounded-lg bg-muted/30">
+                        <h3 className="text-base font-semibold mb-3">Authorized Signature</h3>
+                        <div className="space-y-1 text-sm">
+                          <p><span className="font-medium">Signed by:</span> {signatureData.signedByName}</p>
+                          <p><span className="font-medium">Email:</span> {signatureData.signedByEmail}</p>
+                          {signatureData.signedByDesignation && (
+                            <p><span className="font-medium">Designation:</span> {signatureData.signedByDesignation}</p>
+                          )}
+                          <p><span className="font-medium">Date:</span> {new Date(signatureData.signedAt).toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                        </div>
+                        {signatureData.signatureImageUrl && (
+                          <div className="mt-3">
+                            <p className="font-medium text-sm mb-2">Signature:</p>
+                            <img 
+                              src={signatureData.signatureImageUrl} 
+                              alt="Signature" 
+                              className="max-h-24 max-w-[200px] border rounded p-2 bg-white"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </ScrollArea>
               </div>
 
