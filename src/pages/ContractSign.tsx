@@ -574,6 +574,7 @@ export default function ContractSign() {
       <main className="container py-6 sm:py-8 max-w-3xl">
         <Card>
           <CardHeader className="text-center pb-4">
+            <img src={rolLogo} alt="RoomsOnline" className="h-10 mx-auto mb-4" />
             <CardTitle className="text-xl sm:text-2xl">
               Property Partnership Agreement
             </CardTitle>
