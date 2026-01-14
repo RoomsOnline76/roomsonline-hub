@@ -36,6 +36,7 @@ interface CoveredProperty {
   city?: string;
   country?: string;
   property_type?: string;
+  amenities?: any;
 }
 
 interface ContractData {
@@ -96,19 +97,43 @@ export default function ContractSign() {
   // Email for review state
   const [emailForReview, setEmailForReview] = useState("");
 
-  // Build property details for contract
-  const propertyDetails: PropertyContractDetails | undefined = contract?.property ? {
-    name: contract.property.name,
-    registeredName: contract.property.amenities?.registered_business_name || contract.property.name,
-    registrationNumber: contract.property.amenities?.registration_number,
-    vatNumber: contract.property.amenities?.vat_number,
-    telephone: contract.property.amenities?.telephone,
-    mobileNumber: contract.property.amenities?.mobile_number || contract.property.amenities?.telephone,
-    email: contract.property.amenities?.contact_email || contract.property.owner_email || undefined,
-    physicalAddress: [contract.property.address, contract.property.city, contract.property.country].filter(Boolean).join(", "),
-    postalAddress: contract.property.amenities?.postal_address,
-    keyRepresentative: contract.property.owner_name || undefined,
-  } : undefined;
+  // Build property details for contract - use first covered property as fallback for owner contracts
+  const propertyDetails: PropertyContractDetails | undefined = useMemo(() => {
+    // Use contract.property if available (legacy property-level contracts)
+    if (contract?.property) {
+      return {
+        name: contract.property.name,
+        registeredName: contract.property.amenities?.registered_business_name || contract.property.name,
+        registrationNumber: contract.property.amenities?.registration_number,
+        vatNumber: contract.property.amenities?.vat_number,
+        telephone: contract.property.amenities?.telephone,
+        mobileNumber: contract.property.amenities?.mobile_number || contract.property.amenities?.telephone,
+        email: contract.property.amenities?.contact_email || contract.property.owner_email || undefined,
+        physicalAddress: [contract.property.address, contract.property.city, contract.property.country].filter(Boolean).join(", "),
+        postalAddress: contract.property.amenities?.postal_address,
+        keyRepresentative: contract.property.owner_name || undefined,
+      };
+    }
+    
+    // For owner-level contracts, use first covered property with amenities
+    const firstProperty = coveredProperties[0];
+    if (firstProperty) {
+      return {
+        name: firstProperty.name,
+        registeredName: firstProperty.amenities?.registered_business_name || firstProperty.name,
+        registrationNumber: firstProperty.amenities?.banking?.property_registration || firstProperty.amenities?.registration_number,
+        vatNumber: firstProperty.amenities?.banking?.vat_number || firstProperty.amenities?.vat_number,
+        telephone: firstProperty.amenities?.contact?.telephone || firstProperty.amenities?.telephone,
+        mobileNumber: firstProperty.amenities?.contact?.telephone || firstProperty.amenities?.mobile_number,
+        email: firstProperty.amenities?.contact?.email || contract?.owner_email || undefined,
+        physicalAddress: [firstProperty.address, firstProperty.city, firstProperty.country].filter(Boolean).join(", "),
+        postalAddress: firstProperty.amenities?.address_details?.postal_address || firstProperty.amenities?.postal_address,
+        keyRepresentative: firstProperty.amenities?.contact?.owner || contract?.owner_name || undefined,
+      };
+    }
+    
+    return undefined;
+  }, [contract, coveredProperties]);
 
   // Render the contract template with variables (uses dynamic template if available)
   const renderedContractHtml = useMemo(() => {
