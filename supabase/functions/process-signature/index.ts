@@ -87,13 +87,14 @@ Deno.serve(async (req) => {
       .from("signatures")
       .getPublicUrl(signatureFileName);
 
-    // Update contract as signed - INVALIDATE TOKEN for one-time use
+    // Update contract as signed - KEEP TOKEN so users can return to download
     const { error: updateError } = await supabase
       .from(tableName)
       .update({
         status: "signed",
-        signing_token: null,  // Invalidate token - one-time use only
-        token_expires_at: null,
+        // Keep signing_token so users can revisit the link to download their signed contract
+        // The "ALREADY_SIGNED" state in get-contract-by-token handles this securely
+        token_expires_at: null, // Clear expiry since it's now permanently accessible
         signed_at: new Date().toISOString(),
         signed_by_name: signee_name,
         signed_by_email: signee_email,

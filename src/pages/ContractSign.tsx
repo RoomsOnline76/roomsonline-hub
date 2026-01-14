@@ -298,6 +298,35 @@ export default function ContractSign() {
           return;
         }
 
+        // Check for ALREADY_SIGNED first (returned without error field)
+        if (data?.code === "ALREADY_SIGNED") {
+          // Contract already signed - set full contract state for viewing/downloading
+          const contractData = data.contract;
+          const propertiesList = data.properties || [];
+          
+          setCoveredProperties(propertiesList);
+          setContract({
+            id: contractData.id,
+            property_id: contractData.property_id || "",
+            status: "signed",
+            token_expires_at: null,
+            unsigned_pdf_url: null,
+            pdf_url: contractData.pdf_url || null,
+            sent_to_email: contractData.owner_email || contractData.sent_to_email,
+            signed_at: contractData.signed_at,
+            signed_by_name: contractData.signed_by_name || contractData.signee_name,
+            signed_by_email: contractData.signed_by_email || contractData.signee_email,
+            signed_by_designation: contractData.signed_by_designation || contractData.signee_designation,
+            signature_image_url: contractData.signature_image_url || null,
+            owner_name: contractData.owner_name,
+            owner_email: contractData.owner_email,
+            contract_type: data.contract_type || 'owner',
+            template_content: data.template_content || null,
+          });
+          setLoading(false);
+          return;
+        }
+
         if (data?.error) {
           if (data.code === "NOT_FOUND") {
             setErrorState({ 
@@ -308,22 +337,6 @@ export default function ContractSign() {
             setErrorState({ 
               message: "This signing link has expired.", 
               type: 'expired' 
-            });
-          } else if (data.code === "ALREADY_SIGNED") {
-            // Contract already signed - show special "already signed" state with download option
-            setErrorState({
-              message: "This contract has already been signed.",
-              type: 'already_signed',
-              contractData: {
-                id: data.contract.id,
-                signed_at: data.contract.signed_at,
-                signed_by_name: data.contract.signee_name,
-                signed_by_email: data.contract.signee_email,
-                signed_by_designation: data.contract.signee_designation,
-                signature_image_url: data.contract.signature_image_url || null,
-                owner_name: data.contract.owner_name,
-                owner_email: data.contract.owner_email,
-              }
             });
           } else {
             setErrorState({ message: data.error, type: 'generic' });
