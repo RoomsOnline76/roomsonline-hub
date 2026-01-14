@@ -104,10 +104,25 @@ export function ContractManagementPanel({
               </div>`
             : '<p><em>No properties currently linked to this owner.</em></p>';
 
+          // Get owner business details from first property's amenities
+          const amenities = ownerProperties[0]?.amenities as Record<string, any> | undefined;
+          const ownerVariables: Record<string, string> = {
+            covered_properties_list: propertiesListHtml,
+            owner_registered_name: amenities?.registered_business_name || ownerName || 'N/A',
+            owner_registration_number: amenities?.registration_number || amenities?.banking?.property_registration || 'N/A',
+            owner_vat_number: amenities?.vat_number || amenities?.banking?.vat_number || 'N/A',
+            owner_telephone: amenities?.telephone || amenities?.contact?.telephone || 'N/A',
+            owner_mobile: amenities?.mobile_number || 'N/A',
+            owner_email: ownerEmail || 'N/A',
+            owner_physical_address: amenities?.address_details?.physical_address || `${ownerProperties[0]?.address || ''}, ${ownerProperties[0]?.city || ''}, ${ownerProperties[0]?.country || ''}`.replace(/^, |, $/g, '') || 'N/A',
+            owner_postal_address: amenities?.postal_address || amenities?.address_details?.postal_address || 'N/A',
+            owner_key_representative: amenities?.key_representative || ownerName || 'N/A',
+          };
+
           // Render template with variables
           const renderedMarkdown = renderContractWithVariables(
             templateVersion.content_markdown,
-            { covered_properties_list: propertiesListHtml }
+            ownerVariables
           );
 
           // Convert markdown to HTML
