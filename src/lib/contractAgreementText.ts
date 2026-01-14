@@ -885,3 +885,120 @@ This Agreement is governed by the laws of South Africa.
 This Agreement may be accepted electronically or by conduct and is enforceable in terms of the Electronic Communications and Transactions Act 25 of 2002.
 `;
 }
+
+// Generate PDF-ready HTML wrapper for dynamic template content
+export function generatePdfFromDynamicTemplate(
+  templateHtml: string,
+  signature?: SignatureData,
+  metadata?: ContractMetadata
+): string {
+  const signedDate = signature?.signedAt 
+    ? new Date(signature.signedAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })
+    : '';
+  
+  const downloadDate = metadata?.downloadedAt 
+    ? new Date(metadata.downloadedAt).toLocaleString('en-ZA', { 
+        day: 'numeric', 
+        month: 'long', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZoneName: 'short'
+      })
+    : new Date().toLocaleString('en-ZA', { 
+        day: 'numeric', 
+        month: 'long', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZoneName: 'short'
+      });
+
+  const signatureBlockHtml = signature ? `
+    <div class="signature-block">
+      <h2>SIGNED AND ACCEPTED</h2>
+      <table class="signature-table">
+        <tr>
+          <td class="signature-details">
+            <p><strong>For the Establishment:</strong></p>
+            <p>Name: ${signature.signedByName}</p>
+            <p>Email: ${signature.signedByEmail}</p>
+            ${signature.signedByDesignation ? `<p>Designation: ${signature.signedByDesignation}</p>` : ''}
+            <p>Date: ${signedDate}</p>
+          </td>
+          <td class="signature-image-container">
+            <p class="signature-label">Signature:</p>
+            ${signature.signatureImageUrl 
+              ? `<img src="${signature.signatureImageUrl}" alt="Signature" class="signature-image" />`
+              : `<div class="signature-placeholder">[Signature on file]</div>`
+            }
+          </td>
+        </tr>
+      </table>
+    </div>
+  ` : '';
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Roomsonline Contract</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 11pt;
+      line-height: 1.5;
+      color: #1a1a1a;
+      padding: 40px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 16pt; text-align: center; margin: 20px 0 24px; font-weight: 600; }
+    h2 { font-size: 12pt; margin: 24px 0 12px; font-weight: 600; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+    h3 { font-size: 11pt; margin: 16px 0 8px; font-weight: 600; }
+    p { margin-bottom: 12px; text-align: justify; }
+    ul, ol { margin: 12px 0 12px 24px; }
+    li { margin-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    td, th { padding: 8px; border: 1px solid #e5e7eb; text-align: left; vertical-align: top; }
+    th { background: #f9fafb; font-weight: 600; }
+    hr { border: none; border-top: 1px solid #ddd; margin: 20px 0; }
+    .header { text-align: center; margin-bottom: 24px; }
+    .header img { max-width: 180px; height: auto; margin: 0 auto 8px; }
+    .tagline { font-size: 10pt; color: #666; font-style: italic; }
+    .signature-block { margin-top: 40px; padding-top: 20px; border-top: 2px solid #1a1a1a; page-break-inside: avoid; }
+    .signature-table { border: none; }
+    .signature-table td { border: none; vertical-align: top; padding: 12px; }
+    .signature-details { width: 50%; }
+    .signature-details p { margin-bottom: 6px; text-align: left; }
+    .signature-image-container { width: 50%; }
+    .signature-label { font-weight: 500; margin-bottom: 8px; }
+    .signature-image { max-height: 100px; max-width: 250px; border: 1px solid #ddd; border-radius: 4px; padding: 8px; background: #fff; }
+    .signature-placeholder { width: 250px; height: 80px; border: 1px dashed #999; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #666; font-style: italic; font-size: 10pt; background: #fafafa; }
+    .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #ddd; font-size: 9pt; color: #666; }
+    .footer p { margin-bottom: 4px; text-align: left; }
+    @media print {
+      body { padding: 20px; }
+      .signature-block { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="${ROL_LOGO_BASE64}" alt="Roomsonline" />
+    <p class="tagline">Strategize • Optimize • Maximize</p>
+  </div>
+  
+  ${templateHtml}
+  
+  ${signatureBlockHtml}
+  
+  <div class="footer">
+    ${metadata?.contractId ? `<p>Contract ID: ${metadata.contractId}</p>` : ''}
+    <p>Downloaded: ${downloadDate}</p>
+    <p>This is an official Roomsonline contract document.</p>
+  </div>
+</body>
+</html>`;
+}
