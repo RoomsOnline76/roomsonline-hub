@@ -149,7 +149,7 @@ export default function AdminDashboard() {
     <AppLayout>
       <PageHeader
         title="Admin Dashboard"
-        description="Platform overview and quick actions"
+        subtitle="Platform overview and quick actions"
       />
 
       {/* Quick Stats Grid */}

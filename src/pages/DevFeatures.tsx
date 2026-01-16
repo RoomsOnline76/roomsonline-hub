@@ -176,7 +176,7 @@ export default function DevFeatures() {
       <div className="flex items-center justify-between mb-6">
         <PageHeader
           title="Feature Flags"
-          description="Enable/disable features across the platform"
+          subtitle="Enable/disable features across the platform"
         />
         <Button 
           variant="outline" 

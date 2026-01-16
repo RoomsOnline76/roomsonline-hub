@@ -41,6 +41,7 @@ import { StatusIndicator } from "@/components/ui/status-indicator";
 import rolLogo from "@/assets/rol-logo.png";
 import { useHelp } from "@/contexts/HelpContext";
 import { ProfileModal } from "@/components/ProfileModal";
+import { RoleIndicator } from "./RoleIndicator";
 
 // Separate component to handle optional HelpContext
 function HelpNavSection({ collapsed }: { collapsed: boolean }) {
@@ -129,7 +130,7 @@ const systemItems: NavItem[] = [
 export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAdmin, isDev, isFearlessLeader, profile, signOut } = useAuth();
+  const { user, isAdmin, isDev, isFearlessLeader, profile, userRole, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
     return saved ? JSON.parse(saved) : false;
@@ -293,15 +294,18 @@ export function AppSidebar() {
         collapsed ? "w-16" : "w-60"
       )}
     >
-      {/* Logo */}
-      <div className={cn("flex items-center gap-3 p-4 border-b border-sidebar-border", collapsed && "justify-center")}>
-        <img src={rolLogo} alt="ROL" className="h-8 w-8 object-contain" />
-        {!collapsed && (
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold text-sidebar-foreground">RoomsOnline</span>
-            <span className="text-[9px] uppercase tracking-[0.15em] text-sidebar-foreground/50">Rooms done Right</span>
-          </div>
-        )}
+      {/* Logo & Role Indicator */}
+      <div className={cn("flex flex-col gap-2 p-4 border-b border-sidebar-border", collapsed && "items-center")}>
+        <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
+          <img src={rolLogo} alt="ROL" className="h-8 w-8 object-contain" />
+          {!collapsed && (
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold text-sidebar-foreground">RoomsOnline</span>
+              <span className="text-[9px] uppercase tracking-[0.15em] text-sidebar-foreground/50">Rooms done Right</span>
+            </div>
+          )}
+        </div>
+        {!collapsed && <RoleIndicator role={userRole} className="self-start" />}
       </div>
 
       {/* Navigation */}

@@ -143,7 +143,7 @@ export default function DevDanger() {
     <AppLayout>
       <PageHeader
         title="Danger Zone"
-        description="Destructive operations with system-wide impact"
+        subtitle="Destructive operations with system-wide impact"
       />
 
       {/* Warning Banner */}

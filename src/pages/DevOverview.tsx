@@ -84,8 +84,8 @@ export default function DevOverview() {
         
         return {
           name: name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, ' '),
-          status: hasError ? 'error' : activeCount > 0 ? 'healthy' : 'degraded',
-          lastSync: latestSync,
+          status: (hasError ? 'error' : activeCount > 0 ? 'healthy' : 'degraded') as 'healthy' | 'degraded' | 'error',
+          lastSync: latestSync || new Date().toISOString(),
           propertiesCount: activeCount,
         };
       });
@@ -165,7 +165,7 @@ export default function DevOverview() {
       <div className="flex items-center justify-between mb-6">
         <PageHeader
           title="System Overview"
-          description="Global health of PMS adapters, edge functions, and sync pipelines"
+          subtitle="Global health of PMS adapters, edge functions, and sync pipelines"
         />
         <Button 
           variant="outline" 

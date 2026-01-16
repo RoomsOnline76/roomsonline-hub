@@ -23,6 +23,8 @@ import Bookings from "./pages/Bookings";
 import Dashboard from "./pages/Dashboard";
 import ROLPulse from "./pages/ROLPulse";
 import Insights from "./pages/Insights";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminPayments from "./pages/AdminPayments";
 import AdminKeys from "./pages/AdminKeys";
 import AdminUsers from "./pages/AdminUsers";
 import AdminAccessRequests from "./pages/AdminAccessRequests";
@@ -58,6 +60,11 @@ import AdminContracts from "./pages/AdminContracts";
 import AdminOnboarding from "./pages/AdminOnboarding";
 import AdminContractEditor from "./pages/AdminContractEditor";
 import AdminWizardEditor from "./pages/AdminWizardEditor";
+import DevOverview from "./pages/DevOverview";
+import DevPMS from "./pages/DevPMS";
+import DevLogs from "./pages/DevLogs";
+import DevFeatures from "./pages/DevFeatures";
+import DevDanger from "./pages/DevDanger";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -386,6 +393,64 @@ const App = () => (
             <Route path="/journey/review" element={<JourneyReview />} />
             <Route path="/journey/checkout" element={<JourneyCheckout />} />
             <Route path="/journey/confirmation/:itineraryId" element={<JourneyConfirmation />} />
+            {/* Admin Dashboard & Payments routes */}
+            <Route
+              path="/admin/dashboard"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/payments"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminPayments />
+                </ProtectedRoute>
+              }
+            />
+            {/* Dev routes */}
+            <Route
+              path="/dev/overview"
+              element={
+                <ProtectedRoute requireDev={true}>
+                  <DevOverview />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dev/pms"
+              element={
+                <ProtectedRoute requireDev={true}>
+                  <DevPMS />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dev/logs"
+              element={
+                <ProtectedRoute requireDev={true}>
+                  <DevLogs />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dev/features"
+              element={
+                <ProtectedRoute requireDev={true}>
+                  <DevFeatures />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dev/danger"
+              element={
+                <ProtectedRoute requireDev={true}>
+                  <DevDanger />
+                </ProtectedRoute>
+              }
+            />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
