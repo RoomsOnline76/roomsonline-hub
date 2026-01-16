@@ -180,7 +180,7 @@ export default function DevPMS() {
       <div className="flex items-center justify-between mb-6">
         <PageHeader
           title="PMS Control"
-          description="Manage property management system adapters and connections"
+          subtitle="Manage property management system adapters and connections"
         />
         <Button 
           variant="outline" 

@@ -147,7 +147,7 @@ export default function DevLogs() {
       <div className="flex items-center justify-between mb-6">
         <PageHeader
           title="Data & Logs"
-          description="Sync logs, booking orchestration, and error traces"
+          subtitle="Sync logs, booking orchestration, and error traces"
         />
         <Button 
           variant="outline" 

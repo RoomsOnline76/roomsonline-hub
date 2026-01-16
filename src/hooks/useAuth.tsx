@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { UserRole, computeUserRole } from "@/lib/permissions";
 
 interface Profile {
   id: string;
@@ -18,6 +19,7 @@ export function useAuth() {
   const [isDev, setIsDev] = useState(false);
   const [isFearlessLeader, setIsFearlessLeader] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [userRole, setUserRole] = useState<UserRole>('owner');
 
   useEffect(() => {
     let mounted = true;
@@ -40,11 +42,16 @@ export function useAuth() {
         const roles = rolesData?.map(r => r.role) || [];
         const hasDev = roles.includes("dev");
         const hasFearlessLeader = roles.includes("fearless_leader");
-        // Dev and Fearless Leader users get admin access
-        setIsAdmin(roles.includes("admin") || hasDev || hasFearlessLeader);
+        const hasAdmin = roles.includes("admin") || hasDev || hasFearlessLeader;
+        
+        setIsAdmin(hasAdmin);
         setIsDev(hasDev);
         setIsFearlessLeader(hasFearlessLeader);
         setProfile(profileData || null);
+        
+        // Compute the single userRole for role-aware navigation
+        setUserRole(computeUserRole(hasDev, hasFearlessLeader, hasAdmin));
+        
         setLoading(false);
       }
     };
@@ -65,6 +72,7 @@ export function useAuth() {
           setIsDev(false);
           setIsFearlessLeader(false);
           setProfile(null);
+          setUserRole('owner');
           setLoading(false);
         }
       }
@@ -94,5 +102,5 @@ export function useAuth() {
     await supabase.auth.signOut();
   };
 
-  return { user, session, loading, isAdmin, isDev, isFearlessLeader, profile, signOut };
+  return { user, session, loading, isAdmin, isDev, isFearlessLeader, profile, userRole, signOut };
 }

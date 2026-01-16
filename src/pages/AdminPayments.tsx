@@ -177,7 +177,7 @@ export default function AdminPayments() {
     <AppLayout>
       <PageHeader
         title="Payments"
-        description="Manage booking payments and transactions"
+        subtitle="Manage booking payments and transactions"
       />
 
       {/* Stats Grid */}

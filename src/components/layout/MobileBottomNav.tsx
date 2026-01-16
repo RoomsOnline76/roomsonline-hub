@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { UserRole, hasMinRole } from "@/lib/permissions";
+import { hasMinRole } from "@/lib/permissions";
 import { mobileNavItems, adminMobileNavItem, systemMobileNavItem, type NavItem } from "@/config/navigation";
 import {
   Sheet,
@@ -12,15 +12,13 @@ import {
 } from "@/components/ui/sheet";
 import { useState } from "react";
 import { navigationConfig } from "@/config/navigation";
+import { useAuth } from "@/hooks/useAuth";
 
-interface MobileBottomNavProps {
-  userRole: UserRole;
-}
-
-export function MobileBottomNav({ userRole }: MobileBottomNavProps) {
+export function MobileBottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
+  const { userRole } = useAuth();
 
   const isActive = (href: string) => location.pathname === href;
 
