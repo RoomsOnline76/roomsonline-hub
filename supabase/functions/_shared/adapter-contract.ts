@@ -47,7 +47,8 @@ export type PmsSource =
   | 'littlehotelier'
   | 'cloudbeds'
   | 'hostfully'
-  | 'hotelbeds';
+  | 'hotelbeds'
+  | 'rentalsunited';
 
 /**
  * Standardized error structure
@@ -706,6 +707,16 @@ export const PMS_EDITORIAL_RULES: Record<PmsSource, {
       images: 'authoritative',
     },
     notes: 'B2B supplier - rich content available.',
+  },
+  rentalsunited: {
+    property_fields: {
+      name: 'authoritative',
+      description: 'authoritative',
+      location: 'authoritative',
+      images: 'authoritative',
+      amenities: 'partial',
+    },
+    notes: 'Channel manager - integration in development.',
   },
 };
 

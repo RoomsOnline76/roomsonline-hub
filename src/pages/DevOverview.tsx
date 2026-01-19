@@ -104,12 +104,27 @@ export default function DevOverview() {
         { name: 'Booking Push', status: 'idle' as const, lastRun: new Date(Date.now() - 1800000).toISOString() },
       ];
 
+      // Calculate real uptime from system_health_checks table (last 24 hours)
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data: healthChecks } = await supabase
+        .from('system_health_checks')
+        .select('status')
+        .gte('checked_at', oneDayAgo);
+
+      let calculatedUptime = 99.9; // Default fallback
+      if (healthChecks && healthChecks.length > 0) {
+        const healthyCount = healthChecks.filter(
+          (check: any) => check.status === 'healthy' || check.status === 'degraded'
+        ).length;
+        calculatedUptime = parseFloat(((healthyCount / healthChecks.length) * 100).toFixed(1));
+      }
+
       setStatus({
         pmsAdapters,
         edgeFunctions,
         syncPipelines,
         errorRate: pmsAdapters.filter(a => a.status === 'error').length / Math.max(pmsAdapters.length, 1) * 100,
-        uptime: 99.9,
+        uptime: calculatedUptime,
       });
     } catch (error) {
       console.error('Error loading system status:', error);

@@ -48,11 +48,13 @@ const getPMSDisplayName = (key: string): string => {
     hotelbeds: "HotelBeds",
     littlehotelier: "Little Hotelier",
     nightsbridge: "NightsBridge",
+    rentalsunited: "Rentals United",
     roomkey: "RoomKey",
     roomracoon: "RoomRaccoon",
     semper: "Semper",
     siteminder: "SiteMinder",
     roomsonline: "RoomsOnline PMS",
+    mews: "Mews",
   };
   return names[key] || key.charAt(0).toUpperCase() + key.slice(1);
 };

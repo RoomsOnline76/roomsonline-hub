@@ -80,6 +80,7 @@ const getPMSAdapterFunction = (pmsKey: string): string | null => {
     'siteminder': 'siteminder-api',
     'hotelbeds': 'hotelbeds-api',
     'roomsonline': 'roomsonline-pms-api',
+    'rentalsunited': 'rentalsunited-api',
   };
   
   return adapterMap[pms] || null;
