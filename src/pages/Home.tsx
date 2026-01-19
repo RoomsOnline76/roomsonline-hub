@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   FileText,
   Mail,
+  Scale,
 } from "lucide-react";
 import heroFallback from "@/assets/hero-hotel.jpg";
 import rolLogo from "@/assets/rol-logo.png";
@@ -428,6 +429,7 @@ function HomeContent() {
                     {[
                       { to: "/journals", icon: BookOpen, label: "Journal" },
                       { to: "/about", icon: Users, label: "About Us" },
+                      { to: "/compare-property-management-systems", icon: Scale, label: "Compare PMS" },
                       { to: "/privacy-policy", icon: ShieldCheck, label: "Privacy" },
                       { to: "/terms-of-service", icon: FileText, label: "Terms" },
                       { to: "/contact", icon: Mail, label: "Contact Us" },
