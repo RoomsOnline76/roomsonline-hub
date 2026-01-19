@@ -104,7 +104,7 @@ export function PublicHeader({
                     : "text-foreground/80 hover:text-foreground hover:bg-muted"
                 )}
               >
-                Compare PMS
+                How It Works
               </Link>
               <Link
                 to="/contact"
@@ -172,8 +172,8 @@ export function PublicHeader({
                 className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">⚖️</span>
-                Compare PMS
+                <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">🔗</span>
+                How It Works
               </Link>
               <Link
                 to="/privacy"
