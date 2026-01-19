@@ -34,6 +34,7 @@ const PMS_ADAPTERS: Record<string, { function_name: string }> = {
   'hostfully': { function_name: 'hostfully-api' },
   'hotelbeds': { function_name: 'hotelbeds-api' },
   'littlehotelier': { function_name: 'little-hotelier-api' },
+  'rentalsunited': { function_name: 'rentalsunited-api' },
   'roomsonline_pms': { function_name: 'roomsonline-pms-api' },
 };
 

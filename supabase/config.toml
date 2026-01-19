@@ -111,3 +111,6 @@ verify_jwt = false
 
 [functions.get-contract-by-token]
 verify_jwt = false
+
+[functions.rentalsunited-api]
+verify_jwt = true

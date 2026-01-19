@@ -9,7 +9,7 @@ export interface PMSSystemConfig {
   hasCustomCard?: boolean; // Systems with custom UI cards in AdminKeys
 }
 
-// All available PMS and API systems - 9 PMS + 1 API = 10 total
+// All available PMS and API systems - 11 PMS + 1 API = 12 total
 export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
   // Internal API
   {
@@ -55,6 +55,12 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     key: 'hostfully',
     name: 'Hostfully',
     description: 'Property management platform for vacation rental managers',
+    hasCustomCard: true,
+  },
+  {
+    key: 'rentalsunited',
+    name: 'Rentals United',
+    description: 'Channel manager and distribution platform for vacation rentals',
     hasCustomCard: true,
   },
   {
