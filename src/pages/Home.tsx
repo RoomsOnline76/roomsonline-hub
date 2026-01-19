@@ -429,7 +429,7 @@ function HomeContent() {
                     {[
                       { to: "/journals", icon: BookOpen, label: "Journal" },
                       { to: "/about", icon: Users, label: "About Us" },
-                      { to: "/compare-property-management-systems", icon: Scale, label: "Compare PMS" },
+                      { to: "/compare-property-management-systems", icon: Scale, label: "How It Works" },
                       { to: "/privacy-policy", icon: ShieldCheck, label: "Privacy" },
                       { to: "/terms-of-service", icon: FileText, label: "Terms" },
                       { to: "/contact", icon: Mail, label: "Contact Us" },
