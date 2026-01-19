@@ -330,14 +330,14 @@ export default function PMSComparison() {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center text-sm text-muted-foreground">
-                <a href="mailto:support@roomsonline.co.za" className="flex items-center justify-center gap-2 hover:text-foreground transition-colors">
+                <a href="mailto:info@roomsonline.co.za" className="flex items-center justify-center gap-2 hover:text-foreground transition-colors">
                   <Mail className="h-4 w-4" />
-                  support@roomsonline.co.za
+                  info@roomsonline.co.za
                 </a>
                 <span className="hidden sm:inline">•</span>
-                <a href="tel:+27110001234" className="flex items-center justify-center gap-2 hover:text-foreground transition-colors">
+                <a href="tel:+27823238115" className="flex items-center justify-center gap-2 hover:text-foreground transition-colors">
                   <Phone className="h-4 w-4" />
-                  +27 11 000 1234
+                  +27 82 323 8115
                 </a>
               </div>
             </div>
