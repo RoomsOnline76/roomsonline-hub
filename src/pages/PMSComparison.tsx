@@ -30,7 +30,7 @@ const faqData = [
   },
   {
     question: "Can different properties use different systems?",
-    answer: "Yes. Each property can run on its own PMS. RoomsOnline connects them all into one unified booking experience for your guests."
+    answer: "Yes. Each property can run on its own PMS. Sleep in Africa by ROL connects them all into one unified booking experience for your guests."
   },
   {
     question: "Who processes payments?",
@@ -60,7 +60,7 @@ const faqSchema = {
 const softwareSchema = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  "name": "RoomsOnline",
+  "name": "Sleep in Africa by ROL",
   "applicationCategory": "BusinessApplication",
   "operatingSystem": "Web",
   "description": "A unified booking layer that connects any PMS or channel manager into one seamless booking experience on your website.",
@@ -83,11 +83,11 @@ const softwareSchema = {
 export default function PMSComparison() {
   // Set page meta and JSON-LD
   useEffect(() => {
-    document.title = "Unified Booking Layer for Property Portfolios | RoomsOnline";
+    document.title = "Unified Booking Layer for Property Portfolios | Sleep in Africa by ROL";
     
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) {
-      metaDesc.setAttribute('content', 'Connect any PMS to one website. RoomsOnline is a unified booking layer that works with your existing property management systems. No migrations, no replacements.');
+      metaDesc.setAttribute('content', 'Connect any PMS to one website. Sleep in Africa by ROL is a unified booking layer that works with your existing property management systems. No migrations, no replacements.');
     }
     
     // Add FAQ schema
@@ -129,7 +129,7 @@ export default function PMSComparison() {
             </p>
             
             <p className="text-lg text-foreground leading-relaxed max-w-2xl mx-auto mb-8">
-              RoomsOnline is a <strong>unified booking layer</strong> that connects any PMS or channel manager 
+              <strong>Sleep in Africa by ROL</strong> is a <strong>unified booking layer</strong> that connects any PMS or channel manager 
               into one seamless booking experience on your website.
             </p>
             
@@ -178,7 +178,7 @@ export default function PMSComparison() {
                 Guests don't care about that complexity. They just want to search, compare, and book.
               </p>
               <p>
-                RoomsOnline connects all of your existing systems into a single booking experience on your website. 
+                Sleep in Africa by ROL connects all of your existing systems into a single booking experience on your website. 
                 We sit on top of your current PMS and channel managers and turn them into one unified storefront.
               </p>
               <p>
@@ -213,7 +213,7 @@ export default function PMSComparison() {
             </ul>
             
             <p className="text-foreground font-medium">
-              RoomsOnline removes that friction by creating one consistent booking flow across your 
+              Sleep in Africa by ROL removes that friction by creating one consistent booking flow across your 
               entire portfolio — regardless of what systems run underneath.
             </p>
           </div>
@@ -229,7 +229,7 @@ export default function PMSComparison() {
             <ol className="space-y-4 mb-8">
               {[
                 "Each property connects using its existing PMS or channel manager",
-                "RoomsOnline pulls real-time availability and rates",
+                "Sleep in Africa by ROL pulls real-time availability and rates",
                 "Guests search and compare all properties in one place",
                 "One checkout is completed on your website",
                 "The booking is automatically routed back to the correct PMS",
@@ -260,7 +260,7 @@ export default function PMSComparison() {
             </h2>
             
             <p className="text-muted-foreground mb-6">
-              RoomsOnline is designed for teams who manage complexity. It's ideal for:
+              Sleep in Africa by ROL is designed for teams who manage complexity. It's ideal for:
             </p>
             
             <ul className="space-y-3 mb-8">
@@ -324,7 +324,7 @@ export default function PMSComparison() {
               <p>There are no setup fees.</p>
               <p>There are no monthly licenses.</p>
               <p className="text-foreground font-medium">
-                RoomsOnline operates on a simple pay-per-performance model.
+                Sleep in Africa by ROL operates on a simple pay-per-performance model.
               </p>
               <p>
                 A small percentage is charged only on confirmed bookings that originate through our platform.
@@ -352,7 +352,7 @@ export default function PMSComparison() {
               Supported Ecosystem
             </h2>
             
-            <p className="text-muted-foreground mb-6">RoomsOnline connects with:</p>
+            <p className="text-muted-foreground mb-6">Sleep in Africa by ROL connects with:</p>
             
             <ul className="grid sm:grid-cols-2 gap-3 mb-6">
               {[
@@ -418,30 +418,29 @@ export default function PMSComparison() {
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-muted-foreground mb-10">
-              <span>Connect once.</span>
-              <span className="hidden sm:inline">•</span>
-              <span>Sell everywhere.</span>
+              <span className="font-medium text-foreground">Connect once.</span>
+              <span className="hidden sm:inline text-border">•</span>
+              <span className="font-medium text-foreground">Sell everywhere.</span>
             </div>
             
-            <Button asChild size="lg" className="px-8 mb-8">
+            <Button asChild size="lg" className="px-8 mb-10">
               <Link to="/contact">
                 Contact Us
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
             
-            <div className="flex flex-col sm:flex-row gap-4 justify-center text-sm text-muted-foreground">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-muted-foreground">
               <a 
                 href="mailto:info@roomsonline.co.za" 
-                className="flex items-center justify-center gap-2 hover:text-foreground transition-colors"
+                className="flex items-center gap-2 hover:text-foreground transition-colors"
               >
                 <Mail className="h-4 w-4" />
                 info@roomsonline.co.za
               </a>
-              <span className="hidden sm:inline">•</span>
               <a 
                 href="tel:+27823238115" 
-                className="flex items-center justify-center gap-2 hover:text-foreground transition-colors"
+                className="flex items-center gap-2 hover:text-foreground transition-colors"
               >
                 <Phone className="h-4 w-4" />
                 +27 82 323 8115
