@@ -65,6 +65,7 @@ import DevPMS from "./pages/DevPMS";
 import DevLogs from "./pages/DevLogs";
 import DevFeatures from "./pages/DevFeatures";
 import DevDanger from "./pages/DevDanger";
+import PMSComparison from "./pages/PMSComparison";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -271,6 +272,8 @@ const App = () => (
           <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route path="/about" element={<AboutUs />} />
           <Route path="/contact" element={<ContactUs />} />
+          <Route path="/compare-property-management-systems" element={<PMSComparison />} />
+          <Route path="/pms-comparison" element={<Navigate to="/compare-property-management-systems" replace />} />
           <Route
             path="/nb"
             element={
