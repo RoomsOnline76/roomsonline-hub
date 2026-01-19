@@ -138,86 +138,59 @@ export function PublicHeader({
 
         {/* Mobile dropdown menu */}
         {mobileMenuOpen && (
-          <div className={cn(
-            "sm:hidden mt-4 pb-2 animate-fade-in",
-            transparent && "text-white"
-          )}>
-            <nav className="flex flex-col gap-2">
+          <div className="sm:hidden mt-4 pb-2 animate-fade-in bg-background rounded-lg border border-border shadow-lg">
+            <nav className="flex flex-col gap-1 p-2">
               <Link
                 to="/journals"
-                className={cn(
-                  "px-3 py-2 text-sm rounded-md transition-colors",
-                  transparent 
-                    ? "text-white/90 hover:text-white hover:bg-white/10" 
-                    : "text-foreground/80 hover:text-foreground hover:bg-muted"
-                )}
+                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
                 onClick={() => setMobileMenuOpen(false)}
               >
+                <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">📖</span>
                 Journal
               </Link>
               <Link
                 to="/about"
-                className={cn(
-                  "px-3 py-2 text-sm rounded-md transition-colors",
-                  transparent 
-                    ? "text-white/90 hover:text-white hover:bg-white/10" 
-                    : "text-foreground/80 hover:text-foreground hover:bg-muted"
-                )}
+                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
                 onClick={() => setMobileMenuOpen(false)}
               >
+                <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">👥</span>
                 About Us
               </Link>
               <Link
                 to="/compare-property-management-systems"
-                className={cn(
-                  "px-3 py-2 text-sm rounded-md transition-colors",
-                  transparent 
-                    ? "text-white/90 hover:text-white hover:bg-white/10" 
-                    : "text-foreground/80 hover:text-foreground hover:bg-muted"
-                )}
+                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
                 onClick={() => setMobileMenuOpen(false)}
               >
+                <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">⚖️</span>
                 Compare PMS
               </Link>
               <Link
                 to="/privacy"
-                className={cn(
-                  "px-3 py-2 text-sm rounded-md transition-colors",
-                  transparent 
-                    ? "text-white/90 hover:text-white hover:bg-white/10" 
-                    : "text-foreground/80 hover:text-foreground hover:bg-muted"
-                )}
+                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
                 onClick={() => setMobileMenuOpen(false)}
               >
+                <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">🔒</span>
                 Privacy
               </Link>
               <Link
                 to="/terms"
-                className={cn(
-                  "px-3 py-2 text-sm rounded-md transition-colors",
-                  transparent 
-                    ? "text-white/90 hover:text-white hover:bg-white/10" 
-                    : "text-foreground/80 hover:text-foreground hover:bg-muted"
-                )}
+                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
                 onClick={() => setMobileMenuOpen(false)}
               >
+                <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">📋</span>
                 Terms
               </Link>
               <Link
                 to="/contact"
-                className={cn(
-                  "px-3 py-2 text-sm rounded-md transition-colors",
-                  transparent 
-                    ? "text-white/90 hover:text-white hover:bg-white/10" 
-                    : "text-foreground/80 hover:text-foreground hover:bg-muted"
-                )}
+                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
                 onClick={() => setMobileMenuOpen(false)}
               >
+                <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">✉️</span>
                 Contact Us
               </Link>
               {showCurrency && (
-                <div className="px-3 py-2">
-                  <CurrencySelector compact variant={transparent ? "hero" : "default"} />
+                <div className="px-3 py-2 border-t border-border mt-1 pt-2">
+                  <CurrencySelector compact variant="default" />
                 </div>
               )}
             </nav>
