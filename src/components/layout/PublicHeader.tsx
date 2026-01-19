@@ -168,6 +168,18 @@ export function PublicHeader({
                 About Us
               </Link>
               <Link
+                to="/compare-property-management-systems"
+                className={cn(
+                  "px-3 py-2 text-sm rounded-md transition-colors",
+                  transparent 
+                    ? "text-white/90 hover:text-white hover:bg-white/10" 
+                    : "text-foreground/80 hover:text-foreground hover:bg-muted"
+                )}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Compare PMS
+              </Link>
+              <Link
                 to="/privacy"
                 className={cn(
                   "px-3 py-2 text-sm rounded-md transition-colors",
