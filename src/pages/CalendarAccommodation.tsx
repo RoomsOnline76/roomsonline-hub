@@ -46,6 +46,7 @@ interface Property {
   checkfront_property_code: string | null;
   siteminder_property_code: string | null;
   hotelbeds_hotel_code: string | null;
+  hostfully_property_uid: string | null;
 }
 
 interface PMSRoomTypeData {
@@ -278,6 +279,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       case "checkfront": return property.checkfront_property_code;
       case "siteminder": return property.siteminder_property_code;
       case "hotelbeds": return property.hotelbeds_hotel_code;
+      case "hostfully": return property.hostfully_property_uid || property.external_id;
       case "nightsbridge": return property.external_id;
       case "semper": return property.external_id;
       case "mews": return property.external_id;
@@ -457,8 +459,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         body: {
           action: "fetch_availability",
           property_id: selectedPropertyData.id,
-          start_date: startDateStr,
-          end_date: endDateStr,
+          propertyUid: pmsPropertyCode,
+          startDate: startDateStr,
+          endDate: endDateStr,
         },
       });
 
@@ -679,7 +682,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     try {
       let query = supabase
         .from("properties")
-        .select("id, name, amenities, owner_email, external_system, external_id, benson_property_code, checkfront_property_code, siteminder_property_code, hotelbeds_hotel_code")
+        .select("id, name, amenities, owner_email, external_system, external_id, benson_property_code, checkfront_property_code, siteminder_property_code, hotelbeds_hotel_code, hostfully_property_uid")
         .eq("is_active", true);
 
       if (!adminStatus && email) {
