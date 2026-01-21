@@ -210,11 +210,20 @@ export const bensonRoomPopulatedFields: string[] = [
   'roomsAvailablePerNight',
 ];
 
+// Fields that are ALWAYS editable regardless of PMS sync status
+// These fields require local override capability even when PMS provides data
+const alwaysEditableFields: string[] = [
+  'country', // Country often needs correction for regional accuracy
+];
+
 // Check if a field is populated by the selected PMS
 export const isFieldPopulatedByPMS = (
   fieldName: string,
   selectedPMS: string | undefined | null
 ): boolean => {
+  // Always allow editing of specified fields regardless of PMS
+  if (alwaysEditableFields.includes(fieldName)) return false;
+  
   if (!selectedPMS) return false;
   const pmsKey = selectedPMS.toLowerCase().replace('-', '') as PMSSystem;
   const fields = pmsPopulatedFields[pmsKey];
