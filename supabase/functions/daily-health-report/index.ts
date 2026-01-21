@@ -312,6 +312,8 @@ Deno.serve(async (req) => {
       const healthyChecks = checks.filter(c => c.status === 'healthy').length;
       const degradedChecks = checks.filter(c => c.status === 'degraded').length;
       const failedChecks = checks.filter(c => c.status === 'failed').length;
+      // Only count checks with known status (healthy, degraded, failed) for uptime calculation
+      const knownStatusChecks = healthyChecks + degradedChecks + failedChecks;
       const totalChecks = checks.length;
       
       const latencies = checks.filter(c => c.latency_ms).map(c => c.latency_ms);
@@ -320,9 +322,11 @@ Deno.serve(async (req) => {
         : 0;
 
       const lastCheck = checks[0];
-      const uptime = totalChecks > 0 
-        ? ((healthyChecks + degradedChecks) / totalChecks) * 100 
-        : 0;
+      // Calculate uptime only from checks with known status (exclude 'unknown')
+      // If no known status checks, default to 100% (assume healthy if not checked)
+      const uptime = knownStatusChecks > 0 
+        ? ((healthyChecks + degradedChecks) / knownStatusChecks) * 100 
+        : (lastCheck?.status === 'unknown' ? 100 : 0); // Unknown status = assume healthy
 
       return {
         component_key: comp.component_key,
