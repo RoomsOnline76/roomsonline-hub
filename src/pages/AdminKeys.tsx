@@ -1106,7 +1106,7 @@ export default function AdminKeys() {
           pms_managed_fields: ["availability", "rates", "max_guests", "bedrooms", "bathrooms"],
           pms_sync_status: "active",
           last_pms_sync_at: new Date().toISOString(),
-          is_active: false,
+          is_active: true,
         };
 
         const { error } = await supabase.from("properties").insert(propertyData);

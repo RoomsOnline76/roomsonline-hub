@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star, Eye, EyeOff, FileCheck, FileX, FileWarning, Send, Mail, Loader2 } from "lucide-react";
+import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star, Eye, EyeOff, FileCheck, FileX, FileWarning, Send, Mail, Loader2, FlaskConical } from "lucide-react";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -49,6 +49,7 @@ const PropertyOverview = () => {
   const [searchShow, setSearchShow] = useState("");
   const [searchPropertyType, setSearchPropertyType] = useState("");
   const [isTogglingShow, setIsTogglingShow] = useState<string | null>(null);
+  const [showSandboxProperties, setShowSandboxProperties] = useState(true);
 
   // Sort state
   const [sortColumn, setSortColumn] = useState<SortColumn>(null);
@@ -254,9 +255,21 @@ const PropertyOverview = () => {
     return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
   };
 
+  // Helper to check if property is sandbox
+  const isSandboxProperty = (property: any): boolean => {
+    const name = property.name || "";
+    const metadata = property.external_metadata as any;
+    return name.startsWith("[SANDBOX]") || metadata?.is_sandbox === true;
+  };
+
   // Filter and sort active properties
   const activeProperties = useMemo(() => {
     let filtered = (allProperties || []).filter(p => p.is_active);
+
+    // Filter sandbox properties based on toggle
+    if (!showSandboxProperties) {
+      filtered = filtered.filter(p => !isSandboxProperty(p));
+    }
 
     // Apply search filters
     if (searchName) {
@@ -329,7 +342,12 @@ const PropertyOverview = () => {
     }
 
     return filtered;
-  }, [allProperties, searchName, searchPms, searchHero, searchRol, searchShow, searchPropertyType, sortColumn, sortDirection]);
+  }, [allProperties, searchName, searchPms, searchHero, searchRol, searchShow, searchPropertyType, sortColumn, sortDirection, showSandboxProperties]);
+
+  // Count sandbox properties for display
+  const sandboxCount = useMemo(() => {
+    return (allProperties || []).filter(p => p.is_active && isSandboxProperty(p)).length;
+  }, [allProperties]);
 
   // Handle toggle show on website
   const handleToggleShowOnWebsite = async (propertyId: string, show: boolean) => {
@@ -441,10 +459,26 @@ const PropertyOverview = () => {
                     <CardTitle className="text-sm">Active Properties</CardTitle>
                     <CardDescription className="text-xs">— Manage your active properties</CardDescription>
                   </div>
-                  <Button onClick={() => navigate('/admin/properties/new')} className="h-7 text-xs px-2">
-                    <Building2 className="mr-1 h-3 w-3" />
-                    Add Property
-                  </Button>
+                  <div className="flex items-center gap-3">
+                    {sandboxCount > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="show-sandbox"
+                          checked={showSandboxProperties}
+                          onCheckedChange={setShowSandboxProperties}
+                          className="scale-75"
+                        />
+                        <label htmlFor="show-sandbox" className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1">
+                          <FlaskConical className="h-3 w-3" />
+                          Test ({sandboxCount})
+                        </label>
+                      </div>
+                    )}
+                    <Button onClick={() => navigate('/admin/properties/new')} className="h-7 text-xs px-2">
+                      <Building2 className="mr-1 h-3 w-3" />
+                      Add Property
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="py-2 px-4">
@@ -670,7 +704,15 @@ const PropertyOverview = () => {
                             )}
                           </TableCell>
                           <TableCell className="font-medium py-1 text-xs">
-                            <span>{property.name}</span>
+                            <div className="flex items-center gap-1.5">
+                              {isSandboxProperty(property) && (
+                                <Badge variant="outline" className="h-4 px-1 text-[9px] bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800">
+                                  <FlaskConical className="h-2.5 w-2.5 mr-0.5" />
+                                  TEST
+                                </Badge>
+                              )}
+                              <span>{property.name?.replace(/^\[SANDBOX\]\s*/, '')}</span>
+                            </div>
                           </TableCell>
                           <TableCell className="py-1 text-xs">
                             {property.external_system ? (
