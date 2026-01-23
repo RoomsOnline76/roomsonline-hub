@@ -1,105 +1,101 @@
 
-# Fix Contract Signing + Color Update + Email Update
+# Fix Double Logo + Color Update to ROL Pink
 
-## Issue Summary
+## Summary
 
-There are three tasks to complete:
+Two issues to address:
 
-1. **Contract Signing Failure** - The error shows: `null value in column "price_per_night" of relation "properties" violates not-null constraint`. The `process-signature` function is missing required database fields when creating new properties.
+1. **Double Logo on Contract PDF** - The contract shows the full "roomsonline" logo at the top, then a second "ROL" wreath logo below it within the contract body content.
 
-2. **Color Replacement** - Replace wine maroon (#722F37) with ROL pink (#e91e8c) throughout the codebase.
-
-3. **Email Update** - Replace all instances of `info@roomsonline.co.za` with `sleepinafrica@roomsonline.co.za`.
+2. **Color Update** - Replace the wrong pink shade (`#e91e63`) with the correct ROL pink (`#e91e8c`) in email templates.
 
 ---
 
-## Task 1: Fix Contract Signing
+## Issue 1: Double Logo in Contract
 
-### Root Cause
-The `process-signature` edge function creates properties but is missing the required `price_per_night` field (and potentially other required fields like `bedrooms` and `bathrooms`).
+### Root Cause Analysis
+
+Looking at the PDF screenshot, there are TWO logos displayed:
+- **Logo 1**: Full "roomsonline" logo with tagline at the very top header
+- **Logo 2**: Small "ROL" wreath logo inside the contract content area
+
+The double logo occurs because:
+
+1. `generateContractHTML()` (line 78-80 in `src/lib/contractAgreementText.ts`) includes a logo in its output:
+   ```html
+   <div class="text-center mb-6">
+     <img src="${ROL_LOGO_URL}" alt="RoomsOnline" class="h-12 mx-auto" />
+   </div>
+   ```
+
+2. When this is used with `generatePdfFromDynamicTemplate()` (lines 267-271), it wraps the content with ANOTHER header containing the logo:
+   ```html
+   <div class="header">
+     <img src="${logoSrc}" alt="Roomsonline" />
+     <p class="tagline">Strategize - Optimize - Maximize</p>
+   </div>
+   ${templateHtml} <!-- This already contains a logo! -->
+   ```
+
+3. Similarly, `generateSignedContractHTML()` (lines 193-196) also has a header with logo that wraps content which may contain its own logo.
 
 ### Solution
-Update `supabase/functions/process-signature/index.ts` to include all required fields when creating properties:
+
+**Remove the logo from `generateContractHTML()`** since the wrapper functions (`generateSignedContractHTML` and `generatePdfFromDynamicTemplate`) already add a proper header with the logo.
+
+**File**: `src/lib/contractAgreementText.ts`
+
+**Change**: Lines 76-80 - Remove the logo div from the contract content:
 
 ```typescript
-// Add these required fields to the property insert:
-price_per_night: 0,  // Default to 0, owner will set later
-bedrooms: 1,         // Already included
-bathrooms: 1,        // Already included  
-```
+// BEFORE:
+return `
+<div class="contract-text">
+  <div class="text-center mb-6">
+    <img src="${ROL_LOGO_URL}" alt="RoomsOnline" class="h-12 mx-auto" />
+  </div>
+  <h1 class="text-2xl font-bold text-center mb-6">ROOMSONLINE ACCOMMODATION...
 
-The current code is missing `price_per_night: 0` in the insert statement.
+// AFTER:
+return `
+<div class="contract-text">
+  <h1 class="text-2xl font-bold text-center mb-6">ROOMSONLINE ACCOMMODATION...
+```
 
 ---
 
-## Task 2: Replace Wine Maroon with ROL Pink
+## Issue 2: Color Inconsistency
+
+### Problem
+
+Some email templates use `#e91e63` (Material Design Pink) instead of the correct ROL pink `#e91e8c`.
 
 ### Files to Update
 
-| File | Location | Change |
-|------|----------|--------|
-| `supabase/functions/send-survey-report/index.ts` | Lines 127, 153, 174, 190, 194 | Replace `#722F37` with `#e91e8c` |
+| File | Line | Current | Target |
+|------|------|---------|--------|
+| `supabase/functions/reset-user-password/index.ts` | 149 | `#e91e63` | `#e91e8c` |
+| `supabase/functions/send-access-request/index.ts` | 194 | `#e91e63` | `#e91e8c` |
 
-### What Changes
+### Note on Green Color
 
-**Before (Wine Maroon):**
-```css
-background: linear-gradient(135deg, #722F37 0%, #8B3A42 100%);
-color: #722F37;
-border-left: 3px solid #722F37;
-```
-
-**After (ROL Pink):**
-```css
-background: linear-gradient(135deg, #e91e8c 0%, #f0469d 100%);
-color: #e91e8c;
-border-left: 3px solid #e91e8c;
-```
+The dark green color `#2c5530` in `src/lib/contractAgreementText.ts` is used for contract headers and borders. This appears to be intentional brand styling for the contract document and should NOT be changed to pink, as it provides good readability for official legal documents.
 
 ---
 
-## Task 3: Update Email Address
+## Implementation Summary
 
-### Files to Update (20+ files)
-
-| File | Changes |
-|------|---------|
-| `supabase/functions/process-signature/index.ts` | Lines 309, 331-337, 372 |
-| `supabase/functions/send-owner-contract/index.ts` | Line 226 |
-| `supabase/functions/send-onboarding-email/index.ts` | Line 128 |
-| `supabase/functions/send-booking-email/index.ts` | Line 426 |
-| `supabase/functions/send-contract/index.ts` | Line 193 |
-| `supabase/functions/email-contract-copy/index.ts` | Line 179 |
-| `supabase/functions/send-itinerary-email/index.ts` | Line 222 |
-| `supabase/functions/send-access-request/index.ts` | Line 150 |
-| `supabase/functions/send-contact-email/index.ts` | Line 198 |
-| `supabase/functions/send-survey-report/index.ts` | Line 524 |
-| `supabase/functions/help-assistant/index.ts` | Line 14 |
-| `src/pages/ContractSign.tsx` | Lines 609, 641, 662, 768 |
-| `src/pages/PropertyOnboarding.tsx` | Lines 61, 71, 192, 242 |
-| `src/pages/PMSComparison.tsx` | Line 439 |
-| `src/pages/ContactUs.tsx` | Line 117 |
-| `src/pages/AdminKeys.tsx` | Line 317 |
-| `src/lib/contractAgreementText.ts` | Line 93 |
-
-### What Changes
-- All `info@roomsonline.co.za` → `sleepinafrica@roomsonline.co.za`
-- All `mailto:info@roomsonline.co.za` → `mailto:sleepinafrica@roomsonline.co.za`
-- Admin notification emails remain unchanged (carike@ stays)
+| Task | File | Change |
+|------|------|--------|
+| Remove duplicate logo | `src/lib/contractAgreementText.ts` | Delete logo div from `generateContractHTML()` lines 78-80 |
+| Update color | `supabase/functions/reset-user-password/index.ts` | `#e91e63` to `#e91e8c` |
+| Update color | `supabase/functions/send-access-request/index.ts` | `#e91e63` to `#e91e8c` |
 
 ---
 
-## Implementation Order
-
-1. **Fix process-signature first** (this is blocking contract signing)
-2. **Update email addresses** across all files
-3. **Update color** in send-survey-report
-
----
-
-## Expected Results
+## Expected Result
 
 After implementation:
-- Contract signing will succeed (no more price_per_night error)
-- All contact emails will show `sleepinafrica@roomsonline.co.za`
-- Survey reports will use ROL pink branding instead of wine maroon
+- Contract PDF will show only ONE logo at the top (the full "roomsonline" logo with tagline)
+- The duplicate "ROL" wreath logo below will be removed
+- All email buttons will use consistent ROL pink (`#e91e8c`)
