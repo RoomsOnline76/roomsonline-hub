@@ -123,7 +123,8 @@ Deno.serve(async (req) => {
         .from("properties")
         .insert({
           name: propData.property_name,
-          property_type: propData.property_type,
+          // Normalize property_type to lowercase for Select component compatibility
+          property_type: propData.property_type?.toLowerCase() || "hotel",
           address: propData.address,
           city: propData.city,
           country: propData.country,
@@ -132,6 +133,7 @@ Deno.serve(async (req) => {
           is_active: true,
           max_guests: 2,
           amenities: {
+            // Root level (for contract variable resolution)
             registered_business_name: propData.registered_business_name || propData.property_name,
             registration_number: propData.registration_number,
             vat_number: propData.vat_number,
@@ -139,6 +141,16 @@ Deno.serve(async (req) => {
             mobile_number: propData.mobile_number,
             postal_address: propData.postal_address,
             key_representative: propData.key_representative || signee_name,
+            // Nested structure (for PropertyForm compatibility)
+            contact: {
+              email: contract.owner_email,
+              telephone: propData.telephone,
+            },
+            banking: {
+              property_registration: propData.registration_number,
+              vat_number: propData.vat_number,
+              has_vat: !!propData.vat_number,
+            },
           },
         })
         .select("id, name")

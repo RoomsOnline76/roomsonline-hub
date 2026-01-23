@@ -2658,9 +2658,12 @@ export default function PropertyForm() {
 
           setFormData({
             name: data.name || "",
-            property_type: data.property_type || "",
-            contact_email: amenities?.contact?.email || "",
-            telephone: amenities?.contact?.telephone || "",
+            // Normalize property_type to lowercase for Select component compatibility
+            property_type: (data.property_type || "").toLowerCase(),
+            // Contact Email - prioritize owner_email (where contract data is stored)
+            contact_email: data.owner_email || amenities?.contact?.email || "",
+            // Telephone - check root level first (contract data), then nested
+            telephone: amenities?.telephone || amenities?.contact?.telephone || "",
             property_url: data.property_url || "",
             currency: amenities?.currency || "ZAR",
             owner_name: data.owner_name || "",
@@ -2680,9 +2683,11 @@ export default function PropertyForm() {
             channel_id: amenities?.external_ids?.semper_channel_id || "",
             account_id: amenities?.external_ids?.semper_account_id || "",
             agent_id: amenities?.external_ids?.semper_agent_id || "",
-            has_vat: amenities?.banking?.has_vat ?? !!amenities?.banking?.vat_number,
-            vat_number: amenities?.banking?.vat_number || "",
-            property_registration: amenities?.banking?.property_registration || "",
+            // VAT - check root level first (contract data), then banking
+            has_vat: amenities?.banking?.has_vat ?? !!(amenities?.vat_number || amenities?.banking?.vat_number),
+            vat_number: amenities?.vat_number || amenities?.banking?.vat_number || "",
+            // Registration - check root level first (contract data), then banking
+            property_registration: amenities?.registration_number || amenities?.banking?.property_registration || "",
             bank_name: amenities?.banking?.bank_name || "",
             branch_code: amenities?.banking?.branch_code || "",
             account_holder: amenities?.banking?.account_holder || "",
