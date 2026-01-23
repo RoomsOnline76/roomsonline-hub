@@ -47,10 +47,18 @@ export interface OnboardingOfferings {
 
 export interface OnboardingRoomType {
   name: string;
+  units?: number;                    // NEW: Number of units of this type
   max_guests: number;
   base_rate?: number;
+  rate_unit?: 'per_night' | 'per_stay'; // NEW: Rate unit
   description?: string;
+  images?: OnboardingImage[];        // NEW: Room-specific images
 }
+
+export const RATE_UNIT_OPTIONS = [
+  { value: 'per_night', label: 'Per Night' },
+  { value: 'per_stay', label: 'Per Stay' }
+] as const;
 
 export interface OnboardingImage {
   url: string;

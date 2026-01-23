@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Sparkles, Loader2, AlertTriangle, Utensils } from "lucide-react";
+import { Sparkles, Loader2, AlertTriangle, Utensils, PenLine, Star } from "lucide-react";
 import { StepProps } from "./types";
 import { MEAL_PLAN_OPTIONS } from "@/config/onboardingFieldSchema";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,7 +34,10 @@ export function StepGuestExperience({
   const isPMSDesc = isPMSManaged("description");
   const mealPlan = getAmenityValue<string[]>("meal_plan", []);
   const description = propertyData.description || "";
+  const shortDescription = propertyData.short_description || "";
+  const uniqueSellingPoints = getAmenityValue<string>("unique_selling_points", "");
   const charCount = description.length;
+  const shortCharCount = shortDescription.length;
 
   const handleAIEnhance = async () => {
     setIsGenerating(true);
@@ -83,7 +86,30 @@ export function StepGuestExperience({
 
   return (
     <div className="space-y-6">
-      {/* Description */}
+      {/* Short Description (Marketing Summary) */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <PenLine className="h-4 w-4 text-primary" />
+          <Label htmlFor="short_description">Marketing Summary</Label>
+        </div>
+        <Textarea
+          id="short_description"
+          value={shortDescription}
+          onChange={(e) => updateField("short_description", e.target.value)}
+          placeholder="A brief, compelling summary of your property for search results and quick previews (max 300 characters)"
+          rows={3}
+          maxLength={350}
+          className="resize-y"
+        />
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>Used in listings and search results</span>
+          <span className={shortCharCount > 300 ? "text-amber-600 font-medium" : ""}>
+            {shortCharCount}/300
+          </span>
+        </div>
+      </div>
+
+      {/* Full Description */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label htmlFor="description" className="flex items-center gap-2">
@@ -118,6 +144,25 @@ export function StepGuestExperience({
           <span>Aim for 150-300 words</span>
           <span className={charCount > 300 ? "text-amber-600" : ""}>{charCount} chars</span>
         </div>
+      </div>
+
+      {/* What Makes This Property Special */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Star className="h-4 w-4 text-primary" />
+          <Label htmlFor="unique_selling_points">What Makes This Property Special?</Label>
+        </div>
+        <Textarea
+          id="unique_selling_points"
+          value={uniqueSellingPoints}
+          onChange={(e) => updateField("amenities.unique_selling_points", e.target.value)}
+          placeholder="Highlight your unique selling points - exclusive features, exceptional service, stunning views, award-winning cuisine..."
+          rows={4}
+          className="resize-y"
+        />
+        <p className="text-xs text-muted-foreground">
+          This helps us market your property effectively
+        </p>
       </div>
 
       {/* Meal Plans */}

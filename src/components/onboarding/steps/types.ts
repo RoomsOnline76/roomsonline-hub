@@ -11,6 +11,7 @@ export interface PropertyData {
   latitude: number | null;
   longitude: number | null;
   description: string | null;
+  short_description: string | null;  // NEW: Marketing summary
   images: Json | null;
   amenities: Json | null;
   pms_managed_fields: string[] | null;

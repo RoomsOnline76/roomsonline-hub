@@ -1,11 +1,12 @@
-import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, Bed, Users, DollarSign } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Trash2, Bed, Users, DollarSign, Hash, Copy } from "lucide-react";
 import { StepProps } from "./types";
-import { OnboardingRoomType } from "@/config/onboardingFieldSchema";
+import { OnboardingRoomType, RATE_UNIT_OPTIONS } from "@/config/onboardingFieldSchema";
 
 export function StepRoomsOverview({
   updateField,
@@ -16,8 +17,10 @@ export function StepRoomsOverview({
   const addRoom = () => {
     const newRoom: OnboardingRoomType = {
       name: "",
+      units: 1,
       max_guests: 2,
       base_rate: undefined,
+      rate_unit: "per_night",
       description: ""
     };
     updateField("amenities.room_types", [...roomTypes, newRoom]);
@@ -43,7 +46,8 @@ export function StepRoomsOverview({
     updateField("amenities.room_types", [...roomTypes, duplicated]);
   };
 
-  const totalCapacity = roomTypes.reduce((sum, room) => sum + (room.max_guests || 0), 0);
+  const totalCapacity = roomTypes.reduce((sum, room) => sum + (room.max_guests || 0) * (room.units || 1), 0);
+  const totalUnits = roomTypes.reduce((sum, room) => sum + (room.units || 1), 0);
 
   return (
     <div className="space-y-6">
@@ -54,7 +58,7 @@ export function StepRoomsOverview({
         </p>
         {roomTypes.length > 0 && (
           <p className="text-sm text-primary font-medium mt-2">
-            {roomTypes.length} room type{roomTypes.length !== 1 ? 's' : ''} • Total capacity: {totalCapacity} guests
+            {roomTypes.length} room type{roomTypes.length !== 1 ? 's' : ''} • {totalUnits} total units • Capacity: {totalCapacity} guests
           </p>
         )}
       </div>
@@ -75,8 +79,9 @@ export function StepRoomsOverview({
                     variant="ghost"
                     size="sm"
                     onClick={() => duplicateRoom(index)}
-                    className="h-8 text-xs"
+                    className="h-8 text-xs gap-1"
                   >
+                    <Copy className="h-3 w-3" />
                     Duplicate
                   </Button>
                   <Button
@@ -103,7 +108,23 @@ export function StepRoomsOverview({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-3">
+                {/* Number of Units */}
+                <div className="space-y-2">
+                  <Label htmlFor={`room-units-${index}`} className="flex items-center gap-1.5">
+                    <Hash className="h-3 w-3" />
+                    Units
+                  </Label>
+                  <Input
+                    id={`room-units-${index}`}
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={room.units || 1}
+                    onChange={(e) => updateRoom(index, "units", parseInt(e.target.value) || 1)}
+                  />
+                </div>
+
                 {/* Max Guests */}
                 <div className="space-y-2">
                   <Label htmlFor={`room-guests-${index}`} className="flex items-center gap-1.5">
@@ -124,7 +145,7 @@ export function StepRoomsOverview({
                 <div className="space-y-2">
                   <Label htmlFor={`room-rate-${index}`} className="flex items-center gap-1.5">
                     <DollarSign className="h-3 w-3" />
-                    Base Rate (ZAR)
+                    Rate (ZAR)
                   </Label>
                   <Input
                     id={`room-rate-${index}`}
@@ -132,9 +153,41 @@ export function StepRoomsOverview({
                     min={0}
                     value={room.base_rate || ""}
                     onChange={(e) => updateRoom(index, "base_rate", parseFloat(e.target.value) || undefined)}
-                    placeholder="per night"
+                    placeholder="From"
                   />
                 </div>
+              </div>
+
+              {/* Rate Unit */}
+              <div className="space-y-2">
+                <Label htmlFor={`room-rate-unit-${index}`}>Rate Unit</Label>
+                <Select
+                  value={room.rate_unit || "per_night"}
+                  onValueChange={(value) => updateRoom(index, "rate_unit", value)}
+                >
+                  <SelectTrigger id={`room-rate-unit-${index}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RATE_UNIT_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Room Description */}
+              <div className="space-y-2">
+                <Label htmlFor={`room-desc-${index}`}>Room Description</Label>
+                <Textarea
+                  id={`room-desc-${index}`}
+                  value={room.description || ""}
+                  onChange={(e) => updateRoom(index, "description", e.target.value)}
+                  placeholder="Describe this room type - features, views, amenities..."
+                  rows={2}
+                />
               </div>
             </CardContent>
           </Card>
@@ -173,8 +226,7 @@ export function StepRoomsOverview({
           <h4 className="font-medium text-sm mb-2">Tip</h4>
           <p className="text-sm text-muted-foreground">
             Use the "Duplicate" button to quickly create similar room types. 
-            Detailed room configuration (images, amenities, rates) can be set 
-            in the full property editor.
+            Room images can be uploaded in the Media section.
           </p>
         </div>
       )}
