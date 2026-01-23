@@ -124,7 +124,7 @@ function generateHtmlReport(data: SurveyData): string {
       overflow: hidden;
     }
     .header {
-      background: linear-gradient(135deg, #722F37 0%, #8B3A42 100%);
+      background: linear-gradient(135deg, #e91e8c 0%, #f0469d 100%);
       color: white;
       padding: 30px;
       text-align: center;
@@ -150,7 +150,7 @@ function generateHtmlReport(data: SurveyData): string {
       margin-bottom: 0;
     }
     .section-title {
-      color: #722F37;
+      color: #e91e8c;
       font-size: 18px;
       font-weight: 600;
       margin-bottom: 15px;
@@ -171,7 +171,7 @@ function generateHtmlReport(data: SurveyData): string {
       padding: 8px 12px;
       background: #f9f9f9;
       border-radius: 4px;
-      border-left: 3px solid #722F37;
+      border-left: 3px solid #e91e8c;
     }
     .priority-grid {
       display: grid;
@@ -187,11 +187,11 @@ function generateHtmlReport(data: SurveyData): string {
     }
     .priority-fill {
       height: 100%;
-      background: linear-gradient(90deg, #722F37 0%, #C9A861 100%);
+      background: linear-gradient(90deg, #e91e8c 0%, #C9A861 100%);
       border-radius: 10px;
     }
     .contact-box {
-      background: #722F37;
+      background: #e91e8c;
       color: white;
       padding: 20px;
       border-radius: 8px;
@@ -434,7 +434,7 @@ function generateClientConfirmationEmail(data: SurveyData): string {
       overflow: hidden;
     }
     .header {
-      background: linear-gradient(135deg, #722F37 0%, #8B3A42 100%);
+      background: linear-gradient(135deg, #e91e8c 0%, #f0469d 100%);
       color: white;
       padding: 30px;
       text-align: center;
@@ -461,7 +461,7 @@ function generateClientConfirmationEmail(data: SurveyData): string {
       background: #fafafa;
     }
     a {
-      color: #722F37;
+      color: #e91e8c;
     }
   </style>
 </head>

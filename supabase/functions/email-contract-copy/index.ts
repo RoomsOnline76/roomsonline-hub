@@ -165,7 +165,7 @@ const handler = async (req: Request): Promise<Response> => {
                 </div>
                 
                 <p style="color: #718096; font-size: 13px; line-height: 1.6; margin: 0; text-align: center;">
-                  This link will expire. If you have any questions, please contact us at info@roomsonline.co.za
+                  This link will expire. If you have any questions, please contact us at sleepinafrica@roomsonline.co.za
                 </p>
               </td>
             </tr>
@@ -176,7 +176,7 @@ const handler = async (req: Request): Promise<Response> => {
                 <p style="color: #718096; font-size: 12px; line-height: 1.6; margin: 0; text-align: center;">
                   © ${new Date().getFullYear()} Sleep in Africa (Pty) Ltd t/a RoomsOnline<br>
                   29 Woodlands Close, Parklands, 7441<br>
-                  <a href="mailto:info@roomsonline.co.za" style="color: #667eea;">info@roomsonline.co.za</a>
+                  <a href="mailto:sleepinafrica@roomsonline.co.za" style="color: #667eea;">sleepinafrica@roomsonline.co.za</a>
                 </p>
               </td>
             </tr>

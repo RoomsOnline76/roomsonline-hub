@@ -111,10 +111,10 @@ const ContactUs = () => {
                   <div>
                     <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Email</p>
                     <a
-                      href="mailto:info@roomsonline.co.za"
+                      href="mailto:sleepinafrica@roomsonline.co.za"
                       className="text-foreground hover:text-primary transition-colors duration-200"
                     >
-                      info@roomsonline.co.za
+                      sleepinafrica@roomsonline.co.za
                     </a>
                   </div>
                 </div>

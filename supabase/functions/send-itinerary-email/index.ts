@@ -219,7 +219,7 @@ function generateItineraryEmail(itinerary: any, stays: Stay[]): string {
             <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
               <p style="margin: 0 0 16px; color: #666; font-size: 13px;">We hope you have an unforgettable journey!</p>
               <p style="margin: 0 0 8px; color: #999; font-size: 12px;">
-                Questions? Contact us at <a href="mailto:info@roomsonline.co.za" style="color: #e91e8c;">info@roomsonline.co.za</a>
+                Questions? Contact us at <a href="mailto:sleepinafrica@roomsonline.co.za" style="color: #e91e8c;">sleepinafrica@roomsonline.co.za</a>
               </p>
               <p style="margin: 16px 0 0; color: #999; font-size: 11px;">
                 RoomsOnline – Curated African Hospitality
