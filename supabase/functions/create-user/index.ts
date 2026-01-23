@@ -76,8 +76,13 @@ serve(async (req) => {
     const existingAuthUser = existingAuthUsers.find(u => u.email === email);
 
     let userId: string;
+    let isExistingWithRole = false;
+    let isNewUser = true;
     
     if (existingAuthUser) {
+      isNewUser = false;
+      userId = existingAuthUser.id;
+      
       // User exists in auth, check if they have profile and role
       const { data: existingProfile } = await supabaseAdmin
         .from('profiles')
@@ -93,12 +98,17 @@ serve(async (req) => {
         .maybeSingle();
 
       if (existingProfile && existingRole) {
-        throw new Error('User with this email already exists and is fully set up');
+        // User already fully set up with this role
+        // Don't error - just send password reset email and succeed
+        console.log('User already exists with requested role, will send password reset');
+        isExistingWithRole = true;
+      } else if (existingProfile) {
+        // User exists but with different/no role - add the new role
+        console.log('User exists with different role, adding new role:', role);
+      } else {
+        // User in auth but no profile - create profile
+        console.log('User exists in auth but missing profile, creating...');
       }
-
-      // User exists in auth but missing profile/role, we'll add them
-      console.log('User exists in auth, creating missing profile/role');
-      userId = existingAuthUser.id;
     } else {
       // Create new user with admin client
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -113,30 +123,33 @@ serve(async (req) => {
       userId = newUser.user.id;
     }
 
-    // Create or update profile
-    const { error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .upsert({
-        id: userId,
-        email,
-        full_name,
-      }, {
-        onConflict: 'id'
-      });
+    // Only create/update profile and role if user doesn't already have them
+    if (!isExistingWithRole) {
+      // Create or update profile
+      const { error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .upsert({
+          id: userId,
+          email,
+          full_name,
+        }, {
+          onConflict: 'id'
+        });
 
-    if (profileError) throw profileError;
+      if (profileError) throw profileError;
 
-    // Create or update role
-    const { error: roleError } = await supabaseAdmin
-      .from('user_roles')
-      .upsert({
-        user_id: userId,
-        role,
-      }, {
-        onConflict: 'user_id,role'
-      });
+      // Create or update role
+      const { error: roleError } = await supabaseAdmin
+        .from('user_roles')
+        .upsert({
+          user_id: userId,
+          role,
+        }, {
+          onConflict: 'user_id,role'
+        });
 
-    if (roleError) throw roleError;
+      if (roleError) throw roleError;
+    }
 
     // Create PMS credentials for owners if PMS systems were selected
     if (role === 'user' && pms_systems && pms_systems.length > 0) {
@@ -205,19 +218,32 @@ serve(async (req) => {
 
         const setupLink = resetData.properties.action_link;
         const roleLabel = role === 'user' ? 'Property Owner' : 'Administrator';
+        
+        // Dynamic email content based on whether user is new or existing
+        const emailSubject = isNewUser 
+          ? 'Welcome to RoomsOnline - Set Up Your Account'
+          : 'RoomsOnline - Your Access Has Been Approved';
+        
+        const emailIntro = isNewUser
+          ? `Your ${roleLabel} account has been created.`
+          : `Your access request has been approved! You now have ${roleLabel} access.`;
+        
+        const emailHeading = isNewUser 
+          ? 'Welcome to RoomsOnline!'
+          : 'Your Access Has Been Approved!';
 
-        console.log('Sending welcome email from:', fromEmail, 'to:', email);
+        console.log('Sending welcome email from:', fromEmail, 'to:', email, 'isNewUser:', isNewUser);
 
         // Send welcome email
         const emailResponse = await resend.emails.send({
           from: fromEmail,
           to: [email],
-          subject: `Welcome to RoomsOnline - Set Up Your Account`,
+          subject: emailSubject,
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #333;">Welcome to RoomsOnline!</h2>
+              <h2 style="color: #333;">${emailHeading}</h2>
               <p>Hi ${full_name},</p>
-              <p>Your ${roleLabel} account has been created. To get started, please set up your password by clicking the button below:</p>
+              <p>${emailIntro} To get started, please set up your password by clicking the button below:</p>
               
               <div style="text-align: center; margin: 30px 0;">
                 <a href="${setupLink}" 
