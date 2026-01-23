@@ -1,155 +1,133 @@
 
-# Contract Signing & Owner Onboarding Process Flow
+# Fix Property Data Loading from Contract Signing
 
-## Summary
+## Summary of Issues Found
 
-The contract signing flow follows a **contract-first** approach for new property owners. Here's the complete sequence:
+The property data captured during contract signing **IS saved correctly** to the database, but the **PropertyForm is not loading it properly** due to path mismatches between where the data is stored and where the form expects to find it.
 
----
+### Data Mapping Comparison
 
-## Stage 1: Admin Creates & Sends Contract
+| Field | Stored In (process-signature) | Loaded From (PropertyForm) | Status |
+|-------|-------------------------------|---------------------------|--------|
+| Property Type | `properties.property_type` = "Hotel" | `data.property_type` | Mismatch: Form expects lowercase ("hotel") |
+| Contact Email | `properties.owner_email` | `amenities?.contact?.email` | Not loading - wrong path |
+| Telephone | `amenities.telephone` | `amenities?.contact?.telephone` | Not loading - wrong path |
+| Registration Number | `amenities.registration_number` | `amenities?.banking?.property_registration` | Not loading - wrong path |
+| VAT Number | `amenities.vat_number` | `amenities?.banking?.vat_number` | Not loading - wrong path |
+| Registered Business Name | `amenities.registered_business_name` | `amenities?.registered_business_name` | Working |
+| Key Representative | `amenities.key_representative` | `amenities?.key_representative` | Working |
 
-**Location:** Admin panel → Contracts section
-
-**Actions:**
-1. Admin enters owner's **email address** (required)
-2. Admin optionally enters **owner name**
-3. System calls `send-owner-contract` edge function
-
-**What happens behind the scenes:**
-- Checks if any properties exist for this email address
-- If **NO properties exist** → marks as `is_new_owner: true`
-- For new owners: Creates an Auth user with temporary password + Profile + User Role
-- Creates contract record in `owner_contracts` table
-- Generates unique signing token (valid 7 days)
-- Sends email with "Review & Sign Contract" button
-
----
-
-## Stage 2: Owner Signs the Contract
-
-**Location:** Public signing page at `/contract/sign/{token}`
-
-**For NEW owners (no existing properties):**
-1. Property Details form appears:
-   - Property Name (required)
-   - Property Type (required) - Hotel, Guest House, Self-Catering, B&B, Lodge
-   - Street Address (required)
-   - City (required)
-   - Country (required, defaults to South Africa)
-
-2. Business Information (optional):
-   - Registered Business Name
-   - Registration Number
-   - VAT Number
-   - Telephone
-   - Mobile Number
-   - Postal Address
-   - Key Representative
-
-3. Signatory Details:
-   - Full Name (required)
-   - Email (required)
-   - Designation (optional)
-
-4. Signature & Agreement:
-   - Draw or upload signature
-   - Check legal agreement checkbox
-   - Click "Sign Contract"
-
-**For EXISTING owners:**
-- Only signatory details + signature required
-- No property form shown
+### Database Verification
+The property record (3c4c2a4e-7506-4ed7-af0f-d9d198500c18) contains:
+- `property_type`: "Hotel" (stored correctly)
+- `owner_email`: "dawie.julius@polka.co.za" (stored correctly)
+- `amenities.telephone`: "795242837" (stored at root level)
+- `amenities.registration_number`: "1234566890" (stored at root level)
+- `amenities.vat_number`: "17263838" (stored at root level)
 
 ---
 
-## Stage 3: Backend Processing (process-signature)
+## Root Cause
 
-When the owner submits:
+The `process-signature` edge function stores business registration fields at the **root level** of the `amenities` object, but the `PropertyForm` loader expects them in **nested paths**:
 
-1. **Validate** contract token and inputs
-2. **Upload signature** to storage bucket
-3. **For new owners with property data:**
-   - Create property record with provided details
-   - Verify/create profile if missing
-   - Verify/create user_role if missing
-   - Link property to owner via `owner_email` field
-4. **Update contract** as `status: "signed"`
-5. **Store** all submitted data in contract record
+- `process-signature` saves: `amenities.telephone`
+- `PropertyForm` loads from: `amenities.contact.telephone`
 
 ---
 
-## Stage 4: Confirmation Emails
+## Solution
 
-After successful signing:
+### Part 1: Fix PropertyForm Field Loading
 
-| Email | Recipient | Purpose |
-|-------|-----------|---------|
-| Contract Signed Confirmation | Owner | Confirms signature received |
-| Contract Signed Notification | carike@roomsonline.co.za | Admin notification |
-| Contract Signed Notification | info@roomsonline.co.za | Admin notification |
-| Welcome Email (new owners only) | Owner | Password setup link |
-| Onboarding Wizard Email (new owners only) | Owner | Complete property profile |
+**File**: `src/pages/PropertyForm.tsx`
 
----
+Update the `setFormData` block (around line 2659) to load from both the expected nested paths AND the root-level paths where contract data is stored:
 
-## Stage 5: Owner Account Setup & Property Completion
+```typescript
+setFormData({
+  // ... existing fields ...
+  
+  // Contact Email - prioritize owner_email (where contract data is stored)
+  contact_email: data.owner_email || amenities?.contact?.email || "",
+  
+  // Telephone - check root level first (contract data), then nested
+  telephone: amenities?.telephone || amenities?.contact?.telephone || "",
+  
+  // Registration - check root level first (contract data), then banking
+  property_registration: amenities?.registration_number || amenities?.banking?.property_registration || "",
+  
+  // VAT - check root level first (contract data), then banking
+  vat_number: amenities?.vat_number || amenities?.banking?.vat_number || "",
+  has_vat: amenities?.banking?.has_vat ?? !!(amenities?.vat_number || amenities?.banking?.vat_number),
+  
+  // Property type - normalize to lowercase for Select component
+  property_type: (data.property_type || "").toLowerCase(),
+});
+```
 
-**For new owners:**
+### Part 2: Fix Property Type Case Sensitivity
 
-1. **Password Setup:**
-   - Owner receives "Welcome to RoomsOnline - Set Up Your Account" email
-   - Clicks "Set Up Your Password" button
-   - Creates password on Auth page
-   - Can now log in as owner
+**Option A**: Normalize on load (recommended)
+In the `setFormData` block, convert property_type to lowercase:
+```typescript
+property_type: (data.property_type || "").toLowerCase(),
+```
 
-2. **Property Onboarding Wizard:**
-   - Owner receives "Complete Your Property Profile" email
-   - Clicks "Complete Your Profile" button
-   - Wizard guides through:
-     - Property details and description
-     - Room types and rates
-     - High-quality photos
-     - Banking details
-     - Check-in/check-out policies
-   - Property becomes fully active and bookable
+**Option B**: Normalize on save (in process-signature)
+Update the edge function to store lowercase:
+```typescript
+property_type: propData.property_type?.toLowerCase(),
+```
 
----
+I recommend Option A + Option B for consistency.
 
-## Data Flow Summary
+### Part 3: Update process-signature to match expected structure
 
-```text
-Email + Name (optional)
-       ↓
-   [Contract Email]
-       ↓
-Owner completes: Property details + Business info + Signature
-       ↓
-   [Property Created]
-   [User Profile Created]
-   [User Role Assigned]
-   [Contract Marked Signed]
-       ↓
-   [Welcome Email → Password Setup]
-   [Onboarding Email → Complete Wizard]
-       ↓
-Owner logs in → Completes wizard → Property goes live
+**File**: `supabase/functions/process-signature/index.ts`
+
+Update the amenities object to also include nested paths that the form expects:
+
+```typescript
+amenities: {
+  // Root level (for contract variable resolution)
+  registered_business_name: propData.registered_business_name || propData.property_name,
+  registration_number: propData.registration_number,
+  vat_number: propData.vat_number,
+  telephone: propData.telephone,
+  mobile_number: propData.mobile_number,
+  postal_address: propData.postal_address,
+  key_representative: propData.key_representative || signee_name,
+  // Nested structure (for PropertyForm compatibility)
+  contact: {
+    email: contract.owner_email,
+    telephone: propData.telephone,
+  },
+  banking: {
+    property_registration: propData.registration_number,
+    vat_number: propData.vat_number,
+    has_vat: !!propData.vat_number,
+  },
+},
 ```
 
 ---
 
-## Current Implementation Status
+## Files to Modify
 
-| Step | Status | Notes |
-|------|--------|-------|
-| Send contract with email | ✅ Working | |
-| New owner detection | ✅ Working | Based on property count |
-| Property details form | ✅ Working | Shows for new owners |
-| Property creation on sign | ✅ Fixed | Added missing required fields |
-| Profile creation | ✅ Fixed | Added verification logic |
-| User role creation | ✅ Fixed | Added verification logic |
-| Confirmation emails | ✅ Working | 3 recipients |
-| Password setup email | ✅ Working | Generates reset link |
-| Onboarding wizard email | ✅ Fixed | Now triggered after signing |
+| File | Change |
+|------|--------|
+| `src/pages/PropertyForm.tsx` | Update field loading to check both root and nested paths; normalize property_type to lowercase |
+| `supabase/functions/process-signature/index.ts` | Store property_type as lowercase; add nested paths for form compatibility |
 
-All components of the flow are now implemented and should be working correctly.
+---
+
+## Expected Outcome
+
+After implementation:
+1. Property Type dropdown will show "Hotel" instead of "Select"
+2. Contact Email will display the owner's email address
+3. Telephone will show the captured phone number
+4. Registration Number will appear in the Banking Details section
+5. VAT Number will display (with has_vat auto-detected)
+6. All fields captured during contract signing will be visible in the property edit form
