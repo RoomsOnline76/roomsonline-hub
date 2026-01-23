@@ -4435,9 +4435,20 @@ export default function PropertyForm() {
                               }}
                             >
                               <SelectTrigger id="owner_email" className="h-7 text-xs">
-                                <SelectValue placeholder="Select owner" />
+                                <SelectValue placeholder="Select owner">
+                                  {/* Show current owner_email even if not in profiles list */}
+                                  {formData.owner_email && !owners.find((o) => o.email === formData.owner_email)
+                                    ? formData.owner_email
+                                    : owners.find((o) => o.email === formData.owner_email)?.full_name || formData.owner_email || "Select owner"}
+                                </SelectValue>
                               </SelectTrigger>
                               <SelectContent>
+                                {/* Include current owner_email if not in list */}
+                                {formData.owner_email && !owners.find((o) => o.email === formData.owner_email) && (
+                                  <SelectItem key="current-owner" value={formData.owner_email}>
+                                    {formData.owner_email} (profile pending)
+                                  </SelectItem>
+                                )}
                                 {owners.map((owner) => (
                                   <SelectItem key={owner.id} value={owner.email}>
                                     {owner.full_name || owner.email}

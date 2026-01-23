@@ -155,6 +155,51 @@ Deno.serve(async (req) => {
       createdPropertyId = newProperty.id;
       createdPropertyName = newProperty.name;
       console.log("Created new property:", createdPropertyId, createdPropertyName);
+
+      // Ensure profile and user_role exist for the new owner
+      const { data: existingProfile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("email", contract.owner_email)
+        .maybeSingle();
+
+      if (!existingProfile) {
+        // Find the auth user
+        const { data: { users: authUsers } } = await supabase.auth.admin.listUsers();
+        const authUser = authUsers?.find((u: { email?: string }) => u.email === contract.owner_email);
+        
+        if (authUser) {
+          // Create profile
+          const { error: profileError } = await supabase.from("profiles").insert({
+            id: authUser.id,
+            email: contract.owner_email,
+            full_name: signee_name,
+            role: "user",
+          });
+          
+          if (profileError) {
+            console.error("Error creating profile:", profileError);
+          } else {
+            console.log("Created profile for new owner:", contract.owner_email);
+          }
+
+          // Create user role
+          const { error: roleError } = await supabase.from("user_roles").upsert({
+            user_id: authUser.id,
+            role: "user",
+          }, { onConflict: "user_id,role" });
+          
+          if (roleError) {
+            console.error("Error creating user role:", roleError);
+          } else {
+            console.log("Created user role for new owner");
+          }
+        } else {
+          console.error("Auth user not found for:", contract.owner_email);
+        }
+      } else {
+        console.log("Profile already exists for:", contract.owner_email);
+      }
     }
 
     // Update contract as signed
