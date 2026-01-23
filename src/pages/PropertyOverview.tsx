@@ -37,7 +37,7 @@ type SortColumn = "name" | "external_system" | "hero_listing" | "has_images" | "
 
 const PropertyOverview = () => {
   const navigate = useNavigate();
-  const { user, isAdmin, isDev } = useAuth();
+  const { user, isAdmin, isDev, isFearlessLeader } = useAuth();
   const { openNewTab: homeIconOpenNewTab } = useHomeIconOpenNewTab();
   const [propertyToDelete, setPropertyToDelete] = useState<{ id: string; name: string } | null>(null);
 
@@ -679,7 +679,7 @@ const PropertyOverview = () => {
                             })()}
                           </TableCell>
                           <TableCell className="py-1">
-                            {(isAdmin || isDev) ? (
+                            {(isAdmin || isDev || isFearlessLeader) ? (
                               <Switch
                                 checked={(property as any).show_on_website ?? false}
                                 onCheckedChange={(checked) => handleToggleShowOnWebsite(property.id, checked)}

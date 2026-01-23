@@ -71,7 +71,7 @@ interface Booking {
 }
 
 const Bookings = () => {
-  const { user, isAdmin, isDev } = useAuth();
+  const { user, isAdmin, isDev, isFearlessLeader } = useAuth();
   const [properties, setProperties] = useState<Property[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,7 +85,7 @@ const Bookings = () => {
   const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(null);
   const [showCancelled, setShowCancelled] = useState(false);
 
-  const canViewAllProperties = isAdmin || isDev;
+  const canViewAllProperties = isAdmin || isDev || isFearlessLeader;
 
   // Cancel entire reservation (internal only)
   const handleCancelReservation = async (booking: Booking) => {

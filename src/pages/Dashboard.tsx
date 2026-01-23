@@ -34,7 +34,7 @@ const PIE_COLORS = [
 ];
 
 const Dashboard = () => {
-  const { user, isAdmin, isDev } = useAuth();
+  const { user, isAdmin, isDev, isFearlessLeader } = useAuth();
   const [period, setPeriod] = useState("this_month");
   const [comparePrevYear, setComparePrevYear] = useState(true);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("all");

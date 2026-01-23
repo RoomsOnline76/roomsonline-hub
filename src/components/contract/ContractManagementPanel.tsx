@@ -27,7 +27,7 @@ export function ContractManagementPanel({
   ownerName,
   showOnWebsite = false,
 }: ContractManagementPanelProps) {
-  const { isAdmin, isDev } = useAuth();
+  const { isAdmin, isDev, isFearlessLeader } = useAuth();
   const {
     contract,
     isLoading,
@@ -359,7 +359,7 @@ export function ContractManagementPanel({
             )}
 
             {/* Admin Override */}
-            {(isAdmin || isDev) && !hasValidContract && (
+            {(isAdmin || isDev || isFearlessLeader) && !hasValidContract && (
               <Button
                 size="sm"
                 variant="outline"

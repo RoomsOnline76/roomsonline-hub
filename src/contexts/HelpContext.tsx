@@ -129,9 +129,9 @@ export function HelpProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentArticleSlug, setCurrentArticleSlug] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const { user, isAdmin, isDev } = useAuth();
+  const { user, isAdmin, isDev, isFearlessLeader } = useAuth();
 
-  const isAdminUser = isAdmin || isDev;
+  const isAdminUser = isAdmin || isDev || isFearlessLeader;
 
   const { data: articles = [], isLoading } = useQuery({
     queryKey: ["help-articles", user?.id],
