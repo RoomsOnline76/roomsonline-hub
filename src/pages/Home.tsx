@@ -88,7 +88,14 @@ function extractPrimaryImageUrl(images: unknown): string | null {
 }
 
 function HomeContent() {
-  const { selectedProperty, searchResults, isExpanded, setSearchQuery, setSelectedProperty, resetSearch: resetSearchContext } = useSearch();
+  const {
+    selectedProperty,
+    searchResults,
+    isExpanded,
+    setSearchQuery,
+    setSelectedProperty,
+    resetSearch: resetSearchContext,
+  } = useSearch();
   const { aiResults, isAISearchActive } = useAISearch();
 
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
@@ -341,7 +348,16 @@ function HomeContent() {
     }
 
     updateFromAISearch();
-  }, [selectedProperty, originalHeroImage, originalHeroVideoUrl, originalHeroProperty, isAISearchActive, aiResults, setSearchQuery, setSelectedProperty]);
+  }, [
+    selectedProperty,
+    originalHeroImage,
+    originalHeroVideoUrl,
+    originalHeroProperty,
+    isAISearchActive,
+    aiResults,
+    setSearchQuery,
+    setSelectedProperty,
+  ]);
 
   // Reset hero when AI search is cleared
   useEffect(() => {
@@ -362,7 +378,9 @@ function HomeContent() {
       {/* Hero Section */}
       <section ref={heroRef} className="relative h-[100dvh] sm:h-screen w-full flex-shrink-0 landscape:min-h-[500px]">
         {/* Background media */}
-        <div className={`absolute inset-0 transition-opacity duration-700 ${isLoadingHero ? "opacity-0" : "opacity-100"}`}>
+        <div
+          className={`absolute inset-0 transition-opacity duration-700 ${isLoadingHero ? "opacity-0" : "opacity-100"}`}
+        >
           {heroVideoUrl ? (
             <video
               autoPlay
@@ -382,8 +400,12 @@ function HomeContent() {
         </div>
 
         {/* Navigation Header */}
-        <div className={`absolute top-0 left-0 right-0 z-20 transition-all duration-300 ${isExpanded ? "bg-background/95 backdrop-blur-md border-b border-border shadow-lg" : ""}`}>
-          <div className={`flex items-center justify-between gap-4 ${isExpanded ? "px-4 py-3" : "px-4 py-4 sm:px-8 sm:py-6"}`}>
+        <div
+          className={`absolute top-0 left-0 right-0 z-20 transition-all duration-300 ${isExpanded ? "bg-background/95 backdrop-blur-md border-b border-border shadow-lg" : ""}`}
+        >
+          <div
+            className={`flex items-center justify-between gap-4 ${isExpanded ? "px-4 py-3" : "px-4 py-4 sm:px-8 sm:py-6"}`}
+          >
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity flex-shrink-0 group">
               <img
@@ -395,14 +417,14 @@ function HomeContent() {
                 <h1 className="font-display text-xl sm:text-2xl text-white drop-shadow-lg tracking-wide">
                   RoomsOnline
                 </h1>
-                <p className="text-[10px] uppercase tracking-[0.2em] text-white/70 mt-0.5">
-                  Rooms done Right
-                </p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-white/70 mt-0.5">Rooms done Right</p>
               </div>
             </Link>
 
             {/* Desktop Search */}
-            <div className={`hidden sm:flex flex-1 max-w-xl mx-4 transition-opacity ${isExpanded ? "opacity-100" : "opacity-60 hover:opacity-90"}`}>
+            <div
+              className={`hidden sm:flex flex-1 max-w-xl mx-4 transition-opacity ${isExpanded ? "opacity-100" : "opacity-60 hover:opacity-90"}`}
+            >
               <SearchForm />
             </div>
 
@@ -414,8 +436,8 @@ function HomeContent() {
                 <button
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   className={`rounded-lg flex items-center justify-center transition-all ${
-                    isExpanded 
-                      ? "h-9 w-9 bg-muted hover:bg-muted/80" 
+                    isExpanded
+                      ? "h-9 w-9 bg-muted hover:bg-muted/80"
                       : "h-10 w-10 bg-transparent hover:bg-white/10 border-transparent"
                   }`}
                   aria-label="Open menu"
@@ -469,10 +491,12 @@ function HomeContent() {
         )}
 
         {/* Hero Text */}
-        <div className={`absolute inset-0 flex items-start pt-32 sm:pt-40 landscape:pt-24 z-10 transition-opacity duration-500 ${isAISearchActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+        <div
+          className={`absolute inset-0 flex items-start pt-32 sm:pt-40 landscape:pt-24 z-10 transition-opacity duration-500 ${isAISearchActive ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+        >
           <div className="w-full px-4 sm:px-8 md:px-12 flex flex-col">
             <h2 className="font-display text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-white drop-shadow-lg mb-4 sm:mb-6 tracking-tight leading-tight">
-              Sleep in Africa with RoomsOnline.
+              Sleep in Africa by RoomsOnline.
             </h2>
             <p className="font-display text-base sm:text-lg md:text-xl lg:text-2xl text-white/90 drop-shadow-md leading-relaxed max-w-2xl italic tracking-normal">
               {headline}
@@ -495,9 +519,7 @@ function HomeContent() {
       </section>
 
       {/* Find By Section */}
-      {!isAISearchActive && (
-        <FindBySection onScrollToTypes={handleScrollToTypes} onScrollToMap={handleScrollToMap} />
-      )}
+      {!isAISearchActive && <FindBySection onScrollToTypes={handleScrollToTypes} onScrollToMap={handleScrollToMap} />}
 
       {/* Map Section */}
       <section ref={mapRef} id="map-section" className="py-12 sm:py-16 bg-background">
@@ -522,8 +544,8 @@ function HomeContent() {
                     key={type.key}
                     onClick={() => toggleType(type.key)}
                     className={`flex items-center gap-2 px-3 py-2 rounded-full border transition-all duration-200 touch-manipulation active:scale-95 ${
-                      enabledTypes[type.key] 
-                        ? "border-primary/40 bg-primary/5 shadow-sm" 
+                      enabledTypes[type.key]
+                        ? "border-primary/40 bg-primary/5 shadow-sm"
                         : "border-border bg-background hover:border-muted-foreground/30"
                     }`}
                   >
@@ -532,7 +554,9 @@ function HomeContent() {
                         enabledTypes[type.key] ? type.color : "bg-muted-foreground/30"
                       }`}
                     />
-                    <span className={`text-sm transition-colors duration-200 ${enabledTypes[type.key] ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                    <span
+                      className={`text-sm transition-colors duration-200 ${enabledTypes[type.key] ? "text-foreground font-medium" : "text-muted-foreground"}`}
+                    >
                       {type.label}
                     </span>
                   </button>
@@ -595,34 +619,40 @@ function HomeContent() {
           <div className="container mx-auto px-4 sm:px-6">
             <div className="mb-6">
               <h2 className="font-sans text-2xl sm:text-3xl font-medium text-foreground tracking-tight leading-tight mb-2">
-                Your Perfect Match{aiResults.length > 1 ? 'es' : ''}
+                Your Perfect Match{aiResults.length > 1 ? "es" : ""}
               </h2>
               <p className="text-muted-foreground leading-relaxed">
-                {aiResults.length === 1 
-                  ? 'Based on your search, we found the ideal property for you'
+                {aiResults.length === 1
+                  ? "Based on your search, we found the ideal property for you"
                   : `Found ${aiResults.length} properties that match your criteria`}
               </p>
             </div>
-            
+
             {aiResults.length === 1 ? (
               <div className="flex justify-center">
                 <div className="w-full max-w-md">
-                  {properties.filter(p => aiResults.includes(p.id)).map(property => (
-                    <PropertyCard key={property.id} property={property} variant="large" showCautionBadge={true} />
-                  ))}
+                  {properties
+                    .filter((p) => aiResults.includes(p.id))
+                    .map((property) => (
+                      <PropertyCard key={property.id} property={property} variant="large" showCautionBadge={true} />
+                    ))}
                 </div>
               </div>
             ) : aiResults.length === 2 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-4xl mx-auto">
-                {properties.filter(p => aiResults.includes(p.id)).map(property => (
-                  <PropertyCard key={property.id} property={property} variant="large" showCautionBadge={true} />
-                ))}
+                {properties
+                  .filter((p) => aiResults.includes(p.id))
+                  .map((property) => (
+                    <PropertyCard key={property.id} property={property} variant="large" showCautionBadge={true} />
+                  ))}
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6 sm:gap-8">
-                {properties.filter(p => aiResults.includes(p.id)).map(property => (
-                  <PropertyCard key={property.id} property={property} showCautionBadge={true} />
-                ))}
+                {properties
+                  .filter((p) => aiResults.includes(p.id))
+                  .map((property) => (
+                    <PropertyCard key={property.id} property={property} showCautionBadge={true} />
+                  ))}
               </div>
             )}
           </div>
@@ -654,7 +684,9 @@ function HomeContent() {
       <section className="py-12 sm:py-16 bg-muted/30">
         <div className="container mx-auto px-4 sm:px-6">
           <div className="mb-6">
-            <h2 className="font-sans text-2xl sm:text-3xl font-medium text-foreground tracking-tight leading-tight">Why RoomsOnline</h2>
+            <h2 className="font-sans text-2xl sm:text-3xl font-medium text-foreground tracking-tight leading-tight">
+              Why RoomsOnline
+            </h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
@@ -662,12 +694,14 @@ function HomeContent() {
               {
                 icon: BadgeCheck,
                 title: "Hand-Picked Stays",
-                description: "Every property is personally vetted — no surprises on arrival, only quality-assured accommodations.",
+                description:
+                  "Every property is personally vetted — no surprises on arrival, only quality-assured accommodations.",
               },
               {
                 icon: Zap,
                 title: "Instant Confirmation",
-                description: "Book with confidence. Receive immediate confirmation and detailed reservation info in seconds.",
+                description:
+                  "Book with confidence. Receive immediate confirmation and detailed reservation info in seconds.",
               },
               {
                 icon: Lock,
@@ -677,12 +711,14 @@ function HomeContent() {
               {
                 icon: MapPinned,
                 title: "Local Experts",
-                description: "We know the owners, the towns, the hidden gems. Real insider knowledge at your fingertips.",
+                description:
+                  "We know the owners, the towns, the hidden gems. Real insider knowledge at your fingertips.",
               },
               {
                 icon: HeadphonesIcon,
                 title: "Personalized Support",
-                description: "Dedicated travel experts who understand your needs. We're here to help make your stay perfect.",
+                description:
+                  "Dedicated travel experts who understand your needs. We're here to help make your stay perfect.",
               },
               {
                 icon: Shield,
@@ -698,9 +734,7 @@ function HomeContent() {
                   <item.icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-medium text-sm sm:text-base text-foreground mb-1 tracking-tight">
-                    {item.title}
-                  </h3>
+                  <h3 className="font-medium text-sm sm:text-base text-foreground mb-1 tracking-tight">{item.title}</h3>
                   <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">{item.description}</p>
                 </div>
               </div>
@@ -714,8 +748,13 @@ function HomeContent() {
         <section className="py-12 sm:py-16 bg-background">
           <div className="container mx-auto px-4 sm:px-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-sans text-2xl sm:text-3xl font-medium text-foreground tracking-tight leading-tight">From the Journal</h2>
-              <Link to="/journals" className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors duration-200 group">
+              <h2 className="font-sans text-2xl sm:text-3xl font-medium text-foreground tracking-tight leading-tight">
+                From the Journal
+              </h2>
+              <Link
+                to="/journals"
+                className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors duration-200 group"
+              >
                 View all
                 <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
@@ -743,7 +782,9 @@ function HomeContent() {
                       {journal.title}
                     </h3>
                     {journal.excerpt && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mb-4 leading-relaxed">{journal.excerpt}</p>
+                      <p className="text-sm text-muted-foreground line-clamp-2 mb-4 leading-relaxed">
+                        {journal.excerpt}
+                      </p>
                     )}
                     {journal.publish_date && (
                       <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
