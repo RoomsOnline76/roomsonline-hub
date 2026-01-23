@@ -1,128 +1,124 @@
 
-# Fix Global Branding Colour Inconsistency (ROL Pink)
 
-## Executive Summary
+# Fix Edge Function Admin Permission Checks
 
-The platform currently uses a deep burgundy/maroon color (`hsl(345 60% 38%)` = approximately `#9a2850`) as the primary brand color, along with scattered instances of Material Design Pink (`#e91e63`) and rose-red (`#e11d48`). All of these must be replaced with the correct ROL Pink: `#e91e8c`.
+## Problem Summary
+
+The "Add Admin" and "Add Owner" buttons are failing with "Edge Function returned a non-2xx status code" because the `create-user` edge function (and several other admin functions) do not recognize the `fearless_leader` role as having admin privileges.
+
+**Current Behavior:**
+- Frontend (`useAuth.tsx` line 45): `fearless_leader` IS treated as admin
+- Edge functions: `fearless_leader` is NOT recognized as admin
+
+**Error from logs:**
+```
+Error creating user: Error: Only admins can create users
+```
 
 ---
 
-## Current State Analysis
+## Root Cause
 
-### Color Audit Results
+The edge functions check for roles like this:
+```javascript
+.in('role', ['admin', 'dev'])  // Missing 'fearless_leader'!
+```
 
-| Location | Current Color | Hex Equivalent | Issue |
-|----------|---------------|----------------|-------|
-| `src/index.css` line 31 | `--primary: 345 60% 38%` | ~#9a2850 (Burgundy) | Wrong - this is the Login button color |
-| `src/index.css` line 104 | `--primary: 345 55% 55%` (dark mode) | ~#c24d6b | Wrong shade |
-| `src/index.css` line 8 | `--rol-pink: 330 100% 77%` | ~#ff8fd8 | Too light/pink |
-| `supabase/functions/forgot-password/index.ts` line 115 | `#e91e63` | Material Design Pink | Wrong |
-| `supabase/functions/create-user/index.ts` line 224 | `#e91e63` | Material Design Pink | Wrong |
-| `src/components/PropertyMap.tsx` line 105 | `#e11d48` | Rose-red | Wrong |
-
-### Target Color
-
-**ROL Pink: `#e91e8c`**
-
-Converting to HSL for CSS variables:
-- Hex: `#e91e8c`
-- HSL: `326 82% 51%`
+But the frontend treats `fearless_leader` as having admin access:
+```javascript
+const hasAdmin = roles.includes("admin") || hasDev || hasFearlessLeader;
+```
 
 ---
 
-## Implementation Plan
+## Files Requiring Updates
 
-### Phase 1: Update Source of Truth (CSS Variables)
+| File | Line | Current Check | Fix |
+|------|------|---------------|-----|
+| `supabase/functions/create-user/index.ts` | 50 | `['admin', 'dev']` | `['admin', 'dev', 'fearless_leader']` |
+| `supabase/functions/reset-user-password/index.ts` | 63 | `['admin', 'dev']` | `['admin', 'dev', 'fearless_leader']` |
+| `supabase/functions/add-pms-credential/index.ts` | 37 | `['admin', 'dev']` | `['admin', 'dev', 'fearless_leader']` |
+| `supabase/functions/log-audit-event/index.ts` | 125 | `['admin', 'dev']` | `['admin', 'dev', 'fearless_leader']` |
+| `supabase/functions/fetch-audit-logs/index.ts` | 110 | `['admin', 'dev']` | `['admin', 'dev', 'fearless_leader']` |
 
-**File: `src/index.css`**
+---
 
-Update the primary color CSS variables to use ROL Pink:
+## Implementation Details
 
-```text
-Line 8:  --rol-pink: 330 100% 77%  →  --rol-pink: 326 82% 51%
-Line 31: --primary: 345 60% 38%    →  --primary: 326 82% 51%
-Line 56: --ring: 345 60% 38%       →  --ring: 326 82% 51%
-Line 68: hero-gradient hsl values  →  Use new primary
-Line 76: shadow-glow hsl values    →  Use new primary
-Line 83: sidebar-primary           →  326 82% 51%
-Line 88: sidebar-ring              →  326 82% 51%
+### 1. create-user/index.ts (Line 50)
+
+```typescript
+// BEFORE:
+.in('role', ['admin', 'dev']);
+
+// AFTER:
+.in('role', ['admin', 'dev', 'fearless_leader']);
 ```
 
-**Dark mode updates (lines 91-148):**
-```text
-Line 104: --primary: 345 55% 55%         →  --primary: 326 85% 60%
-Line 124: --ring: 345 55% 55%            →  --ring: 326 85% 60%
-Line 137: shadow-glow                    →  Use new primary
-Line 142: --sidebar-primary: 345 55% 55% →  --sidebar-primary: 326 85% 60%
-Line 147: --sidebar-ring: 345 55% 55%    →  --sidebar-ring: 326 85% 60%
+### 2. reset-user-password/index.ts (Line 63)
+
+```typescript
+// BEFORE:
+.in('role', ['admin', 'dev']);
+
+// AFTER:
+.in('role', ['admin', 'dev', 'fearless_leader']);
 ```
 
-### Phase 2: Fix Inline Hardcoded Colors
+### 3. add-pms-credential/index.ts (Line 37)
 
-| File | Line | Change |
-|------|------|--------|
-| `supabase/functions/forgot-password/index.ts` | 115 | `#e91e63` → `#e91e8c` |
-| `supabase/functions/create-user/index.ts` | 224 | `#e91e63` → `#e91e8c` |
-| `src/components/PropertyMap.tsx` | 105 | `#e11d48` → `#e91e8c` |
+```typescript
+// BEFORE:
+.in("role", ["admin", "dev"])
 
-### Phase 3: Deploy Edge Functions
+// AFTER:
+.in("role", ["admin", "dev", "fearless_leader"])
+```
 
-Redeploy the following functions to apply email template color changes:
-- `forgot-password`
+### 4. log-audit-event/index.ts (Line 125)
+
+```typescript
+// BEFORE:
+const hasPermission = userRoles.some((r) => ["admin", "dev"].includes(r));
+
+// AFTER:
+const hasPermission = userRoles.some((r) => ["admin", "dev", "fearless_leader"].includes(r));
+```
+
+### 5. fetch-audit-logs/index.ts (Line 110)
+
+```typescript
+// BEFORE:
+const hasPermission = userRoles.some((r) => ["admin", "dev"].includes(r));
+
+// AFTER:
+const hasPermission = userRoles.some((r) => ["admin", "dev", "fearless_leader"].includes(r));
+```
+
+---
+
+## Deployment
+
+After updating these files, the following edge functions will need to be redeployed:
 - `create-user`
+- `reset-user-password`
+- `add-pms-credential`
+- `log-audit-event`
+- `fetch-audit-logs`
 
 ---
 
-## Technical Details
+## Testing Verification
 
-### HSL Conversion Reference
-
-| Color | Hex | HSL |
-|-------|-----|-----|
-| ROL Pink | `#e91e8c` | `326 82% 51%` |
-| ROL Pink Light (dark mode) | ~`#f04c9d` | `326 85% 60%` |
-
-### Derived Shades (if needed)
-
-For hover states or variations, these can be derived from the base:
-- Hover: `326 82% 46%` (slightly darker)
-- Active: `326 82% 41%` (darker still)
-- Light variant: `326 82% 90%` (backgrounds)
+After deployment:
+1. Log in as `carike@roomsonline.co.za` (who has `fearless_leader` role)
+2. Go to Team page
+3. Click "Add Admin" or "Add Owner"
+4. Submit the form - should now succeed
 
 ---
 
-## Files Modified
+## Note About Owner Creation
 
-### Frontend (3 files)
-1. `src/index.css` - CSS variables (source of truth)
-2. `src/components/PropertyMap.tsx` - Map marker color
+This same fix applies to both admin and owner creation since they use the same `create-user` edge function. The `role` parameter in the request body determines whether an admin or owner account is created.
 
-### Backend (2 files)
-1. `supabase/functions/forgot-password/index.ts` - Email button
-2. `supabase/functions/create-user/index.ts` - Email button
-
----
-
-## Visual Impact
-
-After this change:
-- **Login button**: Will change from burgundy to bright ROL Pink
-- **All primary buttons**: Will use ROL Pink
-- **Form focus rings**: Will use ROL Pink
-- **Links and accents**: Will use ROL Pink
-- **Email CTA buttons**: Will use ROL Pink
-- **Map markers**: Will use ROL Pink
-
----
-
-## Verification Checklist
-
-After implementation, verify these locations show `#e91e8c`:
-- [ ] Auth page Login button
-- [ ] Auth page "Send Reset Link" button
-- [ ] All primary buttons in admin console
-- [ ] Booking page CTAs
-- [ ] Property map markers
-- [ ] Email templates (forgot password, create user)
-- [ ] Tab highlights and selection states
-- [ ] Form input focus rings
