@@ -322,6 +322,30 @@ Deno.serve(async (req) => {
           console.error("Error sending welcome email:", welcomeError);
           // Don't fail the whole process if welcome email fails
         }
+
+        // Send onboarding wizard email
+        try {
+          const { error: onboardingError } = await supabase.functions.invoke(
+            "send-onboarding-email",
+            {
+              body: {
+                propertyId: createdPropertyId,
+                ownerEmail: contract.owner_email,
+                ownerName: signee_name,
+                propertyName: createdPropertyName,
+              },
+            }
+          );
+
+          if (onboardingError) {
+            console.error("Error sending onboarding email:", onboardingError);
+          } else {
+            console.log("Onboarding email sent successfully to:", contract.owner_email);
+          }
+        } catch (onboardingErr) {
+          console.error("Failed to send onboarding email:", onboardingErr);
+          // Don't fail the whole process
+        }
       }
     }
 
