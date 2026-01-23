@@ -147,7 +147,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Use configured emails or fallback to defaults
     const fromEmail = fromEmailConfig || "RoomsOnline <onboarding@resend.dev>";
-    const adminEmail = toEmailConfig || "carike@roomsonline.co.za";
+    const adminEmail = toEmailConfig || "sleepinafrica@roomsonline.co.za";
 
     console.log("Using email config:", { fromEmail, adminEmail });
 

@@ -132,6 +132,9 @@ Deno.serve(async (req) => {
           owner_name: signee_name,
           is_active: true,
           max_guests: 2,
+          bedrooms: 1,
+          bathrooms: 1,
+          price_per_night: 0,
           amenities: {
             // Root level (for contract variable resolution)
             registered_business_name: propData.registered_business_name || propData.property_name,
@@ -306,7 +309,7 @@ Deno.serve(async (req) => {
     ` : ''}
     <p style="color: #333;">Your signed contract is now on file. Welcome to RoomsOnline!</p>
     <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-    <p style="color: #666; font-size: 14px; text-align: center;">The RoomsOnline Team<br><a href="mailto:info@roomsonline.co.za" style="color: #e91e8c;">info@roomsonline.co.za</a></p>
+    <p style="color: #666; font-size: 14px; text-align: center;">The RoomsOnline Team<br><a href="mailto:sleepinafrica@roomsonline.co.za" style="color: #e91e8c;">sleepinafrica@roomsonline.co.za</a></p>
   </div>
 </body>
 </html>`;
@@ -328,10 +331,10 @@ Deno.serve(async (req) => {
           `<p style="color: #666; font-size: 12px;">Signed by: ${signee_name} (${signee_email}) from IP: ${clientIp}</p>${isNewOwner ? `<p style="color: #666; font-size: 12px;">New property created: ${createdPropertyName}</p>` : ''}`,
       });
 
-      // Send to info@roomsonline.co.za
+      // Send to sleepinafrica@roomsonline.co.za
       await resend.emails.send({
         from: "RoomsOnline <hello@notify.roomsonline.co.za>",
-        to: "info@roomsonline.co.za",
+        to: "sleepinafrica@roomsonline.co.za",
         subject: `[Contract Signed] ${propertiesText} - ${signee_name}${isNewOwner ? ' (NEW OWNER)' : ''}`,
         html: emailHtml.replace("Dear " + signee_name, "Dear Team") + 
           `<p style="color: #666; font-size: 12px;">Signed by: ${signee_name} (${signee_email}) from IP: ${clientIp}</p>${isNewOwner ? `<p style="color: #666; font-size: 12px;">New property created: ${createdPropertyName}</p>` : ''}`,
@@ -369,7 +372,7 @@ Deno.serve(async (req) => {
     </div>
     <p style="color: #333;">After setting your password, you can log in to complete your property listing with photos, room details, and pricing.</p>
     <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-    <p style="color: #666; font-size: 14px; text-align: center;">Need help? Contact <a href="mailto:info@roomsonline.co.za" style="color: #e91e8c;">info@roomsonline.co.za</a></p>
+    <p style="color: #666; font-size: 14px; text-align: center;">Need help? Contact <a href="mailto:sleepinafrica@roomsonline.co.za" style="color: #e91e8c;">sleepinafrica@roomsonline.co.za</a></p>
   </div>
 </body>
 </html>`,

@@ -432,11 +432,11 @@ export default function PMSComparison() {
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-muted-foreground">
               <a 
-                href="mailto:info@roomsonline.co.za" 
+                href="mailto:sleepinafrica@roomsonline.co.za" 
                 className="flex items-center gap-2 hover:text-foreground transition-colors"
               >
                 <Mail className="h-4 w-4" />
-                info@roomsonline.co.za
+                sleepinafrica@roomsonline.co.za
               </a>
               <a 
                 href="tel:+27823238115" 

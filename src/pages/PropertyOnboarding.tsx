@@ -58,7 +58,7 @@ export default function PropertyOnboarding() {
         if (fetchError || !data) {
           setError({
             type: "invalid",
-            message: "This onboarding link is no longer valid. Please contact info@roomsonline.co.za to request a new invitation."
+            message: "This onboarding link is no longer valid. Please contact sleepinafrica@roomsonline.co.za to request a new invitation."
           });
           setIsLoading(false);
           return;
@@ -68,7 +68,7 @@ export default function PropertyOnboarding() {
         if (new Date(data.expires_at) < new Date()) {
           setError({
             type: "expired",
-            message: `Your onboarding invitation expired on ${format(new Date(data.expires_at), "MMMM d, yyyy")}. Contact info@roomsonline.co.za for a fresh link.`,
+            message: `Your onboarding invitation expired on ${format(new Date(data.expires_at), "MMMM d, yyyy")}. Contact sleepinafrica@roomsonline.co.za for a fresh link.`,
             expiresAt: data.expires_at
           });
           setIsLoading(false);
@@ -188,8 +188,8 @@ export default function PropertyOnboarding() {
               <div className="mt-6 pt-6 border-t">
                 <p className="text-sm text-muted-foreground">
                   Need help? Contact{" "}
-                  <a href="mailto:info@roomsonline.co.za" className="text-primary hover:underline">
-                    info@roomsonline.co.za
+                  <a href="mailto:sleepinafrica@roomsonline.co.za" className="text-primary hover:underline">
+                    sleepinafrica@roomsonline.co.za
                   </a>
                 </p>
               </div>
@@ -239,8 +239,8 @@ export default function PropertyOnboarding() {
               <div className="mt-6 pt-6 border-t">
                 <p className="text-sm text-muted-foreground">
                   Need help? Contact{" "}
-                  <a href="mailto:info@roomsonline.co.za" className="text-primary hover:underline">
-                    info@roomsonline.co.za
+                  <a href="mailto:sleepinafrica@roomsonline.co.za" className="text-primary hover:underline">
+                    sleepinafrica@roomsonline.co.za
                   </a>
                 </p>
               </div>

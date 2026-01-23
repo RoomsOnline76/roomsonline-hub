@@ -90,7 +90,7 @@ export function generateContractHTML(property?: PropertyContractDetails, covered
       <tr class="border-b"><td class="py-1 font-medium w-40">Registered Name</td><td>Sleep in Africa (Pty) Ltd t/a Roomsonline</td></tr>
       <tr class="border-b"><td class="py-1 font-medium">Registration number</td><td>2014012490</td></tr>
       <tr class="border-b"><td class="py-1 font-medium">Mobile number</td><td>082 323 8115</td></tr>
-      <tr class="border-b"><td class="py-1 font-medium">E-mail address</td><td>Carike@roomsonline.co.za</td></tr>
+      <tr class="border-b"><td class="py-1 font-medium">E-mail address</td><td>sleepinafrica@roomsonline.co.za</td></tr>
       <tr class="border-b"><td class="py-1 font-medium">Physical address</td><td>29 Woodlands Close, Parklands, 7441</td></tr>
     </tbody>
   </table>

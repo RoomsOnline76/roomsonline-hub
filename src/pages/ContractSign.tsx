@@ -600,13 +600,13 @@ export default function ContractSign() {
                   <Button
                     variant="outline"
                     className="w-full"
-                    onClick={() => window.location.href = `mailto:info@roomsonline.co.za?subject=Request%20Signed%20Contract%20Copy&body=Hi%20RoomsOnline%2C%0A%0APlease%20send%20me%20another%20copy%20of%20my%20signed%20contract.%0A%0AEmail%3A%20${encodeURIComponent(errorState.contractData?.signed_by_email || errorState.contractData?.owner_email || '')}%0A%0AThank%20you.`}
+                    onClick={() => window.location.href = `mailto:sleepinafrica@roomsonline.co.za?subject=Request%20Signed%20Contract%20Copy&body=Hi%20RoomsOnline%2C%0A%0APlease%20send%20me%20another%20copy%20of%20my%20signed%20contract.%0A%0AEmail%3A%20${encodeURIComponent(errorState.contractData?.signed_by_email || errorState.contractData?.owner_email || '')}%0A%0AThank%20you.`}
                   >
                     <Mail className="h-4 w-4 mr-2" />
                     Request Copy via Email
                   </Button>
                   <p className="text-xs text-muted-foreground">
-                    Need help? Contact <a href="mailto:info@roomsonline.co.za" className="text-primary hover:underline">info@roomsonline.co.za</a>
+                  Need help? Contact <a href="mailto:sleepinafrica@roomsonline.co.za" className="text-primary hover:underline">sleepinafrica@roomsonline.co.za</a>
                   </p>
                 </div>
               </div>
@@ -632,13 +632,13 @@ export default function ContractSign() {
                 <div className="space-y-3">
                   <Button
                     className="w-full"
-                    onClick={() => window.location.href = `mailto:info@roomsonline.co.za?subject=Request%20New%20Contract%20Signing%20Link&body=Hi%20RoomsOnline%2C%0A%0AMy%20contract%20signing%20link%20has%20expired.%20Please%20send%20me%20a%20new%20link.%0A%0AThank%20you.`}
+                    onClick={() => window.location.href = `mailto:sleepinafrica@roomsonline.co.za?subject=Request%20New%20Contract%20Signing%20Link&body=Hi%20RoomsOnline%2C%0A%0AMy%20contract%20signing%20link%20has%20expired.%20Please%20send%20me%20a%20new%20link.%0A%0AThank%20you.`}
                   >
                     <Mail className="h-4 w-4 mr-2" />
                     Request New Signing Link
                   </Button>
                   <p className="text-xs text-muted-foreground">
-                    Email <a href="mailto:info@roomsonline.co.za" className="text-primary hover:underline">info@roomsonline.co.za</a> and we'll send you a fresh link.
+                    Email <a href="mailto:sleepinafrica@roomsonline.co.za" className="text-primary hover:underline">sleepinafrica@roomsonline.co.za</a> and we'll send you a fresh link.
                   </p>
                 </div>
               </div>
@@ -659,7 +659,7 @@ export default function ContractSign() {
               <h1 className="text-xl font-semibold mb-2">Unable to Load Contract</h1>
               <p className="text-muted-foreground mb-6">{errorState.message}</p>
               <p className="text-sm text-muted-foreground">
-                Need help? Contact <a href="mailto:info@roomsonline.co.za" className="text-primary hover:underline">info@roomsonline.co.za</a>
+                Need help? Contact <a href="mailto:sleepinafrica@roomsonline.co.za" className="text-primary hover:underline">sleepinafrica@roomsonline.co.za</a>
               </p>
             </div>
           </CardContent>
@@ -765,7 +765,7 @@ export default function ContractSign() {
 
               {/* Contact Info */}
               <p className="text-sm text-center text-muted-foreground">
-                Need help? Contact <a href="mailto:info@roomsonline.co.za" className="text-primary hover:underline">info@roomsonline.co.za</a>
+                Need help? Contact <a href="mailto:sleepinafrica@roomsonline.co.za" className="text-primary hover:underline">sleepinafrica@roomsonline.co.za</a>
               </p>
             </CardContent>
           </Card>

@@ -125,7 +125,7 @@ serve(async (req) => {
   
   <p style="margin-top: 30px; color: #666; font-size: 14px;">
     If you have any questions, reply to this email or contact us at 
-    <a href="mailto:info@roomsonline.co.za" style="color: #E1306C;">info@roomsonline.co.za</a>
+    <a href="mailto:sleepinafrica@roomsonline.co.za" style="color: #E1306C;">sleepinafrica@roomsonline.co.za</a>
   </p>
   
   <hr style="border: none; border-top: 1px solid #eee; margin: 40px 0 20px;">
