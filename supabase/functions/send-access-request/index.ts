@@ -191,7 +191,7 @@ const handler = async (req: Request): Promise<Response> => {
           
           <p>Please review this request in the admin panel:</p>
           <a href="https://sleepinafrica.roomsonline.co.za/admin/access-requests" 
-             style="display: inline-block; background: #e91e63; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">
+             style="display: inline-block; background: #e91e8c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px;">
             Review Request
           </a>
           
