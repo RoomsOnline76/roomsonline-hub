@@ -1,133 +1,105 @@
 
-# Fix Property Data Loading from Contract Signing
+# Fix Contract Signing + Color Update + Email Update
 
-## Summary of Issues Found
+## Issue Summary
 
-The property data captured during contract signing **IS saved correctly** to the database, but the **PropertyForm is not loading it properly** due to path mismatches between where the data is stored and where the form expects to find it.
+There are three tasks to complete:
 
-### Data Mapping Comparison
+1. **Contract Signing Failure** - The error shows: `null value in column "price_per_night" of relation "properties" violates not-null constraint`. The `process-signature` function is missing required database fields when creating new properties.
 
-| Field | Stored In (process-signature) | Loaded From (PropertyForm) | Status |
-|-------|-------------------------------|---------------------------|--------|
-| Property Type | `properties.property_type` = "Hotel" | `data.property_type` | Mismatch: Form expects lowercase ("hotel") |
-| Contact Email | `properties.owner_email` | `amenities?.contact?.email` | Not loading - wrong path |
-| Telephone | `amenities.telephone` | `amenities?.contact?.telephone` | Not loading - wrong path |
-| Registration Number | `amenities.registration_number` | `amenities?.banking?.property_registration` | Not loading - wrong path |
-| VAT Number | `amenities.vat_number` | `amenities?.banking?.vat_number` | Not loading - wrong path |
-| Registered Business Name | `amenities.registered_business_name` | `amenities?.registered_business_name` | Working |
-| Key Representative | `amenities.key_representative` | `amenities?.key_representative` | Working |
+2. **Color Replacement** - Replace wine maroon (#722F37) with ROL pink (#e91e8c) throughout the codebase.
 
-### Database Verification
-The property record (3c4c2a4e-7506-4ed7-af0f-d9d198500c18) contains:
-- `property_type`: "Hotel" (stored correctly)
-- `owner_email`: "dawie.julius@polka.co.za" (stored correctly)
-- `amenities.telephone`: "795242837" (stored at root level)
-- `amenities.registration_number`: "1234566890" (stored at root level)
-- `amenities.vat_number`: "17263838" (stored at root level)
+3. **Email Update** - Replace all instances of `info@roomsonline.co.za` with `sleepinafrica@roomsonline.co.za`.
 
 ---
 
-## Root Cause
+## Task 1: Fix Contract Signing
 
-The `process-signature` edge function stores business registration fields at the **root level** of the `amenities` object, but the `PropertyForm` loader expects them in **nested paths**:
+### Root Cause
+The `process-signature` edge function creates properties but is missing the required `price_per_night` field (and potentially other required fields like `bedrooms` and `bathrooms`).
 
-- `process-signature` saves: `amenities.telephone`
-- `PropertyForm` loads from: `amenities.contact.telephone`
+### Solution
+Update `supabase/functions/process-signature/index.ts` to include all required fields when creating properties:
+
+```typescript
+// Add these required fields to the property insert:
+price_per_night: 0,  // Default to 0, owner will set later
+bedrooms: 1,         // Already included
+bathrooms: 1,        // Already included  
+```
+
+The current code is missing `price_per_night: 0` in the insert statement.
 
 ---
 
-## Solution
+## Task 2: Replace Wine Maroon with ROL Pink
 
-### Part 1: Fix PropertyForm Field Loading
+### Files to Update
 
-**File**: `src/pages/PropertyForm.tsx`
+| File | Location | Change |
+|------|----------|--------|
+| `supabase/functions/send-survey-report/index.ts` | Lines 127, 153, 174, 190, 194 | Replace `#722F37` with `#e91e8c` |
 
-Update the `setFormData` block (around line 2659) to load from both the expected nested paths AND the root-level paths where contract data is stored:
+### What Changes
 
-```typescript
-setFormData({
-  // ... existing fields ...
-  
-  // Contact Email - prioritize owner_email (where contract data is stored)
-  contact_email: data.owner_email || amenities?.contact?.email || "",
-  
-  // Telephone - check root level first (contract data), then nested
-  telephone: amenities?.telephone || amenities?.contact?.telephone || "",
-  
-  // Registration - check root level first (contract data), then banking
-  property_registration: amenities?.registration_number || amenities?.banking?.property_registration || "",
-  
-  // VAT - check root level first (contract data), then banking
-  vat_number: amenities?.vat_number || amenities?.banking?.vat_number || "",
-  has_vat: amenities?.banking?.has_vat ?? !!(amenities?.vat_number || amenities?.banking?.vat_number),
-  
-  // Property type - normalize to lowercase for Select component
-  property_type: (data.property_type || "").toLowerCase(),
-});
+**Before (Wine Maroon):**
+```css
+background: linear-gradient(135deg, #722F37 0%, #8B3A42 100%);
+color: #722F37;
+border-left: 3px solid #722F37;
 ```
 
-### Part 2: Fix Property Type Case Sensitivity
-
-**Option A**: Normalize on load (recommended)
-In the `setFormData` block, convert property_type to lowercase:
-```typescript
-property_type: (data.property_type || "").toLowerCase(),
-```
-
-**Option B**: Normalize on save (in process-signature)
-Update the edge function to store lowercase:
-```typescript
-property_type: propData.property_type?.toLowerCase(),
-```
-
-I recommend Option A + Option B for consistency.
-
-### Part 3: Update process-signature to match expected structure
-
-**File**: `supabase/functions/process-signature/index.ts`
-
-Update the amenities object to also include nested paths that the form expects:
-
-```typescript
-amenities: {
-  // Root level (for contract variable resolution)
-  registered_business_name: propData.registered_business_name || propData.property_name,
-  registration_number: propData.registration_number,
-  vat_number: propData.vat_number,
-  telephone: propData.telephone,
-  mobile_number: propData.mobile_number,
-  postal_address: propData.postal_address,
-  key_representative: propData.key_representative || signee_name,
-  // Nested structure (for PropertyForm compatibility)
-  contact: {
-    email: contract.owner_email,
-    telephone: propData.telephone,
-  },
-  banking: {
-    property_registration: propData.registration_number,
-    vat_number: propData.vat_number,
-    has_vat: !!propData.vat_number,
-  },
-},
+**After (ROL Pink):**
+```css
+background: linear-gradient(135deg, #e91e8c 0%, #f0469d 100%);
+color: #e91e8c;
+border-left: 3px solid #e91e8c;
 ```
 
 ---
 
-## Files to Modify
+## Task 3: Update Email Address
 
-| File | Change |
-|------|--------|
-| `src/pages/PropertyForm.tsx` | Update field loading to check both root and nested paths; normalize property_type to lowercase |
-| `supabase/functions/process-signature/index.ts` | Store property_type as lowercase; add nested paths for form compatibility |
+### Files to Update (20+ files)
+
+| File | Changes |
+|------|---------|
+| `supabase/functions/process-signature/index.ts` | Lines 309, 331-337, 372 |
+| `supabase/functions/send-owner-contract/index.ts` | Line 226 |
+| `supabase/functions/send-onboarding-email/index.ts` | Line 128 |
+| `supabase/functions/send-booking-email/index.ts` | Line 426 |
+| `supabase/functions/send-contract/index.ts` | Line 193 |
+| `supabase/functions/email-contract-copy/index.ts` | Line 179 |
+| `supabase/functions/send-itinerary-email/index.ts` | Line 222 |
+| `supabase/functions/send-access-request/index.ts` | Line 150 |
+| `supabase/functions/send-contact-email/index.ts` | Line 198 |
+| `supabase/functions/send-survey-report/index.ts` | Line 524 |
+| `supabase/functions/help-assistant/index.ts` | Line 14 |
+| `src/pages/ContractSign.tsx` | Lines 609, 641, 662, 768 |
+| `src/pages/PropertyOnboarding.tsx` | Lines 61, 71, 192, 242 |
+| `src/pages/PMSComparison.tsx` | Line 439 |
+| `src/pages/ContactUs.tsx` | Line 117 |
+| `src/pages/AdminKeys.tsx` | Line 317 |
+| `src/lib/contractAgreementText.ts` | Line 93 |
+
+### What Changes
+- All `info@roomsonline.co.za` → `sleepinafrica@roomsonline.co.za`
+- All `mailto:info@roomsonline.co.za` → `mailto:sleepinafrica@roomsonline.co.za`
+- Admin notification emails remain unchanged (carike@ stays)
 
 ---
 
-## Expected Outcome
+## Implementation Order
+
+1. **Fix process-signature first** (this is blocking contract signing)
+2. **Update email addresses** across all files
+3. **Update color** in send-survey-report
+
+---
+
+## Expected Results
 
 After implementation:
-1. Property Type dropdown will show "Hotel" instead of "Select"
-2. Contact Email will display the owner's email address
-3. Telephone will show the captured phone number
-4. Registration Number will appear in the Banking Details section
-5. VAT Number will display (with has_vat auto-detected)
-6. All fields captured during contract signing will be visible in the property edit form
+- Contract signing will succeed (no more price_per_night error)
+- All contact emails will show `sleepinafrica@roomsonline.co.za`
+- Survey reports will use ROL pink branding instead of wine maroon
