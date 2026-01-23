@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,19 +49,61 @@ const BANK_PROVIDERS = [
   { id: "nedbank", name: "Nedbank" },
 ];
 
+const DEFAULT_CONFIG: BankConfig = {
+  bank_provider: "standard_bank",
+  is_active: false,
+  min_payout_amount: 500,
+  escrow_days: 7,
+};
+
 export function BankExportConfigCard() {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [testingConnection, setTestingConnection] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
-  const [config, setConfig] = useState<BankConfig>({
-    bank_provider: "standard_bank",
-    is_active: false,
-    min_payout_amount: 500,
-    escrow_days: 7,
-  });
+  const [config, setConfig] = useState<BankConfig>(DEFAULT_CONFIG);
+
+  // Load existing config from database on mount
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("api_keys")
+          .select("key_name, key_value")
+          .in("key_name", [
+            "BANK_EXPORT_PROVIDER",
+            "BANK_EXPORT_ACTIVE",
+            "BANK_EXPORT_MIN_AMOUNT",
+            "BANK_EXPORT_ESCROW_DAYS",
+          ]);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          const configMap = data.reduce((acc, item) => {
+            acc[item.key_name] = item.key_value;
+            return acc;
+          }, {} as Record<string, string>);
+
+          setConfig({
+            bank_provider: configMap["BANK_EXPORT_PROVIDER"] || DEFAULT_CONFIG.bank_provider,
+            is_active: configMap["BANK_EXPORT_ACTIVE"] === "true",
+            min_payout_amount: parseInt(configMap["BANK_EXPORT_MIN_AMOUNT"]) || DEFAULT_CONFIG.min_payout_amount,
+            escrow_days: parseInt(configMap["BANK_EXPORT_ESCROW_DAYS"]) || DEFAULT_CONFIG.escrow_days,
+          });
+        }
+      } catch (error) {
+        console.error("Error loading bank config:", error);
+      } finally {
+        setIsLoadingConfig(false);
+      }
+    };
+
+    loadConfig();
+  }, []);
 
   const handleSave = async () => {
     setIsLoading(true);
