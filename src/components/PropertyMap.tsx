@@ -102,7 +102,7 @@ export function PropertyMap({
       pinElement.style.cssText = `
         width: 32px;
         height: 32px;
-        background-color: #e11d48;
+        background-color: #e91e8c;
         border: 3px solid white;
         border-radius: 50%;
         box-shadow: 0 2px 6px rgba(0,0,0,0.3);
