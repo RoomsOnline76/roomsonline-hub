@@ -63,7 +63,7 @@ const softwareSchema = {
   "name": "Sleep in Africa by ROL",
   "applicationCategory": "BusinessApplication",
   "operatingSystem": "Web",
-  "description": "A unified booking layer that connects any PMS or channel manager into one seamless booking experience on your website.",
+  "description": "A booking engine that connects any PMS or channel manager into one seamless booking experience on your website.",
   "offers": {
     "@type": "Offer",
     "price": "0",
@@ -83,11 +83,11 @@ const softwareSchema = {
 export default function PMSComparison() {
   // Set page meta and JSON-LD
   useEffect(() => {
-    document.title = "Unified Booking Layer for Property Portfolios | Sleep in Africa by ROL";
+    document.title = "How We Do It @ ROL | Sleep in Africa";
     
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) {
-      metaDesc.setAttribute('content', 'Connect any PMS to one website. Sleep in Africa by ROL is a unified booking layer that works with your existing property management systems. No migrations, no replacements.');
+      metaDesc.setAttribute('content', 'Connect any PMS to one website. Sleep in Africa by ROL connects your existing property management systems into one seamless booking experience. No migrations, no replacements.');
     }
     
     // Add FAQ schema
@@ -129,7 +129,7 @@ export default function PMSComparison() {
             </p>
             
             <p className="text-lg text-foreground leading-relaxed max-w-2xl mx-auto mb-8">
-              <strong>Sleep in Africa by ROL</strong> is a <strong>unified booking layer</strong> that connects any PMS or channel manager 
+              <strong>Sleep in Africa by ROL</strong> connects any PMS or channel manager 
               into one seamless booking experience on your website.
             </p>
             
