@@ -96,7 +96,7 @@ export function PublicHeader({
                 About
               </Link>
               <Link
-                to="/compare-property-management-systems"
+                to="/how-our-booking-engine-works"
                 className={cn(
                   "px-3 py-1.5 text-sm rounded-md transition-colors",
                   transparent 
@@ -168,7 +168,7 @@ export function PublicHeader({
                 About Us
               </Link>
               <Link
-                to="/compare-property-management-systems"
+                to="/how-our-booking-engine-works"
                 className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
                 onClick={() => setMobileMenuOpen(false)}
               >

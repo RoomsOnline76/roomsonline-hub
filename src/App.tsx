@@ -272,8 +272,9 @@ const App = () => (
           <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route path="/about" element={<AboutUs />} />
           <Route path="/contact" element={<ContactUs />} />
-          <Route path="/compare-property-management-systems" element={<PMSComparison />} />
-          <Route path="/pms-comparison" element={<Navigate to="/compare-property-management-systems" replace />} />
+          <Route path="/how-our-booking-engine-works" element={<PMSComparison />} />
+          <Route path="/pms-comparison" element={<Navigate to="/how-our-booking-engine-works" replace />} />
+          <Route path="/compare-property-management-systems" element={<Navigate to="/how-our-booking-engine-works" replace />} />
           <Route
             path="/nb"
             element={
