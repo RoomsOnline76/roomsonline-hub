@@ -1,146 +1,168 @@
 
 
-# Fix Contract Signing Data Capture and Onboarding Email
+# Fix Contract Signing Data Flow Issues
 
-## Issues Identified
+## Summary of Issues
 
-After investigating the Julius Erasmus contract signing, I found **three distinct issues**:
+After investigating Julius Erasmus's contract signing, I found **four distinct issues** that need to be addressed:
 
-### Issue 1: Missing Fields in Property Creation
-**Status**: Property was created but missing several fields that were captured in the contract wizard.
-
-| Field | In `pending_property_data` | In `properties` table |
-|-------|---------------------------|----------------------|
-| `property_name` | ✅ "Julius Erasmus" | ✅ Saved as `name` |
-| `property_type` | ✅ "Hotel" | ✅ Saved |
-| `address` | ✅ "38 Geelhout Street" | ✅ Saved |
-| `city` | ✅ "Still bay" | ✅ Saved |
-| `country` | ✅ "South Africa" | ✅ Saved |
-| `owner_email` | ✅ "dawie.julius@polka.co.za" | ✅ Saved |
-| `owner_name` | ✅ (from signee) | ✅ "Julius Erasmus" |
-| `telephone` | ✅ "795242837" | ⚠️ In amenities only |
-| `mobile_number` | ❌ Not provided | N/A |
-| `postal_address` | ❌ Not provided | N/A |
-
-**Finding**: Core fields ARE being saved. The `owner_email` and `owner_name` ARE assigned. Business details (`telephone`, `vat_number`, etc.) are saved in `amenities` as designed.
-
-### Issue 2: Contract Not Showing in Property Edit Tab
-**Root Cause**: The `ContractManagementPanel` uses `useOwnerContract(ownerEmail)` to fetch contracts. This IS working correctly.
-
-**Verification Query**: The contract exists with:
-- `owner_email`: "dawie.julius@polka.co.za"
-- `status`: "signed"
-- `signed_at`: "2026-01-23 05:12:04"
-
-**Likely Issue**: The property form might need to be refreshed, or there's a caching issue. The contract SHOULD display when viewing the property form.
-
-### Issue 3: Onboarding Wizard Email Not Sent
-**Root Cause**: The `process-signature` function sends a **password reset email** for new owners (lines 284-325), but it does **NOT** call the `send-onboarding-email` function.
-
-The memory states:
-> "For new owners, a separate welcome email is triggered after signature that includes a password set/reset link and a call-to-action to complete the property setup via the onboarding wizard."
-
-Currently, the password reset email is sent, but it doesn't include the onboarding wizard link. The `send-onboarding-email` function exists but is **never called** during the contract signing flow.
+| Issue | Status | Root Cause |
+|-------|--------|------------|
+| Property data not fully saved | Data IS saved correctly | UI display issue - owner email is in DB |
+| Owner not created in /team | Profile missing | Trigger/sync failure |
+| Contract shows "No Contract" | Needs investigation | Likely working but may need UI refresh |
+| Onboarding email not sent | Missing code | Fixed in previous update |
 
 ---
 
-## Solution
+## Detailed Analysis
 
-### Part 1: Update `process-signature` to Send Onboarding Email
+### Issue 1: Profile Not Created for New Owner
 
-**File**: `supabase/functions/process-signature/index.ts`
+**Current State:**
+- Auth user exists: `id: 06ea9dbd-98ad-433b-8035-88e58b1f0457`, `email: dawie.julius@polka.co.za`
+- Profile does NOT exist for this user
+- User role does NOT exist for this user
 
-After creating the property and sending the password reset email, add a call to the `send-onboarding-email` function:
+**Root Cause:**
+The `handle_new_user` database trigger on `auth.users` should create a profile automatically, but it either failed silently or has a race condition when users are created via the admin API (`auth.admin.createUser`).
+
+The `send-owner-contract` function has fallback logic (lines 76-90) to create the profile if it wasn't auto-created, but the contract for Julius was sent BEFORE the user was created (the user is created when the contract is sent to a new owner).
+
+**The Fix:**
+Update `process-signature` to ensure profile + user_role are created after property creation for new owners.
+
+### Issue 2: Property Data IS Actually Saved Correctly
+
+**Verification Query Results:**
+```
+Property: 3c4c2a4e-7506-4ed7-af0f-d9d198500c18
+- name: "Julius Erasmus" ✅
+- owner_email: "dawie.julius@polka.co.za" ✅  
+- owner_name: "Julius Erasmus" ✅
+- address: "38 Geelhout Street" ✅
+- city: "Still bay" ✅
+- amenities.telephone: "795242837" ✅
+```
+
+**Why It Appears Empty in UI:**
+The property form "Owner" dropdown is populated from the `profiles` table. Since Julius's profile doesn't exist, the dropdown shows "Select owner" even though `owner_email` IS correctly saved in the database.
+
+### Issue 3: Contract Status Display
+
+**Database Verification:**
+```
+Contract: e9393be9-cd0b-4a71-a783-753eff4a9087
+- owner_email: "dawie.julius@polka.co.za"
+- status: "signed" ✅
+```
+
+The contract IS signed and the `owner_email` matches. The `ContractManagementPanel` uses `formData.owner_email` which comes from the property's `owner_email` column. Since that value IS correct, the contract SHOULD display.
+
+**Possible Cause:**
+- Browser caching
+- React Query stale data
+
+---
+
+## Implementation Plan
+
+### Part 1: Update `process-signature` Edge Function
+
+**File:** `supabase/functions/process-signature/index.ts`
+
+After creating the property for new owners (around line 157), add logic to:
+1. Check if profile exists
+2. Create profile if missing
+3. Create user_role if missing
 
 ```typescript
-// After the password reset email (around line 325)
-if (isNewOwner && createdPropertyId) {
-  try {
-    // Invoke send-onboarding-email function
-    const { error: onboardingError } = await supabase.functions.invoke(
-      "send-onboarding-email",
-      {
-        body: {
-          propertyId: createdPropertyId,
-          ownerEmail: contract.owner_email,
-          ownerName: signee_name,
-          propertyName: createdPropertyName,
-        },
-      }
-    );
+// After property creation (line 157), add:
+if (createdPropertyId) {
+  // Ensure profile exists for the owner
+  const { data: existingProfile } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("email", contract.owner_email)
+    .maybeSingle();
 
-    if (onboardingError) {
-      console.error("Error sending onboarding email:", onboardingError);
-    } else {
-      console.log("Onboarding email sent successfully");
+  if (!existingProfile) {
+    // Find the auth user
+    const { data: authUsers } = await supabase.auth.admin.listUsers();
+    const authUser = authUsers?.users?.find(u => u.email === contract.owner_email);
+    
+    if (authUser) {
+      // Create profile
+      await supabase.from("profiles").insert({
+        id: authUser.id,
+        email: contract.owner_email,
+        full_name: signee_name,
+        role: "user",
+      });
+      console.log("Created profile for new owner:", contract.owner_email);
+
+      // Create user role
+      await supabase.from("user_roles").upsert({
+        user_id: authUser.id,
+        role: "user",
+      }, { onConflict: "user_id,role" });
+      console.log("Created user role for new owner");
     }
-  } catch (onboardingErr) {
-    console.error("Failed to send onboarding email:", onboardingErr);
-    // Don't fail the whole process
   }
 }
 ```
 
-**Alternative**: Combine the welcome and onboarding emails into one by adding the onboarding wizard CTA directly into the existing welcome email template.
+### Part 2: Fix Existing Data (Julius Erasmus)
 
-### Part 2: Verify Contract Display (Investigation Only)
+Run a one-time data fix to create the missing profile:
 
-The contract should already display in the property edit form. Steps to verify:
-1. Navigate to `/property/{propertyId}` for property `3c4c2a4e-7506-4ed7-af0f-d9d198500c18`
-2. The `ContractManagementPanel` should fetch and display the contract
-3. If not showing, the issue may be browser caching - try a hard refresh
+```sql
+-- Create profile for existing auth user
+INSERT INTO public.profiles (id, email, full_name, role)
+SELECT 
+  id,
+  email,
+  'Julius Erasmus',
+  'user'
+FROM auth.users 
+WHERE email = 'dawie.julius@polka.co.za'
+ON CONFLICT (id) DO NOTHING;
 
-### Part 3: Optional Improvements
+-- Create user role
+INSERT INTO public.user_roles (user_id, role)
+SELECT id, 'user'
+FROM auth.users 
+WHERE email = 'dawie.julius@polka.co.za'
+ON CONFLICT (user_id, role) DO NOTHING;
+```
 
-Consider adding the following additional fields from `pending_property_data` to the property record:
-- Store `telephone` in a top-level column if needed for quick access
-- Add `postal_address` to the property record if provided
+### Part 3: Improve Owner Dropdown Resilience
+
+**File:** `src/pages/PropertyForm.tsx`
+
+Update the owner dropdown to show the current `owner_email` even if no matching profile exists:
+
+Currently (around line 4380), the dropdown only shows profiles from the database. If the property has an `owner_email` that doesn't match any profile, it shows "Select owner".
+
+Add a fallback to display the current owner email if not in the profiles list.
 
 ---
 
-## Technical Details
+## Files to Modify
 
-### Current Data Flow
-```text
-Owner Signs Contract
-       │
-       ▼
-process-signature edge function
-       │
-       ├─► Create property record ✅ (now working with price_per_night fix)
-       │
-       ├─► Update contract as signed ✅
-       │
-       ├─► Send confirmation emails (3x) ✅
-       │
-       ├─► Send password reset email ✅
-       │
-       └─► Send onboarding email ❌ (MISSING - needs to be added)
-```
-
-### After Fix
-```text
-Owner Signs Contract
-       │
-       ▼
-process-signature edge function
-       │
-       ├─► Create property record ✅
-       │
-       ├─► Update contract as signed ✅
-       │
-       ├─► Send confirmation emails (3x) ✅
-       │
-       ├─► Send password reset email ✅
-       │
-       └─► Send onboarding wizard email ✅ (ADDED)
-```
-
-### Files to Modify
 | File | Change |
 |------|--------|
-| `supabase/functions/process-signature/index.ts` | Add call to `send-onboarding-email` after property creation |
+| `supabase/functions/process-signature/index.ts` | Add profile + role creation for new owners |
+| `src/pages/PropertyForm.tsx` | Improve owner dropdown to show unmatched owner_email |
+| Database migration | Fix Julius's missing profile (one-time) |
 
-### Deployment
-The edge function will need to be redeployed after the change.
+---
+
+## Expected Outcome
+
+After implementation:
+1. New owners signing contracts will have their profile and user_role created automatically
+2. They will appear in the /team page
+3. The property form will correctly display their email even if profile sync fails
+4. The contract panel will correctly show the signed contract status
 
