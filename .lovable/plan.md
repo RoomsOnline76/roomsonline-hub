@@ -1,181 +1,76 @@
 
-# Fix Create User Logic for Existing Users
 
-## Problem Analysis
+# Fix Password Reset "Verification Failed" Error
 
-From the database:
-- `admin@roomsonline.co.za` has a **pending access request** AND already exists with the `admin` role
-- When trying to approve this request, the edge function throws: "User with this email already exists and is fully set up"
+## Root Cause Analysis
 
-The current logic at lines 88-97 treats "already exists with role" as an error, but this is incorrect for the access request approval flow.
+The password reset flow is failing because of a **Supabase Auth redirect URL configuration mismatch**:
+
+| Component | Current Setting |
+|-----------|----------------|
+| Edge Functions redirect URL | `https://sleepinafrica.roomsonline.co.za/auth` ✓ |
+| Supabase Auth Site URL | Likely set to `roomsonline-hub.lovable.app` |
+| Supabase Auth Redirect URLs | Missing `sleepinafrica.roomsonline.co.za` |
+
+When the password reset link is clicked:
+1. Supabase validates the redirect URL in the link
+2. If `sleepinafrica.roomsonline.co.za` is not in the allowed redirect URLs, Supabase either:
+   - Rejects the redirect and falls back to the Site URL
+   - Invalidates the token during the redirect process
 
 ---
 
-## The Logic Flaw
+## The Fix
+
+This is a **configuration change** in Lovable Cloud (Supabase Auth settings), not a code change.
+
+### Step 1: Add Allowed Redirect URLs
+
+In Lovable Cloud Dashboard → Auth Settings, add these redirect URLs:
 
 ```text
-Current Flow:
-┌─────────────────────────────────────────────────────────────┐
-│ User exists with same role?                                 │
-│                    ↓                                        │
-│                   YES → ERROR (wrong!)                      │
-│                                                             │
-│ What SHOULD happen:                                         │
-│                    ↓                                        │
-│                   YES → Send password email + SUCCESS       │
-└─────────────────────────────────────────────────────────────┘
+https://sleepinafrica.roomsonline.co.za/auth
+https://sleepinafrica.roomsonline.co.za/**
+```
+
+### Step 2: Verify Site URL
+
+Ensure the Site URL is set to:
+```text
+https://sleepinafrica.roomsonline.co.za
 ```
 
 ---
 
-## Solution
+## How to Access Auth Settings
 
-Modify `supabase/functions/create-user/index.ts` to handle all scenarios gracefully:
-
-### Scenario 1: User exists with SAME role already
-- Don't error
-- Send password setup/reset email
-- Return success (user is ready to use)
-
-### Scenario 2: User exists with DIFFERENT role
-- Add the new role
-- Send email about new role/access
-- Return success
-
-### Scenario 3: New user
-- Create auth user
-- Create profile
-- Add role
-- Send welcome email
-- Return success
+You'll need to open the Lovable Cloud Dashboard to configure the authentication redirect URLs.
 
 ---
 
-## Code Changes
+## Why This Happens
 
-### File: `supabase/functions/create-user/index.ts`
+Lovable Cloud automatically sets redirect URLs to the preview URL (`roomsonline-hub.lovable.app`). When you have a custom domain (`sleepinafrica.roomsonline.co.za`), you need to manually add it to the allowed redirect URLs list.
 
-**1. Remove the error throw for existing users (lines 95-97)**
-
-Replace:
-```typescript
-if (existingProfile && existingRole) {
-  throw new Error('User with this email already exists and is fully set up');
-}
+The password reset emails contain links like:
+```
+https://[supabase-project].supabase.co/auth/v1/verify?token=xxx&redirect_to=https://sleepinafrica.roomsonline.co.za/auth
 ```
 
-With logic that:
-- Sets a flag `isExistingWithRole = true`
-- Continues to the email sending section
-- Skips profile/role upserts (already done)
-
-**2. Add tracking variable for existing user state**
-
-Add after line 78:
-```typescript
-let userId: string;
-let isExistingWithRole = false;
-let isExistingWithDifferentRole = false;
-```
-
-**3. Update the existing user check block (lines 80-101)**
-
-```typescript
-if (existingAuthUser) {
-  userId = existingAuthUser.id;
-  
-  const { data: existingProfile } = await supabaseAdmin
-    .from('profiles')
-    .select('id')
-    .eq('id', existingAuthUser.id)
-    .maybeSingle();
-
-  const { data: existingRole } = await supabaseAdmin
-    .from('user_roles')
-    .select('id, role')
-    .eq('user_id', existingAuthUser.id)
-    .eq('role', role)
-    .maybeSingle();
-
-  if (existingProfile && existingRole) {
-    // User already fully set up with this role
-    // Don't error - just send password reset email and succeed
-    console.log('User already exists with requested role, will send password reset');
-    isExistingWithRole = true;
-  } else if (existingProfile) {
-    // User exists but with different/no role - add the new role
-    console.log('User exists with different role, adding new role:', role);
-    isExistingWithDifferentRole = true;
-  } else {
-    // User in auth but no profile - create profile
-    console.log('User exists in auth but missing profile, creating...');
-  }
-} else {
-  // Create new user...
-}
-```
-
-**4. Wrap profile/role creation in condition**
-
-Only run profile/role upserts if NOT `isExistingWithRole`:
-
-```typescript
-if (!isExistingWithRole) {
-  // Create or update profile
-  const { error: profileError } = await supabaseAdmin
-    .from('profiles')
-    .upsert({ id: userId, email, full_name }, { onConflict: 'id' });
-  if (profileError) throw profileError;
-
-  // Create or update role
-  const { error: roleError } = await supabaseAdmin
-    .from('user_roles')
-    .upsert({ user_id: userId, role }, { onConflict: 'user_id,role' });
-  if (roleError) throw roleError;
-}
-```
-
-**5. Always send password email (lines 177-258)**
-
-The email section already runs for all cases - just ensure it doesn't fail silently for existing users.
-
-**6. Update email subject/content for existing users**
-
-```typescript
-const isNewUser = !existingAuthUser;
-const emailSubject = isNewUser 
-  ? 'Welcome to RoomsOnline - Set Up Your Account'
-  : 'RoomsOnline - Your Access Has Been Approved';
-
-const emailIntro = isNewUser
-  ? `Your ${roleLabel} account has been created.`
-  : `Your access request has been approved! You now have ${roleLabel} access.`;
-```
+If `sleepinafrica.roomsonline.co.za` is not in the allowed list, the token verification fails.
 
 ---
 
-## Summary of Changes
+## After Configuration
 
-| Change | Purpose |
-|--------|---------|
-| Remove error for existing user+role | Allow approving already-setup users |
-| Add `isExistingWithRole` flag | Track state without breaking flow |
-| Conditional profile/role creation | Skip redundant DB writes |
-| Dynamic email content | Appropriate messaging for new vs existing users |
+Once the redirect URLs are configured:
+1. Generate new password reset emails for affected users
+2. The new links will work correctly
+3. Old links (already sent) will still fail - users need fresh reset emails
 
 ---
 
-## Edge Cases Handled
+## No Code Changes Required
 
-| Scenario | Current Behavior | New Behavior |
-|----------|-----------------|--------------|
-| User exists + same role | ERROR | Send email + SUCCESS |
-| User exists + different role | Add role + email | Add role + email (unchanged) |
-| User in auth only (no profile) | Create profile/role | Create profile/role (unchanged) |
-| Brand new user | Create all | Create all (unchanged) |
+The edge functions are correctly configured. This is purely an auth settings configuration issue.
 
----
-
-## Files Modified
-
-1. `supabase/functions/create-user/index.ts` - Logic update to handle existing users gracefully
