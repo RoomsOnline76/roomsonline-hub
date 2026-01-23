@@ -1,101 +1,128 @@
 
-# Fix Double Logo + Color Update to ROL Pink
+# Fix Global Branding Colour Inconsistency (ROL Pink)
 
-## Summary
+## Executive Summary
 
-Two issues to address:
-
-1. **Double Logo on Contract PDF** - The contract shows the full "roomsonline" logo at the top, then a second "ROL" wreath logo below it within the contract body content.
-
-2. **Color Update** - Replace the wrong pink shade (`#e91e63`) with the correct ROL pink (`#e91e8c`) in email templates.
+The platform currently uses a deep burgundy/maroon color (`hsl(345 60% 38%)` = approximately `#9a2850`) as the primary brand color, along with scattered instances of Material Design Pink (`#e91e63`) and rose-red (`#e11d48`). All of these must be replaced with the correct ROL Pink: `#e91e8c`.
 
 ---
 
-## Issue 1: Double Logo in Contract
+## Current State Analysis
 
-### Root Cause Analysis
+### Color Audit Results
 
-Looking at the PDF screenshot, there are TWO logos displayed:
-- **Logo 1**: Full "roomsonline" logo with tagline at the very top header
-- **Logo 2**: Small "ROL" wreath logo inside the contract content area
+| Location | Current Color | Hex Equivalent | Issue |
+|----------|---------------|----------------|-------|
+| `src/index.css` line 31 | `--primary: 345 60% 38%` | ~#9a2850 (Burgundy) | Wrong - this is the Login button color |
+| `src/index.css` line 104 | `--primary: 345 55% 55%` (dark mode) | ~#c24d6b | Wrong shade |
+| `src/index.css` line 8 | `--rol-pink: 330 100% 77%` | ~#ff8fd8 | Too light/pink |
+| `supabase/functions/forgot-password/index.ts` line 115 | `#e91e63` | Material Design Pink | Wrong |
+| `supabase/functions/create-user/index.ts` line 224 | `#e91e63` | Material Design Pink | Wrong |
+| `src/components/PropertyMap.tsx` line 105 | `#e11d48` | Rose-red | Wrong |
 
-The double logo occurs because:
+### Target Color
 
-1. `generateContractHTML()` (line 78-80 in `src/lib/contractAgreementText.ts`) includes a logo in its output:
-   ```html
-   <div class="text-center mb-6">
-     <img src="${ROL_LOGO_URL}" alt="RoomsOnline" class="h-12 mx-auto" />
-   </div>
-   ```
+**ROL Pink: `#e91e8c`**
 
-2. When this is used with `generatePdfFromDynamicTemplate()` (lines 267-271), it wraps the content with ANOTHER header containing the logo:
-   ```html
-   <div class="header">
-     <img src="${logoSrc}" alt="Roomsonline" />
-     <p class="tagline">Strategize - Optimize - Maximize</p>
-   </div>
-   ${templateHtml} <!-- This already contains a logo! -->
-   ```
+Converting to HSL for CSS variables:
+- Hex: `#e91e8c`
+- HSL: `326 82% 51%`
 
-3. Similarly, `generateSignedContractHTML()` (lines 193-196) also has a header with logo that wraps content which may contain its own logo.
+---
 
-### Solution
+## Implementation Plan
 
-**Remove the logo from `generateContractHTML()`** since the wrapper functions (`generateSignedContractHTML` and `generatePdfFromDynamicTemplate`) already add a proper header with the logo.
+### Phase 1: Update Source of Truth (CSS Variables)
 
-**File**: `src/lib/contractAgreementText.ts`
+**File: `src/index.css`**
 
-**Change**: Lines 76-80 - Remove the logo div from the contract content:
+Update the primary color CSS variables to use ROL Pink:
 
-```typescript
-// BEFORE:
-return `
-<div class="contract-text">
-  <div class="text-center mb-6">
-    <img src="${ROL_LOGO_URL}" alt="RoomsOnline" class="h-12 mx-auto" />
-  </div>
-  <h1 class="text-2xl font-bold text-center mb-6">ROOMSONLINE ACCOMMODATION...
-
-// AFTER:
-return `
-<div class="contract-text">
-  <h1 class="text-2xl font-bold text-center mb-6">ROOMSONLINE ACCOMMODATION...
+```text
+Line 8:  --rol-pink: 330 100% 77%  →  --rol-pink: 326 82% 51%
+Line 31: --primary: 345 60% 38%    →  --primary: 326 82% 51%
+Line 56: --ring: 345 60% 38%       →  --ring: 326 82% 51%
+Line 68: hero-gradient hsl values  →  Use new primary
+Line 76: shadow-glow hsl values    →  Use new primary
+Line 83: sidebar-primary           →  326 82% 51%
+Line 88: sidebar-ring              →  326 82% 51%
 ```
 
----
+**Dark mode updates (lines 91-148):**
+```text
+Line 104: --primary: 345 55% 55%         →  --primary: 326 85% 60%
+Line 124: --ring: 345 55% 55%            →  --ring: 326 85% 60%
+Line 137: shadow-glow                    →  Use new primary
+Line 142: --sidebar-primary: 345 55% 55% →  --sidebar-primary: 326 85% 60%
+Line 147: --sidebar-ring: 345 55% 55%    →  --sidebar-ring: 326 85% 60%
+```
 
-## Issue 2: Color Inconsistency
+### Phase 2: Fix Inline Hardcoded Colors
 
-### Problem
-
-Some email templates use `#e91e63` (Material Design Pink) instead of the correct ROL pink `#e91e8c`.
-
-### Files to Update
-
-| File | Line | Current | Target |
-|------|------|---------|--------|
-| `supabase/functions/reset-user-password/index.ts` | 149 | `#e91e63` | `#e91e8c` |
-| `supabase/functions/send-access-request/index.ts` | 194 | `#e91e63` | `#e91e8c` |
-
-### Note on Green Color
-
-The dark green color `#2c5530` in `src/lib/contractAgreementText.ts` is used for contract headers and borders. This appears to be intentional brand styling for the contract document and should NOT be changed to pink, as it provides good readability for official legal documents.
-
----
-
-## Implementation Summary
-
-| Task | File | Change |
+| File | Line | Change |
 |------|------|--------|
-| Remove duplicate logo | `src/lib/contractAgreementText.ts` | Delete logo div from `generateContractHTML()` lines 78-80 |
-| Update color | `supabase/functions/reset-user-password/index.ts` | `#e91e63` to `#e91e8c` |
-| Update color | `supabase/functions/send-access-request/index.ts` | `#e91e63` to `#e91e8c` |
+| `supabase/functions/forgot-password/index.ts` | 115 | `#e91e63` → `#e91e8c` |
+| `supabase/functions/create-user/index.ts` | 224 | `#e91e63` → `#e91e8c` |
+| `src/components/PropertyMap.tsx` | 105 | `#e11d48` → `#e91e8c` |
+
+### Phase 3: Deploy Edge Functions
+
+Redeploy the following functions to apply email template color changes:
+- `forgot-password`
+- `create-user`
 
 ---
 
-## Expected Result
+## Technical Details
 
-After implementation:
-- Contract PDF will show only ONE logo at the top (the full "roomsonline" logo with tagline)
-- The duplicate "ROL" wreath logo below will be removed
-- All email buttons will use consistent ROL pink (`#e91e8c`)
+### HSL Conversion Reference
+
+| Color | Hex | HSL |
+|-------|-----|-----|
+| ROL Pink | `#e91e8c` | `326 82% 51%` |
+| ROL Pink Light (dark mode) | ~`#f04c9d` | `326 85% 60%` |
+
+### Derived Shades (if needed)
+
+For hover states or variations, these can be derived from the base:
+- Hover: `326 82% 46%` (slightly darker)
+- Active: `326 82% 41%` (darker still)
+- Light variant: `326 82% 90%` (backgrounds)
+
+---
+
+## Files Modified
+
+### Frontend (3 files)
+1. `src/index.css` - CSS variables (source of truth)
+2. `src/components/PropertyMap.tsx` - Map marker color
+
+### Backend (2 files)
+1. `supabase/functions/forgot-password/index.ts` - Email button
+2. `supabase/functions/create-user/index.ts` - Email button
+
+---
+
+## Visual Impact
+
+After this change:
+- **Login button**: Will change from burgundy to bright ROL Pink
+- **All primary buttons**: Will use ROL Pink
+- **Form focus rings**: Will use ROL Pink
+- **Links and accents**: Will use ROL Pink
+- **Email CTA buttons**: Will use ROL Pink
+- **Map markers**: Will use ROL Pink
+
+---
+
+## Verification Checklist
+
+After implementation, verify these locations show `#e91e8c`:
+- [ ] Auth page Login button
+- [ ] Auth page "Send Reset Link" button
+- [ ] All primary buttons in admin console
+- [ ] Booking page CTAs
+- [ ] Property map markers
+- [ ] Email templates (forgot password, create user)
+- [ ] Tab highlights and selection states
+- [ ] Form input focus rings
