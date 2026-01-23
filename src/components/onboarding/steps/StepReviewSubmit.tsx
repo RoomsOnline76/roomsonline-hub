@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, CheckCircle, AlertCircle, Send, Award } from "lucide-react";
 import { StepProps } from "./types";
-import { WIZARD_SECTIONS, SCORE_WEIGHTS, getScoreBand } from "@/config/onboardingFieldSchema";
+import { SCORE_WEIGHTS, getScoreBand, OnboardingImage } from "@/config/onboardingFieldSchema";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -62,24 +62,35 @@ export function StepReviewSubmit({
       isComplete: locationFields >= 3
     });
 
-    // Policies & Pricing (merged policies + banking)
-    const policyFields = [amenities.check_in_time, amenities.bank_name, amenities.account_number].filter(Boolean).length;
+    // Policies & Pricing (enhanced with new fields)
+    const policyFields = [
+      amenities.check_in_from || amenities.check_in_time,
+      amenities.bank_name || amenities.bank_confirmation_letter_url,
+      amenities.account_number,
+      amenities.cancellation_policy,
+      amenities.payment_policy
+    ].filter(Boolean).length;
     sections.push({
       id: "policies_pricing",
       title: "Policies & Pricing",
-      score: Math.round((policyFields / 3) * SCORE_WEIGHTS.policies_pricing),
+      score: Math.round((policyFields / 5) * SCORE_WEIGHTS.policies_pricing),
       maxScore: SCORE_WEIGHTS.policies_pricing,
-      isComplete: policyFields >= 1
+      isComplete: policyFields >= 2
     });
 
-    // Guest Experience (description + meals)
-    const descFields = [propertyData.description, amenities.meal_plan].filter(Boolean).length;
+    // Guest Experience (enhanced with new fields)
+    const descFields = [
+      propertyData.description,
+      propertyData.short_description,
+      amenities.unique_selling_points,
+      amenities.meal_plan
+    ].filter(Boolean).length;
     sections.push({
       id: "guest_experience",
       title: "Guest Experience",
-      score: Math.round((descFields / 2) * SCORE_WEIGHTS.guest_experience),
+      score: Math.round((descFields / 4) * SCORE_WEIGHTS.guest_experience),
       maxScore: SCORE_WEIGHTS.guest_experience,
-      isComplete: propertyData.description ? true : false
+      isComplete: !!propertyData.description
     });
 
     // Facilities
@@ -92,25 +103,31 @@ export function StepReviewSubmit({
       isComplete: (facilities?.length || 0) >= 5
     });
 
-    // Rooms
-    const roomTypes = amenities.room_types as unknown[] | undefined;
+    // Rooms (enhanced with units and rate_unit)
+    const roomTypes = amenities.room_types as Array<{ name?: string; units?: number; max_guests?: number }> | undefined;
+    const roomsComplete = roomTypes && roomTypes.length > 0 && roomTypes.every(r => r.name && r.max_guests);
     sections.push({
       id: "rooms_overview",
       title: "Rooms",
       score: roomTypes && roomTypes.length > 0 ? SCORE_WEIGHTS.rooms_overview : 0,
       maxScore: SCORE_WEIGHTS.rooms_overview,
-      isComplete: (roomTypes?.length || 0) >= 1
+      isComplete: !!roomsComplete
     });
 
-    // Media & Documents
-    const images = (propertyData.images || []) as unknown[];
-    const imageScore = Math.min(1, images.length / 3);
+    // Media & Documents (enhanced with image validation)
+    const images = (propertyData.images || []) as unknown as OnboardingImage[];
+    const hasHero = images.some(img => img.type === 'hero');
+    const hasMinImages = images.length >= 3;
+    const hasMaxImages = images.length <= 5;
+    const imageScore = hasHero && hasMinImages && hasMaxImages ? 1 : 
+                       hasMinImages ? 0.7 : 
+                       images.length / 3;
     sections.push({
       id: "media_documents",
       title: "Media & Documents",
       score: Math.round(imageScore * SCORE_WEIGHTS.media_documents),
       maxScore: SCORE_WEIGHTS.media_documents,
-      isComplete: images.length >= 3
+      isComplete: hasMinImages && hasHero
     });
 
     return sections;
@@ -121,12 +138,27 @@ export function StepReviewSubmit({
   const scoreBand = getScoreBand(totalScore);
   const completedSections = sectionScores.filter(s => s.isComplete).length;
 
+  // Determine readiness label
+  const getReadinessLabel = (score: number) => {
+    if (score >= 90) return "Ready to List";
+    if (score >= 70) return "Nearly Ready";
+    return "Needs Attention";
+  };
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
 
     try {
       const updatedAmenities = {
         ...amenities,
+        onboarding_meta: {
+          completion_percent: totalScore,
+          score: totalScore,
+          last_updated_at: new Date().toISOString(),
+          submitted_at: new Date().toISOString(),
+          readiness_band: getReadinessLabel(totalScore)
+        },
+        // Legacy fields for backward compatibility
         onboarding_completion_percent: totalScore,
         onboarding_score: totalScore,
         onboarding_last_submitted_at: new Date().toISOString()
@@ -158,7 +190,7 @@ export function StepReviewSubmit({
         <CardHeader className="text-center pb-2">
           <CardTitle className="flex items-center justify-center gap-2">
             <Award className={cn("h-6 w-6", scoreBand.color)} />
-            <span className={scoreBand.color}>{scoreBand.label}</span>
+            <span className={scoreBand.color}>{getReadinessLabel(totalScore)}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="text-center">

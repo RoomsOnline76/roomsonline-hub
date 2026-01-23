@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { SCORE_WEIGHTS, getScoreBand, PMS_SENSITIVE_FIELDS, WIZARD_SECTIONS } from "@/config/onboardingFieldSchema";
+import { SCORE_WEIGHTS, getScoreBand, PMS_SENSITIVE_FIELDS, WIZARD_SECTIONS, OnboardingImage } from "@/config/onboardingFieldSchema";
 import { Json } from "@/integrations/supabase/types";
 
 interface PropertyData {
@@ -15,6 +15,7 @@ interface PropertyData {
   latitude: number | null;
   longitude: number | null;
   description: string | null;
+  short_description: string | null;  // NEW: Marketing summary
   images: Json | null;
   amenities: Json | null;
   pms_managed_fields: string[] | null;
@@ -60,7 +61,7 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
 
       const { data, error } = await supabase
         .from("properties")
-        .select("id, name, property_type, property_url, address, city, country, latitude, longitude, description, images, amenities, pms_managed_fields")
+        .select("id, name, property_type, property_url, address, city, country, latitude, longitude, description, short_description, images, amenities, pms_managed_fields")
         .eq("id", propertyId)
         .single();
 
@@ -122,25 +123,43 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
     const locationFields = [data.address, data.city, data.country, data.latitude, data.longitude].filter(Boolean).length;
     earnedScore += (locationFields / 5) * SCORE_WEIGHTS.location;
 
-    // Policies & Pricing (15%)
-    const policyFields = [amenities.check_in_time, amenities.bank_name, amenities.payment_policy].filter(Boolean).length;
-    earnedScore += (policyFields / 3) * SCORE_WEIGHTS.policies_pricing;
+    // Policies & Pricing (15%) - Enhanced with new fields
+    const policyFields = [
+      amenities.check_in_from || amenities.check_in_time,
+      amenities.bank_name || amenities.bank_confirmation_letter_url,
+      amenities.payment_policy,
+      amenities.cancellation_policy,
+      amenities.key_collection_procedure
+    ].filter(Boolean).length;
+    earnedScore += (policyFields / 5) * SCORE_WEIGHTS.policies_pricing;
 
-    // Guest Experience (10%)
-    const descFields = [data.description, amenities.meal_plan].filter(Boolean).length;
-    earnedScore += (descFields / 2) * SCORE_WEIGHTS.guest_experience;
+    // Guest Experience (10%) - Enhanced with new fields
+    const descFields = [
+      data.description, 
+      data.short_description,
+      amenities.unique_selling_points,
+      amenities.meal_plan
+    ].filter(Boolean).length;
+    earnedScore += (descFields / 4) * SCORE_WEIGHTS.guest_experience;
 
     // Facilities (10%)
     const facilities = amenities.facilities as string[] | undefined;
     earnedScore += (facilities && facilities.length > 0 ? 1 : 0) * SCORE_WEIGHTS.facilities;
 
-    // Rooms (10%)
-    const roomTypes = amenities.room_types as unknown[] | undefined;
-    earnedScore += (roomTypes && roomTypes.length > 0 ? 1 : 0) * SCORE_WEIGHTS.rooms_overview;
+    // Rooms (10%) - Enhanced with units check
+    const roomTypes = amenities.room_types as Array<{ name?: string; units?: number; max_guests?: number }> | undefined;
+    const roomsComplete = roomTypes && roomTypes.length > 0 && roomTypes.every(r => r.name && r.max_guests);
+    earnedScore += (roomsComplete ? 1 : roomTypes && roomTypes.length > 0 ? 0.5 : 0) * SCORE_WEIGHTS.rooms_overview;
 
-    // Media & Documents (15%)
-    const images = (data.images || []) as unknown[];
-    earnedScore += (images.length >= 3 ? 1 : images.length / 3) * SCORE_WEIGHTS.media_documents;
+    // Media & Documents (15%) - Enhanced with image validation
+    const images = (data.images || []) as unknown as OnboardingImage[];
+    const hasHero = images.some(img => img.type === 'hero');
+    const hasMinImages = images.length >= 3;
+    const hasMaxImages = images.length <= 5;
+    const imageScore = hasHero && hasMinImages && hasMaxImages ? 1 : 
+                       hasMinImages ? 0.7 : 
+                       images.length / 3;
+    earnedScore += imageScore * SCORE_WEIGHTS.media_documents;
 
     const score = Math.round(earnedScore);
     const completionPercent = Math.round((earnedScore / 100) * 100);

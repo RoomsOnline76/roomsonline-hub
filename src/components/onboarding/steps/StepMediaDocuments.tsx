@@ -1,14 +1,16 @@
 import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   Upload, X, Star, Image as ImageIcon, Loader2, FileUp, Trash2, 
-  FileText, Download, ChevronDown 
+  FileText, Download, ChevronDown, Video, AlertTriangle, CheckCircle 
 } from "lucide-react";
 import { StepProps } from "./types";
-import { OnboardingImage, PropertyDocument } from "@/config/onboardingFieldSchema";
+import { OnboardingImage, PropertyDocument, OnboardingRoomType } from "@/config/onboardingFieldSchema";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -40,6 +42,7 @@ const DOCUMENT_TYPES = [
   { value: "license", label: "Business License" },
   { value: "insurance", label: "Insurance" },
   { value: "policy", label: "Policy Doc" },
+  { value: "bank_confirmation", label: "Bank Confirmation" },
   { value: "other", label: "Other" }
 ];
 
@@ -53,14 +56,38 @@ export function StepMediaDocuments({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [docUploading, setDocUploading] = useState(false);
   const [selectedType, setSelectedType] = useState<string>("rate_sheet");
-  const [openSections, setOpenSections] = useState({ images: true, docs: false });
+  const [openSections, setOpenSections] = useState({ images: true, video: false, docs: false });
 
   const images = normalizeImages(propertyData.images);
   const documents = getAmenityValue<PropertyDocument[]>("documents", []);
+  const heroVideoUrl = getAmenityValue<string>("hero_video_url", "");
+  const roomTypes = getAmenityValue<OnboardingRoomType[]>("room_types", []);
+
+  // Image validation
+  const getImageValidationStatus = () => {
+    const heroExists = images.some(img => img.type === 'hero');
+    const imageCount = images.length;
+    
+    return {
+      hasMinimum: imageCount >= 3,
+      hasMaximum: imageCount <= 5,
+      hasHero: heroExists,
+      count: imageCount,
+      isValid: imageCount >= 3 && imageCount <= 5 && heroExists
+    };
+  };
+
+  const imageStatus = getImageValidationStatus();
 
   // Image upload handler
   const handleImageUpload = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+
+    // Check max limit
+    if (images.length + files.length > 5) {
+      toast({ title: "Too many images", description: "Maximum 5 images allowed", variant: "destructive" });
+      return;
+    }
 
     setIsUploading(true);
     setUploadProgress(0);
@@ -187,11 +214,30 @@ export function StepMediaDocuments({
           <div className="flex items-center gap-2">
             <ImageIcon className="h-4 w-4 text-primary" />
             <span className="font-medium">Property Images</span>
-            <span className="text-xs text-muted-foreground">({images.length} uploaded)</span>
+            <span className="text-xs text-muted-foreground">({images.length}/5)</span>
+            {imageStatus.isValid ? (
+              <CheckCircle className="h-4 w-4 text-green-500" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+            )}
           </div>
           <ChevronDown className={cn("h-4 w-4 transition-transform", openSections.images && "rotate-180")} />
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-3 space-y-4">
+          {/* Validation warnings */}
+          {!imageStatus.isValid && (
+            <Alert className="border-amber-200 bg-amber-50">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800 text-sm">
+                <ul className="list-disc list-inside space-y-0.5">
+                  {!imageStatus.hasMinimum && <li>Upload at least 3 images (currently {imageStatus.count})</li>}
+                  {!imageStatus.hasMaximum && <li>Maximum 5 images allowed</li>}
+                  {!imageStatus.hasHero && imageStatus.count > 0 && <li>Set one image as the hero image</li>}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Upload area */}
           <div className="relative">
             <input
@@ -200,11 +246,12 @@ export function StepMediaDocuments({
               multiple
               onChange={(e) => handleImageUpload(e.target.files)}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-              disabled={isUploading}
+              disabled={isUploading || images.length >= 5}
             />
             <div className={cn(
               "flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 transition-colors",
-              isUploading ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary"
+              isUploading ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary",
+              images.length >= 5 && "opacity-50 cursor-not-allowed"
             )}>
               {isUploading ? (
                 <>
@@ -215,6 +262,7 @@ export function StepMediaDocuments({
                 <>
                   <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                   <p className="text-sm">Drop images or click to upload</p>
+                  <p className="text-xs text-muted-foreground">{5 - images.length} more allowed</p>
                 </>
               )}
             </div>
@@ -268,9 +316,35 @@ export function StepMediaDocuments({
 
           {images.length === 0 && (
             <p className="text-center text-sm text-muted-foreground py-4">
-              Upload at least 3 images for best results
+              Upload 3-5 high-quality images. First image will be the hero.
             </p>
           )}
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Video Section */}
+      <Collapsible open={openSections.video} onOpenChange={() => setOpenSections(prev => ({ ...prev, video: !prev.video }))}>
+        <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+          <div className="flex items-center gap-2">
+            <Video className="h-4 w-4 text-primary" />
+            <span className="font-medium">Hero Video</span>
+            {heroVideoUrl && <CheckCircle className="h-4 w-4 text-green-500" />}
+          </div>
+          <ChevronDown className={cn("h-4 w-4 transition-transform", openSections.video && "rotate-180")} />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-3 space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="hero_video_url">Video URL (Optional)</Label>
+            <Input
+              id="hero_video_url"
+              value={heroVideoUrl}
+              onChange={(e) => updateField("amenities.hero_video_url", e.target.value)}
+              placeholder="https://youtube.com/... or https://vimeo.com/..."
+            />
+            <p className="text-xs text-muted-foreground">
+              Add a YouTube or Vimeo link to showcase your property
+            </p>
+          </div>
         </CollapsibleContent>
       </Collapsible>
 
@@ -307,7 +381,7 @@ export function StepMediaDocuments({
           {/* Upload other docs */}
           <div className="flex gap-2">
             <Select value={selectedType} onValueChange={setSelectedType}>
-              <SelectTrigger className="w-36 h-9">
+              <SelectTrigger className="w-40 h-9">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -345,6 +419,16 @@ export function StepMediaDocuments({
                 </div>
               ))}
             </div>
+          )}
+
+          {/* Room images note */}
+          {roomTypes.length > 0 && (
+            <Alert>
+              <ImageIcon className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                Room-specific images can be uploaded in the full property editor after onboarding.
+              </AlertDescription>
+            </Alert>
           )}
         </CollapsibleContent>
       </Collapsible>
