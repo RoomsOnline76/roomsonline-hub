@@ -1,90 +1,146 @@
 
 
-# Fix Contract Signature Saving for New Owners
+# Fix Contract Signing Data Capture and Onboarding Email
 
-## Problem Summary
-When a new owner signs a contract, the signature fails to save with the error "Failed to submit signature". This happens because the `process-signature` edge function attempts to create a property record for new owners, but the database rejects the insert.
+## Issues Identified
 
-## Root Cause Analysis
-The database constraint violation occurs because:
-- The `properties` table has `price_per_night` defined as `NOT NULL` with **no default value**
-- The `process-signature` function (lines 122-145) creates a new property but doesn't include `price_per_night`
-- Database rejects: `null value in column "price_per_night" of relation "properties" violates not-null constraint`
+After investigating the Julius Erasmus contract signing, I found **three distinct issues**:
 
-## Current Logic (Working Correctly)
-The check for new vs existing owner IS working correctly:
+### Issue 1: Missing Fields in Property Creation
+**Status**: Property was created but missing several fields that were captured in the contract wizard.
+
+| Field | In `pending_property_data` | In `properties` table |
+|-------|---------------------------|----------------------|
+| `property_name` | ✅ "Julius Erasmus" | ✅ Saved as `name` |
+| `property_type` | ✅ "Hotel" | ✅ Saved |
+| `address` | ✅ "38 Geelhout Street" | ✅ Saved |
+| `city` | ✅ "Still bay" | ✅ Saved |
+| `country` | ✅ "South Africa" | ✅ Saved |
+| `owner_email` | ✅ "dawie.julius@polka.co.za" | ✅ Saved |
+| `owner_name` | ✅ (from signee) | ✅ "Julius Erasmus" |
+| `telephone` | ✅ "795242837" | ⚠️ In amenities only |
+| `mobile_number` | ❌ Not provided | N/A |
+| `postal_address` | ❌ Not provided | N/A |
+
+**Finding**: Core fields ARE being saved. The `owner_email` and `owner_name` ARE assigned. Business details (`telephone`, `vat_number`, etc.) are saved in `amenities` as designed.
+
+### Issue 2: Contract Not Showing in Property Edit Tab
+**Root Cause**: The `ContractManagementPanel` uses `useOwnerContract(ownerEmail)` to fetch contracts. This IS working correctly.
+
+**Verification Query**: The contract exists with:
+- `owner_email`: "dawie.julius@polka.co.za"
+- `status`: "signed"
+- `signed_at`: "2026-01-23 05:12:04"
+
+**Likely Issue**: The property form might need to be refreshed, or there's a caching issue. The contract SHOULD display when viewing the property form.
+
+### Issue 3: Onboarding Wizard Email Not Sent
+**Root Cause**: The `process-signature` function sends a **password reset email** for new owners (lines 284-325), but it does **NOT** call the `send-onboarding-email` function.
+
+The memory states:
+> "For new owners, a separate welcome email is triggered after signature that includes a password set/reset link and a call-to-action to complete the property setup via the onboarding wizard."
+
+Currently, the password reset email is sent, but it doesn't include the onboarding wizard link. The `send-onboarding-email` function exists but is **never called** during the contract signing flow.
+
+---
+
+## Solution
+
+### Part 1: Update `process-signature` to Send Onboarding Email
+
+**File**: `supabase/functions/process-signature/index.ts`
+
+After creating the property and sending the password reset email, add a call to the `send-onboarding-email` function:
+
 ```typescript
-// Line 118 - Only creates property if ALL conditions are true:
-if (contract_type === "owner" && contract.is_new_owner && pending_property_data) {
-  // Create property...
+// After the password reset email (around line 325)
+if (isNewOwner && createdPropertyId) {
+  try {
+    // Invoke send-onboarding-email function
+    const { error: onboardingError } = await supabase.functions.invoke(
+      "send-onboarding-email",
+      {
+        body: {
+          propertyId: createdPropertyId,
+          ownerEmail: contract.owner_email,
+          ownerName: signee_name,
+          propertyName: createdPropertyName,
+        },
+      }
+    );
+
+    if (onboardingError) {
+      console.error("Error sending onboarding email:", onboardingError);
+    } else {
+      console.log("Onboarding email sent successfully");
+    }
+  } catch (onboardingErr) {
+    console.error("Failed to send onboarding email:", onboardingErr);
+    // Don't fail the whole process
+  }
 }
 ```
 
-The contract for `sleepinafrica@roomsonline.co.za` correctly has:
-- `is_new_owner: true`
-- `property_count: 0`
+**Alternative**: Combine the welcome and onboarding emails into one by adding the onboarding wizard CTA directly into the existing welcome email template.
 
-The issue is purely the missing required field.
+### Part 2: Verify Contract Display (Investigation Only)
 
-## Solution: Update Edge Function
+The contract should already display in the property edit form. Steps to verify:
+1. Navigate to `/property/{propertyId}` for property `3c4c2a4e-7506-4ed7-af0f-d9d198500c18`
+2. The `ContractManagementPanel` should fetch and display the contract
+3. If not showing, the issue may be browser caching - try a hard refresh
 
-**File:** `supabase/functions/process-signature/index.ts`
+### Part 3: Optional Improvements
 
-Add default values for required database columns in the property insert (lines 122-145):
+Consider adding the following additional fields from `pending_property_data` to the property record:
+- Store `telephone` in a top-level column if needed for quick access
+- Add `postal_address` to the property record if provided
 
-```typescript
-const { data: newProperty, error: propError } = await supabase
-  .from("properties")
-  .insert({
-    name: propData.property_name,
-    property_type: propData.property_type,
-    address: propData.address,
-    city: propData.city,
-    country: propData.country,
-    owner_email: contract.owner_email,
-    owner_name: signee_name,
-    is_active: true,
-    max_guests: 2,
-    price_per_night: 0,        // ADD: Required field with placeholder value
-    bedrooms: 1,               // ADD: Explicit default
-    bathrooms: 1,              // ADD: Explicit default
-    amenities: {
-      registered_business_name: propData.registered_business_name || propData.property_name,
-      registration_number: propData.registration_number,
-      vat_number: propData.vat_number,
-      telephone: propData.telephone,
-      mobile_number: propData.mobile_number,
-      postal_address: propData.postal_address,
-      key_representative: propData.key_representative || signee_name,
-    },
-  })
-  .select("id, name")
-  .single();
+---
+
+## Technical Details
+
+### Current Data Flow
+```text
+Owner Signs Contract
+       │
+       ▼
+process-signature edge function
+       │
+       ├─► Create property record ✅ (now working with price_per_night fix)
+       │
+       ├─► Update contract as signed ✅
+       │
+       ├─► Send confirmation emails (3x) ✅
+       │
+       ├─► Send password reset email ✅
+       │
+       └─► Send onboarding email ❌ (MISSING - needs to be added)
 ```
 
-### Changes Required
-| Field | Current | Change To |
-|-------|---------|-----------|
-| `price_per_night` | ❌ Missing | `0` |
-| `bedrooms` | ❌ Missing | `1` |
-| `bathrooms` | ❌ Missing | `1` |
+### After Fix
+```text
+Owner Signs Contract
+       │
+       ▼
+process-signature edge function
+       │
+       ├─► Create property record ✅
+       │
+       ├─► Update contract as signed ✅
+       │
+       ├─► Send confirmation emails (3x) ✅
+       │
+       ├─► Send password reset email ✅
+       │
+       └─► Send onboarding wizard email ✅ (ADDED)
+```
 
-## Implementation Steps
-1. Edit `supabase/functions/process-signature/index.ts`
-2. Add the three missing fields to the property insert
-3. Redeploy the edge function
+### Files to Modify
+| File | Change |
+|------|--------|
+| `supabase/functions/process-signature/index.ts` | Add call to `send-onboarding-email` after property creation |
 
-## Expected Result After Fix
-1. ✅ New owners can successfully sign contracts
-2. ✅ A placeholder property is created with sensible defaults
-3. ✅ Signature is saved to storage and contract updated
-4. ✅ Confirmation emails sent
-5. ✅ Owner can later update price, rooms, etc. via the property form
-
-## Testing Steps
-1. Re-try signing the contract at the existing link
-2. Complete the property details form
-3. Draw/upload signature and submit
-4. Verify contract shows as "signed" in admin
-5. Verify the new property appears in the property list
+### Deployment
+The edge function will need to be redeployed after the change.
 
