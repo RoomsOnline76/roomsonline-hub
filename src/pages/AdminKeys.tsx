@@ -4011,6 +4011,11 @@ export default function AdminKeys() {
           {renderLittlehotelierCard()}
           {renderNightsbridgeCard()}
           {renderPlaceholderPMSCard(
+            "Rentals United",
+            "rentalsunited",
+            "Channel manager and distribution platform for vacation rentals",
+          )}
+          {renderPlaceholderPMSCard(
             "RoomKey",
             "roomkey",
             "Hotel booking platform with direct connections to major hotel chains",
