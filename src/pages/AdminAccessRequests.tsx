@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { Check, X, Clock, UserPlus } from "lucide-react";
+import { Check, X, Clock, UserPlus, Shield } from "lucide-react";
 import { AddUserModal } from "@/components/AddUserModal";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface AccessRequest {
   id: string;
@@ -31,6 +32,7 @@ export default function AdminAccessRequests() {
   const [loading, setLoading] = useState(true);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<AccessRequest | null>(null);
+  const [selectedRole, setSelectedRole] = useState<"admin" | "user">("user");
 
   useEffect(() => {
     if (!authLoading && (!user || !isAdmin)) {
@@ -64,8 +66,9 @@ export default function AdminAccessRequests() {
     setLoading(false);
   };
 
-  const handleApprove = (request: AccessRequest) => {
+  const handleApprove = (request: AccessRequest, role: "admin" | "user") => {
     setSelectedRequest(request);
+    setSelectedRole(role);
     setAddUserOpen(true);
   };
 
@@ -204,15 +207,28 @@ export default function AdminAccessRequests() {
                       <TableCell className="text-right py-1">
                         {request.status === "pending" && (
                           <div className="flex justify-end gap-1">
-                            <Button
-                              size="sm"
-                              variant="default"
-                              className="h-6 text-xs px-2"
-                              onClick={() => handleApprove(request)}
-                            >
-                              <UserPlus className="h-3 w-3 mr-1" />
-                              Approve
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="h-6 text-xs px-2"
+                                >
+                                  <UserPlus className="h-3 w-3 mr-1" />
+                                  Approve
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleApprove(request, "user")}>
+                                  <UserPlus className="h-3 w-3 mr-2" />
+                                  As Owner
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleApprove(request, "admin")}>
+                                  <Shield className="h-3 w-3 mr-2" />
+                                  As Admin
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                             <Button
                               size="sm"
                               variant="destructive"
@@ -236,7 +252,7 @@ export default function AdminAccessRequests() {
       <AddUserModal
         open={addUserOpen}
         onOpenChange={setAddUserOpen}
-        role="user"
+        role={selectedRole}
         onUserAdded={handleUserAdded}
         defaultEmail={selectedRequest?.email}
         defaultName={selectedRequest?.full_name}
