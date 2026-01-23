@@ -986,6 +986,31 @@ export default function ContractSign() {
                       <Input
                         value={pendingPropertyData.telephone || ""}
                         onChange={(e) => setPendingPropertyData(p => ({ ...p, telephone: e.target.value }))}
+                        placeholder="+27 21 123 4567"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Mobile Number</Label>
+                      <Input
+                        value={pendingPropertyData.mobile_number || ""}
+                        onChange={(e) => setPendingPropertyData(p => ({ ...p, mobile_number: e.target.value }))}
+                        placeholder="+27 82 123 4567"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Postal Address</Label>
+                      <Input
+                        value={pendingPropertyData.postal_address || ""}
+                        onChange={(e) => setPendingPropertyData(p => ({ ...p, postal_address: e.target.value }))}
+                        placeholder="PO Box 123, Cape Town, 8000"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Key Representative</Label>
+                      <Input
+                        value={pendingPropertyData.key_representative || ""}
+                        onChange={(e) => setPendingPropertyData(p => ({ ...p, key_representative: e.target.value }))}
+                        placeholder="Name of main contact person"
                       />
                     </div>
                   </div>
