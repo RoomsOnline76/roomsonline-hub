@@ -1,76 +1,79 @@
 
+# Add Rentals United API Card to Integrations
 
-# Fix Password Reset "Verification Failed" Error
+## Summary
 
-## Root Cause Analysis
-
-The password reset flow is failing because of a **Supabase Auth redirect URL configuration mismatch**:
-
-| Component | Current Setting |
-|-----------|----------------|
-| Edge Functions redirect URL | `https://sleepinafrica.roomsonline.co.za/auth` ✓ |
-| Supabase Auth Site URL | Likely set to `roomsonline-hub.lovable.app` |
-| Supabase Auth Redirect URLs | Missing `sleepinafrica.roomsonline.co.za` |
-
-When the password reset link is clicked:
-1. Supabase validates the redirect URL in the link
-2. If `sleepinafrica.roomsonline.co.za` is not in the allowed redirect URLs, Supabase either:
-   - Rejects the redirect and falls back to the Site URL
-   - Invalidates the token during the redirect process
+Add Rentals United to the Integrations page (AdminKeys) as a PMS card and add it to the Supporting Systems database.
 
 ---
 
-## The Fix
+## Changes Required
 
-This is a **configuration change** in Lovable Cloud (Supabase Auth settings), not a code change.
+### 1. Add Rentals United Card to AdminKeys.tsx
 
-### Step 1: Add Allowed Redirect URLs
+Insert a placeholder PMS card for Rentals United in the Property Management Systems section, positioned alphabetically between NightsBridge and RoomKey.
 
-In Lovable Cloud Dashboard → Auth Settings, add these redirect URLs:
+**Location**: `src/pages/AdminKeys.tsx` around line 4013
 
-```text
-https://sleepinafrica.roomsonline.co.za/auth
-https://sleepinafrica.roomsonline.co.za/**
+**Add this call**:
+```typescript
+{renderPlaceholderPMSCard(
+  "Rentals United",
+  "rentalsunited",
+  "Channel manager and distribution platform for vacation rentals",
+)}
 ```
 
-### Step 2: Verify Site URL
-
-Ensure the Site URL is set to:
-```text
-https://sleepinafrica.roomsonline.co.za
-```
-
----
-
-## How to Access Auth Settings
-
-You'll need to open the Lovable Cloud Dashboard to configure the authentication redirect URLs.
-
----
-
-## Why This Happens
-
-Lovable Cloud automatically sets redirect URLs to the preview URL (`roomsonline-hub.lovable.app`). When you have a custom domain (`sleepinafrica.roomsonline.co.za`), you need to manually add it to the allowed redirect URLs list.
-
-The password reset emails contain links like:
-```
-https://[supabase-project].supabase.co/auth/v1/verify?token=xxx&redirect_to=https://sleepinafrica.roomsonline.co.za/auth
-```
-
-If `sleepinafrica.roomsonline.co.za` is not in the allowed list, the token verification fails.
+**Updated order will be**:
+1. Benson
+2. Checkfront
+3. Cloudbeds
+4. Guesty (placeholder)
+5. Hostfully
+6. HotelBeds
+7. Little Hotelier
+8. NightsBridge
+9. **Rentals United (new - placeholder)**
+10. RoomKey (placeholder)
+11. RoomRaccoon (placeholder)
 
 ---
 
-## After Configuration
+### 2. Add Rentals United to Supporting Systems
 
-Once the redirect URLs are configured:
-1. Generate new password reset emails for affected users
-2. The new links will work correctly
-3. Old links (already sent) will still fail - users need fresh reset emails
+Insert a record into the `supporting_systems` table via the database.
+
+**Fields**:
+| Field | Value |
+|-------|-------|
+| system_name | Rentals United |
+| system_url | https://www.rentalsunited.com |
+| category | pms |
+| system_function | Channel manager and distribution platform for vacation rentals |
+| is_active | false |
 
 ---
 
-## No Code Changes Required
+## Technical Details
 
-The edge functions are correctly configured. This is purely an auth settings configuration issue.
+### File Modified
+- `src/pages/AdminKeys.tsx` - Add one line to render Rentals United placeholder card
 
+### Database Insert
+- Insert new row into `supporting_systems` table
+
+### Why Placeholder Card?
+The `pmsSystemsConfig.ts` already has `hasCustomCard: true` for Rentals United, but since the integration is still "In Development" (per the edge function), using the placeholder pattern is appropriate. When the integration is ready, a custom card similar to Hostfully/HotelBeds can be created.
+
+---
+
+## Visual Result
+
+After implementation:
+- Rentals United will appear in the PMS Integrations accordion with:
+  - "Not Available" badge
+  - Integration status dropdown
+  - PMS tracker status display
+  - Contact details section
+  - Dev notes section
+- It will also appear in Supporting Systems under the "pms" category
