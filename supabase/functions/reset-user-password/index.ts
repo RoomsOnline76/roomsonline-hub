@@ -60,7 +60,7 @@ serve(async (req) => {
       .from('user_roles')
       .select('role')
       .eq('user_id', userId)
-      .in('role', ['admin', 'dev']);
+      .in('role', ['admin', 'dev', 'fearless_leader']);
 
     if (roleError) {
       console.error('Role check error:', roleError);

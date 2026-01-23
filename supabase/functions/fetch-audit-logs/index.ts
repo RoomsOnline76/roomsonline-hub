@@ -107,7 +107,7 @@ serve(async (req) => {
       .eq("user_id", user.id);
 
     const userRoles = roles?.map((r) => r.role) || [];
-    const hasPermission = userRoles.some((r) => ["admin", "dev"].includes(r));
+    const hasPermission = userRoles.some((r) => ["admin", "dev", "fearless_leader"].includes(r));
 
     if (!hasPermission) {
       return new Response(
