@@ -47,8 +47,8 @@ interface DateRange {
 }
 
 export function useROLPulseData(dateRange: DateRange, showYoY: boolean = false) {
-  const { isAdmin, isDev } = useAuth();
-  const canView = isAdmin || isDev;
+  const { isAdmin, isDev, isFearlessLeader } = useAuth();
+  const canView = isAdmin || isDev || isFearlessLeader;
 
   return useQuery<ROLPulseData>({
     queryKey: ["rol-pulse", dateRange.start, dateRange.end, showYoY],

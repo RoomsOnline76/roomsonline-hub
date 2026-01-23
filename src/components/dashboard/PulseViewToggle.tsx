@@ -8,10 +8,10 @@ interface PulseViewToggleProps {
 }
 
 export function PulseViewToggle({ view, onViewChange }: PulseViewToggleProps) {
-  const { isAdmin, isDev } = useAuth();
+  const { isAdmin, isDev, isFearlessLeader } = useAuth();
 
-  // Only show toggle to admin/dev users
-  if (!isAdmin && !isDev) return null;
+  // Only show toggle to admin/dev/fearless leader users
+  if (!isAdmin && !isDev && !isFearlessLeader) return null;
 
   return (
     <div className="flex items-center gap-2">
