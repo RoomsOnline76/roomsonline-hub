@@ -275,7 +275,7 @@ export function OwnerOnboardingWizard({
 
   return (
     <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col" hideCloseButton>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col overscroll-contain" hideCloseButton>
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
             <Sparkles className="h-5 w-5 text-primary" />
