@@ -146,7 +146,7 @@ serve(async (req) => {
           
           <div style="text-align: center; margin: 30px 0;">
             <a href="${resetLink}" 
-               style="display: inline-block; background: #e91e63; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+               style="display: inline-block; background: #e91e8c; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold;">
               Reset Password
             </a>
           </div>

@@ -75,9 +75,6 @@ export function generateContractHTML(property?: PropertyContractDetails, covered
 
   return `
 <div class="contract-text">
-  <div class="text-center mb-6">
-    <img src="${ROL_LOGO_URL}" alt="RoomsOnline" class="h-12 mx-auto" />
-  </div>
   <h1 class="text-2xl font-bold text-center mb-6">ROOMSONLINE ACCOMMODATION LISTING & DISTRIBUTION AGREEMENT</h1>
   
   <p class="mb-4 text-sm leading-relaxed">
