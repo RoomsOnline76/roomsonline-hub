@@ -256,7 +256,10 @@ export default function RoomShowcase() {
   // Check if this is a HotelBeds property
   const isHotelBedsProperty = property?.external_system === "hotelbeds";
   
-  // Fetch real-time rates for HotelBeds properties
+  // Check if this is a Hostfully property
+  const isHostfullyProperty = property?.external_system === "hostfully";
+  
+  // Fetch real-time rates for HotelBeds or Hostfully properties
   const fetchLiveRates = async () => {
     if (!property?.id || !room) return;
     
@@ -267,7 +270,10 @@ export default function RoomShowcase() {
     const end = endDate.toISOString().split('T')[0];
 
     try {
-      const { data, error } = await supabase.functions.invoke('hotelbeds-api', {
+      // Determine which API to call based on external_system
+      const apiName = isHostfullyProperty ? 'hostfully-api' : 'hotelbeds-api';
+      
+      const { data, error } = await supabase.functions.invoke(apiName, {
         body: {
           action: 'fetch_availability',
           property_id: property.id,
@@ -277,7 +283,7 @@ export default function RoomShowcase() {
       });
       
       if (error) {
-        console.error('HotelBeds API error:', error);
+        console.error(`${apiName} API error:`, error);
         return;
       }
       
@@ -289,8 +295,8 @@ export default function RoomShowcase() {
         );
         
         if (matchedRoom) {
-          // Extract availability
-          const availArray = matchedRoom.rooms_available_per_night || matchedRoom.dailyAvailability || [];
+          // Extract availability - include availability_per_night for Hostfully
+          const availArray = matchedRoom.rooms_available_per_night || matchedRoom.dailyAvailability || matchedRoom.availability_per_night || [];
           const todayData = availArray.find((d: any) => d.date === today) || availArray[0];
           if (todayData) {
             setLiveAvailability(todayData.available_units ?? todayData.availableUnits ?? 1);
@@ -308,12 +314,12 @@ export default function RoomShowcase() {
     }
   };
   
-  // Fetch live rates for HotelBeds on load
+  // Fetch live rates for HotelBeds or Hostfully on load
   useEffect(() => {
-    if (isHotelBedsProperty && property?.id && room && !fetchingLiveRates && liveRates.length === 0) {
+    if ((isHotelBedsProperty || isHostfullyProperty) && property?.id && room && !fetchingLiveRates && liveRates.length === 0) {
       fetchLiveRates();
     }
-  }, [property?.id, room, isHotelBedsProperty]);
+  }, [property?.id, room, isHotelBedsProperty, isHostfullyProperty]);
   
   // Get NightsBridge BBID from property
   const getNightsBridgeBBID = (): string | null => {
@@ -336,8 +342,8 @@ export default function RoomShowcase() {
       }
     }
     
-    // For Benson or HotelBeds properties: navigate to availability calendar
-    if ((isBensonProperty || isHotelBedsProperty) && property && room) {
+    // For Benson, HotelBeds, or Hostfully properties: navigate to availability calendar
+    if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty) && property && room) {
       const roomSlugName = slugifyRoomName(room.name);
       const params = new URLSearchParams(window.location.search);
       const queryString = params.toString();
