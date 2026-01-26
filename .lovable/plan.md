@@ -1,66 +1,191 @@
 
-# Fix Hostfully API Key Validation - Sandbox Environment Detection
+# Universal Sandbox/Production Toggle for All PMS API Cards
 
 ## Problem
 
-When connecting an owner using the Hostfully API key, the system shows **"Hostfully API key is invalid or expired"** even though the key is valid.
+Each PMS API card should have a **Sandbox/Production toggle** that controls which API endpoint is used. Currently:
+- Some systems have toggles (Cloudbeds, Hostfully) but stored inconsistently
+- Some systems have hardcoded endpoints or no toggle at all
+- Environment settings are scattered across different credential records
 
-### Root Cause
+## Solution Overview
 
-The API key `EJOnIxlU7yrLbmNp` is a **sandbox API key** that only works with the Hostfully sandbox environment (`https://sandbox.hostfully.com/api/v3`).
-
-However, the `OwnerPMSConnectionCard` component **hardcodes** the environment to `production`:
-
-```typescript
-// Line 59 in OwnerPMSConnectionCard.tsx
-const environment = 'production'; // Always production for owners
-```
-
-This causes the validation request to go to the production API, which rejects the sandbox key with a 401 Unauthorized error.
-
-| Test | Environment | Result |
-|------|-------------|--------|
-| API key validation | `production` | 401 - "invalid or expired" |
-| API key validation | `sandbox` | 200 - Success, agency found |
+Add an `active_environment` column to the `pms_tracker_status` table to store the environment preference for each PMS system. This centralizes the setting at the system level (not credential level) and makes it available across all API cards.
 
 ---
 
-## Solution
+## Database Changes
 
-Auto-detect sandbox owners based on their name or email containing "sandbox", similar to how sandbox properties are detected.
+### Add `active_environment` column to `pms_tracker_status`
 
-### Part 1: Auto-detect Environment in OwnerPMSConnectionCard
+```sql
+ALTER TABLE pms_tracker_status 
+ADD COLUMN active_environment text NOT NULL DEFAULT 'sandbox' 
+CHECK (active_environment IN ('sandbox', 'production'));
 
-Update the environment detection logic to check the owner name/email:
-
-```typescript
-// Detect sandbox from owner name or email
-const isSandboxOwner = ownerName?.toLowerCase().includes('sandbox') || 
-                       ownerEmail?.toLowerCase().includes('sandbox');
-const environment = isSandboxOwner ? 'sandbox' : 'production';
+COMMENT ON COLUMN pms_tracker_status.active_environment IS 
+  'Controls which API endpoint is used: sandbox for testing, production for live';
 ```
 
-### Part 2: Respect Existing Credential Environment
+---
 
-If an existing credential has an environment set, use that:
+## Frontend Changes
+
+### Part 1: Update PMSTrackerStatus Interface
+
+Update `src/lib/pmsTrackerConfig.ts` to include the new field:
 
 ```typescript
-// Use existing credential's environment or detect from owner
-const environment = existingCredential?.environment || 
-  (ownerName?.toLowerCase().includes('sandbox') || ownerEmail?.toLowerCase().includes('sandbox') 
-    ? 'sandbox' 
-    : 'production');
+export interface PMSTrackerStatus {
+  // ... existing fields ...
+  active_environment: 'sandbox' | 'production';  // NEW
+}
 ```
 
-### Part 3: Show Environment Badge in UI
+### Part 2: Create Reusable Environment Toggle Component
 
-Add a visual indicator so users know which environment is being used:
+Create a new component `src/components/pms/EnvironmentToggle.tsx`:
+
+```typescript
+interface EnvironmentToggleProps {
+  systemType: string;
+  currentEnvironment: 'sandbox' | 'production';
+  onEnvironmentChange: (newEnv: 'sandbox' | 'production') => void;
+  disabled?: boolean;
+}
+
+export function EnvironmentToggle({ 
+  systemType, 
+  currentEnvironment, 
+  onEnvironmentChange,
+  disabled 
+}: EnvironmentToggleProps) {
+  return (
+    <div className="flex items-center justify-between p-4 rounded-lg border bg-primary/5 border-primary/20">
+      <div className="space-y-1">
+        <Label className="text-sm font-medium">Active Environment</Label>
+        <p className="text-xs text-muted-foreground">
+          API calls will use {currentEnvironment} endpoint
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className={`text-sm ${currentEnvironment === 'sandbox' ? 'font-semibold text-primary' : 'text-muted-foreground'}`}>
+          Sandbox
+        </span>
+        <Switch
+          checked={currentEnvironment === 'production'}
+          onCheckedChange={(checked) => onEnvironmentChange(checked ? 'production' : 'sandbox')}
+          disabled={disabled}
+        />
+        <span className={`text-sm ${currentEnvironment === 'production' ? 'font-semibold text-primary' : 'text-muted-foreground'}`}>
+          Production
+        </span>
+      </div>
+    </div>
+  );
+}
+```
+
+### Part 3: Update AdminKeys.tsx
+
+1. **Fetch `active_environment` from tracker data:**
+
+```typescript
+const fetchTrackerData = async () => {
+  const { data } = await supabase.from("pms_tracker_status").select("*");
+  if (data) {
+    const mapped = data.map(row => ({
+      // ... existing fields ...
+      active_environment: row.active_environment || 'sandbox',
+    }));
+    setTrackerData(mapped);
+  }
+};
+```
+
+2. **Create unified environment change handler:**
+
+```typescript
+const handleEnvironmentChange = async (systemType: string, newEnv: 'sandbox' | 'production') => {
+  const { error } = await supabase
+    .from("pms_tracker_status")
+    .update({ active_environment: newEnv })
+    .eq("system_type", systemType);
+    
+  if (error) {
+    toast({ title: "Error", description: error.message, variant: "destructive" });
+  } else {
+    toast({ 
+      title: "Environment updated", 
+      description: `${systemType} now using ${newEnv} endpoint` 
+    });
+    fetchTrackerData(); // Refresh data
+  }
+};
+```
+
+3. **Add toggle to each API card:**
+
+Replace individual environment toggles with the reusable component:
 
 ```tsx
-{environment === 'sandbox' && (
-  <Badge variant="outline" className="text-xs">Sandbox</Badge>
-)}
+<EnvironmentToggle
+  systemType="hostfully"
+  currentEnvironment={trackerData.hostfully?.active_environment || 'sandbox'}
+  onEnvironmentChange={(env) => handleEnvironmentChange('hostfully', env)}
+/>
 ```
+
+---
+
+## Edge Function Changes
+
+### Part 1: Update All PMS Adapters to Read Environment from Tracker
+
+Each edge function should:
+1. Accept `environment` in request body (explicit override)
+2. Fall back to `pms_tracker_status.active_environment` if not provided
+3. Use environment to select the correct base URL
+
+Example for `hostfully-api/index.ts`:
+
+```typescript
+async function getEnvironment(systemType: string, body: any): Promise<string> {
+  // 1. Explicit override in request
+  if (body.environment) {
+    return body.environment;
+  }
+  
+  // 2. Read from tracker status
+  const { data } = await supabase
+    .from('pms_tracker_status')
+    .select('active_environment')
+    .eq('system_type', systemType)
+    .single();
+    
+  return data?.active_environment || 'sandbox';
+}
+```
+
+Then use this in URL selection:
+
+```typescript
+const environment = await getEnvironment('hostfully', body);
+const baseUrl = HOSTFULLY_URLS[environment] || HOSTFULLY_URLS.sandbox;
+```
+
+### Part 2: PMS Systems to Update
+
+| System | Current State | Change Needed |
+|--------|---------------|---------------|
+| Benson | Separate credentials per env | Read `active_environment` from tracker |
+| Hostfully | Toggle → `pms_credentials` | Read from `pms_tracker_status` |
+| Cloudbeds | Toggle → `pms_credentials` | Read from `pms_tracker_status` |
+| HotelBeds | Hardcoded test/production | Read from tracker |
+| Checkfront | No toggle | Add toggle, read from tracker |
+| Little Hotelier | No toggle | Add toggle, read from tracker |
+| NightsBridge | Iframe-based | Add toggle for future API use |
+| Rentals United | In development | Add toggle |
 
 ---
 
@@ -68,70 +193,85 @@ Add a visual indicator so users know which environment is being used:
 
 | File | Change |
 |------|--------|
-| `src/components/pms/OwnerPMSConnectionCard.tsx` | 1. Auto-detect environment from owner name/email 2. Respect existing credential environment 3. Add sandbox badge to UI |
+| `supabase/migrations/` | Add `active_environment` column to `pms_tracker_status` |
+| `src/lib/pmsTrackerConfig.ts` | Add `active_environment` to interface |
+| `src/components/pms/EnvironmentToggle.tsx` | New reusable toggle component |
+| `src/pages/AdminKeys.tsx` | Unified handler, use new toggle for all cards |
+| `supabase/functions/hostfully-api/index.ts` | Read environment from tracker |
+| `supabase/functions/benson-api/index.ts` | Read environment from tracker |
+| `supabase/functions/cloudbeds-api/index.ts` | Read environment from tracker |
+| `supabase/functions/hotelbeds-api/index.ts` | Read environment from tracker |
+| `supabase/functions/checkfront-api/index.ts` | Read environment from tracker |
+| `supabase/functions/little-hotelier-api/index.ts` | Read environment from tracker |
+| `supabase/functions/rentalsunited-api/index.ts` | Read environment from tracker |
 
 ---
 
-## Data Flow After Fix
+## Data Flow After Implementation
 
 ```text
-Owner: "Hostfully SandBox"
-Email: "marketing@fluent.sandbox.co.za"
-                    │
-                    ▼
-            ┌───────────────────┐
-            │  Detect Sandbox   │
-            │  (name/email)     │
-            └───────────────────┘
-                    │
-                    ▼
-            ┌───────────────────┐
-            │  environment =    │
-            │  "sandbox"        │
-            └───────────────────┘
-                    │
-                    ▼
-            ┌───────────────────────────────────────┐
-            │  API Request to sandbox.hostfully.com │
-            │  (instead of api.hostfully.com)       │
-            └───────────────────────────────────────┘
-                    │
-                    ▼
-            ┌───────────────────┐
-            │  SUCCESS!         │
-            │  Agency found     │
-            └───────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          AdminKeys Page                                      │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │
+│  │  Hostfully Card │  │  Benson Card    │  │  HotelBeds Card │  ...        │
+│  │  [Sandbox|Prod] │  │  [Sandbox|Prod] │  │  [Sandbox|Prod] │              │
+│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘              │
+└───────────┼─────────────────────┼─────────────────────┼─────────────────────┘
+            │                     │                     │
+            └─────────────────────┼─────────────────────┘
+                                  │
+                                  ▼
+            ┌─────────────────────────────────────────────┐
+            │         pms_tracker_status table            │
+            │  ┌───────────────────────────────────────┐  │
+            │  │ system_type │ active_environment │ ... │ │
+            │  │ hostfully   │ sandbox            │     │ │
+            │  │ benson      │ production         │     │ │
+            │  │ hotelbeds   │ sandbox            │     │ │
+            │  └───────────────────────────────────────┘  │
+            └─────────────────────────────────────────────┘
+                                  │
+                                  ▼
+            ┌─────────────────────────────────────────────┐
+            │            Edge Functions                    │
+            │                                              │
+            │  const env = await getEnvironment(system);   │
+            │  const url = BASE_URLS[env];                 │
+            │                                              │
+            └─────────────────────────────────────────────┘
+                                  │
+                    ┌─────────────┴─────────────┐
+                    ▼                           ▼
+          ┌─────────────────┐         ┌─────────────────┐
+          │ Sandbox API     │         │ Production API  │
+          │ (test data)     │         │ (live data)     │
+          └─────────────────┘         └─────────────────┘
 ```
 
 ---
 
-## Expected Result
+## Implementation Priority
 
-After this fix:
-
-| Owner Type | Environment Used | Result |
-|------------|------------------|--------|
-| "Hostfully SandBox" | `sandbox` | API key validates correctly |
-| "ABC Hotels" | `production` | Production API used |
-| Owner with existing `sandbox` credential | `sandbox` | Respects saved environment |
+1. **Database migration** - Add column (required first)
+2. **PMSTrackerConfig** - Update interface
+3. **EnvironmentToggle component** - Create reusable UI
+4. **AdminKeys.tsx** - Add unified handler and toggles to all cards
+5. **Edge functions** - Update each to read from tracker (can be parallelized)
 
 ---
 
 ## Technical Notes
 
-### Why This Happened
+### Why `pms_tracker_status` instead of `pms_credentials`?
 
-The original design assumed all owners use production. However, for testing and development:
-- Sandbox owners are created with "sandbox" in their name
-- Sandbox API keys only work with `sandbox.hostfully.com`
+- **Single source of truth**: One row per system, not per credential
+- **Consistent**: Same place where milestones and status are tracked
+- **Future-proof**: Works regardless of how credentials are structured
 
-### Detection Logic
+### Backward Compatibility
 
-The detection mirrors the property sandbox detection in `PropertyForm.tsx`:
+Edge functions will check for explicit `environment` in request body first, allowing overrides when needed. Existing calls that pass `environment` will continue to work.
 
-```typescript
-const isSandboxProperty = formData.name?.includes('[SANDBOX]') || 
-                          formData.name?.toLowerCase().includes('sandbox');
-```
+### Default Behavior
 
-Now applied consistently at the owner level.
+All systems default to `sandbox` until explicitly switched to `production`, ensuring safe testing by default.
