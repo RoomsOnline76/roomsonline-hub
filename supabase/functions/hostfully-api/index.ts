@@ -135,10 +135,21 @@ const baseRequestSchema = z.object({
 
 const fetchAvailabilitySchema = baseRequestSchema.extend({
   action: z.literal("fetch_availability"),
-  propertyUid: z.string({ required_error: "propertyUid is required" }),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "startDate must be YYYY-MM-DD format" }),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "endDate must be YYYY-MM-DD format" }),
-});
+  // Accept either propertyUid (Hostfully) or property_id (ROL) - at least one required
+  propertyUid: z.string().optional(),
+  property_id: z.string().uuid().optional(),
+  // Accept both camelCase and snake_case date formats
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "startDate must be YYYY-MM-DD format" }).optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "endDate must be YYYY-MM-DD format" }).optional(),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "start_date must be YYYY-MM-DD format" }).optional(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "end_date must be YYYY-MM-DD format" }).optional(),
+}).refine(
+  data => data.propertyUid || data.property_id,
+  { message: "Either propertyUid or property_id is required" }
+).refine(
+  data => (data.startDate || data.start_date) && (data.endDate || data.end_date),
+  { message: "Start and end dates are required (startDate/endDate or start_date/end_date)" }
+);
 
 const getReservationsSchema = baseRequestSchema.extend({
   action: z.literal("get_reservations"),
@@ -162,6 +173,59 @@ const createReservationSchema = baseRequestSchema.extend({
     notes: z.string().optional(),
   }),
 });
+
+// ============================================================================
+// PROPERTY UID RESOLUTION HELPER
+// ============================================================================
+
+/**
+ * Resolves the Hostfully propertyUid from either a direct UID or a ROL property_id.
+ * Looks up the property in the database and extracts the Hostfully UID from:
+ * 1. external_id (if set)
+ * 2. amenities.room_types[0].hostfullyId or pmsRoomId (fallback)
+ */
+async function resolveHostfullyPropertyUid(
+  supabase: any,
+  propertyUid?: string,
+  propertyId?: string
+): Promise<string | null> {
+  // If propertyUid already provided, use it directly
+  if (propertyUid) return propertyUid;
+  
+  if (!propertyId) return null;
+  
+  // Look up from properties table
+  const { data: propData, error } = await supabase
+    .from("properties")
+    .select("external_id, amenities")
+    .eq("id", propertyId)
+    .maybeSingle();
+  
+  if (error || !propData) {
+    console.log("[Hostfully] Could not find property:", propertyId, error);
+    return null;
+  }
+  
+  // Option 1: Use external_id if set
+  if (propData.external_id) {
+    console.log("[Hostfully] Resolved propertyUid from external_id:", propData.external_id);
+    return propData.external_id;
+  }
+  
+  // Option 2: Extract from amenities.room_types[0].hostfullyId or pmsRoomId
+  const roomTypes = propData.amenities?.room_types || [];
+  if (roomTypes.length > 0) {
+    const firstRoom = roomTypes[0];
+    const resolvedUid = firstRoom.hostfullyId || firstRoom.pmsRoomId || null;
+    if (resolvedUid) {
+      console.log("[Hostfully] Resolved propertyUid from room_types:", resolvedUid);
+      return resolvedUid;
+    }
+  }
+  
+  console.log("[Hostfully] Could not resolve propertyUid for property:", propertyId);
+  return null;
+}
 
 // ============================================================================
 // ENVIRONMENT HELPER - Reads from pms_tracker_status
@@ -1357,7 +1421,30 @@ serve(async (req) => {
             { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
           );
         }
-        response = await handleFetchAvailability(creds, result.data.propertyUid, result.data.startDate, result.data.endDate);
+        
+        // Resolve the Hostfully propertyUid from either direct UID or ROL property_id
+        const hostfullyUid = await resolveHostfullyPropertyUid(
+          supabase, 
+          result.data.propertyUid, 
+          result.data.property_id
+        );
+        
+        if (!hostfullyUid) {
+          return new Response(
+            JSON.stringify(createErrorResponse(
+              ERROR_CODES.NOT_FOUND, 
+              "Could not resolve Hostfully property UID. Ensure property has external_id or room_types with hostfullyId.", 
+              action
+            )),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+          );
+        }
+        
+        // Normalize date fields (accept both camelCase and snake_case)
+        const startDate = result.data.startDate || result.data.start_date;
+        const endDate = result.data.endDate || result.data.end_date;
+        
+        response = await handleFetchAvailability(creds, hostfullyUid, startDate!, endDate!);
         break;
       }
 
