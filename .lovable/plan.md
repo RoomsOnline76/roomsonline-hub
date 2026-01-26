@@ -1,148 +1,227 @@
 
-# Fix Hostfully Calendar Sync - Extract Calendar Array from API Response
+
+# Fix Hostfully Calendar Sync - Correct API v3 Response Structure
 
 ## Problem Identified
 
-The calendar sync is failing with:
-```
-TypeError: calendarData.map is not a function
-```
-
-### Root Cause
-
-The Hostfully `/property-calendar/{propertyUid}` endpoint returns a **wrapper object**, not a direct array:
+The logs show the **actual** Hostfully API v3 response format is different from what was assumed:
 
 ```json
 {
-  "calendar": [
-    { "date": "2026-01-26", "available": true, "price": 150.00, ... },
-    { "date": "2026-01-27", "available": false, ... }
-  ]
+  "calendar": {
+    "entries": [
+      {
+        "date": "2026-01-01",
+        "pricing": { "currency": "ZAR", "value": 450 },
+        "availability": { 
+          "unavailable": false, 
+          "unavailabilityReason": null,
+          "availableForCheckIn": true,
+          "availableForCheckOut": true,
+          "minimumStayLength": 2,
+          "maximumStayLength": 0
+        }
+      }
+    ]
+  }
 }
 ```
 
-But the current code passes the entire response object to the mapper:
+### Current Issues
 
+1. **Wrong array extraction path**: Code uses `responseData.calendar` but the array is at `responseData.calendar.entries`
+2. **Wrong field names in mapper**: The mapper expects flat fields like `price`, `available`, but API returns nested objects like `pricing.value`, `availability.unavailable`
+
+## Solution
+
+### Part 1: Fix Array Extraction
+
+Update `handleFetchAvailability` to extract from the correct path:
+
+**Current Code (line 807):**
 ```typescript
-// Current code (line 801-802)
-const calendarData = await response.json();  // Returns { calendar: [...] }
-const availability = mapHostfullyCalendarToAvailability(calendarData, propertyUid);  // FAILS - calendarData is object, not array
+const calendarArray = responseData?.calendar || responseData?.days || responseData;
 ```
 
-The `mapHostfullyCalendarToAvailability` function expects an array and calls `.map()` on it:
+**Fixed Code:**
+```typescript
+const calendarArray = responseData?.calendar?.entries || 
+                      responseData?.calendar || 
+                      responseData?.days || 
+                      responseData;
+```
 
+### Part 2: Update Interface and Mapper
+
+Update the `HostfullyCalendarDay` interface and mapper to handle the v3 nested structure:
+
+**Current Interface (lines 351-358):**
+```typescript
+interface HostfullyCalendarDay {
+  date: string;
+  available: boolean;
+  price?: number;
+  minimumStay?: number;
+  checkInAllowed?: boolean;
+  checkOutAllowed?: boolean;
+}
+```
+
+**Fixed Interface:**
+```typescript
+interface HostfullyCalendarDay {
+  date: string;
+  note?: string | null;
+  pricing?: {
+    currency: string;
+    value: number;
+  };
+  availability?: {
+    unavailable: boolean;
+    unavailabilityReason?: string | null;
+    availableForCheckIn: boolean;
+    availableForCheckOut: boolean;
+    minimumStayLength: number;
+    maximumStayLength: number;
+  };
+  // Legacy flat format support
+  available?: boolean;
+  price?: number;
+  minimumStay?: number;
+  checkInAllowed?: boolean;
+  checkOutAllowed?: boolean;
+}
+```
+
+**Current Mapper (lines 360-384):**
 ```typescript
 function mapHostfullyCalendarToAvailability(calendarData: HostfullyCalendarDay[], propertyUid: string) {
   const roomType = {
-    availability_per_night: calendarData.map(day => ({ ... }))  // TypeError: calendarData.map is not a function
+    room_type_id: propertyUid,
+    name: "Property",
+    availability_per_night: calendarData.map(day => ({
+      date: day.date,
+      available_units: day.available ? 1 : 0,
+      restrictions: {
+        stop_sell: !day.available,
+        min_stay: day.minimumStay || 1,
+        // ...
+      },
+    })),
+    rate_types: [{
+      // ...
+      rates: calendarData.filter(d => d.price).map(day => ({
+        date: day.date,
+        room_amount: day.price || 0,
+        // ...
+      })),
+    }],
   };
 }
 ```
 
-## Solution
-
-Update `handleFetchAvailability` in `supabase/functions/hostfully-api/index.ts` to extract the `calendar` array from the response object before passing it to the mapper.
-
-### Code Change
-
-**File**: `supabase/functions/hostfully-api/index.ts`
-
-**Lines 800-803 (current):**
+**Fixed Mapper:**
 ```typescript
-const calendarData = await response.json();
-const availability = mapHostfullyCalendarToAvailability(calendarData, propertyUid);
-```
-
-**Lines 800-812 (fixed):**
-```typescript
-const responseData = await response.json();
-
-// Log the response structure for debugging
-console.log("[Hostfully] Calendar response structure:", JSON.stringify(responseData).substring(0, 200));
-
-// Extract calendar array - handle both wrapped and direct array formats
-const calendarArray = responseData?.calendar || responseData?.days || responseData;
-
-// Validate we have an array
-if (!Array.isArray(calendarArray)) {
-  console.error("[Hostfully] Calendar data is not an array:", typeof calendarArray);
-  return createErrorResponse(
-    ERROR_CODES.INVALID_REQUEST,
-    "Invalid calendar data format from Hostfully API",
-    "fetch_availability"
-  );
+function mapHostfullyCalendarToAvailability(calendarData: HostfullyCalendarDay[], propertyUid: string) {
+  const roomType = {
+    room_type_id: propertyUid,
+    name: "Property",
+    availability_per_night: calendarData.map(day => {
+      // Handle both v3 nested format and legacy flat format
+      const isAvailable = day.availability 
+        ? !day.availability.unavailable 
+        : day.available ?? true;
+      const minStay = day.availability?.minimumStayLength || day.minimumStay || 1;
+      const checkInAllowed = day.availability?.availableForCheckIn ?? day.checkInAllowed ?? true;
+      const checkOutAllowed = day.availability?.availableForCheckOut ?? day.checkOutAllowed ?? true;
+      
+      return {
+        date: day.date,
+        available_units: isAvailable ? 1 : 0,
+        restrictions: {
+          stop_sell: !isAvailable,
+          min_stay: minStay,
+          max_stay: day.availability?.maximumStayLength || null,
+          closed_to_arrival: !checkInAllowed,
+          closed_to_departure: !checkOutAllowed,
+        },
+      };
+    }),
+    rate_types: [{
+      rate_type_id: "standard",
+      name: "Standard Rate",
+      price_type: "per_night",
+      currency: calendarData[0]?.pricing?.currency || "ZAR",
+      rates: calendarData
+        .filter(d => d.pricing?.value || d.price)
+        .map(day => ({
+          date: day.date,
+          room_amount: day.pricing?.value || day.price || 0,
+          adult_amounts: [],
+        })),
+    }],
+  };
+  
+  return { room_types: [roomType] };
 }
-
-const availability = mapHostfullyCalendarToAvailability(calendarArray, propertyUid);
 ```
-
-## Technical Details
-
-### Expected API Response Format
-
-Based on Hostfully API documentation, the `/property-calendar` endpoint returns:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `calendar` | Array | Array of daily availability objects |
-| `calendar[].date` | string | Date in YYYY-MM-DD format |
-| `calendar[].available` | boolean | Whether the date is available |
-| `calendar[].price` | number | Nightly rate for this date |
-| `calendar[].minimumStay` | number | Minimum stay requirement |
-| `calendar[].checkInAllowed` | boolean | Can check in on this date |
-| `calendar[].checkOutAllowed` | boolean | Can check out on this date |
-
-### Defensive Approach
-
-The fix handles multiple possible response formats:
-1. `{ calendar: [...] }` - Standard Hostfully format
-2. `{ days: [...] }` - Alternative field name (defensive)
-3. Direct array `[...]` - In case API changes
-
-### Error Logging
-
-Added debug logging to capture the actual response structure, making future debugging easier.
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `supabase/functions/hostfully-api/index.ts` | Extract `calendar` array from API response object before mapping |
+| `supabase/functions/hostfully-api/index.ts` | Fix array extraction path and update mapper for v3 format |
+
+## API Response Mapping
+
+| Hostfully v3 Field | Mapped To |
+|-------------------|-----------|
+| `calendar.entries` | Calendar array |
+| `entries[].date` | `date` |
+| `entries[].pricing.value` | `room_amount` |
+| `entries[].pricing.currency` | `currency` |
+| `entries[].availability.unavailable` | `stop_sell` (inverted) |
+| `entries[].availability.minimumStayLength` | `min_stay` |
+| `entries[].availability.availableForCheckIn` | `closed_to_arrival` (inverted) |
+| `entries[].availability.availableForCheckOut` | `closed_to_departure` (inverted) |
 
 ## Data Flow After Fix
 
 ```text
-Calendar Sync Request
+Hostfully API Response
         │
         ▼
 ┌──────────────────────────────────────────┐
-│ GET /property-calendar/{uid}             │
-│ Returns: { "calendar": [...] }           │
+│ { "calendar": { "entries": [...] } }     │
 └──────────────────────────────────────────┘
         │
         ▼
 ┌──────────────────────────────────────────┐
-│ Extract: responseData.calendar           │
-│ Result: Array of HostfullyCalendarDay    │
+│ Extract: responseData.calendar.entries   │
+│ Result: Array of calendar entries        │
 └──────────────────────────────────────────┘
         │
         ▼
 ┌──────────────────────────────────────────┐
-│ mapHostfullyCalendarToAvailability(      │
-│   calendarArray, propertyUid             │
-│ )                                        │
+│ Map v3 fields:                           │
+│ pricing.value → room_amount              │
+│ availability.unavailable → stop_sell     │
 └──────────────────────────────────────────┘
         │
         ▼
 ┌──────────────────────────────────────────┐
-│ SUCCESS! Calendar displays rates         │
-│ and availability                         │
+│ SUCCESS! Calendar displays:              │
+│ - ZAR 450/night rates                    │
+│ - Availability status                    │
+│ - Min stay restrictions                  │
 └──────────────────────────────────────────┘
 ```
 
 ## Expected Result
 
 After this fix:
-1. The Hostfully calendar sync will correctly parse the API response
-2. Rates and availability will load into the calendar view
-3. The Victorian House property calendar will display availability data
+1. The calendar will correctly extract the `entries` array from the v3 response
+2. Rates will display correctly (R450/night as shown in logs)
+3. Availability and restrictions will map properly
+4. The Victorian House calendar will populate with data
+
