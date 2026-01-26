@@ -400,8 +400,8 @@ function mapHostfullyCalendarToAvailability(calendarData: HostfullyCalendarDay[]
       };
     }),
     rate_types: [{
-      rate_type_id: "standard",
-      name: "Standard Rate",
+      rate_type_id: "per-unit",
+      name: "Per Unit Rate",
       price_type: "per_night",
       currency: calendarData[0]?.pricing?.currency || "ZAR",
       rates: calendarData
