@@ -23,6 +23,12 @@ const ALLOWED_PUBLIC_KEYS = [
   'google_recaptcha_site_key',
 ];
 
+// EDGE FUNCTION SECRETS: These are accessed directly from Deno.env, not from api_keys table
+// These are OAuth client IDs that are required in the frontend for OAuth flows
+const EDGE_FUNCTION_SECRETS = [
+  'HOSTFULLY_CLIENT_ID',
+];
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -69,6 +75,12 @@ Deno.serve(async (req) => {
     for (const keyName of ALLOWED_PUBLIC_KEYS) {
       const row = data?.find(r => r.key_name === keyName);
       flags[keyName] = row?.key_value || null;
+    }
+
+    // Edge function secrets - accessed from Deno.env (for OAuth client IDs needed in frontend)
+    for (const keyName of EDGE_FUNCTION_SECRETS) {
+      const value = Deno.env.get(keyName);
+      flags[keyName.toLowerCase()] = value || null;
     }
 
     return new Response(
