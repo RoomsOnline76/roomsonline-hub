@@ -1,148 +1,148 @@
 
 
-# Enable Complete Booking Flow for Hostfully Properties
+# Fix Property Showcase Map - Embed Real Google Map
 
-## Problem Summary
+## Problem
 
-You can now see Hostfully rates (R450/night), but cannot complete the booking because:
+The `InvitationMap` component on the PropertyShowcase page (`/property/:slug`) displays an **artistic placeholder** (CSS gradient with a pin icon overlay) instead of an actual interactive Google Map. This is by design according to the "Paris Fashion Week" editorial aesthetic, but users expect a functional map they can interact with.
 
-1. **Missing CTA Button**: The "Check Availability" button in RoomShowcase only appears for Benson and HotelBeds properties - Hostfully is missing from the condition
-2. **Missing Booking Handler**: The `push-booking` Edge Function doesn't have a case for Hostfully properties - when a booking is submitted, it returns "No external system configured" instead of creating a reservation
-3. **Unused Hostfully Booking API**: The `hostfully-api` Edge Function already has a fully working `handleCreateReservation` function that is never called
+**Current Behavior:** CSS gradient background with animated pin marker (purely decorative)
+**Expected Behavior:** Real Google Map centered on property coordinates with a marker
 
 ## Solution
 
-### Part 1: Fix CTA Button in RoomShowcase.tsx
+Refactor `InvitationMap.tsx` to embed an actual Google Map when coordinates are available, following the same resilient loading pattern used in `PropertyMap.tsx` and `PropertiesMap.tsx`.
 
-Update line 860 to include Hostfully in the button label condition:
+### Changes to `src/components/showcase/InvitationMap.tsx`
 
+1. **Import the `useGoogleMapsApiKey` hook** to get the API key from feature flags
+2. **Add state management** for map loading (`mapsLoaded`, `mapError`)
+3. **Add refs** for the map container and map instance (following the `useRef` pattern to prevent flickering)
+4. **Load Google Maps script** when API key is ready
+5. **Initialize the map** with grayscale styling to match the editorial aesthetic
+6. **Replace the CSS gradient placeholder** with the actual map container
+7. **Add graceful fallback** to the artistic placeholder if the map fails to load or API key is missing
+
+### Implementation Details
+
+**New Imports:**
 ```typescript
-// Current (broken)
-} : (isBensonProperty || isHotelBedsProperty) ? (
-
-// Fixed
-} : (isBensonProperty || isHotelBedsProperty || isHostfullyProperty) ? (
+import { useEffect, useRef, useState } from 'react';
+import { useGoogleMapsApiKey } from '@/hooks/useFeatureFlags';
+import { Loader2 } from 'lucide-react';
 ```
 
-This ensures the "Check Availability" button appears instead of "View Property" for Hostfully properties.
-
-### Part 2: Add Hostfully Case to push-booking Edge Function
-
-Add a new `else if (externalSystem === 'hostfully')` block after the HotelBeds handler (around line 1103). This will:
-
-1. Get owner credentials from `owner_pms_credentials` table
-2. Resolve the Hostfully property UID (from `external_id` or `amenities.room_types`)
-3. Verify live availability via `/property-calendar` endpoint (RULE #1)
-4. Create reservation via `/leads` endpoint
-5. Update booking with `external_reservation_id`
-6. Log sync status
-
-### Part 3: Fetch Hostfully Availability Data for Cost Calculation
-
-Update `Booking.tsx` to fetch availability for Hostfully properties using the `hostfully-api` edge function (similar to how Benson is handled), so cost calculation works correctly.
-
-## Technical Details
-
-### Data Flow After Fix
-
-```text
-User on RoomShowcase (Hostfully property)
-            │
-            ▼
-[✓] CTA shows "Check Availability" (Part 1 fix)
-            │
-            ▼
-Navigate to /property/:slug/room/:roomSlug/availability
-            │
-            ▼
-User selects dates → "Proceed to Booking"
-            │
-            ▼
-Navigate to /booking/:slug?checkIn=...&checkOut=...
-            │
-            ▼
-[✓] Cost calculation fetches from hostfully-api (Part 3 fix)
-            │
-            ▼
-User fills form → Submit Booking
-            │
-            ▼
-Booking inserted to DB → push-booking called
-            │
-            ▼
-[✓] Hostfully case handler (Part 2 fix):
-    1. Get owner_pms_credentials for property.owner_id
-    2. Resolve Hostfully UID from property.external_id or amenities
-    3. Call Hostfully /property-calendar to verify availability
-    4. Call Hostfully /leads to create reservation
-    5. Update bookings.external_reservation_id
-    6. Send confirmation email
-            │
-            ▼
-Redirect to /booking-confirmation/:id?ref=HOSTFULLY_LEAD_UID
+**State & Refs:**
+```typescript
+const mapRef = useRef<HTMLDivElement>(null);
+const mapInstanceRef = useRef<google.maps.Map | null>(null);
+const { apiKey, isReady: apiKeyReady } = useGoogleMapsApiKey();
+const [mapsLoaded, setMapsLoaded] = useState(false);
+const [mapError, setMapError] = useState(false);
 ```
 
-### Hostfully Leads API Payload
+**Map Initialization (when coordinates exist):**
+```typescript
+useEffect(() => {
+  if (!mapRef.current || !mapsLoaded || !hasCoordinates || mapInstanceRef.current) return;
+  
+  try {
+    const position = { lat: Number(latitude), lng: Number(longitude) };
+    
+    mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+      center: position,
+      zoom: 14,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
+      zoomControl: true,
+      styles: [
+        // Grayscale styling to match editorial aesthetic
+        { elementType: "geometry", stylers: [{ saturation: -100 }] },
+        // ... (same styling as PropertiesMap)
+      ]
+    });
 
-```json
-{
-  "propertyUid": "818e799c-df32-4d53-8765-dd8b7e2b0ff0",
-  "checkInDate": "2026-02-01",
-  "checkOutDate": "2026-02-05",
-  "firstName": "John",
-  "lastName": "Doe",
-  "email": "john@example.com",
-  "phoneNumber": "+27123456789",
-  "adults": 2,
-  "children": 0,
-  "notes": "Special requests here",
-  "source": "RoomsOnline"
-}
+    // Create styled marker
+    new window.google.maps.Marker({
+      position,
+      map: mapInstanceRef.current,
+      icon: {
+        path: window.google.maps.SymbolPath.CIRCLE,
+        fillColor: '#e11d48',
+        fillOpacity: 0.9,
+        strokeColor: '#ffffff',
+        strokeWeight: 2,
+        scale: 10,
+      },
+      title: propertyName,
+    });
+  } catch (error) {
+    setMapError(true);
+  }
+}, [mapsLoaded, hasCoordinates, latitude, longitude, propertyName]);
 ```
+
+**Render Logic:**
+```typescript
+{hasCoordinates ? (
+  <div className="relative aspect-[16/9] max-w-2xl mx-auto mb-8 rounded-xl overflow-hidden border border-border/40">
+    {/* Loading state */}
+    {(!apiKeyReady || (apiKey && !mapsLoaded)) && !mapError && (
+      <div className="absolute inset-0 flex items-center justify-center bg-muted">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )}
+    
+    {/* Map container - always rendered so ref is available */}
+    <div 
+      ref={mapRef}
+      className={cn(
+        "w-full h-full min-h-[200px]",
+        (!mapsLoaded || mapError) && "hidden"
+      )}
+    />
+    
+    {/* Fallback to artistic placeholder on error or no API key */}
+    {(mapError || !apiKey) && (
+      // Keep existing artistic placeholder as fallback
+    )}
+    
+    {/* Property info overlay on the map */}
+    <div className="absolute bottom-4 left-4 px-3 py-2 bg-background/95 backdrop-blur-sm rounded-lg shadow-md border border-border/50">
+      <p className="font-medium text-sm">{propertyName}</p>
+      <p className="text-xs text-muted-foreground">{city}, {country}</p>
+    </div>
+  </div>
+) : (
+  // Journey Guide fallback (unchanged)
+)}
+```
+
+### Map Styling
+
+Use the same grayscale styling as `PropertiesMap.tsx` to maintain design consistency:
+- Desaturated geometry
+- Subdued labels
+- Hidden POI icons
+- Primary color marker pin (`#e11d48`)
+
+### Fallback Behavior
+
+If the map fails to load (API key missing, script error, etc.), gracefully fall back to the existing artistic placeholder. This ensures the page never appears broken.
 
 ## Files Modified
 
 | File | Changes |
 |------|---------|
-| `src/pages/RoomShowcase.tsx` | Add `isHostfullyProperty` to CTA button condition (line 860) |
-| `src/pages/Booking.tsx` | Add Hostfully to availability fetch logic in `calculateCost()` |
-| `supabase/functions/push-booking/index.ts` | Add `else if (externalSystem === 'hostfully')` handler |
-
-## Helper Function Needed
-
-The push-booking function will need to resolve the Hostfully UID from the property, similar to what we added in hostfully-api:
-
-```typescript
-async function resolveHostfullyUid(supabase: any, property: any): Promise<string | null> {
-  // 1. Check property.external_id
-  if (property.external_id) return property.external_id;
-  
-  // 2. Check amenities.room_types[0].hostfullyId
-  const roomTypes = property.amenities?.room_types || [];
-  if (roomTypes.length > 0) {
-    const room = roomTypes[0];
-    if (room.hostfullyId) return room.hostfullyId;
-  }
-  
-  // 3. Query hostfully_room_types table
-  const { data: hfRoom } = await supabase
-    .from('hostfully_room_types')
-    .select('hostfully_room_id')
-    .eq('property_id', property.id)
-    .limit(1)
-    .maybeSingle();
-  
-  return hfRoom?.hostfully_room_id || null;
-}
-```
+| `src/components/showcase/InvitationMap.tsx` | Add Google Maps integration with loading states, refs, and initialization logic |
 
 ## Expected Result
 
-After these fixes:
-1. Hostfully property pages show "Check Availability" button
-2. Clicking "Proceed to Booking" from the calendar works correctly
-3. Cost calculation displays the correct total
-4. Submitting the booking creates a lead in Hostfully
-5. Confirmation page shows the Hostfully lead UID as external reference
-6. Confirmation email is sent to the guest
+1. PropertyShowcase pages display an actual interactive Google Map in "The Invitation" section
+2. Map uses grayscale styling to match the editorial aesthetic
+3. Property location is marked with a styled pink pin
+4. Property name/location info overlays the map
+5. Graceful fallback to artistic placeholder if map fails to load
+6. Consistent behavior with other maps in the application
 
