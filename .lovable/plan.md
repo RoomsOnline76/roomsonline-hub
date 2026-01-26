@@ -1,168 +1,171 @@
 
 
-# Fix Hostfully API Key Validation Using Stale Environment
+# Fix Hostfully Availability Fetch - Property ID Translation
 
 ## Problem Identified
 
-When adding a new Hostfully client on the AdminUsers page (`/admin-keys`), the API key validation fails because it uses a **stale environment value** instead of the currently-toggled production environment.
+When viewing a Hostfully property at `/property/:slug/room/:roomSlug`, rates and availability are not loading because:
 
-### Root Cause
+1. **Frontend sends wrong parameter names**: The frontend sends `property_id`, `start_date`, `end_date` (snake_case)
+2. **Edge Function expects different names**: The `fetchAvailabilitySchema` requires `propertyUid`, `startDate`, `endDate` (camelCase)
+3. **No translation logic exists**: The Edge Function cannot convert ROL `property_id` to Hostfully `propertyUid`
+4. **Property data issue**: The property's `external_id` is `null`, but the Hostfully UID is stored in `amenities.room_types[].hostfullyId`
 
-The `OwnerPMSConnectionCard` component has a race condition:
+### Current Request vs Expected
 
-| Component State | Tracker DB Value | What Gets Sent to Edge Function |
-|-----------------|------------------|----------------------------------|
-| Initial: `'sandbox'` (line 60) | Was `sandbox` when mounted | `environment: "sandbox"` |
-| After toggle: still `'sandbox'` | Updated to `production` | `environment: "sandbox"` (stale!) |
-
-The component fetches the environment once on mount via `useEffect(() => {...}, [])`. When you toggle the environment on the same page, the other mounted `OwnerPMSConnectionCard` instances don't refresh their state.
-
-### Evidence from Logs
-
-```
-15:35:31Z - PATCH pms_tracker_status → active_environment = "production"
-15:35:38Z - Edge function receives: environment: "sandbox" ← STALE!
-15:35:40Z - Edge function receives: environment: "sandbox" ← STALE!
-```
+| Frontend Sends | Edge Function Expects |
+|----------------|----------------------|
+| `property_id` (ROL UUID) | `propertyUid` (Hostfully UID) |
+| `start_date` (snake_case) | `startDate` (camelCase) |
+| `end_date` (snake_case) | `endDate` (camelCase) |
 
 ## Solution
 
-**Don't send the environment from the frontend at all** for API key validation. Let the Edge Function fetch the current tracker environment itself (which it already supports!).
+Update the Edge Function to accept the frontend's parameter format and auto-translate `property_id` to `propertyUid` by looking up the Hostfully UID from the database.
 
-### Change 1: OwnerPMSConnectionCard - Remove Environment Override
+### Part 1: Update fetchAvailabilitySchema to Accept Both Formats
 
-Remove the explicit `environment` parameter from the `validate_api_key` call. The edge function's fallback logic (lines 1292-1296) will query the tracker for the current value.
+Modify the schema to accept either `propertyUid` OR `property_id`, and either camelCase OR snake_case date fields:
 
-**File**: `src/components/pms/OwnerPMSConnectionCard.tsx`
-
-**Current (line 121-127):**
 ```typescript
-const { data, error } = await supabase.functions.invoke('hostfully-api', {
-  body: {
-    action: 'validate_api_key',
-    api_key: apiKey,
-    environment,  // ← Sending stale cached value
-  },
-});
+const fetchAvailabilitySchema = baseRequestSchema.extend({
+  action: z.literal("fetch_availability"),
+  // Accept either propertyUid (Hostfully) or property_id (ROL)
+  propertyUid: z.string().optional(),
+  property_id: z.string().uuid().optional(),
+  // Accept both camelCase and snake_case date formats
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+}).refine(
+  data => data.propertyUid || data.property_id,
+  { message: "Either propertyUid or property_id is required" }
+).refine(
+  data => (data.startDate || data.start_date) && (data.endDate || data.end_date),
+  { message: "Start and end dates are required" }
+);
 ```
 
-**Fixed:**
-```typescript
-const { data, error } = await supabase.functions.invoke('hostfully-api', {
-  body: {
-    action: 'validate_api_key',
-    api_key: apiKey,
-    // environment is NOT sent - edge function will fetch from tracker
-  },
-});
-```
+### Part 2: Add Property ID to Hostfully UID Translation
 
-### Change 2: OwnerOnboardingWizard - Also Remove Hardcoded Environment
-
-The wizard currently hardcodes `environment: "production"` which conflicts with the tracker-based model. Remove it so the edge function uses the tracker.
-
-**File**: `src/components/onboarding/OwnerOnboardingWizard.tsx`
-
-**Current (line 96-103):**
-```typescript
-const { data, error } = await supabase.functions.invoke("hostfully-api", {
-  body: {
-    action: "validate_api_key",
-    api_key: hostfullyApiKey.trim(),
-    environment: hostfullyEnvironment,  // ← Hardcoded "production"
-  },
-});
-```
-
-**Fixed:**
-```typescript
-const { data, error } = await supabase.functions.invoke("hostfully-api", {
-  body: {
-    action: "validate_api_key",
-    api_key: hostfullyApiKey.trim(),
-    // environment is NOT sent - edge function will use tracker
-  },
-});
-```
-
-### Change 3: Remove Unused Environment Code
-
-Since we're no longer using the environment state in `OwnerPMSConnectionCard`, we can also remove:
-- The `trackerEnvironment` state variable (line 60)
-- The `useEffect` that fetches it (lines 63-76)
-- The `environment` constant (line 79)
-
-However, keep the tracker fetch if it's used elsewhere in the component (e.g., for display or other API calls). If only used for validation, it can be fully removed.
-
-## Technical Details
-
-### Why This Works
-
-The edge function already has robust fallback logic:
+Add a helper function to translate ROL `property_id` to Hostfully `propertyUid`:
 
 ```typescript
-// supabase/functions/hostfully-api/index.ts lines 1292-1296
-let environment = body.environment;
-if (!environment) {
-  environment = await getTrackerEnvironment(supabase, "hostfully");
+async function resolveHostfullyPropertyUid(
+  supabase: any,
+  propertyUid?: string,
+  propertyId?: string
+): Promise<string | null> {
+  // If propertyUid already provided, use it
+  if (propertyUid) return propertyUid;
+  
+  if (!propertyId) return null;
+  
+  // Look up from properties table
+  const { data: propData } = await supabase
+    .from("properties")
+    .select("external_id, amenities")
+    .eq("id", propertyId)
+    .maybeSingle();
+  
+  if (!propData) return null;
+  
+  // Option 1: Use external_id if set
+  if (propData.external_id) return propData.external_id;
+  
+  // Option 2: Extract from amenities.room_types[0].hostfullyId or pmsRoomId
+  const roomTypes = propData.amenities?.room_types || [];
+  if (roomTypes.length > 0) {
+    const firstRoom = roomTypes[0];
+    return firstRoom.hostfullyId || firstRoom.pmsRoomId || null;
+  }
+  
+  return null;
 }
 ```
 
-By not sending `environment`, the edge function will:
-1. See `body.environment` is `undefined`
-2. Call `getTrackerEnvironment()` which queries `pms_tracker_status`
-3. Get the **current** value (`production`) not a stale cached value
+### Part 3: Update fetch_availability Case Handler
 
-### Data Flow After Fix
+Modify the switch case to use the translation:
+
+```typescript
+case "fetch_availability": {
+  const result = fetchAvailabilitySchema.safeParse(body);
+  if (!result.success) {
+    return new Response(
+      JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "Invalid request", action, result.error.issues)),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+    );
+  }
+  
+  // Resolve the Hostfully propertyUid
+  const hostfullyUid = await resolveHostfullyPropertyUid(
+    supabase, 
+    result.data.propertyUid, 
+    result.data.property_id
+  );
+  
+  if (!hostfullyUid) {
+    return new Response(
+      JSON.stringify(createErrorResponse(
+        ERROR_CODES.NOT_FOUND, 
+        "Could not resolve Hostfully property UID", 
+        action
+      )),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+    );
+  }
+  
+  // Normalize date fields (accept both camelCase and snake_case)
+  const startDate = result.data.startDate || result.data.start_date;
+  const endDate = result.data.endDate || result.data.end_date;
+  
+  response = await handleFetchAvailability(creds, hostfullyUid, startDate!, endDate!);
+  break;
+}
+```
+
+## Technical Details
+
+### Data Lookup Flow
 
 ```text
-User toggles Hostfully to Production
-            │
-            ▼
-pms_tracker_status.active_environment = 'production'
-            │
-            │ (No more caching issue!)
-            ▼
-User tries to validate real client API key
-            │
-            ▼
-┌─────────────────────────────────────────────────────────┐
-│ Frontend sends:                                         │
-│   { action: "validate_api_key", api_key: "FzNl..." }    │
-│   (NO environment parameter)                            │
-└─────────────────────────────────────────────────────────┘
-            │
-            ▼
-┌─────────────────────────────────────────────────────────┐
-│ Edge function:                                          │
-│   if (!body.environment) {                              │
-│     environment = getTrackerEnvironment()               │
-│     → queries DB → returns 'production'                 │
-│   }                                                     │
-└─────────────────────────────────────────────────────────┘
-            │
-            ▼
-┌─────────────────────────────────────────────────────────┐
-│ Validates against:                                      │
-│   https://api.hostfully.com/api/v3/agencies             │
-│   (PRODUCTION endpoint!)                                │
-└─────────────────────────────────────────────────────────┘
-            │
-            ▼
-    ✓ API key validated successfully
+Frontend: POST { property_id: "1a4d...", start_date: "2026-01-26", end_date: "2026-02-09" }
+              │
+              ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Edge Function: resolveHostfullyPropertyUid()                             │
+│                                                                          │
+│   1. SELECT external_id, amenities FROM properties WHERE id = ?          │
+│                                                                          │
+│   2. If external_id exists → use it                                      │
+│      Else → use amenities.room_types[0].hostfullyId                      │
+│                                                                          │
+│   Result: "818e799c-df32-4d53-8765-dd8b7e2b0ff0"                          │
+└──────────────────────────────────────────────────────────────────────────┘
+              │
+              ▼
+handleFetchAvailability(creds, "818e799c-...", "2026-01-26", "2026-02-09")
+              │
+              ▼
+Hostfully API: GET /property-calendar/818e799c-...?from=2026-01-26&to=2026-02-09
+              │
+              ▼
+Response: { room_types: [{ rate_types: [{ rates: [{ room_amount: 450 }] }] }] }
 ```
 
 ## Files Modified
 
 | File | Changes |
 |------|---------|
-| `src/components/pms/OwnerPMSConnectionCard.tsx` | Remove `environment` parameter from `validate_api_key` call |
-| `src/components/onboarding/OwnerOnboardingWizard.tsx` | Remove `environment` parameter from `validate_api_key` call; remove unused `hostfullyEnvironment` constant |
+| `supabase/functions/hostfully-api/index.ts` | Update `fetchAvailabilitySchema` to accept both formats; add `resolveHostfullyPropertyUid()` helper; update switch case handler |
 
 ## Expected Result
 
 After this fix:
-1. Switching the Hostfully environment toggle takes effect immediately
-2. API key validation uses the **current** tracker environment (not a cached value)
-3. Real production clients can be added without false "invalid key" errors
-4. Sandbox testing still works when the toggle is set to sandbox
+1. PropertyShowcase and RoomShowcase can send `property_id` (ROL UUID) and the Edge Function will auto-resolve it
+2. Both snake_case and camelCase date formats are accepted
+3. Rates and availability will display correctly for Hostfully properties
+4. Backward compatibility maintained for any code already sending `propertyUid` directly
+
