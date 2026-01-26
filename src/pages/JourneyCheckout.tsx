@@ -243,6 +243,7 @@ export default function JourneyCheckout() {
                         id="guestName"
                         value={guestName}
                         onChange={(e) => setGuestName(e.target.value)}
+                        onBlur={() => setGuestDetails({ name: guestName })}
                         placeholder="John Smith"
                         className="h-12"
                       />
@@ -254,6 +255,7 @@ export default function JourneyCheckout() {
                         type="tel"
                         value={guestPhone}
                         onChange={(e) => setGuestPhone(e.target.value)}
+                        onBlur={() => setGuestDetails({ phone: guestPhone })}
                         placeholder="+27 82 123 4567"
                         className="h-12"
                       />
@@ -266,6 +268,7 @@ export default function JourneyCheckout() {
                       type="email"
                       value={guestEmail}
                       onChange={(e) => setGuestEmail(e.target.value)}
+                      onBlur={() => setGuestDetails({ email: guestEmail })}
                       placeholder="john@example.com"
                       className="h-12"
                     />
