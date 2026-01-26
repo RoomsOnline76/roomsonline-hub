@@ -1269,11 +1269,15 @@ Deno.serve(async (req) => {
           throw new Error('Hostfully Agency UID not configured in owner credentials');
         }
 
+        // Format dates as ISO 8601 datetime strings (Hostfully requires this format)
+        const checkInDateTime = `${booking.check_in_date}T14:00:00`;
+        const checkOutDateTime = `${booking.check_out_date}T11:00:00`;
+
         const leadPayload = {
           agencyUid: ownerCreds.external_account_id,  // Required - Hostfully agency identifier
           propertyUid: hostfullyUid,
-          checkInDate: booking.check_in_date,
-          checkOutDate: booking.check_out_date,
+          checkInDateTime: checkInDateTime,  // ISO 8601 format required
+          checkOutDateTime: checkOutDateTime,  // ISO 8601 format required
           firstName: firstName,
           lastName: lastName,
           email: booking.guest_email,
