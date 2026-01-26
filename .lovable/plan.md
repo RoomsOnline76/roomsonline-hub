@@ -1,120 +1,148 @@
 
 
-# Fix Hostfully Calendar Data Display - Frontend Field Name Mapping
+# Fix Hostfully Calendar Rates Display - Rate Type ID Mismatch
 
 ## Problem Identified
 
-The calendar sync succeeds and the edge function correctly returns data following the **adapter contract**, but the **frontend code doesn't recognize the correct field names**.
+The calendar shows availability but no rates because of a rate type ID mismatch and missing rate type configuration.
 
-### Root Cause
+### Root Cause Analysis
 
-The adapter contract (`_shared/adapter-contract.ts`) defines:
-```typescript
-interface RoomTypeAvailability {
-  name: string;                    // Room type name
-  availability_per_night: [];      // Daily availability
-  rate_types: [];                  // Rates
-}
-```
+| Source | Rate Type ID | Status |
+|--------|-------------|--------|
+| Edge function `rate_types[0].rate_type_id` | `"standard"` | Returned in API response |
+| Property's `amenities.room_types[0].linkedRateTypeIds` | `["per-unit"]` | Set during ingestion |
+| Property's `amenities.pms_rate_types` | `[]` (empty) | No rate types configured |
 
-The Hostfully edge function correctly returns:
-```json
-{
-  "room_type_id": "818e799c...",
-  "name": "Full Property",
-  "availability_per_night": [
-    { "date": "2026-01-01", "available_units": 1, "restrictions": {...} }
-  ],
-  "rate_types": [
-    { "rate_type_id": "standard", "name": "Standard Rate", "rates": [...] }
-  ]
-}
-```
+The frontend uses `pms_rate_types` to populate the "Rate Types" dropdown (line 887-919). Since it's empty:
+1. `rateTypeOptions` is empty
+2. `selectedRateTypes` stays empty
+3. No rates are rendered in the UI
 
-But the frontend code (`CalendarAccommodation.tsx` line 524) only checks for legacy field names:
-```typescript
-const availPerNight = roomType.rooms_available_per_night ?? roomType.roomsAvailablePerNight ?? [];
-//                          ↑ Benson format              ↑ camelCase
-//                          Missing: availability_per_night (adapter contract format)
+Additionally, even if `pms_rate_types` was populated, the ID mismatch between "standard" and "per-unit" would prevent matching.
+
+### Data Flow Issue
+
+```text
+Edge Function Response            Frontend Rate Type Filtering
+┌────────────────────────┐        ┌────────────────────────────────────────┐
+│ rate_types: [{         │        │ rateTypeOptions built from:            │
+│   rate_type_id:        │        │   selectedPropertyData.amenities       │
+│     "standard" ←───────┼────┐   │     .pms_rate_types = [] (EMPTY!)      │
+│ }]                     │    │   │                                        │
+└────────────────────────┘    │   │ Since empty:                           │
+                              │   │   selectedRateTypes = []               │
+                              └──▶│   filteredRates = room.rates.filter(   │
+                                  │     rate => [].includes("standard")    │
+                                  │   ) = [] (NO MATCH!)                   │
+                                  └────────────────────────────────────────┘
 ```
 
 ## Solution
 
-Update `CalendarAccommodation.tsx` to add `availability_per_night` as a fallback option when extracting availability data.
+Two-part fix to ensure rate type IDs are consistent and configured:
 
-### Code Change
+### Part 1: Edge Function - Use Consistent Rate Type ID
+
+Update `mapHostfullyCalendarToAvailability` to use `"per-unit"` instead of `"standard"` to match the ingestion pipeline.
+
+**File**: `supabase/functions/hostfully-api/index.ts`
+
+**Current (lines 402-414):**
+```typescript
+rate_types: [{
+  rate_type_id: "standard",
+  name: "Standard Rate",
+  price_type: "per_night",
+  ...
+}]
+```
+
+**Fixed:**
+```typescript
+rate_types: [{
+  rate_type_id: "per-unit",
+  name: "Per Unit Rate",
+  price_type: "per_night",
+  ...
+}]
+```
+
+### Part 2: Edge Function - Populate pms_rate_types During Ingestion
+
+Ensure the full ingestion pipeline writes the rate type to `amenities.pms_rate_types` so the frontend can discover it. This should already exist in the ingestion logic but may need verification.
+
+Alternatively, the frontend can be updated to also build `rateTypeOptions` from PMS response data when `pms_rate_types` is empty.
+
+### Part 3: Frontend Fallback - Build Rate Types from PMS Data
+
+Update `rateTypeOptions` memoization to also check PMS response data when property's `pms_rate_types` is empty.
 
 **File**: `src/pages/CalendarAccommodation.tsx`
 
-**Line 524 (current):**
+**Enhanced logic (after line 920):**
 ```typescript
-const availPerNight = roomType.rooms_available_per_night ?? roomType.roomsAvailablePerNight ?? [];
+// Fallback: if no saved pms_rate_types, build from PMS data
+if (rateTypes.length === 0 && pmsData.roomTypes.length > 0) {
+  const seenRateTypes = new Set<string>();
+  pmsData.roomTypes.forEach(room => {
+    Object.values(room.ratesByDate).forEach(dateRates => {
+      dateRates.forEach(rate => {
+        if (rate.rateTypeId && !seenRateTypes.has(rate.rateTypeId)) {
+          seenRateTypes.add(rate.rateTypeId);
+          rateTypes.push({
+            id: rate.rateTypeId,
+            label: rate.rateTypeName || `Rate ${rate.rateTypeId}`,
+            hasRates: true,
+          });
+        }
+      });
+    });
+  });
+}
 ```
-
-**Line 524 (fixed):**
-```typescript
-const availPerNight = roomType.rooms_available_per_night ?? roomType.roomsAvailablePerNight ?? roomType.availability_per_night ?? [];
-```
-
-This adds the adapter contract field name (`availability_per_night`) as a fallback, maintaining backward compatibility with Benson's legacy format while supporting the new adapter contract.
 
 ## Technical Details
 
-### Field Mapping After Fix
+### Why Both Fixes?
 
-| Edge Function Returns | Frontend Extraction | Status |
-|----------------------|---------------------|--------|
-| `name` | Falls back to `name` on line 517 | Already works |
-| `availability_per_night` | Will now match after fix | FIX REQUIRED |
-| `rate_types` | Already matches | Already works |
-
-### Why This Approach?
-
-1. **Single-line change**: Minimal risk of side effects
-2. **Backward compatible**: Keeps legacy Benson field names for existing integrations
-3. **Follows adapter contract**: Now correctly handles the standardized format
-4. **Defensive**: Falls back gracefully through multiple field names
+1. **Edge function fix**: Ensures consistency between calendar responses and ingestion data
+2. **Frontend fix**: Provides resilience when `pms_rate_types` is empty (common for new imports or sandbox properties)
 
 ### Data Flow After Fix
 
 ```text
-Edge Function Response
-        │
-        ▼
-┌──────────────────────────────────────────┐
-│ {                                        │
-│   "name": "Full Property",               │
-│   "availability_per_night": [...]        │  ← Now matched!
-│   "rate_types": [...]                    │
-│ }                                        │
-└──────────────────────────────────────────┘
-        │
-        ▼
-┌──────────────────────────────────────────┐
-│ Frontend extracts:                       │
-│   roomType.availability_per_night ✓      │
-└──────────────────────────────────────────┘
-        │
-        ▼
-┌──────────────────────────────────────────┐
-│ Calendar displays:                       │
-│ - R450/night rates                       │
-│ - Availability (1 unit)                  │
-│ - Min stay: 2 nights                     │
-└──────────────────────────────────────────┘
+Edge Function Response            Frontend Rate Type Filtering
+┌────────────────────────┐        ┌────────────────────────────────────────┐
+│ rate_types: [{         │        │ rateTypeOptions built from:            │
+│   rate_type_id:        │        │   1. pms_rate_types (if populated)     │
+│     "per-unit" ←───────┼────┐   │   2. FALLBACK: PMS response data       │
+│ }]                     │    │   │                                        │
+└────────────────────────┘    │   │ rateTypeOptions = [{ id: "per-unit" }] │
+                              │   │ selectedRateTypes = ["per-unit"]       │
+                              └──▶│ filteredRates matches "per-unit" ✓     │
+                                  └────────────────────────────────────────┘
+                                              │
+                                              ▼
+                                  ┌────────────────────────────────────────┐
+                                  │ Calendar displays:                     │
+                                  │   - R450/night in each cell            │
+                                  │   - Min stay 2 nights                  │
+                                  └────────────────────────────────────────┘
 ```
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `src/pages/CalendarAccommodation.tsx` | Add `availability_per_night` to field extraction fallback chain |
+| `supabase/functions/hostfully-api/index.ts` | Change rate_type_id from "standard" to "per-unit" |
+| `src/pages/CalendarAccommodation.tsx` | Add fallback to build rateTypeOptions from PMS data when pms_rate_types is empty |
 
 ## Expected Result
 
-After this fix:
-1. The "Full Property" row will populate with availability data
-2. Rates (R450/night) will display in each cell
-3. Restrictions (min stay 2 nights) will show
-4. All other PMS integrations (Benson, etc.) continue to work unchanged
+After these fixes:
+1. Rate Types dropdown shows "Per Unit Rate" option
+2. Rate type is auto-selected (since it has data)
+3. R450/night rates display in calendar cells
+4. Backward compatible with existing Benson and other PMS integrations
 
