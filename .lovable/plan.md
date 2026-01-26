@@ -1,187 +1,233 @@
 
 
-# Complete Fix for Hostfully Booking Flow
+# Display Nearby Attractions on Property Showcase Map
 
-## Problems Identified
+## Overview
 
-After thorough investigation, I found **4 interconnected issues** preventing the Hostfully booking flow from working:
+Enhance the `InvitationMap` component to display the 5 highest-rated tourist attractions near the property using Google Maps Places API, with color-coded pins and clean CTA labels.
 
-| Issue | Component | Problem |
-|-------|-----------|---------|
-| 1 | RoomShowcase | `getLowestRate()` doesn't check `room.dailyRate` (Hostfully's cached rate field) |
-| 2 | RoomAvailabilityCalendar | Fetches from `pms_availability_cache` which is empty for Hostfully - no live fetch |
-| 3 | hostfully-api Edge Function | Doesn't write availability data to `pms_availability_cache` like other adapters |
-| 4 | Live rate matching | Room matching doesn't check `hostfullyId` field |
+## Technical Approach
 
-## Solution Overview
+### Data Source
+Use Google Maps Places API `nearbySearch` with:
+- Location: Property coordinates
+- Radius: 2000 meters (adjustable)
+- Type: `tourist_attraction`
+- Sort by: Rating (descending)
+- Filter: Only places with ratings and minimum 10 reviews
 
-### Part 1: Update `getLowestRate()` in RoomShowcase.tsx
+### Visual Design
 
-Add a check for `room.dailyRate` as the **first** fallback after live rates:
+**Attraction Pin Colors** (muted to complement grayscale map):
+| Rank | Color | Hex |
+|------|-------|-----|
+| 1st | Gold | `#D4AF37` |
+| 2nd | Silver | `#A0A0A0` |
+| 3rd | Bronze | `#CD7F32` |
+| 4th | Teal | `#4DB6AC` |
+| 5th | Indigo | `#7986CB` |
 
+**Pin Size**: Smaller than property pin (scale: 7 vs 10) to maintain visual hierarchy
+
+**CTA Labels**: Use Google Maps `InfoWindow` on hover (not permanent labels) to avoid overcrowding. Each InfoWindow shows:
+- Attraction name (truncated to 25 chars)
+- Rating stars
+- "View on Google" link (optional)
+
+### Implementation Details
+
+**State Addition**:
 ```typescript
-const getLowestRate = (): number | null => {
-  // 1. First check live rates (real-time from API)
-  if (liveRates.length > 0) {
-    // ... existing live rate extraction logic
-  }
-  
-  // 2. NEW: Check room.dailyRate (Hostfully cached rate from sync)
-  if (room.dailyRate && typeof room.dailyRate === 'number' && room.dailyRate > 0) {
-    return room.dailyRate;
-  }
-  
-  // 3. Then check pms_rates from room data
-  // ... existing logic
-};
+const [attractions, setAttractions] = useState<google.maps.places.PlaceResult[]>([]);
+const attractionMarkersRef = useRef<google.maps.Marker[]>([]);
 ```
 
-### Part 2: Update Room Matching to Include `hostfullyId`
+**New useEffect - Fetch Nearby Attractions**:
+After map initialization, create a PlacesService and call `nearbySearch`:
+1. Request tourist attractions within 2km radius
+2. Filter results to only include places with rating and sufficient reviews
+3. Sort by rating descending
+4. Take top 5
+5. Store in state
 
-In `fetchLiveRates()`, update the matching logic:
-
-```typescript
-const roomId = room.pmsRoomId || room.hostfullyId || room.id;
-const matchedRoom = data.data.room_types.find((rt: any) => 
-  (rt.room_type_id || rt.id) === roomId || 
-  rt.name === room.name
-);
-```
-
-### Part 3: Update RoomAvailabilityCalendar for Hostfully Live Fetch
-
-Add logic to fetch live availability for Hostfully properties instead of only relying on cache:
-
-```typescript
-const fetchAvailability = async () => {
-  setLoading(true);
-  try {
-    // For Hostfully: fetch live instead of from cache
-    if (externalSystem === 'hostfully') {
-      const { data, error } = await supabase.functions.invoke("hostfully-api", {
-        body: {
-          action: 'fetch_availability',
-          property_id: propertyId,
-          start_date: format(startOfMonth(displayedMonth), "yyyy-MM-dd"),
-          end_date: format(endOfMonth(addMonths(displayedMonth, 2)), "yyyy-MM-dd"),
-        }
-      });
-      
-      if (!error && data?.success && data?.data?.room_types) {
-        // Transform live data to availability map format
-        const matchedRoom = data.data.room_types.find((rt: any) => 
-          rt.room_type_id === roomId || rt.name === roomName
-        );
-        
-        if (matchedRoom) {
-          const availMap = new Map<string, AvailabilityData>();
-          const availArray = matchedRoom.availability_per_night || [];
-          const rateTypes = matchedRoom.rate_types || [];
-          
-          availArray.forEach((item: any) => {
-            // Find matching rate for this date
-            const ratesForDate = rateTypes.flatMap((rt: any) => 
-              (rt.rates || []).filter((r: any) => r.date === item.date)
-            );
-            
-            availMap.set(item.date, {
-              date: item.date,
-              available_units: item.available_units,
-              rates: ratesForDate,
-              restrictions: item.restrictions,
-            });
-          });
-          
-          setAvailability(availMap);
-        }
-      }
-      setLoading(false);
-      return;
-    }
-    
-    // Existing cache-based fetch for other PMS systems
-    // ... existing code
-  }
-};
-```
-
-### Part 4: Update hostfully-api to Cache Availability (Optional Background Sync)
-
-Add caching logic to `handleFetchAvailability` in `hostfully-api/index.ts`, similar to HotelBeds:
-
-```typescript
-// After transforming availability, cache it
-if (propertyId) {
-  for (const roomType of availability.room_types) {
-    for (const availDay of (roomType.availability_per_night || [])) {
-      // Find matching rates for this date
-      const ratesForDate = roomType.rate_types?.flatMap(rt => 
-        (rt.rates || []).filter(r => r.date === availDay.date)
-      ) || [];
-      
-      await supabase.from("pms_availability_cache").upsert({
-        property_id: propertyId,
-        system_type: "hostfully",
-        external_room_type_id: roomType.room_type_id,
-        date: availDay.date,
-        available_units: availDay.available_units,
-        restrictions: availDay.restrictions,
-        rates: ratesForDate,
-        raw_data: { roomTypeName: roomType.name },
-        fetched_at: new Date().toISOString(),
-      }, {
-        onConflict: 'property_id,external_room_type_id,date,system_type',
-      });
-    }
-  }
-}
-```
+**New useEffect - Render Attraction Markers**:
+When attractions state updates:
+1. Clear any existing attraction markers
+2. For each attraction, create a smaller colored marker
+3. Add hover listener to show InfoWindow with attraction name + rating
+4. Add click listener to open Google Maps page for the attraction
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/pages/RoomShowcase.tsx` | 1. Add `room.dailyRate` fallback in `getLowestRate()` 2. Add `hostfullyId` to room matching in `fetchLiveRates()` |
-| `src/components/RoomAvailabilityCalendar.tsx` | Add live fetch branch for Hostfully properties at start of `fetchAvailability()` |
-| `supabase/functions/hostfully-api/index.ts` | Add caching logic to `handleFetchAvailability()` to populate `pms_availability_cache` |
+| `src/components/showcase/InvitationMap.tsx` | Add Places API integration, attraction markers, and hover InfoWindows |
 
-## Expected Results After Fix
+## Code Changes
 
-1. **RoomShowcase** - Rates display using either live API data OR cached `dailyRate` field
-2. **RoomAvailabilityCalendar** - Calendar shows real availability by fetching live from Hostfully API
-3. **Booking.tsx** - Cost calculation works with live Hostfully data
-4. **push-booking** - Booking submission creates lead in Hostfully (already implemented)
+### 1. Add New State & Refs
 
-## Technical Flow After Fix
+```typescript
+const [attractions, setAttractions] = useState<google.maps.places.PlaceResult[]>([]);
+const attractionMarkersRef = useRef<google.maps.Marker[]>([]);
+const attractionInfoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+```
+
+### 2. Add Attraction Colors Constant
+
+```typescript
+const ATTRACTION_COLORS = ['#D4AF37', '#A0A0A0', '#CD7F32', '#4DB6AC', '#7986CB'];
+```
+
+### 3. Add useEffect to Fetch Attractions
+
+After map initialization, call Places API:
+
+```typescript
+useEffect(() => {
+  if (!mapInstanceRef.current || !mapsLoaded || !hasCoordinates) return;
+  if (!window.google?.maps?.places) return;
+
+  const service = new google.maps.places.PlacesService(mapInstanceRef.current);
+  const request: google.maps.places.PlaceSearchRequest = {
+    location: { lat: Number(latitude), lng: Number(longitude) },
+    radius: 2000,
+    type: 'tourist_attraction',
+  };
+
+  service.nearbySearch(request, (results, status) => {
+    if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+      const topAttractions = results
+        .filter(r => r.rating && r.user_ratings_total && r.user_ratings_total >= 10)
+        .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+        .slice(0, 5);
+      
+      setAttractions(topAttractions);
+    }
+  });
+}, [mapInstanceRef.current, mapsLoaded, hasCoordinates, latitude, longitude]);
+```
+
+### 4. Add useEffect to Render Attraction Markers
+
+```typescript
+useEffect(() => {
+  if (!mapInstanceRef.current || attractions.length === 0) return;
+
+  // Clear existing attraction markers
+  attractionMarkersRef.current.forEach(m => m.setMap(null));
+  attractionMarkersRef.current = [];
+
+  // Create shared InfoWindow for hover
+  if (!attractionInfoWindowRef.current) {
+    attractionInfoWindowRef.current = new google.maps.InfoWindow();
+  }
+
+  attractions.forEach((place, index) => {
+    if (!place.geometry?.location) return;
+
+    const marker = new google.maps.Marker({
+      position: place.geometry.location,
+      map: mapInstanceRef.current,
+      title: place.name,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillColor: ATTRACTION_COLORS[index],
+        fillOpacity: 0.85,
+        strokeColor: '#ffffff',
+        strokeWeight: 1.5,
+        scale: 7,
+      },
+      zIndex: 100 + index,
+    });
+
+    // Create InfoWindow content with rating
+    const ratingStars = place.rating ? '★'.repeat(Math.round(place.rating)) : '';
+    const displayName = (place.name || '').substring(0, 25) + ((place.name?.length || 0) > 25 ? '...' : '');
+
+    // Show InfoWindow on hover
+    marker.addListener('mouseover', () => {
+      attractionInfoWindowRef.current?.setContent(`
+        <div style="font-family: system-ui, sans-serif; padding: 6px 10px; max-width: 160px;">
+          <p style="font-weight: 600; font-size: 12px; margin: 0 0 2px 0; color: #111;">${displayName}</p>
+          <p style="font-size: 11px; color: ${ATTRACTION_COLORS[index]}; margin: 0;">${ratingStars} ${place.rating?.toFixed(1) || ''}</p>
+        </div>
+      `);
+      attractionInfoWindowRef.current?.open(mapInstanceRef.current, marker);
+    });
+
+    marker.addListener('mouseout', () => {
+      attractionInfoWindowRef.current?.close();
+    });
+
+    // Click to open in Google Maps
+    marker.addListener('click', () => {
+      if (place.place_id) {
+        window.open(`https://www.google.com/maps/place/?q=place_id:${place.place_id}`, '_blank');
+      }
+    });
+
+    attractionMarkersRef.current.push(marker);
+  });
+
+  // Cleanup on unmount
+  return () => {
+    attractionMarkersRef.current.forEach(m => m.setMap(null));
+  };
+}, [attractions]);
+```
+
+### 5. Optional: Add Legend Below Map
+
+Add a small legend showing what the colored pins represent:
+
+```tsx
+{/* Attractions Legend - below map, subtle */}
+{attractions.length > 0 && (
+  <div className="flex flex-wrap justify-center gap-3 mt-4 text-xs text-muted-foreground">
+    <span className="font-medium">Nearby:</span>
+    {attractions.slice(0, 3).map((a, i) => (
+      <span key={a.place_id} className="flex items-center gap-1">
+        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ATTRACTION_COLORS[i] }} />
+        {(a.name || '').substring(0, 18)}{(a.name?.length || 0) > 18 ? '...' : ''}
+      </span>
+    ))}
+  </div>
+)}
+```
+
+## Visual Hierarchy
 
 ```text
-User visits /property/:slug/room/:roomSlug (Hostfully)
-              |
-              v
-RoomShowcase loads -> fetchLiveRates() called
-              |
-              v
-hostfully-api returns rates -> setLiveRates()
-              |
-              v
-getLowestRate() extracts rate from liveRates OR dailyRate
-              |
-              v
-User clicks "Check Availability" -> navigates to calendar
-              |
-              v
-RoomAvailabilityCalendar -> fetchAvailability() calls hostfully-api LIVE
-              |
-              v
-Calendar displays dates with real pricing
-              |
-              v
-User selects dates -> "Proceed to Booking"
-              |
-              v
-Booking.tsx -> calculateCost() fetches from hostfully-api
-              |
-              v
-Submit booking -> push-booking creates Hostfully lead
+┌─────────────────────────────────────────────┐
+│                                             │
+│     ○ (Gold - Top attraction)               │
+│                                             │
+│           ● (ROL Pink - Property)           │
+│                                             │
+│  ○ (Silver)              ○ (Bronze)         │
+│                                             │
+│       ○ (Teal)     ○ (Indigo)               │
+│                                             │
+├─────────────────────────────────────────────┤
+│ Property Name                    -33.91°... │
+└─────────────────────────────────────────────┘
+ Nearby: ○ Table Mountain  ○ V&A Waterfront...
 ```
+
+## UX Considerations
+
+1. **No Overcrowding**: Labels only appear on hover via InfoWindow - map stays clean
+2. **Visual Hierarchy**: Property pin is larger (scale 10) and uses brand color; attraction pins are smaller (scale 7)
+3. **Muted Colors**: Attraction colors complement the grayscale map aesthetic
+4. **Click-to-Explore**: Clicking an attraction opens its Google Maps page for more info
+5. **Graceful Degradation**: If no attractions found, map displays normally without changes
+
+## Expected Result
+
+1. Map loads with property pin (ROL Pink, large)
+2. After ~1 second, 5 smaller colored pins appear for top-rated attractions
+3. Hovering over any attraction pin shows a clean tooltip with name and rating
+4. Clicking an attraction opens Google Maps in a new tab
+5. Optional legend below map shows first 3 attractions with color indicators
 
