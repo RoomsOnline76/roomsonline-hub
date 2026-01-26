@@ -234,6 +234,25 @@ export async function executeFullIngestion(
       ctx.warnings.push(`Rooms: ${roomsResult.error}`);
     }
     
+    // Phase 3.5: Create synthetic room for standalone properties without rooms
+    if (!ctx.isMultiUnit && (!ctx.rooms || ctx.rooms.length === 0)) {
+      console.log("[Orchestrator] Standalone property - creating synthetic room from property data");
+      
+      if (ctx.property) {
+        const prop = ctx.property;
+        ctx.rooms = [{
+          uid: ctx.propertyUid,
+          name: prop.name || "Full Property",
+          description: ctx.descriptions?.description || (prop as any).description || undefined,
+          maxGuests: (prop as any).availability?.maxGuests || (prop as any).maxGuests,
+          bedrooms: prop.bedrooms,
+          bathrooms: prop.bathrooms,
+          beds: prop.beds,
+        }];
+        ctx.phasesCompleted.push("synthetic-room");
+      }
+    }
+    
     // 6. Phase 4: Parallel fetch (fees, pricing periods)
     console.log("[Orchestrator] Phase 4: Parallel fetch (fees, seasons)...");
     
