@@ -78,6 +78,7 @@ const ItineraryContext = createContext<ItineraryContextValue | undefined>(undefi
 
 const STORAGE_KEY = 'rol_itinerary';
 const SESSION_ID_KEY = 'rol_session_id';
+const GUEST_DETAILS_KEY = 'rol_guest_details'; // Persistent across sessions
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -114,14 +115,29 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
   const [itineraryId, setItineraryId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load from sessionStorage on mount
+  // Load from sessionStorage (itinerary) and localStorage (sticky guest details) on mount
   useEffect(() => {
     try {
+      // First, load sticky guest details from localStorage (persists across sessions)
+      const storedGuest = localStorage.getItem(GUEST_DETAILS_KEY);
+      if (storedGuest) {
+        const guestData = JSON.parse(storedGuest);
+        setGuestDetailsState({
+          name: guestData.name || '',
+          email: guestData.email || '',
+          phone: guestData.phone || ''
+        });
+      }
+
+      // Then load session-specific itinerary data (may override guest details if present)
       const stored = sessionStorage.getItem(STORAGE_KEY);
       if (stored) {
         const data = JSON.parse(stored);
         setStays(data.stays || []);
-        setGuestDetailsState(data.guestDetails || { name: '', email: '', phone: '' });
+        // Only override guest details if session has them filled
+        if (data.guestDetails?.name || data.guestDetails?.email || data.guestDetails?.phone) {
+          setGuestDetailsState(data.guestDetails);
+        }
         setSpecialRequestsState(data.specialRequests || '');
         setItineraryId(data.itineraryId || null);
       }
@@ -187,7 +203,16 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
   }, []);
 
   const setGuestDetails = useCallback((details: Partial<GuestDetails>) => {
-    setGuestDetailsState(prev => ({ ...prev, ...details }));
+    setGuestDetailsState(prev => {
+      const updated = { ...prev, ...details };
+      // Persist guest details to localStorage for sticky behavior across sessions
+      try {
+        localStorage.setItem(GUEST_DETAILS_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to save guest details to localStorage:', e);
+      }
+      return updated;
+    });
   }, []);
 
   const setSpecialRequests = useCallback((text: string) => {
