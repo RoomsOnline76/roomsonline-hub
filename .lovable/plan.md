@@ -1,148 +1,132 @@
 
-
-# Fix Hostfully Calendar Rates Display - Rate Type ID Mismatch
+# Fix Hostfully Property Display on Public Booking Page
 
 ## Problem Identified
 
-The calendar shows availability but no rates because of a rate type ID mismatch and missing rate type configuration.
+The RoomShowcase page (which displays individual rooms for booking) shows no rates or availability for Hostfully properties because:
 
-### Root Cause Analysis
+1. **Missing Hostfully detection**: There's no `isHostfullyProperty` check
+2. **No live rate fetching**: Unlike HotelBeds, Hostfully doesn't have a `fetchLiveRates()` call
+3. **No availability calendar navigation**: Hostfully isn't included in the booking flow routing
 
-| Source | Rate Type ID | Status |
-|--------|-------------|--------|
-| Edge function `rate_types[0].rate_type_id` | `"standard"` | Returned in API response |
-| Property's `amenities.room_types[0].linkedRateTypeIds` | `["per-unit"]` | Set during ingestion |
-| Property's `amenities.pms_rate_types` | `[]` (empty) | No rate types configured |
+### Current State
 
-The frontend uses `pms_rate_types` to populate the "Rate Types" dropdown (line 887-919). Since it's empty:
-1. `rateTypeOptions` is empty
-2. `selectedRateTypes` stays empty
-3. No rates are rendered in the UI
-
-Additionally, even if `pms_rate_types` was populated, the ID mismatch between "standard" and "per-unit" would prevent matching.
-
-### Data Flow Issue
-
-```text
-Edge Function Response            Frontend Rate Type Filtering
-┌────────────────────────┐        ┌────────────────────────────────────────┐
-│ rate_types: [{         │        │ rateTypeOptions built from:            │
-│   rate_type_id:        │        │   selectedPropertyData.amenities       │
-│     "standard" ←───────┼────┐   │     .pms_rate_types = [] (EMPTY!)      │
-│ }]                     │    │   │                                        │
-└────────────────────────┘    │   │ Since empty:                           │
-                              │   │   selectedRateTypes = []               │
-                              └──▶│   filteredRates = room.rates.filter(   │
-                                  │     rate => [].includes("standard")    │
-                                  │   ) = [] (NO MATCH!)                   │
-                                  └────────────────────────────────────────┘
-```
+| PMS | Detection | Live Rates | Availability Calendar |
+|-----|-----------|------------|----------------------|
+| NightsBridge | `isNightsBridgeProperty` | External iframe | N/A |
+| Benson | `isBensonProperty` | Via cache | Navigates to `/availability` |
+| HotelBeds | `isHotelBedsProperty` | `fetchLiveRates()` | Navigates to `/availability` |
+| Hostfully | NOT DETECTED | No fetching | No navigation |
 
 ## Solution
 
-Two-part fix to ensure rate type IDs are consistent and configured:
+Update `RoomShowcase.tsx` to add full Hostfully support mirroring the HotelBeds implementation:
 
-### Part 1: Edge Function - Use Consistent Rate Type ID
+### Part 1: Add Hostfully Property Detection
 
-Update `mapHostfullyCalendarToAvailability` to use `"per-unit"` instead of `"standard"` to match the ingestion pipeline.
+Add an `isHostfullyProperty` check alongside the existing PMS checks.
 
-**File**: `supabase/functions/hostfully-api/index.ts`
+**Location**: After line 257
 
-**Current (lines 402-414):**
 ```typescript
-rate_types: [{
-  rate_type_id: "standard",
-  name: "Standard Rate",
-  price_type: "per_night",
-  ...
-}]
+// Check if this is a Hostfully property
+const isHostfullyProperty = property?.external_system === "hostfully";
 ```
 
-**Fixed:**
+### Part 2: Fetch Live Rates for Hostfully
+
+Modify the `fetchLiveRates` function to also handle Hostfully, calling the `hostfully-api` edge function with `fetch_availability` action.
+
+**Key changes**:
+- Extend the condition to include Hostfully
+- Add Hostfully-specific API invocation
+- Handle the response format (which matches the adapter contract we already fixed)
+
+### Part 3: Update Availability Calendar Navigation
+
+Add Hostfully to the condition in `handleCheckAvailability` so users can navigate to the room availability page.
+
+**Location**: Line 340
+
 ```typescript
-rate_types: [{
-  rate_type_id: "per-unit",
-  name: "Per Unit Rate",
-  price_type: "per_night",
-  ...
-}]
+// For Benson, HotelBeds, or Hostfully properties: navigate to availability calendar
+if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty) && property && room) {
 ```
 
-### Part 2: Edge Function - Populate pms_rate_types During Ingestion
+### Part 4: Trigger Live Rate Fetch for Hostfully
 
-Ensure the full ingestion pipeline writes the rate type to `amenities.pms_rate_types` so the frontend can discover it. This should already exist in the ingestion logic but may need verification.
+Update the useEffect that triggers `fetchLiveRates` to include Hostfully.
 
-Alternatively, the frontend can be updated to also build `rateTypeOptions` from PMS response data when `pms_rate_types` is empty.
+**Location**: After line 316
 
-### Part 3: Frontend Fallback - Build Rate Types from PMS Data
-
-Update `rateTypeOptions` memoization to also check PMS response data when property's `pms_rate_types` is empty.
-
-**File**: `src/pages/CalendarAccommodation.tsx`
-
-**Enhanced logic (after line 920):**
 ```typescript
-// Fallback: if no saved pms_rate_types, build from PMS data
-if (rateTypes.length === 0 && pmsData.roomTypes.length > 0) {
-  const seenRateTypes = new Set<string>();
-  pmsData.roomTypes.forEach(room => {
-    Object.values(room.ratesByDate).forEach(dateRates => {
-      dateRates.forEach(rate => {
-        if (rate.rateTypeId && !seenRateTypes.has(rate.rateTypeId)) {
-          seenRateTypes.add(rate.rateTypeId);
-          rateTypes.push({
-            id: rate.rateTypeId,
-            label: rate.rateTypeName || `Rate ${rate.rateTypeId}`,
-            hasRates: true,
-          });
-        }
-      });
-    });
-  });
-}
+useEffect(() => {
+  if ((isHotelBedsProperty || isHostfullyProperty) && property?.id && room && !fetchingLiveRates && liveRates.length === 0) {
+    fetchLiveRates();
+  }
+}, [property?.id, room, isHotelBedsProperty, isHostfullyProperty]);
 ```
 
 ## Technical Details
 
-### Why Both Fixes?
+### Edge Function Parameters for Hostfully
 
-1. **Edge function fix**: Ensures consistency between calendar responses and ingestion data
-2. **Frontend fix**: Provides resilience when `pms_rate_types` is empty (common for new imports or sandbox properties)
+The `hostfully-api` edge function expects:
+```typescript
+{
+  action: "fetch_availability",
+  property_id: property.id,  // ROL property UUID
+  start_date: "YYYY-MM-DD",
+  end_date: "YYYY-MM-DD"
+}
+```
 
-### Data Flow After Fix
+### Response Handling
 
-```text
-Edge Function Response            Frontend Rate Type Filtering
-┌────────────────────────┐        ┌────────────────────────────────────────┐
-│ rate_types: [{         │        │ rateTypeOptions built from:            │
-│   rate_type_id:        │        │   1. pms_rate_types (if populated)     │
-│     "per-unit" ←───────┼────┐   │   2. FALLBACK: PMS response data       │
-│ }]                     │    │   │                                        │
-└────────────────────────┘    │   │ rateTypeOptions = [{ id: "per-unit" }] │
-                              │   │ selectedRateTypes = ["per-unit"]       │
-                              └──▶│ filteredRates matches "per-unit" ✓     │
-                                  └────────────────────────────────────────┘
-                                              │
-                                              ▼
-                                  ┌────────────────────────────────────────┐
-                                  │ Calendar displays:                     │
-                                  │   - R450/night in each cell            │
-                                  │   - Min stay 2 nights                  │
-                                  └────────────────────────────────────────┘
+The response follows the adapter contract we already fixed:
+```json
+{
+  "success": true,
+  "data": {
+    "room_types": [{
+      "room_type_id": "...",
+      "name": "Full Property",
+      "availability_per_night": [...],
+      "rate_types": [{
+        "rate_type_id": "per-unit",
+        "name": "Per Unit Rate",
+        "rates": [...]
+      }]
+    }]
+  }
+}
+```
+
+The existing `fetchLiveRates` response parsing will work because it already handles:
+- `data?.data?.room_types` - matches our structure
+- `rate_types` - already extracted
+- `rooms_available_per_night` - needs fallback to `availability_per_night`
+
+### Additional Fallback for Availability Field
+
+The availability extraction in `fetchLiveRates` needs to include `availability_per_night`:
+
+```typescript
+const availArray = matchedRoom.rooms_available_per_night || 
+                   matchedRoom.dailyAvailability || 
+                   matchedRoom.availability_per_night || [];  // Added
 ```
 
 ## Files Modified
 
-| File | Change |
-|------|--------|
-| `supabase/functions/hostfully-api/index.ts` | Change rate_type_id from "standard" to "per-unit" |
-| `src/pages/CalendarAccommodation.tsx` | Add fallback to build rateTypeOptions from PMS data when pms_rate_types is empty |
+| File | Changes |
+|------|---------|
+| `src/pages/RoomShowcase.tsx` | Add `isHostfullyProperty` check, extend `fetchLiveRates` for Hostfully, update navigation and trigger conditions |
 
 ## Expected Result
 
-After these fixes:
-1. Rate Types dropdown shows "Per Unit Rate" option
-2. Rate type is auto-selected (since it has data)
-3. R450/night rates display in calendar cells
-4. Backward compatible with existing Benson and other PMS integrations
-
+After this fix:
+1. Hostfully properties will show "R450/night" rates on the room showcase page
+2. Availability data will display correctly
+3. "Check Availability" button will navigate to the room availability calendar
+4. Live rates will be fetched from the Hostfully API on page load
