@@ -152,23 +152,49 @@ export function HostfullyBuildingImportDialog({
 
         if (propError) throw propError;
 
-        // Create room types for each unit with their individual Hostfully UIDs
-        const roomTypeInserts = building.units.map((unit: HostfullyUnit) => ({
-          property_id: newProperty.id,
-          hostfully_room_id: unit.id, // This is the unit's unique Hostfully UID
-          name: unit.room_number && unit.room_type
-            ? `${unit.room_number} ${unit.room_type}`
-            : unit.name,
-          is_active: true,
-        }));
+        // Invoke full ingestion to populate all 68 fields including room types
+        try {
+          const { data: ingestResult, error: ingestError } = await supabase.functions.invoke(
+            "hostfully-api",
+            {
+              body: {
+                action: "full_ingest_property",
+                propertyUid: building.sample_hostfully_uid,
+                rol_property_id: newProperty.id,
+                owner_credential_id: ownerCredentialId,
+              },
+            }
+          );
+          
+          if (ingestError) {
+            console.warn("Full ingestion failed, falling back to basic room creation:", ingestError);
+            // Fallback: Create basic room types for each unit
+            const roomTypeInserts = building.units.map((unit: HostfullyUnit) => ({
+              property_id: newProperty.id,
+              hostfully_room_id: unit.id,
+              name: unit.room_number && unit.room_type
+                ? `${unit.room_number} ${unit.room_type}`
+                : unit.name,
+              is_active: true,
+            }));
 
-        const { error: roomError } = await supabase
-          .from("hostfully_room_types")
-          .insert(roomTypeInserts);
+            await supabase.from("hostfully_room_types").insert(roomTypeInserts);
+          } else {
+            console.log("Full ingestion completed:", ingestResult);
+          }
+        } catch (ingestErr) {
+          console.warn("Ingestion error, falling back to basic room creation:", ingestErr);
+          // Fallback: Create basic room types
+          const roomTypeInserts = building.units.map((unit: HostfullyUnit) => ({
+            property_id: newProperty.id,
+            hostfully_room_id: unit.id,
+            name: unit.room_number && unit.room_type
+              ? `${unit.room_number} ${unit.room_type}`
+              : unit.name,
+            is_active: true,
+          }));
 
-        if (roomError) {
-          console.error("Error creating room types:", roomError);
-          // Don't throw - property was created successfully
+          await supabase.from("hostfully_room_types").insert(roomTypeInserts);
         }
 
         successCount++;

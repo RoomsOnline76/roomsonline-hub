@@ -723,10 +723,30 @@ export default function AdminKeys() {
             is_active: true,
           };
 
-          const { error } = await supabase.from("properties").insert(propertyData);
+          const { data: newProperty, error } = await supabase
+            .from("properties")
+            .insert(propertyData)
+            .select("id")
+            .single();
+            
           if (error) {
             console.error("Error creating property:", error);
             throw new Error(`Failed to create property "${listing.name}": ${error.message}`);
+          }
+
+          // Invoke full ingestion to populate room types and all PMS fields
+          try {
+            await supabase.functions.invoke("hostfully-api", {
+              body: {
+                action: "full_ingest_property",
+                propertyUid: listing.id,
+                rol_property_id: newProperty.id,
+                owner_credential_id: hostfullyCredentials?.id,
+              },
+            });
+            console.log(`Full ingestion completed for ${listing.name}`);
+          } catch (ingestErr) {
+            console.warn(`Ingestion warning for ${listing.name}:`, ingestErr);
           }
         }
 
