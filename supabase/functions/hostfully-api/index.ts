@@ -207,7 +207,33 @@ async function getCredentials(
     };
   }
 
-  // Option 3: Fallback to system-level pms_credentials (legacy)
+  // Option 2.5: property_id provided - try to find via property's owner_pms_credential_id
+  if (body.property_id) {
+    const { data: propData } = await supabase
+      .from("properties")
+      .select("owner_pms_credential_id")
+      .eq("id", body.property_id)
+      .maybeSingle();
+
+    if (propData?.owner_pms_credential_id) {
+      const { data: ownerCred } = await supabase
+        .from("owner_pms_credentials")
+        .select("*")
+        .eq("id", propData.owner_pms_credential_id)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (ownerCred?.api_key) {
+        return {
+          api_key: ownerCred.api_key,
+          environment: ownerCred.environment as "sandbox" | "production" || "production",
+          owner_credential_id: ownerCred.id,
+        };
+      }
+    }
+  }
+
+  // Option 3: Fallback to system-level pms_credentials (legacy/sandbox)
   const { data, error } = await supabase
     .from("pms_credentials")
     .select("*")

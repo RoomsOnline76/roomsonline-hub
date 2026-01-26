@@ -1171,6 +1171,103 @@ export default function PropertyForm() {
     }
   };
 
+  // Manual Hostfully data sync - triggers full_ingest_property without requiring OAuth
+  // Uses existing credentials from pms_credentials table (sandbox/staging) or property's owner credential
+  const handleSyncHostfullyProperty = async () => {
+    if (!propertyId || !hostfullyPropertyUid) {
+      toast({
+        title: "Cannot Sync",
+        description: "Property must have a Hostfully Property UID set",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setFullSyncingHostfully(true);
+    setSyncProgress({ phase: "Starting sync...", current: 0, total: 1 });
+
+    try {
+      const { data, error } = await supabase.functions.invoke("hostfully-api", {
+        body: {
+          action: "full_ingest_property",
+          propertyUid: hostfullyPropertyUid,
+          rol_property_id: propertyId,
+          property_id: propertyId, // Allows edge function to find credentials via property
+        },
+      });
+
+      if (error || !data?.success) {
+        throw new Error(data?.error?.message || error?.message || "Sync failed");
+      }
+
+      // Reload room count
+      const { count } = await supabase
+        .from("hostfully_room_types")
+        .select("*", { count: "exact", head: true })
+        .eq("property_id", propertyId);
+      setHostfullyRoomCount(count || 0);
+
+      toast({
+        title: "Sync Complete",
+        description: `Imported ${data.data?.rooms_processed || 0} room(s) and ${data.data?.fields_written || 0} fields`,
+      });
+
+      // Refresh room data in UI
+      const { data: refreshedRooms } = await supabase
+        .from("hostfully_room_types")
+        .select("*")
+        .eq("property_id", propertyId)
+        .eq("is_active", true);
+
+      if (refreshedRooms && refreshedRooms.length > 0) {
+        const convertedRooms = refreshedRooms.map(hr => ({
+          id: hr.id,
+          name: hr.name || "Unnamed Room",
+          url: "",
+          selected: false,
+          numRooms: 1,
+          pmsRoomType: hr.name,
+          pmsRoomId: hr.hostfully_room_id,
+          hostfullyId: hr.hostfully_room_id,
+          description: hr.description || "",
+          extraPersonPolicy: hr.extra_person_policy || "",
+          bedConfiguration: hr.bed_configuration || [],
+          roomSize: hr.room_size || 0,
+          bathrooms: hr.bathrooms || 1,
+          maxPeople: hr.max_guests || 2,
+          maxAdults: hr.max_guests || 2,
+          minGuests: hr.min_guests || 1,
+          maxChildren: 0,
+          minStay: hr.min_stay || 1,
+          maxStay: hr.max_stay || 0,
+          rateType: hr.rate_type || 'per-unit',
+          splitPercent: 0,
+          images: hr.images || [],
+          facilities: hr.facilities_raw || [],
+          facilitiesRaw: hr.facilities_raw || [],
+          amenities: hr.amenities || [],
+          linkedRateTypeIds: hr.linked_rate_type_ids || [],
+          dailyRate: hr.daily_rate,
+          currency: hr.currency || 'ZAR',
+          thumbnailUrl: hr.thumbnail_url,
+          lastSyncedAt: hr.last_synced_at,
+          pms_synced_fields: hr.pms_synced_fields || [],
+        }));
+        setRoomTypes(convertedRooms);
+      }
+    } catch (err) {
+      console.error("Hostfully property sync error:", err);
+      toast({
+        title: "Sync Failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setFullSyncingHostfully(false);
+      setSyncProgress(null);
+    }
+  };
+
   const syncFromBenson = async () => {
     if (!bensonPropertyCode || !propertyId) {
       toast({
@@ -3770,6 +3867,32 @@ export default function PropertyForm() {
                       <p className="text-xs">
                         Authorize RoomsOnline to access your Hostfully account via OAuth.
                         This enables syncing properties, rates, and availability.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+              {/* Sync Property Data button - for Hostfully properties with UID but no OAuth connection */}
+              {isEditMode && selectedPMS === 'hostfully' && hostfullyPropertyUid && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs gap-1 border-green-500/50 text-green-600 hover:bg-green-50"
+                        onClick={handleSyncHostfullyProperty}
+                        disabled={fullSyncingHostfully}
+                      >
+                        <RefreshCw className={cn("h-3 w-3", fullSyncingHostfully && "animate-spin")} />
+                        {fullSyncingHostfully ? "Syncing..." : "Sync Property Data"}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="text-xs">
+                        Import room types, rates, and availability from Hostfully using
+                        the Property UID. Uses stored API credentials.
                       </p>
                     </TooltipContent>
                   </Tooltip>

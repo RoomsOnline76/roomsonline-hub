@@ -47,12 +47,28 @@ serve(async (req) => {
       errorDescription,
     });
 
+    // Helper to extract property_id from state for error redirects
+    const getRedirectPath = (stateParam: string | null): string => {
+      if (stateParam) {
+        try {
+          const stateData = JSON.parse(atob(stateParam));
+          if (stateData.property_id) {
+            return `/admin/properties/${stateData.property_id}`;
+          }
+        } catch {
+          // Failed to parse state, use default
+        }
+      }
+      return '/admin/users';
+    };
+
     // Handle Hostfully-specific status responses
     if (status === 'INCORRECT_REQUEST') {
       console.error('Hostfully returned INCORRECT_REQUEST - check clientId and redirectUri');
       const appUrl = getAppUrl();
+      const redirectPath = getRedirectPath(state);
       return Response.redirect(
-        `${appUrl}/admin/users?hostfully_error=incorrect_request&error_description=${encodeURIComponent('The authorization request was invalid. Please check your Hostfully configuration.')}`,
+        `${appUrl}${redirectPath}?hostfully_error=incorrect_request&error_description=${encodeURIComponent('The authorization request was invalid. Please check your Hostfully configuration.')}`,
         302
       );
     }
@@ -60,8 +76,9 @@ serve(async (req) => {
     if (status === 'DECLINED') {
       console.error('Hostfully authorization was declined by user');
       const appUrl = getAppUrl();
+      const redirectPath = getRedirectPath(state);
       return Response.redirect(
-        `${appUrl}/admin/users?hostfully_error=declined&error_description=${encodeURIComponent('Authorization was declined.')}`,
+        `${appUrl}${redirectPath}?hostfully_error=declined&error_description=${encodeURIComponent('Authorization was declined.')}`,
         302
       );
     }
@@ -70,8 +87,9 @@ serve(async (req) => {
     if (error) {
       console.error('OAuth error:', error, errorDescription);
       const appUrl = getAppUrl();
+      const redirectPath = getRedirectPath(state);
       return Response.redirect(
-        `${appUrl}/admin/users?hostfully_error=${encodeURIComponent(error)}&error_description=${encodeURIComponent(errorDescription || '')}`,
+        `${appUrl}${redirectPath}?hostfully_error=${encodeURIComponent(error)}&error_description=${encodeURIComponent(errorDescription || '')}`,
         302
       );
     }
