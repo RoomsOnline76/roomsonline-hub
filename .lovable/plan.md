@@ -1,174 +1,241 @@
 
-# Fix Hostfully Room Types Not Imported on Sync
+# Optimize Admin Dashboards for Large Desktop Screens
 
 ## Problem
 
-When syncing a Hostfully property, no room types are imported into `hostfully_room_types`. This affects both:
-1. Standalone properties (like "Victorian House Sample")  
-2. Multi-unit building imports (via HostfullyBuildingImportDialog)
+On large desktop screens, admin dashboard tables and content are constrained to a maximum width of 1280px (`max-w-7xl`), leaving significant empty space on both sides. This makes the interface look sparse and unprofessional on wider monitors.
 
-## Root Causes
-
-| Issue | Location | Impact |
-|-------|----------|--------|
-| **Import flows bypass full ingestion** | `AdminKeys.tsx`, `HostfullyBuildingImportDialog.tsx` | Properties created without room details |
-| **Standalone properties have no rooms** | Hostfully API returns empty `[]` for `/rooms` endpoint | No room types created |
-| **Synthetic room not created** | `orchestrator.ts` only fetches external rooms | Standalone properties get 0 rooms |
+The constraint comes from `AppLayout.tsx` line 23:
+```tsx
+<div className="container mx-auto px-4 md:px-6 py-4 md:py-6 max-w-7xl animate-fade-in">
+```
 
 ## Solution
 
-### 1. Create Synthetic Room Type for Standalone Properties
+Create a more fluid layout for admin dashboards by:
+1. Increasing the max-width constraint to utilize more screen space on large monitors
+2. Adjusting padding for better edge-to-edge utilization
+3. Using responsive breakpoints to ensure optimal display across screen sizes
 
-In `supabase/functions/hostfully-api/ingestion/orchestrator.ts`, after Phase 3 (room fetch), add logic to create a synthetic room type if:
-- `ctx.isMultiUnit === false`
-- `ctx.rooms` is empty or null
+## Changes
 
-The synthetic room should be derived from the property data itself:
-- `hostfully_room_id` = property UID
-- `name` = property name (or "Full Property")
-- `max_guests` = property.maxGuests
-- `bedrooms` = property.bedrooms
-- `bathrooms` = property.bathrooms
-- `beds` = property.beds
+### 1. Update `src/components/layout/AppLayout.tsx`
 
-This mirrors what `handleGetPropertyRooms` already does for the `get_property_rooms` action.
+Change the content container from `max-w-7xl` to `max-w-[1600px]` for wider screens, with improved padding:
 
-### 2. Call Full Ingestion After Property Import (HostfullyBuildingImportDialog)
+```tsx
+// Line 23: Change from:
+<div className="container mx-auto px-4 md:px-6 py-4 md:py-6 max-w-7xl animate-fade-in">
 
-After creating the property in `HostfullyBuildingImportDialog.tsx`, invoke `full_ingest_property` to populate all 68 fields including detailed room data:
-
-```typescript
-// After property insert, call full ingestion
-await supabase.functions.invoke("hostfully-api", {
-  body: {
-    action: "full_ingest_property",
-    propertyUid: building.sample_hostfully_uid,
-    rol_property_id: newProperty.id,
-    owner_credential_id: ownerCredentialId,
-  }
-});
+// To:
+<div className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 max-w-[1600px] animate-fade-in">
 ```
 
-### 3. Call Full Ingestion in AdminKeys Import Flow
-
-Similarly update `handleHostfullyImportListings` in `AdminKeys.tsx` to invoke full ingestion after property creation.
+This increases the max content width from 1280px to 1600px while adding more horizontal padding on large screens (`lg:px-8`) to maintain visual balance.
 
 ---
 
-## Technical Changes
+### 2. Optimize Table Wrapper in PropertyOverview (Primary Dashboard)
 
-### File 1: `supabase/functions/hostfully-api/ingestion/orchestrator.ts`
+Update `src/pages/PropertyOverview.tsx` to ensure tables utilize full available width with better overflow handling:
 
-**Add synthetic room creation** after Phase 3 (~line 235):
+At line 455, update Card wrapper:
+```tsx
+// From:
+<Card>
 
-```typescript
-// Phase 3.5: Create synthetic room for standalone properties
-if (!ctx.isMultiUnit && (!ctx.rooms || ctx.rooms.length === 0)) {
-  console.log("[Orchestrator] Standalone property - creating synthetic room from property data");
-  
-  if (ctx.property) {
-    ctx.rooms = [{
-      uid: ctx.propertyUid,
-      name: ctx.property.name || "Full Property",
-      description: ctx.descriptions?.description || ctx.property.description || undefined,
-      maxGuests: ctx.property.maxGuests,
-      bedrooms: ctx.property.bedrooms,
-      bathrooms: ctx.property.bathrooms,
-      beds: ctx.property.beds,
-    }];
-    ctx.phasesCompleted.push("synthetic-room");
-  }
-}
+// To:
+<Card className="overflow-hidden">
 ```
 
-### File 2: `src/components/pms/HostfullyBuildingImportDialog.tsx`
+This ensures the table scrolls cleanly within its container on smaller screens while filling available width on larger ones.
 
-**After property insert** (~line 153), invoke full ingestion:
+---
 
-```typescript
-if (propError) throw propError;
+### 3. Update Admin Dashboard Cards Grid
 
-// Invoke full ingestion to populate all fields
-try {
-  const { data: ingestResult, error: ingestError } = await supabase.functions.invoke(
-    "hostfully-api",
-    {
-      body: {
-        action: "full_ingest_property",
-        propertyUid: building.sample_hostfully_uid,
-        rol_property_id: newProperty.id,
-        owner_credential_id: ownerCredentialId,
-      },
-    }
-  );
-  
-  if (ingestError) {
-    console.warn("Full ingestion failed, rooms may be incomplete:", ingestError);
-  } else {
-    console.log("Full ingestion completed:", ingestResult);
-  }
-} catch (ingestErr) {
-  console.warn("Ingestion error (property still created):", ingestErr);
-}
+In `src/pages/AdminDashboard.tsx`, optimize the bottom cards grid for wider screens:
 
-// Remove the manual room inserts since full_ingest handles this
+At line 218, change:
+```tsx
+// From:
+<div className="grid gap-6 md:grid-cols-2">
+
+// To:
+<div className="grid gap-6 md:grid-cols-2 xl:grid-cols-2">
 ```
 
-### File 3: `src/pages/AdminKeys.tsx`
+And update the KPI cards grid at line 156:
+```tsx
+// From:
+<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
 
-**After property insert** in `handleHostfullyImportListings` (~line 726), invoke full ingestion:
-
-```typescript
-const { data: newProperty, error } = await supabase.from("properties")
-  .insert(propertyData)
-  .select("id")
-  .single();
-
-if (error) {
-  throw new Error(`Failed to create property: ${error.message}`);
-}
-
-// Invoke full ingestion to populate room types and all PMS fields
-try {
-  await supabase.functions.invoke("hostfully-api", {
-    body: {
-      action: "full_ingest_property",
-      propertyUid: listing.id,
-      rol_property_id: newProperty.id,
-      owner_credential_id: hostfullyCredential?.id,
-    },
-  });
-} catch (ingestErr) {
-  console.warn("Ingestion warning:", ingestErr);
-}
+// To:  
+<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:gap-6 mb-8">
 ```
 
 ---
 
-## Files Modified
+### 4. Optimize Revenue Pulse Dashboard
+
+In `src/components/dashboard/ROLRevenuePulse.tsx`, update the grids for better large-screen utilization:
+
+At line 168 (KPI cards):
+```tsx
+// From:
+<div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+
+// To:
+<div className="grid grid-cols-2 lg:grid-cols-4 gap-3 xl:gap-4">
+```
+
+At line 285 (Split view):
+```tsx
+// From:
+<div className="grid lg:grid-cols-2 gap-4">
+
+// To:
+<div className="grid lg:grid-cols-2 gap-4 xl:gap-6">
+```
+
+---
+
+### 5. Optimize DevOverview Dashboard
+
+In `src/pages/DevOverview.tsx`, update the grids:
+
+At line 197 (Health overview cards):
+```tsx
+// From:
+<div className="grid gap-4 md:grid-cols-4 mb-8">
+
+// To:
+<div className="grid gap-4 md:grid-cols-4 xl:gap-6 mb-8">
+```
+
+At line 247 (Main content grid):
+```tsx
+// From:
+<div className="grid gap-6 md:grid-cols-2">
+
+// To:
+<div className="grid gap-6 md:grid-cols-2 xl:gap-8">
+```
+
+---
+
+### 6. Optimize AdminPayments Dashboard
+
+In `src/pages/AdminPayments.tsx`, update the stats grid:
+
+At line 184:
+```tsx
+// From:
+<div className="grid gap-4 md:grid-cols-4 mb-8">
+
+// To:
+<div className="grid gap-4 md:grid-cols-4 xl:gap-6 mb-8">
+```
+
+---
+
+### 7. Optimize AdminContracts Dashboard
+
+In `src/pages/AdminContracts.tsx`, update the stats grid:
+
+At line 381:
+```tsx
+// From:
+<div className="grid grid-cols-4 gap-4 mb-6">
+
+// To:
+<div className="grid grid-cols-2 md:grid-cols-4 gap-4 xl:gap-6 mb-6">
+```
+
+---
+
+### 8. Optimize AdminOnboarding Dashboard
+
+In `src/pages/AdminOnboarding.tsx`, update the stats grid:
+
+At line 318:
+```tsx
+// From:
+<div className="grid grid-cols-4 gap-4 mb-6">
+
+// To:
+<div className="grid grid-cols-2 md:grid-cols-4 gap-4 xl:gap-6 mb-6">
+```
+
+---
+
+### 9. Optimize AdminUsers Dashboard
+
+In `src/pages/AdminUsers.tsx`, update the stats grid:
+
+At line 357:
+```tsx
+// From:
+<div className="grid grid-cols-3 gap-4 mb-6">
+
+// To:
+<div className="grid grid-cols-1 sm:grid-cols-3 gap-4 xl:gap-6 mb-6">
+```
+
+---
+
+### 10. Optimize Bookings Page
+
+In `src/pages/Bookings.tsx`, ensure tables use available width by adding proper container styling on table wrappers.
+
+---
+
+### 11. Optimize Insights Page
+
+In `src/pages/Insights.tsx`, update the two-column layout:
+
+At line 192:
+```tsx
+// From:
+<div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+
+// To:
+<div className="grid grid-cols-1 xl:grid-cols-5 gap-4 xl:gap-6">
+```
+
+---
+
+## Summary of Files to Modify
 
 | File | Change |
 |------|--------|
-| `supabase/functions/hostfully-api/ingestion/orchestrator.ts` | Add synthetic room creation for standalone properties |
-| `src/components/pms/HostfullyBuildingImportDialog.tsx` | Invoke `full_ingest_property` after property creation |
-| `src/pages/AdminKeys.tsx` | Invoke `full_ingest_property` after property creation |
+| `src/components/layout/AppLayout.tsx` | Increase max-width from `max-w-7xl` to `max-w-[1600px]`, add `lg:px-8` padding |
+| `src/pages/PropertyOverview.tsx` | Add `overflow-hidden` to table Card |
+| `src/pages/AdminDashboard.tsx` | Add `xl:gap-6` to grids for better spacing |
+| `src/components/dashboard/ROLRevenuePulse.tsx` | Add `xl:gap-4` and `xl:gap-6` to grids |
+| `src/pages/DevOverview.tsx` | Add `xl:gap-6` and `xl:gap-8` to grids |
+| `src/pages/AdminPayments.tsx` | Add `xl:gap-6` to stats grid |
+| `src/pages/AdminContracts.tsx` | Add responsive classes and `xl:gap-6` |
+| `src/pages/AdminOnboarding.tsx` | Add responsive classes and `xl:gap-6` |
+| `src/pages/AdminUsers.tsx` | Add responsive classes and `xl:gap-6` |
+| `src/pages/Insights.tsx` | Add `xl:gap-6` to layout grid |
 
 ---
 
-## Expected Outcome
+## Visual Impact
 
 After implementation:
+- Tables and cards will fill more screen space on large monitors (up to 1600px wide)
+- Content will have balanced padding with `lg:px-8` on larger screens
+- Grid gaps will increase slightly on XL screens for better visual breathing room
+- Mobile and tablet views remain unchanged
+- No changes to the sidebar - only the main content area expands
 
-1. **Standalone properties** (like Victorian House Sample) will have a synthetic room type entry in `hostfully_room_types` with:
-   - `hostfully_room_id` = property UID
-   - `name` = property name
-   - `max_guests`, `bedrooms`, `bathrooms`, `beds` populated from property
+---
 
-2. **Multi-unit buildings** will have full ingestion run, populating:
-   - All 68 mapped fields
-   - Detailed room types with amenities, fees, bed configs
-   - Rate type linkages
+## Technical Notes
 
-3. **Edge function logs** will show the ingestion phases completing:
-   - `[Orchestrator] Phase 3.5: Standalone property - creating synthetic room`
-   - `[Writer] Upserting 1 rooms...`
+- The `max-w-[1600px]` constraint ensures content doesn't become too wide on ultra-wide monitors (2560px+)
+- XL breakpoint (1280px+) is used for enhanced spacing, which activates on typical desktop monitors
+- All changes are additive - existing responsive behavior is preserved
+- Tables already have `w-full` styling and will automatically fill the wider container
