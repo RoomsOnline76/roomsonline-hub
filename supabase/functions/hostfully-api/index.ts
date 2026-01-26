@@ -220,8 +220,9 @@ async function getCredentials(
     return null;
   }
 
+  // Database takes precedence, ENV is fallback (user-editable source of truth)
   const apiKeyFromEnv = Deno.env.get("HOSTFULLY_API_KEY");
-  const apiKey = apiKeyFromEnv || data.api_key;
+  const apiKey = data.api_key || apiKeyFromEnv;
 
   if (!apiKey) {
     return null;
