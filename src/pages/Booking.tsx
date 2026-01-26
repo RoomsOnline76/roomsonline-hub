@@ -721,7 +721,39 @@ const Booking = () => {
       }
 
       // Use calculated total cost or pre-selected total
-      const totalPrice = totalCost || preSelectedTotalCost || 0;
+      // CRITICAL: Ensure we have a valid price (except for explicitly free bookings)
+      let totalPrice = totalCost || preSelectedTotalCost || 0;
+      
+      // If price is 0 but we have availability data, something went wrong with calculation
+      // Try to calculate a fallback price from the availability data
+      if (totalPrice === 0 && availabilityData) {
+        console.warn('Price is 0 but availability data exists - calculating fallback...');
+        const roomTypesArray = availabilityData?.room_types || [];
+        let fallbackPrice = 0;
+        
+        for (const room of rooms) {
+          const roomType = roomTypesArray.find((rt: any) => String(rt.room_type_id) === room.roomTypeId);
+          if (roomType?.rate_types) {
+            // Try selected rate type first, then fall back to first rate type
+            const rateType = roomType.rate_types.find((rt: any) => String(rt.rate_type_id) === selectedRateType) 
+              || roomType.rate_types[0];
+            if (rateType?.rates) {
+              const roomCheckIn = room.checkIn || checkIn;
+              const roomCheckOut = room.checkOut || checkOut;
+              rateType.rates.forEach((rate: any) => {
+                if (rate.date >= roomCheckIn && rate.date < roomCheckOut) {
+                  fallbackPrice += rate.room_amount || 0;
+                }
+              });
+            }
+          }
+        }
+        
+        if (fallbackPrice > 0) {
+          console.log('Using fallback price:', fallbackPrice);
+          totalPrice = fallbackPrice;
+        }
+      }
 
       // Get current user or sign in anonymously for guest bookings
       let { data: { user } } = await supabase.auth.getUser();
