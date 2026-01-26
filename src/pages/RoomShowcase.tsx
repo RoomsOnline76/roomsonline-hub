@@ -288,7 +288,9 @@ export default function RoomShowcase() {
       }
       
       if (data?.success && data?.data?.room_types) {
-        const roomId = room.pmsRoomId || room.id;
+        // Include hostfullyId in room matching for Hostfully properties
+        const roomAny = room as any;
+        const roomId = room.pmsRoomId || roomAny.hostfullyId || room.id;
         const matchedRoom = data.data.room_types.find((rt: any) => 
           (rt.room_type_id || rt.id) === roomId || 
           rt.name === room.name
@@ -396,9 +398,9 @@ export default function RoomShowcase() {
   // Use liveAvailability if available, fallback to cached
   const displayedAvailability = liveAvailability ?? availableUnits;
   
-  // Calculate lowest rate from live rates first, then pms_rates, then property_rates
+  // Calculate lowest rate from live rates first, then dailyRate, then pms_rates, then property_rates
   const getLowestRate = (): number | null => {
-    // First check live rates (real-time from API for HotelBeds, etc.)
+    // First check live rates (real-time from API for HotelBeds, Hostfully, etc.)
     if (liveRates.length > 0) {
       let lowest: number | null = null;
       liveRates.forEach((rateType: any) => {
@@ -421,6 +423,12 @@ export default function RoomShowcase() {
         }
       });
       if (lowest !== null) return lowest;
+    }
+    
+    // NEW: Check room.dailyRate (Hostfully cached rate from sync)
+    const roomAny = room as any;
+    if (roomAny?.dailyRate && typeof roomAny.dailyRate === 'number' && roomAny.dailyRate > 0) {
+      return roomAny.dailyRate;
     }
     
     // Then check pms_rates from room data

@@ -879,7 +879,8 @@ async function handleFetchAvailability(
   creds: HostfullyCredentials,
   propertyUid: string,
   startDate: string,
-  endDate: string
+  endDate: string,
+  propertyId?: string // Optional ROL property ID for caching
 ) {
   const baseUrl = HOSTFULLY_URLS[creds.environment];
 
@@ -915,11 +916,11 @@ async function handleFetchAvailability(
     
     // Query hostfully_room_types to get actual room name to match frontend filtering
     let roomName = 'Property';
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    
     try {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      
       const { data: roomData } = await supabase
         .from('hostfully_room_types')
         .select('name')
@@ -935,6 +936,42 @@ async function handleFetchAvailability(
     }
     
     const availability = mapHostfullyCalendarToAvailability(calendarArray, propertyUid, roomName);
+
+    // Cache availability to pms_availability_cache for future use (async, don't block response)
+    if (propertyId && availability.room_types?.length > 0) {
+      (async () => {
+        try {
+          for (const roomType of availability.room_types) {
+            const availPerNight = roomType.availability_per_night || [];
+            const rateTypes = roomType.rate_types || [];
+            
+            for (const availDay of availPerNight) {
+              // Find matching rates for this date
+              const ratesForDate = rateTypes.flatMap((rt: any) => 
+                (rt.rates || []).filter((r: any) => r.date === availDay.date)
+              );
+              
+              await supabase.from("pms_availability_cache").upsert({
+                property_id: propertyId,
+                system_type: "hostfully",
+                external_room_type_id: roomType.room_type_id,
+                date: availDay.date,
+                available_units: availDay.available_units,
+                restrictions: availDay.restrictions,
+                rates: ratesForDate.length > 0 ? ratesForDate : null,
+                raw_data: { roomTypeName: roomType.name },
+                fetched_at: new Date().toISOString(),
+              }, {
+                onConflict: 'property_id,external_room_type_id,date,system_type',
+              });
+            }
+          }
+          console.log(`[Hostfully] Cached ${availability.room_types[0]?.availability_per_night?.length || 0} days to pms_availability_cache`);
+        } catch (cacheErr) {
+          console.warn("[Hostfully] Failed to cache availability:", cacheErr);
+        }
+      })();
+    }
 
     return createSuccessResponse(availability, "fetch_availability");
   } catch (err) {
@@ -1444,7 +1481,8 @@ serve(async (req) => {
         const startDate = result.data.startDate || result.data.start_date;
         const endDate = result.data.endDate || result.data.end_date;
         
-        response = await handleFetchAvailability(creds, hostfullyUid, startDate!, endDate!);
+        // Pass property_id for caching availability data
+        response = await handleFetchAvailability(creds, hostfullyUid, startDate!, endDate!, result.data.property_id);
         break;
       }
 
