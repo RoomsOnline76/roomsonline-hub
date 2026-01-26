@@ -18,13 +18,42 @@ serve(async (req) => {
     const state = url.searchParams.get('state'); // Contains owner_id, environment, etc.
     const error = url.searchParams.get('error');
     const errorDescription = url.searchParams.get('error_description');
+    const status = url.searchParams.get('status'); // Hostfully returns status: SUCCESSFUL, DECLINED, or INCORRECT_REQUEST
 
+    // Log ALL query parameters for debugging
+    const allParams: Record<string, string> = {};
+    url.searchParams.forEach((value, key) => {
+      allParams[key] = value;
+    });
+    console.log('Hostfully OAuth callback - Full URL:', req.url);
+    console.log('Hostfully OAuth callback - All params:', JSON.stringify(allParams));
     console.log('Hostfully OAuth callback received:', {
       hasCode: !!code,
+      code: code ? `${code.substring(0, 10)}...` : null,
       hasState: !!state,
+      status,
       error,
       errorDescription,
     });
+
+    // Handle Hostfully-specific status responses
+    if (status === 'INCORRECT_REQUEST') {
+      console.error('Hostfully returned INCORRECT_REQUEST - check clientId and redirectUri');
+      const appUrl = Deno.env.get('APP_URL') || 'https://roomsonline.co.za';
+      return Response.redirect(
+        `${appUrl}/admin/users?hostfully_error=incorrect_request&error_description=${encodeURIComponent('The authorization request was invalid. Please check your Hostfully configuration.')}`,
+        302
+      );
+    }
+
+    if (status === 'DECLINED') {
+      console.error('Hostfully authorization was declined by user');
+      const appUrl = Deno.env.get('APP_URL') || 'https://roomsonline.co.za';
+      return Response.redirect(
+        `${appUrl}/admin/users?hostfully_error=declined&error_description=${encodeURIComponent('Authorization was declined.')}`,
+        302
+      );
+    }
 
     // Handle OAuth errors - redirect back to app with error
     if (error) {
