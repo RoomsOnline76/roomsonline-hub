@@ -1275,7 +1275,7 @@ Deno.serve(async (req) => {
           adults: booking.adults || 2,
           children: (booking.children || 0) + (booking.teens || 0) + (booking.infants || 0),
           notes: booking.special_requests || '',
-          source: 'RoomsOnline',
+          source: 'HOSTFULLY_API',
         };
 
         console.log('Hostfully lead payload:', JSON.stringify(leadPayload, null, 2));

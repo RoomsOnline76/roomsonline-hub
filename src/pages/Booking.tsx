@@ -805,22 +805,36 @@ const Booking = () => {
             throw new Error('AVAILABILITY_CHANGED: The selected dates or rooms are no longer available. Please choose again.');
           }
           
+          // Check if ALL external pushes failed (no success at all)
+          const pushResults = pushResponse.data?.results || [];
+          const hasAnySuccess = pushResults.some((r: any) => r.success);
+          const failedResult = pushResults.find((r: any) => !r.success);
+          
+          if (pushResults.length > 0 && !hasAnySuccess) {
+            // All pushes failed - mark booking as failed and show error to user
+            console.error('All external pushes failed:', failedResult?.error);
+            await supabase.from('bookings').update({ status: 'failed' }).eq('id', data.id);
+            
+            const errorMessage = failedResult?.error || 'Failed to complete booking with property';
+            throw new Error(`Booking failed: ${errorMessage}`);
+          }
+          
           // Extract all external reservation IDs from push response
           // For multi-room bookings with different dates, there may be multiple reservation IDs
           if (pushResponse.data?.external_reservation_ids && Array.isArray(pushResponse.data.external_reservation_ids)) {
             externalRefIds = pushResponse.data.external_reservation_ids.map((id: any) => String(id));
           } else {
             // Fallback: check individual results
-            const successfulResults = pushResponse.data?.results?.filter((r: any) => r.success && r.external_booking_id) || [];
+            const successfulResults = pushResults.filter((r: any) => r.success && r.external_booking_id);
             externalRefIds = successfulResults.map((r: any) => String(r.external_booking_id));
           }
         } catch (pushError) {
-          // If it's an availability error, re-throw to show user
-          if (pushError instanceof Error && pushError.message.includes('AVAILABILITY_CHANGED')) {
+          // Re-throw all booking errors to show user (no more silent swallowing)
+          if (pushError instanceof Error) {
             throw pushError;
           }
           console.error('Failed to push booking to external system:', pushError);
-          // Don't fail the booking for other errors, just log
+          throw new Error('Failed to complete booking with property. Please try again.');
         }
       } else {
         // For non-PMS properties, send confirmation email directly
