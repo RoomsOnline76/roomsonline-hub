@@ -179,6 +179,28 @@ function getAuthHeaders(apiKey: string, signature: string): Record<string, strin
 }
 
 // ============================================================================
+// ENVIRONMENT HELPER - Reads from pms_tracker_status
+// ============================================================================
+
+async function getTrackerEnvironment(
+  supabase: any,
+  systemType: string = "hotelbeds"
+): Promise<"sandbox" | "production"> {
+  const { data, error } = await supabase
+    .from("pms_tracker_status")
+    .select("active_environment")
+    .eq("system_type", systemType)
+    .maybeSingle();
+    
+  if (error || !data) {
+    console.log(`[${systemType}] No tracker environment found, defaulting to sandbox`);
+    return "sandbox";
+  }
+  
+  return data.active_environment === "production" ? "production" : "sandbox";
+}
+
+// ============================================================================
 // API CALL HELPER
 // ============================================================================
 
@@ -669,7 +691,9 @@ serve(async (req) => {
     if (action === "health_check") {
       let apiKey = Deno.env.get("HOTELBEDS_API_KEY");
       let apiSecret = Deno.env.get("HOTELBEDS_API_SECRET");
-      let environment = "staging";
+      
+      // Get environment from tracker (authoritative source)
+      const environment = await getTrackerEnvironment(supabaseClient, "hotelbeds");
 
       if (!apiKey || !apiSecret) {
         console.log(`[HotelBeds] Cloud secrets not found for health_check, checking pms_credentials...`);
@@ -683,7 +707,6 @@ serve(async (req) => {
         if (credentials) {
           apiKey = credentials.api_key;
           apiSecret = credentials.password;
-          environment = credentials.environment || "staging";
         }
       } else {
         console.log(`[HotelBeds] Using Cloud secrets for health_check`);
@@ -784,7 +807,8 @@ serve(async (req) => {
     // Get HotelBeds credentials - prioritize Cloud secrets, fallback to pms_credentials
     let apiKey = Deno.env.get("HOTELBEDS_API_KEY");
     let apiSecret = Deno.env.get("HOTELBEDS_API_SECRET");
-    let environment = "staging"; // Default to sandbox/test
+    // Get environment from tracker (authoritative source)
+    const environment = await getTrackerEnvironment(supabaseClient, "hotelbeds");
 
     // If Cloud secrets not set, fallback to database credentials
     if (!apiKey || !apiSecret) {
@@ -810,7 +834,7 @@ serve(async (req) => {
 
       apiKey = credentials.api_key;
       apiSecret = credentials.password;
-      environment = credentials.environment || "staging";
+      // Environment comes from tracker, not credentials
     } else {
       console.log(`[HotelBeds] Using Cloud secrets for authentication`);
     }

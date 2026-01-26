@@ -164,6 +164,28 @@ const createReservationSchema = baseRequestSchema.extend({
 });
 
 // ============================================================================
+// ENVIRONMENT HELPER - Reads from pms_tracker_status
+// ============================================================================
+
+async function getTrackerEnvironment(
+  supabase: any,
+  systemType: string = "hostfully"
+): Promise<"sandbox" | "production"> {
+  const { data, error } = await supabase
+    .from("pms_tracker_status")
+    .select("active_environment")
+    .eq("system_type", systemType)
+    .maybeSingle();
+    
+  if (error || !data) {
+    console.log(`[${systemType}] No tracker environment found, defaulting to sandbox`);
+    return "sandbox";
+  }
+  
+  return data.active_environment === "production" ? "production" : "sandbox";
+}
+
+// ============================================================================
 // CREDENTIAL INTERFACE & FETCH
 // ============================================================================
 
@@ -178,11 +200,15 @@ async function getCredentials(
   supabase: any,
   body: z.infer<typeof baseRequestSchema>
 ): Promise<HostfullyCredentials | null> {
+  // Get the tracker environment as the authoritative source
+  const trackerEnv = await getTrackerEnvironment(supabase, "hostfully");
+  
   // Option 1: API key provided directly in request
   if (body.api_key) {
     return {
       api_key: body.api_key,
-      environment: body.environment || "production",
+      // Request body environment override OR tracker environment
+      environment: body.environment || trackerEnv,
     };
   }
 
@@ -202,7 +228,8 @@ async function getCredentials(
 
     return {
       api_key: data.api_key,
-      environment: data.environment as "sandbox" | "production" || "production",
+      // Use tracker environment as authoritative source
+      environment: trackerEnv,
       owner_credential_id: data.id,
     };
   }
@@ -226,7 +253,8 @@ async function getCredentials(
       if (ownerCred?.api_key) {
         return {
           api_key: ownerCred.api_key,
-          environment: ownerCred.environment as "sandbox" | "production" || "production",
+          // Use tracker environment as authoritative source
+          environment: trackerEnv,
           owner_credential_id: ownerCred.id,
         };
       }
@@ -256,7 +284,8 @@ async function getCredentials(
 
   return {
     api_key: apiKey,
-    environment: data.environment as "sandbox" | "production" || "production",
+    // Use tracker environment as authoritative source
+    environment: trackerEnv,
   };
 }
 

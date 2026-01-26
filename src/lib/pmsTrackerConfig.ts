@@ -26,6 +26,8 @@ export interface PMSTrackerStatus {
   has_soft_test: boolean;
   is_certified: boolean;
   is_production: boolean;
+  // Environment control
+  active_environment: 'sandbox' | 'production';
   // Legacy field (mapped to has_account)
   has_access?: boolean;
   notes?: string;
