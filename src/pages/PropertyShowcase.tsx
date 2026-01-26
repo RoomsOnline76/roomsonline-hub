@@ -259,6 +259,7 @@ export default function PropertyShowcase() {
   // HotelBeds properties: fetch availability on-demand
   const isHotelBedsProperty = property?.external_system === "hotelbeds";
   const isNightsBridgeProperty = property?.external_system === "nightsbridge";
+  const isHostfullyProperty = property?.external_system === "hostfully";
   
   // NightsBridge tracking: create session when property loads
   useEffect(() => {
@@ -276,13 +277,16 @@ export default function PropertyShowcase() {
   }, [isNightsBridgeProperty, property?.id, nightsBridgeAgentCode, currency, createBookingSession, nbTrackingRef]);
   
   useEffect(() => {
-    if (isHotelBedsProperty && property?.id) {
-      fetchHotelBedsAvailability();
+    if ((isHotelBedsProperty || isHostfullyProperty) && property?.id) {
+      fetchLivePMSAvailability();
     }
-  }, [property?.id, isHotelBedsProperty]);
+  }, [property?.id, isHotelBedsProperty, isHostfullyProperty]);
 
-  const fetchHotelBedsAvailability = async () => {
+  const fetchLivePMSAvailability = async () => {
     if (!property?.id) return;
+    
+    // Determine which API to use based on property type
+    const apiName = isHostfullyProperty ? 'hostfully-api' : 'hotelbeds-api';
     
     const today = new Date().toISOString().split('T')[0];
     const endDate = new Date();
@@ -290,7 +294,7 @@ export default function PropertyShowcase() {
     const end = endDate.toISOString().split('T')[0];
 
     try {
-      const { data, error } = await supabase.functions.invoke('hotelbeds-api', {
+      const { data, error } = await supabase.functions.invoke(apiName, {
         body: {
           action: 'fetch_availability',
           property_id: property.id,
@@ -303,8 +307,10 @@ export default function PropertyShowcase() {
         const availMap = new Map<string, AvailabilityData>();
         data.data.room_types.forEach((rt: any) => {
           const roomId = rt.room_type_id || rt.id;
-          // HotelBeds uses rooms_available_per_night, not daily_availability
-          const availabilityArray = rt.rooms_available_per_night || rt.daily_availability || [];
+          // Handle different PMS response formats
+          const availabilityArray = rt.rooms_available_per_night || 
+                                    rt.daily_availability || 
+                                    rt.availability_per_night || [];
           const todayData = availabilityArray.find((d: any) => d.date === today) || availabilityArray[0];
           
           // Always set availability, even if no daily data (default to available)
@@ -318,7 +324,7 @@ export default function PropertyShowcase() {
         setAvailability(availMap);
       }
     } catch (error) {
-      console.error('Failed to fetch HotelBeds availability:', error);
+      console.error(`Failed to fetch ${apiName} availability:`, error);
     }
   };
 
@@ -575,7 +581,7 @@ export default function PropertyShowcase() {
       />
       
       {/* Floating Date/Guest Picker for Benson and HotelBeds properties */}
-      {(isBensonProperty || isHotelBedsProperty) && (
+      {(isBensonProperty || isHotelBedsProperty || isHostfullyProperty) && (
         <FloatingDateGuestPicker onContinue={scrollToRooms} ctaLabel="Check Rates" />
       )}
     </PublicLayout>
