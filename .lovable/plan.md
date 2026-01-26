@@ -1,26 +1,17 @@
 
 
-# Fix Hostfully Booking Availability + Add Date Re-selection UX
+# Fix Hostfully Booking Errors + Ensure Accurate Success Reporting
 
 ## Problem Summary
 
-Two issues need to be addressed:
+Two critical issues are causing bookings to show "SUCCESS" in the UI while failing in the backend:
 
-### Issue 1: False "Unavailable" Errors (Root Cause)
-The `push-booking` edge function is using **Hostfully v2 API** endpoints, which return 404 "Endpoint not found" errors. These 404s are incorrectly interpreted as `AVAILABILITY_CHANGED` errors, making all Hostfully bookings appear unavailable.
+### Issue 1: Wrong Enum Value in Hostfully API
+The `source` field is set to `'RoomsOnline'` (line 1278 of push-booking), but Hostfully only accepts these values:
+- `DIRECT_HVMI`, `HOSTFULLY_ICAL`, `DIRECT_REDAWNING`, `DIRECT_GOOGLE`, `HOSTFULLY_UI`, `HOSTFULLY_OWNER_PORTAL`, `HOSTFULLY_LINKED`, `DIRECT_HOMETOGO`, `DIRECT_BOOKINGDOTCOM`, `HOSTFULLY_API`, `DIRECT_VRBO`, `DIRECT_AIRBNB`, `HOSTFULLY_DBS`
 
-**Evidence from logs:**
-```
-ERROR Hostfully availability check failed: 404 {"apiErrorMessage":"Endpoint not found"}
-Checking live availability: https://sandbox.hostfully.com/v2/property-calendar/...
-```
-
-**The problem:**
-- `push-booking/index.ts` line 1171-1173 uses v2: `https://sandbox.hostfully.com/v2`
-- `hostfully-api/index.ts` line 27-31 correctly uses v3: `https://sandbox.hostfully.com/api/v3`
-
-### Issue 2: Poor UX on Genuine Unavailability
-Even when dates are genuinely unavailable, users see only a toast error with no action path. The user should be offered a date picker to select new dates.
+### Issue 2: Silent Error Swallowing
+The frontend error handler (Booking.tsx lines 817-824) catches errors from `push-booking` and only re-throws them if they contain `AVAILABILITY_CHANGED`. All other errors (like the enum error) are logged but swallowed, allowing the booking to proceed to "success" even though the external system integration failed.
 
 ---
 
@@ -28,210 +19,133 @@ Even when dates are genuinely unavailable, users see only a toast error with no 
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/push-booking/index.ts` | Fix Hostfully base URL to use v3 API |
-| `src/pages/Booking.tsx` | Add date re-selection dialog when availability check fails |
+| `supabase/functions/push-booking/index.ts` | Fix `source` field to use `HOSTFULLY_API` enum value |
+| `src/pages/Booking.tsx` | Properly check push-booking results and fail if external sync failed |
 
 ---
 
 ## Technical Changes
 
-### Part 1: Fix Hostfully API Version in push-booking
+### Part 1: Fix Hostfully Source Enum
 
-**Current Code (lines 1171-1173):**
+**Current Code (line 1278):**
 ```typescript
-const baseUrl = environment === 'production'
-  ? 'https://api.hostfully.com/v2'
-  : 'https://sandbox.hostfully.com/v2';
+source: 'RoomsOnline',
 ```
 
 **Fixed Code:**
 ```typescript
-const baseUrl = environment === 'production'
-  ? 'https://api.hostfully.com/api/v3'
-  : 'https://sandbox.hostfully.com/api/v3';
+source: 'HOSTFULLY_API',
 ```
 
-This aligns with the correct v3 URLs already used in `hostfully-api/index.ts`.
+This uses the correct Hostfully enum value for API-driven bookings.
 
 ---
 
-### Part 2: Add Date Re-selection UX on Availability Error
+### Part 2: Ensure Frontend Shows Accurate Status
 
-When an `AVAILABILITY_CHANGED` error occurs, instead of just showing a toast, display a modal dialog that:
-1. Explains the dates are no longer available
-2. Shows a date picker (Calendar component) for selecting new dates
-3. Updates the booking form with new dates and recalculates cost
+The current error handling silently swallows external push failures. The fix ensures that if ALL external system pushes fail, the user sees an error instead of success.
 
-**Implementation in Booking.tsx:**
+**Current Flow (broken):**
+1. Insert booking into DB (succeeds)
+2. Push to external system (fails with enum error)
+3. Error is caught and logged but not re-thrown
+4. User sees "Success!" and is redirected to confirmation page
+5. Email shows the actual error
 
-1. **Add new state for availability error dialog:**
+**Fixed Flow:**
+1. Insert booking into DB (succeeds)
+2. Push to external system (fails)
+3. Check if ANY external push succeeded
+4. If none succeeded AND there were expected pushes, show error to user
+5. Delete the local booking record (optional, or mark as 'failed')
+6. User sees the actual error message
+
+**Code Changes in Booking.tsx (lines 795-824):**
+
 ```typescript
-const [showDateReselectDialog, setShowDateReselectDialog] = useState(false);
-const [pendingCheckIn, setPendingCheckIn] = useState<Date | undefined>();
-const [pendingCheckOut, setPendingCheckOut] = useState<Date | undefined>();
-```
+// After push-booking call
+const pushResults = pushResponse.data?.results || [];
+const hasAnySuccess = pushResults.some((r: any) => r.success);
+const failedResult = pushResults.find((r: any) => !r.success);
 
-2. **Modify onError handler to show dialog instead of just toast:**
-```typescript
-onError: (error) => {
-  const message = error instanceof Error ? error.message : "Failed to create booking";
+// Check for availability-specific errors (RULE #1: PMS is source of truth)
+const availabilityError = pushResults.find(
+  (r: any) => r.error_code === 'AVAILABILITY_CHANGED'
+);
+
+if (availabilityError) {
+  // Delete the booking record since it can't be fulfilled
+  await supabase.from('bookings').delete().eq('id', data.id);
+  throw new Error('AVAILABILITY_CHANGED: The selected dates are no longer available.');
+}
+
+// If ALL pushes failed (no availability issue), show the actual error
+if (pushResults.length > 0 && !hasAnySuccess) {
+  // Update booking status to 'failed' instead of deleting
+  await supabase.from('bookings').update({ status: 'failed' }).eq('id', data.id);
   
-  if (message.includes('AVAILABILITY_CHANGED')) {
-    // Show date re-selection dialog instead of just toast
-    setShowDateReselectDialog(true);
-  } else {
-    toast.error(message);
-  }
-},
-```
+  const errorMessage = failedResult?.error || 'Failed to complete booking with property';
+  throw new Error(`Booking failed: ${errorMessage}`);
+}
 
-3. **Add DateReselectDialog component (inside Booking.tsx):**
-```tsx
-<Dialog open={showDateReselectDialog} onOpenChange={setShowDateReselectDialog}>
-  <DialogContent className="sm:max-w-md">
-    <DialogHeader>
-      <DialogTitle className="flex items-center gap-2">
-        <AlertCircle className="h-5 w-5 text-amber-500" />
-        Dates No Longer Available
-      </DialogTitle>
-    </DialogHeader>
-    <div className="space-y-4 py-4">
-      <p className="text-sm text-muted-foreground">
-        The dates you selected are no longer available. Please choose new dates to continue with your booking.
-      </p>
-      
-      <div className="grid grid-cols-2 gap-4">
-        {/* Check-in Date Picker */}
-        <div className="space-y-2">
-          <Label>Check-in</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-start text-left">
-                <Calendar className="mr-2 h-4 w-4" />
-                {pendingCheckIn ? format(pendingCheckIn, "MMM d, yyyy") : "Select date"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 z-50 bg-background" align="start">
-              <CalendarComponent
-                mode="single"
-                selected={pendingCheckIn}
-                onSelect={setPendingCheckIn}
-                disabled={(date) => date < new Date()}
-                className="pointer-events-auto"
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-        
-        {/* Check-out Date Picker */}
-        <div className="space-y-2">
-          <Label>Check-out</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-start text-left">
-                <Calendar className="mr-2 h-4 w-4" />
-                {pendingCheckOut ? format(pendingCheckOut, "MMM d, yyyy") : "Select date"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 z-50 bg-background" align="start">
-              <CalendarComponent
-                mode="single"
-                selected={pendingCheckOut}
-                onSelect={setPendingCheckOut}
-                disabled={(date) => !pendingCheckIn || date <= pendingCheckIn}
-                className="pointer-events-auto"
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-      </div>
-    </div>
-    
-    <DialogFooter className="gap-2 sm:gap-0">
-      <Button variant="outline" onClick={() => setShowDateReselectDialog(false)}>
-        Cancel
-      </Button>
-      <Button 
-        onClick={handleDateReselection}
-        disabled={!pendingCheckIn || !pendingCheckOut}
-      >
-        Update Dates
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
-```
-
-4. **Add handler for date reselection:**
-```typescript
-const handleDateReselection = () => {
-  if (pendingCheckIn && pendingCheckOut) {
-    // Update form state with new dates
-    setCheckIn(format(pendingCheckIn, "yyyy-MM-dd"));
-    setCheckOut(format(pendingCheckOut, "yyyy-MM-dd"));
-    
-    // Close dialog
-    setShowDateReselectDialog(false);
-    
-    // Clear pending dates
-    setPendingCheckIn(undefined);
-    setPendingCheckOut(undefined);
-    
-    // Reset cost calculation to trigger recalculation
-    setTotalCost(0);
-    setCostBreakdown([]);
-    
-    // Show success toast
-    toast.success("Dates updated! Please review the new pricing and try again.");
-  }
-};
-```
-
-5. **Add required imports:**
-```typescript
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+// Extract external reservation IDs from successful pushes
+if (pushResponse.data?.external_reservation_ids) {
+  externalRefIds = pushResponse.data.external_reservation_ids.map((id: any) => String(id));
+} else {
+  const successfulResults = pushResults.filter((r: any) => r.success && r.external_booking_id);
+  externalRefIds = successfulResults.map((r: any) => String(r.external_booking_id));
+}
 ```
 
 ---
 
-## UX Flow After Changes
+## Updated Error Handling Flow
 
 ```text
 User clicks "Confirm Booking"
          │
          ▼
    ┌─────────────────────┐
-   │ push-booking runs   │
-   │ with v3 API         │◄── FIX: Correct endpoint
+   │ Insert into DB      │
+   │ (status: pending)   │
    └─────────────────────┘
          │
-         ▼
-    ┌───────────┐          ┌────────────────────────┐
-    │ Available │──YES───► │ Booking succeeds       │
-    └───────────┘          └────────────────────────┘
-         │NO
          ▼
    ┌─────────────────────┐
-   │ DateReselectDialog  │◄── NEW: User-friendly modal
-   │ with Calendar       │
+   │ push-booking runs   │
+   │ with correct enum   │◄── FIX 1: HOSTFULLY_API
    └─────────────────────┘
          │
          ▼
-   User picks new dates
+   ┌─────────────────────┐
+   │ Check pushResults   │
+   └─────────────────────┘
          │
-         ▼
-   Cost recalculates → User can retry booking
+    ┌────┴────┐
+    │         │
+  Success    Failure
+    │         │
+    ▼         ▼
+  Show      Mark booking
+  Success   as 'failed'
+  Page      + Show Error ◄── FIX 2: No more silent swallowing
 ```
 
 ---
 
 ## Expected Results
 
-1. **Hostfully bookings will work** - Using correct v3 API means the availability endpoint exists
-2. **Genuine unavailability is handled gracefully** - Users get a calendar picker to select new dates
-3. **Better UX** - No dead-end error states; always an action path forward
+1. **Hostfully bookings will work** - Using `HOSTFULLY_API` satisfies the enum validation
+2. **Honest status reporting** - Users only see "Success" when the booking is actually confirmed with the property system
+3. **Failed bookings are marked correctly** - Status is set to 'failed' instead of remaining 'pending'
+4. **Better debugging** - Actual error messages are shown to users, not just logged
+
+---
+
+## Technical Details
+
+The Hostfully API expects the `source` field to identify how the booking originated. `HOSTFULLY_API` is the correct value for bookings created programmatically via their API.
+
+By removing the try-catch that swallows non-availability errors, the frontend will properly propagate failures to the user. This ensures the "truth" shown in the UI matches the "truth" sent in the email.
 
