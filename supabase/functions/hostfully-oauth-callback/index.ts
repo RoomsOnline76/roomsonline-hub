@@ -14,7 +14,7 @@ const getAppUrl = (): string => {
     return envUrl;
   }
   // Fallback to production URL
-  return 'https://roomsonline-hub.lovable.app';
+  return 'https://sleepinafrica.roomsonline.co.za';
 };
 
 serve(async (req) => {
