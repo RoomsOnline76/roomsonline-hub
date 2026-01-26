@@ -1,60 +1,117 @@
 
 
-# Fix Hostfully Booking Total Calculation
+# Fix Hostfully Push-Booking API Key Retrieval
 
-## Problem
+## Problem Identified
 
-The Booking page shows "On request" instead of the calculated price for Hostfully properties. The cost calculation is failing because:
+The booking shows "SUCCESS" in the modal but the email reports "Hostfully API key not found in owner credentials" because of **two bugs** in the `push-booking` edge function:
 
-1. Hostfully returns `price_type: "per_night"` in the API response
-2. The `calculateCost()` function in Booking.tsx only checks for `'PER ROOM'`, `'PERROOM'`, or `'UNITRATE'` for per-room pricing
-3. `"per_night".toUpperCase()` = `"PER_NIGHT"` - which doesn't match any condition
-4. The code falls through to per-person pricing, which fails because Hostfully only has `room_amount`, not adult amounts
+### Bug 1: Non-existent Column Reference
+Line 1114 queries by `property.owner_id`, but the `properties` table doesn't have an `owner_id` column - it only has `owner_email` and `owner_pms_credential_id`.
+
+### Bug 2: Incorrect Variable Assignment
+Line 1139 uses `Object.assign(ownerCreds || {}, fallbackCreds)` which creates a new object but doesn't update the `ownerCreds` variable. The original variable remains `null`, so line 1145 `ownerCreds?.api_key` still returns `undefined`.
+
+## Database Evidence
+
+The data shows the connection exists and works:
+- Property `[SANDBOX] Victorian House (Sample)` has `owner_pms_credential_id = 839ec420-...`
+- That credential has `api_key = EJOnIxlU7yrLbmNp` and is active
+- The property's `owner_email = marketing@fluent.sandbox.co.za` correctly maps to profile ID `2ac69111-...`
 
 ## Solution
 
-Add `'PER_NIGHT'` and `'PER NIGHT'` to the price type check in `Booking.tsx`:
+Update `push-booking/index.ts` to:
 
-## Changes Required
+1. **Primary lookup**: Use `property.owner_pms_credential_id` directly (the simplest and most reliable method)
+2. **Fallback 1**: Query by owner profile via `owner_email`
+3. **Fallback 2**: Keep the email-based lookup as final fallback
+4. **Fix the variable assignment**: Use proper assignment instead of `Object.assign`
 
-| File | Change |
-|------|--------|
-| `src/pages/Booking.tsx` | Line 477: Add `'PER_NIGHT'` and `'PER NIGHT'` to the priceType condition |
+## Code Changes
 
-## Code Change
+| File | Changes |
+|------|---------|
+| `supabase/functions/push-booking/index.ts` | Lines 1110-1148: Fix credential lookup logic |
 
-**Current code (line 477):**
+### Updated Logic:
+
 ```typescript
-if (priceType === 'PER ROOM' || priceType === 'PERROOM' || priceType === 'UNITRATE') {
+// Get owner credentials for Hostfully
+let ownerCreds: any = null;
+
+// Option 1: Use property.owner_pms_credential_id directly (most reliable)
+if (property.owner_pms_credential_id) {
+  const { data } = await supabaseClient
+    .from('owner_pms_credentials')
+    .select('*')
+    .eq('id', property.owner_pms_credential_id)
+    .eq('is_active', true)
+    .maybeSingle();
+  
+  if (data) {
+    ownerCreds = data;
+  }
+}
+
+// Option 2: Fallback - try to get credentials via owner_email -> profile -> credentials
+if (!ownerCreds && property.owner_email) {
+  const { data: ownerProfile } = await supabaseClient
+    .from('profiles')
+    .select('id')
+    .eq('email', property.owner_email)
+    .maybeSingle();
+
+  if (ownerProfile) {
+    const { data } = await supabaseClient
+      .from('owner_pms_credentials')
+      .select('*')
+      .eq('owner_id', ownerProfile.id)
+      .eq('system_type', 'hostfully')
+      .eq('is_active', true)
+      .maybeSingle();
+    
+    if (data) {
+      ownerCreds = data;
+    }
+  }
+}
+
+if (!ownerCreds) {
+  throw new Error('Hostfully owner credentials not configured for this property');
+}
+
+const apiKey = ownerCreds.api_key;
+if (!apiKey) {
+  throw new Error('Hostfully API key not found in owner credentials');
+}
 ```
 
-**Fixed code:**
+## Technical Details
+
+**Why the current code fails:**
+
 ```typescript
-if (priceType === 'PER ROOM' || priceType === 'PERROOM' || priceType === 'UNITRATE' || priceType === 'PER_NIGHT' || priceType === 'PER NIGHT') {
+// Line 1114 - property.owner_id is UNDEFINED (column doesn't exist)
+.eq('owner_id', property.owner_id)  // matches nothing
+
+// Line 1139 - Object.assign returns a new object, doesn't update ownerCreds
+Object.assign(ownerCreds || {}, fallbackCreds);  // result is discarded!
+
+// Line 1145 - ownerCreds is still null
+const apiKey = ownerCreds?.api_key;  // undefined!
 ```
 
-This single-line fix will allow Hostfully's per-night pricing to be correctly processed as per-room pricing, calculating the total by summing `room_amount` for each night.
+**Why the fix works:**
+
+1. Uses `property.owner_pms_credential_id` which is explicitly set during property import
+2. Properly reassigns `ownerCreds = data` instead of using broken `Object.assign`
+3. Clear fallback chain with proper variable mutation
 
 ## Expected Result
 
 After this fix:
-- The Booking Summary will show the actual calculated total (e.g., ZAR 2,250 for 5 nights at ZAR 450/night)
-- The "Confirm Booking" button will work correctly
-- The cost breakdown will display properly
-
-## Technical Details
-
-The Hostfully API returns rates in this format:
-```json
-{
-  "rate_type_id": "per-unit",
-  "price_type": "per_night",
-  "rates": [
-    { "date": "2026-02-15", "room_amount": 450 },
-    { "date": "2026-02-16", "room_amount": 450 }
-  ]
-}
-```
-
-The fix ensures this `per_night` price type is handled identically to `per room` pricing - summing the `room_amount` for each night in the stay.
+- Hostfully bookings will successfully retrieve the API key from owner credentials
+- Lead creation in Hostfully will work
+- Booking confirmation emails will show success (not error)
 
