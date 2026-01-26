@@ -1,95 +1,123 @@
 
 
-# Fix Hostfully Calendar Sync: Credential Resolution Issue
+# Fix Hostfully Calendar Sync: Incorrect API Endpoint
 
-## Problem Analysis
+## Problem Summary
 
-The calendar sync is failing with "AUTH_FAILED: Hostfully API key is invalid or expired", but the user confirms the sandbox credentials are configured correctly in the API Keys page.
+The Hostfully calendar sync is failing with `NOT_FOUND` error because the edge function is using an **incorrect API endpoint**:
 
-### Root Cause
-
-The `hostfully-api` edge function has a credential resolution order that causes issues:
-
-```text
-Current flow in getCredentials():
-1. Check request.api_key (not passed by calendar)
-2. Check request.owner_credential_id (not passed by calendar)  
-3. Fallback to pms_credentials table → BUT then override with HOSTFULLY_API_KEY secret if set
-```
-
-**Line 223-224 in hostfully-api/index.ts:**
-```typescript
-const apiKeyFromEnv = Deno.env.get("HOSTFULLY_API_KEY");
-const apiKey = apiKeyFromEnv || data.api_key;  // ENV takes precedence!
-```
-
-The `HOSTFULLY_API_KEY` secret exists and takes precedence over the database value. If this secret contains an old/expired key, the database value is ignored.
+| Current Endpoint (Wrong) | Correct Endpoint |
+|-------------------------|------------------|
+| `/properties/{uid}/calendar` | `/property-calendar/{uid}` |
 
 ### Evidence from Logs
 
 ```
-[Hostfully] GET https://sandbox.hostfully.com/api/v3/properties/818e799c-df32-4d53-8765-dd8b7e2b0ff0/calendar
-Response: 401 AUTH_FAILED - "Hostfully API key is invalid or expired"
+[Hostfully] GET https://sandbox.hostfully.com/api/v3/properties/818e799c-df32-4d53-8765-dd8b7e2b0ff0/calendar?startDate=2026-01-01&endDate=2026-01-31
+
+Response: NOT_FOUND - "Hostfully resource not found"
 ```
 
-The edge function IS successfully:
-- Connecting to the sandbox environment (correct)
-- Using the property UID (correct)
-- Sending an API key (but it's being rejected)
+The API key is now valid (error changed from `AUTH_FAILED` to `NOT_FOUND`), confirming the credential fix worked. The issue is now the endpoint path.
+
+---
+
+## Root Cause
+
+The Hostfully API v3 uses a **top-level resource pattern** for calendars:
+- **Correct**: `GET /property-calendar/{propertyUid}?from={date}&to={date}`
+- **Current (Wrong)**: `GET /properties/{propertyUid}/calendar?startDate={date}&endDate={date}`
+
+Also, the query parameters are incorrect:
+- **Correct**: `from` and `to`
+- **Current (Wrong)**: `startDate` and `endDate`
+
+---
+
+## Additional Issue: No Rooms Imported
+
+The `hostfully_room_types` table has **no entries** for this property, meaning the full ingestion was not completed. This may need to be re-triggered, but first the calendar endpoint must work.
 
 ---
 
 ## Solution
 
-Reverse the credential priority order: **Database value should take precedence over environment variable** since the database is the user-editable source of truth.
+### Part 1: Fix Calendar Endpoint
 
-### File: `supabase/functions/hostfully-api/index.ts`
+**File**: `supabase/functions/hostfully-api/index.ts`
 
-**Lines 223-224** - Change priority order:
+**Line 738** - Change endpoint pattern and query parameters:
 
 ```typescript
-// FROM (current - ENV takes precedence):
-const apiKeyFromEnv = Deno.env.get("HOSTFULLY_API_KEY");
-const apiKey = apiKeyFromEnv || data.api_key;
+// FROM (wrong):
+const endpoint = `/properties/${propertyUid}/calendar?startDate=${startDate}&endDate=${endDate}`;
 
-// TO (fix - Database takes precedence, ENV is fallback):
-const apiKeyFromEnv = Deno.env.get("HOSTFULLY_API_KEY");
-const apiKey = data.api_key || apiKeyFromEnv;  // DB first, then ENV fallback
+// TO (correct per Hostfully API v3):
+const endpoint = `/property-calendar/${propertyUid}?from=${startDate}&to=${endDate}`;
 ```
 
-This ensures:
-1. If user sets API key in Admin > API Keys page → that key is used
-2. If database has no key → fallback to environment variable
-3. Consistent with user expectation that the UI controls the credentials
+**Line 839** - Same fix in `handleCreateReservation`:
 
----
+```typescript
+// FROM (wrong):
+const calendarEndpoint = `/properties/${propertyUid}/calendar?startDate=${reservationData.checkInDate}&endDate=${reservationData.checkOutDate}`;
 
-## Additional Recommendation
+// TO (correct):
+const calendarEndpoint = `/property-calendar/${propertyUid}?from=${reservationData.checkInDate}&to=${reservationData.checkOutDate}`;
+```
 
-The user should verify the API key in the Admin > API Keys page is correct for the Hostfully sandbox environment. The current database value is:
+### Part 2: Handle Response Format Difference
 
-| Field | Value |
-|-------|-------|
-| API Key | `EJOnIxlU7yrLbmNp` |
-| Environment | `staging` (maps to sandbox) |
-
-If this key is expired, it needs to be regenerated from the Hostfully dashboard.
+The Hostfully `/property-calendar` endpoint may return a different response format. We need to verify and potentially update the `mapHostfullyCalendarToAvailability` function if needed.
 
 ---
 
 ## Files Modified
 
-| File | Change |
-|------|--------|
-| `supabase/functions/hostfully-api/index.ts` | Swap priority order at lines 223-224 so database API key takes precedence over environment variable |
+| File | Line | Change |
+|------|------|--------|
+| `supabase/functions/hostfully-api/index.ts` | 738 | Change endpoint from `/properties/{uid}/calendar` to `/property-calendar/{uid}` and query params from `startDate/endDate` to `from/to` |
+| `supabase/functions/hostfully-api/index.ts` | 839 | Same fix for reservation availability check |
+
+---
+
+## Technical Details
+
+### Hostfully API v3 Calendar Endpoint
+Reference: https://dev.hostfully.com/reference/findbypropertyuid_1
+
+```
+GET /property-calendar/{propertyUid}?from=YYYY-MM-DD&to=YYYY-MM-DD
+```
+
+Returns an array of calendar day objects with availability and pricing.
+
+### Expected Response Format
+```json
+[
+  {
+    "date": "2026-01-01",
+    "available": true,
+    "price": 150.00,
+    "minimumStay": 2,
+    "checkInAllowed": true,
+    "checkOutAllowed": true
+  }
+]
+```
 
 ---
 
 ## Expected Outcome
 
 After this fix:
-1. The API key from `pms_credentials` table (editable via Admin > API Keys) will be used
-2. If the database key is valid, calendar sync will work
-3. If the database key is also expired, the user will know to update it in the Admin UI
-4. The environment variable serves as a fallback only
+1. Hostfully calendar sync will successfully fetch availability data
+2. The calendar grid will populate with availability and rates
+3. Booking creation will properly check live availability before confirming
+
+---
+
+## Post-Fix Recommendation
+
+After the calendar endpoint is fixed, you may want to re-run the **full property ingestion** to populate the `hostfully_room_types` table with room data. This can be done from the Admin > API Keys page using the "Sync" or "Import" action for the property.
 
