@@ -1603,25 +1603,27 @@ export default function AdminKeys() {
   };
 
   // Calculate configured PMS/API count based on actual credentials
-  // Calculate total progress across all trackable systems (8 flags × 12 systems = 96 milestones)
+  // Calculate total progress across all trackable systems (9 flags × 13 systems = 117 milestones)
   // Excludes roomsonline (internal), recaptcha, maps
   const getProgressStats = () => {
     const trackableSystems = Object.entries(trackerData)
       .filter(([key]) => !['roomsonline', 'recaptcha', 'google_maps'].includes(key));
     
     let completedFlags = 0;
-    const totalFlags = trackableSystems.length * 8; // 8 flags per system
+    const totalFlags = trackableSystems.length * 9; // 9 flags per system
     let deployedCount = 0;
     
     trackableSystems.forEach(([_, data]) => {
-      // Count completed flags
+      // Count completed flags - Setup phase
       if (data.has_account) completedFlags++;
       if (data.has_docs) completedFlags++;
       if (data.has_edge) completedFlags++;
+      // Integration phase
       if (data.has_health) completedFlags++;
       if (data.has_get) completedFlags++;
       if (data.has_post) completedFlags++;
       if (data.has_soft_test) completedFlags++;
+      if (data.is_certified) completedFlags++;
       if (data.is_production) completedFlags++;
       
       // Count deployed systems
@@ -1630,9 +1632,9 @@ export default function AdminKeys() {
     
     return { 
       completedFlags, 
-      totalFlags: totalFlags || 96, // Default to 96 if no tracker data yet
+      totalFlags: totalFlags || 117, // Default to 117 if no tracker data yet (13 systems × 9)
       deployedCount,
-      systemCount: trackableSystems.length || 12
+      systemCount: trackableSystems.length || 13
     };
   };
   

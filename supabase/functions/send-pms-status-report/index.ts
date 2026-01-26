@@ -25,6 +25,7 @@ interface TrackerData {
   has_get: boolean;
   has_post: boolean;
   has_soft_test: boolean;
+  is_certified: boolean;
   is_production: boolean;
   // Legacy
   has_access: boolean;
@@ -102,19 +103,22 @@ const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[],
   const parkedCount = trackerData.filter((t) => t.integration_status === "parked").length;
   const comingSoonCount = trackerData.filter((t) => t.integration_status === "coming_soon" || !t.integration_status).length;
   
-  // Calculate total milestones
+  // Calculate total milestones (9 per system)
   let totalMilestones = 0;
   trackerData.forEach((t) => {
+    // Setup phase
     if (t.has_account) totalMilestones++;
     if (t.has_docs) totalMilestones++;
     if (t.has_edge) totalMilestones++;
+    // Integration phase
     if (t.has_health) totalMilestones++;
     if (t.has_get) totalMilestones++;
     if (t.has_post) totalMilestones++;
     if (t.has_soft_test) totalMilestones++;
+    if (t.is_certified) totalMilestones++;
     if (t.is_production) totalMilestones++;
   });
-  const maxMilestones = trackerData.length * 8;
+  const maxMilestones = trackerData.length * 9;
 
   // Build a map of latest note per system
   const latestNoteBySystem: Record<string, NoteLogEntry> = {};
@@ -149,8 +153,8 @@ const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[],
     .map((row) => {
       // Setup phase: Account, Docs, Edge
       const setupFlags = [row.has_account || row.has_access, row.has_docs, row.has_edge];
-      // Integration phase: Health, GET, POST, Test, Live
-      const integrationFlags = [row.has_health, row.has_get, row.has_post, row.has_soft_test, row.is_production];
+      // Integration phase: Health, GET, POST, Test, Certify, Live
+      const integrationFlags = [row.has_health, row.has_get, row.has_post, row.has_soft_test, row.is_certified, row.is_production];
       const allFlags = [...setupFlags, ...integrationFlags];
 
       // Build contact display
@@ -179,11 +183,11 @@ const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[],
         })
         .join("");
 
-      // Integration progress dots (Health, GET, POST, Test, Live)
-      const integrationLabels = ["He", "Gt", "Ps", "Te", "Lv"];
+      // Integration progress dots (Health, GET, POST, Test, Certify, Live)
+      const integrationLabels = ["He", "Gt", "Ps", "Te", "Ce", "Lv"];
       const integrationDots = integrationFlags
         .map((flag, i) => {
-          return `<span style="display: inline-block; width: 20px; height: 18px; border-radius: 3px; background: ${flag ? "#22c55e" : "#e2e8f0"}; color: ${flag ? "#fff" : "#94a3b8"}; font-size: 9px; line-height: 18px; text-align: center; margin-right: 2px;" title="${["Health", "GET", "POST", "Test", "Live"][i]}">${integrationLabels[i]}</span>`;
+          return `<span style="display: inline-block; width: 20px; height: 18px; border-radius: 3px; background: ${flag ? "#22c55e" : "#e2e8f0"}; color: ${flag ? "#fff" : "#94a3b8"}; font-size: 9px; line-height: 18px; text-align: center; margin-right: 2px;" title="${["Health", "GET", "POST", "Test", "Certify", "Live"][i]}">${integrationLabels[i]}</span>`;
         })
         .join("");
 
@@ -207,7 +211,7 @@ const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[],
             <div style="margin-bottom: 2px;">${setupDots}</div>
             <div>${integrationDots}</div>
           </div>
-          <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">${flagsCompleted}/8</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">${flagsCompleted}/9</div>
         </td>
         <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; color: #4a5568; font-size: 13px;">
           ${contactDisplay}
@@ -343,6 +347,7 @@ const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[],
                 <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">Gt</span> GET API
                 <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">Ps</span> POST API
                 <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">Te</span> Soft Test
+                <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">Ce</span> Certify
                 <span style="background: #e2e8f0; padding: 2px 6px; border-radius: 3px; margin: 0 3px;">Lv</span> Live
               </p>
             </td>
