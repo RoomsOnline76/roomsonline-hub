@@ -21,6 +21,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { FormattedPrice } from "@/components/FormattedPrice";
+import { useItinerary } from "@/contexts/ItineraryContext";
 
 // Booking form validation schema
 const bookingSchema = z.object({
@@ -72,6 +73,9 @@ const Booking = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
+  // Get sticky guest details from context
+  const { guestDetails, setGuestDetails } = useItinerary();
+  
   const urlCheckIn = searchParams.get("checkIn");
   const urlCheckOut = searchParams.get("checkOut");
   const initialGuests = parseInt(searchParams.get("guests") || "2");
@@ -87,10 +91,10 @@ const Booking = () => {
   const preSelectedInfants = parseInt(searchParams.get("infants") || "0");
   const preSelectedTotalCost = searchParams.get("totalCost") ? parseFloat(searchParams.get("totalCost")!) : null;
 
-  // Form state
-  const [guestName, setGuestName] = useState("");
-  const [guestEmail, setGuestEmail] = useState("");
-  const [guestPhone, setGuestPhone] = useState("");
+  // Form state - initialize from sticky context
+  const [guestName, setGuestName] = useState(guestDetails.name || "");
+  const [guestEmail, setGuestEmail] = useState(guestDetails.email || "");
+  const [guestPhone, setGuestPhone] = useState(guestDetails.phone || "");
   const [voucher, setVoucher] = useState("");
   const [specialRequests, setSpecialRequests] = useState("");
   const [selectedRateType, setSelectedRateType] = useState<string>("");
@@ -1035,6 +1039,7 @@ const Booking = () => {
                       id="guest_name"
                       value={guestName}
                       onChange={(e) => setGuestName(e.target.value)}
+                      onBlur={() => setGuestDetails({ name: guestName })}
                       placeholder="John Smith"
                       className={cn("h-9 sm:h-10 text-sm", formErrors.guest_name && "border-destructive")}
                     />
@@ -1049,6 +1054,7 @@ const Booking = () => {
                       type="email"
                       value={guestEmail}
                       onChange={(e) => setGuestEmail(e.target.value)}
+                      onBlur={() => setGuestDetails({ email: guestEmail })}
                       placeholder="john@example.com"
                       className={cn("h-9 sm:h-10 text-sm", formErrors.guest_email && "border-destructive")}
                     />
@@ -1064,6 +1070,7 @@ const Booking = () => {
                     type="tel"
                     value={guestPhone}
                     onChange={(e) => setGuestPhone(e.target.value)}
+                    onBlur={() => setGuestDetails({ phone: guestPhone })}
                     placeholder="+27 12 345 6789"
                     className={cn("h-9 sm:h-10 text-sm", formErrors.guest_phone && "border-destructive")}
                   />
