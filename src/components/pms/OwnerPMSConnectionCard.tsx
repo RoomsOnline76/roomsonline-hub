@@ -57,11 +57,26 @@ export function OwnerPMSConnectionCard({
   const [fetchingBuildings, setFetchingBuildings] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [validating, setValidating] = useState(false);
+  const [trackerEnvironment, setTrackerEnvironment] = useState<'sandbox' | 'production'>('sandbox');
 
-  // Auto-detect sandbox from owner name/email, or use existing credential environment
-  const isSandboxOwner = ownerName?.toLowerCase().includes('sandbox') || 
-                         ownerEmail?.toLowerCase().includes('sandbox');
-  const environment = existingCredential?.environment || (isSandboxOwner ? 'sandbox' : 'production');
+  // Fetch tracker environment on mount - this is the source of truth for API calls
+  useEffect(() => {
+    const fetchTrackerEnv = async () => {
+      const { data } = await supabase
+        .from('pms_tracker_status')
+        .select('active_environment')
+        .eq('system_type', 'hostfully')
+        .maybeSingle();
+      
+      if (data?.active_environment) {
+        setTrackerEnvironment(data.active_environment as 'sandbox' | 'production');
+      }
+    };
+    fetchTrackerEnv();
+  }, []);
+
+  // Use tracker environment as the source of truth for ALL API calls
+  const environment = trackerEnvironment;
   const [syncing, setSyncing] = useState(false);
   const [buildingsData, setBuildingsData] = useState<{ total: number; imported: number }>({ total: 0, imported: 0 });
 
