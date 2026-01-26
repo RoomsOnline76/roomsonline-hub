@@ -1,22 +1,24 @@
 
 
-# Fix Hostfully Missing 'status' Field
+# Fix Hostfully Status Enum Value
 
 ## Problem
 
-The Hostfully Leads API v3 requires a `status` field but the current `leadPayload` doesn't include it:
+The `status` field in the Hostfully lead payload is set to `'INQUIRY'`, which is **not a valid enum value**.
 
-```
-Error: "Invalid parameter 'status' must not be null"
-```
+**Error:** `"Wrong enum value, allowed values are: NEW, CANCELLED, IGNORED, PENDING, BOOKED, SAMPLE, DUPLICATE, CLOSED, DECLINED, PENDING_APPROVED, BLOCKED, ON_HOLD"`
+
+## Root Cause
+
+The Hostfully Leads API has a specific set of allowed status values, and `INQUIRY` is not one of them. This was an incorrect assumption based on the previous error message.
 
 ## Solution
 
-Add the required `status` field to the Hostfully lead payload. The appropriate value is `INQUIRY` since this represents a booking request that needs property confirmation.
+Change the `status` field from `'INQUIRY'` to `'NEW'` which represents a new booking/inquiry in Hostfully's system.
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/push-booking/index.ts` | Add `status: 'INQUIRY'` to leadPayload |
+| `supabase/functions/push-booking/index.ts` | Change `status: 'INQUIRY'` to `status: 'NEW'` |
 
 ---
 
@@ -24,56 +26,39 @@ Add the required `status` field to the Hostfully lead payload. The appropriate v
 
 **File:** `supabase/functions/push-booking/index.ts`
 
-**Current Code (lines 1267-1279):**
+**Line 1279 - Current Code:**
 ```typescript
-const leadPayload = {
-  propertyUid: hostfullyUid,
-  checkInDate: booking.check_in_date,
-  checkOutDate: booking.check_out_date,
-  firstName: firstName,
-  lastName: lastName,
-  email: booking.guest_email,
-  phoneNumber: booking.guest_phone || '',
-  adults: booking.adults || 2,
-  children: (booking.children || 0) + (booking.teens || 0) + (booking.infants || 0),
-  notes: booking.special_requests || '',
-  source: 'HOSTFULLY_API',
-};
+status: 'INQUIRY',
 ```
 
 **Fixed Code:**
 ```typescript
-const leadPayload = {
-  propertyUid: hostfullyUid,
-  checkInDate: booking.check_in_date,
-  checkOutDate: booking.check_out_date,
-  firstName: firstName,
-  lastName: lastName,
-  email: booking.guest_email,
-  phoneNumber: booking.guest_phone || '',
-  adults: booking.adults || 2,
-  children: (booking.children || 0) + (booking.teens || 0) + (booking.infants || 0),
-  notes: booking.special_requests || '',
-  source: 'HOSTFULLY_API',
-  status: 'INQUIRY',  // Required field - booking request awaiting confirmation
-};
+status: 'NEW',
 ```
 
 ---
 
-## Hostfully Status Values Reference
+## Hostfully Status Values Reference (Corrected)
 
 | Status | Meaning |
 |--------|---------|
-| `BLOCK` | Block dates (not a booking) |
-| `INQUIRY` | Potential booking/inquiry |
-| `BOOKING_REQUEST` | Confirmed booking request |
-| `BOOKING` | Confirmed booking |
+| `NEW` | New lead/inquiry (use this for new bookings) |
+| `PENDING` | Awaiting action |
+| `PENDING_APPROVED` | Approved but pending confirmation |
+| `BOOKED` | Confirmed booking |
+| `CANCELLED` | Cancelled |
+| `DECLINED` | Declined by property |
+| `CLOSED` | Closed lead |
+| `BLOCKED` | Blocked dates |
+| `ON_HOLD` | On hold |
+| `IGNORED` | Ignored lead |
+| `DUPLICATE` | Duplicate entry |
+| `SAMPLE` | Sample/test data |
 
-Using `INQUIRY` is appropriate because:
-1. It creates the lead in Hostfully's system
-2. The property owner can then confirm/convert it to a booking
-3. It doesn't immediately block the calendar (allowing for approval workflow)
+Using `NEW` is appropriate because:
+1. It represents a fresh booking inquiry
+2. Property owner can then change status to `BOOKED` or other states
+3. It correctly signals a new lead entering the system
 
 ---
 
@@ -81,6 +66,6 @@ Using `INQUIRY` is appropriate because:
 
 After this fix:
 - Hostfully API accepts the lead creation request
-- Lead is created in Hostfully with status "INQUIRY"
-- Booking succeeds and user sees confirmation
+- Lead is created in Hostfully with status "NEW"
+- Booking succeeds and user sees confirmation page
 
