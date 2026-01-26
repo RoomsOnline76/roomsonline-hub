@@ -1168,9 +1168,10 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         const environment = trackerData?.active_environment || 'sandbox';
+        // CRITICAL: Use v3 API endpoints (v2 returns 404 "Endpoint not found")
         const baseUrl = environment === 'production'
-          ? 'https://api.hostfully.com/v2'
-          : 'https://sandbox.hostfully.com/v2';
+          ? 'https://api.hostfully.com/api/v3'
+          : 'https://sandbox.hostfully.com/api/v3';
 
         console.log(`Using Hostfully ${environment} environment at ${baseUrl}`);
 

@@ -9,7 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Users, ArrowLeft, Minus, Plus, Loader2, CheckCircle, AlertCircle, Info } from "lucide-react";
+import { Calendar, Users, ArrowLeft, Minus, Plus, Loader2, CheckCircle, AlertCircle, Info, CalendarDays } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { getPropertyUrl } from "@/lib/config";
@@ -106,6 +109,11 @@ const Booking = () => {
   const [costBreakdown, setCostBreakdown] = useState<CostLineItem[]>([]);
   const [totalCost, setTotalCost] = useState<number>(0);
   const [calculatingCost, setCalculatingCost] = useState(false);
+  
+  // Date re-selection dialog state (for AVAILABILITY_CHANGED errors)
+  const [showDateReselectDialog, setShowDateReselectDialog] = useState(false);
+  const [pendingCheckIn, setPendingCheckIn] = useState<Date | undefined>();
+  const [pendingCheckOut, setPendingCheckOut] = useState<Date | undefined>();
 
   // Fetch property by ID or slug using public view for anonymous access
   const { data: property, isLoading } = useQuery({
@@ -844,14 +852,36 @@ const Booking = () => {
       
       // Special handling for availability errors (RULE #1: PMS is source of truth)
       if (message.includes('AVAILABILITY_CHANGED')) {
-        toast.error("These dates are no longer available. Please select different dates or room.", {
-          duration: 6000,
-        });
+        // Show date re-selection dialog instead of just a toast
+        setShowDateReselectDialog(true);
       } else {
         toast.error(message);
       }
     },
   });
+  
+  // Handler for date re-selection after availability error
+  const handleDateReselection = () => {
+    if (pendingCheckIn && pendingCheckOut) {
+      // Update form state with new dates
+      setCheckIn(format(pendingCheckIn, "yyyy-MM-dd"));
+      setCheckOut(format(pendingCheckOut, "yyyy-MM-dd"));
+      
+      // Close dialog
+      setShowDateReselectDialog(false);
+      
+      // Clear pending dates
+      setPendingCheckIn(undefined);
+      setPendingCheckOut(undefined);
+      
+      // Reset cost calculation to trigger recalculation
+      setTotalCost(0);
+      setCostBreakdown([]);
+      
+      // Show success toast
+      toast.success("Dates updated! Please review the new pricing and try again.");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -1524,6 +1554,82 @@ const Booking = () => {
           </div>
         </div>
       </div>
+      
+      {/* Date Re-selection Dialog (shown on AVAILABILITY_CHANGED error) */}
+      <Dialog open={showDateReselectDialog} onOpenChange={setShowDateReselectDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-500" />
+              Dates No Longer Available
+            </DialogTitle>
+            <DialogDescription>
+              The dates you selected are no longer available. Please choose new dates to continue with your booking.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              {/* Check-in Date Picker */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Check-in</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <CalendarDays className="mr-2 h-4 w-4" />
+                      {pendingCheckIn ? format(pendingCheckIn, "MMM d, yyyy") : "Select date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 z-50 bg-background" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={pendingCheckIn}
+                      onSelect={setPendingCheckIn}
+                      disabled={(date) => date < new Date()}
+                      className="pointer-events-auto"
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              
+              {/* Check-out Date Picker */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Check-out</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <CalendarDays className="mr-2 h-4 w-4" />
+                      {pendingCheckOut ? format(pendingCheckOut, "MMM d, yyyy") : "Select date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 z-50 bg-background" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={pendingCheckOut}
+                      onSelect={setPendingCheckOut}
+                      disabled={(date) => !pendingCheckIn || date <= pendingCheckIn}
+                      className="pointer-events-auto"
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowDateReselectDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleDateReselection}
+              disabled={!pendingCheckIn || !pendingCheckOut}
+            >
+              Update Dates
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PublicLayout>
   );
 };
