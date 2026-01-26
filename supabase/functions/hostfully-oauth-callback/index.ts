@@ -6,6 +6,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper to get valid app URL
+const getAppUrl = (): string => {
+  const envUrl = Deno.env.get('APP_URL');
+  // Validate it's a proper URL (starts with http:// or https://)
+  if (envUrl && (envUrl.startsWith('http://') || envUrl.startsWith('https://'))) {
+    return envUrl;
+  }
+  // Fallback to production URL
+  return 'https://roomsonline.co.za';
+};
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -39,7 +50,7 @@ serve(async (req) => {
     // Handle Hostfully-specific status responses
     if (status === 'INCORRECT_REQUEST') {
       console.error('Hostfully returned INCORRECT_REQUEST - check clientId and redirectUri');
-      const appUrl = Deno.env.get('APP_URL') || 'https://roomsonline.co.za';
+      const appUrl = getAppUrl();
       return Response.redirect(
         `${appUrl}/admin/users?hostfully_error=incorrect_request&error_description=${encodeURIComponent('The authorization request was invalid. Please check your Hostfully configuration.')}`,
         302
@@ -48,7 +59,7 @@ serve(async (req) => {
 
     if (status === 'DECLINED') {
       console.error('Hostfully authorization was declined by user');
-      const appUrl = Deno.env.get('APP_URL') || 'https://roomsonline.co.za';
+      const appUrl = getAppUrl();
       return Response.redirect(
         `${appUrl}/admin/users?hostfully_error=declined&error_description=${encodeURIComponent('Authorization was declined.')}`,
         302
@@ -58,7 +69,7 @@ serve(async (req) => {
     // Handle OAuth errors - redirect back to app with error
     if (error) {
       console.error('OAuth error:', error, errorDescription);
-      const appUrl = Deno.env.get('APP_URL') || 'https://roomsonline.co.za';
+      const appUrl = getAppUrl();
       return Response.redirect(
         `${appUrl}/admin/users?hostfully_error=${encodeURIComponent(error)}&error_description=${encodeURIComponent(errorDescription || '')}`,
         302
@@ -115,7 +126,7 @@ serve(async (req) => {
       ? 'https://sandbox-api.hostfully.com/api/v3.2/auth/oauth/code-exchange'
       : 'https://api.hostfully.com/api/auth/oauth/code-exchange';
 
-    const appUrl = Deno.env.get('APP_URL') || 'https://roomsonline.co.za';
+    const appUrl = getAppUrl();
     const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/hostfully-oauth-callback`;
 
     // Exchange code for tokens using Basic Auth (per Hostfully docs)
@@ -230,7 +241,7 @@ serve(async (req) => {
     console.error('Error in hostfully-oauth-callback:', err);
     
     // Redirect with error
-    const appUrl = Deno.env.get('APP_URL') || 'https://roomsonline.co.za';
+    const appUrl = getAppUrl();
     return Response.redirect(
       `${appUrl}/admin/users?hostfully_error=${encodeURIComponent(err instanceof Error ? err.message : 'Unknown error')}`,
       302
