@@ -121,8 +121,8 @@ const propertyRequiredSchema = baseRequestSchema.extend({
 
 const fetchAvailabilitySchema = baseRequestSchema.extend({
   action: z.literal("fetch_availability"),
-  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Start date must be YYYY-MM-DD format" }),
-  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "End date must be YYYY-MM-DD format" }),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "startDate must be YYYY-MM-DD format" }),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "endDate must be YYYY-MM-DD format" }),
   occupancy: z.object({
     rooms: z.number().min(1).default(1),
     adults: z.number().min(1).default(2),
@@ -869,7 +869,7 @@ serve(async (req) => {
         );
       }
 
-      const { start_date, end_date, occupancy } = validation.data;
+      const { startDate: start_date, endDate: end_date, occupancy } = validation.data;
       const occ = occupancy || { rooms: 1, adults: 2, children: 0 };
 
       // Ensure dates are in the future (HotelBeds requirement)
