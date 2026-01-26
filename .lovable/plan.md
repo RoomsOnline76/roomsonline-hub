@@ -1,111 +1,131 @@
 
-# Fix Hostfully API Key Validation - Use Tracker Environment
+# Fix Hostfully API Key Validation - Database + Frontend Fix
 
 ## Problem
 
-When adding a Hostfully API key for an owner on the Admin Users page, the system shows **"Hostfully API key is invalid or expired"** even though the key is valid. This happens because the **sandbox API key is being validated against the production endpoint**.
+The API key validation is STILL failing because:
 
-## Root Cause
+1. **Database issue**: The existing `owner_pms_credentials` record has `environment: 'production'` saved
+2. **Frontend logic issue**: The component prioritizes the existing credential's environment over everything else
 
-In `supabase/functions/hostfully-api/index.ts`, line 1220:
-
-```typescript
-const response = await handleValidateApiKey(body.api_key, body.environment || "production");
+```
+Current Priority (Wrong):
+1. existingCredential.environment → 'production' ← WINS but wrong!
+2. Sandbox detection from name/email
+3. Default to production
 ```
 
-The fallback is **hardcoded to `"production"`**. While the frontend DOES send `environment` in the request body, the `validate_api_key` action is unique because it:
-1. Is handled BEFORE the `getCredentials()` function is called
-2. Does NOT read from `pms_tracker_status` like all other actions
-3. Falls back to production if environment is missing or undefined
+## Evidence
 
-This means even when `pms_tracker_status.active_environment` is set to `sandbox`, the validation ignores it.
+**Database query results:**
+
+| Table | Column | Value |
+|-------|--------|-------|
+| `pms_tracker_status` | `active_environment` | `sandbox` ✅ |
+| `owner_pms_credentials` | `environment` | `production` ❌ |
+
+The frontend sees `existingCredential.environment = 'production'` and sends that to the edge function, bypassing both sandbox detection AND the tracker setting.
 
 ## Solution
 
-Update the `validate_api_key` handler to read from `pms_tracker_status` when no explicit environment is provided, matching the behavior of all other actions.
+### Part 1: Fix the existing credential in database
 
-### Code Change
+Update the owner credential to use sandbox environment:
 
-Update line 1212-1224 in `supabase/functions/hostfully-api/index.ts`:
-
-```typescript
-// Handle validate_api_key with provided key
-if (action === "validate_api_key") {
-  if (!body.api_key) {
-    return new Response(
-      JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "api_key is required", action)),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-    );
-  }
-  
-  // Use provided environment OR read from tracker (same as other actions)
-  let environment = body.environment;
-  if (!environment) {
-    environment = await getTrackerEnvironment(supabase, "hostfully");
-  }
-  
-  const response = await handleValidateApiKey(body.api_key, environment);
-  return new Response(JSON.stringify(response), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
+```sql
+UPDATE owner_pms_credentials 
+SET environment = 'sandbox' 
+WHERE owner_id = '2ac69111-5c58-453e-a635-7bd39e7fbb7a'
+  AND system_type = 'hostfully';
 ```
+
+### Part 2: Fix the frontend logic
+
+Update `OwnerPMSConnectionCard.tsx` to prioritize the global tracker environment over stored credential environment for API calls:
+
+**Current (line 62-64):**
+```typescript
+const isSandboxOwner = ownerName?.toLowerCase().includes('sandbox') || 
+                       ownerEmail?.toLowerCase().includes('sandbox');
+const environment = existingCredential?.environment || (isSandboxOwner ? 'sandbox' : 'production');
+```
+
+**Fixed - Add state to fetch tracker environment:**
+```typescript
+const [trackerEnvironment, setTrackerEnvironment] = useState<'sandbox' | 'production'>('sandbox');
+
+// Fetch tracker environment on mount
+useEffect(() => {
+  const fetchTrackerEnv = async () => {
+    const { data } = await supabase
+      .from('pms_tracker_status')
+      .select('active_environment')
+      .eq('system_type', 'hostfully')
+      .maybeSingle();
+    
+    if (data?.active_environment) {
+      setTrackerEnvironment(data.active_environment as 'sandbox' | 'production');
+    }
+  };
+  fetchTrackerEnv();
+}, []);
+
+// Use tracker environment as the source of truth
+const environment = trackerEnvironment;
+```
+
+This ensures:
+- API calls use the global tracker environment (what the toggle controls)
+- New credentials are saved with the correct environment
+- Existing credentials don't override the global setting
 
 ## Files Modified
 
 | File | Change |
 |------|--------|
-| `supabase/functions/hostfully-api/index.ts` | Update `validate_api_key` handler to read environment from tracker when not provided in request |
+| Database (direct update) | Fix existing credential environment to 'sandbox' |
+| `src/components/pms/OwnerPMSConnectionCard.tsx` | Fetch and use tracker environment instead of credential environment |
 
-## Why This Fixes the Issue
+## Data Flow After Fix
 
 ```text
-BEFORE:
-┌──────────────────────────┐
-│  API Key Validation      │
-│                          │
-│  body.environment = ?    │
-│         ↓                │
-│  Fallback: "production"  │ ← WRONG!
-│         ↓                │
-│  Call api.hostfully.com  │
-│         ↓                │
-│  401 Unauthorized        │
-└──────────────────────────┘
-
-AFTER:
-┌──────────────────────────┐
-│  API Key Validation      │
-│                          │
-│  body.environment = ?    │
-│         ↓                │
-│  Query pms_tracker_status│ ← READ TRACKER
-│  active_environment      │
-│         ↓                │
-│  "sandbox" from DB       │
-│         ↓                │
-│  Call sandbox.hostfully  │
-│         ↓                │
-│  200 OK - Agency Found!  │
-└──────────────────────────┘
+User clicks "Connect" for Hostfully SandBox owner
+              │
+              ▼
+┌─────────────────────────────────────┐
+│  Fetch pms_tracker_status           │
+│  active_environment = 'sandbox'     │
+└─────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────┐
+│  Call hostfully-api                 │
+│  body.environment = 'sandbox'       │
+└─────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────┐
+│  Edge function uses sandbox URL     │
+│  sandbox.hostfully.com/api/v3       │
+└─────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────┐
+│  SUCCESS! API key validated         │
+└─────────────────────────────────────┘
 ```
 
-## Verification
+## Why Previous Fixes Didn't Work
+
+| Fix Attempt | Why It Failed |
+|-------------|---------------|
+| Edge function fallback | Frontend was sending `environment: 'production'` explicitly |
+| Sandbox detection in frontend | Existing credential's environment overrode it |
+| Tracker environment in edge function | Request body had explicit environment, so tracker was never consulted |
+
+## Expected Result
 
 After this fix:
-1. Set Hostfully toggle to "Sandbox" on Integrations page
-2. Go to Admin Users → Expand owner "Hostfully SandBox"
-3. Enter sandbox API key → Click Connect
-4. API key should validate successfully against sandbox.hostfully.com
-
-## Technical Notes
-
-### Consistency with Other Actions
-All other Hostfully actions use `getCredentials()` which reads from `pms_tracker_status`. This fix aligns `validate_api_key` with the same pattern.
-
-### Backward Compatibility
-- If `body.environment` is explicitly provided, it's still used (no change)
-- Only when environment is missing does it now consult the tracker instead of hardcoding production
-
-### Edge Function Deployment
-The edge function must be redeployed for this fix to take effect.
+1. Toggle on Integrations page controls ALL Hostfully API calls
+2. Owner credentials use the global environment setting
+3. The sandbox API key will validate against sandbox.hostfully.com
