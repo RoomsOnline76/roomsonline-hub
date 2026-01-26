@@ -798,8 +798,25 @@ async function handleFetchAvailability(
       return createErrorResponse(error.code, error.message, "fetch_availability");
     }
 
-    const calendarData = await response.json();
-    const availability = mapHostfullyCalendarToAvailability(calendarData, propertyUid);
+    const responseData = await response.json();
+    
+    // Log the response structure for debugging
+    console.log("[Hostfully] Calendar response structure:", JSON.stringify(responseData).substring(0, 200));
+    
+    // Extract calendar array - handle both wrapped and direct array formats
+    const calendarArray = responseData?.calendar || responseData?.days || responseData;
+    
+    // Validate we have an array
+    if (!Array.isArray(calendarArray)) {
+      console.error("[Hostfully] Calendar data is not an array:", typeof calendarArray, JSON.stringify(responseData).substring(0, 300));
+      return createErrorResponse(
+        ERROR_CODES.INVALID_REQUEST,
+        "Invalid calendar data format from Hostfully API",
+        "fetch_availability"
+      );
+    }
+    
+    const availability = mapHostfullyCalendarToAvailability(calendarArray, propertyUid);
 
     return createSuccessResponse(availability, "fetch_availability");
   } catch (err) {
