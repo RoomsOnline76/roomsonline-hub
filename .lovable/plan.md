@@ -1,123 +1,84 @@
 
 
-# Fix Hostfully OAuth: Correct URL & Auto-Ingest Property Data
+# Fix Dashboard Table Layout & Domain Fallback Standard
 
-## Problem Summary
+## Issues Identified
 
-Two issues with the Hostfully OAuth connection flow:
+### Issue 1: Tables Not Filling Screen Width
+The current layout uses multiple width constraints that prevent tables from using the full available screen space:
 
-1. **Wrong fallback URL** - Uses `https://roomsonline.co.za` (marketing site showing "No Results Found") instead of the app URL
-2. **No auto-ingestion** - After successful OAuth, the system doesn't fetch room types and rate types from Hostfully
+| Layer | Current | Problem |
+|-------|---------|---------|
+| `AppLayout.tsx` (line 23) | `container mx-auto max-w-[1600px]` | Double constraint: `container` class + explicit max-width |
+| Card wrapper | `overflow-hidden` only | No explicit width directive |
+
+The `container` class from Tailwind includes its own responsive max-widths (1400px at 2xl), which compounds with the explicit `max-w-[1600px]`.
+
+### Issue 2: Wrong Fallback Domain
+The `hostfully-oauth-callback` edge function uses an incorrect fallback URL:
+
+| Current | Required |
+|---------|----------|
+| `https://roomsonline-hub.lovable.app` | `https://sleepinafrica.roomsonline.co.za` |
+
+**Standing rule**: `lovable.app` should NEVER be part of any fallback URL. The production domain is always `sleepinafrica.roomsonline.co.za`.
+
+---
 
 ## Solution
 
-### Part 1: Fix the Fallback URL
+### Part 1: Expand Dashboard Layout Width
 
-Update `hostfully-oauth-callback` to use the correct production app URL:
+Remove the double-constraint by dropping the `container` class and relying solely on `max-w-[1600px]` with full-width flexibility:
 
-| Current (Wrong) | Correct |
-|-----------------|---------|
-| `https://roomsonline.co.za` | `https://roomsonline-hub.lovable.app` |
+**File: `src/components/layout/AppLayout.tsx`**
 
-This is the published Lovable app URL where the admin interface lives.
+Change line 23 from:
+```tsx
+<div className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 max-w-[1600px] animate-fade-in">
+```
+
+To:
+```tsx
+<div className="w-full mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 max-w-[2000px] animate-fade-in">
+```
+
+This:
+- Removes `container` class (which adds its own max-width)
+- Increases max-width from 1600px to 2000px for ultra-wide screens
+- Adds explicit `w-full` for full-width inheritance
 
 ---
 
-### Part 2: Auto-Ingest Property Data After OAuth
+### Part 2: Fix Fallback URL in Edge Function
 
-After OAuth completes successfully and we have a `property_id`, automatically call the `hostfully-api` to:
-1. Fetch the Hostfully property UID from the property record
-2. Call `full_ingest_property` action to import room types, rate types, and all 68+ property fields
-3. Update the property with the ingested data
+**File: `supabase/functions/hostfully-oauth-callback/index.ts`**
 
----
-
-## Implementation
-
-### File: `supabase/functions/hostfully-oauth-callback/index.ts`
-
-#### Change 1: Fix fallback URL (line 17)
-
+Change line 17 from:
 ```typescript
-// FROM:
-return 'https://roomsonline.co.za';
-
-// TO:
 return 'https://roomsonline-hub.lovable.app';
 ```
 
-#### Change 2: Add auto-ingestion after OAuth success (after line 229)
-
-After the property update succeeds, add logic to trigger the `full_ingest_property`:
-
+To:
 ```typescript
-// If property_id provided, update property's PMS connection
-if (property_id) {
-  // ... existing update code ...
-
-  // NEW: Auto-ingest property data from Hostfully
-  try {
-    // First, get the property's Hostfully UID
-    const { data: propData } = await supabase
-      .from('properties')
-      .select('hostfully_property_uid')
-      .eq('id', property_id)
-      .single();
-
-    if (propData?.hostfully_property_uid) {
-      console.log('Starting auto-ingestion for property:', property_id);
-      
-      // Call hostfully-api to run full ingestion
-      const ingestionResponse = await fetch(
-        `${supabaseUrl}/functions/v1/hostfully-api`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseKey}`,
-          },
-          body: JSON.stringify({
-            action: 'full_ingest_property',
-            owner_credential_id: credential_id,
-            propertyUid: propData.hostfully_property_uid,
-            rol_property_id: property_id,
-          }),
-        }
-      );
-
-      const ingestionResult = await ingestionResponse.json();
-      console.log('Auto-ingestion result:', ingestionResult.success ? 'success' : ingestionResult.error);
-    } else {
-      console.log('No hostfully_property_uid on property, skipping auto-ingestion');
-    }
-  } catch (ingestionErr) {
-    // Don't fail the OAuth flow if ingestion fails - just log it
-    console.warn('Auto-ingestion failed (non-blocking):', ingestionErr);
-  }
-}
+return 'https://sleepinafrica.roomsonline.co.za';
 ```
 
 ---
 
-## Technical Flow After Implementation
+### Part 3: Document Domain Standard (for future reference)
 
-```text
-User clicks "Connect Hostfully"
-    ↓
-Redirects to Hostfully OAuth
-    ↓
-User authorizes
-    ↓
-Hostfully redirects back with code
-    ↓
-hostfully-oauth-callback:
-  1. Exchange code for tokens ✓
-  2. Store credentials in owner_pms_credentials ✓
-  3. Update property external_system = 'hostfully' ✓
-  4. NEW: Fetch hostfully_property_uid from property
-  5. NEW: Call full_ingest_property to import rooms/rates
-  6. Redirect to app with success
-```
+The system uses these production domains:
+
+| Purpose | Domain |
+|---------|--------|
+| Admin Console | `https://sleepinafrica.roomsonline.co.za` |
+| Public Booking | `https://book.sleepinafrica.roomsonline.co.za` |
+| Survey | `https://survey.roomsonline.co.za` |
+
+These are already defined in `src/lib/config.ts` as `ADMIN_DOMAIN`, `PUBLIC_DOMAIN`, and `SURVEY_DOMAIN`.
+
+The fallback in the edge function should use the `ADMIN_DOMAIN` equivalent since OAuth callbacks redirect to admin pages.
 
 ---
 
@@ -125,28 +86,15 @@ hostfully-oauth-callback:
 
 | File | Change |
 |------|--------|
-| `supabase/functions/hostfully-oauth-callback/index.ts` | Fix fallback URL from `roomsonline.co.za` to `roomsonline-hub.lovable.app`; Add auto-ingestion call after OAuth success |
+| `src/components/layout/AppLayout.tsx` | Replace `container` class with `w-full`, increase `max-w` to 2000px |
+| `supabase/functions/hostfully-oauth-callback/index.ts` | Change fallback URL from `roomsonline-hub.lovable.app` to `sleepinafrica.roomsonline.co.za` |
 
 ---
 
 ## Expected Outcome
 
 After implementation:
-
-1. **Correct redirects** - OAuth errors and success will redirect to the correct app URL
-2. **Auto-populated data** - After connecting Hostfully, the property will automatically have:
-   - Room types imported to `hostfully_room_types`
-   - Rate types imported to `pms_rate_types_cache`
-   - Property fields synced (amenities, images, descriptions, etc.)
-   - Fields marked as PMS-managed in `pms_managed_fields`
-
----
-
-## Edge Case: No `hostfully_property_uid`
-
-If the property doesn't have a `hostfully_property_uid` set yet (first-time connection), the auto-ingestion is skipped. In this case, the user can:
-1. Manually set the Hostfully Property UID in the property form
-2. Use the "Import Rooms" button in the UI
-
-This ensures the OAuth flow always succeeds, even if we can't auto-ingest.
+1. **Dashboard tables** will expand to fill more screen width on large monitors (up to 2000px)
+2. **Hostfully OAuth redirects** will always go to the correct production domain
+3. No "No Results Found" errors from incorrect domain redirects
 
