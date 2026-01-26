@@ -1108,16 +1108,27 @@ Deno.serve(async (req) => {
         console.log('Processing Hostfully booking...');
 
         // Get owner credentials for Hostfully
-        const { data: ownerCreds, error: ownerCredsError } = await supabaseClient
-          .from('owner_pms_credentials')
-          .select('*')
-          .eq('owner_id', property.owner_id)
-          .eq('system_type', 'hostfully')
-          .eq('is_active', true)
-          .maybeSingle();
+        let ownerCreds: any = null;
 
-        if (ownerCredsError || !ownerCreds) {
-          // Fallback: try to get credentials via owner_email
+        // Option 1: Use property.owner_pms_credential_id directly (most reliable)
+        if (property.owner_pms_credential_id) {
+          console.log(`Looking up credentials by owner_pms_credential_id: ${property.owner_pms_credential_id}`);
+          const { data } = await supabaseClient
+            .from('owner_pms_credentials')
+            .select('*')
+            .eq('id', property.owner_pms_credential_id)
+            .eq('is_active', true)
+            .maybeSingle();
+          
+          if (data) {
+            ownerCreds = data;
+            console.log(`Found credentials via owner_pms_credential_id`);
+          }
+        }
+
+        // Option 2: Fallback - try to get credentials via owner_email -> profile -> credentials
+        if (!ownerCreds && property.owner_email) {
+          console.log(`Fallback: Looking up credentials via owner_email: ${property.owner_email}`);
           const { data: ownerProfile } = await supabaseClient
             .from('profiles')
             .select('id')
@@ -1125,24 +1136,26 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           if (ownerProfile) {
-            const { data: fallbackCreds } = await supabaseClient
+            const { data } = await supabaseClient
               .from('owner_pms_credentials')
               .select('*')
               .eq('owner_id', ownerProfile.id)
               .eq('system_type', 'hostfully')
               .eq('is_active', true)
               .maybeSingle();
-
-            if (!fallbackCreds) {
-              throw new Error('Hostfully owner credentials not configured');
+            
+            if (data) {
+              ownerCreds = data;
+              console.log(`Found credentials via owner_email fallback`);
             }
-            Object.assign(ownerCreds || {}, fallbackCreds);
-          } else {
-            throw new Error('Hostfully owner credentials not configured');
           }
         }
 
-        const apiKey = ownerCreds?.api_key;
+        if (!ownerCreds) {
+          throw new Error('Hostfully owner credentials not configured for this property');
+        }
+
+        const apiKey = ownerCreds.api_key;
         if (!apiKey) {
           throw new Error('Hostfully API key not found in owner credentials');
         }
