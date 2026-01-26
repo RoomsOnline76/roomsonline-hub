@@ -14,7 +14,7 @@ const getAppUrl = (): string => {
     return envUrl;
   }
   // Fallback to production URL
-  return 'https://roomsonline.co.za';
+  return 'https://roomsonline-hub.lovable.app';
 };
 
 serve(async (req) => {
@@ -225,6 +225,46 @@ serve(async (req) => {
 
       if (propError) {
         console.warn('Failed to update property:', propError);
+      }
+
+      // Auto-ingest property data from Hostfully
+      try {
+        // First, get the property's Hostfully UID
+        const { data: propData } = await supabase
+          .from('properties')
+          .select('hostfully_property_uid')
+          .eq('id', property_id)
+          .maybeSingle();
+
+        if (propData?.hostfully_property_uid) {
+          console.log('Starting auto-ingestion for property:', property_id);
+          
+          // Call hostfully-api to run full ingestion
+          const ingestionResponse = await fetch(
+            `${supabaseUrl}/functions/v1/hostfully-api`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseKey}`,
+              },
+              body: JSON.stringify({
+                action: 'full_ingest_property',
+                owner_credential_id: credential_id,
+                propertyUid: propData.hostfully_property_uid,
+                rol_property_id: property_id,
+              }),
+            }
+          );
+
+          const ingestionResult = await ingestionResponse.json();
+          console.log('Auto-ingestion result:', ingestionResult.success ? 'success' : ingestionResult.error);
+        } else {
+          console.log('No hostfully_property_uid on property, skipping auto-ingestion');
+        }
+      } catch (ingestionErr) {
+        // Don't fail the OAuth flow if ingestion fails - just log it
+        console.warn('Auto-ingestion failed (non-blocking):', ingestionErr);
       }
     }
 
