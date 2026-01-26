@@ -1,138 +1,65 @@
 
-# Fix Hostfully Property Image Saving During Sync
+# Fix Hostfully API Key Validation - Sandbox Environment Detection
 
 ## Problem
 
-When syncing a Hostfully API property from the sandbox query tool, the property is created but the image is **not saved**, even though the `pictureLink` is available in the API response.
+When connecting an owner using the Hostfully API key, the system shows **"Hostfully API key is invalid or expired"** even though the key is valid.
 
-### Evidence
+### Root Cause
 
-From the network request, the property data includes:
-```json
-{
-  "pictureLink": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcRfTA6qg3wFq2p6hf8jI9a68AR_tmA1mEmAnL3xijG6742a3r1B",
-  "name": "Victorian House (Sample)",
-  ...
-}
-```
+The API key `EJOnIxlU7yrLbmNp` is a **sandbox API key** that only works with the Hostfully sandbox environment (`https://sandbox.hostfully.com/api/v3`).
 
-But the property is created without this image.
-
----
-
-## Root Cause Analysis
-
-There are **two separate issues**:
-
-### Issue 1: Sandbox Property Creation Ignores Image
-
-The `handleCreateSandboxProperties` function in `AdminKeys.tsx` (lines 1101-1158):
-- Creates properties but does **NOT** save `pictureLink` as an image
-- Does **NOT** invoke `full_ingest_property` to populate additional data
+However, the `OwnerPMSConnectionCard` component **hardcodes** the environment to `production`:
 
 ```typescript
-const propertyData = {
-  name: `[SANDBOX] ${listing.name}`,
-  // ... other fields ...
-  // NO images field!
-};
+// Line 59 in OwnerPMSConnectionCard.tsx
+const environment = 'production'; // Always production for owners
 ```
 
-### Issue 2: Ingestion Ignores `pictureLink` Fallback
+This causes the validation request to go to the production API, which rejects the sandbox key with a 401 Unauthorized error.
 
-The `transformMedia` function in `transformers.ts` (lines 244-256):
-- Only uses photos from the dedicated `/photos` endpoint
-- Ignores `ctx.property.pictureLink` which is the fallback image
-
-For sandbox/sample properties, the `/photos` endpoint often returns empty, but the property has a `pictureLink` thumbnail.
+| Test | Environment | Result |
+|------|-------------|--------|
+| API key validation | `production` | 401 - "invalid or expired" |
+| API key validation | `sandbox` | 200 - Success, agency found |
 
 ---
 
 ## Solution
 
-### Part 1: Add Image to Sandbox Property Creation
+Auto-detect sandbox owners based on their name or email containing "sandbox", similar to how sandbox properties are detected.
 
-Update `handleCreateSandboxProperties` in `src/pages/AdminKeys.tsx` to:
-1. Extract `pictureLink` from the raw listing data
-2. Save it in the `images` array when creating the property
-3. Invoke full ingestion after property creation (like the standard import does)
+### Part 1: Auto-detect Environment in OwnerPMSConnectionCard
+
+Update the environment detection logic to check the owner name/email:
 
 ```typescript
-const handleCreateSandboxProperties = async () => {
-  // ... existing code ...
-  
-  for (const listing of selectedProperties) {
-    // Extract pictureLink from raw data
-    const pictureLink = listing._raw?.pictureLink || listing._raw?.picture;
-    const images = pictureLink ? [{ url: pictureLink, alt: listing.name, order: 0 }] : [];
-    
-    const propertyData = {
-      name: `[SANDBOX] ${listing.name}`,
-      // ... existing fields ...
-      images, // ADD: Save the property image
-    };
-
-    const { data: newProperty, error } = await supabase
-      .from("properties")
-      .insert(propertyData)
-      .select("id")
-      .single();
-      
-    if (!error && newProperty) {
-      // ADD: Invoke full ingestion for room types
-      try {
-        await supabase.functions.invoke("hostfully-api", {
-          body: {
-            action: "full_ingest_property",
-            propertyUid: listing.id,
-            rol_property_id: newProperty.id,
-            owner_credential_id: hostfullyCredentials?.id,
-          },
-        });
-      } catch (ingestErr) {
-        console.warn("Ingestion warning:", ingestErr);
-      }
-      created++;
-    }
-  }
-  // ...
-};
+// Detect sandbox from owner name or email
+const isSandboxOwner = ownerName?.toLowerCase().includes('sandbox') || 
+                       ownerEmail?.toLowerCase().includes('sandbox');
+const environment = isSandboxOwner ? 'sandbox' : 'production';
 ```
 
-### Part 2: Add `pictureLink` Fallback in Ingestion
+### Part 2: Respect Existing Credential Environment
 
-Update `transformMedia` in `supabase/functions/hostfully-api/ingestion/transformers.ts` to use `pictureLink` as a fallback when no photos are available:
+If an existing credential has an environment set, use that:
 
 ```typescript
-function transformMedia(ctx: IngestionContext): PropertyImage[] {
-  // First, try the photos endpoint
-  if (ctx.photos && Array.isArray(ctx.photos) && ctx.photos.length > 0) {
-    return ctx.photos
-      .filter(p => p.originalImageUrl || p.url)
-      .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
-      .map((photo, index) => ({
-        url: photo.originalImageUrl || photo.url || '',
-        alt: photo.caption || '',
-        order: photo.order ?? index,
-        category: photo.category || 'property',
-      }));
-  }
-  
-  // Fallback: Use pictureLink from property data (common for sandbox/sample properties)
-  if (ctx.property) {
-    const pictureLink = ctx.property.pictureLink || ctx.property.picture;
-    if (pictureLink) {
-      return [{
-        url: pictureLink,
-        alt: ctx.property.name || 'Property image',
-        order: 0,
-        category: 'property',
-      }];
-    }
-  }
-  
-  return [];
-}
+// Use existing credential's environment or detect from owner
+const environment = existingCredential?.environment || 
+  (ownerName?.toLowerCase().includes('sandbox') || ownerEmail?.toLowerCase().includes('sandbox') 
+    ? 'sandbox' 
+    : 'production');
+```
+
+### Part 3: Show Environment Badge in UI
+
+Add a visual indicator so users know which environment is being used:
+
+```tsx
+{environment === 'sandbox' && (
+  <Badge variant="outline" className="text-xs">Sandbox</Badge>
+)}
 ```
 
 ---
@@ -141,38 +68,39 @@ function transformMedia(ctx: IngestionContext): PropertyImage[] {
 
 | File | Change |
 |------|--------|
-| `src/pages/AdminKeys.tsx` | 1. Extract and save `pictureLink` in sandbox property creation 2. Invoke full ingestion after creating sandbox properties |
-| `supabase/functions/hostfully-api/ingestion/transformers.ts` | Add `pictureLink` fallback when `/photos` returns empty |
+| `src/components/pms/OwnerPMSConnectionCard.tsx` | 1. Auto-detect environment from owner name/email 2. Respect existing credential environment 3. Add sandbox badge to UI |
 
 ---
 
 ## Data Flow After Fix
 
 ```text
-                    ┌─────────────────────────────────────────────────────────────────┐
-                    │                    "Query Properties" Button                     │
-                    └─────────────────────────────────────────────────────────────────┘
-                                                    │
-                                                    ▼
-                    ┌─────────────────────────────────────────────────────────────────┐
-                    │                  Hostfully API Response                          │
-                    │  { name, pictureLink, bedrooms, ... }                            │
-                    └─────────────────────────────────────────────────────────────────┘
-                                                    │
-                                                    ▼
-                    ┌─────────────────────────────────────────────────────────────────┐
-                    │               handleCreateSandboxProperties                      │
-                    │  1. Extract pictureLink → images array                           │
-                    │  2. Insert property with images                                  │
-                    │  3. Call full_ingest_property for room types                     │
-                    └─────────────────────────────────────────────────────────────────┘
-                                                    │
-                                                    ▼
-                    ┌─────────────────────────────────────────────────────────────────┐
-                    │                   full_ingest_property                           │
-                    │  1. Fetch /photos → if empty, use pictureLink fallback           │
-                    │  2. Write images to property record                              │
-                    └─────────────────────────────────────────────────────────────────┘
+Owner: "Hostfully SandBox"
+Email: "marketing@fluent.sandbox.co.za"
+                    │
+                    ▼
+            ┌───────────────────┐
+            │  Detect Sandbox   │
+            │  (name/email)     │
+            └───────────────────┘
+                    │
+                    ▼
+            ┌───────────────────┐
+            │  environment =    │
+            │  "sandbox"        │
+            └───────────────────┘
+                    │
+                    ▼
+            ┌───────────────────────────────────────┐
+            │  API Request to sandbox.hostfully.com │
+            │  (instead of api.hostfully.com)       │
+            └───────────────────────────────────────┘
+                    │
+                    ▼
+            ┌───────────────────┐
+            │  SUCCESS!         │
+            │  Agency found     │
+            └───────────────────┘
 ```
 
 ---
@@ -180,30 +108,30 @@ function transformMedia(ctx: IngestionContext): PropertyImage[] {
 ## Expected Result
 
 After this fix:
-1. **Sandbox properties** will have their image saved immediately upon creation
-2. **Full ingestion** will use `pictureLink` as a fallback when the `/photos` endpoint returns empty
-3. The property card will display the image in the property list
+
+| Owner Type | Environment Used | Result |
+|------------|------------------|--------|
+| "Hostfully SandBox" | `sandbox` | API key validates correctly |
+| "ABC Hotels" | `production` | Production API used |
+| Owner with existing `sandbox` credential | `sandbox` | Respects saved environment |
 
 ---
 
 ## Technical Notes
 
-### Image Field Structure
+### Why This Happened
 
-The `properties.images` column expects a JSONB array:
-```json
-[
-  { "url": "https://...", "alt": "Property name", "order": 0, "category": "property" }
-]
+The original design assumed all owners use production. However, for testing and development:
+- Sandbox owners are created with "sandbox" in their name
+- Sandbox API keys only work with `sandbox.hostfully.com`
+
+### Detection Logic
+
+The detection mirrors the property sandbox detection in `PropertyForm.tsx`:
+
+```typescript
+const isSandboxProperty = formData.name?.includes('[SANDBOX]') || 
+                          formData.name?.toLowerCase().includes('sandbox');
 ```
 
-### Why Standard Import Works
-
-The `handleHostfullyImportListings` function (line 698-752) invokes `full_ingest_property`, which fetches from `/photos`. But for properties that rely on `pictureLink` (like sandbox samples), this fails silently.
-
-### Sandbox vs Production
-
-| Scenario | Photos Endpoint | pictureLink | Result After Fix |
-|----------|-----------------|-------------|------------------|
-| Production property | Has photos | May have | Uses /photos |
-| Sandbox sample | Empty | Has thumbnail | Uses pictureLink fallback |
+Now applied consistently at the owner level.
