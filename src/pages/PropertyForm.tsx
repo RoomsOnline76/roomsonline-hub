@@ -660,11 +660,42 @@ export default function PropertyForm() {
       // Get owner credentials from property
       const { data: property } = await supabase
         .from("properties")
-        .select("owner_pms_credential_id")
+        .select("owner_pms_credential_id, owner_email")
         .eq("id", propertyId)
         .single();
 
-      if (!property?.owner_pms_credential_id) {
+      let credentialId = property?.owner_pms_credential_id;
+
+      // Fallback: Look up credential via owner_email if not directly linked
+      if (!credentialId && property?.owner_email) {
+        const { data: ownerProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("email", property.owner_email)
+          .maybeSingle();
+        
+        if (ownerProfile?.id) {
+          const { data: credential } = await supabase
+            .from("owner_pms_credentials")
+            .select("id")
+            .eq("owner_id", ownerProfile.id)
+            .eq("system_type", "hostfully")
+            .eq("is_active", true)
+            .maybeSingle();
+          
+          credentialId = credential?.id;
+          
+          // Auto-link for future use
+          if (credentialId) {
+            await supabase
+              .from("properties")
+              .update({ owner_pms_credential_id: credentialId })
+              .eq("id", propertyId);
+          }
+        }
+      }
+
+      if (!credentialId) {
         throw new Error("No owner PMS credential linked to this property");
       }
 
@@ -672,7 +703,7 @@ export default function PropertyForm() {
       const { data, error } = await supabase.functions.invoke("hostfully-api", {
         body: {
           action: "get_listing_details",
-          owner_credential_id: property.owner_pms_credential_id,
+          owner_credential_id: credentialId,
           propertyUid: room.pmsRoomId,
         },
       });
