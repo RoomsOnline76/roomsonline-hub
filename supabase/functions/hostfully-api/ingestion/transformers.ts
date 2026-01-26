@@ -240,19 +240,36 @@ function transformAmenities(ctx: IngestionContext): Record<string, unknown> {
 
 /**
  * Transform photos into images array
+ * Falls back to pictureLink from property data if /photos endpoint is empty
  */
 function transformMedia(ctx: IngestionContext): PropertyImage[] {
-  if (!ctx.photos || !Array.isArray(ctx.photos)) return [];
+  // First, try the photos endpoint
+  if (ctx.photos && Array.isArray(ctx.photos) && ctx.photos.length > 0) {
+    return ctx.photos
+      .filter(p => p.originalImageUrl || p.url)
+      .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
+      .map((photo, index) => ({
+        url: photo.originalImageUrl || photo.url || '',
+        alt: photo.caption || '',
+        order: photo.order ?? index,
+        category: photo.category || 'property',
+      }));
+  }
   
-  return ctx.photos
-    .filter(p => p.originalImageUrl || p.url)
-    .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
-    .map((photo, index) => ({
-      url: photo.originalImageUrl || photo.url || '',
-      alt: photo.caption || '',
-      order: photo.order ?? index,
-      category: photo.category || 'property',
-    }));
+  // Fallback: Use pictureLink from property data (common for sandbox/sample properties)
+  if (ctx.property) {
+    const pictureLink = ctx.property.pictureLink || ctx.property.picture;
+    if (pictureLink) {
+      return [{
+        url: pictureLink,
+        alt: ctx.property.name || 'Property image',
+        order: 0,
+        category: 'property',
+      }];
+    }
+  }
+  
+  return [];
 }
 
 /**
