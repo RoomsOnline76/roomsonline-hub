@@ -1264,7 +1264,13 @@ Deno.serve(async (req) => {
         const firstName = nameParts[0] || 'Guest';
         const lastName = nameParts.slice(1).join(' ') || 'Guest';
 
+        // Validate agency UID exists
+        if (!ownerCreds.external_account_id) {
+          throw new Error('Hostfully Agency UID not configured in owner credentials');
+        }
+
         const leadPayload = {
+          agencyUid: ownerCreds.external_account_id,  // Required - Hostfully agency identifier
           propertyUid: hostfullyUid,
           checkInDate: booking.check_in_date,
           checkOutDate: booking.check_out_date,
