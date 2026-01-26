@@ -1,24 +1,23 @@
 
-
-# Fix Hostfully Status Enum Value
+# Fix Hostfully Missing agencyUid Field
 
 ## Problem
 
-The `status` field in the Hostfully lead payload is set to `'INQUIRY'`, which is **not a valid enum value**.
+The Hostfully Leads API requires `agencyUid` in the payload but it's currently not being sent:
 
-**Error:** `"Wrong enum value, allowed values are: NEW, CANCELLED, IGNORED, PENDING, BOOKED, SAMPLE, DUPLICATE, CLOSED, DECLINED, PENDING_APPROVED, BLOCKED, ON_HOLD"`
+**Error:** `"Invalid parameter 'agencyUid' must not be blank"`
 
 ## Root Cause
 
-The Hostfully Leads API has a specific set of allowed status values, and `INQUIRY` is not one of them. This was an incorrect assumption based on the previous error message.
+The `leadPayload` in `push-booking/index.ts` is missing the `agencyUid` field. The data is available in `ownerCreds.external_account_id` (which is already fetched from the `owner_pms_credentials` table) but it's not being included in the API request.
 
 ## Solution
 
-Change the `status` field from `'INQUIRY'` to `'NEW'` which represents a new booking/inquiry in Hostfully's system.
+Add the `agencyUid` field to the lead payload using the existing `ownerCreds.external_account_id` value.
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/push-booking/index.ts` | Change `status: 'INQUIRY'` to `status: 'NEW'` |
+| `supabase/functions/push-booking/index.ts` | Add `agencyUid: ownerCreds.external_account_id` to leadPayload |
 
 ---
 
@@ -26,46 +25,72 @@ Change the `status` field from `'INQUIRY'` to `'NEW'` which represents a new boo
 
 **File:** `supabase/functions/push-booking/index.ts`
 
-**Line 1279 - Current Code:**
+**Current Code (lines 1267-1280):**
 ```typescript
-status: 'INQUIRY',
+const leadPayload = {
+  propertyUid: hostfullyUid,
+  checkInDate: booking.check_in_date,
+  checkOutDate: booking.check_out_date,
+  firstName: firstName,
+  lastName: lastName,
+  email: booking.guest_email,
+  phoneNumber: booking.guest_phone || '',
+  adults: booking.adults || 2,
+  children: (booking.children || 0) + (booking.teens || 0) + (booking.infants || 0),
+  notes: booking.special_requests || '',
+  source: 'HOSTFULLY_API',
+  status: 'NEW',
+};
 ```
 
 **Fixed Code:**
 ```typescript
-status: 'NEW',
+const leadPayload = {
+  agencyUid: ownerCreds.external_account_id,  // Required - Hostfully agency identifier
+  propertyUid: hostfullyUid,
+  checkInDate: booking.check_in_date,
+  checkOutDate: booking.check_out_date,
+  firstName: firstName,
+  lastName: lastName,
+  email: booking.guest_email,
+  phoneNumber: booking.guest_phone || '',
+  adults: booking.adults || 2,
+  children: (booking.children || 0) + (booking.teens || 0) + (booking.infants || 0),
+  notes: booking.special_requests || '',
+  source: 'HOSTFULLY_API',
+  status: 'NEW',
+};
 ```
 
 ---
 
-## Hostfully Status Values Reference (Corrected)
+## Data Flow Verification
 
-| Status | Meaning |
-|--------|---------|
-| `NEW` | New lead/inquiry (use this for new bookings) |
-| `PENDING` | Awaiting action |
-| `PENDING_APPROVED` | Approved but pending confirmation |
-| `BOOKED` | Confirmed booking |
-| `CANCELLED` | Cancelled |
-| `DECLINED` | Declined by property |
-| `CLOSED` | Closed lead |
-| `BLOCKED` | Blocked dates |
-| `ON_HOLD` | On hold |
-| `IGNORED` | Ignored lead |
-| `DUPLICATE` | Duplicate entry |
-| `SAMPLE` | Sample/test data |
+The database already has this data properly populated:
 
-Using `NEW` is appropriate because:
-1. It represents a fresh booking inquiry
-2. Property owner can then change status to `BOOKED` or other states
-3. It correctly signals a new lead entering the system
+| Property | Agency UID | Source |
+|----------|------------|--------|
+| [SANDBOX] Victorian House (Sample) | `1f217567-5e8c-464f-940f-2878cff4d3b3` | `owner_pms_credentials.external_account_id` |
+
+The `ownerCreds` variable is already fetched from `owner_pms_credentials` table (line ~1139-1145), so `ownerCreds.external_account_id` is available and contains the correct agency UID.
+
+---
+
+## Error Prevention
+
+Also add validation to ensure the agency UID exists before making the API call:
+
+```typescript
+if (!ownerCreds.external_account_id) {
+  throw new Error('Hostfully Agency UID not configured in owner credentials');
+}
+```
 
 ---
 
 ## Expected Result
 
 After this fix:
-- Hostfully API accepts the lead creation request
-- Lead is created in Hostfully with status "NEW"
-- Booking succeeds and user sees confirmation page
-
+- Hostfully API receives the required `agencyUid` field
+- Lead is created successfully in Hostfully
+- Booking completes and user sees confirmation page
