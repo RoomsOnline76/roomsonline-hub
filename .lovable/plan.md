@@ -1,84 +1,73 @@
 
+# Fix Calendar Hostfully Sync Error: `.includes()` Type Mismatch
 
-# Fix Dashboard Table Layout & Domain Fallback Standard
+## Problem
 
-## Issues Identified
+When syncing Hostfully calendar data, the error "Dt.error.includes is not a function" occurs because:
 
-### Issue 1: Tables Not Filling Screen Width
-The current layout uses multiple width constraints that prevent tables from using the full available screen space:
+1. The `hostfully-api` edge function returns errors as **objects**: `{ code: "AUTH_FAILED", message: "Hostfully API key is invalid or expired" }`
+2. The calendar code in `CalendarAccommodation.tsx` (line 473) tries to call `.includes()` directly on this error object, which only works for strings/arrays
 
-| Layer | Current | Problem |
-|-------|---------|---------|
-| `AppLayout.tsx` (line 23) | `container mx-auto max-w-[1600px]` | Double constraint: `container` class + explicit max-width |
-| Card wrapper | `overflow-hidden` only | No explicit width directive |
+## Root Cause
 
-The `container` class from Tailwind includes its own responsive max-widths (1400px at 2xl), which compounds with the explicit `max-w-[1600px]`.
+```typescript
+// Line 472-478 - CURRENT (BROKEN)
+if (data?.error) {
+  if (data.error.includes("credentials") || data.error.includes("not configured")) {
+    // ❌ Fails because data.error is { code: string, message: string }, not a string
+```
 
-### Issue 2: Wrong Fallback Domain
-The `hostfully-oauth-callback` edge function uses an incorrect fallback URL:
-
-| Current | Required |
-|---------|----------|
-| `https://roomsonline-hub.lovable.app` | `https://sleepinafrica.roomsonline.co.za` |
-
-**Standing rule**: `lovable.app` should NEVER be part of any fallback URL. The production domain is always `sleepinafrica.roomsonline.co.za`.
-
----
+The Hostfully adapter response format:
+```json
+{
+  "success": false,
+  "error": {
+    "code": "AUTH_FAILED",
+    "message": "Hostfully API key is invalid or expired"
+  }
+}
+```
 
 ## Solution
 
-### Part 1: Expand Dashboard Layout Width
+Update the error handling in `CalendarAccommodation.tsx` to:
+1. Check if `data.error` is a string or an object
+2. Extract the message properly before calling `.includes()`
+3. Handle both legacy string errors and new adapter object errors
 
-Remove the double-constraint by dropping the `container` class and relying solely on `max-w-[1600px]` with full-width flexibility:
+## Implementation
 
-**File: `src/components/layout/AppLayout.tsx`**
+### File: `src/pages/CalendarAccommodation.tsx`
 
-Change line 23 from:
-```tsx
-<div className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 max-w-[1600px] animate-fade-in">
-```
+**Lines 472-480** - Update error handling:
 
-To:
-```tsx
-<div className="w-full mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 max-w-[2000px] animate-fade-in">
-```
-
-This:
-- Removes `container` class (which adds its own max-width)
-- Increases max-width from 1600px to 2000px for ultra-wide screens
-- Adds explicit `w-full` for full-width inheritance
-
----
-
-### Part 2: Fix Fallback URL in Edge Function
-
-**File: `supabase/functions/hostfully-oauth-callback/index.ts`**
-
-Change line 17 from:
 ```typescript
-return 'https://roomsonline-hub.lovable.app';
+if (data?.error) {
+  // Handle both string errors (legacy) and object errors (adapter contract)
+  const errorMessage = typeof data.error === 'string' 
+    ? data.error 
+    : (data.error.message || data.error.code || JSON.stringify(data.error));
+  
+  if (errorMessage.includes("credentials") || 
+      errorMessage.includes("not configured") ||
+      errorMessage.includes("invalid") ||
+      errorMessage.includes("expired") ||
+      (typeof data.error === 'object' && data.error.code === 'AUTH_FAILED')) {
+    setPmsSyncStatus("not_configured");
+    setPmsSyncError(`${selectedPropertyData.external_system} API credentials not configured or expired. Please configure them in Admin > API Keys.`);
+  } else {
+    setPmsSyncStatus("error");
+    setPmsSyncError(errorMessage);
+  }
+  return;
+}
 ```
 
-To:
-```typescript
-return 'https://sleepinafrica.roomsonline.co.za';
-```
-
----
-
-### Part 3: Document Domain Standard (for future reference)
-
-The system uses these production domains:
-
-| Purpose | Domain |
-|---------|--------|
-| Admin Console | `https://sleepinafrica.roomsonline.co.za` |
-| Public Booking | `https://book.sleepinafrica.roomsonline.co.za` |
-| Survey | `https://survey.roomsonline.co.za` |
-
-These are already defined in `src/lib/config.ts` as `ADMIN_DOMAIN`, `PUBLIC_DOMAIN`, and `SURVEY_DOMAIN`.
-
-The fallback in the edge function should use the `ADMIN_DOMAIN` equivalent since OAuth callbacks redirect to admin pages.
+This change:
+- Safely extracts error message regardless of type (string or object)
+- Checks for `AUTH_FAILED` error code specifically (common Hostfully error)
+- Adds "invalid" and "expired" to credential-related error detection
+- Works with all PMS adapters (Benson, Hostfully, Checkfront, etc.)
 
 ---
 
@@ -86,15 +75,13 @@ The fallback in the edge function should use the `ADMIN_DOMAIN` equivalent since
 
 | File | Change |
 |------|--------|
-| `src/components/layout/AppLayout.tsx` | Replace `container` class with `w-full`, increase `max-w` to 2000px |
-| `supabase/functions/hostfully-oauth-callback/index.ts` | Change fallback URL from `roomsonline-hub.lovable.app` to `sleepinafrica.roomsonline.co.za` |
+| `src/pages/CalendarAccommodation.tsx` | Fix error handling at lines 472-480 to handle object errors from adapter responses |
 
 ---
 
 ## Expected Outcome
 
-After implementation:
-1. **Dashboard tables** will expand to fill more screen width on large monitors (up to 2000px)
-2. **Hostfully OAuth redirects** will always go to the correct production domain
-3. No "No Results Found" errors from incorrect domain redirects
-
+After this fix:
+- Hostfully calendar sync will properly display "API credentials not configured or expired" instead of crashing
+- Other PMS adapters that return object errors will also work correctly
+- Legacy string errors continue to work unchanged
