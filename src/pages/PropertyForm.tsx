@@ -412,7 +412,7 @@ export default function PropertyForm() {
     
     const baseUrl = useSandbox
       ? 'https://sandbox-api.hostfully.com/api/v3.2/auth/oauth/authorize'
-      : 'https://pmp.hostfully.com/api/auth/oauth/authorize';
+      : 'https://api.hostfully.com/api/auth/oauth/authorize';
     
     const authUrl = new URL(baseUrl);
     authUrl.searchParams.set('clientId', clientId);
