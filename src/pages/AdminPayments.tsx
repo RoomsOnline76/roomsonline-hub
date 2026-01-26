@@ -181,7 +181,7 @@ export default function AdminPayments() {
       />
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-4 mb-8">
+      <div className="grid gap-4 md:grid-cols-4 xl:gap-6 mb-8">
         <StatCard
           title="Total Revenue"
           value={`R${stats.totalRevenue.toLocaleString()}`}

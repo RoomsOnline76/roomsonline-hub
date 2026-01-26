@@ -165,7 +165,7 @@ export function ROLRevenuePulse() {
       <TabsContent value="revenue" className="space-y-4 mt-0">
 
       {/* Tier 1: KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 xl:gap-4">
         <ROLKPICard
           title="GBV"
           value={data ? formatCompactCurrency(data.tier1.gbv) : "-"}
@@ -282,7 +282,7 @@ export function ROLRevenuePulse() {
       </Card>
 
       {/* Tier 2: Split View */}
-      <div className="grid lg:grid-cols-2 gap-4">
+      <div className="grid lg:grid-cols-2 gap-4 xl:gap-6">
         <ChannelBreakdownChart
           data={data?.tier2.channelBreakdown ?? []}
           isLoading={isLoading}
@@ -294,7 +294,7 @@ export function ROLRevenuePulse() {
       </div>
 
       {/* Tier 3: Risk Indicators */}
-      <div className="grid lg:grid-cols-2 gap-4">
+      <div className="grid lg:grid-cols-2 gap-4 xl:gap-6">
         <RiskIndicators
           cancellationRate={data?.tier3.cancellationRate ?? 0}
           syncFailureCount={data?.tier3.syncFailureCount ?? 0}

@@ -153,7 +153,7 @@ export default function AdminDashboard() {
       />
 
       {/* Quick Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:gap-6 mb-8">
         <StatCard
           title="Total Bookings"
           value={stats?.totalBookings || 0}
@@ -215,7 +215,7 @@ export default function AdminDashboard() {
         </Card>
       ) : null}
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 xl:gap-8">
         {/* Recent Bookings */}
         <Card>
           <CardHeader>
