@@ -1,147 +1,138 @@
 
-# Fix Milestone Count to Include "Certify" (9 milestones)
+# Fix Hostfully Property Image Saving During Sync
 
 ## Problem
 
-The "Certify" milestone was added to the database and toggle UI, but the **global milestone counts** still show 8 milestones per system:
+When syncing a Hostfully API property from the sandbox query tool, the property is created but the image is **not saved**, even though the `pictureLink` is available in the API response.
 
-| Location | Current | Should Be |
-|----------|---------|-----------|
-| AdminKeys page subtitle | "33 of 104 milestones" | "34 of 117 milestones" |
-| Status report email | 8 milestones/system | 9 milestones/system |
+### Evidence
 
-Marking Benson as "Certified" doesn't increase the count because `is_certified` isn't being counted.
+From the network request, the property data includes:
+```json
+{
+  "pictureLink": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcRfTA6qg3wFq2p6hf8jI9a68AR_tmA1mEmAnL3xijG6742a3r1B",
+  "name": "Victorian House (Sample)",
+  ...
+}
+```
+
+But the property is created without this image.
 
 ---
 
-## Root Cause
+## Root Cause Analysis
 
-Two files need updates to include `is_certified`:
+There are **two separate issues**:
 
-1. **`src/pages/AdminKeys.tsx`** - Lines 1613-1625
-2. **`supabase/functions/send-pms-status-report/index.ts`** - Lines 11-32, 105-117, 148-210
+### Issue 1: Sandbox Property Creation Ignores Image
+
+The `handleCreateSandboxProperties` function in `AdminKeys.tsx` (lines 1101-1158):
+- Creates properties but does **NOT** save `pictureLink` as an image
+- Does **NOT** invoke `full_ingest_property` to populate additional data
+
+```typescript
+const propertyData = {
+  name: `[SANDBOX] ${listing.name}`,
+  // ... other fields ...
+  // NO images field!
+};
+```
+
+### Issue 2: Ingestion Ignores `pictureLink` Fallback
+
+The `transformMedia` function in `transformers.ts` (lines 244-256):
+- Only uses photos from the dedicated `/photos` endpoint
+- Ignores `ctx.property.pictureLink` which is the fallback image
+
+For sandbox/sample properties, the `/photos` endpoint often returns empty, but the property has a `pictureLink` thumbnail.
 
 ---
 
 ## Solution
 
-### Part 1: Fix AdminKeys.tsx Progress Stats
+### Part 1: Add Image to Sandbox Property Creation
 
-**File:** `src/pages/AdminKeys.tsx` (lines 1613-1625)
-
-Update the `getProgressStats` function to include `is_certified`:
+Update `handleCreateSandboxProperties` in `src/pages/AdminKeys.tsx` to:
+1. Extract `pictureLink` from the raw listing data
+2. Save it in the `images` array when creating the property
+3. Invoke full ingestion after property creation (like the standard import does)
 
 ```typescript
-const getProgressStats = () => {
-  const trackableSystems = Object.entries(trackerData)
-    .filter(([key]) => !['roomsonline', 'recaptcha', 'google_maps'].includes(key));
+const handleCreateSandboxProperties = async () => {
+  // ... existing code ...
   
-  let completedFlags = 0;
-  const totalFlags = trackableSystems.length * 9; // 9 flags per system (was 8)
-  let deployedCount = 0;
-  
-  trackableSystems.forEach(([_, data]) => {
-    // Count completed flags - Setup phase
-    if (data.has_account) completedFlags++;
-    if (data.has_docs) completedFlags++;
-    if (data.has_edge) completedFlags++;
-    // Integration phase
-    if (data.has_health) completedFlags++;
-    if (data.has_get) completedFlags++;
-    if (data.has_post) completedFlags++;
-    if (data.has_soft_test) completedFlags++;
-    if (data.is_certified) completedFlags++;  // NEW
-    if (data.is_production) completedFlags++;
+  for (const listing of selectedProperties) {
+    // Extract pictureLink from raw data
+    const pictureLink = listing._raw?.pictureLink || listing._raw?.picture;
+    const images = pictureLink ? [{ url: pictureLink, alt: listing.name, order: 0 }] : [];
     
-    // Count deployed systems
-    if (data.integration_status === 'deployed') deployedCount++;
-  });
-  
-  return { 
-    completedFlags, 
-    totalFlags: totalFlags || 117, // 13 systems × 9 = 117 (was 96)
-    deployedCount,
-    systemCount: trackableSystems.length || 13
-  };
+    const propertyData = {
+      name: `[SANDBOX] ${listing.name}`,
+      // ... existing fields ...
+      images, // ADD: Save the property image
+    };
+
+    const { data: newProperty, error } = await supabase
+      .from("properties")
+      .insert(propertyData)
+      .select("id")
+      .single();
+      
+    if (!error && newProperty) {
+      // ADD: Invoke full ingestion for room types
+      try {
+        await supabase.functions.invoke("hostfully-api", {
+          body: {
+            action: "full_ingest_property",
+            propertyUid: listing.id,
+            rol_property_id: newProperty.id,
+            owner_credential_id: hostfullyCredentials?.id,
+          },
+        });
+      } catch (ingestErr) {
+        console.warn("Ingestion warning:", ingestErr);
+      }
+      created++;
+    }
+  }
+  // ...
 };
 ```
 
-Also update the comment above the function (line 1606):
-```typescript
-// Calculate total progress across all trackable systems (9 flags × 13 systems = 117 milestones)
-```
+### Part 2: Add `pictureLink` Fallback in Ingestion
 
----
-
-### Part 2: Fix Status Report Email
-
-**File:** `supabase/functions/send-pms-status-report/index.ts`
-
-#### A. Update TrackerData interface (lines 11-32)
-
-Add `is_certified`:
+Update `transformMedia` in `supabase/functions/hostfully-api/ingestion/transformers.ts` to use `pictureLink` as a fallback when no photos are available:
 
 ```typescript
-interface TrackerData {
-  // ... existing fields ...
-  has_soft_test: boolean;
-  is_certified: boolean;  // NEW
-  is_production: boolean;
-  // Legacy
-  has_access: boolean;
-  additional_info: Record<string, string> | null;
+function transformMedia(ctx: IngestionContext): PropertyImage[] {
+  // First, try the photos endpoint
+  if (ctx.photos && Array.isArray(ctx.photos) && ctx.photos.length > 0) {
+    return ctx.photos
+      .filter(p => p.originalImageUrl || p.url)
+      .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
+      .map((photo, index) => ({
+        url: photo.originalImageUrl || photo.url || '',
+        alt: photo.caption || '',
+        order: photo.order ?? index,
+        category: photo.category || 'property',
+      }));
+  }
+  
+  // Fallback: Use pictureLink from property data (common for sandbox/sample properties)
+  if (ctx.property) {
+    const pictureLink = ctx.property.pictureLink || ctx.property.picture;
+    if (pictureLink) {
+      return [{
+        url: pictureLink,
+        alt: ctx.property.name || 'Property image',
+        order: 0,
+        category: 'property',
+      }];
+    }
+  }
+  
+  return [];
 }
-```
-
-#### B. Update totalMilestones calculation (lines 105-117)
-
-Add `is_certified` to the count:
-
-```typescript
-// Calculate total milestones (9 per system)
-let totalMilestones = 0;
-trackerData.forEach((t) => {
-  // Setup phase
-  if (t.has_account) totalMilestones++;
-  if (t.has_docs) totalMilestones++;
-  if (t.has_edge) totalMilestones++;
-  // Integration phase
-  if (t.has_health) totalMilestones++;
-  if (t.has_get) totalMilestones++;
-  if (t.has_post) totalMilestones++;
-  if (t.has_soft_test) totalMilestones++;
-  if (t.is_certified) totalMilestones++;  // NEW
-  if (t.is_production) totalMilestones++;
-});
-const maxMilestones = trackerData.length * 9;  // was 8
-```
-
-#### C. Update table row generation (lines 148-210)
-
-Add `is_certified` to integration flags and update labels:
-
-```typescript
-// Setup phase: Account, Docs, Edge
-const setupFlags = [row.has_account || row.has_access, row.has_docs, row.has_edge];
-// Integration phase: Health, GET, POST, Test, Certify, Live (6 flags)
-const integrationFlags = [
-  row.has_health, 
-  row.has_get, 
-  row.has_post, 
-  row.has_soft_test, 
-  row.is_certified,  // NEW
-  row.is_production
-];
-const allFlags = [...setupFlags, ...integrationFlags];
-
-// ... later in the function ...
-
-// Integration progress dots (Health, GET, POST, Test, Certify, Live)
-const integrationLabels = ["He", "Gt", "Ps", "Te", "Ce", "Lv"];  // Added "Ce"
-const integrationTitles = ["Health", "GET", "POST", "Test", "Certify", "Live"];
-
-// ... and update the count display ...
-<div style="...">${flagsCompleted}/9</div>  // was /8
 ```
 
 ---
@@ -150,37 +141,69 @@ const integrationTitles = ["Health", "GET", "POST", "Test", "Certify", "Live"];
 
 | File | Change |
 |------|--------|
-| `src/pages/AdminKeys.tsx` | Add `is_certified` to `getProgressStats()`, change multiplier from 8→9 |
-| `supabase/functions/send-pms-status-report/index.ts` | Add `is_certified` to interface, calculations, and email template |
+| `src/pages/AdminKeys.tsx` | 1. Extract and save `pictureLink` in sandbox property creation 2. Invoke full ingestion after creating sandbox properties |
+| `supabase/functions/hostfully-api/ingestion/transformers.ts` | Add `pictureLink` fallback when `/photos` returns empty |
+
+---
+
+## Data Flow After Fix
+
+```text
+                    ┌─────────────────────────────────────────────────────────────────┐
+                    │                    "Query Properties" Button                     │
+                    └─────────────────────────────────────────────────────────────────┘
+                                                    │
+                                                    ▼
+                    ┌─────────────────────────────────────────────────────────────────┐
+                    │                  Hostfully API Response                          │
+                    │  { name, pictureLink, bedrooms, ... }                            │
+                    └─────────────────────────────────────────────────────────────────┘
+                                                    │
+                                                    ▼
+                    ┌─────────────────────────────────────────────────────────────────┐
+                    │               handleCreateSandboxProperties                      │
+                    │  1. Extract pictureLink → images array                           │
+                    │  2. Insert property with images                                  │
+                    │  3. Call full_ingest_property for room types                     │
+                    └─────────────────────────────────────────────────────────────────┘
+                                                    │
+                                                    ▼
+                    ┌─────────────────────────────────────────────────────────────────┐
+                    │                   full_ingest_property                           │
+                    │  1. Fetch /photos → if empty, use pictureLink fallback           │
+                    │  2. Write images to property record                              │
+                    └─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Expected Result
 
-After fix:
-
-| Metric | Before | After |
-|--------|--------|-------|
-| Page subtitle | "33 of 104 milestones" | "34 of 117 milestones" |
-| Benson marked certified | Count stays same | Count increases by 1 |
-| Email report | Shows 8 per system | Shows 9 per system |
-| Email dots | 5 integration dots | 6 integration dots |
+After this fix:
+1. **Sandbox properties** will have their image saved immediately upon creation
+2. **Full ingestion** will use `pictureLink` as a fallback when the `/photos` endpoint returns empty
+3. The property card will display the image in the property list
 
 ---
 
 ## Technical Notes
 
-### Milestone Flow (9 total per system)
+### Image Field Structure
 
-```text
-Setup (3):       Account → Docs → Edge
-Integration (6): Health → GET → POST → Test → Certify → Live
+The `properties.images` column expects a JSONB array:
+```json
+[
+  { "url": "https://...", "alt": "Property name", "order": 0, "category": "property" }
+]
 ```
 
-### System Count
+### Why Standard Import Works
 
-Currently 13 trackable systems (excluding roomsonline, recaptcha, google_maps):
-- benson, nightsbridge, checkfront, littlehotelier, cloudbeds, hostfully
-- rentalsunited, semper, siteminder, mews, guesty, hotelbeds, roomracoon
+The `handleHostfullyImportListings` function (line 698-752) invokes `full_ingest_property`, which fetches from `/photos`. But for properties that rely on `pictureLink` (like sandbox samples), this fails silently.
 
-Total milestones: 13 × 9 = **117**
+### Sandbox vs Production
+
+| Scenario | Photos Endpoint | pictureLink | Result After Fix |
+|----------|-----------------|-------------|------------------|
+| Production property | Has photos | May have | Uses /photos |
+| Sandbox sample | Empty | Has thumbnail | Uses pictureLink fallback |
