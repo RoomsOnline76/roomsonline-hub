@@ -48,10 +48,14 @@ function replaceTemplateVariables(template: string, booking: any, property: any)
   const roomTypeName = booking.rooms?.[0]?.roomTypeName || booking.room_type_id || "Standard Room";
   const rateTypeName = booking.rooms?.[0]?.rateTypeName || booking.rate_type_id || "Standard Rate";
   
+  // Build property location string
+  const propertyLocation = [property.city, property.country].filter(Boolean).join(", ");
+  
   const replacements: Record<string, string> = {
     // Reservation
     "{{reservation_reference}}": bookingRef,
     "{{total_amount}}": formatCurrency(booking.total_price),
+    "{{total_price}}": formatCurrency(booking.total_price),  // Alias for total_amount
     "{{check_in_date}}": formatDate(booking.check_in_date),
     "{{check_out_date}}": formatDate(booking.check_out_date),
     "{{nights}}": `${nights} night${nights > 1 ? "s" : ""}`,
@@ -68,6 +72,7 @@ function replaceTemplateVariables(template: string, booking: any, property: any)
     "{{property_city}}": property.city || "",
     "{{property_country}}": property.country || "",
     "{{property_address}}": property.address || "",
+    "{{property_location}}": propertyLocation,  // City, Country format
     
     // Room Details
     "{{room_type_name}}": roomTypeName,
