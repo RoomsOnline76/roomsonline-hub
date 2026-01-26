@@ -473,8 +473,8 @@ const Booking = () => {
         const priceType = (rateType.price_type || rateType.priceType || 'PER ROOM').toUpperCase();
         const roomTotalGuests = room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants;
 
-        // UnitRate from HotelBeds means per-room pricing
-        if (priceType === 'PER ROOM' || priceType === 'PERROOM' || priceType === 'UNITRATE') {
+        // UnitRate from HotelBeds means per-room pricing, PER_NIGHT from Hostfully is also per-room
+        if (priceType === 'PER ROOM' || priceType === 'PERROOM' || priceType === 'UNITRATE' || priceType === 'PER_NIGHT' || priceType === 'PER NIGHT') {
           let totalRoomAmount = 0;
           rates.forEach((rate: any) => {
             // Handle both snake_case and camelCase
