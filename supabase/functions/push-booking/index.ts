@@ -1276,8 +1276,8 @@ Deno.serve(async (req) => {
         const leadPayload = {
           agencyUid: ownerCreds.external_account_id,  // Required - Hostfully agency identifier
           propertyUid: hostfullyUid,
-          checkInDateTime: checkInDateTime,  // ISO 8601 format required
-          checkOutDateTime: checkOutDateTime,  // ISO 8601 format required
+          checkInLocalDateTime: checkInDateTime,  // ISO 8601 format required
+          checkOutLocalDateTime: checkOutDateTime,  // ISO 8601 format required
           firstName: firstName,
           lastName: lastName,
           email: booking.guest_email,
