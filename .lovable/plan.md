@@ -1,96 +1,72 @@
 
-# Fix Hostfully Missing agencyUid Field
+# Fix Hostfully Lead API Field Names
 
 ## Problem
 
-The Hostfully Leads API requires `agencyUid` in the payload but it's currently not being sent:
-
-**Error:** `"Invalid parameter 'agencyUid' must not be blank"`
+The Hostfully Leads API is rejecting the booking request even though dates are being sent. The API returns:
+```
+"One of ['checkInDateTime', 'checkInDate'] is required"
+```
 
 ## Root Cause
 
-The `leadPayload` in `push-booking/index.ts` is missing the `agencyUid` field. The data is available in `ownerCreds.external_account_id` (which is already fetched from the `owner_pms_credentials` table) but it's not being included in the API request.
+The Hostfully API expects specific field names that differ from what we're sending:
+
+| Current (Wrong) | Required (Correct) |
+|-----------------|-------------------|
+| `checkInDateTime` | `checkInLocalDateTime` |
+| `checkOutDateTime` | `checkOutLocalDateTime` |
+
+The word **"Local"** is missing from the field names.
 
 ## Solution
 
-Add the `agencyUid` field to the lead payload using the existing `ownerCreds.external_account_id` value.
+Update the lead payload field names from `checkInDateTime`/`checkOutDateTime` to `checkInLocalDateTime`/`checkOutLocalDateTime`.
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/push-booking/index.ts` | Add `agencyUid: ownerCreds.external_account_id` to leadPayload |
+| `supabase/functions/push-booking/index.ts` | Rename date fields to use "Local" suffix |
 
 ---
 
-## Technical Change
+## Technical Details
 
-**File:** `supabase/functions/push-booking/index.ts`
+### File: `supabase/functions/push-booking/index.ts`
 
-**Current Code (lines 1267-1280):**
+**Current Code (line 1279-1280):**
 ```typescript
-const leadPayload = {
-  propertyUid: hostfullyUid,
-  checkInDate: booking.check_in_date,
-  checkOutDate: booking.check_out_date,
-  firstName: firstName,
-  lastName: lastName,
-  email: booking.guest_email,
-  phoneNumber: booking.guest_phone || '',
-  adults: booking.adults || 2,
-  children: (booking.children || 0) + (booking.teens || 0) + (booking.infants || 0),
-  notes: booking.special_requests || '',
-  source: 'HOSTFULLY_API',
-  status: 'NEW',
-};
+checkInDateTime: checkInDateTime,
+checkOutDateTime: checkOutDateTime,
 ```
 
 **Fixed Code:**
 ```typescript
-const leadPayload = {
-  agencyUid: ownerCreds.external_account_id,  // Required - Hostfully agency identifier
-  propertyUid: hostfullyUid,
-  checkInDate: booking.check_in_date,
-  checkOutDate: booking.check_out_date,
-  firstName: firstName,
-  lastName: lastName,
-  email: booking.guest_email,
-  phoneNumber: booking.guest_phone || '',
-  adults: booking.adults || 2,
-  children: (booking.children || 0) + (booking.teens || 0) + (booking.infants || 0),
-  notes: booking.special_requests || '',
-  source: 'HOSTFULLY_API',
-  status: 'NEW',
-};
+checkInLocalDateTime: checkInDateTime,
+checkOutLocalDateTime: checkOutDateTime,
 ```
+
+The variable names can stay the same, only the JSON property keys need to change.
 
 ---
 
-## Data Flow Verification
+## Hostfully API Field Reference
 
-The database already has this data properly populated:
+From [Hostfully API Docs](https://dev.hostfully.com/reference/createlead):
 
-| Property | Agency UID | Source |
-|----------|------------|--------|
-| [SANDBOX] Victorian House (Sample) | `1f217567-5e8c-464f-940f-2878cff4d3b3` | `owner_pms_credentials.external_account_id` |
+| Field | Type | Description |
+|-------|------|-------------|
+| `checkInLocalDate` | date | Check in date (YYYY-MM-DD) |
+| `checkInLocalDateTime` | string | Check in with time (YYYY-MM-DDTHH:mm:ss) |
+| `checkOutLocalDate` | date | Check out date (YYYY-MM-DD) |
+| `checkOutLocalDateTime` | string | Check out with time (YYYY-MM-DDTHH:mm:ss) |
 
-The `ownerCreds` variable is already fetched from `owner_pms_credentials` table (line ~1139-1145), so `ownerCreds.external_account_id` is available and contains the correct agency UID.
-
----
-
-## Error Prevention
-
-Also add validation to ensure the agency UID exists before making the API call:
-
-```typescript
-if (!ownerCreds.external_account_id) {
-  throw new Error('Hostfully Agency UID not configured in owner credentials');
-}
-```
+Since we're already formatting with time (e.g., `2026-03-22T14:00:00`), using `checkInLocalDateTime` is correct.
 
 ---
 
 ## Expected Result
 
 After this fix:
-- Hostfully API receives the required `agencyUid` field
-- Lead is created successfully in Hostfully
+- Hostfully API accepts the lead creation request
+- Lead is created successfully with correct check-in/check-out times
 - Booking completes and user sees confirmation page
