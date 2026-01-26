@@ -520,8 +520,8 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
             restrictionsByDate: {},
           };
 
-          // Map availability per night - handle both formats
-          const availPerNight = roomType.rooms_available_per_night ?? roomType.roomsAvailablePerNight ?? [];
+          // Map availability per night - handle both formats (Benson legacy + adapter contract)
+          const availPerNight = roomType.rooms_available_per_night ?? roomType.roomsAvailablePerNight ?? roomType.availability_per_night ?? [];
           if (Array.isArray(availPerNight)) {
             for (const avail of availPerNight) {
               const dateStr = avail.date;
