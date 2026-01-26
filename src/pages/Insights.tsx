@@ -189,7 +189,7 @@ const Insights = () => {
         </Card>
 
         {/* Two column layout: Correlation left, Log table right */}
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 xl:gap-6">
           {/* Correlation - narrower */}
           <Card className="xl:col-span-2">
             <CardContent className="py-3">

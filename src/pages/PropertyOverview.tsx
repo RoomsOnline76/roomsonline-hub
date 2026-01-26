@@ -452,7 +452,7 @@ const PropertyOverview = () => {
           </TabsList>
 
           <TabsContent value="active">
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader className="py-2 px-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-baseline gap-2">

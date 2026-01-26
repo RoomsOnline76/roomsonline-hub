@@ -194,7 +194,7 @@ export default function DevOverview() {
       </div>
 
       {/* Health Overview */}
-      <div className="grid gap-4 md:grid-cols-4 mb-8">
+      <div className="grid gap-4 md:grid-cols-4 xl:gap-6 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">System Uptime</CardTitle>
@@ -244,7 +244,7 @@ export default function DevOverview() {
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 xl:gap-8">
         {/* PMS Adapters */}
         <Card>
           <CardHeader>

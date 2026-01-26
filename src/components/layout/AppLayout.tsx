@@ -20,7 +20,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div className="flex min-h-screen w-full bg-background">
         {!isMobile && <AppSidebar />}
         <main className={`flex-1 overflow-auto ${isMobile ? 'pb-20' : ''}`}>
-          <div className="container mx-auto px-4 md:px-6 py-4 md:py-6 max-w-7xl animate-fade-in">
+          <div className="container mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 max-w-[1600px] animate-fade-in">
             {children}
           </div>
         </main>
