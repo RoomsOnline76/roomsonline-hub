@@ -919,6 +919,28 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       });
     }
     
+    // Fallback: if no saved pms_rate_types, build from PMS response data
+    if (rateTypes.length === 0 && pmsData.roomTypes.length > 0) {
+      const seenRateTypes = new Set<string>();
+      pmsData.roomTypes.forEach(room => {
+        Object.values(room.ratesByDate).forEach(dateRates => {
+          dateRates.forEach(rate => {
+            const rateTypeId = rate.rateTypeId ? String(rate.rateTypeId) : null;
+            if (rateTypeId && !seenRateTypes.has(rateTypeId)) {
+              seenRateTypes.add(rateTypeId);
+              const hasValues = (rate.roomAmount != null && rate.roomAmount > 0) || 
+                               (rate.adultAmounts && Object.values(rate.adultAmounts).some(v => v != null && v > 0));
+              rateTypes.push({
+                id: rateTypeId,
+                label: rate.rateTypeName || `Rate: ${rateTypeId}`,
+                hasRates: hasValues,
+              });
+            }
+          });
+        });
+      });
+    }
+    
     return rateTypes;
   }, [pmsData, selectedPropertyData]);
 
