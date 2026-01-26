@@ -92,6 +92,7 @@ function replaceTemplateVariables(template: string, booking: any, property: any)
 }
 
 // Wrap custom template content in email wrapper
+// Note: Custom templates already include their own footer, so we don't add another one
 function wrapCustomTemplate(customContent: string, property: any): string {
   return `
 <!DOCTYPE html>
@@ -107,32 +108,12 @@ function wrapCustomTemplate(customContent: string, property: any): string {
       <td align="center" style="padding: 40px 20px;">
         <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
           
-          <!-- Header -->
+          <!-- Custom Content (includes its own header and footer) -->
           <tr>
-            <td style="padding: 40px 40px 20px; text-align: center; background-color: #ffffff; border-radius: 8px 8px 0 0;">
-              <div style="font-size: 32px; color: #22c55e; margin-bottom: 10px;">✓</div>
-              <h1 style="margin: 0; font-size: 24px; color: #333; font-weight: 600;">Reservation Confirmed!</h1>
-              <p style="margin: 10px 0 0; color: #666; font-size: 14px;">Thank you for your reservation</p>
-            </td>
-          </tr>
-
-          <!-- Custom Content -->
-          <tr>
-            <td style="padding: 20px 40px;">
+            <td>
               <div style="color: #333; line-height: 1.6;">
                 ${customContent}
               </div>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
-              <p style="margin: 0 0 20px; color: #666; font-size: 14px;">Kind regards</p>
-              <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
-                RoomsOnline on behalf of <strong>${property.name}</strong>
-              </p>
-              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
             </td>
           </tr>
           
