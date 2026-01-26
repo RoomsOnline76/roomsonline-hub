@@ -2151,6 +2151,7 @@ export type Database = {
       }
       pms_tracker_status: {
         Row: {
+          active_environment: string
           additional_info: Json | null
           contact_email: string | null
           contact_name: string | null
@@ -2177,6 +2178,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          active_environment?: string
           additional_info?: Json | null
           contact_email?: string | null
           contact_name?: string | null
@@ -2203,6 +2205,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          active_environment?: string
           additional_info?: Json | null
           contact_email?: string | null
           contact_name?: string | null

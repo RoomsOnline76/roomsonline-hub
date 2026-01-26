@@ -20,6 +20,7 @@ import { PMSTrackerStatus } from "@/lib/pmsTrackerConfig";
 import { PMSListingSelector, type PMSListing } from "@/components/pms/PMSListingSelector";
 import { SyncStatusIndicator } from "@/components/pms/SyncStatusIndicator";
 import { IntegrationStatusDropdown, type PmsIntegrationStatus } from "@/components/pms/IntegrationStatusDropdown";
+import { EnvironmentToggle } from "@/components/pms/EnvironmentToggle";
 import { BankExportConfigCard } from "@/components/bank-export";
 import {
   Key,
@@ -296,6 +297,8 @@ export default function AdminKeys() {
           has_soft_test: row.has_soft_test || false,
           is_certified: row.is_certified || false,
           is_production: row.is_production || false,
+          // Environment control
+          active_environment: (row.active_environment || 'sandbox') as 'sandbox' | 'production',
           // Legacy field
           has_access: row.has_access || false,
           notes: row.notes || undefined,
@@ -1510,6 +1513,28 @@ export default function AdminKeys() {
     }
   };
 
+  // Unified environment handler - saves to pms_tracker_status.active_environment
+  const handleUnifiedEnvironmentChange = async (systemType: string, newEnv: 'sandbox' | 'production') => {
+    const { error } = await supabase
+      .from("pms_tracker_status")
+      .update({ active_environment: newEnv })
+      .eq("system_type", systemType);
+      
+    if (error) {
+      toast({
+        title: "Error updating environment",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Environment updated",
+        description: `${systemType} now using ${newEnv} endpoint`,
+      });
+      fetchTrackerData();
+    }
+  };
+
   const handleToggleLittlehotelier = async (enabled: boolean) => {
     setTogglingLittlehotelier(true);
     if (littlehotelierCredentials) {
@@ -1727,28 +1752,11 @@ export default function AdminKeys() {
             </div>
 
             {/* Active Environment Toggle */}
-            <div className="flex items-center justify-between p-4 rounded-lg border bg-primary/5 border-primary/20">
-              <div className="space-y-1">
-                <Label className="text-sm font-medium">Active Environment</Label>
-                <p className="text-xs text-muted-foreground">API calls will use {cloudbedsEnvironment} endpoint</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`text-sm ${cloudbedsEnvironment === "staging" ? "font-semibold text-primary" : "text-muted-foreground"}`}
-                >
-                  Sandbox
-                </span>
-                <Switch
-                  checked={cloudbedsEnvironment === "production"}
-                  onCheckedChange={(checked) => handleCloudbedsEnvironmentChange(checked ? "production" : "staging")}
-                />
-                <span
-                  className={`text-sm ${cloudbedsEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}
-                >
-                  Production
-                </span>
-              </div>
-            </div>
+            <EnvironmentToggle
+              systemType="cloudbeds"
+              currentEnvironment={trackerData.cloudbeds?.active_environment || 'sandbox'}
+              onEnvironmentChange={(env) => handleUnifiedEnvironmentChange('cloudbeds', env)}
+            />
 
             {editingCloudbeds ? (
               <div className="space-y-4">
@@ -3254,31 +3262,14 @@ export default function AdminKeys() {
             </div>
 
             {/* Active Environment Toggle */}
-            <div className="flex items-center justify-between p-4 rounded-lg border bg-primary/5 border-primary/20">
-              <div className="space-y-1">
-                <Label className="text-sm font-medium">Active Environment</Label>
-                <p className="text-xs text-muted-foreground">API calls will use {hostfullyEnvironment} endpoint</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  className={`text-sm ${hostfullyEnvironment === "staging" ? "font-semibold text-primary" : "text-muted-foreground"}`}
-                >
-                  Sandbox
-                </span>
-                <Switch
-                  checked={hostfullyEnvironment === "production"}
-                  onCheckedChange={(checked) => handleHostfullyEnvironmentChange(checked ? "production" : "staging")}
-                />
-                <span
-                  className={`text-sm ${hostfullyEnvironment === "production" ? "font-semibold text-primary" : "text-muted-foreground"}`}
-                >
-                  Production
-                </span>
-              </div>
-            </div>
+            <EnvironmentToggle
+              systemType="hostfully"
+              currentEnvironment={trackerData.hostfully?.active_environment || 'sandbox'}
+              onEnvironmentChange={(env) => handleUnifiedEnvironmentChange('hostfully', env)}
+            />
 
-            {/* Sandbox Testing Section - Only visible when staging is selected */}
-            {hostfullyEnvironment === "staging" && isConfigured && (
+            {/* Sandbox Testing Section - Only visible when sandbox is selected */}
+            {trackerData.hostfully?.active_environment !== 'production' && isConfigured && (
               <div className="p-4 rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/30 dark:border-yellow-800">
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">

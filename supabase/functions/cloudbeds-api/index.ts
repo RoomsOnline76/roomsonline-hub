@@ -78,6 +78,28 @@ function createErrorResponse(
   };
 }
 
+// ============================================================================
+// ENVIRONMENT HELPER - Reads from pms_tracker_status
+// ============================================================================
+
+async function getTrackerEnvironment(
+  supabase: any,
+  systemType: string = "cloudbeds"
+): Promise<"sandbox" | "production"> {
+  const { data, error } = await supabase
+    .from("pms_tracker_status")
+    .select("active_environment")
+    .eq("system_type", systemType)
+    .maybeSingle();
+    
+  if (error || !data) {
+    console.log(`[${systemType}] No tracker environment found, defaulting to sandbox`);
+    return "sandbox";
+  }
+  
+  return data.active_environment === "production" ? "production" : "sandbox";
+}
+
 // Input validation schemas
 const baseRequestSchema = z.object({
   action: z.enum([

@@ -6,3 +6,4 @@ export { DisconnectPMSDialog, type DisconnectAction } from './DisconnectPMSDialo
 export { OwnerPMSConnectionCard } from './OwnerPMSConnectionCard';
 export { HostfullyRoomDetails } from './HostfullyRoomDetails';
 export { IntegrationStatusDropdown, type PmsIntegrationStatus, INTEGRATION_STATUS_CONFIG } from './IntegrationStatusDropdown';
+export { EnvironmentToggle } from './EnvironmentToggle';
