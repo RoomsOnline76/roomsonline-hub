@@ -6,14 +6,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Helper to get valid app URL
-const getAppUrl = (): string => {
+// Helper to get valid app URL - prioritize origin_url from state for cross-domain redirect fix
+const getAppUrl = (stateParam?: string | null): string => {
+  // First try to extract origin_url from state (for redirect back to same domain user came from)
+  if (stateParam) {
+    try {
+      const stateData = JSON.parse(atob(stateParam));
+      if (stateData.origin_url && 
+          (stateData.origin_url.startsWith('http://') || stateData.origin_url.startsWith('https://'))) {
+        console.log('Using origin_url from state:', stateData.origin_url);
+        return stateData.origin_url;
+      }
+    } catch (e) {
+      console.warn('Failed to parse origin_url from state:', e);
+    }
+  }
+  
+  // Fallback to APP_URL env variable
   const envUrl = Deno.env.get('APP_URL');
-  // Validate it's a proper URL (starts with http:// or https://)
   if (envUrl && (envUrl.startsWith('http://') || envUrl.startsWith('https://'))) {
     return envUrl;
   }
-  // Fallback to production URL
+  // Final fallback to production URL
   return 'https://sleepinafrica.roomsonline.co.za';
 };
 
@@ -65,7 +79,7 @@ serve(async (req) => {
     // Handle Hostfully-specific status responses
     if (status === 'INCORRECT_REQUEST') {
       console.error('Hostfully returned INCORRECT_REQUEST - check clientId and redirectUri');
-      const appUrl = getAppUrl();
+      const appUrl = getAppUrl(state);
       const redirectPath = getRedirectPath(state);
       return Response.redirect(
         `${appUrl}${redirectPath}?hostfully_error=incorrect_request&error_description=${encodeURIComponent('The authorization request was invalid. Please check your Hostfully configuration.')}`,
@@ -75,7 +89,7 @@ serve(async (req) => {
 
     if (status === 'DECLINED') {
       console.error('Hostfully authorization was declined by user');
-      const appUrl = getAppUrl();
+      const appUrl = getAppUrl(state);
       const redirectPath = getRedirectPath(state);
       return Response.redirect(
         `${appUrl}${redirectPath}?hostfully_error=declined&error_description=${encodeURIComponent('Authorization was declined.')}`,
@@ -86,7 +100,7 @@ serve(async (req) => {
     // Handle OAuth errors - redirect back to app with error
     if (error) {
       console.error('OAuth error:', error, errorDescription);
-      const appUrl = getAppUrl();
+      const appUrl = getAppUrl(state);
       const redirectPath = getRedirectPath(state);
       return Response.redirect(
         `${appUrl}${redirectPath}?hostfully_error=${encodeURIComponent(error)}&error_description=${encodeURIComponent(errorDescription || '')}`,
@@ -108,12 +122,13 @@ serve(async (req) => {
       );
     }
 
-    // Parse state - contains owner_id, property_id, credential_id, and environment
+    // Parse state - contains owner_id, property_id, credential_id, environment, and origin_url
     let stateData: { 
       owner_id: string; 
       property_id?: string; 
       credential_id?: string;
       environment?: 'sandbox' | 'production';
+      origin_url?: string;
     };
     try {
       stateData = JSON.parse(atob(state));
@@ -144,7 +159,7 @@ serve(async (req) => {
       ? 'https://sandbox-api.hostfully.com/api/v3.2/auth/oauth/code-exchange'
       : 'https://api.hostfully.com/api/auth/oauth/code-exchange';
 
-    const appUrl = getAppUrl();
+    const appUrl = getAppUrl(state);
     const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/hostfully-oauth-callback`;
 
     // Exchange code for tokens using Basic Auth (per Hostfully docs)
@@ -299,7 +314,7 @@ serve(async (req) => {
     console.error('Error in hostfully-oauth-callback:', err);
     
     // Redirect with error
-    const appUrl = getAppUrl();
+    const appUrl = getAppUrl(null);
     return Response.redirect(
       `${appUrl}/admin/users?hostfully_error=${encodeURIComponent(err instanceof Error ? err.message : 'Unknown error')}`,
       302

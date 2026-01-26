@@ -383,7 +383,7 @@ export default function PropertyForm() {
   const [connectingHostfullyOAuth, setConnectingHostfullyOAuth] = useState(false);
 
   // Hostfully OAuth Connect handler
-  const handleConnectHostfullyOAuth = (useSandbox = false) => {
+  const handleConnectHostfullyOAuth = (useSandbox?: boolean) => {
     if (!user?.id) {
       toast({
         title: "Not Logged In",
@@ -395,14 +395,22 @@ export default function PropertyForm() {
 
     setConnectingHostfullyOAuth(true);
 
-    const environment = useSandbox ? 'sandbox' : 'production';
+    // Auto-detect sandbox properties based on name patterns
+    const isSandboxProperty = formData.name?.includes('[SANDBOX]') || 
+                              formData.name?.toLowerCase().includes('sandbox') ||
+                              formData.name?.toLowerCase().includes('sample');
+    
+    // Use sandbox OAuth for sandbox properties unless explicitly overridden
+    const shouldUseSandbox = useSandbox ?? isSandboxProperty;
+    const environment = shouldUseSandbox ? 'sandbox' : 'production';
 
-    // Build state parameter with owner, property, and environment info
+    // Build state parameter with owner, property, environment, and origin URL for redirect
     const stateData = {
       owner_id: user.id,
       property_id: propertyId,
       credential_id: ownerPmsCredentialId || ownerHostfullyCredential?.id,
       environment,
+      origin_url: window.location.origin, // Track origin for redirect back to correct domain
     };
     const state = btoa(JSON.stringify(stateData));
 
@@ -3804,7 +3812,7 @@ export default function PropertyForm() {
 
   return (
     <AppLayout>
-      <div className="max-w-7xl mx-auto">
+      <div className="w-full">
           {/* Breadcrumb Navigation */}
           <div className="flex items-center gap-1 text-xs mb-2 text-muted-foreground">
             <button
