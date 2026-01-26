@@ -1278,10 +1278,12 @@ Deno.serve(async (req) => {
           propertyUid: hostfullyUid,
           checkInLocalDateTime: checkInDateTime,  // ISO 8601 format required
           checkOutLocalDateTime: checkOutDateTime,  // ISO 8601 format required
-          firstName: firstName,
-          lastName: lastName,
-          email: booking.guest_email,
-          phoneNumber: booking.guest_phone || '',
+          guestInformation: {
+            firstName: firstName,
+            lastName: lastName,
+            email: booking.guest_email,
+            phoneNumber: booking.guest_phone || '',
+          },
           adults: booking.adults || 2,
           children: (booking.children || 0) + (booking.teens || 0) + (booking.infants || 0),
           notes: booking.special_requests || '',
