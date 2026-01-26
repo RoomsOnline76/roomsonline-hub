@@ -1102,6 +1102,270 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Push to Hostfully
+    else if (externalSystem === 'hostfully') {
+      try {
+        console.log('Processing Hostfully booking...');
+
+        // Get owner credentials for Hostfully
+        const { data: ownerCreds, error: ownerCredsError } = await supabaseClient
+          .from('owner_pms_credentials')
+          .select('*')
+          .eq('owner_id', property.owner_id)
+          .eq('system_type', 'hostfully')
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (ownerCredsError || !ownerCreds) {
+          // Fallback: try to get credentials via owner_email
+          const { data: ownerProfile } = await supabaseClient
+            .from('profiles')
+            .select('id')
+            .eq('email', property.owner_email)
+            .maybeSingle();
+
+          if (ownerProfile) {
+            const { data: fallbackCreds } = await supabaseClient
+              .from('owner_pms_credentials')
+              .select('*')
+              .eq('owner_id', ownerProfile.id)
+              .eq('system_type', 'hostfully')
+              .eq('is_active', true)
+              .maybeSingle();
+
+            if (!fallbackCreds) {
+              throw new Error('Hostfully owner credentials not configured');
+            }
+            Object.assign(ownerCreds || {}, fallbackCreds);
+          } else {
+            throw new Error('Hostfully owner credentials not configured');
+          }
+        }
+
+        const apiKey = ownerCreds?.api_key;
+        if (!apiKey) {
+          throw new Error('Hostfully API key not found in owner credentials');
+        }
+
+        // Get environment from pms_tracker_status
+        const { data: trackerData } = await supabaseClient
+          .from('pms_tracker_status')
+          .select('active_environment')
+          .eq('system_type', 'hostfully')
+          .maybeSingle();
+
+        const environment = trackerData?.active_environment || 'sandbox';
+        const baseUrl = environment === 'production'
+          ? 'https://api.hostfully.com/v2'
+          : 'https://sandbox.hostfully.com/v2';
+
+        console.log(`Using Hostfully ${environment} environment at ${baseUrl}`);
+
+        // Resolve Hostfully property UID
+        let hostfullyUid: string | null = null;
+
+        // Option 1: Check property.external_id
+        if (property.external_id) {
+          hostfullyUid = property.external_id;
+        }
+
+        // Option 2: Extract from amenities.room_types[0].hostfullyId
+        if (!hostfullyUid) {
+          const roomTypes = property.amenities?.room_types || [];
+          if (roomTypes.length > 0) {
+            const firstRoom = roomTypes[0];
+            hostfullyUid = firstRoom.hostfullyId || firstRoom.pmsRoomId || null;
+          }
+        }
+
+        // Option 3: Query hostfully_room_types table
+        if (!hostfullyUid) {
+          const { data: hfRoom } = await supabaseClient
+            .from('hostfully_room_types')
+            .select('hostfully_room_id')
+            .eq('property_id', property.id)
+            .limit(1)
+            .maybeSingle();
+
+          hostfullyUid = hfRoom?.hostfully_room_id || null;
+        }
+
+        if (!hostfullyUid) {
+          throw new Error('Could not resolve Hostfully property UID');
+        }
+
+        console.log(`Resolved Hostfully UID: ${hostfullyUid}`);
+
+        // =========================================================================
+        // ██████╗ ██╗   ██╗██╗     ███████╗     ██╗
+        // ██╔══██╗██║   ██║██║     ██╔════╝    ███║
+        // ██████╔╝██║   ██║██║     █████╗      ╚██║
+        // ██╔══██╗██║   ██║██║     ██╔══╝       ██║
+        // ██║  ██║╚██████╔╝███████╗███████╗     ██║
+        // ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝     ╚═╝
+        // 
+        // UNBREAKABLE RULE: NO BOOKING IS EVER CREATED FROM CACHE DATA ALONE
+        // 
+        // For ALL booking actions → Hit PMS LIVE first, then write result.
+        // Cache is NEVER authoritative. PMS ALWAYS is.
+        // =========================================================================
+        console.log(`[RULE #1] Verifying LIVE availability with Hostfully before booking`);
+
+        const calendarUrl = `${baseUrl}/property-calendar/${hostfullyUid}?from=${booking.check_in_date}&to=${booking.check_out_date}`;
+        console.log(`Checking live availability: ${calendarUrl}`);
+
+        const availResponse = await fetch(calendarUrl, {
+          method: 'GET',
+          headers: {
+            'X-HOSTFULLY-APIKEY': apiKey,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!availResponse.ok) {
+          const availErrorText = await availResponse.text();
+          console.error('Hostfully availability check failed:', availResponse.status, availErrorText);
+          throw new Error(`AVAILABILITY_CHANGED: Hostfully availability verification failed: ${availResponse.status}`);
+        }
+
+        const liveAvailability = await availResponse.json();
+        console.log(`Live availability response received from Hostfully`);
+
+        // Check if any date is unavailable
+        const calendarEntries = liveAvailability?.calendar?.entries || liveAvailability?.entries || [];
+        const unavailableDates = calendarEntries.filter((entry: any) => 
+          entry.availability?.unavailable === true || entry.unavailable === true
+        );
+
+        if (unavailableDates.length > 0) {
+          console.error('Dates unavailable:', unavailableDates.map((d: any) => d.date));
+          throw new Error(`AVAILABILITY_CHANGED: Some dates are no longer available. Please select different dates.`);
+        }
+
+        console.log('Live availability confirmed - all dates available');
+
+        // Create lead/reservation in Hostfully
+        const guestName = booking.guest_name || 'Guest';
+        const nameParts = guestName.split(' ');
+        const firstName = nameParts[0] || 'Guest';
+        const lastName = nameParts.slice(1).join(' ') || 'Guest';
+
+        const leadPayload = {
+          propertyUid: hostfullyUid,
+          checkInDate: booking.check_in_date,
+          checkOutDate: booking.check_out_date,
+          firstName: firstName,
+          lastName: lastName,
+          email: booking.guest_email,
+          phoneNumber: booking.guest_phone || '',
+          adults: booking.adults || 2,
+          children: (booking.children || 0) + (booking.teens || 0) + (booking.infants || 0),
+          notes: booking.special_requests || '',
+          source: 'RoomsOnline',
+        };
+
+        console.log('Hostfully lead payload:', JSON.stringify(leadPayload, null, 2));
+
+        const leadResponse = await fetch(`${baseUrl}/leads`, {
+          method: 'POST',
+          headers: {
+            'X-HOSTFULLY-APIKEY': apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(leadPayload),
+        });
+
+        const leadResponseText = await leadResponse.text();
+        console.log('Hostfully lead response status:', leadResponse.status);
+        console.log('Hostfully lead response:', leadResponseText);
+
+        if (!leadResponse.ok) {
+          throw new Error(`Hostfully API error: ${leadResponse.status} - ${leadResponseText}`);
+        }
+
+        let leadResult;
+        try {
+          leadResult = JSON.parse(leadResponseText);
+        } catch {
+          leadResult = { raw: leadResponseText };
+        }
+
+        const externalBookingId = leadResult.uid || leadResult.id || leadResult.leadUid;
+
+        if (externalBookingId) {
+          externalReservationIds.push(String(externalBookingId));
+
+          // Update booking with external reservation ID
+          await supabaseClient
+            .from('bookings')
+            .update({ external_reservation_id: String(externalBookingId) })
+            .eq('id', booking_id);
+        }
+
+        // Update sync status
+        await supabaseClient.from('booking_sync_status').upsert({
+          booking_id,
+          external_system: 'hostfully',
+          external_booking_id: externalBookingId || null,
+          sync_status: 'synced',
+          sync_attempts: 1,
+          last_sync_at: new Date().toISOString(),
+          error_message: null,
+        }, {
+          onConflict: 'booking_id,external_system',
+        });
+
+        // Log success
+        await supabaseClient.from('sync_logs').insert({
+          booking_id,
+          property_id: property.id,
+          external_system: 'hostfully',
+          sync_type: 'booking_push',
+          status: 'success',
+          message: 'Booking pushed successfully to Hostfully',
+          request_data: leadPayload,
+          response_data: leadResult,
+        });
+
+        results.push({
+          system: 'hostfully',
+          success: true,
+          external_booking_id: externalBookingId,
+        });
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Error pushing to Hostfully:', errorMessage);
+
+        await supabaseClient.from('booking_sync_status').upsert({
+          booking_id,
+          external_system: 'hostfully',
+          sync_status: 'failed',
+          sync_attempts: 1,
+          last_sync_at: new Date().toISOString(),
+          error_message: errorMessage,
+        }, {
+          onConflict: 'booking_id,external_system',
+        });
+
+        await supabaseClient.from('sync_logs').insert({
+          booking_id,
+          property_id: property.id,
+          external_system: 'hostfully',
+          sync_type: 'booking_push',
+          status: 'error',
+          message: errorMessage,
+        });
+
+        results.push({
+          system: 'hostfully',
+          success: false,
+          error: errorMessage,
+          error_code: errorMessage.includes('AVAILABILITY_CHANGED') ? 'AVAILABILITY_CHANGED' : 'BOOKING_FAILED',
+        });
+      }
+    }
+
     // Send booking confirmation email after processing
     const anySuccess = results.some((r: any) => r.success);
     const firstError = results.find((r: any) => !r.success);

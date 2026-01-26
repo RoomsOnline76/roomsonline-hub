@@ -389,6 +389,20 @@ const Booking = () => {
           if (error) throw error;
           // Unwrap adapter response - data may be in data.data or data directly
           availability = data?.data || data;
+        } else if (externalSystem === 'hostfully') {
+          // Hostfully: fetch from API directly
+          const { data, error } = await supabase.functions.invoke("hostfully-api", {
+            body: {
+              action: "fetch_availability",
+              property_id: property.id,
+              start_date: checkIn,
+              end_date: checkOut,
+            },
+          });
+
+          if (error) throw error;
+          // Unwrap adapter response - data may be in data.data or data directly
+          availability = data?.data || data;
         } else {
           // Other PMS systems (HotelBeds, etc.): fetch from pms_availability_cache
           const { data: cacheData, error } = await supabase
