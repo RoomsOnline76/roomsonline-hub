@@ -348,9 +348,25 @@ function mapHostfullyHttpError(status: number, body: unknown): { code: string; m
 // DATA TRANSFORMERS
 // ============================================================================
 
+// Hostfully API v3 calendar response format
 interface HostfullyCalendarDay {
   date: string;
-  available: boolean;
+  note?: string | null;
+  // v3 nested format
+  pricing?: {
+    currency: string;
+    value: number;
+  };
+  availability?: {
+    unavailable: boolean;
+    unavailabilityReason?: string | null;
+    availableForCheckIn: boolean;
+    availableForCheckOut: boolean;
+    minimumStayLength: number;
+    maximumStayLength: number;
+  };
+  // Legacy flat format support
+  available?: boolean;
   price?: number;
   minimumStay?: number;
   checkInAllowed?: boolean;
@@ -361,26 +377,40 @@ function mapHostfullyCalendarToAvailability(calendarData: HostfullyCalendarDay[]
   const roomType = {
     room_type_id: propertyUid,
     name: "Property",
-    availability_per_night: calendarData.map(day => ({
-      date: day.date,
-      available_units: day.available ? 1 : 0,
-      restrictions: {
-        stop_sell: !day.available,
-        min_stay: day.minimumStay || 1,
-        max_stay: null,
-        closed_to_arrival: !day.checkInAllowed,
-        closed_to_departure: !day.checkOutAllowed,
-      },
-    })),
+    availability_per_night: calendarData.map(day => {
+      // Handle both v3 nested format and legacy flat format
+      const isAvailable = day.availability 
+        ? !day.availability.unavailable 
+        : day.available ?? true;
+      const minStay = day.availability?.minimumStayLength || day.minimumStay || 1;
+      const maxStay = day.availability?.maximumStayLength || null;
+      const checkInAllowed = day.availability?.availableForCheckIn ?? day.checkInAllowed ?? true;
+      const checkOutAllowed = day.availability?.availableForCheckOut ?? day.checkOutAllowed ?? true;
+      
+      return {
+        date: day.date,
+        available_units: isAvailable ? 1 : 0,
+        restrictions: {
+          stop_sell: !isAvailable,
+          min_stay: minStay,
+          max_stay: maxStay,
+          closed_to_arrival: !checkInAllowed,
+          closed_to_departure: !checkOutAllowed,
+        },
+      };
+    }),
     rate_types: [{
       rate_type_id: "standard",
       name: "Standard Rate",
       price_type: "per_night",
-      rates: calendarData.filter(d => d.price).map(day => ({
-        date: day.date,
-        room_amount: day.price || 0,
-        adult_amounts: [],
-      })),
+      currency: calendarData[0]?.pricing?.currency || "ZAR",
+      rates: calendarData
+        .filter(d => d.pricing?.value || d.price)
+        .map(day => ({
+          date: day.date,
+          room_amount: day.pricing?.value || day.price || 0,
+          adult_amounts: [],
+        })),
     }],
   };
 
@@ -803,8 +833,11 @@ async function handleFetchAvailability(
     // Log the response structure for debugging
     console.log("[Hostfully] Calendar response structure:", JSON.stringify(responseData).substring(0, 200));
     
-    // Extract calendar array - handle both wrapped and direct array formats
-    const calendarArray = responseData?.calendar || responseData?.days || responseData;
+    // Extract calendar array - handle v3 nested format (calendar.entries) and fallbacks
+    const calendarArray = responseData?.calendar?.entries || 
+                          responseData?.calendar || 
+                          responseData?.days || 
+                          responseData;
     
     // Validate we have an array
     if (!Array.isArray(calendarArray)) {
