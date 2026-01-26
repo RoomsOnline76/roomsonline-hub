@@ -1217,7 +1217,14 @@ serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
         );
       }
-      const response = await handleValidateApiKey(body.api_key, body.environment || "production");
+      
+      // Use provided environment OR read from tracker (same as other actions)
+      let environment = body.environment;
+      if (!environment) {
+        environment = await getTrackerEnvironment(supabase, "hostfully");
+      }
+      
+      const response = await handleValidateApiKey(body.api_key, environment);
       return new Response(JSON.stringify(response), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
