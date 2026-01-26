@@ -1,132 +1,176 @@
 
-# Fix Hostfully Property Display on Public Booking Page
+# Fix Hostfully Rates Display on PropertyShowcase Page
 
 ## Problem Identified
 
-The RoomShowcase page (which displays individual rooms for booking) shows no rates or availability for Hostfully properties because:
+The **PropertyShowcase** page (which lists all rooms for a property) doesn't fetch or display rates for Hostfully properties. Looking at your screenshot, the "Full Property" room shows:
+- "Min Stay 2 nights0" (availability is partially working but has a display bug)
+- "per-unit" badge shows (rate type is detected)
+- **No price displayed** (rates aren't being fetched)
 
-1. **Missing Hostfully detection**: There's no `isHostfullyProperty` check
-2. **No live rate fetching**: Unlike HotelBeds, Hostfully doesn't have a `fetchLiveRates()` call
-3. **No availability calendar navigation**: Hostfully isn't included in the booking flow routing
+### Root Cause
 
-### Current State
+PropertyShowcase.tsx currently only handles HotelBeds for live availability fetching:
 
-| PMS | Detection | Live Rates | Availability Calendar |
-|-----|-----------|------------|----------------------|
-| NightsBridge | `isNightsBridgeProperty` | External iframe | N/A |
-| Benson | `isBensonProperty` | Via cache | Navigates to `/availability` |
-| HotelBeds | `isHotelBedsProperty` | `fetchLiveRates()` | Navigates to `/availability` |
-| Hostfully | NOT DETECTED | No fetching | No navigation |
+```typescript
+// Line 260 - only HotelBeds detection
+const isHotelBedsProperty = property?.external_system === "hotelbeds";
+
+// Line 278-282 - only triggers for HotelBeds
+useEffect(() => {
+  if (isHotelBedsProperty && property?.id) {
+    fetchHotelBedsAvailability();
+  }
+}, [property?.id, isHotelBedsProperty]);
+
+// Line 307 - doesn't include availability_per_night
+const availabilityArray = rt.rooms_available_per_night || rt.daily_availability || [];
+```
+
+Hostfully is completely missing from this flow.
 
 ## Solution
 
-Update `RoomShowcase.tsx` to add full Hostfully support mirroring the HotelBeds implementation:
+Update `PropertyShowcase.tsx` to add Hostfully support, mirroring the HotelBeds implementation:
 
 ### Part 1: Add Hostfully Property Detection
 
-Add an `isHostfullyProperty` check alongside the existing PMS checks.
-
-**Location**: After line 257
-
 ```typescript
-// Check if this is a Hostfully property
+// After line 260
 const isHostfullyProperty = property?.external_system === "hostfully";
 ```
 
-### Part 2: Fetch Live Rates for Hostfully
+### Part 2: Rename and Generalize the Fetch Function
 
-Modify the `fetchLiveRates` function to also handle Hostfully, calling the `hostfully-api` edge function with `fetch_availability` action.
-
-**Key changes**:
-- Extend the condition to include Hostfully
-- Add Hostfully-specific API invocation
-- Handle the response format (which matches the adapter contract we already fixed)
-
-### Part 3: Update Availability Calendar Navigation
-
-Add Hostfully to the condition in `handleCheckAvailability` so users can navigate to the room availability page.
-
-**Location**: Line 340
+Rename `fetchHotelBedsAvailability` to `fetchLivePMSAvailability` and make it PMS-agnostic:
 
 ```typescript
-// For Benson, HotelBeds, or Hostfully properties: navigate to availability calendar
-if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty) && property && room) {
+const fetchLivePMSAvailability = async () => {
+  if (!property?.id) return;
+  
+  // Determine which API to use
+  const apiName = isHostfullyProperty ? 'hostfully-api' : 'hotelbeds-api';
+  
+  const today = new Date().toISOString().split('T')[0];
+  const endDate = new Date();
+  endDate.setDate(endDate.getDate() + 14);
+  const end = endDate.toISOString().split('T')[0];
+
+  try {
+    const { data, error } = await supabase.functions.invoke(apiName, {
+      body: {
+        action: 'fetch_availability',
+        property_id: property.id,
+        start_date: today,
+        end_date: end,
+      }
+    });
+    
+    if (data?.success && data?.data?.room_types) {
+      const availMap = new Map<string, AvailabilityData>();
+      data.data.room_types.forEach((rt: any) => {
+        const roomId = rt.room_type_id || rt.id;
+        // Include availability_per_night for Hostfully
+        const availabilityArray = rt.rooms_available_per_night || 
+                                  rt.daily_availability || 
+                                  rt.availability_per_night || [];
+        const todayData = availabilityArray.find((d: any) => d.date === today) || availabilityArray[0];
+        
+        availMap.set(roomId, {
+          external_room_type_id: roomId,
+          available_units: todayData?.available_units ?? 1,
+          rates: rt.rate_types || [],
+          date: todayData?.date || today,
+        });
+      });
+      setAvailability(availMap);
+    }
+  } catch (error) {
+    console.error(`Failed to fetch ${apiName} availability:`, error);
+  }
+};
 ```
 
-### Part 4: Trigger Live Rate Fetch for Hostfully
-
-Update the useEffect that triggers `fetchLiveRates` to include Hostfully.
-
-**Location**: After line 316
+### Part 3: Update the useEffect Trigger
 
 ```typescript
 useEffect(() => {
-  if ((isHotelBedsProperty || isHostfullyProperty) && property?.id && room && !fetchingLiveRates && liveRates.length === 0) {
-    fetchLiveRates();
+  if ((isHotelBedsProperty || isHostfullyProperty) && property?.id) {
+    fetchLivePMSAvailability();
   }
-}, [property?.id, room, isHotelBedsProperty, isHostfullyProperty]);
+}, [property?.id, isHotelBedsProperty, isHostfullyProperty]);
+```
+
+### Part 4: Add Hostfully to FloatingDateGuestPicker Condition
+
+Currently at line 519, only Benson and HotelBeds show the floating picker. Add Hostfully:
+
+```typescript
+{(isBensonProperty || isHotelBedsProperty || isHostfullyProperty) && (
+  <FloatingDateGuestPicker onContinue={scrollToRooms} ctaLabel="Check Rates" />
+)}
 ```
 
 ## Technical Details
 
-### Edge Function Parameters for Hostfully
+### Data Flow After Fix
 
-The `hostfully-api` edge function expects:
-```typescript
-{
-  action: "fetch_availability",
-  property_id: property.id,  // ROL property UUID
-  start_date: "YYYY-MM-DD",
-  end_date: "YYYY-MM-DD"
-}
+```text
+PropertyShowcase loads Hostfully property
+            │
+            ▼
+useEffect triggers fetchLivePMSAvailability()
+            │
+            ▼
+┌───────────────────────────────────────────────────────┐
+│ supabase.functions.invoke('hostfully-api', {          │
+│   action: 'fetch_availability',                       │
+│   property_id: property.id,                           │
+│   start_date: today,                                  │
+│   end_date: +14 days                                  │
+│ })                                                    │
+└───────────────────────────────────────────────────────┘
+            │
+            ▼
+┌───────────────────────────────────────────────────────┐
+│ Response:                                             │
+│ { room_types: [{                                      │
+│     room_type_id: "818e799c...",                      │
+│     availability_per_night: [...],  ← Now extracted! │
+│     rate_types: [{ rates: [{ room_amount: 450 }] }]   │
+│ }]}                                                   │
+└───────────────────────────────────────────────────────┘
+            │
+            ▼
+┌───────────────────────────────────────────────────────┐
+│ setAvailability(availMap) populated with:             │
+│   - available_units                                   │
+│   - rates (rate_types array)                          │
+└───────────────────────────────────────────────────────┘
+            │
+            ▼
+┌───────────────────────────────────────────────────────┐
+│ getLowestRateForRoom() extracts:                      │
+│   rateType.rates[0].room_amount = 450                 │
+│                                                       │
+│ UI displays: "R450/night"                             │
+└───────────────────────────────────────────────────────┘
 ```
 
-### Response Handling
+### Bonus Fix: Min Stay Display Bug
 
-The response follows the adapter contract we already fixed:
-```json
-{
-  "success": true,
-  "data": {
-    "room_types": [{
-      "room_type_id": "...",
-      "name": "Full Property",
-      "availability_per_night": [...],
-      "rate_types": [{
-        "rate_type_id": "per-unit",
-        "name": "Per Unit Rate",
-        "rates": [...]
-      }]
-    }]
-  }
-}
-```
-
-The existing `fetchLiveRates` response parsing will work because it already handles:
-- `data?.data?.room_types` - matches our structure
-- `rate_types` - already extracted
-- `rooms_available_per_night` - needs fallback to `availability_per_night`
-
-### Additional Fallback for Availability Field
-
-The availability extraction in `fetchLiveRates` needs to include `availability_per_night`:
-
-```typescript
-const availArray = matchedRoom.rooms_available_per_night || 
-                   matchedRoom.dailyAvailability || 
-                   matchedRoom.availability_per_night || [];  // Added
-```
+The screenshot shows "Min Stay 2 nights0" - there's an extra "0" being appended. This is likely a concatenation bug in the RoomCollection component or PropertyShowcase that should be investigated separately.
 
 ## Files Modified
 
 | File | Changes |
 |------|---------|
-| `src/pages/RoomShowcase.tsx` | Add `isHostfullyProperty` check, extend `fetchLiveRates` for Hostfully, update navigation and trigger conditions |
+| `src/pages/PropertyShowcase.tsx` | Add `isHostfullyProperty` check, rename fetch function, add `availability_per_night` extraction, update useEffect trigger, add Hostfully to FloatingDateGuestPicker condition |
 
 ## Expected Result
 
 After this fix:
-1. Hostfully properties will show "R450/night" rates on the room showcase page
-2. Availability data will display correctly
-3. "Check Availability" button will navigate to the room availability calendar
-4. Live rates will be fetched from the Hostfully API on page load
+1. Hostfully properties on `/property/:slug` will fetch live availability and rates
+2. RoomCollection will display "R450/night" (or actual rate) for each room card
+3. The FloatingDateGuestPicker will appear for Hostfully properties
+4. Backward compatibility with HotelBeds and Benson is maintained
