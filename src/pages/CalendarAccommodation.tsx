@@ -470,12 +470,21 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       }
 
       if (data?.error) {
-        if (data.error.includes("credentials") || data.error.includes("not configured")) {
+        // Handle both string errors (legacy) and object errors (adapter contract)
+        const errorMessage = typeof data.error === 'string' 
+          ? data.error 
+          : (data.error.message || data.error.code || JSON.stringify(data.error));
+        
+        if (errorMessage.includes("credentials") || 
+            errorMessage.includes("not configured") ||
+            errorMessage.includes("invalid") ||
+            errorMessage.includes("expired") ||
+            (typeof data.error === 'object' && data.error.code === 'AUTH_FAILED')) {
           setPmsSyncStatus("not_configured");
-          setPmsSyncError(`${selectedPropertyData.external_system} API credentials not configured. Please configure them in Admin > API Keys.`);
+          setPmsSyncError(`${selectedPropertyData.external_system} API credentials not configured or expired. Please configure them in Admin > API Keys.`);
         } else {
           setPmsSyncStatus("error");
-          setPmsSyncError(data.error);
+          setPmsSyncError(errorMessage);
         }
         return;
       }
