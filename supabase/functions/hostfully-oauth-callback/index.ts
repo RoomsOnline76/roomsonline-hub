@@ -84,7 +84,7 @@ serve(async (req) => {
     // Determine URLs based on environment
     const tokenUrl = environment === 'sandbox'
       ? 'https://sandbox-api.hostfully.com/api/v3.2/auth/oauth/code-exchange'
-      : 'https://pmp.hostfully.com/api/auth/oauth/code-exchange';
+      : 'https://api.hostfully.com/api/auth/oauth/code-exchange';
 
     const appUrl = Deno.env.get('APP_URL') || 'https://roomsonline.co.za';
     const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/hostfully-oauth-callback`;
