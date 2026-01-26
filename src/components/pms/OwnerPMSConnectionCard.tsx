@@ -56,8 +56,12 @@ export function OwnerPMSConnectionCard({
   const [parsedBuildings, setParsedBuildings] = useState<ParsedBuilding[]>([]);
   const [fetchingBuildings, setFetchingBuildings] = useState(false);
   const [apiKey, setApiKey] = useState('');
-  const environment = 'production'; // Always production for owners
   const [validating, setValidating] = useState(false);
+
+  // Auto-detect sandbox from owner name/email, or use existing credential environment
+  const isSandboxOwner = ownerName?.toLowerCase().includes('sandbox') || 
+                         ownerEmail?.toLowerCase().includes('sandbox');
+  const environment = existingCredential?.environment || (isSandboxOwner ? 'sandbox' : 'production');
   const [syncing, setSyncing] = useState(false);
   const [buildingsData, setBuildingsData] = useState<{ total: number; imported: number }>({ total: 0, imported: 0 });
 
@@ -270,12 +274,19 @@ export function OwnerPMSConnectionCard({
                 </CardDescription>
               </div>
             </div>
-            {isConnected && (
-              <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                <Check className="h-3 w-3 mr-1" />
-                Connected
-              </Badge>
-            )}
+            <div className="flex items-center gap-2">
+              {environment === 'sandbox' && (
+                <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                  Sandbox
+                </Badge>
+              )}
+              {isConnected && (
+                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                  <Check className="h-3 w-3 mr-1" />
+                  Connected
+                </Badge>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
