@@ -191,6 +191,49 @@ export default function RoomAvailabilityCalendar({
       const monthStart = format(startOfMonth(displayedMonth), "yyyy-MM-dd");
       const monthEnd = format(endOfMonth(addMonths(displayedMonth, 2)), "yyyy-MM-dd");
 
+      // For Hostfully: fetch live instead of from cache
+      if (externalSystem === 'hostfully') {
+        const { data, error } = await supabase.functions.invoke("hostfully-api", {
+          body: {
+            action: 'fetch_availability',
+            property_id: propertyId,
+            start_date: monthStart,
+            end_date: monthEnd,
+          }
+        });
+        
+        if (!error && data?.success && data?.data?.room_types) {
+          const matchedRoom = data.data.room_types.find((rt: any) => 
+            rt.room_type_id === roomId || rt.name === roomName
+          );
+          
+          if (matchedRoom) {
+            const availMap = new Map<string, AvailabilityData>();
+            const availArray = matchedRoom.availability_per_night || [];
+            const rateTypes = matchedRoom.rate_types || [];
+            
+            availArray.forEach((item: any) => {
+              // Find matching rate for this date
+              const ratesForDate = rateTypes.flatMap((rt: any) => 
+                (rt.rates || []).filter((r: any) => r.date === item.date)
+              );
+              
+              availMap.set(item.date, {
+                date: item.date,
+                available_units: item.available_units,
+                rates: ratesForDate.length > 0 ? ratesForDate : undefined,
+                restrictions: item.restrictions,
+              });
+            });
+            
+            setAvailability(availMap);
+          }
+        }
+        setLoading(false);
+        return;
+      }
+
+      // Existing cache-based fetch for other PMS systems
       const { data, error } = await supabase
         .from("pms_availability_cache")
         .select("date, available_units, rates, restrictions")
