@@ -294,6 +294,7 @@ export default function AdminKeys() {
           has_get: row.has_get || false,
           has_post: row.has_post || false,
           has_soft_test: row.has_soft_test || false,
+          is_certified: row.is_certified || false,
           is_production: row.is_production || false,
           // Legacy field
           has_access: row.has_access || false,

@@ -2169,6 +2169,7 @@ export type Database = {
           integration_status:
             | Database["public"]["Enums"]["pms_integration_status"]
             | null
+          is_certified: boolean | null
           is_production: boolean | null
           notes: string | null
           status: string | null
@@ -2194,6 +2195,7 @@ export type Database = {
           integration_status?:
             | Database["public"]["Enums"]["pms_integration_status"]
             | null
+          is_certified?: boolean | null
           is_production?: boolean | null
           notes?: string | null
           status?: string | null
@@ -2219,6 +2221,7 @@ export type Database = {
           integration_status?:
             | Database["public"]["Enums"]["pms_integration_status"]
             | null
+          is_certified?: boolean | null
           is_production?: boolean | null
           notes?: string | null
           status?: string | null

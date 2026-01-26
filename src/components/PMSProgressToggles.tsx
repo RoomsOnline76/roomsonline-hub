@@ -1,5 +1,5 @@
 import React from 'react';
-import { Key, FileText, Code, HeartPulse, Download, Upload, FlaskConical, Rocket } from 'lucide-react';
+import { Key, FileText, Code, HeartPulse, Download, Upload, FlaskConical, BadgeCheck, Rocket } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -25,6 +25,7 @@ const integrationFields: ProgressField[] = [
   { key: 'has_get', dbColumn: 'has_get', icon: Download, label: 'GET', description: 'Can pull availability/rates data' },
   { key: 'has_post', dbColumn: 'has_post', icon: Upload, label: 'POST', description: 'Can push bookings to PMS' },
   { key: 'has_soft_test', dbColumn: 'has_soft_test', icon: FlaskConical, label: 'Test', description: 'Tested with sandbox/test property' },
+  { key: 'is_certified', dbColumn: 'is_certified', icon: BadgeCheck, label: 'Certify', description: 'Integration certified and approved for production' },
   { key: 'is_production', dbColumn: 'is_production', icon: Rocket, label: 'Live', description: 'Live with real properties' },
 ];
 
