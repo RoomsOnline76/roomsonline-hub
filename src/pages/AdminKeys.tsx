@@ -1106,6 +1106,11 @@ export default function AdminKeys() {
       let created = 0;
       
       for (const listing of selectedProperties) {
+        // Extract pictureLink from raw data for image
+        const pictureLink = listing._raw?.pictureLink || listing._raw?.picture;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const images = pictureLink ? [{ url: pictureLink, alt: listing.name, order: 0, category: 'property' }] as any : null;
+        
         const propertyData = {
           name: `[SANDBOX] ${listing.name}`,
           address: listing.address || "Sandbox Address",
@@ -1128,13 +1133,35 @@ export default function AdminKeys() {
           pms_sync_status: "active",
           last_pms_sync_at: new Date().toISOString(),
           is_active: true,
+          images, // Save the property image from pictureLink
         };
 
-        const { error } = await supabase.from("properties").insert(propertyData);
+        const { data: newProperty, error } = await supabase
+          .from("properties")
+          .insert(propertyData)
+          .select("id")
+          .single();
+          
         if (error) {
           console.error("Error creating sandbox property:", error);
         } else {
           created++;
+          
+          // Invoke full ingestion for room types
+          if (newProperty) {
+            try {
+              await supabase.functions.invoke("hostfully-api", {
+                body: {
+                  action: "full_ingest_property",
+                  propertyUid: listing.id,
+                  rol_property_id: newProperty.id,
+                  owner_credential_id: hostfullyCredentials?.id,
+                },
+              });
+            } catch (ingestErr) {
+              console.warn("Ingestion warning:", ingestErr);
+            }
+          }
         }
       }
 
