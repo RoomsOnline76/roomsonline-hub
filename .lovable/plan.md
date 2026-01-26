@@ -1,45 +1,27 @@
 
+
 # Fix Calendar Hostfully Sync Error: `.includes()` Type Mismatch
 
-## Problem
+## Status: NOT YET IMPLEMENTED
 
-When syncing Hostfully calendar data, the error "Dt.error.includes is not a function" occurs because:
+The plan was approved but the fix has not been applied to the codebase. The current code at lines 472-480 still has the broken implementation.
 
-1. The `hostfully-api` edge function returns errors as **objects**: `{ code: "AUTH_FAILED", message: "Hostfully API key is invalid or expired" }`
-2. The calendar code in `CalendarAccommodation.tsx` (line 473) tries to call `.includes()` directly on this error object, which only works for strings/arrays
-
-## Root Cause
+## Current Code (Line 472-480) - BROKEN
 
 ```typescript
-// Line 472-478 - CURRENT (BROKEN)
 if (data?.error) {
   if (data.error.includes("credentials") || data.error.includes("not configured")) {
-    // ❌ Fails because data.error is { code: string, message: string }, not a string
-```
-
-The Hostfully adapter response format:
-```json
-{
-  "success": false,
-  "error": {
-    "code": "AUTH_FAILED",
-    "message": "Hostfully API key is invalid or expired"
+    setPmsSyncStatus("not_configured");
+    setPmsSyncError(`${selectedPropertyData.external_system} API credentials not configured. Please configure them in Admin > API Keys.`);
+  } else {
+    setPmsSyncStatus("error");
+    setPmsSyncError(data.error);
   }
+  return;
 }
 ```
 
-## Solution
-
-Update the error handling in `CalendarAccommodation.tsx` to:
-1. Check if `data.error` is a string or an object
-2. Extract the message properly before calling `.includes()`
-3. Handle both legacy string errors and new adapter object errors
-
-## Implementation
-
-### File: `src/pages/CalendarAccommodation.tsx`
-
-**Lines 472-480** - Update error handling:
+## Required Fix (Lines 472-485)
 
 ```typescript
 if (data?.error) {
@@ -63,25 +45,23 @@ if (data?.error) {
 }
 ```
 
-This change:
-- Safely extracts error message regardless of type (string or object)
-- Checks for `AUTH_FAILED` error code specifically (common Hostfully error)
-- Adds "invalid" and "expired" to credential-related error detection
-- Works with all PMS adapters (Benson, Hostfully, Checkfront, etc.)
+## File to Modify
 
----
+| File | Lines | Change |
+|------|-------|--------|
+| `src/pages/CalendarAccommodation.tsx` | 472-480 | Add error type detection and safe message extraction |
 
-## Files Modified
+## What This Fix Does
 
-| File | Change |
-|------|--------|
-| `src/pages/CalendarAccommodation.tsx` | Fix error handling at lines 472-480 to handle object errors from adapter responses |
-
----
+1. Safely extracts error message regardless of type (string or object)
+2. Checks for `AUTH_FAILED` error code specifically from Hostfully adapter
+3. Adds "invalid" and "expired" to credential-related error detection
+4. Works with all PMS adapters (Benson, Hostfully, Checkfront, etc.)
 
 ## Expected Outcome
 
-After this fix:
-- Hostfully calendar sync will properly display "API credentials not configured or expired" instead of crashing
-- Other PMS adapters that return object errors will also work correctly
-- Legacy string errors continue to work unchanged
+After applying this fix:
+- Hostfully calendar sync will display a proper error message instead of crashing
+- The error "Dt.error.includes is not a function" will be resolved
+- Users will see: "Hostfully API credentials not configured or expired. Please configure them in Admin > API Keys."
+
