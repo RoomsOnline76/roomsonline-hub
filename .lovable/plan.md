@@ -1,92 +1,122 @@
 
-# Fix Sticky Guest Details for Checkout
+# Fix Hostfully Lead API - Nest Guest Information
 
 ## Problem
 
-Returning customers must re-enter their name, email, and phone number every time they make a booking. The sticky guest details feature (which stores data in `localStorage`) exists in `ItineraryContext`, but the checkout forms don't properly use it.
+The Hostfully Leads API is rejecting the booking with:
+```
+"guestInformation is required"
+```
 
 ## Root Cause
 
-There are two issues across the checkout pages:
+Hostfully API v3 requires guest details to be nested inside a `guestInformation` object. The current code sends them as top-level fields:
 
-### 1. **Booking.tsx (Single-Property Checkout)** - Current page the user is on
-- Does NOT import or use `ItineraryContext` at all
-- Initializes empty local state: `useState("")` for all guest fields
-- No connection to the sticky `localStorage` system
+**Current (Wrong):**
+```typescript
+const leadPayload = {
+  agencyUid: ...,
+  propertyUid: ...,
+  checkInLocalDateTime: ...,
+  checkOutLocalDateTime: ...,
+  firstName: firstName,        // ❌ Top-level
+  lastName: lastName,          // ❌ Top-level
+  email: booking.guest_email,  // ❌ Top-level
+  phoneNumber: ...,            // ❌ Top-level
+  adults: ...,
+  ...
+};
+```
 
-### 2. **JourneyCheckout.tsx (Multi-Property Checkout)**
-- Imports `ItineraryContext` but only reads values once on mount
-- Local state is initialized from context but never synced back as user types
-- Guest details only saved to `localStorage` when clicking "Complete Booking"
+**Required (Correct):**
+```typescript
+const leadPayload = {
+  agencyUid: ...,
+  propertyUid: ...,
+  checkInLocalDateTime: ...,
+  checkOutLocalDateTime: ...,
+  guestInformation: {          // ✅ Nested object
+    firstName: firstName,
+    lastName: lastName,
+    email: booking.guest_email,
+    phoneNumber: ...,
+  },
+  adults: ...,
+  ...
+};
+```
 
 ## Solution
 
-### File Changes
+Move the four guest fields (`firstName`, `lastName`, `email`, `phoneNumber`) into a nested `guestInformation` object.
 
 | File | Changes |
 |------|---------|
-| `src/pages/Booking.tsx` | Import `useItinerary`, initialize guest fields from context, sync on blur |
-| `src/pages/JourneyCheckout.tsx` | Sync guest details to context on input blur for real-time persistence |
+| `supabase/functions/push-booking/index.ts` | Nest guest fields inside `guestInformation` object |
 
 ---
 
-## Technical Implementation
+## Technical Details
 
-### 1. Booking.tsx (Single-Property)
+### File: `supabase/functions/push-booking/index.ts`
 
-**Add import:**
+**Lines 1276-1290 - Current Code:**
 ```typescript
-import { useItinerary } from "@/contexts/ItineraryContext";
+const leadPayload = {
+  agencyUid: ownerCreds.external_account_id,
+  propertyUid: hostfullyUid,
+  checkInLocalDateTime: checkInDateTime,
+  checkOutLocalDateTime: checkOutDateTime,
+  firstName: firstName,
+  lastName: lastName,
+  email: booking.guest_email,
+  phoneNumber: booking.guest_phone || '',
+  adults: booking.adults || 2,
+  children: (booking.children || 0) + (booking.teens || 0) + (booking.infants || 0),
+  notes: booking.special_requests || '',
+  source: 'HOSTFULLY_API',
+  status: 'NEW',
+};
 ```
 
-**Get context values:**
+**Fixed Code:**
 ```typescript
-const { guestDetails, setGuestDetails } = useItinerary();
+const leadPayload = {
+  agencyUid: ownerCreds.external_account_id,
+  propertyUid: hostfullyUid,
+  checkInLocalDateTime: checkInDateTime,
+  checkOutLocalDateTime: checkOutDateTime,
+  guestInformation: {
+    firstName: firstName,
+    lastName: lastName,
+    email: booking.guest_email,
+    phoneNumber: booking.guest_phone || '',
+  },
+  adults: booking.adults || 2,
+  children: (booking.children || 0) + (booking.teens || 0) + (booking.infants || 0),
+  notes: booking.special_requests || '',
+  source: 'HOSTFULLY_API',
+  status: 'NEW',
+};
 ```
-
-**Initialize local state from context:**
-```typescript
-const [guestName, setGuestName] = useState(guestDetails.name || "");
-const [guestEmail, setGuestEmail] = useState(guestDetails.email || "");
-const [guestPhone, setGuestPhone] = useState(guestDetails.phone || "");
-```
-
-**Add blur handlers to persist on field exit:**
-```typescript
-onBlur={() => setGuestDetails({ name: guestName })}
-onBlur={() => setGuestDetails({ email: guestEmail })}
-onBlur={() => setGuestDetails({ phone: guestPhone })}
-```
-
-### 2. JourneyCheckout.tsx (Multi-Property)
-
-**Add blur handlers to existing inputs:**
-```typescript
-<Input
-  id="guestName"
-  value={guestName}
-  onChange={(e) => setGuestName(e.target.value)}
-  onBlur={() => setGuestDetails({ name: guestName })}  // ADD THIS
-  ...
-/>
-```
-
-Same pattern for email and phone inputs.
 
 ---
 
-## Why "onBlur" Instead of "onChange"?
+## Hostfully API v3 Reference
 
-- **Performance**: Avoids writing to `localStorage` on every keystroke
-- **UX**: Saves data naturally when user moves to next field or clicks away
-- **Reliability**: Captures partial input even if user doesn't submit form
+From the Hostfully V2 to V3 migration guide, the Leads API added:
+- `guestInformation` object (required)
+- `guestInformation.passportId` (optional)
+- `guestInformation.passportCountryCode` (optional)
+
+The four core guest fields (`firstName`, `lastName`, `email`, `phoneNumber`) must now be inside this nested object.
 
 ---
 
 ## Expected Result
 
 After this fix:
-- Guest details entered on any checkout page persist to `localStorage`
-- Returning customers see their name, email, and phone pre-filled
-- Works across both single-property and multi-property booking flows
-- Data persists even if browser is closed and reopened
+- Hostfully API accepts the lead creation request
+- Lead is created successfully with guest information
+- Booking completes and user sees confirmation page
+- Guest details properly associated with the reservation
