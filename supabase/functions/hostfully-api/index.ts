@@ -373,10 +373,10 @@ interface HostfullyCalendarDay {
   checkOutAllowed?: boolean;
 }
 
-function mapHostfullyCalendarToAvailability(calendarData: HostfullyCalendarDay[], propertyUid: string) {
+function mapHostfullyCalendarToAvailability(calendarData: HostfullyCalendarDay[], propertyUid: string, roomName: string = "Property") {
   const roomType = {
     room_type_id: propertyUid,
-    name: "Property",
+    name: roomName,
     availability_per_night: calendarData.map(day => {
       // Handle both v3 nested format and legacy flat format
       const isAvailable = day.availability 
@@ -849,7 +849,28 @@ async function handleFetchAvailability(
       );
     }
     
-    const availability = mapHostfullyCalendarToAvailability(calendarArray, propertyUid);
+    // Query hostfully_room_types to get actual room name to match frontend filtering
+    let roomName = 'Property';
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      
+      const { data: roomData } = await supabase
+        .from('hostfully_room_types')
+        .select('name')
+        .eq('hostfully_room_id', propertyUid)
+        .maybeSingle();
+      
+      if (roomData?.name) {
+        roomName = roomData.name;
+      }
+      console.log(`[Hostfully] Using room name: "${roomName}" for propertyUid: ${propertyUid}`);
+    } catch (dbErr) {
+      console.warn("[Hostfully] Could not fetch room name from DB, using default:", dbErr);
+    }
+    
+    const availability = mapHostfullyCalendarToAvailability(calendarArray, propertyUid, roomName);
 
     return createSuccessResponse(availability, "fetch_availability");
   } catch (err) {
