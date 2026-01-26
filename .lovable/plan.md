@@ -1,176 +1,168 @@
 
-# Fix Hostfully Rates Display on PropertyShowcase Page
+
+# Fix Hostfully API Key Validation Using Stale Environment
 
 ## Problem Identified
 
-The **PropertyShowcase** page (which lists all rooms for a property) doesn't fetch or display rates for Hostfully properties. Looking at your screenshot, the "Full Property" room shows:
-- "Min Stay 2 nights0" (availability is partially working but has a display bug)
-- "per-unit" badge shows (rate type is detected)
-- **No price displayed** (rates aren't being fetched)
+When adding a new Hostfully client on the AdminUsers page (`/admin-keys`), the API key validation fails because it uses a **stale environment value** instead of the currently-toggled production environment.
 
 ### Root Cause
 
-PropertyShowcase.tsx currently only handles HotelBeds for live availability fetching:
+The `OwnerPMSConnectionCard` component has a race condition:
 
-```typescript
-// Line 260 - only HotelBeds detection
-const isHotelBedsProperty = property?.external_system === "hotelbeds";
+| Component State | Tracker DB Value | What Gets Sent to Edge Function |
+|-----------------|------------------|----------------------------------|
+| Initial: `'sandbox'` (line 60) | Was `sandbox` when mounted | `environment: "sandbox"` |
+| After toggle: still `'sandbox'` | Updated to `production` | `environment: "sandbox"` (stale!) |
 
-// Line 278-282 - only triggers for HotelBeds
-useEffect(() => {
-  if (isHotelBedsProperty && property?.id) {
-    fetchHotelBedsAvailability();
-  }
-}, [property?.id, isHotelBedsProperty]);
+The component fetches the environment once on mount via `useEffect(() => {...}, [])`. When you toggle the environment on the same page, the other mounted `OwnerPMSConnectionCard` instances don't refresh their state.
 
-// Line 307 - doesn't include availability_per_night
-const availabilityArray = rt.rooms_available_per_night || rt.daily_availability || [];
+### Evidence from Logs
+
 ```
-
-Hostfully is completely missing from this flow.
+15:35:31Z - PATCH pms_tracker_status → active_environment = "production"
+15:35:38Z - Edge function receives: environment: "sandbox" ← STALE!
+15:35:40Z - Edge function receives: environment: "sandbox" ← STALE!
+```
 
 ## Solution
 
-Update `PropertyShowcase.tsx` to add Hostfully support, mirroring the HotelBeds implementation:
+**Don't send the environment from the frontend at all** for API key validation. Let the Edge Function fetch the current tracker environment itself (which it already supports!).
 
-### Part 1: Add Hostfully Property Detection
+### Change 1: OwnerPMSConnectionCard - Remove Environment Override
 
+Remove the explicit `environment` parameter from the `validate_api_key` call. The edge function's fallback logic (lines 1292-1296) will query the tracker for the current value.
+
+**File**: `src/components/pms/OwnerPMSConnectionCard.tsx`
+
+**Current (line 121-127):**
 ```typescript
-// After line 260
-const isHostfullyProperty = property?.external_system === "hostfully";
+const { data, error } = await supabase.functions.invoke('hostfully-api', {
+  body: {
+    action: 'validate_api_key',
+    api_key: apiKey,
+    environment,  // ← Sending stale cached value
+  },
+});
 ```
 
-### Part 2: Rename and Generalize the Fetch Function
-
-Rename `fetchHotelBedsAvailability` to `fetchLivePMSAvailability` and make it PMS-agnostic:
-
+**Fixed:**
 ```typescript
-const fetchLivePMSAvailability = async () => {
-  if (!property?.id) return;
-  
-  // Determine which API to use
-  const apiName = isHostfullyProperty ? 'hostfully-api' : 'hotelbeds-api';
-  
-  const today = new Date().toISOString().split('T')[0];
-  const endDate = new Date();
-  endDate.setDate(endDate.getDate() + 14);
-  const end = endDate.toISOString().split('T')[0];
-
-  try {
-    const { data, error } = await supabase.functions.invoke(apiName, {
-      body: {
-        action: 'fetch_availability',
-        property_id: property.id,
-        start_date: today,
-        end_date: end,
-      }
-    });
-    
-    if (data?.success && data?.data?.room_types) {
-      const availMap = new Map<string, AvailabilityData>();
-      data.data.room_types.forEach((rt: any) => {
-        const roomId = rt.room_type_id || rt.id;
-        // Include availability_per_night for Hostfully
-        const availabilityArray = rt.rooms_available_per_night || 
-                                  rt.daily_availability || 
-                                  rt.availability_per_night || [];
-        const todayData = availabilityArray.find((d: any) => d.date === today) || availabilityArray[0];
-        
-        availMap.set(roomId, {
-          external_room_type_id: roomId,
-          available_units: todayData?.available_units ?? 1,
-          rates: rt.rate_types || [],
-          date: todayData?.date || today,
-        });
-      });
-      setAvailability(availMap);
-    }
-  } catch (error) {
-    console.error(`Failed to fetch ${apiName} availability:`, error);
-  }
-};
+const { data, error } = await supabase.functions.invoke('hostfully-api', {
+  body: {
+    action: 'validate_api_key',
+    api_key: apiKey,
+    // environment is NOT sent - edge function will fetch from tracker
+  },
+});
 ```
 
-### Part 3: Update the useEffect Trigger
+### Change 2: OwnerOnboardingWizard - Also Remove Hardcoded Environment
 
+The wizard currently hardcodes `environment: "production"` which conflicts with the tracker-based model. Remove it so the edge function uses the tracker.
+
+**File**: `src/components/onboarding/OwnerOnboardingWizard.tsx`
+
+**Current (line 96-103):**
 ```typescript
-useEffect(() => {
-  if ((isHotelBedsProperty || isHostfullyProperty) && property?.id) {
-    fetchLivePMSAvailability();
-  }
-}, [property?.id, isHotelBedsProperty, isHostfullyProperty]);
+const { data, error } = await supabase.functions.invoke("hostfully-api", {
+  body: {
+    action: "validate_api_key",
+    api_key: hostfullyApiKey.trim(),
+    environment: hostfullyEnvironment,  // ← Hardcoded "production"
+  },
+});
 ```
 
-### Part 4: Add Hostfully to FloatingDateGuestPicker Condition
-
-Currently at line 519, only Benson and HotelBeds show the floating picker. Add Hostfully:
-
+**Fixed:**
 ```typescript
-{(isBensonProperty || isHotelBedsProperty || isHostfullyProperty) && (
-  <FloatingDateGuestPicker onContinue={scrollToRooms} ctaLabel="Check Rates" />
-)}
+const { data, error } = await supabase.functions.invoke("hostfully-api", {
+  body: {
+    action: "validate_api_key",
+    api_key: hostfullyApiKey.trim(),
+    // environment is NOT sent - edge function will use tracker
+  },
+});
 ```
+
+### Change 3: Remove Unused Environment Code
+
+Since we're no longer using the environment state in `OwnerPMSConnectionCard`, we can also remove:
+- The `trackerEnvironment` state variable (line 60)
+- The `useEffect` that fetches it (lines 63-76)
+- The `environment` constant (line 79)
+
+However, keep the tracker fetch if it's used elsewhere in the component (e.g., for display or other API calls). If only used for validation, it can be fully removed.
 
 ## Technical Details
+
+### Why This Works
+
+The edge function already has robust fallback logic:
+
+```typescript
+// supabase/functions/hostfully-api/index.ts lines 1292-1296
+let environment = body.environment;
+if (!environment) {
+  environment = await getTrackerEnvironment(supabase, "hostfully");
+}
+```
+
+By not sending `environment`, the edge function will:
+1. See `body.environment` is `undefined`
+2. Call `getTrackerEnvironment()` which queries `pms_tracker_status`
+3. Get the **current** value (`production`) not a stale cached value
 
 ### Data Flow After Fix
 
 ```text
-PropertyShowcase loads Hostfully property
+User toggles Hostfully to Production
             │
             ▼
-useEffect triggers fetchLivePMSAvailability()
+pms_tracker_status.active_environment = 'production'
+            │
+            │ (No more caching issue!)
+            ▼
+User tries to validate real client API key
             │
             ▼
-┌───────────────────────────────────────────────────────┐
-│ supabase.functions.invoke('hostfully-api', {          │
-│   action: 'fetch_availability',                       │
-│   property_id: property.id,                           │
-│   start_date: today,                                  │
-│   end_date: +14 days                                  │
-│ })                                                    │
-└───────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Frontend sends:                                         │
+│   { action: "validate_api_key", api_key: "FzNl..." }    │
+│   (NO environment parameter)                            │
+└─────────────────────────────────────────────────────────┘
             │
             ▼
-┌───────────────────────────────────────────────────────┐
-│ Response:                                             │
-│ { room_types: [{                                      │
-│     room_type_id: "818e799c...",                      │
-│     availability_per_night: [...],  ← Now extracted! │
-│     rate_types: [{ rates: [{ room_amount: 450 }] }]   │
-│ }]}                                                   │
-└───────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Edge function:                                          │
+│   if (!body.environment) {                              │
+│     environment = getTrackerEnvironment()               │
+│     → queries DB → returns 'production'                 │
+│   }                                                     │
+└─────────────────────────────────────────────────────────┘
             │
             ▼
-┌───────────────────────────────────────────────────────┐
-│ setAvailability(availMap) populated with:             │
-│   - available_units                                   │
-│   - rates (rate_types array)                          │
-└───────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Validates against:                                      │
+│   https://api.hostfully.com/api/v3/agencies             │
+│   (PRODUCTION endpoint!)                                │
+└─────────────────────────────────────────────────────────┘
             │
             ▼
-┌───────────────────────────────────────────────────────┐
-│ getLowestRateForRoom() extracts:                      │
-│   rateType.rates[0].room_amount = 450                 │
-│                                                       │
-│ UI displays: "R450/night"                             │
-└───────────────────────────────────────────────────────┘
+    ✓ API key validated successfully
 ```
-
-### Bonus Fix: Min Stay Display Bug
-
-The screenshot shows "Min Stay 2 nights0" - there's an extra "0" being appended. This is likely a concatenation bug in the RoomCollection component or PropertyShowcase that should be investigated separately.
 
 ## Files Modified
 
 | File | Changes |
 |------|---------|
-| `src/pages/PropertyShowcase.tsx` | Add `isHostfullyProperty` check, rename fetch function, add `availability_per_night` extraction, update useEffect trigger, add Hostfully to FloatingDateGuestPicker condition |
+| `src/components/pms/OwnerPMSConnectionCard.tsx` | Remove `environment` parameter from `validate_api_key` call |
+| `src/components/onboarding/OwnerOnboardingWizard.tsx` | Remove `environment` parameter from `validate_api_key` call; remove unused `hostfullyEnvironment` constant |
 
 ## Expected Result
 
 After this fix:
-1. Hostfully properties on `/property/:slug` will fetch live availability and rates
-2. RoomCollection will display "R450/night" (or actual rate) for each room card
-3. The FloatingDateGuestPicker will appear for Hostfully properties
-4. Backward compatibility with HotelBeds and Benson is maintained
+1. Switching the Hostfully environment toggle takes effect immediately
+2. API key validation uses the **current** tracker environment (not a cached value)
+3. Real production clients can be added without false "invalid key" errors
+4. Sandbox testing still works when the toggle is set to sandbox
