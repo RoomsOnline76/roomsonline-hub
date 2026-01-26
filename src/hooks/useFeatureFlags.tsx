@@ -11,6 +11,8 @@ interface FeatureFlags {
   // Public keys (publishable, not secrets)
   google_maps_api_key: string | null;
   google_recaptcha_site_key: string | null;
+  // OAuth client IDs (needed in frontend for OAuth flows)
+  hostfully_client_id: string | null;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
@@ -20,6 +22,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   benson_active_environment: null,
   google_maps_api_key: null,
   google_recaptcha_site_key: null,
+  hostfully_client_id: null,
 };
 
 export function useFeatureFlags() {

@@ -415,7 +415,8 @@ export default function PropertyForm() {
     const state = btoa(JSON.stringify(stateData));
 
     // Hostfully OAuth authorize URL - use sandbox or production based on environment
-    const clientId = import.meta.env.VITE_HOSTFULLY_CLIENT_ID || '';
+    // Client ID comes from feature flags (edge function secret) - not VITE_ env var
+    const clientId = featureFlags?.hostfully_client_id || '';
     const redirectUri = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/hostfully-oauth-callback`;
     
     const baseUrl = useSandbox
@@ -459,24 +460,38 @@ export default function PropertyForm() {
     }
   }, [toast]);
 
-  // Load owner's Hostfully credential if they're an owner (not admin/dev)
+  // Load owner's Hostfully credential
+  // For owners: load their own credential
+  // For admin/dev: load the property owner's credential via ownerPmsCredentialId
   const isOwnerUser = user && !isAdmin && !isDev;
   
   useEffect(() => {
     const loadOwnerHostfullyCredential = async () => {
-      if (!isOwnerUser || !user?.id) return;
-      
       setLoadingOwnerCredential(true);
       try {
-        const { data, error } = await supabase
-          .from("owner_pms_credentials")
-          .select("*")
-          .eq("owner_id", user.id)
-          .eq("system_type", "hostfully")
-          .maybeSingle();
-        
-        if (!error && data) {
-          setOwnerHostfullyCredential(data);
+        if (isOwnerUser && user?.id) {
+          // Owner viewing their own property - load via their user ID
+          const { data, error } = await supabase
+            .from("owner_pms_credentials")
+            .select("*")
+            .eq("owner_id", user.id)
+            .eq("system_type", "hostfully")
+            .maybeSingle();
+          
+          if (!error && data) {
+            setOwnerHostfullyCredential(data);
+          }
+        } else if ((isAdmin || isDev) && ownerPmsCredentialId) {
+          // Admin/dev editing - load via property's credential link
+          const { data, error } = await supabase
+            .from("owner_pms_credentials")
+            .select("*")
+            .eq("id", ownerPmsCredentialId)
+            .maybeSingle();
+          
+          if (!error && data) {
+            setOwnerHostfullyCredential(data);
+          }
         }
       } catch (err) {
         console.error("Failed to load owner Hostfully credential:", err);
@@ -486,7 +501,7 @@ export default function PropertyForm() {
     };
     
     loadOwnerHostfullyCredential();
-  }, [isOwnerUser, user?.id]);
+  }, [isOwnerUser, user?.id, isAdmin, isDev, ownerPmsCredentialId]);
 
   const handleOwnerCredentialChange = async () => {
     // Reload the credential after changes
