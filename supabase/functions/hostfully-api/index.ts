@@ -735,7 +735,7 @@ async function handleFetchAvailability(
   const baseUrl = HOSTFULLY_URLS[creds.environment];
 
   try {
-    const endpoint = `/properties/${propertyUid}/calendar?startDate=${startDate}&endDate=${endDate}`;
+    const endpoint = `/property-calendar/${propertyUid}?from=${startDate}&to=${endDate}`;
     const response = await hostfullyRequest(endpoint, creds.api_key, baseUrl);
 
     if (!response.ok) {
@@ -836,7 +836,7 @@ async function handleCreateReservation(
 
   try {
     // Check live availability first
-    const calendarEndpoint = `/properties/${propertyUid}/calendar?startDate=${reservationData.checkInDate}&endDate=${reservationData.checkOutDate}`;
+    const calendarEndpoint = `/property-calendar/${propertyUid}?from=${reservationData.checkInDate}&to=${reservationData.checkOutDate}`;
     const calendarResponse = await hostfullyRequest(calendarEndpoint, creds.api_key, baseUrl);
 
     if (!calendarResponse.ok) {
