@@ -118,11 +118,11 @@ export function OwnerPMSConnectionCard({
     setValidating(true);
     try {
       // Validate the API key
+      // Don't send environment - edge function will fetch current tracker environment
       const { data, error } = await supabase.functions.invoke('hostfully-api', {
         body: {
           action: 'validate_api_key',
           api_key: apiKey,
-          environment,
         },
       });
 

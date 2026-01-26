@@ -59,7 +59,7 @@ export function OwnerOnboardingWizard({
   
   // Hostfully state
   const [hostfullyApiKey, setHostfullyApiKey] = useState("");
-  const hostfullyEnvironment = "production"; // Always production for owners
+  // Environment is now determined by the edge function from pms_tracker_status
   const [hostfullyAgencyInfo, setHostfullyAgencyInfo] = useState<HostfullyAgencyInfo | null>(null);
   const [parsedBuildings, setParsedBuildings] = useState<ParsedBuilding[]>([]);
   const [selectedBuildings, setSelectedBuildings] = useState<Set<string>>(new Set());
@@ -94,11 +94,11 @@ export function OwnerOnboardingWizard({
     setKeyError(null);
 
     try {
+      // Don't send environment - edge function will fetch current tracker environment
       const { data, error } = await supabase.functions.invoke("hostfully-api", {
         body: {
           action: "validate_api_key",
           api_key: hostfullyApiKey.trim(),
-          environment: hostfullyEnvironment,
         },
       });
 
@@ -131,11 +131,11 @@ export function OwnerOnboardingWizard({
   const fetchAndParseBuildings = async () => {
     try {
       // Use list_all_properties for complete property list with pagination
+      // Don't send environment - edge function will fetch current tracker environment
       const { data, error } = await supabase.functions.invoke("hostfully-api", {
         body: {
           action: "list_all_properties",
           api_key: hostfullyApiKey.trim(),
-          environment: hostfullyEnvironment,
         },
       });
 
@@ -187,12 +187,11 @@ export function OwnerOnboardingWizard({
     setImporting(true);
 
     try {
-      // Update the credential with the API key
+      // Update the credential with the API key (environment will be set by DB default)
       const { error: updateError } = await supabase
         .from("owner_pms_credentials")
         .update({
           api_key: hostfullyApiKey.trim(),
-          environment: hostfullyEnvironment,
           external_account_id: hostfullyAgencyInfo?.uid,
           external_account_name: hostfullyAgencyInfo?.name,
           sync_status: "active",
