@@ -1,139 +1,181 @@
 
-# Fix Hostfully Sync - Link Property to Owner's PMS Credential
+# Fix "Connect Hostfully" Button for Admin/Dev Users
 
-## Problem
+## Problem Summary
 
-The "Sync Property Data" button fails with "Failed to retrieve owner credentials" because the property record has `owner_pms_credential_id` set to NULL, even though:
-- The property has `owner_email` = `marketing@fluent.sandbox.co.za`
-- That owner has a valid Hostfully credential with API key
+When an admin/dev user clicks "Connect Hostfully" on the Victorian House property, the OAuth flow fails with `INCORRECT_REQUEST` and logs the user out. The root causes are:
 
-## Root Cause
+### Issue 1: Wrong Button Displayed
 
-The property was created without linking to the owner's PMS credential. The sync function in PropertyForm.tsx requires `owner_pms_credential_id` to be set directly on the property.
+The "Connect Hostfully" button is shown incorrectly because:
 
-## Data State
+- The `ownerHostfullyCredential` state is **only loaded for owner users** (not admin/dev)
+- Line 467: `if (!isOwnerUser || !user?.id) return;` - skips loading for admin/dev
+- Since `ownerHostfullyCredential` is null, the condition `!ownerHostfullyCredential?.api_key` is TRUE
+- This shows "Connect Hostfully" even though the property's owner HAS a valid credential
 
-| Table | Field | Current Value |
-|-------|-------|---------------|
-| `properties` | `id` | `1a4d3334-16ec-4554-b228-e3e552c1cad8` |
-| `properties` | `owner_email` | `marketing@fluent.sandbox.co.za` |
-| `properties` | `owner_pms_credential_id` | **NULL** ← Problem |
-| `owner_pms_credentials` | `id` | `839ec420-2075-4f69-9f18-0617d127c9bb` |
-| `owner_pms_credentials` | `owner_id` | `2ac69111-5c58-453e-a635-7bd39e7fbb7a` |
+```text
+Current State (Wrong):
+┌───────────────────────────────────────────────────────────────┐
+│ Admin/Dev viewing property                                    │
+│                                                               │
+│ ownerPmsCredentialId = '839ec420...' ← Loaded from property ✓│
+│ ownerHostfullyCredential = null      ← NOT loaded (skipped)  │
+│                                                               │
+│ Condition: !null?.api_key → TRUE                             │
+│ Result: Shows "Connect Hostfully" button incorrectly         │
+└───────────────────────────────────────────────────────────────┘
+```
+
+### Issue 2: Missing Frontend OAuth Client ID
+
+Even if the button was appropriate, the OAuth flow fails because:
+
+- `VITE_HOSTFULLY_CLIENT_ID` is **NOT SET** in the `.env` file
+- The frontend code (line 418): `const clientId = import.meta.env.VITE_HOSTFULLY_CLIENT_ID || ''`
+- This sends an **empty clientId** to Hostfully
+- Hostfully returns `status: "INCORRECT_REQUEST"`
+- The redirect back to the app causes session issues
+
+```text
+Edge Function Logs:
+┌─────────────────────────────────────────────────────────────────┐
+│ Hostfully OAuth callback received:                              │
+│   hasCode: false                                                │
+│   status: "INCORRECT_REQUEST"  ← Invalid clientId               │
+│                                                                 │
+│ ERROR: "check clientId and redirectUri"                         │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ## Solution
 
-### Part 1: Fix Database Record
+### Part 1: Fix Button Visibility Logic
 
-Link the property to the owner's Hostfully credential:
+Update the `ownerHostfullyCredential` loading in `PropertyForm.tsx` to also load the property owner's credential when an admin/dev is editing, not just when the owner themselves is viewing.
 
-```sql
-UPDATE properties 
-SET owner_pms_credential_id = '839ec420-2075-4f69-9f18-0617d127c9bb'
-WHERE id = '1a4d3334-16ec-4554-b228-e3e552c1cad8';
-```
-
-### Part 2: Improve Sync Logic (Fallback)
-
-Update `PropertyForm.tsx` to look up owner credentials via `owner_email` when `owner_pms_credential_id` is not set. This prevents this issue from recurring.
-
-**Current code (line ~660):**
+**Current Code (lines 465-489):**
 ```typescript
-const { data: property } = await supabase
-  .from("properties")
-  .select("owner_pms_credential_id")
-  .eq("id", propertyId)
-  .single();
-
-if (!property?.owner_pms_credential_id) {
-  throw new Error("No owner PMS credential linked to this property");
-}
-```
-
-**Improved code with fallback:**
-```typescript
-const { data: property } = await supabase
-  .from("properties")
-  .select("owner_pms_credential_id, owner_email")
-  .eq("id", propertyId)
-  .single();
-
-let credentialId = property?.owner_pms_credential_id;
-
-// Fallback: Look up credential via owner_email
-if (!credentialId && property?.owner_email) {
-  const { data: ownerProfile } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("email", property.owner_email)
-    .maybeSingle();
-  
-  if (ownerProfile?.id) {
-    const { data: credential } = await supabase
+useEffect(() => {
+  const loadOwnerHostfullyCredential = async () => {
+    if (!isOwnerUser || !user?.id) return; // ← Only loads for owners
+    
+    const { data } = await supabase
       .from("owner_pms_credentials")
-      .select("id")
-      .eq("owner_id", ownerProfile.id)
+      .select("*")
+      .eq("owner_id", user.id) // ← Uses logged-in user's ID
       .eq("system_type", "hostfully")
-      .eq("is_active", true)
       .maybeSingle();
-    
-    credentialId = credential?.id;
-    
-    // Auto-link for future use
-    if (credentialId) {
-      await supabase
-        .from("properties")
-        .update({ owner_pms_credential_id: credentialId })
-        .eq("id", propertyId);
-    }
-  }
-}
-
-if (!credentialId) {
-  throw new Error("No owner PMS credential linked to this property");
-}
+    // ...
+  };
+}, [isOwnerUser, user?.id]);
 ```
 
-## Files Modified
+**Fixed Code:**
+```typescript
+useEffect(() => {
+  const loadOwnerHostfullyCredential = async () => {
+    // For owners: load their own credential
+    // For admin/dev: load the property owner's credential via ownerPmsCredentialId
+    
+    if (isOwnerUser && user?.id) {
+      // Owner viewing their own property
+      const { data } = await supabase
+        .from("owner_pms_credentials")
+        .select("*")
+        .eq("owner_id", user.id)
+        .eq("system_type", "hostfully")
+        .maybeSingle();
+      
+      if (data) setOwnerHostfullyCredential(data);
+    } else if ((isAdmin || isDev) && ownerPmsCredentialId) {
+      // Admin/dev editing - load via property's credential link
+      const { data } = await supabase
+        .from("owner_pms_credentials")
+        .select("*")
+        .eq("id", ownerPmsCredentialId)
+        .maybeSingle();
+      
+      if (data) setOwnerHostfullyCredential(data);
+    }
+  };
+  
+  loadOwnerHostfullyCredential();
+}, [isOwnerUser, user?.id, isAdmin, isDev, ownerPmsCredentialId]);
+```
+
+### Part 2: Add VITE_HOSTFULLY_CLIENT_ID Environment Variable
+
+The OAuth flow requires the `HOSTFULLY_CLIENT_ID` to be available in the frontend. This needs to be exposed as a `VITE_` prefixed variable.
+
+**Option A: Fetch via Feature Flags (Recommended)**
+
+Since the client ID is already stored as a secret (`HOSTFULLY_CLIENT_ID`), we can expose it via the existing `get-feature-flags` edge function, similar to how `google_maps_api_key` is exposed.
+
+Update `supabase/functions/get-feature-flags/index.ts` to include:
+```typescript
+hostfully_client_id: Deno.env.get('HOSTFULLY_CLIENT_ID') || '',
+```
+
+Then update `PropertyForm.tsx` to use:
+```typescript
+const clientId = featureFlags?.hostfully_client_id || '';
+```
+
+**Option B: Add to .env (Not Recommended)**
+
+This would require adding `VITE_HOSTFULLY_CLIENT_ID` to the environment, but since this is a secret, Option A is better.
+
+## Files to Modify
 
 | File | Change |
 |------|--------|
-| Database (direct update) | Link Victorian House property to owner's credential |
-| `src/pages/PropertyForm.tsx` | Add fallback logic to find credentials via owner_email |
+| `src/pages/PropertyForm.tsx` | Fix `loadOwnerHostfullyCredential` to also load for admin/dev using `ownerPmsCredentialId` |
+| `supabase/functions/get-feature-flags/index.ts` | Add `hostfully_client_id` to response |
+| `src/pages/PropertyForm.tsx` | Update OAuth handler to use `featureFlags?.hostfully_client_id` |
 
-## Data Flow After Fix
+## Expected Behavior After Fix
 
 ```text
-User clicks "Sync Property Data"
-           │
-           ▼
-┌────────────────────────────────────┐
-│ Check property.owner_pms_credential_id │
-│           = NULL                   │
-└────────────────────────────────────┘
-           │
-           ▼
-┌────────────────────────────────────┐
-│ FALLBACK: Look up via owner_email  │
-│ profiles → owner_pms_credentials   │
-└────────────────────────────────────┘
-           │
-           ▼
-┌────────────────────────────────────┐
-│ Found credential_id               │
-│ Auto-link to property             │
-└────────────────────────────────────┘
-           │
-           ▼
-┌────────────────────────────────────┐
-│ Call hostfully-api with credential │
-│ SUCCESS!                           │
-└────────────────────────────────────┘
+Admin/Dev viewing Victorian House property:
+┌───────────────────────────────────────────────────────────────┐
+│ ownerPmsCredentialId = '839ec420...' ← From property          │
+│ ownerHostfullyCredential = {api_key: '...', ...} ← NOW LOADED │
+│                                                               │
+│ Condition: !credential?.api_key → FALSE (has API key)        │
+│ Result: "Connect Hostfully" button HIDDEN ✓                   │
+│                                                               │
+│ "Sync Property Data" button VISIBLE and WORKS ✓              │
+└───────────────────────────────────────────────────────────────┘
 ```
 
-## Expected Result
+## Data State (Already Correct)
 
-After this fix:
-1. The Victorian House property will be linked to the Hostfully SandBox owner's credential
-2. "Sync Property Data" will work immediately
-3. Future properties with only `owner_email` set will auto-link when sync is attempted
+The database is already correctly configured:
+
+| Table | Field | Value |
+|-------|-------|-------|
+| `properties` | `owner_pms_credential_id` | `839ec420-2075-4f69-9f18-0617d127c9bb` ✓ |
+| `owner_pms_credentials` | `api_key` | Present ✓ |
+| `owner_pms_credentials` | `environment` | `sandbox` ✓ |
+| `owner_pms_credentials` | `sync_status` | `connected` ✓ |
+
+The fix is purely in the frontend logic for loading and displaying the credential state.
+
+## Technical Details
+
+### Why the Logout Happens
+
+When Hostfully returns `INCORRECT_REQUEST`, the callback redirects with an error:
+```
+/admin/properties/{id}?hostfully_error=incorrect_request
+```
+
+The redirect goes through the Supabase edge function, and depending on session handling, this cross-origin redirect can clear the authentication state. The fix prevents users from triggering this broken flow in the first place.
+
+### Sync Property Data vs Connect Hostfully
+
+- **"Sync Property Data"** - Uses the existing `ownerPmsCredentialId` and API key to fetch data (works NOW)
+- **"Connect Hostfully"** - OAuth flow to establish a NEW connection (not needed if credential exists)
+
+Since the Victorian House property already has a valid credential, only "Sync Property Data" should be shown and used.
