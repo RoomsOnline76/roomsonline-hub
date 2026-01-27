@@ -1,220 +1,118 @@
 
-# Fix Bookings Dashboard: Sorting, Timestamps, Reference Numbers, and Search
 
-## Summary
+# Fix Hostfully Building Import Count Display
 
-Four issues to address on the `/admin/bookings` dashboard:
+## Problem Summary
 
-1. **Sort Order**: Change from check-in date to booking creation date (newest first)
-2. **Add "Booked" Column**: Display when each booking was made (date/time)
-3. **Reference Number Mismatch**: Dashboard shows 6 chars but email shows 8 chars + uppercase
-4. **Search by Reference**: Enable searching by both internal reference and external reservation ID
+The Hostfully owner connection card shows **"5/0 imported"** when it should show **"5/7 imported"** (5 of 7 available buildings imported).
 
----
+## Root Cause Analysis
 
-## Issue 1: Sort by Creation Date
+The display logic relies on two data sources:
 
-### Current Behavior
-- Bookings sorted by `check_in_date` descending
-- Most recent check-in dates appear first
+1. **Total Count (denominator)**: Parsed from `credential.available_listings` column in the database
+2. **Imported Count (numerator)**: Direct SQL count of properties linked to this credential
 
-### Required Change
-- Sort by `created_at` descending
-- Most recently created bookings appear first
+**The Issue**: The `available_listings` column is **empty** (`[]`) in the database. This happens because:
 
-**Files affected:** `src/pages/Bookings.tsx`
-- Line 254: Change query order for internal bookings
-- Line 276: Change query order for PMS reservations
-- Lines 374-376: Change final sort comparator
+- When the user clicks "Sync Now" or "Import Properties", the UI calls `list_all_properties` action
+- `list_all_properties` fetches property data from Hostfully API but **does not persist it** to `available_listings`
+- Only the `sync_owner_listings` action updates `available_listings`, but it's never called in the current UI flow
+
+**Result**: `total = 0` because `available_listings` is empty, causing the display to show `5/0` instead of `5/7`.
 
 ---
 
-## Issue 2: Add "Booked At" Column
+## Solution
 
-### Required Change
-Add a new column between "Status" and "Ref" showing when the booking was created.
+Update the `list_all_properties` edge function action to **also persist** the fetched listings to the `available_listings` column (when `owner_credential_id` is provided).
 
-**Display format:** `dd MMM HH:mm` (e.g., "27 Jan 07:21")
+### File: `supabase/functions/hostfully-api/index.ts`
 
-**Files affected:** `src/pages/Bookings.tsx`
-- Add column header "Booked" to table header row
-- Add cell displaying formatted `created_at` timestamp
+**Location**: Lines 846-876 (inside `handleListAllProperties` function)
 
----
+Add database update logic before returning the response. The function already has access to all the fetched properties, we just need to persist them:
 
-## Issue 3: Reference Number Mismatch
-
-### Root Cause Analysis
-Looking at the screenshot:
-- **Email shows:** `197268BE` (8 characters, uppercase)
-- **Dashboard shows:** `197268` (only 6 characters)
-
-The email template uses:
+**Current Code (simplified):**
 ```typescript
-booking.id.substring(0, 8).toUpperCase()
+async function handleListAllProperties(creds: HostfullyCredentials) {
+  // ... fetch logic ...
+  
+  // Returns data but DOESN'T save to database
+  return createSuccessResponse({
+    properties: allProperties,
+    agency_uid: agencyUid,
+    agency_name: agency?.name || agency?.companyName || null,
+    total_count: allProperties.length,
+  }, "list_all_properties");
+}
 ```
 
-The dashboard uses:
+**Updated Code:**
 ```typescript
-booking.id.slice(0, 6)  // Line 797
+async function handleListAllProperties(creds: HostfullyCredentials, supabase: any) {
+  // ... fetch logic ...
+  
+  // Persist listings to available_listings if owner_credential_id provided
+  if (creds.owner_credential_id && allProperties.length > 0) {
+    const { error: updateError } = await supabase
+      .from("owner_pms_credentials")
+      .update({
+        available_listings: allProperties,
+        last_sync_at: new Date().toISOString(),
+      })
+      .eq("id", creds.owner_credential_id);
+    
+    if (updateError) {
+      console.error("[Hostfully] Failed to update available_listings:", updateError);
+    } else {
+      console.log(`[Hostfully] Saved ${allProperties.length} listings to available_listings`);
+    }
+  }
+  
+  return createSuccessResponse({
+    properties: allProperties,
+    agency_uid: agencyUid,
+    agency_name: agency?.name || agency?.companyName || null,
+    total_count: allProperties.length,
+  }, "list_all_properties");
+}
 ```
 
-**This is a 2-character discrepancy!**
+### Additional Change: Pass supabase client to handleListAllProperties
 
-### Required Changes
+The function signature needs to be updated to accept the Supabase client, and the call site in the main handler needs to pass it.
 
-**1. Dashboard display (`src/pages/Bookings.tsx` line 797):**
-Change from:
+**In main serve handler** (around line 260-270 where actions are dispatched):
 ```typescript
-booking.external_reservation_id || booking.id.slice(0, 6)
-```
-To:
-```typescript
-booking.external_reservation_id || booking.id.slice(0, 8).toUpperCase()
-```
-
-This ensures the dashboard shows the exact same reference number as the confirmation email.
-
----
-
-## Issue 4: Search by Reference Number
-
-### Current Behavior
-Search only checks:
-- `guest_name`
-- `guest_email`
-- `property_name`
-- `external_reservation_id`
-
-### Required Change
-Add search against the booking's internal ID (first 8 characters, case-insensitive).
-
-**Files affected:** `src/pages/Bookings.tsx` (lines 404-411)
-
-Update search filter to also match:
-```typescript
-booking.id.toLowerCase().startsWith(term)
-```
-
-Update search placeholder from "Guest, email..." to "Guest, email, ref..."
-
----
-
-## Technical Implementation
-
-### File: `src/pages/Bookings.tsx`
-
-#### Change 1: Sort by created_at (Line 254)
-```typescript
-// Before
-.order("check_in_date", { ascending: false });
-
-// After  
-.order("created_at", { ascending: false });
-```
-
-#### Change 2: Sort PMS reservations by created_at (Line 276)
-```typescript
-// Before
-.order("arrival_date", { ascending: false });
-
-// After
-.order("created_at", { ascending: false });
-```
-
-#### Change 3: Update final sort (Lines 374-376)
-```typescript
-// Before
-allBookings.sort((a, b) => 
-  new Date(b.check_in_date).getTime() - new Date(a.check_in_date).getTime()
-);
-
-// After
-allBookings.sort((a, b) => {
-  const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-  const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-  return dateB - dateA;
-});
-```
-
-#### Change 4: Add "Booked" column header (after line 746)
-```tsx
-<TableHead className="py-1.5 px-2 text-xs">Status</TableHead>
-<TableHead className="py-1.5 px-2 text-xs">Booked</TableHead>  {/* NEW */}
-<TableHead className="py-1.5 px-2 text-xs">Ref</TableHead>
-```
-
-#### Change 5: Add "Booked" column cell (after line 794)
-```tsx
-<TableCell className="py-1.5 px-2">
-  {getStatusIndicator(booking.status)}
-</TableCell>
-<TableCell className="py-1.5 px-2 text-muted-foreground text-xs whitespace-nowrap">
-  {booking.created_at 
-    ? format(parseISO(booking.created_at), "dd MMM HH:mm")
-    : "—"}
-</TableCell>
-<TableCell className="py-1.5 px-2 text-muted-foreground truncate max-w-[70px]">
-  {booking.external_reservation_id || booking.id.slice(0, 8).toUpperCase()}
-</TableCell>
-```
-
-#### Change 6: Fix reference display (Line 797)
-```typescript
-// Before
-{booking.external_reservation_id || booking.id.slice(0, 6)}
-
-// After
-{booking.external_reservation_id || booking.id.slice(0, 8).toUpperCase()}
-```
-
-#### Change 7: Enhance search filter (Lines 404-411)
-```typescript
-// Before
-result = result.filter(booking => 
-  booking.guest_name.toLowerCase().includes(term) ||
-  booking.guest_email.toLowerCase().includes(term) ||
-  booking.property_name?.toLowerCase().includes(term) ||
-  booking.external_reservation_id?.toLowerCase().includes(term)
-);
-
-// After
-result = result.filter(booking => {
-  const internalRef = booking.id.slice(0, 8).toLowerCase();
-  return (
-    booking.guest_name.toLowerCase().includes(term) ||
-    booking.guest_email.toLowerCase().includes(term) ||
-    booking.property_name?.toLowerCase().includes(term) ||
-    booking.external_reservation_id?.toLowerCase().includes(term) ||
-    internalRef.startsWith(term)
-  );
-});
-```
-
-#### Change 8: Update search placeholder (Line 688)
-```typescript
-// Before
-placeholder="Guest, email..."
-
-// After
-placeholder="Guest, email, ref..."
+case "list_all_properties":
+  return handleListAllProperties(creds, supabase);  // Add supabase parameter
 ```
 
 ---
 
-## Expected Results
+## Why This Works
 
-| Issue | Before | After |
-|-------|--------|-------|
-| Sort order | By check-in date | By booking creation (newest first) |
-| Booked column | Not shown | Shows "27 Jan 07:21" format |
-| Reference display | `197268` (6 chars) | `197268BE` (8 chars, uppercase) |
-| Search | Can't find by ref | Finds `197268BE` when searching `197268` |
+1. When the UI calls "Import Properties" or "Sync Now", `list_all_properties` is invoked
+2. The edge function now persists the fetched listings to `available_listings`
+3. When the parent component (`AdminUsers`) refetches credentials, it gets the populated `available_listings`
+4. The `useEffect` in `OwnerPMSConnectionCard` parses these listings into buildings
+5. Total count is correctly calculated (e.g., 7 buildings)
+6. Display shows `5/7 imported` correctly
 
 ---
 
-## File Changes Summary
+## Technical Changes Summary
 
-| File | Changes |
-|------|---------|
-| `src/pages/Bookings.tsx` | Sort by created_at, add Booked column, fix reference display (8 chars + uppercase), enhance search to include reference number |
+| File | Change |
+|------|--------|
+| `supabase/functions/hostfully-api/index.ts` | Update `handleListAllProperties` to accept `supabase` client and persist listings to `available_listings` column |
+
+---
+
+## Expected Result
+
+After this fix:
+- **Before**: "5/0 imported" (because total = 0 from empty `available_listings`)
+- **After**: "5/7 imported" (total = 7 parsed from persisted `available_listings`)
+
