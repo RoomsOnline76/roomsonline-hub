@@ -1334,6 +1334,7 @@ Deno.serve(async (req) => {
             adultCount: booking.adults || 1,
             childrenCount: booking.children || 0,
             infantCount: booking.infants || 0,
+            petCount: booking.pets || 0,
             // Country code to prevent Hostfully defaulting to US
             countryCode: countryCode,
           },
