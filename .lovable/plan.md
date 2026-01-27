@@ -1,201 +1,220 @@
 
-# Fix Calendar Overflow and Add Infants/Pets for Hostfully Bookings
+# Fix Bookings Dashboard: Sorting, Timestamps, Reference Numbers, and Search
 
 ## Summary
 
-Three issues to address:
-1. **Calendar dates spilling out of frame** - The two-month calendar exceeds its container width
-2. **Missing Infants field** - Infants are already in the URL params but need to be displayed on the pre-booking calendar summary
-3. **Missing Pets field** - Need to add pets count for Hostfully properties (requires database update + UI + API)
+Four issues to address on the `/admin/bookings` dashboard:
+
+1. **Sort Order**: Change from check-in date to booking creation date (newest first)
+2. **Add "Booked" Column**: Display when each booking was made (date/time)
+3. **Reference Number Mismatch**: Dashboard shows 6 chars but email shows 8 chars + uppercase
+4. **Search by Reference**: Enable searching by both internal reference and external reservation ID
 
 ---
 
-## Issue 1: Calendar Overflow
+## Issue 1: Sort by Creation Date
 
-### Root Cause
-The `RoomAvailabilityCalendar` component displays a 2-month calendar on desktop within a grid that only allocates `lg:col-span-2` of 3 columns. The fixed day cell widths (`w-12 sm:w-12`) combined with the two-month layout exceeds the available container width.
+### Current Behavior
+- Bookings sorted by `check_in_date` descending
+- Most recent check-in dates appear first
 
-### Solution
-Add `overflow-x-auto` to the calendar container and constrain the calendar wrapper. This allows horizontal scrolling if needed while keeping the layout intact.
+### Required Change
+- Sort by `created_at` descending
+- Most recently created bookings appear first
 
-**File: `src/components/RoomAvailabilityCalendar.tsx`**
-- Wrap the `DayPicker` in a scrollable container with `overflow-x-auto`
-- Add `min-w-0` to prevent flex items from overflowing
-
----
-
-## Issue 2: Missing Infants Display on Calendar Summary
-
-### Current State
-The `RoomAvailabilityCalendar` booking summary section only shows Adults and Children for non-Benson properties (lines 821-859). Infants are tracked in state but not displayed.
-
-### Solution
-Always show Infants input in the booking summary when the property allows infants (using the same pattern as Benson properties).
-
-**File: `src/components/RoomAvailabilityCalendar.tsx`**
-- Add Infants stepper to the non-Benson properties section (after Children)
+**Files affected:** `src/pages/Bookings.tsx`
+- Line 254: Change query order for internal bookings
+- Line 276: Change query order for PMS reservations
+- Lines 374-376: Change final sort comparator
 
 ---
 
-## Issue 3: Add Pets Count for Hostfully Bookings
+## Issue 2: Add "Booked At" Column
 
-This requires multiple changes across the stack:
+### Required Change
+Add a new column between "Status" and "Ref" showing when the booking was created.
 
-### A. Database Migration
-Add `pets` column to the `bookings` table:
-```sql
-ALTER TABLE bookings ADD COLUMN pets integer DEFAULT 0;
-```
+**Display format:** `dd MMM HH:mm` (e.g., "27 Jan 07:21")
 
-### B. Frontend Changes
+**Files affected:** `src/pages/Bookings.tsx`
+- Add column header "Booked" to table header row
+- Add cell displaying formatted `created_at` timestamp
 
-**1. RoomBooking Interface (`Booking.tsx`)**
-Add `numberOfPets` field to the `RoomBooking` interface
+---
 
-**2. Checkout Form (`Booking.tsx`)**
-Add Pets stepper in the "Rooms & Guests" section (conditionally shown when property has `pets_allowed`)
+## Issue 3: Reference Number Mismatch
 
-**3. Create Booking Mutation (`Booking.tsx`)**
-Include pets count when saving to database
+### Root Cause Analysis
+Looking at the screenshot:
+- **Email shows:** `197268BE` (8 characters, uppercase)
+- **Dashboard shows:** `197268` (only 6 characters)
 
-**4. URL Parameters (`Booking.tsx`)**
-Parse and handle `pets` from URL search params
-
-**5. Availability Calendar (`RoomAvailabilityCalendar.tsx`)**
-- Add `pets` to guest state
-- Add Pets stepper to booking summary (only for properties where pets are allowed)
-- Pass pets count to booking URL
-
-### C. Backend Changes
-
-**File: `supabase/functions/push-booking/index.ts`**
-Add `petCount` to the Hostfully `guestInformation` payload:
+The email template uses:
 ```typescript
-guestInformation: {
-  // ... existing fields
-  petCount: booking.pets || 0,
-}
+booking.id.substring(0, 8).toUpperCase()
 ```
+
+The dashboard uses:
+```typescript
+booking.id.slice(0, 6)  // Line 797
+```
+
+**This is a 2-character discrepancy!**
+
+### Required Changes
+
+**1. Dashboard display (`src/pages/Bookings.tsx` line 797):**
+Change from:
+```typescript
+booking.external_reservation_id || booking.id.slice(0, 6)
+```
+To:
+```typescript
+booking.external_reservation_id || booking.id.slice(0, 8).toUpperCase()
+```
+
+This ensures the dashboard shows the exact same reference number as the confirmation email.
+
+---
+
+## Issue 4: Search by Reference Number
+
+### Current Behavior
+Search only checks:
+- `guest_name`
+- `guest_email`
+- `property_name`
+- `external_reservation_id`
+
+### Required Change
+Add search against the booking's internal ID (first 8 characters, case-insensitive).
+
+**Files affected:** `src/pages/Bookings.tsx` (lines 404-411)
+
+Update search filter to also match:
+```typescript
+booking.id.toLowerCase().startsWith(term)
+```
+
+Update search placeholder from "Guest, email..." to "Guest, email, ref..."
 
 ---
 
 ## Technical Implementation
 
-### File Changes Summary
+### File: `src/pages/Bookings.tsx`
 
-| File | Changes |
-|------|---------|
-| `src/components/RoomAvailabilityCalendar.tsx` | Add overflow container, add Infants/Pets steppers to summary |
-| `src/pages/Booking.tsx` | Add `numberOfPets` to interface, add Pets stepper, include in booking mutation |
-| `supabase/functions/push-booking/index.ts` | Add `petCount` to Hostfully payload |
-
-### Database Migration
-```sql
-ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS pets integer DEFAULT 0;
-```
-
----
-
-## Detailed Code Changes
-
-### 1. Calendar Overflow Fix (RoomAvailabilityCalendar.tsx)
-
-Wrap the DayPicker in an overflow container:
-
-```tsx
-<div className="overflow-x-auto min-w-0">
-  <DayPicker
-    // ... existing props
-  />
-</div>
-```
-
-### 2. Add Infants to Non-Benson Properties (RoomAvailabilityCalendar.tsx)
-
-After the Children stepper (line ~859), add Infants stepper:
-
-```tsx
-{/* Infants - for all properties that allow infants */}
-{roomTypeData?.allow_infants && (
-  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-    <div className="flex items-center gap-2">
-      <Users className="h-4 w-4 text-muted-foreground" />
-      <div>
-        <span className="text-sm font-medium">Infants</span>
-        <p className="text-xs text-muted-foreground">Under 2</p>
-      </div>
-    </div>
-    <div className="flex items-center gap-2">
-      <Button onClick={() => setGuests(g => ({ ...g, infants: Math.max(0, g.infants - 1) }))} ... />
-      <span>{guests.infants}</span>
-      <Button onClick={() => setGuests(g => ({ ...g, infants: g.infants + 1 }))} ... />
-    </div>
-  </div>
-)}
-```
-
-### 3. Add Pets Field (Multiple Files)
-
-**RoomBooking Interface (Booking.tsx):**
+#### Change 1: Sort by created_at (Line 254)
 ```typescript
-interface RoomBooking {
-  // ... existing fields
-  numberOfPets: number;
-}
+// Before
+.order("check_in_date", { ascending: false });
+
+// After  
+.order("created_at", { ascending: false });
 ```
 
-**Guest state (RoomAvailabilityCalendar.tsx):**
+#### Change 2: Sort PMS reservations by created_at (Line 276)
 ```typescript
-const [guests, setGuests] = useState({ adults: initialGuests, children: 0, teens: 0, infants: 0, pets: 0 });
+// Before
+.order("arrival_date", { ascending: false });
+
+// After
+.order("created_at", { ascending: false });
 ```
 
-**Pets UI (both files):**
+#### Change 3: Update final sort (Lines 374-376)
+```typescript
+// Before
+allBookings.sort((a, b) => 
+  new Date(b.check_in_date).getTime() - new Date(a.check_in_date).getTime()
+);
+
+// After
+allBookings.sort((a, b) => {
+  const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+  const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+  return dateB - dateA;
+});
+```
+
+#### Change 4: Add "Booked" column header (after line 746)
 ```tsx
-{/* Pets - only for properties that allow pets */}
-{petsAllowed && (
-  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-    <div className="flex items-center gap-2">
-      <PawPrint className="h-4 w-4 text-muted-foreground" />
-      <span className="text-sm font-medium">Pets</span>
-    </div>
-    {/* stepper controls */}
-  </div>
-)}
+<TableHead className="py-1.5 px-2 text-xs">Status</TableHead>
+<TableHead className="py-1.5 px-2 text-xs">Booked</TableHead>  {/* NEW */}
+<TableHead className="py-1.5 px-2 text-xs">Ref</TableHead>
 ```
 
-### 4. Push-Booking Edge Function
+#### Change 5: Add "Booked" column cell (after line 794)
+```tsx
+<TableCell className="py-1.5 px-2">
+  {getStatusIndicator(booking.status)}
+</TableCell>
+<TableCell className="py-1.5 px-2 text-muted-foreground text-xs whitespace-nowrap">
+  {booking.created_at 
+    ? format(parseISO(booking.created_at), "dd MMM HH:mm")
+    : "—"}
+</TableCell>
+<TableCell className="py-1.5 px-2 text-muted-foreground truncate max-w-[70px]">
+  {booking.external_reservation_id || booking.id.slice(0, 8).toUpperCase()}
+</TableCell>
+```
 
-Add `petCount` to Hostfully payload:
-
+#### Change 6: Fix reference display (Line 797)
 ```typescript
-guestInformation: {
-  firstName: firstName,
-  lastName: lastName,
-  email: booking.guest_email,
-  phoneNumber: booking.guest_phone || '',
-  adultCount: booking.adults || 1,
-  childrenCount: booking.children || 0,
-  infantCount: booking.infants || 0,
-  petCount: booking.pets || 0,  // ← NEW
-  countryCode: countryCode,
-},
+// Before
+{booking.external_reservation_id || booking.id.slice(0, 6)}
+
+// After
+{booking.external_reservation_id || booking.id.slice(0, 8).toUpperCase()}
+```
+
+#### Change 7: Enhance search filter (Lines 404-411)
+```typescript
+// Before
+result = result.filter(booking => 
+  booking.guest_name.toLowerCase().includes(term) ||
+  booking.guest_email.toLowerCase().includes(term) ||
+  booking.property_name?.toLowerCase().includes(term) ||
+  booking.external_reservation_id?.toLowerCase().includes(term)
+);
+
+// After
+result = result.filter(booking => {
+  const internalRef = booking.id.slice(0, 8).toLowerCase();
+  return (
+    booking.guest_name.toLowerCase().includes(term) ||
+    booking.guest_email.toLowerCase().includes(term) ||
+    booking.property_name?.toLowerCase().includes(term) ||
+    booking.external_reservation_id?.toLowerCase().includes(term) ||
+    internalRef.startsWith(term)
+  );
+});
+```
+
+#### Change 8: Update search placeholder (Line 688)
+```typescript
+// Before
+placeholder="Guest, email..."
+
+// After
+placeholder="Guest, email, ref..."
 ```
 
 ---
 
 ## Expected Results
 
-1. **Calendar**: Two-month view no longer spills outside its container; horizontal scroll available if needed on narrow screens
-2. **Infants**: Visible and adjustable in the calendar booking summary for all properties (not just Benson)
-3. **Pets**: 
-   - New Pets stepper appears for properties with `pets_allowed = true`
-   - Pet count stored in database
-   - Pet count sent to Hostfully API in booking payload
+| Issue | Before | After |
+|-------|--------|-------|
+| Sort order | By check-in date | By booking creation (newest first) |
+| Booked column | Not shown | Shows "27 Jan 07:21" format |
+| Reference display | `197268` (6 chars) | `197268BE` (8 chars, uppercase) |
+| Search | Can't find by ref | Finds `197268BE` when searching `197268` |
 
 ---
 
-## Dependencies
+## File Changes Summary
 
-- **Icons**: Import `PawPrint` from `lucide-react` for pets icon
-- **Database**: Migration adds `pets` column (integer, default 0)
-- **Property Data**: Uses existing `amenities.pets_allowed` boolean
+| File | Changes |
+|------|---------|
+| `src/pages/Bookings.tsx` | Sort by created_at, add Booked column, fix reference display (8 chars + uppercase), enhance search to include reference number |
