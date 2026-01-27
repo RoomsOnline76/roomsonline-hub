@@ -1457,7 +1457,10 @@ const Dashboard = () => {
                 
                 return displayBookings.length > 0 ? (
                   <div className="space-y-1">
-                    {displayBookings.slice(0, drillDownDate ? 15 : 4).map((booking) => {
+                    {[...displayBookings]
+                      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+                      .slice(0, drillDownDate ? 15 : 4)
+                      .map((booking) => {
                       const property = properties.find(p => p.id === booking.property_id);
                       return (
                         <div key={booking.id} className="flex items-center justify-between p-1.5 rounded border border-border text-xs">
@@ -1586,7 +1589,7 @@ const Dashboard = () => {
                     cx="50%"
                     cy="50%"
                     outerRadius={55}
-                    label={({ name, percent }) => `${name.substring(0, 8)}${name.length > 8 ? '..' : ''} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${name.substring(0, 15)}${name.length > 15 ? '..' : ''} ${(percent * 100).toFixed(0)}%`}
                     labelLine={{ strokeWidth: 1 }}
                   >
                     {propertyBreakdown.map((_, index) => (
@@ -1617,7 +1620,7 @@ const Dashboard = () => {
                     cx="50%"
                     cy="50%"
                     outerRadius={55}
-                    label={({ name, percent }) => `${name.substring(0, 8)}${name.length > 8 ? '..' : ''} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${name.substring(0, 15)}${name.length > 15 ? '..' : ''} ${(percent * 100).toFixed(0)}%`}
                     labelLine={{ strokeWidth: 1 }}
                   >
                     {propertyBreakdown.map((_, index) => (
