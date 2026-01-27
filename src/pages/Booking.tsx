@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Users, ArrowLeft, Minus, Plus, Loader2, CheckCircle, AlertCircle, Info, CalendarDays } from "lucide-react";
+import { Calendar, Users, ArrowLeft, Minus, Plus, Loader2, CheckCircle, AlertCircle, Info, CalendarDays, PawPrint } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -38,6 +38,7 @@ interface RoomBooking {
   numberOfTeens: number;
   numberOfChildren: number;
   numberOfInfants: number;
+  numberOfPets: number;
   // Per-room date overrides (optional - uses default dates if not set)
   checkIn?: string;
   checkOut?: string;
@@ -51,6 +52,7 @@ interface RoomType {
   allowTeens?: boolean;
   allowChildren?: boolean;
   allowInfants?: boolean;
+  allowPets?: boolean;
   minGuests?: number;
 }
 
@@ -89,6 +91,7 @@ const Booking = () => {
   const preSelectedTeens = parseInt(searchParams.get("teens") || "0");
   const preSelectedChildren = parseInt(searchParams.get("children") || "0");
   const preSelectedInfants = parseInt(searchParams.get("infants") || "0");
+  const preSelectedPets = parseInt(searchParams.get("pets") || "0");
   const preSelectedTotalCost = searchParams.get("totalCost") ? parseFloat(searchParams.get("totalCost")!) : null;
 
   // Form state - initialize from sticky context
@@ -239,6 +242,7 @@ const Booking = () => {
             numberOfTeens: preSelectedTeens,
             numberOfChildren: preSelectedChildren,
             numberOfInfants: preSelectedInfants,
+            numberOfPets: preSelectedPets,
             // Store this room's dates if they differ from the saved default dates
             checkIn: urlCheckIn || parsedState.defaultCheckIn,
             checkOut: urlCheckOut || parsedState.defaultCheckOut,
@@ -283,6 +287,7 @@ const Booking = () => {
           numberOfTeens: preSelectedTeens,
           numberOfChildren: preSelectedChildren,
           numberOfInfants: preSelectedInfants,
+          numberOfPets: preSelectedPets,
           // Store dates for first room
           checkIn: urlCheckIn || undefined,
           checkOut: urlCheckOut || undefined,
@@ -296,6 +301,7 @@ const Booking = () => {
           numberOfTeens: 0,
           numberOfChildren: 0,
           numberOfInfants: 0,
+          numberOfPets: 0,
           checkIn: urlCheckIn || undefined,
           checkOut: urlCheckOut || undefined,
         }]);
@@ -678,7 +684,7 @@ const Booking = () => {
   };
 
   // Increment/decrement guest count
-  const adjustGuestCount = (roomIndex: number, field: 'numberOfAdults' | 'numberOfTeens' | 'numberOfChildren' | 'numberOfInfants', delta: number) => {
+  const adjustGuestCount = (roomIndex: number, field: 'numberOfAdults' | 'numberOfTeens' | 'numberOfChildren' | 'numberOfInfants' | 'numberOfPets', delta: number) => {
     const newRooms = [...rooms];
     const currentValue = newRooms[roomIndex][field];
     const newValue = Math.max(field === 'numberOfAdults' ? 1 : 0, currentValue + delta);
@@ -781,6 +787,7 @@ const Booking = () => {
         adults: rooms.reduce((sum, r) => sum + r.numberOfAdults, 0),
         children: rooms.reduce((sum, r) => sum + r.numberOfChildren, 0),
         infants: rooms.reduce((sum, r) => sum + r.numberOfInfants, 0),
+        pets: rooms.reduce((sum, r) => sum + r.numberOfPets, 0),
         total_price: totalPrice,
         status: 'pending',
       } as any;
@@ -1333,6 +1340,36 @@ const Booking = () => {
                                     className="h-10 w-10 sm:h-8 sm:w-8"
                                     onClick={() => adjustGuestCount(index, 'numberOfInfants', 1)}
                                     disabled={isAtMaxCapacity}
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Pets - only show if property allows pets */}
+                            {(amenities?.pets_allowed || roomType?.allowPets) && (
+                              <div className="space-y-2">
+                                <Label className="text-xs sm:text-sm flex items-center gap-1">
+                                  <PawPrint className="h-3 w-3" />
+                                  Pets
+                                </Label>
+                                <div className="flex items-center gap-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    className="h-10 w-10 sm:h-8 sm:w-8"
+                                    onClick={() => adjustGuestCount(index, 'numberOfPets', -1)}
+                                    disabled={room.numberOfPets <= 0}
+                                  >
+                                    <Minus className="h-4 w-4" />
+                                  </Button>
+                                  <span className="w-8 text-center font-medium text-sm sm:text-base">{room.numberOfPets}</span>
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    className="h-10 w-10 sm:h-8 sm:w-8"
+                                    onClick={() => adjustGuestCount(index, 'numberOfPets', 1)}
                                   >
                                     <Plus className="h-4 w-4" />
                                   </Button>

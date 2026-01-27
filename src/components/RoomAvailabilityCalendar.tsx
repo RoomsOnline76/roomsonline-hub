@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { ArrowLeft, Users, Calendar, Minus, Plus, BedDouble, Utensils, Baby } from "lucide-react";
+import { ArrowLeft, Users, Calendar, Minus, Plus, BedDouble, Utensils, Baby, PawPrint } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { 
@@ -92,7 +92,7 @@ export default function RoomAvailabilityCalendar({
     return undefined;
   });
   
-  const [guests, setGuests] = useState({ adults: initialGuests, children: 0, teens: 0, infants: 0 });
+  const [guests, setGuests] = useState({ adults: initialGuests, children: 0, teens: 0, infants: 0, pets: 0 });
   const isBensonProperty = externalSystem?.toLowerCase() === 'benson';
   const [hoverDate, setHoverDate] = useState<Date | undefined>();
   const [displayedMonth, setDisplayedMonth] = useState<Date>(() => {
@@ -511,6 +511,12 @@ export default function RoomAvailabilityCalendar({
     };
   }, [availability, roomTypeData, isMobile]);
 
+  // Check if pets are allowed for this property
+  const petsAllowed = useMemo(() => {
+    // Check amenities for pets_allowed flag
+    return roomTypeData && 'pets_allowed' in roomTypeData ? (roomTypeData as any).pets_allowed : false;
+  }, [roomTypeData]);
+
   const handleProceedToBooking = () => {
     if (dateRange?.from && dateRange?.to) {
       const params = new URLSearchParams({
@@ -523,6 +529,7 @@ export default function RoomAvailabilityCalendar({
         teens: String(guests.teens),
         children: String(guests.children),
         infants: String(guests.infants),
+        pets: String(guests.pets),
       });
       navigate(`/booking/${propertySlug}?${params.toString()}`);
     }
@@ -582,6 +589,7 @@ export default function RoomAvailabilityCalendar({
                 {loading ? (
                   <Skeleton className="h-[320px] w-full" />
                 ) : (
+                  <div className="overflow-x-auto min-w-0">
                   <DayPicker
                     mode="range"
                     selected={displayRange}
@@ -647,6 +655,7 @@ export default function RoomAvailabilityCalendar({
                       DayContent: CustomDayContent,
                     }}
                   />
+                  </div>
                 )}
 
                 {/* Legend */}
@@ -819,43 +828,111 @@ export default function RoomAvailabilityCalendar({
                       )}
                     </>
                   ) : (
-                    /* For non-Benson properties: show simple Children selector */
-                    roomTypeData?.allow_children && (
-                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <span className="text-sm font-medium">Children</span>
-                            {roomTypeData.child_min_age != null && roomTypeData.child_max_age != null && (
-                              <p className="text-xs text-muted-foreground">
-                                Ages {roomTypeData.child_min_age}–{roomTypeData.child_max_age}
-                              </p>
-                            )}
+                    /* For non-Benson properties: show Children, Infants, and Pets */
+                    <>
+                      {roomTypeData?.allow_children && (
+                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <span className="text-sm font-medium">Children</span>
+                              {roomTypeData.child_min_age != null && roomTypeData.child_max_age != null && (
+                                <p className="text-xs text-muted-foreground">
+                                  Ages {roomTypeData.child_min_age}–{roomTypeData.child_max_age}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-10 w-10 sm:h-7 sm:w-7"
+                              onClick={() => setGuests(g => ({ ...g, children: Math.max(0, g.children - 1) }))}
+                              disabled={guests.children <= 0}
+                            >
+                              <Minus className="h-4 w-4 sm:h-3 sm:w-3" />
+                            </Button>
+                            <span className="w-8 text-center font-medium">{guests.children}</span>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-10 w-10 sm:h-7 sm:w-7"
+                              onClick={() => setGuests(g => ({ ...g, children: g.children + 1 }))}
+                              disabled={isAtMaxCapacity}
+                            >
+                              <Plus className="h-4 w-4 sm:h-3 sm:w-3" />
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-10 w-10 sm:h-7 sm:w-7"
-                            onClick={() => setGuests(g => ({ ...g, children: Math.max(0, g.children - 1) }))}
-                            disabled={guests.children <= 0}
-                          >
-                            <Minus className="h-4 w-4 sm:h-3 sm:w-3" />
-                          </Button>
-                          <span className="w-8 text-center font-medium">{guests.children}</span>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-10 w-10 sm:h-7 sm:w-7"
-                            onClick={() => setGuests(g => ({ ...g, children: g.children + 1 }))}
-                            disabled={isAtMaxCapacity}
-                          >
-                            <Plus className="h-4 w-4 sm:h-3 sm:w-3" />
-                          </Button>
+                      )}
+
+                      {/* Infants - for non-Benson properties that allow infants */}
+                      {roomTypeData?.allow_infants && (
+                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Baby className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <span className="text-sm font-medium">Infants</span>
+                              <p className="text-xs text-muted-foreground">Under 2</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-10 w-10 sm:h-7 sm:w-7"
+                              onClick={() => setGuests(g => ({ ...g, infants: Math.max(0, g.infants - 1) }))}
+                              disabled={guests.infants <= 0}
+                            >
+                              <Minus className="h-4 w-4 sm:h-3 sm:w-3" />
+                            </Button>
+                            <span className="w-8 text-center font-medium">{guests.infants}</span>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-10 w-10 sm:h-7 sm:w-7"
+                              onClick={() => setGuests(g => ({ ...g, infants: g.infants + 1 }))}
+                              disabled={isAtMaxCapacity}
+                            >
+                              <Plus className="h-4 w-4 sm:h-3 sm:w-3" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    )
+                      )}
+
+                      {/* Pets - for properties that allow pets */}
+                      {petsAllowed && (
+                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <PawPrint className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <span className="text-sm font-medium">Pets</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-10 w-10 sm:h-7 sm:w-7"
+                              onClick={() => setGuests(g => ({ ...g, pets: Math.max(0, g.pets - 1) }))}
+                              disabled={guests.pets <= 0}
+                            >
+                              <Minus className="h-4 w-4 sm:h-3 sm:w-3" />
+                            </Button>
+                            <span className="w-8 text-center font-medium">{guests.pets}</span>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-10 w-10 sm:h-7 sm:w-7"
+                              onClick={() => setGuests(g => ({ ...g, pets: g.pets + 1 }))}
+                            >
+                              <Plus className="h-4 w-4 sm:h-3 sm:w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 
