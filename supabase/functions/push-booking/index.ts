@@ -10,6 +10,48 @@ const requestSchema = z.object({
   booking_id: z.string().uuid({ message: 'Invalid booking ID format' }),
 });
 
+// Map country names to ISO 2-letter codes for Hostfully API
+function getCountryCode(countryName: string): string {
+  const countryMap: Record<string, string> = {
+    'south africa': 'ZA',
+    'united states': 'US',
+    'usa': 'US',
+    'united kingdom': 'GB',
+    'uk': 'GB',
+    'australia': 'AU',
+    'canada': 'CA',
+    'germany': 'DE',
+    'france': 'FR',
+    'spain': 'ES',
+    'italy': 'IT',
+    'netherlands': 'NL',
+    'portugal': 'PT',
+    'brazil': 'BR',
+    'namibia': 'NA',
+    'botswana': 'BW',
+    'zimbabwe': 'ZW',
+    'zambia': 'ZM',
+    'mozambique': 'MZ',
+    'kenya': 'KE',
+    'tanzania': 'TZ',
+    'mauritius': 'MU',
+    'seychelles': 'SC',
+    'egypt': 'EG',
+    'morocco': 'MA',
+    'nigeria': 'NG',
+    'ghana': 'GH',
+    'rwanda': 'RW',
+    'uganda': 'UG',
+    'malawi': 'MW',
+    'lesotho': 'LS',
+    'eswatini': 'SZ',
+    'swaziland': 'SZ',
+  };
+  
+  const normalized = (countryName || '').toLowerCase().trim();
+  return countryMap[normalized] || 'ZA'; // Default to South Africa
+}
+
 // Helper to get Benson auth header
 function getBensonAuthHeader(username: string, password: string): string {
   const encoder = new TextEncoder();
@@ -1273,6 +1315,11 @@ Deno.serve(async (req) => {
         const checkInDateTime = `${booking.check_in_date}T14:00:00`;
         const checkOutDateTime = `${booking.check_out_date}T11:00:00`;
 
+        // Get country code from property country (defaults to ZA for South Africa)
+        const propertyCountry = property.country || 'South Africa';
+        const countryCode = getCountryCode(propertyCountry);
+        console.log(`Using country code: ${countryCode} (from property country: ${propertyCountry})`);
+
         const leadPayload = {
           agencyUid: ownerCreds.external_account_id,  // Required - Hostfully agency identifier
           propertyUid: hostfullyUid,
@@ -1283,9 +1330,16 @@ Deno.serve(async (req) => {
             lastName: lastName,
             email: booking.guest_email,
             phoneNumber: booking.guest_phone || '',
+            // Guest counts MUST be inside guestInformation for Hostfully v3 API
+            adultCount: booking.adults || 1,
+            childrenCount: booking.children || 0,
+            infantCount: booking.infants || 0,
+            // Country code to prevent Hostfully defaulting to US
+            countryCode: countryCode,
           },
-          adults: booking.adults || 2,
-          children: (booking.children || 0) + (booking.teens || 0) + (booking.infants || 0),
+          // Keep top-level for logging/backwards compatibility
+          adults: booking.adults || 1,
+          children: booking.children || 0,
           notes: booking.special_requests || '',
           source: 'HOSTFULLY_API',
           status: 'NEW',
