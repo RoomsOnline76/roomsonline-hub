@@ -251,7 +251,7 @@ const Bookings = () => {
         let internalQuery = supabase
           .from("bookings")
           .select("*")
-          .order("check_in_date", { ascending: false });
+          .order("created_at", { ascending: false });
 
         if (!canViewAllProperties && propertyIds.length > 0) {
           internalQuery = internalQuery.in("property_id", propertyIds);
@@ -273,7 +273,7 @@ const Bookings = () => {
         let pmsQuery = supabase
           .from("pms_reservations")
           .select("*")
-          .order("arrival_date", { ascending: false });
+          .order("created_at", { ascending: false });
 
         if (!canViewAllProperties && propertyIds.length > 0) {
           pmsQuery = pmsQuery.in("property_id", propertyIds);
@@ -370,10 +370,12 @@ const Bookings = () => {
           }
         });
 
-        // Sort by check-in date descending
-        allBookings.sort((a, b) => 
-          new Date(b.check_in_date).getTime() - new Date(a.check_in_date).getTime()
-        );
+        // Sort by booking creation date descending (newest first)
+        allBookings.sort((a, b) => {
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return dateB - dateA;
+        });
 
         setBookings(allBookings);
       } catch (error: any) {
@@ -403,12 +405,16 @@ const Bookings = () => {
     // Filter by search term
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      result = result.filter(booking => 
-        booking.guest_name.toLowerCase().includes(term) ||
-        booking.guest_email.toLowerCase().includes(term) ||
-        booking.property_name?.toLowerCase().includes(term) ||
-        booking.external_reservation_id?.toLowerCase().includes(term)
-      );
+      result = result.filter(booking => {
+        const internalRef = booking.id.slice(0, 8).toLowerCase();
+        return (
+          booking.guest_name.toLowerCase().includes(term) ||
+          booking.guest_email.toLowerCase().includes(term) ||
+          booking.property_name?.toLowerCase().includes(term) ||
+          booking.external_reservation_id?.toLowerCase().includes(term) ||
+          internalRef.startsWith(term)
+        );
+      });
     }
     
     return result;
@@ -684,7 +690,7 @@ const Bookings = () => {
                 <div className="relative">
                   <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
                   <Input
-                    placeholder="Guest, email..."
+                    placeholder="Guest, email, ref..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="h-8 pl-7 text-xs"
@@ -744,6 +750,7 @@ const Bookings = () => {
                       <TableHead className="py-1.5 px-2 text-xs">Rate</TableHead>
                       <TableHead className="py-1.5 px-2 text-xs">Total</TableHead>
                       <TableHead className="py-1.5 px-2 text-xs">Status</TableHead>
+                      <TableHead className="py-1.5 px-2 text-xs">Booked</TableHead>
                       <TableHead className="py-1.5 px-2 text-xs">Ref</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -793,14 +800,19 @@ const Bookings = () => {
                             <TableCell className="py-1.5 px-2">
                               {getStatusIndicator(booking.status)}
                             </TableCell>
+                            <TableCell className="py-1.5 px-2 text-muted-foreground text-xs whitespace-nowrap">
+                              {booking.created_at 
+                                ? format(parseISO(booking.created_at), "dd MMM HH:mm")
+                                : "—"}
+                            </TableCell>
                             <TableCell className="py-1.5 px-2 text-muted-foreground truncate max-w-[70px]">
-                              {booking.external_reservation_id || booking.id.slice(0, 6)}
+                              {booking.external_reservation_id || booking.id.slice(0, 8).toUpperCase()}
                             </TableCell>
                           </TableRow>
                           {/* Expanded room details */}
                           {isExpanded && (
                             <TableRow key={`${booking.id}-details`} className="bg-muted/30">
-                              <TableCell colSpan={9} className="p-2">
+                              <TableCell colSpan={10} className="p-2">
                                 <div className="space-y-3">
                                   {/* Booking Lifecycle Visualizer */}
                                   <div className="flex items-center justify-between border-b pb-2">
