@@ -805,7 +805,7 @@ async function handleListProperties(creds: HostfullyCredentials) {
 }
 
 // Paginated list of ALL properties (ID + Name only) for large accounts
-async function handleListAllProperties(creds: HostfullyCredentials) {
+async function handleListAllProperties(creds: HostfullyCredentials, supabase: any) {
   const baseUrl = HOSTFULLY_URLS[creds.environment];
   const PAGE_SIZE = 100;
   let allProperties: { id: string; name: string }[] = [];
@@ -859,6 +859,23 @@ async function handleListAllProperties(creds: HostfullyCredentials) {
         hasMore = false;
       } else {
         offset += PAGE_SIZE;
+      }
+    }
+
+    // Persist listings to available_listings if owner_credential_id provided
+    if (creds.owner_credential_id && allProperties.length > 0) {
+      const { error: updateError } = await supabase
+        .from("owner_pms_credentials")
+        .update({
+          available_listings: allProperties,
+          last_sync_at: new Date().toISOString(),
+        })
+        .eq("id", creds.owner_credential_id);
+
+      if (updateError) {
+        console.error("[Hostfully] Failed to update available_listings:", updateError);
+      } else {
+        console.log(`[Hostfully] Saved ${allProperties.length} listings to available_listings`);
       }
     }
 
@@ -1427,7 +1444,7 @@ serve(async (req) => {
         break;
 
       case "list_all_properties":
-        response = await handleListAllProperties(creds);
+        response = await handleListAllProperties(creds, supabase);
         break;
 
       case "get_listing_details":
