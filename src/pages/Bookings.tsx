@@ -764,7 +764,7 @@ const Bookings = () => {
                             <TableCell className="py-1.5 px-2 font-medium">
                               <div className="flex items-center gap-1">
                                 <Plus className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-45" : ""}`} />
-                                <span className="truncate max-w-[120px]">{booking.property_name}</span>
+                                <span className="truncate max-w-[200px]">{booking.property_name}</span>
                                 {hasMultipleRooms && (
                                   <Badge variant="outline" className="text-[10px] px-1 py-0">
                                     {rooms.length}
@@ -773,7 +773,7 @@ const Bookings = () => {
                               </div>
                             </TableCell>
                             <TableCell className="py-1.5 px-2">
-                              <p className="font-medium truncate max-w-[120px]">{booking.guest_name}</p>
+                              <p className="font-medium truncate max-w-[180px]">{booking.guest_name}</p>
                             </TableCell>
                             <TableCell className="py-1.5 px-2">
                               {format(parseISO(booking.check_in_date), "dd MMM")}
