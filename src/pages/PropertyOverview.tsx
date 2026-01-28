@@ -361,11 +361,15 @@ const PropertyOverview = () => {
     setIsTogglingShow(propertyId);
     
     try {
+      let qualityResult: { passed: boolean; score: number; blockers?: { message: string }[] } | null = null;
+      
       // If enabling, run quality gate first
       if (show) {
-        const { data: qualityResult, error: qualityError } = await supabase.functions.invoke('check-activation-readiness', {
+        const { data, error: qualityError } = await supabase.functions.invoke('check-activation-readiness', {
           body: { property_id: propertyId }
         });
+        
+        qualityResult = data;
         
         if (qualityError) {
           console.error('Quality gate error:', qualityError);
@@ -374,10 +378,10 @@ const PropertyOverview = () => {
           return;
         }
         
-        if (!qualityResult.passed) {
-          const blockerCount = qualityResult.blockers?.length || 0;
+        if (!qualityResult?.passed) {
+          const blockerCount = qualityResult?.blockers?.length || 0;
           toast.error(`Cannot activate: ${blockerCount} blocker${blockerCount !== 1 ? 's' : ''} must be resolved first`, {
-            description: qualityResult.blockers?.[0]?.message || 'Quality checks failed',
+            description: qualityResult?.blockers?.[0]?.message || 'Quality checks failed',
             duration: 5000
           });
           setIsTogglingShow(null);
@@ -392,6 +396,7 @@ const PropertyOverview = () => {
       if (show) {
         updateData.listing_status = 'live';
         updateData.activated_at = new Date().toISOString();
+        updateData.activated_by = user?.id;
       } else {
         updateData.listing_status = 'inactive';
       }
@@ -403,12 +408,9 @@ const PropertyOverview = () => {
       
       if (error) throw error;
       
-      // Log activation if enabling
+      // Log activation and send notifications if enabling
       if (show) {
-        const { data: qualityResult } = await supabase.functions.invoke('check-activation-readiness', {
-          body: { property_id: propertyId }
-        });
-        
+        // Log activation with quality gate results
         await supabase.from('property_activation_logs').insert({
           property_id: propertyId,
           activated_at: new Date().toISOString(),
@@ -416,6 +418,30 @@ const PropertyOverview = () => {
           pre_activation_score: qualityResult?.score || 0,
           quality_gate_results: qualityResult
         });
+        
+        // Send activation notification email to owner (fire and forget)
+        supabase.functions.invoke('send-activation-notification', {
+          body: { property_id: propertyId }
+        }).then(({ error: notifyError }) => {
+          if (notifyError) {
+            console.error('Failed to send activation notification:', notifyError);
+          } else {
+            console.log('Activation notification sent for property:', propertyId);
+          }
+        });
+        
+        // Schedule post-launch validation (fire and forget, runs async)
+        setTimeout(() => {
+          supabase.functions.invoke('post-launch-validator', {
+            body: { property_id: propertyId }
+          }).then(({ data: validationResult, error: validationError }) => {
+            if (validationError) {
+              console.error('Post-launch validation failed:', validationError);
+            } else {
+              console.log('Post-launch validation complete:', validationResult);
+            }
+          });
+        }, 5000); // Run 5 seconds after activation
       }
       
       toast.success(show ? "Property activated and now live on website" : "Property hidden from website");

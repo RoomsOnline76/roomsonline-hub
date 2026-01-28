@@ -350,65 +350,60 @@ CREATE POLICY "Owners can view their roadmaps" ON property_onboarding_roadmap
 
 ---
 
-## Phase 7: Enhanced Activation Flow (Week 7)
+## Phase 7: Enhanced Activation Flow (Week 7) ✅ COMPLETED
 
-### 7.1 Update: `PropertyOverview.tsx` Activation Handler
+### 7.1 Update: `PropertyOverview.tsx` Activation Handler ✅
+
+**File:** `src/pages/PropertyOverview.tsx`
 
 **Enhanced Flow:**
-1. Run quality gate via edge function
-2. If passed: Update database, refresh caches, notify owner
-3. Log activation with pre-activation score
-4. Trigger post-launch validation scheduling
+1. Run quality gate via edge function ✅
+2. If passed: Update database, refresh caches, notify owner ✅
+3. Log activation with pre-activation score ✅
+4. Trigger post-launch validation scheduling ✅
 
-```typescript
-const handleActivation = async (propertyId: string) => {
-  // Run quality gate
-  const { data: qualityResult } = await supabase.functions.invoke('check-activation-readiness', {
-    body: { property_id: propertyId }
-  });
-  
-  if (!qualityResult.passed) {
-    showBlockers(qualityResult.blockers);
-    return;
-  }
-  
-  // Update property
-  await supabase.from('properties').update({
-    show_on_website: true,
-    listing_status: 'live',
-    activated_at: new Date().toISOString(),
-    activated_by: user.id
-  }).eq('id', propertyId);
-  
-  // Log activation
-  await supabase.from('property_activation_logs').insert({
-    property_id: propertyId,
-    activated_at: new Date().toISOString(),
-    activated_by: user.id,
-    pre_activation_score: qualityResult.score,
-    quality_gate_results: qualityResult
-  });
-  
-  // Notify owner
-  await supabase.functions.invoke('send-activation-notification', {
-    body: { property_id: propertyId }
-  });
-};
-```
+**Implementation Details:**
+- Quality gate runs before enabling `show_on_website`
+- On successful activation:
+  - Updates `listing_status` to `'live'`
+  - Sets `activated_at` and `activated_by`
+  - Logs to `property_activation_logs` table
+  - Sends activation notification email to owner (fire-and-forget)
+  - Schedules post-launch validation (runs 5 seconds after activation)
 
-### 7.2 New Edge Function: `post-launch-validator`
+### 7.2 New Edge Function: `post-launch-validator` ✅
 
 **File:** `supabase/functions/post-launch-validator/index.ts`
 
 **Purpose:** Scheduled validation after properties go live
 
-**Checks:**
-- Search visibility (property appears in /book queries)
-- Booking flow test (can initiate booking)
-- PMS sync status (if connected)
-- Error monitoring (recent errors)
+**Checks (7 total):**
+1. `search_visibility` - Property appears in public_properties view
+2. `image_accessibility` - Images configured with hero image
+3. `booking_flow` - Room types or base pricing available
+4. `pms_sync` - PMS connection healthy (if connected)
+5. `error_monitoring` - No excessive booking failures
+6. `contact_info` - Phone or email present
+7. `location_data` - Address and coordinates complete
 
-**Scheduling:** Run 1 hour after activation, then daily for 7 days
+**Features:**
+- Supports single property validation or batch (`run_all_live: true`)
+- Returns detailed check results with severity levels
+- Logs validation results to `property_activation_logs.post_activation_checks`
+- Score calculation (pass threshold: 70%)
+
+### 7.3 New Edge Function: `send-activation-notification` ✅
+
+**File:** `supabase/functions/send-activation-notification/index.ts`
+
+**Purpose:** Notify owners when their property goes live
+
+**Features:**
+- Branded congratulations email with property details
+- "View Your Listing" and "Go to Dashboard" CTAs
+- "What's Next" guidance for owners
+- Admin notification to internal team
+- Uses Resend via `notify.roomsonline.co.za` domain
 
 ---
 
@@ -537,7 +532,7 @@ const usePropertyProgress = (propertyId: string): PropertyProgress => {
 | `src/config/onboardingFieldSchema.ts` | Intent types, completion states, field impact levels |
 | `src/hooks/usePropertyOnboarding.tsx` | Roadmap, checklist, auto-verify integration |
 | `src/components/onboarding/PropertyOnboardingWizard.tsx` | Dynamic steps, completion hints |
-| `src/pages/PropertyOverview.tsx` | Quality gate integration, activation flow |
+| `src/pages/PropertyOverview.tsx` | Quality gate integration, activation flow, notifications, post-launch validation |
 | `src/pages/PropertyForm.tsx` | Review mode, status indicators |
 | `supabase/functions/send-owner-contract/index.ts` | Intent/model storage |
 | `supabase/functions/process-signature/index.ts` | Roadmap generation, status updates |
