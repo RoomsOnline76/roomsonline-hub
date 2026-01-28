@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -38,66 +39,124 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { format, isAfter, isBefore, addDays } from "date-fns";
+import { format, addDays, isBefore } from "date-fns";
 import {
   Search,
   Plus,
   MoreHorizontal,
   Send,
   Copy,
-  Link,
   Clock,
   Check,
   AlertCircle,
   ExternalLink,
-  Sparkles,
   Building2,
   RefreshCw,
   XCircle,
   CalendarPlus,
+  Circle,
+  Globe,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 
-interface OnboardingToken {
+// Types
+type OnboardingStatus = 
+  | "not_started"
+  | "in_progress"
+  | "token_expired"
+  | "completed"
+  | "live";
+
+interface TokenData {
   id: string;
-  property_id: string;
-  owner_email: string;
   token: string;
-  created_at: string;
   expires_at: string;
   used_at: string | null;
-  created_by: string | null;
-  property_name?: string;
-  onboarding_score?: number;
+  created_at: string;
+  owner_email: string;
+  property_id: string;
 }
 
-interface Property {
+interface PropertyOnboardingRow {
   id: string;
   name: string;
   owner_email: string | null;
-  amenities: any;
+  listing_status: string | null;
+  show_on_website: boolean;
+  onboarding_score: number;
+  token: TokenData | null;
 }
 
-type StatusFilter = "all" | "active" | "expired" | "used";
+type StatusFilter = "all" | OnboardingStatus;
+
+// Helper function to derive onboarding status
+const getOnboardingStatus = (row: PropertyOnboardingRow): OnboardingStatus => {
+  if (row.show_on_website) return "live";
+  if (!row.token) return "not_started";
+  if (row.token.used_at) return "completed";
+  if (isBefore(new Date(row.token.expires_at), new Date())) return "token_expired";
+  return "in_progress";
+};
+
+// Status Badge Component
+const StatusBadge = ({ status }: { status: OnboardingStatus }) => {
+  switch (status) {
+    case "not_started":
+      return (
+        <Badge variant="outline" className="gap-1">
+          <Circle className="h-3 w-3" />
+          Not Started
+        </Badge>
+      );
+    case "in_progress":
+      return (
+        <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600">
+          <Clock className="h-3 w-3" />
+          In Progress
+        </Badge>
+      );
+    case "token_expired":
+      return (
+        <Badge variant="destructive" className="gap-1">
+          <AlertCircle className="h-3 w-3" />
+          Expired
+        </Badge>
+      );
+    case "completed":
+      return (
+        <Badge variant="default" className="gap-1">
+          <Check className="h-3 w-3" />
+          Completed
+        </Badge>
+      );
+    case "live":
+      return (
+        <Badge className="gap-1 bg-emerald-500 text-white border-emerald-500">
+          <Globe className="h-3 w-3" />
+          Live
+        </Badge>
+      );
+  }
+};
 
 export default function AdminOnboarding() {
   const navigate = useNavigate();
-  const [tokens, setTokens] = useState<OnboardingToken[]>([]);
-  const [properties, setProperties] = useState<Property[]>([]);
+  const [propertyRows, setPropertyRows] = useState<PropertyOnboardingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [showCompleted, setShowCompleted] = useState(false);
 
-  // Send modal
+  // Send modal state
   const [sendModalOpen, setSendModalOpen] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState("");
   const [sendEmail, setSendEmail] = useState("");
   const [sending, setSending] = useState(false);
 
-  // Extend modal
+  // Extend modal state
   const [extendModalOpen, setExtendModalOpen] = useState(false);
-  const [extendToken, setExtendToken] = useState<OnboardingToken | null>(null);
+  const [extendRow, setExtendRow] = useState<PropertyOnboardingRow | null>(null);
   const [extendDays, setExtendDays] = useState("30");
   const [extending, setExtending] = useState(false);
 
@@ -109,7 +168,16 @@ export default function AdminOnboarding() {
     try {
       setLoading(true);
 
-      // Load tokens
+      // Load all properties (non-deleted)
+      const { data: propData, error: propError } = await supabase
+        .from("properties")
+        .select("id, name, owner_email, listing_status, show_on_website, amenities")
+        .is("permanently_deleted_at", null)
+        .order("created_at", { ascending: false });
+
+      if (propError) throw propError;
+
+      // Load all tokens (to map to properties)
       const { data: tokenData, error: tokenError } = await supabase
         .from("property_onboarding_tokens")
         .select("*")
@@ -117,28 +185,31 @@ export default function AdminOnboarding() {
 
       if (tokenError) throw tokenError;
 
-      // Load properties
-      const { data: propData, error: propError } = await supabase
-        .from("properties")
-        .select("id, name, owner_email, amenities")
-        .is("permanently_deleted_at", null);
+      // Build property-centric view - use most recent token per property
+      const tokensByProperty = new Map<string, TokenData>();
+      tokenData?.forEach((t) => {
+        // Only set if not already set (first one is most recent due to order)
+        if (!tokensByProperty.has(t.property_id)) {
+          tokensByProperty.set(t.property_id, t);
+        }
+      });
 
-      if (propError) throw propError;
-
-      // Map property data to tokens
-      const propsMap = new Map(propData?.map((p) => [p.id, p]) || []);
-      const enrichedTokens: OnboardingToken[] = (tokenData || []).map((token) => {
-        const prop = propsMap.get(token.property_id);
-        const amenities = prop?.amenities as Record<string, unknown> | null;
+      const enrichedProperties: PropertyOnboardingRow[] = (propData || []).map((prop) => {
+        const amenities = prop.amenities as Record<string, unknown> | null;
         return {
-          ...token,
-          property_name: prop?.name || "Unknown Property",
-          onboarding_score: typeof amenities?.onboarding_score === 'number' ? amenities.onboarding_score : 0,
+          id: prop.id,
+          name: prop.name,
+          owner_email: prop.owner_email,
+          listing_status: prop.listing_status,
+          show_on_website: prop.show_on_website || false,
+          onboarding_score: typeof amenities?.onboarding_score === "number" 
+            ? amenities.onboarding_score 
+            : 0,
+          token: tokensByProperty.get(prop.id) || null,
         };
       });
 
-      setTokens(enrichedTokens);
-      setProperties(propData || []);
+      setPropertyRows(enrichedProperties);
     } catch (error: any) {
       toast.error(error.message || "Failed to load data");
     } finally {
@@ -146,49 +217,55 @@ export default function AdminOnboarding() {
     }
   };
 
-  const getTokenStatus = (token: OnboardingToken): "active" | "expired" | "used" => {
-    if (token.used_at) return "used";
-    if (isBefore(new Date(token.expires_at), new Date())) return "expired";
-    return "active";
-  };
+  // Filtered properties based on search, status filter, and show completed toggle
+  const filteredProperties = useMemo(() => {
+    let result = propertyRows;
 
-  const filteredTokens = useMemo(() => {
-    let result = tokens;
-
-    if (statusFilter !== "all") {
-      result = result.filter((t) => getTokenStatus(t) === statusFilter);
+    // Hide completed/live unless toggle is on
+    if (!showCompleted) {
+      result = result.filter((r) => {
+        const status = getOnboardingStatus(r);
+        return status !== "completed" && status !== "live";
+      });
     }
 
+    // Status filter
+    if (statusFilter !== "all") {
+      result = result.filter((r) => getOnboardingStatus(r) === statusFilter);
+    }
+
+    // Search filter (cross-column)
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      result = result.filter((t) => {
-        const status = getTokenStatus(t);
-        const createdDate = format(new Date(t.created_at), "MMM d, yyyy").toLowerCase();
-        const expiresDate = format(new Date(t.expires_at), "MMM d, yyyy").toLowerCase();
-        const progressStr = String(t.onboarding_score || 0);
-        
+      result = result.filter((r) => {
+        const status = getOnboardingStatus(r);
+        const tokenSentDate = r.token 
+          ? format(new Date(r.token.created_at), "MMM d, yyyy").toLowerCase() 
+          : "";
+        const progressStr = String(r.onboarding_score || 0);
+
         return (
-          t.owner_email.toLowerCase().includes(query) ||
-          t.property_name?.toLowerCase().includes(query) ||
-          status.includes(query) ||
-          createdDate.includes(query) ||
-          expiresDate.includes(query) ||
+          r.name.toLowerCase().includes(query) ||
+          r.owner_email?.toLowerCase().includes(query) ||
+          status.replace("_", " ").includes(query) ||
+          tokenSentDate.includes(query) ||
           progressStr.includes(query)
         );
       });
     }
 
     return result;
-  }, [tokens, statusFilter, searchQuery]);
+  }, [propertyRows, showCompleted, statusFilter, searchQuery]);
 
-  const stats = useMemo(() => {
-    return {
-      total: tokens.length,
-      active: tokens.filter((t) => getTokenStatus(t) === "active").length,
-      expired: tokens.filter((t) => getTokenStatus(t) === "expired").length,
-      used: tokens.filter((t) => getTokenStatus(t) === "used").length,
-    };
-  }, [tokens]);
+  // Stats calculated from all properties (not filtered)
+  const stats = useMemo(() => ({
+    total: propertyRows.length,
+    notStarted: propertyRows.filter((r) => getOnboardingStatus(r) === "not_started").length,
+    inProgress: propertyRows.filter((r) => getOnboardingStatus(r) === "in_progress").length,
+    expired: propertyRows.filter((r) => getOnboardingStatus(r) === "token_expired").length,
+    completed: propertyRows.filter((r) => getOnboardingStatus(r) === "completed").length,
+    live: propertyRows.filter((r) => getOnboardingStatus(r) === "live").length,
+  }), [propertyRows]);
 
   const handleSendOnboarding = async () => {
     if (!selectedPropertyId || !sendEmail) {
@@ -216,33 +293,49 @@ export default function AdminOnboarding() {
     }
   };
 
-  const handleResendOnboarding = async (token: OnboardingToken) => {
+  const handleIssueToken = (row: PropertyOnboardingRow) => {
+    setSelectedPropertyId(row.id);
+    setSendEmail(row.owner_email || "");
+    setSendModalOpen(true);
+  };
+
+  const handleResendOnboarding = async (row: PropertyOnboardingRow) => {
+    if (!row.owner_email) {
+      toast.error("No owner email configured for this property");
+      return;
+    }
+
     try {
       const { error } = await supabase.functions.invoke("send-onboarding-email", {
-        body: { property_id: token.property_id, owner_email: token.owner_email },
+        body: { property_id: row.id, owner_email: row.owner_email },
       });
 
       if (error) throw error;
-      toast.success("Onboarding email resent successfully");
+      toast.success("Onboarding email sent successfully");
       loadData();
     } catch (error: any) {
-      toast.error(error.message || "Failed to resend onboarding email");
+      toast.error(error.message || "Failed to send onboarding email");
     }
   };
 
-  const handleCopyLink = (token: OnboardingToken) => {
-    const link = `${window.location.origin}/onboarding/${token.token}`;
+  const handleCopyLink = (row: PropertyOnboardingRow) => {
+    if (!row.token) {
+      toast.error("No token exists for this property");
+      return;
+    }
+    const link = `${window.location.origin}/onboarding/${row.token.token}`;
     navigator.clipboard.writeText(link);
     toast.success("Link copied to clipboard");
   };
 
-  const handleInvalidateToken = async (token: OnboardingToken) => {
+  const handleInvalidateToken = async (row: PropertyOnboardingRow) => {
+    if (!row.token) return;
+
     try {
-      // Set expires_at to past to invalidate
       const { error } = await supabase
         .from("property_onboarding_tokens")
         .update({ expires_at: new Date().toISOString() })
-        .eq("id", token.id);
+        .eq("id", row.token.id);
 
       if (error) throw error;
       toast.success("Token invalidated");
@@ -253,24 +346,22 @@ export default function AdminOnboarding() {
   };
 
   const handleExtendToken = async () => {
-    if (!extendToken) return;
+    if (!extendRow?.token) return;
 
     try {
       setExtending(true);
       const newExpiry = addDays(new Date(), parseInt(extendDays));
-      
+
       const { error } = await supabase
         .from("property_onboarding_tokens")
-        .update({ 
-          expires_at: newExpiry.toISOString()
-        })
-        .eq("id", extendToken.id);
+        .update({ expires_at: newExpiry.toISOString() })
+        .eq("id", extendRow.token.id);
 
       if (error) throw error;
 
       toast.success("Token expiry extended");
       setExtendModalOpen(false);
-      setExtendToken(null);
+      setExtendRow(null);
       loadData();
     } catch (error: any) {
       toast.error(error.message || "Failed to extend token");
@@ -279,43 +370,20 @@ export default function AdminOnboarding() {
     }
   };
 
-  const StatusBadge = ({ token }: { token: OnboardingToken }) => {
-    const status = getTokenStatus(token);
-    
-    if (status === "used") {
-      return (
-        <Badge variant="default" className="gap-1">
-          <Check className="h-3 w-3" />
-          Used
-        </Badge>
-      );
-    }
-    if (status === "expired") {
-      return (
-        <Badge variant="destructive" className="gap-1">
-          <AlertCircle className="h-3 w-3" />
-          Expired
-        </Badge>
-      );
-    }
-    return (
-      <Badge variant="outline" className="gap-1 border-green-500 text-green-600">
-        <Clock className="h-3 w-3" />
-        Active
-      </Badge>
-    );
-  };
-
-  const propertiesWithoutTokens = useMemo(() => {
-    const tokenPropertyIds = new Set(tokens.map((t) => t.property_id));
-    return properties.filter((p) => !tokenPropertyIds.has(p.id));
-  }, [properties, tokens]);
+  const statusFilters: { key: StatusFilter; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "not_started", label: "Not Started" },
+    { key: "in_progress", label: "In Progress" },
+    { key: "token_expired", label: "Expired" },
+    { key: "completed", label: "Completed" },
+    { key: "live", label: "Live" },
+  ];
 
   return (
     <AppLayout>
       <PageHeader
         title="Onboarding Management"
-        subtitle="Manage property onboarding tokens and track owner completion"
+        subtitle="Track and manage property onboarding across all lifecycle stages"
         actions={
           <Button onClick={() => setSendModalOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
@@ -325,10 +393,10 @@ export default function AdminOnboarding() {
       />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 xl:gap-6 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 xl:gap-6 mb-6">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Tokens</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{stats.total}</p>
@@ -336,18 +404,18 @@ export default function AdminOnboarding() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Active</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Not Started</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-green-600">{stats.active}</p>
+            <p className="text-2xl font-bold text-muted-foreground">{stats.notStarted}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Used</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">In Progress</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-blue-600">{stats.used}</p>
+            <p className="text-2xl font-bold text-amber-600">{stats.inProgress}</p>
           </CardContent>
         </Card>
         <Card>
@@ -355,34 +423,59 @@ export default function AdminOnboarding() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Expired</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-red-600">{stats.expired}</p>
+            <p className="text-2xl font-bold text-destructive">{stats.expired}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Completed</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-primary">{stats.completed}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Live</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-emerald-600">{stats.live}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+      <div className="flex flex-col lg:flex-row gap-4 mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search all columns..."
+            placeholder="Search properties, emails, status..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
           />
         </div>
-        <div className="flex gap-2">
-          {(["all", "active", "used", "expired"] as StatusFilter[]).map((status) => (
+        <div className="flex flex-wrap gap-2 items-center">
+          {statusFilters.map((filter) => (
             <Button
-              key={status}
-              variant={statusFilter === status ? "default" : "outline"}
+              key={filter.key}
+              variant={statusFilter === filter.key ? "default" : "outline"}
               size="sm"
-              onClick={() => setStatusFilter(status)}
-              className="capitalize"
+              onClick={() => setStatusFilter(filter.key)}
             >
-              {status}
+              {filter.label}
             </Button>
           ))}
+          <div className="flex items-center gap-2 ml-4 pl-4 border-l border-border">
+            <Switch
+              id="show-completed"
+              checked={showCompleted}
+              onCheckedChange={setShowCompleted}
+            />
+            <Label htmlFor="show-completed" className="text-sm text-muted-foreground whitespace-nowrap">
+              Show Completed & Live
+            </Label>
+          </div>
         </div>
       </div>
 
@@ -395,7 +488,7 @@ export default function AdminOnboarding() {
               <TableHead>Owner Email</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Progress</TableHead>
-              <TableHead>Created</TableHead>
+              <TableHead>Token Sent</TableHead>
               <TableHead>Expires</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -404,101 +497,138 @@ export default function AdminOnboarding() {
             {loading ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                  Loading tokens...
+                  Loading properties...
                 </TableCell>
               </TableRow>
-            ) : filteredTokens.length === 0 ? (
+            ) : filteredProperties.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                  No onboarding tokens found
+                  {propertyRows.length === 0 
+                    ? "No properties found" 
+                    : showCompleted 
+                      ? "No properties match your filters"
+                      : "No active onboarding. Toggle 'Show Completed & Live' to see all."}
                 </TableCell>
               </TableRow>
             ) : (
-              filteredTokens.map((token) => (
-                <TableRow key={token.id}>
-                  <TableCell>
-                    <button
-                      onClick={() => navigate(`/admin/properties/${token.property_id}`)}
-                      className="font-medium hover:text-primary hover:underline"
-                    >
-                      {token.property_name}
-                    </button>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{token.owner_email}</TableCell>
-                  <TableCell>
-                    <StatusBadge token={token} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2 min-w-32">
-                      <Progress value={token.onboarding_score || 0} className="h-2" />
-                      <span className="text-sm text-muted-foreground w-10">
-                        {token.onboarding_score || 0}%
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {format(new Date(token.created_at), "MMM d, yyyy")}
-                  </TableCell>
-                  <TableCell>
-                    <span className={isBefore(new Date(token.expires_at), new Date()) ? "text-destructive" : ""}>
-                      {format(new Date(token.expires_at), "MMM d, yyyy")}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleCopyLink(token)}>
-                          <Copy className="h-4 w-4 mr-2" />
-                          Copy Link
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleResendOnboarding(token)}>
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Resend Email
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setExtendToken(token);
-                            setExtendModalOpen(true);
-                          }}
-                        >
-                          <CalendarPlus className="h-4 w-4 mr-2" />
-                          Extend Expiry
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => navigate(`/admin/properties/${token.property_id}`)}>
-                          <Building2 className="h-4 w-4 mr-2" />
-                          View Property
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <a
-                            href={`/admin/audit?table_name=property_onboarding_tokens&search_text=${token.owner_email}`}
-                            target="_blank"
-                          >
-                            <ExternalLink className="h-4 w-4 mr-2" />
-                            Audit Trail
-                          </a>
-                        </DropdownMenuItem>
-                        {getTokenStatus(token) === "active" && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => handleInvalidateToken(token)}
-                            >
-                              <XCircle className="h-4 w-4 mr-2" />
-                              Invalidate Token
+              filteredProperties.map((row) => {
+                const status = getOnboardingStatus(row);
+                return (
+                  <TableRow key={row.id}>
+                    <TableCell>
+                      <button
+                        onClick={() => navigate(`/admin/properties/${row.id}`)}
+                        className="font-medium hover:text-primary hover:underline text-left"
+                      >
+                        {row.name}
+                      </button>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {row.owner_email || <span className="italic">Not set</span>}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={status} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2 min-w-32">
+                        <Progress value={row.onboarding_score} className="h-2" />
+                        <span className="text-sm text-muted-foreground w-10">
+                          {row.onboarding_score}%
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {row.token 
+                        ? format(new Date(row.token.created_at), "MMM d, yyyy")
+                        : <span className="text-muted-foreground">Never</span>}
+                    </TableCell>
+                    <TableCell>
+                      {row.token ? (
+                        <span className={isBefore(new Date(row.token.expires_at), new Date()) ? "text-destructive" : ""}>
+                          {format(new Date(row.token.expires_at), "MMM d, yyyy")}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="bg-popover">
+                          {/* Issue/Resend token based on status */}
+                          {status === "not_started" ? (
+                            <DropdownMenuItem onClick={() => handleIssueToken(row)}>
+                              <Send className="h-4 w-4 mr-2" />
+                              Issue Onboarding Token
                             </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
+                          ) : (
+                            <DropdownMenuItem onClick={() => handleResendOnboarding(row)}>
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                              Re-issue Token
+                            </DropdownMenuItem>
+                          )}
+
+                          {/* Copy link (only if token exists) */}
+                          {row.token && (
+                            <DropdownMenuItem onClick={() => handleCopyLink(row)}>
+                              <Copy className="h-4 w-4 mr-2" />
+                              Copy Link
+                            </DropdownMenuItem>
+                          )}
+
+                          {/* Extend expiry (only for active/expired tokens) */}
+                          {row.token && (status === "in_progress" || status === "token_expired") && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setExtendRow(row);
+                                setExtendModalOpen(true);
+                              }}
+                            >
+                              <CalendarPlus className="h-4 w-4 mr-2" />
+                              Extend Expiry
+                            </DropdownMenuItem>
+                          )}
+
+                          <DropdownMenuItem onClick={() => navigate(`/admin/properties/${row.id}`)}>
+                            <Building2 className="h-4 w-4 mr-2" />
+                            View Property
+                          </DropdownMenuItem>
+
+                          {row.token && (
+                            <DropdownMenuItem asChild>
+                              <a
+                                href={`/admin/audit?table_name=property_onboarding_tokens&search_text=${row.owner_email || row.name}`}
+                                target="_blank"
+                              >
+                                <ExternalLink className="h-4 w-4 mr-2" />
+                                Audit Trail
+                              </a>
+                            </DropdownMenuItem>
+                          )}
+
+                          {/* Invalidate (only for active tokens) */}
+                          {status === "in_progress" && row.token && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => handleInvalidateToken(row)}
+                              >
+                                <XCircle className="h-4 w-4 mr-2" />
+                                Invalidate Token
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -516,18 +646,21 @@ export default function AdminOnboarding() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="property">Property *</Label>
-              <Select value={selectedPropertyId} onValueChange={(value) => {
-                setSelectedPropertyId(value);
-                const prop = properties.find(p => p.id === value);
-                if (prop?.owner_email) {
-                  setSendEmail(prop.owner_email);
-                }
-              }}>
+              <Select
+                value={selectedPropertyId}
+                onValueChange={(value) => {
+                  setSelectedPropertyId(value);
+                  const prop = propertyRows.find((p) => p.id === value);
+                  if (prop?.owner_email) {
+                    setSendEmail(prop.owner_email);
+                  }
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a property" />
                 </SelectTrigger>
                 <SelectContent>
-                  {properties.map((prop) => (
+                  {propertyRows.map((prop) => (
                     <SelectItem key={prop.id} value={prop.id}>
                       {prop.name}
                     </SelectItem>
@@ -569,7 +702,7 @@ export default function AdminOnboarding() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Property</Label>
-              <p className="text-sm text-muted-foreground">{extendToken?.property_name}</p>
+              <p className="text-sm text-muted-foreground">{extendRow?.name}</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="days">Extend by</Label>
