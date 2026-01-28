@@ -23,11 +23,12 @@ function formatDate(dateString: string): string {
   });
 }
 
-// Calculate nights
-function calculateNights(checkIn: string, checkOut: string): number {
-  const start = new Date(checkIn);
-  const end = new Date(checkOut);
-  return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+// Format short date for compact display
+function formatShortDate(dateString: string): string {
+  return new Date(dateString).toLocaleDateString("en-ZA", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 interface Stay {
@@ -51,12 +52,139 @@ interface Stay {
   country?: string;
 }
 
-function generateBrochureHTML(itinerary: any, stays: Stay[]): string {
-  const staysHTML = stays.map((stay, index) => `
+interface LocalExperience {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  distance_km: number | null;
+  duration_hours: number | null;
+  price_indicator: string | null;
+  why_locals_love_it: string | null;
+  best_time: string | null;
+  venue_type: string | null;
+  cuisine_type: string | null;
+  reservation_required: boolean | null;
+  dress_code: string | null;
+}
+
+interface PropertyDetails {
+  id: string;
+  name: string;
+  main_image: string | null;
+  city: string | null;
+  country: string | null;
+  address: string | null;
+  check_in_time: string | null;
+  check_out_time: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+}
+
+// Category icons for experiences
+const categoryIcons: Record<string, string> = {
+  nature: '🌿',
+  culture: '🎨',
+  adventure: '🏃',
+  relaxation: '🧘',
+  wellness: '💆',
+  food: '🍴',
+  dining: '🍷'
+};
+
+function generateExperiencesHTML(experiences: LocalExperience[]): string {
+  if (!experiences || experiences.length === 0) return '';
+  
+  const otherExperiences = experiences.filter(e => e.category !== 'dining').slice(0, 4);
+  
+  if (otherExperiences.length === 0) return '';
+  
+  const experienceItems = otherExperiences.map(exp => `
+    <div class="experience-item">
+      <span class="experience-icon">${categoryIcons[exp.category] || '✨'}</span>
+      <div class="experience-content">
+        <span class="experience-title">${exp.title}</span>
+        ${exp.duration_hours ? `<span class="experience-duration">${exp.duration_hours}h</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+  
+  return `
+    <div class="experiences-section">
+      <h4>✨ Top Experiences Nearby</h4>
+      ${experienceItems}
+    </div>
+  `;
+}
+
+function generateDiningHTML(dining: LocalExperience | undefined): string {
+  if (!dining) return '';
+  
+  return `
+    <div class="dining-section">
+      <h4>🍷 Where to Dine</h4>
+      <div class="dining-card">
+        <h5 class="dining-name">${dining.title}</h5>
+        <p class="dining-cuisine">${dining.cuisine_type || dining.description || ''}</p>
+        ${dining.why_locals_love_it ? `<p class="dining-tip">"${dining.why_locals_love_it}"</p>` : ''}
+        <div class="dining-meta">
+          ${dining.dress_code ? `<span class="dining-dress">👔 ${dining.dress_code}</span>` : ''}
+          ${dining.reservation_required ? '<span class="dining-reserve">📞 Reservations recommended</span>' : ''}
+          ${dining.price_indicator ? `<span class="price-badge">${dining.price_indicator}</span>` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function generatePracticalHTML(property: PropertyDetails): string {
+  const hasInfo = property.address || property.check_in_time || property.check_out_time || property.contact_phone;
+  if (!hasInfo) return '';
+  
+  return `
+    <div class="practical-section">
+      <h4>📍 Practical Info</h4>
+      <div class="practical-info">
+        ${property.address ? `<p class="practical-address">${property.address}</p>` : ''}
+        <div class="practical-times">
+          ${property.check_in_time ? `<span>Check-in: ${property.check_in_time}</span>` : ''}
+          ${property.check_out_time ? `<span>Check-out: ${property.check_out_time}</span>` : ''}
+        </div>
+        ${property.contact_phone ? `<p class="practical-contact">📞 ${property.contact_phone}</p>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function generateShareHTML(itineraryId: string): string {
+  const shareUrl = `https://book.sleepinafrica.roomsonline.co.za/journey/confirmation/${itineraryId}`;
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(shareUrl)}`;
+  
+  return `
+    <div class="share-section">
+      <h2>Share Your Adventure</h2>
+      <div class="share-content">
+        <img src="${qrCodeUrl}" alt="QR Code" class="qr-code" />
+        <p>Scan to view online and share with friends!</p>
+      </div>
+    </div>
+  `;
+}
+
+interface EnrichedStay extends Stay {
+  experiences: LocalExperience[];
+  propertyDetails: PropertyDetails | null;
+}
+
+function generateBrochureHTML(itinerary: any, stays: EnrichedStay[]): string {
+  const staysHTML = stays.map((stay, index) => {
+    const diningExp = stay.experiences?.find(e => e.category === 'dining');
+    
+    return `
     <div class="stay-card">
       <div class="stay-header">
         <span class="stay-number">Stay ${index + 1}</span>
-        <span class="stay-dates">${formatDate(stay.checkIn)} – ${formatDate(stay.checkOut)}</span>
+        <span class="stay-dates">${formatShortDate(stay.checkIn)} – ${formatShortDate(stay.checkOut)}</span>
       </div>
       ${stay.propertyImage ? `<img src="${stay.propertyImage}" alt="${stay.propertyName}" class="stay-image" />` : ''}
       <div class="stay-content">
@@ -82,9 +210,13 @@ function generateBrochureHTML(itinerary: any, stays: Stay[]): string {
             <span class="detail-value">${formatCurrency(stay.price, itinerary.currency || 'ZAR')}</span>
           </div>
         </div>
+        
+        ${generateExperiencesHTML(stay.experiences)}
+        ${generateDiningHTML(diningExp)}
+        ${stay.propertyDetails ? generatePracticalHTML(stay.propertyDetails) : ''}
       </div>
     </div>
-  `).join('');
+  `}).join('');
 
   return `
 <!DOCTYPE html>
@@ -207,8 +339,9 @@ function generateBrochureHTML(itinerary: any, stays: Stay[]): string {
     .stay-card {
       border: 1px solid #e0e0e0;
       border-radius: 8px;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
       overflow: hidden;
+      page-break-inside: avoid;
     }
     
     .stay-header {
@@ -284,6 +417,156 @@ function generateBrochureHTML(itinerary: any, stays: Stay[]): string {
       font-size: 12pt;
     }
     
+    /* Experiences Section */
+    .experiences-section {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid #eee;
+    }
+    
+    .experiences-section h4 {
+      font-size: 11pt;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 12px;
+    }
+    
+    .experience-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid #f5f5f5;
+    }
+    
+    .experience-item:last-child {
+      border-bottom: none;
+    }
+    
+    .experience-icon {
+      font-size: 16pt;
+      width: 28px;
+      text-align: center;
+    }
+    
+    .experience-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex: 1;
+    }
+    
+    .experience-title {
+      font-weight: 500;
+    }
+    
+    .experience-duration {
+      color: #666;
+      font-size: 9pt;
+      background: #f5f5f5;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    
+    /* Dining Section */
+    .dining-section {
+      background: linear-gradient(135deg, #fdf2f8 0%, #fff 100%);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 16px;
+    }
+    
+    .dining-section h4 {
+      font-size: 11pt;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 12px;
+    }
+    
+    .dining-card {
+      background: white;
+      border-radius: 6px;
+      padding: 12px;
+    }
+    
+    .dining-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 14pt;
+      margin-bottom: 4px;
+    }
+    
+    .dining-cuisine {
+      color: #666;
+      font-size: 10pt;
+      margin-bottom: 8px;
+    }
+    
+    .dining-tip {
+      font-style: italic;
+      color: #e91e8c;
+      font-size: 10pt;
+      margin-bottom: 8px;
+      padding: 8px;
+      background: #fdf2f8;
+      border-radius: 4px;
+    }
+    
+    .dining-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 9pt;
+      color: #666;
+    }
+    
+    .dining-dress, .dining-reserve {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .price-badge {
+      background: #333;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: capitalize;
+    }
+    
+    /* Practical Info */
+    .practical-section {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #eee;
+    }
+    
+    .practical-section h4 {
+      font-size: 11pt;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 12px;
+    }
+    
+    .practical-info {
+      font-size: 10pt;
+      color: #666;
+    }
+    
+    .practical-address {
+      margin-bottom: 8px;
+    }
+    
+    .practical-times {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 8px;
+    }
+    
+    .practical-contact {
+      font-weight: 500;
+      color: #333;
+    }
+    
     /* Summary */
     .summary-box {
       background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
@@ -325,6 +608,39 @@ function generateBrochureHTML(itinerary: any, stays: Stay[]): string {
       font-weight: 700;
     }
     
+    /* Share Section */
+    .share-section {
+      text-align: center;
+      margin-top: 40px;
+      padding: 24px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      page-break-inside: avoid;
+    }
+    
+    .share-section h2 {
+      border-bottom: none;
+      margin: 0 0 8px 0;
+      padding: 0;
+    }
+    
+    .share-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    .qr-code {
+      width: 120px;
+      height: 120px;
+      margin: 16px auto;
+    }
+    
+    .share-content p {
+      color: #666;
+      font-size: 10pt;
+    }
+    
     /* Footer */
     .footer {
       margin-top: 40px;
@@ -351,6 +667,10 @@ function generateBrochureHTML(itinerary: any, stays: Stay[]): string {
       }
       
       .stay-card {
+        page-break-inside: avoid;
+      }
+      
+      .share-section {
         page-break-inside: avoid;
       }
     }
@@ -415,6 +735,9 @@ function generateBrochureHTML(itinerary: any, stays: Stay[]): string {
   <p style="font-style: italic; color: #666;">"${itinerary.special_requests}"</p>
   ` : ''}
   
+  <!-- Share Section -->
+  ${generateShareHTML(itinerary.id)}
+  
   <!-- Footer -->
   <div class="footer">
     <p>This brochure was generated on ${new Date().toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
@@ -467,20 +790,53 @@ Deno.serve(async (req) => {
       ? JSON.parse(itinerary.stays) 
       : itinerary.stays || [];
 
-    // Enrich stays with property images if available
+    // Get unique property IDs
     const propertyIds = [...new Set(stays.map(s => s.propertyId))];
+    
+    // Fetch property details including practical info
     const { data: properties } = await supabase
       .from("properties")
-      .select("id, name, main_image, city, country")
+      .select("id, name, main_image, city, country, address, check_in_time, check_out_time, contact_phone, contact_email")
       .in("id", propertyIds);
 
     const propertyMap = new Map(properties?.map(p => [p.id, p]) || []);
     
-    const enrichedStays = stays.map(stay => ({
+    // Fetch local experiences for all properties
+    const { data: allExperiences } = await supabase
+      .from("local_experiences")
+      .select("*")
+      .in("property_id", propertyIds)
+      .eq("is_active", true)
+      .order("display_order");
+    
+    // Group experiences by property
+    const experiencesMap = new Map<string, LocalExperience[]>();
+    allExperiences?.forEach(exp => {
+      const existing = experiencesMap.get(exp.property_id) || [];
+      existing.push(exp);
+      experiencesMap.set(exp.property_id, existing);
+    });
+    
+    // Check for properties needing enrichment and trigger async
+    for (const propertyId of propertyIds) {
+      const experiences = experiencesMap.get(propertyId) || [];
+      if (experiences.length < 3) {
+        console.log(`Auto-enriching experiences for property ${propertyId}`);
+        // Non-blocking call to enrich experiences
+        supabase.functions.invoke('enrich-property-experiences', {
+          body: { property_id: propertyId }
+        }).catch(err => console.error(`Enrichment failed for ${propertyId}:`, err));
+      }
+    }
+    
+    // Enrich stays with property details and experiences
+    const enrichedStays: EnrichedStay[] = stays.map(stay => ({
       ...stay,
       propertyImage: propertyMap.get(stay.propertyId)?.main_image || stay.propertyImage,
       city: stay.city || propertyMap.get(stay.propertyId)?.city,
       country: stay.country || propertyMap.get(stay.propertyId)?.country,
+      experiences: experiencesMap.get(stay.propertyId) || [],
+      propertyDetails: propertyMap.get(stay.propertyId) || null,
     }));
 
     // Generate HTML brochure
