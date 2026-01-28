@@ -138,3 +138,6 @@ verify_jwt = true
 
 [functions.check-activation-readiness]
 verify_jwt = true
+
+[functions.review-property]
+verify_jwt = true

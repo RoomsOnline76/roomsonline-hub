@@ -63,6 +63,7 @@ import AdminOnboarding from "./pages/AdminOnboarding";
 import AdminContractEditor from "./pages/AdminContractEditor";
 import AdminWizardEditor from "./pages/AdminWizardEditor";
 import AdminPreFlight from "./pages/AdminPreFlight";
+import AdminReviewQueue from "./pages/AdminReviewQueue";
 import DevOverview from "./pages/DevOverview";
 import DevPMS from "./pages/DevPMS";
 import DevLogs from "./pages/DevLogs";
@@ -402,6 +403,14 @@ const App = () => (
               element={
                 <ProtectedRoute requireAdmin={true}>
                   <AdminWizardEditor />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/review-queue"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminReviewQueue />
                 </ProtectedRoute>
               }
             />
