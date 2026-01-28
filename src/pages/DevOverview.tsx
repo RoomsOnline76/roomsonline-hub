@@ -8,6 +8,8 @@ import {
   CheckCircle,
   Clock,
   RefreshCw,
+  Mail,
+  Loader2,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -43,6 +45,7 @@ interface SystemStatus {
 export default function DevOverview() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [sendingReport, setSendingReport] = useState(false);
   const [status, setStatus] = useState<SystemStatus>({
     pmsAdapters: [],
     edgeFunctions: [],
@@ -141,6 +144,31 @@ export default function DevOverview() {
     toast.success('System status refreshed');
   };
 
+  const handleSendReport = async () => {
+    setSendingReport(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('daily-health-report', {
+        body: { 
+          manual: true,
+          recipient: 'dev@roomsonline.co.za'
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success(`Health report sent to dev@roomsonline.co.za`);
+      } else {
+        throw new Error(data?.error || 'Failed to send report');
+      }
+    } catch (error) {
+      console.error('Error sending health report:', error);
+      toast.error('Failed to send health report');
+    } finally {
+      setSendingReport(false);
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'healthy':
@@ -182,15 +210,29 @@ export default function DevOverview() {
           title="System Overview"
           subtitle="Global health of PMS adapters, edge functions, and sync pipelines"
         />
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={handleRefresh}
-          disabled={refreshing}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button 
+            size="sm" 
+            onClick={handleSendReport}
+            disabled={sendingReport}
+          >
+            {sendingReport ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Mail className="h-4 w-4 mr-2" />
+            )}
+            Send Report
+          </Button>
+        </div>
       </div>
 
       {/* Health Overview */}
