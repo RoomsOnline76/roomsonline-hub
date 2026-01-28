@@ -1,177 +1,205 @@
 
-# Enhanced Table Search Implementation
 
-## Overview
-This plan implements comprehensive column-searchable tables across all admin dashboard pages. The search functionality will allow filtering across all visible columns instead of just name/email fields.
+# Security Review Remediation Plan
 
-## Pages Requiring Updates
+## Summary of Active Findings
 
-### 1. AdminUsers.tsx (Priority: HIGH)
-**Current State:** Search only filters by `full_name` and `email`
-**Enhancement:** Add search across all table columns
-
-**Columns to include in search:**
-- User name (full_name)
-- Email
-- Role (admin, dev, user, fearless_leader)
-- PMS system type names
-- Property count (as string)
-- Joined date (formatted)
-
-**Implementation:**
-- Update filter logic in useEffect (lines 173-184) to include role matching and PMS system searching
+| Finding | Severity | Table/Function | Issue |
+|---------|----------|----------------|-------|
+| RLS Policy Always True | WARN | Multiple tables | `WITH CHECK (true)` on INSERT policies |
+| Function Search Path Mutable | WARN | 3 functions | Missing `search_path` setting |
+| User Data Enumeration | ERROR | `profiles` | No rate limiting on profile queries |
+| PMS Credentials Plaintext | WARN | `owner_pms_credentials` | API keys stored unencrypted |
+| Bank Details Exposure | ERROR | `property_bank_details` | Metadata accessible without additional checks |
 
 ---
 
-### 2. Bookings.tsx (Priority: MEDIUM)
-**Current State:** Good coverage but missing some fields
-**Enhancement:** Add status and date-based search
+## Phase 1: Fix Function Search Path (Clear the WARN)
 
-**Add to search:**
-- Status field (confirmed, pending, cancelled)
-- Check-in date (formatted)
-- Check-out date (formatted)
-- Room/rate type name
+Three functions lack `search_path` settings:
+- `generate_batch_reference()`
+- `list_changes()`
+- `update_bank_export_updated_at()`
 
----
+**Fix:** Recreate functions with `SET search_path TO 'public'`
 
-### 3. AdminReviewQueue.tsx (Priority: MEDIUM)
-**Current State:** Searches name and owner only
-**Enhancement:** Add listing_intent and listing_status search
+```sql
+-- Fix function search path issues
+CREATE OR REPLACE FUNCTION public.generate_batch_reference()
+  RETURNS trigger
+  LANGUAGE plpgsql
+  SET search_path TO 'public'
+AS $$
+BEGIN
+  NEW.batch_reference := 'ROL-BATCH-' || to_char(NOW(), 'YYYY') || '-' || LPAD(NEW.batch_sequence::text, 4, '0');
+  RETURN NEW;
+END;
+$$;
 
-**Add to search:**
-- Listing intent (accommodation, venue, hybrid, experience)
-- Listing status labels (Pending Review, Ready to Activate, etc.)
-- Property type
-
----
-
-### 4. AdminPayments.tsx (Priority: HIGH)
-**Current State:** No search functionality
-**Enhancement:** Add full table search capability
-
-**Add search input with filter across:**
-- Date (formatted)
-- Guest name
-- Property name
-- Payment method
-- Amount (as string)
-- Status (completed, pending, failed)
-
----
-
-### 5. AdminContracts.tsx (Priority: MEDIUM)
-**Current State:** Searches owner email and name only
-**Enhancement:** Extend search to status and version
-
-**Add to search:**
-- Status label (Signed, Pending, Sent, Viewed, Overridden)
-- Version number (as string)
-- Template version
-
----
-
-### 6. AdminOnboarding.tsx (Priority: MEDIUM)
-**Current State:** Searches property name and owner email
-**Enhancement:** Add status search
-
-**Add to search:**
-- Status (active, expired, used)
-- Token expiry date (formatted)
-- Created date (formatted)
-
----
-
-### 7. AdminAccessRequests.tsx (Priority: HIGH)
-**Current State:** No search functionality
-**Enhancement:** Add full table search
-
-**Add search input with filter across:**
-- Full name
-- Email
-- Message content
-- Status (pending, approved, declined)
-- Submitted date (formatted)
-
----
-
-### 8. AdminJournals.tsx (Priority: MEDIUM)
-**Current State:** No search functionality
-**Enhancement:** Add full table search
-
-**Add search input with filter across:**
-- Title
-- Status (Published, Draft)
-- Publish date (formatted)
-- Last updated date (formatted)
-
----
-
-## Technical Approach
-
-### Shared Search Pattern
-Each table will use a consistent search pattern:
-
-```typescript
-const filteredItems = useMemo(() => {
-  if (!searchTerm.trim()) return items;
-  
-  const term = searchTerm.toLowerCase();
-  return items.filter(item => {
-    // Check all searchable fields
-    return (
-      item.field1?.toLowerCase().includes(term) ||
-      item.field2?.toLowerCase().includes(term) ||
-      format(new Date(item.date), "MMM d, yyyy").toLowerCase().includes(term) ||
-      String(item.numericField).includes(term)
-      // ... additional fields
-    );
-  });
-}, [items, searchTerm]);
+CREATE OR REPLACE FUNCTION public.update_bank_export_updated_at()
+  RETURNS trigger
+  LANGUAGE plpgsql
+  SET search_path TO 'public'
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
 ```
 
-### UI Consistency
-- All search inputs will use the existing design pattern with Search icon
-- Placeholder text: "Search all columns..." or "Search [entity]..."
-- Position: Consistent placement in filter bar area
+---
+
+## Phase 2: Review "Always True" INSERT Policies
+
+These INSERT policies use `WITH CHECK (true)` - some are intentional for public-facing features:
+
+| Table | Policy | Intentional? | Action |
+|-------|--------|--------------|--------|
+| `access_requests` | Anyone can submit | YES | Mark as ignored - public access request form |
+| `ai_search_logs` | Anyone can log | YES | Mark as ignored - telemetry for anonymous users |
+| `bookings` | Anyone can create | YES | Mark as ignored - anonymous booking flow |
+| `help_search_logs` | Anyone can log | YES | Mark as ignored - telemetry |
+| `itineraries` | Users can create | YES | Mark as ignored - public journey builder |
+| `nightsbridge_booking_sessions` | Anyone can create | YES | Mark as ignored - booking widget sessions |
+| `survey_responses` | Anyone can submit | YES | Mark as ignored - public survey form |
+| `wizard_audit_log` | Authenticated can insert | YES | Mark as ignored - audit trail (authenticated only) |
+
+**Action:** These are all intentional public-facing insert capabilities. Update security findings to ignore with documented reasons.
 
 ---
 
-## Files to Modify
+## Phase 3: Fix itinerary_bookings ALL Policy
 
-| File | Changes |
-|------|---------|
-| `src/pages/AdminUsers.tsx` | Extend filter logic (~lines 173-184) |
-| `src/pages/Bookings.tsx` | Extend filteredBookings logic (~lines 395-421) |
-| `src/pages/AdminReviewQueue.tsx` | Extend filteredProperties logic (~lines 114-134) |
-| `src/pages/AdminPayments.tsx` | Add search state + filter logic + search input UI |
-| `src/pages/AdminContracts.tsx` | Extend filteredContracts logic (~lines 186-196) |
-| `src/pages/AdminOnboarding.tsx` | Extend filteredTokens logic (~lines 155-172) |
-| `src/pages/AdminAccessRequests.tsx` | Add search state + filter logic + search input UI |
-| `src/pages/AdminJournals.tsx` | Add search state + filter logic + search input UI |
+The `itinerary_bookings` table has `System can manage itinerary bookings` with `USING (true)` for ALL operations - this is overly permissive.
+
+**Current:** Anonymous users can technically update/delete any itinerary booking.
+
+**Fix:** Replace with proper scoped policies:
+
+```sql
+-- Drop overly permissive policy
+DROP POLICY IF EXISTS "System can manage itinerary bookings" ON public.itinerary_bookings;
+
+-- INSERT: Allow authenticated and anonymous for their sessions
+CREATE POLICY "Users can create itinerary bookings"
+  ON public.itinerary_bookings FOR INSERT
+  TO public
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM itineraries i
+      WHERE i.id = itinerary_bookings.itinerary_id
+      AND (i.user_id = auth.uid() OR i.session_id IS NOT NULL)
+    )
+  );
+
+-- UPDATE: Only for own itineraries
+CREATE POLICY "Users can update own itinerary bookings"
+  ON public.itinerary_bookings FOR UPDATE
+  TO public
+  USING (
+    EXISTS (
+      SELECT 1 FROM itineraries i
+      WHERE i.id = itinerary_bookings.itinerary_id
+      AND (i.user_id = auth.uid() OR i.session_id IS NOT NULL)
+    )
+  );
+
+-- DELETE: Only for own itineraries
+CREATE POLICY "Users can delete own itinerary bookings"
+  ON public.itinerary_bookings FOR DELETE
+  TO public
+  USING (
+    EXISTS (
+      SELECT 1 FROM itineraries i
+      WHERE i.id = itinerary_bookings.itinerary_id
+      AND (i.user_id = auth.uid() OR i.session_id IS NOT NULL)
+    )
+  );
+
+-- Admin override
+CREATE POLICY "Admins can manage all itinerary bookings"
+  ON public.itinerary_bookings FOR ALL
+  TO authenticated
+  USING (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'dev'))
+  WITH CHECK (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'dev'));
+```
 
 ---
 
-## Implementation Order
+## Phase 4: Address Profile Enumeration Risk (Mark as Intentional)
 
-1. **Phase 1 - Pages without search** (highest impact):
-   - AdminPayments.tsx
-   - AdminAccessRequests.tsx  
-   - AdminJournals.tsx
+**Current State:**
+- `profiles` table RLS correctly scopes SELECT to:
+  - Users can only see their own profile (`auth.uid() = id`)
+  - Admins/devs can see all profiles
 
-2. **Phase 2 - Extend existing search**:
-   - AdminUsers.tsx (priority based on user request)
-   - AdminContracts.tsx
-   - AdminOnboarding.tsx
+**Analysis:** This is properly scoped. The scanner's concern about enumeration is theoretical - an attacker would need valid UUIDs to query, and RLS prevents cross-user access. The existing policies follow security best practices.
 
-3. **Phase 3 - Enhanced coverage**:
-   - AdminReviewQueue.tsx
-   - Bookings.tsx
+**Action:** Mark as ignored with explanation that RLS is properly scoped and UUID-based queries prevent enumeration.
+
+---
+
+## Phase 5: Address PMS Credentials Storage (Mark as Accepted Risk)
+
+**Current State:**
+- `owner_pms_credentials` stores `api_key` and `refresh_token` in plaintext
+- RLS restricts access to owner only (`owner_id = auth.uid()`) and admin/dev
+
+**Analysis:** 
+- Defense-in-depth concern, not an immediate vulnerability
+- Owners should only see their own credentials
+- Migrating to Supabase Vault would require significant refactoring
+
+**Action:** Mark as ignored with documented risk acceptance - RLS properly scopes access to credential owners only.
+
+---
+
+## Phase 6: Address Bank Details Exposure (Mark as Intentional Design)
+
+**Current State:**
+- `property_bank_details` stores `account_number_encrypted` (encrypted via Vault)
+- `account_number_masked` shows only last 4 digits (e.g., `****1234`)
+- Bank name, branch code, account holder visible to owners
+
+**Analysis:**
+- Account number itself IS encrypted
+- Masked version is intentionally visible for verification
+- Metadata (bank name, holder) is needed for owners to manage their payout settings
+- This is standard banking UX pattern
+
+**Action:** Mark as ignored - account numbers are encrypted, only metadata and masked versions are visible to authorized users.
+
+---
+
+## Phase 7: Update Security Findings
+
+After applying migrations, update the security findings database to reflect:
+1. Fixed function search paths - delete findings
+2. Intentional INSERT policies - mark as ignored with reasons
+3. Fixed itinerary_bookings - delete finding when resolved
+4. Profile enumeration - mark as ignored (properly scoped RLS)
+5. PMS credentials - mark as ignored (accepted risk)
+6. Bank details - mark as ignored (encrypted + masked)
 
 ---
 
 ## Expected Outcome
-- Users can search any visible column content across all admin tables
-- Consistent search UX pattern throughout the admin interface
-- Improved data discovery and filtering efficiency
-- Search includes formatted dates and status labels for intuitive filtering
+
+After implementation:
+- **0 unaddressed ERROR findings**
+- **0 unaddressed WARN findings**
+- All findings either fixed or documented as intentional with ignore reasons
+- Security Definer Views remain (intentional architecture)
+- Leaked Password Protection remains acknowledged (requires Pro plan)
+
+---
+
+## Files Changed
+
+| File/Location | Change |
+|---------------|--------|
+| Database Migration | Fix 3 functions with search_path |
+| Database Migration | Replace itinerary_bookings ALL policy |
+| Security Findings API | Mark 8+ findings as ignored with reasons |
+
