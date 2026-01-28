@@ -376,10 +376,27 @@ Deno.serve(async (req) => {
       throw new Error('RESEND_API_KEY not configured');
     }
 
+    // Parse optional request body for custom recipient
+    let customRecipient: string | null = null;
+    let isManualTrigger = false;
+    
+    if (req.method === 'POST') {
+      try {
+        const body = await req.json();
+        customRecipient = body.recipient || null;
+        isManualTrigger = body.manual === true;
+      } catch {
+        // Empty body is fine for scheduled calls
+      }
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const resend = new Resend(resendApiKey);
 
-    console.log('[Daily Health Report] Generating report...');
+    console.log('[Daily Health Report] Generating report...', { 
+      isManualTrigger, 
+      customRecipient: customRecipient || 'default' 
+    });
 
     const now = new Date();
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -582,11 +599,21 @@ Deno.serve(async (req) => {
 
     const fromEmail = emailConfig?.key_value || "RoomsOnline <hello@notify.roomsonline.co.za>";
 
+    // Determine recipient(s)
+    const recipients = customRecipient 
+      ? [customRecipient] 
+      : ['dev@roomsonline.co.za'];
+
+    // Modify subject for manual triggers
+    const finalSubject = isManualTrigger 
+      ? `[Manual] ${subject}` 
+      : subject;
+
     // Send email
     const { error: emailError } = await resend.emails.send({
       from: fromEmail,
-      to: ['dev@roomsonline.co.za'],
-      subject,
+      to: recipients,
+      subject: finalSubject,
       html: emailHtml,
     });
 
@@ -595,12 +622,14 @@ Deno.serve(async (req) => {
       throw new Error(`Failed to send email: ${JSON.stringify(emailError)}`);
     }
 
-    console.log('[Daily Health Report] Report sent successfully');
+    console.log('[Daily Health Report] Report sent successfully to:', recipients);
 
     return new Response(
       JSON.stringify({
         success: true,
         sent_at: now.toISOString(),
+        sent_to: recipients,
+        is_manual: isManualTrigger,
         overall_status: overallStatus,
         total_components: totalComponents,
         failed_count: failedCount,
