@@ -2427,6 +2427,8 @@ export type Database = {
       }
       properties: {
         Row: {
+          activated_at: string | null
+          activated_by: string | null
           address: string
           ai_confidence_metadata: Json | null
           amenities: Json | null
@@ -2437,6 +2439,7 @@ export type Database = {
           checkfront_property_code: string | null
           city: string
           cloudbeds_property_id: string | null
+          commercial_model: string | null
           country: string
           created_at: string | null
           description: string | null
@@ -2454,6 +2457,8 @@ export type Database = {
           is_rol_property: boolean | null
           last_pms_sync_at: string | null
           latitude: number | null
+          listing_intent: string | null
+          listing_status: string | null
           littlehotelier_channel_code: string | null
           littlehotelier_region: string | null
           longitude: number | null
@@ -2466,6 +2471,7 @@ export type Database = {
           owner_pms_credential_id: string | null
           permanently_deleted_at: string | null
           pms_managed_fields: string[] | null
+          pms_readiness: string | null
           pms_sync_status: string | null
           price_per_night: number
           property_type: string
@@ -2483,6 +2489,8 @@ export type Database = {
           why_we_chose_this_place: string | null
         }
         Insert: {
+          activated_at?: string | null
+          activated_by?: string | null
           address: string
           ai_confidence_metadata?: Json | null
           amenities?: Json | null
@@ -2493,6 +2501,7 @@ export type Database = {
           checkfront_property_code?: string | null
           city: string
           cloudbeds_property_id?: string | null
+          commercial_model?: string | null
           country: string
           created_at?: string | null
           description?: string | null
@@ -2510,6 +2519,8 @@ export type Database = {
           is_rol_property?: boolean | null
           last_pms_sync_at?: string | null
           latitude?: number | null
+          listing_intent?: string | null
+          listing_status?: string | null
           littlehotelier_channel_code?: string | null
           littlehotelier_region?: string | null
           longitude?: number | null
@@ -2522,6 +2533,7 @@ export type Database = {
           owner_pms_credential_id?: string | null
           permanently_deleted_at?: string | null
           pms_managed_fields?: string[] | null
+          pms_readiness?: string | null
           pms_sync_status?: string | null
           price_per_night: number
           property_type: string
@@ -2539,6 +2551,8 @@ export type Database = {
           why_we_chose_this_place?: string | null
         }
         Update: {
+          activated_at?: string | null
+          activated_by?: string | null
           address?: string
           ai_confidence_metadata?: Json | null
           amenities?: Json | null
@@ -2549,6 +2563,7 @@ export type Database = {
           checkfront_property_code?: string | null
           city?: string
           cloudbeds_property_id?: string | null
+          commercial_model?: string | null
           country?: string
           created_at?: string | null
           description?: string | null
@@ -2566,6 +2581,8 @@ export type Database = {
           is_rol_property?: boolean | null
           last_pms_sync_at?: string | null
           latitude?: number | null
+          listing_intent?: string | null
+          listing_status?: string | null
           littlehotelier_channel_code?: string | null
           littlehotelier_region?: string | null
           longitude?: number | null
@@ -2578,6 +2595,7 @@ export type Database = {
           owner_pms_credential_id?: string | null
           permanently_deleted_at?: string | null
           pms_managed_fields?: string[] | null
+          pms_readiness?: string | null
           pms_sync_status?: string | null
           price_per_night?: number
           property_type?: string
@@ -2600,6 +2618,54 @@ export type Database = {
             columns: ["owner_pms_credential_id"]
             isOneToOne: false
             referencedRelation: "owner_pms_credentials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_activation_logs: {
+        Row: {
+          activated_at: string
+          activated_by: string | null
+          created_at: string | null
+          id: string
+          post_activation_checks: Json | null
+          pre_activation_score: number | null
+          property_id: string
+          quality_gate_results: Json | null
+        }
+        Insert: {
+          activated_at: string
+          activated_by?: string | null
+          created_at?: string | null
+          id?: string
+          post_activation_checks?: Json | null
+          pre_activation_score?: number | null
+          property_id: string
+          quality_gate_results?: Json | null
+        }
+        Update: {
+          activated_at?: string
+          activated_by?: string | null
+          created_at?: string | null
+          id?: string
+          post_activation_checks?: Json | null
+          pre_activation_score?: number | null
+          property_id?: string
+          quality_gate_results?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_activation_logs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_activation_logs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
             referencedColumns: ["id"]
           },
         ]
@@ -2850,6 +2916,69 @@ export type Database = {
           },
         ]
       }
+      property_checklist: {
+        Row: {
+          auto_verified: boolean | null
+          completed: boolean | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string | null
+          id: string
+          item_key: string
+          item_label: string
+          phase: string
+          property_id: string
+          required_for: string[] | null
+          updated_at: string | null
+          verification_data: Json | null
+        }
+        Insert: {
+          auto_verified?: boolean | null
+          completed?: boolean | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string | null
+          id?: string
+          item_key: string
+          item_label: string
+          phase: string
+          property_id: string
+          required_for?: string[] | null
+          updated_at?: string | null
+          verification_data?: Json | null
+        }
+        Update: {
+          auto_verified?: boolean | null
+          completed?: boolean | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string | null
+          id?: string
+          item_key?: string
+          item_label?: string
+          phase?: string
+          property_id?: string
+          required_for?: string[] | null
+          updated_at?: string | null
+          verification_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_checklist_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_checklist_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_commercial_terms: {
         Row: {
           contract_status: string | null
@@ -3010,6 +3139,45 @@ export type Database = {
             foreignKeyName: "property_contracts_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_onboarding_roadmap: {
+        Row: {
+          created_at: string | null
+          id: string
+          property_id: string | null
+          roadmap: Json
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          property_id?: string | null
+          roadmap?: Json
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          property_id?: string | null
+          roadmap?: Json
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_onboarding_roadmap_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_onboarding_roadmap_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
             referencedRelation: "public_properties"
             referencedColumns: ["id"]
           },
