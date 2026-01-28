@@ -46,7 +46,7 @@ interface LocalExperience {
   property_id: string;
   title: string;
   description: string | null;
-  category: 'nature' | 'culture' | 'food' | 'adventure' | 'relaxation' | 'wellness' | null;
+  category: 'nature' | 'culture' | 'food' | 'adventure' | 'relaxation' | 'wellness' | 'dining' | null;
   distance_km: number | null;
   duration_hours: number | null;
   price_indicator: 'free' | 'budget' | 'moderate' | 'luxury' | null;
@@ -57,6 +57,11 @@ interface LocalExperience {
   display_order: number;
   source: 'manual' | 'ai_generated' | 'pms_sync';
   is_active: boolean;
+  // Dining-specific fields
+  venue_type: string | null;
+  cuisine_type: string | null;
+  reservation_required: boolean;
+  dress_code: string | null;
 }
 
 interface LocalExperiencesManagerProps {
@@ -66,6 +71,8 @@ interface LocalExperiencesManagerProps {
   propertyCountry?: string;
 }
 
+import { Wine } from 'lucide-react';
+
 const categoryConfig = {
   nature: { icon: TreePine, color: 'bg-green-100 text-green-700' },
   culture: { icon: Palette, color: 'bg-purple-100 text-purple-700' },
@@ -73,6 +80,7 @@ const categoryConfig = {
   adventure: { icon: Mountain, color: 'bg-blue-100 text-blue-700' },
   relaxation: { icon: Leaf, color: 'bg-teal-100 text-teal-700' },
   wellness: { icon: Heart, color: 'bg-pink-100 text-pink-700' },
+  dining: { icon: Wine, color: 'bg-rose-100 text-rose-700' },
 };
 
 const priceLabels = {
@@ -394,8 +402,15 @@ function ExperienceForm({ experience, onSave, isLoading }: ExperienceFormProps) 
     why_locals_love_it: experience?.why_locals_love_it || '',
     best_time: experience?.best_time || '',
     is_active: experience?.is_active ?? true,
-    id: experience?.id
+    id: experience?.id,
+    // Dining-specific fields
+    venue_type: experience?.venue_type || null,
+    cuisine_type: experience?.cuisine_type || '',
+    reservation_required: experience?.reservation_required ?? false,
+    dress_code: experience?.dress_code || ''
   });
+
+  const isDiningCategory = formData.category === 'dining';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -443,6 +458,7 @@ function ExperienceForm({ experience, onSave, isLoading }: ExperienceFormProps) 
               <SelectItem value="adventure">Adventure</SelectItem>
               <SelectItem value="relaxation">Relaxation</SelectItem>
               <SelectItem value="wellness">Wellness</SelectItem>
+              <SelectItem value="dining">Restaurant/Eatery</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -465,6 +481,62 @@ function ExperienceForm({ experience, onSave, isLoading }: ExperienceFormProps) 
           </Select>
         </div>
       </div>
+
+      {/* Dining-specific fields */}
+      {isDiningCategory && (
+        <>
+          <div className="grid grid-cols-2 gap-4 p-4 bg-rose-50 rounded-lg border border-rose-200">
+            <div className="space-y-2">
+              <Label htmlFor="venue_type">Venue Type</Label>
+              <Select
+                value={formData.venue_type || ''}
+                onValueChange={(value) => setFormData({ ...formData, venue_type: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select venue type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="restaurant">Restaurant</SelectItem>
+                  <SelectItem value="cafe">Café</SelectItem>
+                  <SelectItem value="pub">Pub</SelectItem>
+                  <SelectItem value="wine_bar">Wine Bar</SelectItem>
+                  <SelectItem value="farm_table">Farm Table</SelectItem>
+                  <SelectItem value="takeaway">Takeaway</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cuisine_type">Cuisine Type</Label>
+              <Input
+                id="cuisine_type"
+                value={formData.cuisine_type || ''}
+                onChange={(e) => setFormData({ ...formData, cuisine_type: e.target.value })}
+                placeholder="e.g., French, Cape Malay"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="dress_code">Dress Code</Label>
+              <Input
+                id="dress_code"
+                value={formData.dress_code || ''}
+                onChange={(e) => setFormData({ ...formData, dress_code: e.target.value })}
+                placeholder="e.g., Smart casual"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-6">
+              <Switch
+                id="reservation_required"
+                checked={formData.reservation_required}
+                onCheckedChange={(checked) => setFormData({ ...formData, reservation_required: checked })}
+              />
+              <Label htmlFor="reservation_required">Reservation Required</Label>
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">

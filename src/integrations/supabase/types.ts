@@ -1214,18 +1214,22 @@ export type Database = {
           booking_link: string | null
           category: string | null
           created_at: string | null
+          cuisine_type: string | null
           description: string | null
           display_order: number | null
           distance_km: number | null
+          dress_code: string | null
           duration_hours: number | null
           id: string
           image_url: string | null
           is_active: boolean | null
           price_indicator: string | null
           property_id: string | null
+          reservation_required: boolean | null
           source: string | null
           title: string
           updated_at: string | null
+          venue_type: string | null
           why_locals_love_it: string | null
         }
         Insert: {
@@ -1233,18 +1237,22 @@ export type Database = {
           booking_link?: string | null
           category?: string | null
           created_at?: string | null
+          cuisine_type?: string | null
           description?: string | null
           display_order?: number | null
           distance_km?: number | null
+          dress_code?: string | null
           duration_hours?: number | null
           id?: string
           image_url?: string | null
           is_active?: boolean | null
           price_indicator?: string | null
           property_id?: string | null
+          reservation_required?: boolean | null
           source?: string | null
           title: string
           updated_at?: string | null
+          venue_type?: string | null
           why_locals_love_it?: string | null
         }
         Update: {
@@ -1252,18 +1260,22 @@ export type Database = {
           booking_link?: string | null
           category?: string | null
           created_at?: string | null
+          cuisine_type?: string | null
           description?: string | null
           display_order?: number | null
           distance_km?: number | null
+          dress_code?: string | null
           duration_hours?: number | null
           id?: string
           image_url?: string | null
           is_active?: boolean | null
           price_indicator?: string | null
           property_id?: string | null
+          reservation_required?: boolean | null
           source?: string | null
           title?: string
           updated_at?: string | null
+          venue_type?: string | null
           why_locals_love_it?: string | null
         }
         Relationships: [
