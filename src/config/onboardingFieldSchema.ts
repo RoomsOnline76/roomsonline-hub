@@ -7,9 +7,10 @@
  * the wizard UI.
  * 
  * REORGANIZED: 12 steps → 9 steps for streamlined UX
+ * ENHANCED: Intent-aware step filtering and completion states
  */
 
-export const WIZARD_VERSION = "2.0";
+export const WIZARD_VERSION = "2.1";
 
 export const PROPERTY_TYPES = [
   "apartment",
@@ -37,6 +38,7 @@ export const MEAL_PLAN_OPTIONS = [
 
 export type PropertyType = typeof PROPERTY_TYPES[number];
 export type MealPlanOption = typeof MEAL_PLAN_OPTIONS[number];
+export type ListingIntent = 'accommodation' | 'venue' | 'hybrid' | 'experience';
 
 export interface OnboardingOfferings {
   accommodation: boolean;
@@ -47,12 +49,12 @@ export interface OnboardingOfferings {
 
 export interface OnboardingRoomType {
   name: string;
-  units?: number;                    // NEW: Number of units of this type
+  units?: number;
   max_guests: number;
   base_rate?: number;
-  rate_unit?: 'per_night' | 'per_stay'; // NEW: Rate unit
+  rate_unit?: 'per_night' | 'per_stay';
   description?: string;
-  images?: OnboardingImage[];        // NEW: Room-specific images
+  images?: OnboardingImage[];
 }
 
 export const RATE_UNIT_OPTIONS = [
@@ -82,9 +84,34 @@ export interface WizardSection {
   weight: number;
   icon: string;
   estimatedMinutes: number;
+  whyItMatters?: string;
+  requiredFor?: ListingIntent[];
 }
 
-// 9-step wizard sections
+// ============= COMPLETION STATES =============
+export const COMPLETION_STATES = {
+  INCOMPLETE: { min: 0, max: 49, label: 'Needs Work', blocked: true, color: 'text-destructive' },
+  REVIEWABLE: { min: 50, max: 69, label: 'Ready for Review', blocked: false, color: 'text-yellow-600' },
+  ELIGIBLE: { min: 70, max: 84, label: 'Activation Eligible', blocked: false, color: 'text-blue-600' },
+  SHOWCASE_READY: { min: 85, max: 100, label: 'Showcase Ready', blocked: false, color: 'text-green-600' }
+} as const;
+
+export type CompletionState = keyof typeof COMPLETION_STATES;
+
+export function getCompletionState(score: number): CompletionState {
+  if (score >= COMPLETION_STATES.SHOWCASE_READY.min) return 'SHOWCASE_READY';
+  if (score >= COMPLETION_STATES.ELIGIBLE.min) return 'ELIGIBLE';
+  if (score >= COMPLETION_STATES.REVIEWABLE.min) return 'REVIEWABLE';
+  return 'INCOMPLETE';
+}
+
+export function getCompletionStateDetails(score: number) {
+  const state = getCompletionState(score);
+  return COMPLETION_STATES[state];
+}
+
+// ============= WIZARD SECTIONS =============
+// 9-step wizard sections with intent awareness
 export const WIZARD_SECTIONS: WizardSection[] = [
   {
     id: "property_identity",
@@ -92,7 +119,9 @@ export const WIZARD_SECTIONS: WizardSection[] = [
     description: "Basic info, offerings & business details",
     weight: 20,
     icon: "Building2",
-    estimatedMinutes: 5
+    estimatedMinutes: 5,
+    whyItMatters: "This establishes your property's brand presence and helps guests find you.",
+    requiredFor: ['accommodation', 'venue', 'hybrid', 'experience']
   },
   {
     id: "contact_details",
@@ -100,7 +129,9 @@ export const WIZARD_SECTIONS: WizardSection[] = [
     description: "Who can be reached at this property",
     weight: 5,
     icon: "Phone",
-    estimatedMinutes: 3
+    estimatedMinutes: 3,
+    whyItMatters: "Guests and our team need reliable ways to reach you for bookings and support.",
+    requiredFor: ['accommodation', 'venue', 'hybrid', 'experience']
   },
   {
     id: "location",
@@ -108,7 +139,9 @@ export const WIZARD_SECTIONS: WizardSection[] = [
     description: "Property address and surroundings",
     weight: 15,
     icon: "MapPin",
-    estimatedMinutes: 3
+    estimatedMinutes: 3,
+    whyItMatters: "Accurate location helps guests find you and enables map-based search.",
+    requiredFor: ['accommodation', 'venue', 'hybrid', 'experience']
   },
   {
     id: "policies_pricing",
@@ -116,7 +149,9 @@ export const WIZARD_SECTIONS: WizardSection[] = [
     description: "Rules, banking & terms",
     weight: 15,
     icon: "FileText",
-    estimatedMinutes: 6
+    estimatedMinutes: 6,
+    whyItMatters: "Clear policies set expectations and ensure smooth check-in/out experiences.",
+    requiredFor: ['accommodation', 'venue', 'hybrid', 'experience']
   },
   {
     id: "guest_experience",
@@ -124,7 +159,9 @@ export const WIZARD_SECTIONS: WizardSection[] = [
     description: "Description and meal options",
     weight: 10,
     icon: "PenLine",
-    estimatedMinutes: 5
+    estimatedMinutes: 5,
+    whyItMatters: "Compelling descriptions convert browsers into bookers. This is your sales pitch.",
+    requiredFor: ['accommodation', 'venue', 'hybrid', 'experience']
   },
   {
     id: "facilities",
@@ -132,7 +169,9 @@ export const WIZARD_SECTIONS: WizardSection[] = [
     description: "Available amenities and features",
     weight: 10,
     icon: "Wifi",
-    estimatedMinutes: 8
+    estimatedMinutes: 8,
+    whyItMatters: "Guests filter by amenities. Complete lists increase your visibility.",
+    requiredFor: ['accommodation', 'venue', 'hybrid']
   },
   {
     id: "rooms_overview",
@@ -140,7 +179,9 @@ export const WIZARD_SECTIONS: WizardSection[] = [
     description: "Room types and configuration",
     weight: 10,
     icon: "Bed",
-    estimatedMinutes: 8
+    estimatedMinutes: 8,
+    whyItMatters: "Room details power pricing, availability, and booking capacity.",
+    requiredFor: ['accommodation', 'hybrid']
   },
   {
     id: "media_documents",
@@ -148,7 +189,9 @@ export const WIZARD_SECTIONS: WizardSection[] = [
     description: "Photos, videos & rate sheets",
     weight: 15,
     icon: "Image",
-    estimatedMinutes: 10
+    estimatedMinutes: 10,
+    whyItMatters: "High-quality visuals are the #1 factor in booking decisions.",
+    requiredFor: ['accommodation', 'venue', 'hybrid', 'experience']
   },
   {
     id: "review",
@@ -156,10 +199,98 @@ export const WIZARD_SECTIONS: WizardSection[] = [
     description: "Review and submit your property",
     weight: 0,
     icon: "CheckCircle",
-    estimatedMinutes: 3
+    estimatedMinutes: 3,
+    whyItMatters: "Final check before your property goes live.",
+    requiredFor: ['accommodation', 'venue', 'hybrid', 'experience']
   }
 ];
 
+// ============= VENUE-SPECIFIC SECTIONS =============
+export const VENUE_SECTIONS: WizardSection[] = [
+  {
+    id: "capacity",
+    title: "Venue Capacity",
+    description: "Event spaces and capacity limits",
+    weight: 15,
+    icon: "Users",
+    estimatedMinutes: 5,
+    whyItMatters: "Capacity details help event planners find venues that fit their needs.",
+    requiredFor: ['venue', 'hybrid']
+  },
+  {
+    id: "event_types",
+    title: "Event Types",
+    description: "Types of events you host",
+    weight: 10,
+    icon: "Calendar",
+    estimatedMinutes: 4,
+    whyItMatters: "Clear event types help match you with the right inquiries.",
+    requiredFor: ['venue', 'hybrid']
+  }
+];
+
+// ============= EXPERIENCE-SPECIFIC SECTIONS =============
+export const EXPERIENCE_SECTIONS: WizardSection[] = [
+  {
+    id: "experience_details",
+    title: "Experience Details",
+    description: "What your experience offers",
+    weight: 20,
+    icon: "Sparkles",
+    estimatedMinutes: 8,
+    whyItMatters: "Detailed experience info helps guests understand what they'll enjoy.",
+    requiredFor: ['experience']
+  },
+  {
+    id: "logistics",
+    title: "Logistics",
+    description: "Timing, meeting points, requirements",
+    weight: 15,
+    icon: "Clock",
+    estimatedMinutes: 5,
+    whyItMatters: "Clear logistics prevent confusion and ensure smooth experiences.",
+    requiredFor: ['experience']
+  }
+];
+
+// ============= INTENT-BASED STEP FILTERING =============
+export function getWizardStepsForIntent(intent: ListingIntent): WizardSection[] {
+  const baseSteps = ['property_identity', 'contact_details', 'location'];
+  const reviewStep = 'review';
+  
+  let middleSteps: string[];
+  
+  switch (intent) {
+    case 'accommodation':
+      middleSteps = ['rooms_overview', 'policies_pricing', 'facilities', 'guest_experience', 'media_documents'];
+      break;
+    case 'venue':
+      middleSteps = ['capacity', 'event_types', 'policies_pricing', 'facilities', 'guest_experience', 'media_documents'];
+      break;
+    case 'hybrid':
+      middleSteps = ['rooms_overview', 'capacity', 'event_types', 'policies_pricing', 'facilities', 'guest_experience', 'media_documents'];
+      break;
+    case 'experience':
+      middleSteps = ['experience_details', 'logistics', 'guest_experience', 'media_documents'];
+      break;
+    default:
+      // Default to accommodation
+      middleSteps = ['rooms_overview', 'policies_pricing', 'facilities', 'guest_experience', 'media_documents'];
+  }
+  
+  const allStepIds = [...baseSteps, ...middleSteps, reviewStep];
+  const allSections = [...WIZARD_SECTIONS, ...VENUE_SECTIONS, ...EXPERIENCE_SECTIONS];
+  
+  return allStepIds
+    .map(id => allSections.find(s => s.id === id))
+    .filter((s): s is WizardSection => s !== undefined);
+}
+
+export function getStepCountForIntent(intent: ListingIntent): number {
+  return getWizardStepsForIntent(intent).length;
+}
+
+// ============= SCORE WEIGHTS =============
 export const SCORE_WEIGHTS = {
   property_identity: 20,
   contact_details: 5,
@@ -168,7 +299,13 @@ export const SCORE_WEIGHTS = {
   guest_experience: 10,
   facilities: 10,
   rooms_overview: 10,
-  media_documents: 15
+  media_documents: 15,
+  // Venue-specific
+  capacity: 15,
+  event_types: 10,
+  // Experience-specific
+  experience_details: 20,
+  logistics: 15
 } as const;
 
 export const SCORE_BANDS = [
@@ -225,6 +362,83 @@ export const FACILITY_CATEGORIES = {
   ]
 } as const;
 
+// ============= FIELD IMPACT LEVELS =============
+export type FieldImpactLevel = 'critical' | 'high' | 'medium' | 'low';
+
+export interface FieldDefinition {
+  key: string;
+  label: string;
+  section: string;
+  impact: FieldImpactLevel;
+  requiredFor: ListingIntent[];
+}
+
+export const CRITICAL_FIELDS: FieldDefinition[] = [
+  { key: 'name', label: 'Property Name', section: 'property_identity', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  { key: 'property_type', label: 'Property Type', section: 'property_identity', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  { key: 'address', label: 'Street Address', section: 'location', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  { key: 'city', label: 'City', section: 'location', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  { key: 'country', label: 'Country', section: 'location', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  { key: 'amenities.telephone', label: 'Contact Phone', section: 'contact_details', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  { key: 'amenities.contact_email', label: 'Contact Email', section: 'contact_details', impact: 'critical', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+];
+
+export const HIGH_IMPACT_FIELDS: FieldDefinition[] = [
+  { key: 'description', label: 'Property Description', section: 'guest_experience', impact: 'high', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  { key: 'short_description', label: 'Short Description', section: 'guest_experience', impact: 'high', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  { key: 'images', label: 'Property Images', section: 'media_documents', impact: 'high', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  { key: 'amenities.room_types', label: 'Room Types', section: 'rooms_overview', impact: 'high', requiredFor: ['accommodation', 'hybrid'] },
+  { key: 'amenities.check_in_time', label: 'Check-in Time', section: 'policies_pricing', impact: 'high', requiredFor: ['accommodation', 'hybrid'] },
+  { key: 'amenities.check_out_time', label: 'Check-out Time', section: 'policies_pricing', impact: 'high', requiredFor: ['accommodation', 'hybrid'] },
+];
+
+export const MEDIUM_IMPACT_FIELDS: FieldDefinition[] = [
+  { key: 'property_url', label: 'Website URL', section: 'property_identity', impact: 'medium', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+  { key: 'amenities.facilities', label: 'Facilities', section: 'facilities', impact: 'medium', requiredFor: ['accommodation', 'venue', 'hybrid'] },
+  { key: 'amenities.meal_plan', label: 'Meal Options', section: 'guest_experience', impact: 'medium', requiredFor: ['accommodation', 'hybrid'] },
+  { key: 'amenities.cancellation_policy', label: 'Cancellation Policy', section: 'policies_pricing', impact: 'medium', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
+];
+
+export function getMissingFieldsByImpact(
+  data: Record<string, unknown>,
+  amenities: Record<string, unknown>,
+  intent: ListingIntent
+): Record<FieldImpactLevel, FieldDefinition[]> {
+  const allFields = [...CRITICAL_FIELDS, ...HIGH_IMPACT_FIELDS, ...MEDIUM_IMPACT_FIELDS];
+  
+  const missing: Record<FieldImpactLevel, FieldDefinition[]> = {
+    critical: [],
+    high: [],
+    medium: [],
+    low: []
+  };
+  
+  for (const field of allFields) {
+    // Skip if not required for this intent
+    if (!field.requiredFor.includes(intent)) continue;
+    
+    // Check if field has value
+    let hasValue = false;
+    if (field.key.startsWith('amenities.')) {
+      const amenityKey = field.key.replace('amenities.', '');
+      const value = amenities[amenityKey];
+      hasValue = value !== null && value !== undefined && value !== '' && 
+                 (Array.isArray(value) ? value.length > 0 : true);
+    } else {
+      const value = data[field.key];
+      hasValue = value !== null && value !== undefined && value !== '' &&
+                 (Array.isArray(value) ? value.length > 0 : true);
+    }
+    
+    if (!hasValue) {
+      missing[field.impact].push(field);
+    }
+  }
+  
+  return missing;
+}
+
+// ============= LEGACY FUNCTIONS =============
 export function getScoreBand(score: number) {
   return SCORE_BANDS.find(band => score >= band.min && score <= band.max) ?? SCORE_BANDS[3];
 }
