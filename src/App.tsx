@@ -70,6 +70,7 @@ import DevPMS from "./pages/DevPMS";
 import DevLogs from "./pages/DevLogs";
 import DevFeatures from "./pages/DevFeatures";
 import DevDanger from "./pages/DevDanger";
+import DevTesting from "./pages/DevTesting";
 import PMSComparison from "./pages/PMSComparison";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -475,6 +476,14 @@ const App = () => (
               element={
                 <ProtectedRoute requireDev={true}>
                   <DevDanger />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dev/testing"
+              element={
+                <ProtectedRoute requireDev={true}>
+                  <DevTesting />
                 </ProtectedRoute>
               }
             />
