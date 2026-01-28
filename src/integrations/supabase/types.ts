@@ -3920,6 +3920,104 @@ export type Database = {
         }
         Relationships: []
       }
+      test_logs: {
+        Row: {
+          assertions: Json
+          category: string
+          created_at: string | null
+          duration_ms: number | null
+          error_message: string | null
+          error_stack: string | null
+          id: string
+          request_data: Json | null
+          response_data: Json | null
+          run_id: string | null
+          scenario_id: string
+          scenario_name: string
+          status: string
+        }
+        Insert: {
+          assertions?: Json
+          category: string
+          created_at?: string | null
+          duration_ms?: number | null
+          error_message?: string | null
+          error_stack?: string | null
+          id?: string
+          request_data?: Json | null
+          response_data?: Json | null
+          run_id?: string | null
+          scenario_id: string
+          scenario_name: string
+          status: string
+        }
+        Update: {
+          assertions?: Json
+          category?: string
+          created_at?: string | null
+          duration_ms?: number | null
+          error_message?: string | null
+          error_stack?: string | null
+          id?: string
+          request_data?: Json | null
+          response_data?: Json | null
+          run_id?: string | null
+          scenario_id?: string
+          scenario_name?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "test_logs_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "test_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      test_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          feature_target: string
+          id: string
+          name: string
+          scenarios: Json
+          started_at: string | null
+          status: string
+          summary: Json | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          feature_target: string
+          id?: string
+          name: string
+          scenarios?: Json
+          started_at?: string | null
+          status?: string
+          summary?: Json | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          feature_target?: string
+          id?: string
+          name?: string
+          scenarios?: Json
+          started_at?: string | null
+          status?: string
+          summary?: Json | null
+        }
+        Relationships: []
+      }
       user_help_views: {
         Row: {
           article_id: string | null

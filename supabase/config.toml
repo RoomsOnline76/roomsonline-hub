@@ -147,3 +147,9 @@ verify_jwt = true
 
 [functions.send-activation-notification]
 verify_jwt = true
+
+[functions.generate-test-scenarios]
+verify_jwt = false
+
+[functions.execute-test-run]
+verify_jwt = false

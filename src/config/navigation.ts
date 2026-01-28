@@ -26,6 +26,7 @@ import {
   CreditCard,
   Database,
   ClipboardCheck,
+  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 import { UserRole } from "@/lib/permissions";
@@ -131,6 +132,7 @@ const systemControlSection: NavSection = {
     { id: 'system-health', title: 'System Health', icon: HeartPulse, href: '/admin/system-health', minRole: 'dev' },
     { id: 'data-logs', title: 'Data & Logs', icon: Database, href: '/dev/logs', minRole: 'dev', description: 'Sync and error logs' },
     { id: 'feature-flags', title: 'Feature Flags', icon: Flag, href: '/dev/features', minRole: 'dev' },
+    { id: 'ai-testing', title: 'AI Testing', icon: FlaskConical, href: '/dev/testing', minRole: 'dev', description: 'AI-assisted test generation' },
     { id: 'danger-zone', title: 'Danger Zone', icon: AlertTriangle, href: '/dev/danger', minRole: 'dev', description: 'Destructive operations' },
   ],
 };
