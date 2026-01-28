@@ -3546,6 +3546,69 @@ export type Database = {
           },
         ]
       }
+      system_alerts: {
+        Row: {
+          alert_type: string
+          component_key: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_resolved: boolean
+          message: string
+          metadata: Json | null
+          property_id: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          title: string
+        }
+        Insert: {
+          alert_type: string
+          component_key?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_resolved?: boolean
+          message: string
+          metadata?: Json | null
+          property_id?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          title: string
+        }
+        Update: {
+          alert_type?: string
+          component_key?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_resolved?: boolean
+          message?: string
+          metadata?: Json | null
+          property_id?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_alerts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "system_alerts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_health_aggregates: {
         Row: {
           avg_latency_ms: number | null

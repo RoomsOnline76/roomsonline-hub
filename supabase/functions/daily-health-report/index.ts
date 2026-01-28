@@ -6,6 +6,88 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const LOVABLE_AI_URL = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+
+interface AIDigest {
+  summary: string;
+  priority_action: string;
+  opportunity: string;
+}
+
+async function generateAIDigest(
+  overallStatus: string,
+  uptimePercentage: number,
+  failedCount: number,
+  totalComponents: number,
+  criticalIssues: Array<{ component: string; message: string }>,
+  bookingStats: { total: number; confirmed: number; pending: number; failed: number }
+): Promise<AIDigest | null> {
+  const apiKey = Deno.env.get('LOVABLE_API_KEY');
+  if (!apiKey) {
+    console.log('[Daily Health Report] LOVABLE_API_KEY not configured, skipping AI digest');
+    return null;
+  }
+
+  try {
+    const prompt = `Analyze this system health data and provide a brief executive summary.
+
+System Status: ${overallStatus}
+Uptime: ${uptimePercentage.toFixed(1)}%
+Failed Components: ${failedCount}/${totalComponents}
+Critical Issues: ${criticalIssues.length > 0 ? criticalIssues.map(i => `${i.component}: ${i.message}`).join('; ') : 'None'}
+Bookings (24h): ${bookingStats.total} total, ${bookingStats.confirmed} confirmed, ${bookingStats.pending} pending, ${bookingStats.failed} failed
+
+Respond with exactly this JSON format:
+{
+  "summary": "2-sentence executive summary of system health",
+  "priority_action": "Most important action needed (or 'None required' if healthy)",
+  "opportunity": "Key opportunity or positive insight"
+}`;
+
+    const response = await fetch(LOVABLE_AI_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-3-flash-preview',
+        messages: [
+          { role: 'system', content: 'You are a technical operations analyst. Be direct, specific, and actionable. No marketing language.' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.3,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Daily Health Report] AI API error:', response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    
+    if (!content) {
+      console.error('[Daily Health Report] No content in AI response');
+      return null;
+    }
+
+    // Parse JSON from response (handle markdown code blocks)
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error('[Daily Health Report] Could not extract JSON from response:', content);
+      return null;
+    }
+
+    return JSON.parse(jsonMatch[0]) as AIDigest;
+  } catch (error) {
+    console.error('[Daily Health Report] AI digest generation error:', error);
+    return null;
+  }
+}
+
 interface ComponentStats {
   component_key: string;
   component_name: string;
@@ -81,7 +163,8 @@ function generateEmailHtml(
   criticalIssues: Array<{ component: string; message: string; last_failed: string }>,
   pmsIntegrations: PmsIntegrationStats[],
   inactiveComponents: InactiveComponent[],
-  nextCheckTime: string
+  nextCheckTime: string,
+  aiDigest: AIDigest | null
 ): string {
   const overallStatusColor = getStatusColor(overallStatus);
   const overallStatusLabel = overallStatus === 'healthy' 
@@ -156,6 +239,28 @@ function generateEmailHtml(
         Failed Components: <strong style="color: ${failedCount > 0 ? '#ef4444' : '#22c55e'};">${failedCount}/${totalComponents}</strong>
       </p>
     </div>
+
+    ${aiDigest ? `
+    <!-- AI Executive Summary -->
+    <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left: 4px solid #0ea5e9; padding: 20px; margin: 24px;">
+      <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #0369a1; display: flex; align-items: center; gap: 8px;">
+        🧠 AI Executive Summary
+      </h3>
+      <p style="margin: 0 0 16px 0; color: #334155; font-size: 14px; line-height: 1.6;">
+        ${aiDigest.summary}
+      </p>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+          <strong style="color: #dc2626; font-size: 12px; display: block; margin-bottom: 4px;">Priority Action:</strong>
+          <span style="color: #475569; font-size: 13px;">${aiDigest.priority_action}</span>
+        </div>
+        <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+          <strong style="color: #16a34a; font-size: 12px; display: block; margin-bottom: 4px;">Key Opportunity:</strong>
+          <span style="color: #475569; font-size: 13px;">${aiDigest.opportunity}</span>
+        </div>
+      </div>
+    </div>
+    ` : ''}
 
     ${criticalIssuesSection}
 
@@ -417,6 +522,29 @@ Deno.serve(async (req) => {
         ? 'degraded' 
         : 'healthy';
 
+    // Generate AI digest
+    const bookingStats = { total: 0, confirmed: 0, pending: 0, failed: 0 };
+    const { data: recentBookings } = await supabase
+      .from('bookings')
+      .select('status')
+      .gte('created_at', twentyFourHoursAgo.toISOString());
+    
+    if (recentBookings) {
+      bookingStats.total = recentBookings.length;
+      bookingStats.confirmed = recentBookings.filter((b: { status: string }) => b.status === 'confirmed').length;
+      bookingStats.pending = recentBookings.filter((b: { status: string }) => b.status === 'pending').length;
+      bookingStats.failed = recentBookings.filter((b: { status: string }) => b.status === 'failed').length;
+    }
+
+    const aiDigest = await generateAIDigest(
+      overallStatus,
+      overallUptime,
+      failedCount,
+      totalComponents,
+      criticalIssues,
+      bookingStats
+    );
+
     // Generate email
     const nextCheckTime = new Date(now.getTime() + 30 * 60 * 1000);
     
@@ -431,7 +559,8 @@ Deno.serve(async (req) => {
       criticalIssues,
       pmsIntegrations,
       inactiveComponentsList,
-      formatTime(nextCheckTime)
+      formatTime(nextCheckTime),
+      aiDigest
     );
 
     // Determine subject line
