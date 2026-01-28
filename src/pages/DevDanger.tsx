@@ -146,17 +146,7 @@ export default function DevDanger() {
         subtitle="Cache and sync management tools"
       />
 
-      {/* Info Banner */}
-      <Card className="mb-8 border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20">
-        <CardHeader className="pb-4">
-          <div className="flex items-center gap-3">
-            <Shield className="h-5 w-5 text-amber-600" />
-            <CardDescription className="text-amber-700 dark:text-amber-400">
-              These actions affect live data and are logged. Type the confirmation text to proceed.
-            </CardDescription>
-          </div>
-        </CardHeader>
-      </Card>
+
 
       {/* Danger Actions */}
       <div className="grid gap-4">
