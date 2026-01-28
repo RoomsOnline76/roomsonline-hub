@@ -1,125 +1,126 @@
 
+# PMS Control Dashboard - Fix Sync Status Display
 
-# Dev Side Menu Alignment Plan
+## Problem Summary
+The PMS Control page shows incorrect sync statuses because:
+1. The "Play" button triggers a dummy function that doesn't actually sync or update the database
+2. The `pms_credentials.last_sync_at` field is never updated by the actual sync operations
+3. NightsBridge is a widget-based integration but displays like a traditional API sync
 
-## Current State Analysis
+## Solution
 
-The navigation configuration (`src/config/navigation.ts`) correctly defines all 9 dev-only items under the **System Control** section, but the **AppSidebar component** only renders 3 of them. This creates a mismatch where developers cannot access most of the dev-only features from the sidebar.
+### 1. Fix the "Trigger Sync" Button
+Make the Play button actually call the appropriate PMS edge function and update `last_sync_at` after success.
 
-### Missing Items in Sidebar
+**Changes to `src/pages/DevPMS.tsx`:**
+- Replace the dummy `triggerSync` function with one that:
+  - Calls the correct edge function based on `system_type` (e.g., `benson-api` with `action: 'health_check'`)
+  - Updates `pms_credentials.last_sync_at` on success
+  - Refreshes the local state
 
-| Item | Route | Description |
-|------|-------|-------------|
-| System Overview | `/dev/overview` | Global health dashboard (where manual health report button is) |
-| PMS Control | `/dev/pms` | Adapter status and controls |
-| Data & Logs | `/dev/logs` | Sync and error logs |
-| Feature Flags | `/dev/features` | Feature flag management |
-| **AI Testing** | `/dev/testing` | AI-assisted test generation (the feature you asked about) |
-| Danger Zone | `/dev/danger` | Destructive operations |
-
-### Current Sidebar Items (incomplete)
-- Integrations (`/admin-keys`)
-- Supporting Systems (`/admin/supporting-systems`)
-- System Health (`/admin/system-health`)
-
----
-
-## Solution: Sync AppSidebar with Navigation Config
-
-### Technical Approach
-
-Update `src/components/layout/AppSidebar.tsx` to include all dev-only items from the navigation config. The items will be grouped under the collapsible **System** section.
-
-### Updated `systemItems` Array
-
-```typescript
-const systemItems: NavItem[] = [
-  { title: "System Overview", icon: Activity, href: "/dev/overview", requireDev: true },
-  { title: "PMS Control", icon: Server, href: "/dev/pms", requireDev: true },
-  { title: "Integrations", icon: KeyRound, href: "/admin-keys", requireDev: true },
-  { title: "Supporting Systems", icon: Settings, href: "/admin/supporting-systems", requireDevOrFearless: true },
-  { title: "System Health", icon: HeartPulse, href: "/admin/system-health", requireDevOrFearless: true },
-  { title: "Data & Logs", icon: Database, href: "/dev/logs", requireDev: true },
-  { title: "Feature Flags", icon: Flag, href: "/dev/features", requireDev: true },
-  { title: "AI Testing", icon: FlaskConical, href: "/dev/testing", requireDev: true },
-  { title: "Danger Zone", icon: AlertTriangle, href: "/dev/danger", requireDev: true },
-];
-```
-
-### Required Icon Imports
-
-Add these imports to the file:
-- `Activity`
-- `Database`
-- `Flag`
-- `FlaskConical`
-- `AlertTriangle`
-
----
-
-## Implementation Details
-
-### File: `src/components/layout/AppSidebar.tsx`
+### 2. NightsBridge Special Handling
+For NightsBridge (widget-only), the dashboard should:
+- Show "Online" status instead of sync-based statuses
+- Display "Last Activity" from `nightsbridge_booking_sessions.created_at` (most recent session)
+- Hide the "Play" sync button since there's nothing to trigger
 
 **Changes:**
+- Add a separate query to fetch latest NightsBridge session
+- Create `getNightsBridgeStatus()` helper function
+- Conditionally render different UI for widget-based systems
 
-1. **Add missing icon imports** (lines 3-31):
-   ```typescript
-   import {
-     // ... existing imports
-     Activity,
-     Database,
-     Flag,
-     FlaskConical,
-     AlertTriangle,
-   } from "lucide-react";
-   ```
+### 3. UI Improvements
 
-2. **Replace `systemItems` array** (lines 123-128):
-   Update to include all 9 dev-only navigation items with correct permission flags.
+| System Type | Status Display | Last Sync Column | Actions |
+|-------------|---------------|------------------|---------|
+| API-based (Benson, Hostfully, etc.) | Synced/Stale/Never Synced | Timestamp from `last_sync_at` | Play, Power toggle |
+| Widget (NightsBridge) | Online/Active | "Last Activity: X ago" from sessions | Power toggle only |
 
----
+## Technical Implementation
 
-## Access Pattern Summary
+### File: `src/pages/DevPMS.tsx`
 
-After this change, the sidebar under **System** (for dev/fearless_leader users) will show:
-
-```text
-SYSTEM (collapsible)
-├── System Overview        [dev only]
-├── PMS Control           [dev only]
-├── Integrations          [dev only]
-├── Supporting Systems    [dev/fearless_leader]
-├── System Health         [dev/fearless_leader]
-├── Data & Logs           [dev only]
-├── Feature Flags         [dev only]
-├── AI Testing            [dev only]  ← The feature you asked about
-└── Danger Zone           [dev only]
+**Add state for NightsBridge activity:**
+```typescript
+const [nightsBridgeLastActivity, setNightsBridgeLastActivity] = useState<string | null>(null);
 ```
 
----
+**Update `loadData()` to fetch NightsBridge sessions:**
+```typescript
+const [credentialsResult, trackerResult, nbSessionResult] = await Promise.all([
+  // ... existing queries
+  supabase
+    .from('nightsbridge_booking_sessions')
+    .select('created_at')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle(),
+]);
 
-## Security Notes
+setNightsBridgeLastActivity(nbSessionResult.data?.created_at || null);
+```
 
-- All routes are already protected by `ProtectedRoute` with `requireDev={true}` or `requireDevOrFearless={true}` in `App.tsx`
-- The sidebar only controls visibility; actual access enforcement happens at the route level
-- RLS policies on `test_runs` and `test_logs` tables further restrict data access to `dev` role
+**Fix `triggerSync()` to actually sync:**
+```typescript
+const triggerSync = async (adapter: PMSAdapter) => {
+  toast.info(`Triggering sync for ${adapter.property_name || adapter.system_type}...`);
+  
+  try {
+    // Call the appropriate edge function
+    const { data, error } = await supabase.functions.invoke(`${adapter.system_type}-api`, {
+      body: { action: 'health_check', credential_id: adapter.id }
+    });
+    
+    if (error) throw error;
+    
+    // Update last_sync_at on success
+    await supabase
+      .from('pms_credentials')
+      .update({ last_sync_at: new Date().toISOString() })
+      .eq('id', adapter.id);
+    
+    // Refresh data
+    await loadData();
+    toast.success('Sync completed successfully');
+  } catch (err) {
+    console.error('Sync failed:', err);
+    toast.error('Sync failed');
+  }
+};
+```
 
----
+**Add NightsBridge-specific rendering:**
+```typescript
+// For NightsBridge connections, show different UI
+const isWidgetBased = config.isWidgetOnly;
 
-## Files to Modify
+// In the table rendering:
+{isWidgetBased ? (
+  <Badge className="bg-emerald-500/10 text-emerald-600">Online</Badge>
+) : (
+  getConnectionSyncBadge(adapter.is_active, adapter.last_sync_at)
+)}
 
-| File | Change |
-|------|--------|
-| `src/components/layout/AppSidebar.tsx` | Add missing icon imports and expand `systemItems` array |
+// Last activity column for NightsBridge
+{isWidgetBased ? (
+  nightsBridgeLastActivity 
+    ? `Active ${formatDistanceToNow(new Date(nightsBridgeLastActivity))} ago`
+    : 'No sessions'
+) : (
+  adapter.last_sync_at ? format(...) : 'Never'
+)}
+```
 
----
+**Hide Play button for widget-based systems:**
+```typescript
+{!isWidgetBased && (
+  <Button variant="ghost" size="sm" onClick={() => triggerSync(adapter)}>
+    <Play className="h-4 w-4" />
+  </Button>
+)}
+```
 
-## Expected Outcome
-
-After implementation:
-- Developers can access all 9 system control features from the sidebar
-- AI Testing (`/dev/testing`) will be visible under the collapsible **System** section
-- The sidebar will match the navigation configuration exactly
-- No changes to route protection or database access
-
+## Summary
+- API systems get working sync triggers that update timestamps
+- NightsBridge shows real activity from booking sessions
+- The dashboard accurately reflects the email health report status
