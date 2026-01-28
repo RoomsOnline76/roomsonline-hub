@@ -1,252 +1,409 @@
 
-
-# AI Tool Review & Enhancement Opportunities Report
+# Comprehensive AI Implementation Plan: The Silent Co-Pilot Rollout
 
 ## Executive Summary
 
-This document provides a comprehensive system-wide review of AI tool usage in the RoomsOnline platform, identifying current implementations and opportunities for AI-powered enhancements to streamline the UI/UX for both booking users and backend administrators.
+This plan transforms RoomsOnline into an AI-native platform where intelligence feels like intuition. The implementation follows a phased approach across 8 weeks, building from foundational infrastructure to advanced personalization.
 
 ---
 
-## Part 1: Current AI Implementations
+## Phase 1: Immediate Magic (Weeks 1-2)
 
-### 1.1 Booking User-Facing AI
+### 1.1 Inline Website Sync with Multi-Source Intelligence
+**Current State:** `WebsiteSyncModal.tsx` requires manual button click, shows modal with suggestions
+**Target:** Auto-trigger on URL paste, inline field suggestions, no modal interruption
 
-| Feature | Location | AI Provider | Purpose |
-|---------|----------|-------------|---------|
-| RoomsOnline AI Search | `src/components/AISearchInput.tsx` | Lovable AI (Gemini) | Natural language property discovery ("romantic coastal escape with spa") |
-| AI Search Explanation | `src/components/AIExplanationOverlay.tsx` | Lovable AI | Personalized intro and match explanation overlay |
+**Files to Modify:**
+- `src/pages/PropertyForm.tsx` - Add URL field blur listener with debounced auto-sync
+- `src/lib/api/websiteSync.ts` - Add new `silentSync` function for background operation
+- `supabase/functions/ai-website-sync/index.ts` - Add Gemini Vision image analysis for amenity detection
 
-### 1.2 Admin/Dev AI Tools
+**New Components:**
+- `src/components/property/InlineAISuggestion.tsx` - Subtle pill showing "AI suggests: Pool detected ✓" with Accept/Dismiss
 
-| Feature | Location | AI Provider | Purpose |
-|---------|----------|-------------|---------|
-| TOBI Help Assistant | `src/components/help/TobiAssistant.tsx` | Lovable AI (Gemini) | Streaming chat assistant for ROL platform help |
-| Editorial AI Assist | `supabase/functions/editorial-ai-assist` | Lovable AI | Generate property editorial content (why_we_chose, who_this_suits, etc.) |
-| Bulk Editorial Generate | `supabase/functions/bulk-editorial-generate` | Lovable AI | Batch processing for multiple properties |
-| Revenue Pulse Insights | `supabase/functions/revenue-pulse-insights` | Lovable AI | Financial analytics and revenue recommendations |
-| Dashboard Insights | `supabase/functions/dashboard-insights` | Lovable AI | Admin dashboard analytical insights |
-| Website Sync | `supabase/functions/ai-website-sync` | Firecrawl + Lovable AI | Scrape property websites to auto-fill form data |
-| Local Experiences | `supabase/functions/enrich-property-experiences` | xAI (Grok) + Lovable AI | Generate curated dining and activity recommendations |
-| Journal Meta Generator | `src/pages/JournalEditor.tsx` | Lovable AI | SEO meta title/description for blog articles |
-| Itinerary PDF Brochure | `supabase/functions/generate-itinerary-pdf` | Data aggregation (no AI yet) | Generates booking confirmation with local experiences |
+**Technical Approach:**
+```
+URL Field Blur → Debounce 800ms → Background Firecrawl + AI
+                                        ↓
+                     Store suggestions in formData.__aiSuggestions
+                                        ↓
+               Render InlineAISuggestion pills next to each field
+```
 
----
-
-## Part 2: AI Enhancement Opportunities
-
-### Category A: Booking User Experience
-
-#### A1. Smart Guest Form Auto-Complete
-**Current State:** Guest details (name, email, phone) are manually entered on each booking.
-**Opportunity:** Integrate browser autofill hints + optional OAuth social login to pre-populate guest information.
-**Why:** Reduces friction at checkout, especially on mobile. Decreases cart abandonment.
-**Implementation:** Add Google/Facebook social login option; store guest profiles for returning visitors.
-
-#### A2. AI-Powered Date Suggestions
-**Current State:** Users manually select check-in/check-out dates with no guidance.
-**Opportunity:** AI analyzes property availability, pricing trends, and weather data to suggest optimal dates.
-**Why:** Helps users find better value; increases conversion by removing decision paralysis.
-**Implementation:** New edge function `suggest-optimal-dates` that considers rate calendars, historical booking patterns, and seasonal factors.
-
-#### A3. Personalized Property Recommendations
-**Current State:** AI search exists but no personalization based on browsing history.
-**Opportunity:** Track user property views, filter preferences, and past bookings to surface "You might also like" suggestions.
-**Why:** Increases engagement and cross-sell opportunities; creates a Netflix-like discovery experience.
-**Implementation:** Store anonymous session preferences; add recommendation engine using collaborative filtering.
-
-#### A4. Natural Language Special Requests Parser
-**Current State:** Special requests are free-text with no structured handling.
-**Opportunity:** AI parses special requests (e.g., "early check-in if possible, ground floor room, allergy to feathers") into structured tags for property/PMS routing.
-**Why:** Reduces manual processing by staff; ensures important requests aren't missed.
-**Implementation:** Parse on submission via edge function; flag high-priority requests (allergies, accessibility).
-
-#### A5. AI Concierge for Journey Planning
-**Current State:** Multi-property journeys exist but no AI assistance for route optimization.
-**Opportunity:** AI suggests optimal property sequencing based on geography, travel times, and experience variety.
-**Why:** Creates a more curated "travel curator" experience; differentiates from standard OTAs.
-**Implementation:** Integrate with Google Routes API + Lovable AI for journey narrative generation.
+**AI Providers:** Firecrawl + Lovable AI (Gemini Flash) + Gemini Vision
 
 ---
 
-### Category B: Property Form & Onboarding (Admin/Owner)
+### 1.2 Special Requests NLP Parsing
+**Current State:** Free-text `special_requests` field stored as string, no structured handling
+**Target:** Parse on booking creation, extract structured tags for staff routing
 
-#### B1. Intelligent Field Pre-Population from Property URL
-**Current State:** Website sync exists but requires manual trigger and review.
-**Opportunity:** Auto-trigger on property URL entry; show inline suggestions instead of modal.
-**Why:** Reduces data entry time from 45+ minutes to under 10 minutes; improves data quality.
-**Implementation:** Debounced auto-fetch on URL blur; inline "Accept" buttons per field.
+**Files to Modify:**
+- `supabase/functions/push-booking/index.ts` - Add NLP parsing after booking creation
+- `supabase/functions/multi-push-booking/index.ts` - Same NLP integration
 
-#### B2. Image Analysis for Amenity Detection
-**Current State:** Amenities are manually selected from checkboxes.
-**Opportunity:** AI analyzes uploaded property/room images to auto-detect amenities (pool, gym, fireplace, view type).
-**Why:** Eliminates tedious checkbox selection; ensures consistency between images and listed features.
-**Implementation:** Use Gemini Vision to analyze hero images; suggest amenities with confidence scores.
+**New Edge Function:**
+- `supabase/functions/parse-special-requests/index.ts`
 
-#### B3. Duplicate Property Detection
-**Current State:** No duplicate checking when adding new properties.
-**Opportunity:** AI matches property name, address, and geo-coordinates against existing database to flag potential duplicates.
-**Why:** Prevents duplicate listings; maintains data integrity.
-**Implementation:** Pre-save validation hook; fuzzy matching on name + exact match on coordinates.
+**Database Migration:**
+```sql
+ALTER TABLE bookings ADD COLUMN special_requests_parsed JSONB DEFAULT '{}';
+-- Structure: { tags: ["early_check_in", "dietary_vegetarian", "accessibility_ground_floor"], 
+--              priority: "high" | "normal", 
+--              alerts: ["Allergy: feathers"] }
+```
 
-#### B4. PMS Field Mapping Assistant
-**Current State:** Manual correlation between PMS fields and ROL fields.
-**Opportunity:** AI suggests field mappings based on PMS data structure patterns.
-**Why:** Accelerates new PMS integrations; reduces developer overhead.
-**Implementation:** Pattern recognition for common PMS field naming conventions.
-
-#### B5. Smart Room Type Generation
-**Current State:** Room types manually created with individual field entry.
-**Opportunity:** AI generates complete room type from a simple description ("Ocean view suite with king bed, balcony, sleeps 2").
-**Why:** Dramatically reduces setup time; ensures consistent naming conventions.
-**Implementation:** Natural language parser to structured room data via Lovable AI.
+**Parsing Categories:**
+| Input Pattern | Tag | Priority |
+|--------------|-----|----------|
+| "allergy", "allergic" | dietary_{type} | HIGH |
+| "wheelchair", "mobility", "ground floor" | accessibility | HIGH |
+| "early check-in", "late check-out" | timing_{type} | NORMAL |
+| "anniversary", "honeymoon", "birthday" | celebration_{type} | NORMAL |
+| "pet", "dog", "cat" | pets | NORMAL |
 
 ---
 
-### Category C: Content & Editorial (Admin)
+### 1.3 Narrative Dashboard Summaries
+**Current State:** `AdminDashboard.tsx` shows stat cards with numbers, no context
+**Target:** Add AI-generated plain-language summary card at top
 
-#### C1. Journal Article Draft Generator
-**Current State:** Manual content writing with AI meta tag generation only.
-**Opportunity:** AI generates full article drafts from topic briefs, destination research, or property highlights.
-**Why:** Accelerates content marketing; maintains consistent editorial voice.
-**Implementation:** Integrate with content calendar; use property data as context source.
+**Files to Modify:**
+- `src/pages/AdminDashboard.tsx` - Add NarrativeSummary component at top
+- `supabase/functions/dashboard-insights/index.ts` - Already exists, enhance prompt
 
-#### C2. Help Article Auto-Generation from Support Queries
-**Current State:** Help articles manually written.
-**Opportunity:** AI analyzes TOBI chat logs to identify common questions and auto-draft help articles.
-**Why:** Ensures help content stays current; reduces support ticket volume.
-**Implementation:** Aggregate TOBI interactions; cluster by topic; generate draft articles.
+**New Component:**
+- `src/components/dashboard/NarrativeSummary.tsx`
 
-#### C3. Translation & Localization
-**Current State:** All content is English-only.
-**Opportunity:** AI translates property descriptions, policies, and editorial content into multiple languages.
-**Why:** Expands addressable market; improves international guest experience.
-**Implementation:** On-demand translation via Lovable AI; store translations per locale.
+**Implementation:**
+```typescript
+// Auto-fetch on dashboard load
+useEffect(() => {
+  if (stats && !narrativeFetched) {
+    fetchNarrative(stats);
+  }
+}, [stats]);
 
-#### C4. SEO Content Optimization
-**Current State:** No SEO analysis for property or journal content.
-**Opportunity:** AI suggests keyword optimizations, heading structure, and content gaps.
-**Why:** Improves organic search visibility; increases direct bookings.
-**Implementation:** Integrate SEO scoring in editorial workflow; suggest improvements inline.
-
----
-
-### Category D: Operations & Analytics (Dev/Fearless Leader)
-
-#### D1. Anomaly Detection in Booking Patterns
-**Current State:** Manual review of booking trends on Revenue Pulse.
-**Opportunity:** AI automatically flags unusual patterns (sudden drops, rate discrepancies, sync failures).
-**Why:** Proactive issue detection; reduces revenue leakage.
-**Implementation:** Scheduled analysis comparing current vs. historical patterns.
-
-#### D2. Smart Pricing Recommendations
-**Current State:** Rates managed via PMS with no ROL-level optimization.
-**Opportunity:** AI analyzes occupancy, competitor rates, and demand signals to suggest pricing adjustments.
-**Why:** Revenue optimization; competitive positioning.
-**Implementation:** Integrate with rate management workflow; show recommendations in calendar view.
-
-#### D3. Automated Daily Digest with AI Summary
-**Current State:** Daily health report emails with raw metrics.
-**Opportunity:** AI generates executive summary with actionable insights and priority items.
-**Why:** Saves leadership time; surfaces what matters most.
-**Implementation:** Enhance `daily-health-report` edge function with AI summarization.
-
-#### D4. Contract Clause Suggestion
-**Current State:** Contract templates manually maintained.
-**Opportunity:** AI suggests clause updates based on legal trends, industry standards, or regional requirements.
-**Why:** Reduces legal overhead; ensures contract compliance.
-**Implementation:** Periodic contract review via AI; flag outdated clauses.
-
-#### D5. User Behavior Analytics
-**Current State:** Basic analytics via external tools.
-**Opportunity:** AI identifies user journey bottlenecks, drop-off points, and conversion optimization opportunities.
-**Why:** Data-driven UX improvements; increases booking completion rates.
-**Implementation:** Event tracking + AI analysis; actionable recommendations in admin dashboard.
+// Display as subtle card
+<Card className="bg-muted/30 border-none">
+  <p className="text-sm text-muted-foreground italic">
+    {narrative || "Analyzing your week..."}
+  </p>
+</Card>
+```
 
 ---
 
-### Category E: Data Enrichment from External Sources
+### 1.4 Confidence Scoring Foundation
+**Purpose:** Every AI-generated value receives metadata for source tracking
 
-#### E1. TripAdvisor Review Aggregation & Sentiment Analysis
-**Current State:** TripAdvisor widget displayed but reviews not analyzed.
-**Opportunity:** AI aggregates reviews, extracts sentiment, and surfaces key themes (cleanliness, service, location).
-**Why:** Provides property insights; informs editorial ratings.
-**Implementation:** Periodic scrape via Firecrawl; sentiment analysis via Lovable AI.
+**Database Migration:**
+```sql
+-- Add to properties table
+ALTER TABLE properties ADD COLUMN ai_confidence_metadata JSONB DEFAULT '{}';
+-- Structure: { fieldName: { confidence: 0.95, source: "website", generated_at: ISO } }
 
-#### E2. Google Places Data Enrichment
-**Current State:** Basic geocoding and nearby attractions in InvitationMap.
-**Opportunity:** Auto-fill property descriptions, operating hours, and ratings from Google Places.
-**Why:** Reduces manual data entry; ensures accuracy.
-**Implementation:** Places API integration on property save; suggest data updates.
+-- Add to bookings table  
+ALTER TABLE bookings ADD COLUMN ai_metadata JSONB DEFAULT '{}';
+```
 
-#### E3. Weather & Best Time to Visit
-**Current State:** No weather information for destinations.
-**Opportunity:** AI generates "Best time to visit" content based on climate data.
-**Why:** Helps guests plan; increases booking confidence.
-**Implementation:** Weather API + AI narrative generation per destination.
-
-#### E4. Event & Festival Calendar
-**Current State:** No local event information.
-**Opportunity:** Auto-populate local events, festivals, and activities near each property.
-**Why:** Adds value to brochure; helps guests plan experiences.
-**Implementation:** Firecrawl for event discovery; AI curation for relevance.
-
-#### E5. Competitor Rate Monitoring
-**Current State:** No competitive intelligence.
-**Opportunity:** Scrape OTA listings to show comparative positioning.
-**Why:** Informs pricing strategy; identifies market opportunities.
-**Implementation:** Scheduled Firecrawl for competitor monitoring; AI analysis.
+**Implementation Rule:**
+- Confidence ≥ 0.9: Auto-apply silently
+- Confidence 0.75-0.89: Show subtle highlight, require no action
+- Confidence < 0.75: Show as suggestion, require explicit accept
 
 ---
 
-## Part 3: Priority Matrix
+## Phase 2: Sticky Delight (Weeks 3-4)
 
-| ID | Opportunity | Impact | Effort | Priority |
-|----|-------------|--------|--------|----------|
-| B1 | Intelligent Field Pre-Population | High | Low | P1 |
-| A1 | Smart Guest Form Auto-Complete | High | Medium | P1 |
-| B2 | Image Analysis for Amenities | High | Medium | P1 |
-| A4 | Natural Language Special Requests | Medium | Low | P2 |
-| D3 | AI Daily Digest | Medium | Low | P2 |
-| A2 | AI Date Suggestions | Medium | Medium | P2 |
-| C1 | Journal Draft Generator | Medium | Medium | P2 |
-| E1 | TripAdvisor Sentiment Analysis | Medium | Medium | P2 |
-| A3 | Personalized Recommendations | High | High | P3 |
-| B5 | Smart Room Type Generation | Medium | Medium | P3 |
-| E2 | Google Places Enrichment | Medium | Low | P3 |
-| D1 | Anomaly Detection | High | High | P3 |
-| C3 | Translation & Localization | High | High | P4 |
-| D2 | Smart Pricing Recommendations | High | High | P4 |
+### 2.1 Behavioral Memory System
+**Purpose:** Track intent signals without PII to anticipate user needs
 
----
+**New Files:**
+- `src/contexts/BehavioralMemoryContext.tsx`
+- `src/hooks/useBehavioralMemory.tsx`
 
-## Part 4: Deliverable
+**Storage:** Session-based (sessionStorage) with optional anonymous Supabase echoes
 
-**Document Format:** Markdown file saved to `docs/ai-enhancement-review.md`
+**Tracked Signals:**
+| Signal | Storage Key | Inference |
+|--------|------------|-----------|
+| Property views | `viewed_properties[]` | Style preferences |
+| Filter adjustments | `filter_history[]` | Budget, location, amenity preferences |
+| Date hover patterns | `date_interests[]` | Flexible vs fixed dates |
+| Drop-off points | `drop_offs[]` | Friction points to address |
 
-**Contents:**
-- Current AI implementation inventory
-- 25+ enhancement opportunities organized by user category
-- Priority matrix with impact/effort assessment
-- Technical implementation notes per opportunity
+**Magic Moment Implementation:**
+```typescript
+// In Home.tsx or PropertyListing.tsx
+const { getRecommendation } = useBehavioralMemory();
+const hint = getRecommendation(); 
+// Returns: "Coastal properties with pools book 23% faster mid-week"
+```
 
 ---
 
-## Implementation Notes
+### 2.2 Image-First Truth Detection
+**Purpose:** Uploaded images validate form data; flag mismatches
 
-### Quick Wins (Low Effort, High Impact)
-1. **Inline Website Sync** - Move modal to inline field suggestions
-2. **AI Daily Digest** - Enhance existing health report
-3. **Special Requests Parser** - Add to booking confirmation flow
+**Files to Modify:**
+- `src/pages/PropertyForm.tsx` - Add image upload handler with validation
+- New: `supabase/functions/validate-images-against-data/index.ts`
 
-### Strategic Investments
-1. **Personalized Recommendations** - Session tracking infrastructure required
-2. **Image-Based Amenity Detection** - Gemini Vision integration
-3. **Multi-Language Support** - Translation storage and UI localization
+**AI Provider:** Gemini Vision via Lovable AI
 
-### External Data Sources to Leverage
-- **Firecrawl** (already connected) - Website scraping, competitor monitoring
-- **Google Places API** (already available via Maps key) - Business data enrichment
-- **TripAdvisor API** (already connected) - Review aggregation
-- **xAI Grok** (already connected) - Real-time web knowledge for dining/experiences
+**Validation Flow:**
+```
+Image Upload → Gemini Vision Analysis → Extract detected features
+     ↓
+Compare with form checkboxes (pool, gym, accessibility, view_type)
+     ↓
+If mismatch: Show subtle notification "Image suggests pool - enable filter?"
+```
 
+---
+
+### 2.3 Decision-Reducing Booking Flow
+**Purpose:** When user hesitates, reduce choices intelligently
+
+**Files to Modify:**
+- `src/pages/Booking.tsx` - Add hesitation detection
+- `src/contexts/ItineraryContext.tsx` - Track decision timing
+
+**Hesitation Detection:**
+```typescript
+// Track time on date picker without selection
+const [dateHoverStart, setDateHoverStart] = useState<number | null>(null);
+const HESITATION_THRESHOLD = 8000; // 8 seconds
+
+useEffect(() => {
+  if (Date.now() - dateHoverStart > HESITATION_THRESHOLD) {
+    // Trigger value highlight mode
+    setShowValueHints(true);
+  }
+}, [dateHoverStart]);
+```
+
+**Value Hints:**
+- Highlight "better value" date ranges with subtle badges
+- Reorder room list by inferred fit (based on behavioral memory)
+- Show "Most guests like you choose..." suggestion
+
+---
+
+### 2.4 Tone-Adaptive Itinerary Generation
+**Purpose:** PDF brochures read like human-planned journeys
+
+**Files to Modify:**
+- `supabase/functions/generate-itinerary-pdf/index.ts` - Add tone context
+
+**Tone Detection Sources:**
+| Signal | Tone |
+|--------|------|
+| Booking includes spa/wellness | Relaxation |
+| Multiple properties, short stays | Adventure/Explorer |
+| High-end properties only | Luxury |
+| Celebration tags in special_requests | Romantic |
+| Business email domain | Professional |
+
+**Implementation:**
+```typescript
+// Determine tone from booking context
+const tone = determineTone(itinerary, stays);
+// Inject into AI narrative generation
+const narrativePrompt = TONE_PROMPTS[tone] + itinerarySummary;
+```
+
+---
+
+## Phase 3: Defensible Intelligence (Weeks 5-6)
+
+### 3.1 Proactive Anomaly Detection
+**Purpose:** Early warnings before issues affect bookings
+
+**New Edge Function:**
+- `supabase/functions/monitor-anomalies/index.ts`
+
+**Cron Schedule:** Every 30 minutes via pg_cron
+
+**Detection Patterns:**
+| Pattern | Threshold | Alert |
+|---------|-----------|-------|
+| Rate discrepancy | >20% from avg | "Rate drift detected in Room 201" |
+| Sync failures | >3 consecutive | "PMS sync failing for {property}" |
+| Booking conversion drop | >30% WoW | "Conversion down - check availability" |
+| Response time spike | >2x average | "API latency elevated" |
+
+**Alert Delivery:**
+- Insert into `system_alerts` table
+- Surface in Admin Dashboard as actionable cards
+- Include in daily health report email
+
+---
+
+### 3.2 AI Daily Digest Enhancement
+**Purpose:** Transform raw metrics into executive summary
+
+**Files to Modify:**
+- `supabase/functions/daily-health-report/index.ts` - Add AI summarization
+
+**New Section in Email:**
+```html
+<div class="ai-digest">
+  <h3>🧠 AI Executive Summary</h3>
+  <p>{{ generated_narrative }}</p>
+  <ul>
+    <li>Priority 1: {{ top_action }}</li>
+    <li>Priority 2: {{ second_action }}</li>
+  </ul>
+</div>
+```
+
+**AI Prompt:**
+```
+Analyze this system health data and provide a 2-sentence executive summary 
+focused on: (1) Most important issue requiring attention (2) Key opportunity.
+Be direct and actionable. No marketing language.
+```
+
+---
+
+## Phase 4: Scale & Refine (Weeks 7-8+)
+
+### 4.1 Personalized Property Recommendations
+**Purpose:** "You might also like" suggestions based on browsing
+
+**New Component:**
+- `src/components/booking/PersonalizedSuggestions.tsx`
+
+**Implementation:**
+- Use behavioral memory data
+- Collaborative filtering: "Guests who booked X also viewed Y"
+- Surface on PropertyShowcase, JourneyReview pages
+
+---
+
+### 4.2 Smart Room Type Generation
+**Purpose:** Create room types from natural language description
+
+**New Feature in PropertyForm:**
+```
+"Ocean view suite with king bed, balcony, sleeps 2" 
+     ↓ AI Parse
+{ name: "Ocean View Suite", maxGuests: 2, bedConfig: "1 King", amenities: ["balcony", "ocean_view"] }
+```
+
+---
+
+### 4.3 TripAdvisor Sentiment Analysis
+**Purpose:** Extract themes from reviews to inform editorial
+
+**New Edge Function:**
+- `supabase/functions/analyze-reviews/index.ts`
+
+**Output:** Store in `properties.review_sentiment` JSONB
+```json
+{
+  "overall_score": 4.2,
+  "themes": {
+    "cleanliness": { "score": 4.5, "mentions": 23 },
+    "service": { "score": 4.8, "mentions": 45 },
+    "location": { "score": 4.1, "mentions": 31 }
+  },
+  "top_quotes": ["Staff went above and beyond", "Perfect location for exploring"]
+}
+```
+
+---
+
+## Technical Architecture
+
+### AI Provider Strategy
+| Use Case | Provider | Model | Reason |
+|----------|----------|-------|--------|
+| Content generation | Lovable AI | gemini-3-flash-preview | Speed, cost |
+| Complex reasoning | Lovable AI | gemini-2.5-pro | Accuracy |
+| Image analysis | Lovable AI | gemini-2.5-pro (vision) | Multimodal |
+| Real-time knowledge | xAI | grok-3-latest | Live data |
+| Web scraping | Firecrawl | N/A | Rate limits |
+
+### Rate Limiting
+```typescript
+// Per-user limits
+const USER_LIMITS = {
+  ai_calls_per_minute: 60,
+  ai_calls_per_hour: 500,
+  sync_per_property_per_hour: 5
+};
+```
+
+### Error Handling
+- 429 (Rate Limit): Exponential backoff, surface friendly message
+- 402 (Credits): Alert admin, graceful degradation
+- Hallucination risk: Confidence scoring gates auto-application
+
+---
+
+## File Changes Summary
+
+### Phase 1 (Weeks 1-2)
+| File | Action |
+|------|--------|
+| `src/pages/PropertyForm.tsx` | Modify - Add URL auto-sync |
+| `src/components/property/InlineAISuggestion.tsx` | Create |
+| `supabase/functions/parse-special-requests/index.ts` | Create |
+| `supabase/functions/push-booking/index.ts` | Modify - Add NLP call |
+| `src/pages/AdminDashboard.tsx` | Modify - Add narrative |
+| `src/components/dashboard/NarrativeSummary.tsx` | Create |
+| Database migration | Add ai_confidence_metadata columns |
+
+### Phase 2 (Weeks 3-4)
+| File | Action |
+|------|--------|
+| `src/contexts/BehavioralMemoryContext.tsx` | Create |
+| `src/hooks/useBehavioralMemory.tsx` | Create |
+| `supabase/functions/validate-images-against-data/index.ts` | Create |
+| `src/pages/Booking.tsx` | Modify - Hesitation detection |
+| `supabase/functions/generate-itinerary-pdf/index.ts` | Modify - Tone |
+
+### Phase 3 (Weeks 5-6)
+| File | Action |
+|------|--------|
+| `supabase/functions/monitor-anomalies/index.ts` | Create |
+| `supabase/functions/daily-health-report/index.ts` | Modify - AI digest |
+
+### Phase 4 (Weeks 7-8)
+| File | Action |
+|------|--------|
+| `src/components/booking/PersonalizedSuggestions.tsx` | Create |
+| `supabase/functions/analyze-reviews/index.ts` | Create |
+
+---
+
+## Success Metrics
+
+| Metric | Baseline | Target | Measurement |
+|--------|----------|--------|-------------|
+| Property onboarding time | ~45 min | <10 min | Form completion analytics |
+| Booking conversion | Current | +20% | Checkout completion rate |
+| Admin time on dashboard | Current | -30% | Session duration |
+| Guest satisfaction | N/A | "How did you know?" feedback | Post-stay survey |
+
+---
+
+## UX Principles (Enforced Throughout)
+
+1. **No AI labels or badges** - Intelligence feels organic
+2. **Progressive disclosure** - Simplest interface first
+3. **Subtle animations** - Fade-in suggestions, no pop-ups
+4. **Graceful degradation** - Non-AI fallback for all features
+5. **44px minimum touch targets** - Mobile-first interactions
+
+---
+
+## Safety & Monitoring
+
+- Weekly AI cost dashboard review
+- Human feedback loops for generated content
+- Confidence scoring gates hallucination risk
+- Rate limits prevent abuse (60/min per user)
