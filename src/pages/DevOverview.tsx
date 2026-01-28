@@ -67,7 +67,22 @@ export default function DevOverview() {
         .from('pms_credentials')
         .select('system_type, sync_status, last_sync_at, is_active');
 
-      // Group by system type
+      // Load actual properties to count how many use each PMS
+      const { data: properties } = await supabase
+        .from('properties')
+        .select('id, pms_type')
+        .not('pms_type', 'is', null);
+
+      // Count properties per PMS type
+      const propertyCountByPms = new Map<string, number>();
+      (properties || []).forEach((prop: any) => {
+        const pmsType = prop.pms_type?.toLowerCase();
+        if (pmsType) {
+          propertyCountByPms.set(pmsType, (propertyCountByPms.get(pmsType) || 0) + 1);
+        }
+      });
+
+      // Group credentials by system type
       const adapterMap = new Map<string, typeof pmsCredentials>();
       (pmsCredentials || []).forEach((cred: any) => {
         if (!adapterMap.has(cred.system_type)) {
@@ -85,11 +100,14 @@ export default function DevOverview() {
           .sort()
           .pop();
         
+        // Get actual property count from properties table
+        const propertyCount = propertyCountByPms.get(name.toLowerCase()) || 0;
+        
         return {
           name: name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, ' '),
           status: (hasError ? 'error' : activeCount > 0 ? 'healthy' : 'degraded') as 'healthy' | 'degraded' | 'error',
           lastSync: latestSync || new Date().toISOString(),
-          propertiesCount: activeCount,
+          propertiesCount: propertyCount,
         };
       });
 
