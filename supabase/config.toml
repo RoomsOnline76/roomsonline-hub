@@ -135,3 +135,6 @@ verify_jwt = true
 
 [functions.generate-checklist]
 verify_jwt = true
+
+[functions.check-activation-readiness]
+verify_jwt = true

@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star, Eye, EyeOff, FileCheck, FileX, FileWarning, Send, Mail, Loader2, FlaskConical, Sparkles } from "lucide-react";
+import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star, Eye, EyeOff, FileCheck, FileX, FileWarning, Send, Mail, Loader2, FlaskConical, Sparkles, ShieldCheck, ShieldX } from "lucide-react";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import { getPropertyUrl } from "@/lib/config";
 import { ExternalSourceBadge } from "@/components/pms/ExternalSourceBadge";
 import { getPMSSystemByKey } from "@/lib/pmsSystemsConfig";
 import { useHomeIconOpenNewTab } from "@/hooks/useFeatureFlags";
+import { QualityGateIndicator } from "@/components/property/QualityGateIndicator";
 import rolLogo from "@/assets/rol-logo.png";
 import {
   AlertDialog,
@@ -31,6 +32,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type SortDirection = "asc" | "desc" | null;
 type SortColumn = "name" | "external_system" | "hero_listing" | "has_images" | "property_type" | "total_bookings" | null;
@@ -349,20 +356,73 @@ const PropertyOverview = () => {
     return (allProperties || []).filter(p => p.is_active && isSandboxProperty(p)).length;
   }, [allProperties]);
 
-  // Handle toggle show on website
+  // Handle toggle show on website with quality gate check
   const handleToggleShowOnWebsite = async (propertyId: string, show: boolean) => {
     setIsTogglingShow(propertyId);
+    
     try {
+      // If enabling, run quality gate first
+      if (show) {
+        const { data: qualityResult, error: qualityError } = await supabase.functions.invoke('check-activation-readiness', {
+          body: { property_id: propertyId }
+        });
+        
+        if (qualityError) {
+          console.error('Quality gate error:', qualityError);
+          toast.error('Failed to check activation readiness');
+          setIsTogglingShow(null);
+          return;
+        }
+        
+        if (!qualityResult.passed) {
+          const blockerCount = qualityResult.blockers?.length || 0;
+          toast.error(`Cannot activate: ${blockerCount} blocker${blockerCount !== 1 ? 's' : ''} must be resolved first`, {
+            description: qualityResult.blockers?.[0]?.message || 'Quality checks failed',
+            duration: 5000
+          });
+          setIsTogglingShow(null);
+          return;
+        }
+      }
+      
+      // Proceed with update
+      const updateData: Record<string, unknown> = { show_on_website: show };
+      
+      // If activating, also update listing_status and activation timestamp
+      if (show) {
+        updateData.listing_status = 'live';
+        updateData.activated_at = new Date().toISOString();
+      } else {
+        updateData.listing_status = 'inactive';
+      }
+      
       const { error } = await supabase
         .from("properties")
-        .update({ show_on_website: show })
+        .update(updateData)
         .eq("id", propertyId);
       
       if (error) throw error;
-      toast.success(show ? "Property now visible on website" : "Property hidden from website");
+      
+      // Log activation if enabling
+      if (show) {
+        const { data: qualityResult } = await supabase.functions.invoke('check-activation-readiness', {
+          body: { property_id: propertyId }
+        });
+        
+        await supabase.from('property_activation_logs').insert({
+          property_id: propertyId,
+          activated_at: new Date().toISOString(),
+          activated_by: user?.id,
+          pre_activation_score: qualityResult?.score || 0,
+          quality_gate_results: qualityResult
+        });
+      }
+      
+      toast.success(show ? "Property activated and now live on website" : "Property hidden from website");
       refetch();
-    } catch (error) {
-      toast.error("Failed to update visibility");
+    } catch (error: any) {
+      console.error('Toggle error:', error);
+      toast.error(error.message || "Failed to update visibility");
     } finally {
       setIsTogglingShow(null);
     }
@@ -688,12 +748,33 @@ const PropertyOverview = () => {
                           </TableCell>
                           <TableCell className="py-1">
                             {(isAdmin || isDev || isFearlessLeader) ? (
-                              <Switch
-                                checked={(property as any).show_on_website ?? false}
-                                onCheckedChange={(checked) => handleToggleShowOnWebsite(property.id, checked)}
-                                disabled={isTogglingShow === property.id}
-                                className="scale-75"
-                              />
+                              <div className="flex items-center gap-1">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div>
+                                        <Switch
+                                          checked={(property as any).show_on_website ?? false}
+                                          onCheckedChange={(checked) => handleToggleShowOnWebsite(property.id, checked)}
+                                          disabled={isTogglingShow === property.id}
+                                          className="scale-75"
+                                        />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-xs">
+                                      <p className="text-xs">
+                                        {(property as any).show_on_website 
+                                          ? "Click to hide from website"
+                                          : "Click to activate. Quality gate checks will run first."
+                                        }
+                                      </p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                {!(property as any).show_on_website && (
+                                  <QualityGateIndicator propertyId={property.id} compact />
+                                )}
+                              </div>
                             ) : (
                               <span className="text-xs text-muted-foreground">
                                 {(property as any).show_on_website ? (
