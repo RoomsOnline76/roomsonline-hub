@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star, Eye, EyeOff, FileCheck, FileX, FileWarning, Send, Mail, Loader2, FlaskConical } from "lucide-react";
+import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star, Eye, EyeOff, FileCheck, FileX, FileWarning, Send, Mail, Loader2, FlaskConical, Sparkles } from "lucide-react";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -424,10 +424,18 @@ const PropertyOverview = () => {
         title="Properties"
         subtitle="Manage your portfolio"
         actions={
-          <Button onClick={() => navigate("/admin/properties/new")} size="sm" className="gap-1">
-            <Building2 className="h-3.5 w-3.5" />
-            Add Property
-          </Button>
+          <div className="flex gap-2">
+            {(isAdmin || isDev) && (
+              <Button onClick={() => navigate("/admin/properties/new/preflight")} size="sm" variant="default" className="gap-1">
+                <Sparkles className="h-3.5 w-3.5" />
+                Start New Listing
+              </Button>
+            )}
+            <Button onClick={() => navigate("/admin/properties/new")} size="sm" variant="outline" className="gap-1">
+              <Building2 className="h-3.5 w-3.5" />
+              Quick Add
+            </Button>
+          </div>
         }
       />
 

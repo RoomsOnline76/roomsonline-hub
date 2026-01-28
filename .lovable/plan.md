@@ -136,9 +136,9 @@ CREATE POLICY "Owners can view their roadmaps" ON property_onboarding_roadmap
 
 ---
 
-## Phase 2: Pre-Flight Wizard (Week 2)
+## Phase 2: Pre-Flight Wizard (Week 2) ✅ COMPLETED
 
-### 2.1 New Component: `PreFlightWizard.tsx`
+### 2.1 New Component: `PreFlightWizard.tsx` ✅
 
 **Location:** `src/components/onboarding/PreFlightWizard.tsx`
 
@@ -148,29 +148,18 @@ CREATE POLICY "Owners can view their roadmaps" ON property_onboarding_roadmap
 - Step 1: Listing Intent (accommodation, venue, hybrid, experience)
 - Step 2: Commercial Model (commission, flat_fee, special)
 - Step 3: PMS Readiness (none, planned, connected, live)
-- Step 4: Review and confirm (shows downstream requirements)
+- Step 4: Owner Details (email, name)
+- Step 5: Review and confirm (shows downstream requirements)
 - Creates property in `draft_pre_contract` status
+- Redirects to contracts page after creation
 
-**Technical Implementation:**
-```typescript
-interface PreFlightData {
-  listing_intent: 'accommodation' | 'venue' | 'hybrid' | 'experience';
-  commercial_model: 'commission' | 'flat_fee' | 'special';
-  pms_readiness: 'none' | 'planned' | 'connected' | 'live';
-  owner_email: string;
-  owner_name?: string;
-}
-```
+**Files Created:**
+- `src/components/onboarding/PreFlightWizard.tsx`
+- `src/pages/AdminPreFlight.tsx`
 
-### 2.2 New Route: `/admin/properties/new/preflight`
-
-**File to modify:** `src/App.tsx`
-
-Add route for PreFlightWizard component with admin-only access.
-
-### 2.3 Update: PropertyOverview.tsx
-
-Add "Start New Listing" button that navigates to the PreFlight Wizard instead of directly creating a property.
+**Files Modified:**
+- `src/App.tsx` - Added `/admin/properties/new/preflight` route
+- `src/pages/PropertyOverview.tsx` - Added "Start New Listing" button for admins
 
 ---
 
