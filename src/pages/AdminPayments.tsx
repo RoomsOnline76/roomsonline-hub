@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { 
   CreditCard, 
   DollarSign, 
@@ -7,6 +7,7 @@ import {
   Clock,
   Download,
   Filter,
+  Search,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -14,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -49,6 +51,7 @@ export default function AdminPayments() {
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [stats, setStats] = useState({
     totalRevenue: 0,
     pendingAmount: 0,
@@ -141,8 +144,28 @@ export default function AdminPayments() {
     }
   };
 
+  // Filter transactions by search term across all columns
+  const filteredTransactions = useMemo(() => {
+    if (!searchTerm.trim()) return transactions;
+    
+    const term = searchTerm.toLowerCase();
+    return transactions.filter(t => {
+      const dateStr = format(new Date(t.created_at), 'MMM d, yyyy HH:mm').toLowerCase();
+      const amountStr = `${t.currency} ${t.amount.toLocaleString()}`.toLowerCase();
+      
+      return (
+        dateStr.includes(term) ||
+        (t.guest_name?.toLowerCase().includes(term) || false) ||
+        (t.property_name?.toLowerCase().includes(term) || false) ||
+        (t.payment_method?.toLowerCase().includes(term) || false) ||
+        amountStr.includes(term) ||
+        t.status.toLowerCase().includes(term)
+      );
+    });
+  }, [transactions, searchTerm]);
+
   const StatCard = ({ 
-    title, 
+    title,
     value, 
     icon: Icon, 
     description,
@@ -221,6 +244,15 @@ export default function AdminPayments() {
               <CardDescription>Recent payment activity</CardDescription>
             </div>
             <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search all columns..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 w-[200px]"
+                />
+              </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[140px]">
                   <Filter className="h-4 w-4 mr-2" />
@@ -247,10 +279,12 @@ export default function AdminPayments() {
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
-          ) : transactions.length === 0 ? (
+          ) : filteredTransactions.length === 0 ? (
             <div className="text-center py-12">
               <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No transactions found</p>
+              <p className="text-muted-foreground">
+                {searchTerm ? "No transactions match your search" : "No transactions found"}
+              </p>
             </div>
           ) : (
             <Table>
@@ -265,7 +299,7 @@ export default function AdminPayments() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.map((transaction) => (
+                {filteredTransactions.map((transaction) => (
                   <TableRow key={transaction.id}>
                     <TableCell className="text-sm">
                       {format(new Date(transaction.created_at), 'MMM d, yyyy HH:mm')}

@@ -115,12 +115,18 @@ export default function AdminReviewQueue() {
     if (!properties) return [];
     
     return properties.filter(p => {
-      // Search filter
+      // Search filter - searches all visible columns
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const matchesName = p.name?.toLowerCase().includes(query);
         const matchesOwner = p.owner_name?.toLowerCase().includes(query) || p.owner_email?.toLowerCase().includes(query);
-        if (!matchesName && !matchesOwner) return false;
+        const statusConfig = STATUS_CONFIG[p.listing_status];
+        const matchesStatus = statusConfig?.label.toLowerCase().includes(query);
+        const matchesIntent = p.listing_intent?.toLowerCase().includes(query);
+        const matchesPropertyType = p.property_type?.toLowerCase().includes(query);
+        const matchesUpdated = formatDistanceToNow(new Date(p.updated_at), { addSuffix: true }).toLowerCase().includes(query);
+        
+        if (!matchesName && !matchesOwner && !matchesStatus && !matchesIntent && !matchesPropertyType && !matchesUpdated) return false;
       }
       
       // Status filter
@@ -312,7 +318,7 @@ export default function AdminReviewQueue() {
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by name or owner..."
+                placeholder="Search all columns..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-8 h-8 text-sm"

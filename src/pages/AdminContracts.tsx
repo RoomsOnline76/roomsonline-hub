@@ -186,11 +186,22 @@ export default function AdminContracts() {
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (c) =>
+      result = result.filter((c) => {
+        const statusLabel = STATUS_CONFIG[c.status]?.label.toLowerCase() || c.status.toLowerCase();
+        const versionStr = `v${c.version}`;
+        const sentDate = c.sent_at ? format(new Date(c.sent_at), "MMM d, yyyy").toLowerCase() : "";
+        const signedDate = c.signed_at ? format(new Date(c.signed_at), "MMM d, yyyy").toLowerCase() : "";
+        
+        return (
           c.owner_email.toLowerCase().includes(query) ||
-          c.owner_name?.toLowerCase().includes(query)
-      );
+          c.owner_name?.toLowerCase().includes(query) ||
+          statusLabel.includes(query) ||
+          versionStr.includes(query) ||
+          c.template_version.toLowerCase().includes(query) ||
+          sentDate.includes(query) ||
+          signedDate.includes(query)
+        );
+      });
     }
 
     return result;
@@ -418,7 +429,7 @@ export default function AdminContracts() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by email or name..."
+            placeholder="Search all columns..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
