@@ -1,329 +1,310 @@
 
 
-# Enhanced AI-Powered Local Experience Generation with xAI (Grok) Integration
+# Enhanced Brochure with Local Experiences - Implementation Plan
 
-## Overview
+## Current State
 
-Upgrade the `enrich-property-experiences` edge function to combine Lovable AI with xAI (Grok) for intelligent dining recommendations. The system will match dining style (fine dining, rustic, casual) to property type and tier.
+The `generate-itinerary-pdf` edge function currently generates a brochure with:
+- Header/branding
+- Guest information
+- Itinerary (property cards with dates, room, price)
+- Summary totals
+- Footer
 
----
-
-## Phase 1: Secret Configuration
-
-### 1.1 Add xAI API Key
-
-**Action:** Request user to add `XAI_API_KEY` secret via Lovable Cloud
-
-The xAI API uses OpenAI-compatible endpoints at `https://api.x.ai/v1` with models like `grok-4-latest`.
+**Missing:** The `local_experiences` table data (nature, culture, adventure, dining) is never fetched or displayed.
 
 ---
 
-## Phase 2: Database Schema Update
+## Proposed Enhancement
 
-### 2.1 Add "dining" Category
+### New Brochure Sections
 
-```sql
--- Update the category check constraint to include 'dining'
-ALTER TABLE local_experiences 
-DROP CONSTRAINT IF EXISTS local_experiences_category_check;
+For each property stay, add:
 
-ALTER TABLE local_experiences 
-ADD CONSTRAINT local_experiences_category_check 
-CHECK (category IN ('nature', 'culture', 'food', 'adventure', 'relaxation', 'wellness', 'dining'));
+| Section | Content | Source |
+|---------|---------|--------|
+| **Top Experiences** | 4-5 curated activities | `local_experiences` table |
+| **Where to Dine** | Featured restaurant recommendation | `local_experiences` where category='dining' |
+| **Practical Info** | Check-in time, directions, contact | `properties` table |
+| **Share Section** | QR code + social sharing links | Generated |
 
--- Add new columns for restaurant-specific data
-ALTER TABLE local_experiences ADD COLUMN IF NOT EXISTS venue_type VARCHAR(50);
-ALTER TABLE local_experiences ADD COLUMN IF NOT EXISTS cuisine_type VARCHAR(100);
-ALTER TABLE local_experiences ADD COLUMN IF NOT EXISTS reservation_required BOOLEAN DEFAULT false;
-ALTER TABLE local_experiences ADD COLUMN IF NOT EXISTS dress_code VARCHAR(50);
+### Visual Layout
+
+```text
+┌─────────────────────────────────────────────┐
+│  [ROL Logo]                                 │
+│  Your Journey - 5 nights, 2 destinations    │
+├─────────────────────────────────────────────┤
+│  GUEST INFORMATION                          │
+│  Name: John Smith | Email: john@...         │
+├─────────────────────────────────────────────┤
+│  ╔═══════════════════════════════════════╗  │
+│  ║ STAY 1: Bushman's Kloof              ║  │
+│  ║ Cederberg | 3 nights | Feb 10-13     ║  │
+│  ║─────────────────────────────────────║  │
+│  ║ [Property Image]                     ║  │
+│  ║                                       ║  │
+│  ║ TOP 5 EXPERIENCES NEARBY             ║  │
+│  ║ 🌿 Cederberg Rock Art Trail          ║  │
+│  ║ 🎨 San Cave Paintings Tour           ║  │
+│  ║ 🏃 Stadsaal Caves Hike               ║  │
+│  ║ 🧘 Wellness Center & Spa             ║  │
+│  ║                                       ║  │
+│  ║ 🍷 WHERE TO DINE                     ║  │
+│  ║ Pierneef à La Motte                  ║  │
+│  ║ Cape Winelands farm-to-table         ║  │
+│  ║ "Book the terrace for sunset views"  ║  │
+│  ║ Dress: Smart casual | Reserve: Yes   ║  │
+│  ║                                       ║  │
+│  ║ 📍 GETTING THERE                     ║  │
+│  ║ 3h drive from Cape Town via N7       ║  │
+│  ║ Check-in: 14:00 | Check-out: 11:00   ║  │
+│  ╚═══════════════════════════════════════╝  │
+│                                             │
+│  ╔═══════════════════════════════════════╗  │
+│  ║ STAY 2: Cape Grace Hotel             ║  │
+│  ║ Cape Town | 2 nights | Feb 13-15     ║  │
+│  ║ [Similar structure with experiences] ║  │
+│  ╚═══════════════════════════════════════╝  │
+├─────────────────────────────────────────────┤
+│  TRIP SUMMARY                               │
+│  5 nights | 2 properties | ZAR 45,000       │
+├─────────────────────────────────────────────┤
+│  SHARE YOUR ADVENTURE                       │
+│  [QR Code] Scan to share with friends       │
+│  WhatsApp | Email | Copy Link               │
+└─────────────────────────────────────────────┘
 ```
 
 ---
 
-## Phase 3: Property Tier Classification
+## Technical Implementation
 
-### 3.1 Dining Style Mapping Logic
+### 1. Update `generate-itinerary-pdf/index.ts`
 
+**Changes:**
+
+1. **Fetch local experiences for each property:**
 ```typescript
-// Property type to dining tier mapping
-type DiningTier = 'fine_dining' | 'casual_elegant' | 'rustic_local' | 'relaxed_casual';
-
-function determineDiningTier(property: PropertyContext): DiningTier {
-  const { property_type, editorial_rating, amenities } = property;
-  const type = property_type?.toLowerCase() || '';
-  
-  // Editorial rating hierarchy
-  const luxuryRatings = ['truly_special', 'exceptionally_considered'];
-  const upscaleRatings = ['standout_character', 'quietly_excellent'];
-  
-  // Luxury properties → Fine dining
-  if (luxuryRatings.includes(editorial_rating)) {
-    return 'fine_dining';
-  }
-  
-  // Lodge/Farm properties → Rustic local
-  if (type.includes('lodge') || type.includes('farm') || type.includes('country')) {
-    return 'rustic_local';
-  }
-  
-  // Upscale hotels/villas → Casual elegant
-  if (upscaleRatings.includes(editorial_rating) || 
-      type.includes('hotel') || type.includes('villa')) {
-    return 'casual_elegant';
-  }
-  
-  // Guest houses, apartments, BnBs → Relaxed casual
-  return 'relaxed_casual';
-}
+// For each property in the itinerary
+const { data: experiences } = await supabase
+  .from("local_experiences")
+  .select("*")
+  .eq("property_id", stay.propertyId)
+  .eq("is_active", true)
+  .order("display_order")
+  .limit(6);
 ```
 
-### 3.2 Dining Style Descriptions
-
-| Property Tier | Dining Style | Examples |
-|--------------|--------------|----------|
-| Truly Special / Exceptionally Considered | Fine Dining | Tasting menus, Michelin-star, wine pairing |
-| Standout Character / Hotel / Villa | Casual Elegant | Farm-to-table, bistros, upscale cafes |
-| Lodge / Farm / Country Estate | Rustic Local | Farmhouse cooking, local pubs, wine farms |
-| Guest House / Apartment / BnB | Relaxed Casual | Cozy cafes, local eateries, takeaway spots |
-
----
-
-## Phase 4: Enhanced Edge Function
-
-### 4.1 Updated `enrich-property-experiences/index.ts`
-
-**Key Changes:**
-1. Add xAI integration for dining-specific recommendations
-2. Add property tier detection
-3. Combine outputs from both AI providers
-4. Enhanced structured output
-
+2. **Separate dining from other experiences:**
 ```typescript
-// New interface for dining recommendations
-interface DiningRecommendation {
-  title: string;
-  description: string;
-  category: 'dining';
-  venue_type: 'restaurant' | 'cafe' | 'pub' | 'wine_bar' | 'farm_table' | 'takeaway';
-  cuisine_type: string;
-  price_indicator: 'budget' | 'moderate' | 'luxury';
-  why_locals_love_it: string;
-  best_time: string;
-  reservation_required: boolean;
-  dress_code?: string;
-  distance_km?: number;
-}
-
-// Main flow
-async function enrichPropertyExperiences(property_id: string) {
-  // 1. Fetch property details
-  const property = await fetchPropertyDetails(property_id);
-  
-  // 2. Determine dining tier
-  const diningTier = determineDiningTier(property);
-  
-  // 3. Generate general experiences with Lovable AI (4 experiences)
-  const generalExperiences = await generateWithLovableAI(property, 4);
-  
-  // 4. Generate dining recommendation with xAI Grok (1-2 recommendations)
-  const diningRecs = await generateDiningWithXAI(property, diningTier);
-  
-  // 5. Combine and save
-  const allExperiences = [...generalExperiences, ...diningRecs];
-  await saveExperiences(property_id, allExperiences);
-}
+const diningExperience = experiences?.find(e => e.category === 'dining');
+const otherExperiences = experiences?.filter(e => e.category !== 'dining').slice(0, 4);
 ```
 
-### 4.2 xAI Grok Integration
-
+3. **Generate experience cards HTML:**
 ```typescript
-async function generateDiningWithXAI(
-  property: PropertyContext, 
-  diningTier: DiningTier
-): Promise<DiningRecommendation[]> {
-  const xaiApiKey = Deno.env.get("XAI_API_KEY");
-  
-  if (!xaiApiKey) {
-    console.log("XAI_API_KEY not configured, falling back to Lovable AI");
-    return generateDiningWithLovable(property, diningTier);
-  }
-  
-  const tierPrompts = {
-    fine_dining: `Find the highest-rated fine dining restaurant near ${property.city}. 
-      Look for: tasting menus, wine pairing, Michelin recognition, chef's table experiences.
-      The clientele at ${property.name} expects world-class cuisine.`,
-      
-    casual_elegant: `Find an upscale but relaxed restaurant near ${property.city}.
-      Look for: farm-to-table, contemporary cuisine, good wine list, stylish atmosphere.
-      Perfect for guests who appreciate quality without formality.`,
-      
-    rustic_local: `Find an authentic local dining spot near ${property.city}.
-      Look for: regional cuisine, family-run establishments, wine farms, historic pubs.
-      Guests at ${property.name} seek genuine local experiences.`,
-      
-    relaxed_casual: `Find a cozy local eatery or cafe near ${property.city}.
-      Look for: comfort food, friendly service, local favorites, hidden gems.
-      Perfect for ${property.property_type} guests wanting easy, quality meals.`
+function generateExperienceHTML(experience: LocalExperience): string {
+  const icons = {
+    nature: '🌿',
+    culture: '🎨',
+    adventure: '🏃',
+    relaxation: '🧘',
+    wellness: '💆',
+    food: '🍴'
   };
-
-  const response = await fetch("https://api.x.ai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${xaiApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "grok-4-latest",
-      messages: [
-        {
-          role: "system",
-          content: `You are a local food critic and dining expert for ${property.country || 'South Africa'}. 
-            You know the best restaurants that match specific guest profiles.
-            Provide real, specific restaurant recommendations - not generic descriptions.
-            Include the actual restaurant name if you know it.`
-        },
-        {
-          role: "user",
-          content: tierPrompts[diningTier]
-        }
-      ],
-      tools: [{
-        type: "function",
-        function: {
-          name: "recommend_dining",
-          description: "Recommend a dining establishment",
-          parameters: {
-            type: "object",
-            properties: {
-              title: { type: "string", description: "Restaurant/venue name" },
-              description: { type: "string", description: "2-3 sentences about what makes it special" },
-              venue_type: { type: "string", enum: ["restaurant", "cafe", "pub", "wine_bar", "farm_table", "takeaway"] },
-              cuisine_type: { type: "string", description: "Type of cuisine (e.g., French, Farm-to-table, Cape Malay)" },
-              price_indicator: { type: "string", enum: ["budget", "moderate", "luxury"] },
-              why_locals_love_it: { type: "string", description: "One sentence insider tip" },
-              best_time: { type: "string", description: "Best time to visit" },
-              reservation_required: { type: "boolean" },
-              dress_code: { type: "string", description: "Dress code if any" }
-            },
-            required: ["title", "description", "venue_type", "cuisine_type", "price_indicator", "why_locals_love_it", "best_time", "reservation_required"]
-          }
-        }
-      }],
-      tool_choice: { type: "function", function: { name: "recommend_dining" } }
-    }),
-  });
-
-  // Parse and return dining recommendation
-  // ... error handling and parsing
+  
+  return `
+    <div class="experience-item">
+      <span class="experience-icon">${icons[experience.category]}</span>
+      <div class="experience-content">
+        <span class="experience-title">${experience.title}</span>
+        ${experience.duration_hours ? `<span class="experience-duration">${experience.duration_hours}h</span>` : ''}
+      </div>
+    </div>
+  `;
 }
 ```
 
-### 4.3 Fallback Strategy
+4. **Generate dining section HTML:**
+```typescript
+function generateDiningHTML(dining: DiningExperience): string {
+  return `
+    <div class="dining-section">
+      <h4>🍷 Where to Dine</h4>
+      <div class="dining-card">
+        <h5 class="dining-name">${dining.title}</h5>
+        <p class="dining-cuisine">${dining.cuisine_type || dining.description}</p>
+        <p class="dining-tip">"${dining.why_locals_love_it}"</p>
+        <div class="dining-meta">
+          ${dining.dress_code ? `<span>Dress: ${dining.dress_code}</span>` : ''}
+          ${dining.reservation_required ? '<span>Reservations recommended</span>' : ''}
+          <span class="price-badge">${dining.price_indicator}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+```
+
+5. **Add practical info section:**
+```typescript
+function generatePracticalHTML(property: Property): string {
+  return `
+    <div class="practical-section">
+      <h4>📍 Getting There</h4>
+      <div class="practical-info">
+        ${property.address ? `<p>${property.address}</p>` : ''}
+        ${property.check_in_time ? `<p>Check-in: ${property.check_in_time}</p>` : ''}
+        ${property.check_out_time ? `<p>Check-out: ${property.check_out_time}</p>` : ''}
+        ${property.contact_phone ? `<p>Contact: ${property.contact_phone}</p>` : ''}
+      </div>
+    </div>
+  `;
+}
+```
+
+6. **Add sharing section with QR code:**
+```typescript
+function generateShareHTML(itinerary: Itinerary): string {
+  const shareUrl = `https://book.sleepinafrica.roomsonline.co.za/journey/confirmation/${itinerary.id}`;
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(shareUrl)}`;
+  
+  return `
+    <div class="share-section">
+      <h2>Share Your Adventure</h2>
+      <div class="share-content">
+        <img src="${qrCodeUrl}" alt="QR Code" class="qr-code" />
+        <p>Scan to view online and share with friends!</p>
+        <p class="share-url">${shareUrl}</p>
+      </div>
+    </div>
+  `;
+}
+```
+
+### 2. CSS Additions
+
+```css
+/* Experiences Grid */
+.experiences-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+}
+
+.experiences-section h4 {
+  font-size: 11pt;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.experience-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.experience-icon {
+  font-size: 16pt;
+}
+
+.experience-title {
+  font-weight: 500;
+}
+
+.experience-duration {
+  color: #666;
+  font-size: 9pt;
+  margin-left: auto;
+}
+
+/* Dining Section */
+.dining-section {
+  background: linear-gradient(135deg, #fdf2f8 0%, #fff 100%);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.dining-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 14pt;
+  margin-bottom: 4px;
+}
+
+.dining-cuisine {
+  color: #666;
+  font-size: 10pt;
+  margin-bottom: 8px;
+}
+
+.dining-tip {
+  font-style: italic;
+  color: #e91e8c;
+  font-size: 10pt;
+  margin-bottom: 8px;
+}
+
+.dining-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 9pt;
+  color: #666;
+}
+
+.price-badge {
+  background: #333;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: capitalize;
+}
+
+/* QR Code Section */
+.share-section {
+  text-align: center;
+  margin-top: 40px;
+  padding: 24px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.qr-code {
+  width: 120px;
+  height: 120px;
+  margin: 16px auto;
+}
+
+.share-url {
+  font-family: monospace;
+  font-size: 9pt;
+  color: #666;
+  word-break: break-all;
+}
+```
+
+### 3. Auto-Enrich Missing Experiences
+
+If a property has no local experiences, automatically call `enrich-property-experiences`:
 
 ```typescript
-// If xAI fails, fallback to Lovable AI with dining-specific prompt
-async function generateDiningWithLovable(
-  property: PropertyContext,
-  diningTier: DiningTier
-): Promise<DiningRecommendation[]> {
-  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+// Check if property needs enrichment
+if (!experiences || experiences.length < 3) {
+  console.log(`Auto-enriching experiences for property ${stay.propertyId}`);
   
-  const prompt = buildDiningPrompt(property, diningTier);
+  // Call enrich function (non-blocking - don't wait)
+  supabase.functions.invoke('enrich-property-experiences', {
+    body: { property_id: stay.propertyId }
+  }).catch(err => console.error('Enrichment failed:', err));
   
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${lovableApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-3-flash-preview",
-      messages: [
-        { role: "system", content: "You are a local dining expert." },
-        { role: "user", content: prompt }
-      ],
-      // ... tool configuration
-    }),
-  });
-  
-  // ... parse response
+  // For this brochure, show placeholder
+  // Next brochure generation will have real data
 }
 ```
-
----
-
-## Phase 5: Updated Experience Structure
-
-### 5.1 Final Experience Mix (6 total)
-
-| Slot | Category | AI Provider | Notes |
-|------|----------|-------------|-------|
-| 1 | nature | Lovable AI | Outdoor activity |
-| 2 | culture | Lovable AI | Historical/cultural visit |
-| 3 | adventure | Lovable AI | Exciting activity |
-| 4 | relaxation/wellness | Lovable AI | Spa, beach, etc. |
-| 5 | dining | xAI Grok (primary) | Tier-matched restaurant |
-| 6 | food | Lovable AI (backup) | Local food experience |
-
-### 5.2 Sample Output by Property Type
-
-**Luxury Hotel (Truly Special):**
-```json
-{
-  "dining": {
-    "title": "La Colombe",
-    "venue_type": "restaurant",
-    "cuisine_type": "Contemporary French-Asian fusion",
-    "price_indicator": "luxury",
-    "reservation_required": true,
-    "dress_code": "Smart casual"
-  }
-}
-```
-
-**Country Lodge (Standout Character):**
-```json
-{
-  "dining": {
-    "title": "Pierneef à La Motte",
-    "venue_type": "farm_table",
-    "cuisine_type": "Cape Winelands farm-to-table",
-    "price_indicator": "moderate",
-    "reservation_required": true,
-    "dress_code": null
-  }
-}
-```
-
-**Guest House (A Good Find):**
-```json
-{
-  "dining": {
-    "title": "Kloof Street House",
-    "venue_type": "cafe",
-    "cuisine_type": "Contemporary South African",
-    "price_indicator": "moderate",
-    "reservation_required": false
-  }
-}
-```
-
----
-
-## Phase 6: Config & Deployment
-
-### 6.1 Update `supabase/config.toml`
-
-```toml
-[functions.enrich-property-experiences]
-verify_jwt = false
-```
-
-### 6.2 Error Handling
-
-- **xAI API unavailable:** Fall back to Lovable AI
-- **Rate limiting (429):** Return partial results with warning
-- **Payment required (402):** Log and surface to admin
 
 ---
 
@@ -331,28 +312,34 @@ verify_jwt = false
 
 | File | Action | Description |
 |------|--------|-------------|
-| Migration | Create | Add dining columns and update category constraint |
-| `supabase/functions/enrich-property-experiences/index.ts` | Rewrite | Dual AI integration with property tier logic |
-| `src/components/experiences/LocalExperiencesManager.tsx` | Modify | Add dining-specific fields in editor |
+| `supabase/functions/generate-itinerary-pdf/index.ts` | Modify | Add experiences, dining, practical, share sections |
 
 ---
 
-## Implementation Order
+## Implementation Steps
 
-1. **Request xAI API Key** from user
-2. **Run migration** for schema updates
-3. **Update edge function** with dual-AI logic
-4. **Update admin UI** for dining fields
-5. **Test with sample properties** across tiers
+1. **Update the edge function** to fetch `local_experiences` for each property
+2. **Add HTML generators** for experiences, dining, practical info, and sharing sections
+3. **Add CSS styling** for the new sections
+4. **Add auto-enrichment trigger** for properties without experiences
+5. **Test with sample itinerary** to verify all sections render correctly
 
 ---
 
 ## Expected Outcome
 
-| Before | After |
-|--------|-------|
-| 5 generic AI experiences | 4 curated + 1-2 tier-matched dining |
-| Same dining for all properties | Fine dining for luxury, rustic for lodges |
-| Single AI provider | Dual AI for specialized expertise |
-| Basic food category | Rich dining metadata (dress code, cuisine type, reservations) |
+**Before:**
+- Basic booking confirmation PDF
+- Property name, dates, price only
+- No destination guidance
+
+**After:**
+- Comprehensive destination guide
+- Top 5 curated experiences per property
+- Featured dining recommendation matched to property tier
+- Practical check-in/directions info
+- QR code for easy sharing
+- Auto-enrichment for properties without curated content
+
+The brochure becomes a **travel companion** that guests can use throughout their trip, not just a booking receipt.
 
