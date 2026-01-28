@@ -407,7 +407,7 @@ CREATE POLICY "Owners can view their roadmaps" ON property_onboarding_roadmap
 
 ---
 
-## Phase 8: Progress Dashboard & Polish (Week 8)
+## Phase 8: Progress Dashboard & Polish (Week 8) ✅ COMPLETED
 
 ### 8.1 New Component: `ProgressDashboard.tsx`
 
