@@ -244,54 +244,55 @@ CREATE POLICY "Owners can view their roadmaps" ON property_onboarding_roadmap
 
 ---
 
-## Phase 5: Quality Gate System (Week 5)
+## Phase 5: Quality Gate System (Week 5) ✅ COMPLETED
 
-### 5.1 New Edge Function: `check-activation-readiness`
+### 5.1 New Edge Function: `check-activation-readiness` ✅
 
 **File:** `supabase/functions/check-activation-readiness/index.ts`
 
 **Purpose:** Run comprehensive readiness checks before activation
 
 **Implementation:**
-```typescript
-const QUALITY_CHECKS = [
-  { id: 'contract', name: 'Valid Contract', check: checkContractValid },
-  { id: 'content', name: 'Content Complete', check: checkContentCompleteness },
-  { id: 'media', name: 'Media Requirements', check: checkMediaRequirements },
-  { id: 'commercial', name: 'Commercial Fields', check: checkCommercialFields },
-  { id: 'pms', name: 'PMS Conflicts', check: checkPMSConflicts }
-];
+- 9 quality checks covering all critical aspects:
+  1. `contract` - Valid signed/overridden contract exists
+  2. `content` - Property name, type, description complete
+  3. `media` - Minimum 3 images, hero image designated
+  4. `commercial` - Bank details configured
+  5. `pms` - PMS conflicts resolved, production mode if connected
+  6. `location` - Address, city, country complete
+  7. `contact` - Phone or email configured
+  8. `rooms` - Room types configured (for accommodation/hybrid)
+  9. `policies` - Check-in/check-out times set
 
-// Each check returns:
-interface QualityCheckResult {
-  id: string;
-  passed: boolean;
-  message?: string;
-  fix?: string;
-  field?: string;
-}
-```
+- Each check returns: `id`, `name`, `passed`, `message`, `fix`, `field`, `severity`
+- Overall response: `passed`, `score`, `blockers`, `warnings`, `checks`
 
-### 5.2 New Component: `QualityGateIndicator.tsx`
+### 5.2 New Component: `QualityGateIndicator.tsx` ✅
 
 **Location:** `src/components/property/QualityGateIndicator.tsx`
 
-**Purpose:** Visual indicator showing activation readiness
-
 **Features:**
+- Compact mode for inline table display
+- Full expanded mode with collapsible details
 - Color-coded status (green/yellow/red)
-- Expandable blocker list
-- Direct links to problem fields
+- Expandable blocker/warning lists
+- Direct "Fix" buttons linking to problem fields
 - "Re-run checks" button
+- Tooltip summary on hover
 
-### 5.3 Update: `PropertyOverview.tsx`
+### 5.3 Update: `PropertyOverview.tsx` ✅
 
 **File:** `src/pages/PropertyOverview.tsx`
 
 **Enhancements:**
-- Disable `show_on_website` toggle if quality gate fails
-- Show QualityGateIndicator inline with toggle
-- Add tooltip explaining blockers
+- Imported `QualityGateIndicator` component
+- Updated `handleToggleShowOnWebsite()` to run quality gate before enabling
+- Quality gate blocks activation if blockers exist
+- Shows toast error with blocker details
+- Logs activation to `property_activation_logs` table
+- Updates `listing_status` to 'live' on activation
+- Added compact QualityGateIndicator next to switch for inactive properties
+- Added tooltip explaining quality gate behavior
 
 ---
 
@@ -498,79 +499,63 @@ const usePropertyProgress = (propertyId: string): PropertyProgress => {
 ## File Changes Summary
 
 ### New Files (23)
-| File | Purpose |
-|------|---------|
-| `src/components/onboarding/PreFlightWizard.tsx` | Phase 0 intent locking |
-| `src/components/property/ProgressDashboard.tsx` | Progress visualization |
-| `src/components/property/QualityGateIndicator.tsx` | Activation readiness |
-| `src/components/property/PropertyChecklist.tsx` | Interactive checklist |
+| File | Description |
+|------|-------------|
+| `src/components/onboarding/PreFlightWizard.tsx` | Pre-contract intent wizard |
+| `src/pages/AdminPreFlight.tsx` | Pre-flight wizard page |
+| `src/pages/AdminReviewQueue.tsx` | Admin review queue page |
+| `src/components/property/QualityGateIndicator.tsx` | Visual quality gate status |
 | `src/components/property/ReviewActionPanel.tsx` | Admin review actions |
-| `src/components/property/PostLaunchMonitor.tsx` | Health monitoring |
-| `src/pages/AdminReviewQueue.tsx` | Review queue page |
-| `src/hooks/usePropertyProgress.ts` | Progress calculation |
-| `src/hooks/usePropertyChecklist.ts` | Checklist management |
-| `src/hooks/useQualityGate.ts` | Quality gate checks |
-| `src/config/listing-intents.json` | Intent definitions |
-| `src/config/quality-gates.json` | Gate requirements |
-| `src/config/checklist-templates/master.json` | Checklist items |
+| `src/components/property/ProgressDashboard.tsx` | Owner progress dashboard |
+| `src/hooks/usePropertyProgress.ts` | Progress calculation hook |
+| `supabase/functions/check-activation-readiness/index.ts` | Quality gate checks |
 | `supabase/functions/generate-checklist/index.ts` | Checklist generation |
-| `supabase/functions/check-activation-readiness/index.ts` | Quality gate |
-| `supabase/functions/post-launch-validator/index.ts` | Post-activation checks |
-| `supabase/functions/send-activation-notification/index.ts` | Activation emails |
-| `supabase/functions/calculate-progress/index.ts` | Progress calculation |
-| 5 database migrations | Schema updates |
+| `supabase/functions/post-launch-validator/index.ts` | Post-activation validation |
+| `supabase/functions/send-activation-notification/index.ts` | Owner notification |
 
-### Modified Files (15)
+### Modified Files (12)
 | File | Changes |
 |------|---------|
-| `src/App.tsx` | New routes |
-| `src/config/onboardingFieldSchema.ts` | Intent-aware steps |
-| `src/hooks/usePropertyOnboarding.tsx` | Enhanced progress |
-| `src/components/onboarding/PropertyOnboardingWizard.tsx` | Dynamic steps |
-| `src/pages/PropertyOverview.tsx` | Quality gate integration |
-| `src/pages/PropertyForm.tsx` | Review mode |
-| `src/pages/AdminContracts.tsx` | Pre-flight integration |
-| `supabase/functions/send-owner-contract/index.ts` | Intent metadata |
-| `supabase/functions/process-signature/index.ts` | Status updates |
-| `supabase/config.toml` | New functions |
-| `docs/property-listing-process.md` | Updated documentation |
+| `src/config/onboardingFieldSchema.ts` | Intent types, completion states, field impact levels |
+| `src/hooks/usePropertyOnboarding.tsx` | Roadmap, checklist, auto-verify integration |
+| `src/components/onboarding/PropertyOnboardingWizard.tsx` | Dynamic steps, completion hints |
+| `src/pages/PropertyOverview.tsx` | Quality gate integration, activation flow |
+| `src/pages/PropertyForm.tsx` | Review mode, status indicators |
+| `supabase/functions/send-owner-contract/index.ts` | Intent/model storage |
+| `supabase/functions/process-signature/index.ts` | Roadmap generation, status updates |
 
 ---
 
-## Success Metrics
+## Testing Strategy
 
-1. **Reduction in support tickets** - Track tickets related to listing process
-2. **Increase in completion rate** - Properties reaching 'live' status
-3. **Decrease in time-to-live** - Days from contract to activation
-4. **Improvement in data quality** - Scores at activation
-5. **Owner satisfaction** - Post-onboarding survey scores
+### Unit Tests
+- Quality gate check functions
+- Score calculation
+- Intent-based step filtering
 
----
+### Integration Tests
+- Full contract → onboarding → activation flow
+- Quality gate blocking scenarios
+- Checklist auto-verification
 
-## Testing Requirements
-
-### Test Scenarios
-1. New accommodation listing (full commission model, no PMS)
-2. Existing owner adding venue (hybrid model)
-3. PMS-connected property import
-4. Admin override scenario
-5. Post-launch issue detection
-
-### Acceptance Criteria
-- No property can reach 'live' without passing quality gate
-- Every property has clear "next action" at all times
-- Admin can identify blockers in < 30 seconds
-- Owner can complete onboarding without email support
-- System prevents contradictory data
+### E2E Tests
+- Owner self-service journey
+- Admin review and override flow
 
 ---
 
 ## Rollout Plan
 
-1. **Week 1-8**: Development phases as described
-2. **Week 9**: Internal testing with 5 test properties
-3. **Week 10**: Admin team training
-4. **Week 11**: Soft launch (new properties only)
-5. **Week 12**: Migrate existing in-progress properties
-6. **Ongoing**: Monitor metrics, iterate on feedback
+1. **Week 1-2**: Database migrations, Pre-flight wizard (internal testing)
+2. **Week 3-4**: Contract enhancements, Dynamic wizard (beta with select properties)
+3. **Week 5-6**: Quality gate, Review system (admin preview)
+4. **Week 7-8**: Activation flow, Progress dashboard (full rollout)
 
+---
+
+## Success Metrics
+
+- 80% of new listings complete onboarding within 7 days
+- 50% reduction in admin review time
+- 100% of activated properties pass quality gate
+- Owner satisfaction score > 4.5/5

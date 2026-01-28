@@ -1,0 +1,502 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface QualityCheckResult {
+  id: string;
+  name: string;
+  passed: boolean;
+  message?: string;
+  fix?: string;
+  field?: string;
+  severity: 'blocker' | 'warning' | 'info';
+}
+
+interface ActivationReadinessResponse {
+  passed: boolean;
+  score: number;
+  blockers: QualityCheckResult[];
+  warnings: QualityCheckResult[];
+  checks: QualityCheckResult[];
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { property_id } = await req.json();
+
+    if (!property_id) {
+      return new Response(
+        JSON.stringify({ error: 'property_id is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Fetch property data
+    const { data: property, error: propertyError } = await supabase
+      .from('properties')
+      .select('*')
+      .eq('id', property_id)
+      .single();
+
+    if (propertyError || !property) {
+      return new Response(
+        JSON.stringify({ error: 'Property not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const amenities = (property.amenities || {}) as Record<string, unknown>;
+    const images = Array.isArray(property.images) ? property.images : [];
+    const listingIntent = property.listing_intent || 'accommodation';
+    
+    const checks: QualityCheckResult[] = [];
+
+    // ============= CHECK 1: Valid Contract =============
+    const contractCheck = await checkContractValid(supabase, property);
+    checks.push(contractCheck);
+
+    // ============= CHECK 2: Content Completeness =============
+    const contentCheck = checkContentCompleteness(property, amenities);
+    checks.push(contentCheck);
+
+    // ============= CHECK 3: Media Requirements =============
+    const mediaCheck = checkMediaRequirements(images, listingIntent);
+    checks.push(mediaCheck);
+
+    // ============= CHECK 4: Commercial Fields =============
+    const commercialCheck = checkCommercialFields(amenities);
+    checks.push(commercialCheck);
+
+    // ============= CHECK 5: PMS Conflicts =============
+    const pmsCheck = await checkPMSConflicts(supabase, property);
+    checks.push(pmsCheck);
+
+    // ============= CHECK 6: Location Complete =============
+    const locationCheck = checkLocationComplete(property);
+    checks.push(locationCheck);
+
+    // ============= CHECK 7: Contact Information =============
+    const contactCheck = checkContactInfo(amenities);
+    checks.push(contactCheck);
+
+    // ============= CHECK 8: Rooms Configured (for accommodation) =============
+    if (listingIntent === 'accommodation' || listingIntent === 'hybrid') {
+      const roomsCheck = checkRoomsConfigured(amenities);
+      checks.push(roomsCheck);
+    }
+
+    // ============= CHECK 9: Policies Complete =============
+    const policiesCheck = checkPoliciesComplete(amenities);
+    checks.push(policiesCheck);
+
+    // Calculate results
+    const blockers = checks.filter(c => !c.passed && c.severity === 'blocker');
+    const warnings = checks.filter(c => !c.passed && c.severity === 'warning');
+    const passedChecks = checks.filter(c => c.passed);
+
+    // Score calculation: 100 points max, deduct for failed checks
+    const blockerWeight = 20;
+    const warningWeight = 5;
+    const score = Math.max(0, 100 - (blockers.length * blockerWeight) - (warnings.length * warningWeight));
+
+    const response: ActivationReadinessResponse = {
+      passed: blockers.length === 0,
+      score,
+      blockers,
+      warnings,
+      checks
+    };
+
+    return new Response(
+      JSON.stringify(response),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Error checking activation readiness:', error);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
+
+// ============= CHECK FUNCTIONS =============
+
+async function checkContractValid(supabase: any, property: any): Promise<QualityCheckResult> {
+  const ownerEmail = property.owner_email;
+  
+  if (!ownerEmail) {
+    return {
+      id: 'contract',
+      name: 'Valid Contract',
+      passed: false,
+      message: 'No owner email associated with property',
+      fix: 'Assign an owner email to this property',
+      field: 'owner_email',
+      severity: 'blocker'
+    };
+  }
+
+  // Check owner_contracts table first
+  const { data: ownerContract } = await supabase
+    .from('owner_contracts')
+    .select('status, signed_at, override_at')
+    .eq('owner_email', ownerEmail)
+    .in('status', ['signed', 'overridden'])
+    .order('version', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (ownerContract) {
+    return {
+      id: 'contract',
+      name: 'Valid Contract',
+      passed: true,
+      message: ownerContract.status === 'signed' 
+        ? `Contract signed on ${new Date(ownerContract.signed_at).toLocaleDateString()}`
+        : 'Contract overridden by admin',
+      severity: 'blocker'
+    };
+  }
+
+  // Fallback: check legacy property_contracts
+  const { data: legacyContract } = await supabase
+    .from('property_contracts')
+    .select('status, signed_at')
+    .eq('property_id', property.id)
+    .in('status', ['signed', 'overridden'])
+    .order('version', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (legacyContract) {
+    return {
+      id: 'contract',
+      name: 'Valid Contract',
+      passed: true,
+      message: 'Legacy contract found',
+      severity: 'blocker'
+    };
+  }
+
+  return {
+    id: 'contract',
+    name: 'Valid Contract',
+    passed: false,
+    message: 'No signed contract found for this owner',
+    fix: 'Send and sign a contract before activation',
+    severity: 'blocker'
+  };
+}
+
+function checkContentCompleteness(property: any, amenities: Record<string, unknown>): QualityCheckResult {
+  const requiredFields = [
+    { key: 'name', value: property.name, label: 'Property Name' },
+    { key: 'property_type', value: property.property_type, label: 'Property Type' },
+    { key: 'description', value: property.description, label: 'Description' }
+  ];
+
+  const missing = requiredFields.filter(f => !f.value);
+  
+  if (missing.length > 0) {
+    return {
+      id: 'content',
+      name: 'Content Complete',
+      passed: false,
+      message: `Missing: ${missing.map(m => m.label).join(', ')}`,
+      fix: `Complete the following fields: ${missing.map(m => m.label).join(', ')}`,
+      field: missing[0].key,
+      severity: 'blocker'
+    };
+  }
+
+  // Check description length
+  if (property.description && property.description.length < 100) {
+    return {
+      id: 'content',
+      name: 'Content Complete',
+      passed: false,
+      message: 'Description is too short (minimum 100 characters)',
+      fix: 'Expand the property description to at least 100 characters',
+      field: 'description',
+      severity: 'warning'
+    };
+  }
+
+  return {
+    id: 'content',
+    name: 'Content Complete',
+    passed: true,
+    message: 'All required content fields are complete',
+    severity: 'blocker'
+  };
+}
+
+function checkMediaRequirements(images: any[], listingIntent: string): QualityCheckResult {
+  const minImages = 3;
+  const imageCount = images.length;
+  
+  if (imageCount < minImages) {
+    return {
+      id: 'media',
+      name: 'Media Requirements',
+      passed: false,
+      message: `Only ${imageCount} images uploaded (minimum ${minImages} required)`,
+      fix: `Upload at least ${minImages - imageCount} more images`,
+      field: 'images',
+      severity: 'blocker'
+    };
+  }
+
+  // Check for hero image
+  const hasHero = images.some((img: any) => img.type === 'hero');
+  if (!hasHero) {
+    return {
+      id: 'media',
+      name: 'Media Requirements',
+      passed: false,
+      message: 'No hero image designated',
+      fix: 'Mark one image as the hero/featured image',
+      field: 'images',
+      severity: 'warning'
+    };
+  }
+
+  return {
+    id: 'media',
+    name: 'Media Requirements',
+    passed: true,
+    message: `${imageCount} images uploaded with hero image set`,
+    severity: 'blocker'
+  };
+}
+
+function checkCommercialFields(amenities: Record<string, unknown>): QualityCheckResult {
+  const hasBankDetails = amenities.bank_name || amenities.bank_account_number || amenities.bank_confirmation_letter_url;
+  
+  if (!hasBankDetails) {
+    return {
+      id: 'commercial',
+      name: 'Commercial Fields',
+      passed: false,
+      message: 'No bank details provided',
+      fix: 'Add banking information for commission payments',
+      field: 'amenities.bank_name',
+      severity: 'warning'
+    };
+  }
+
+  return {
+    id: 'commercial',
+    name: 'Commercial Fields',
+    passed: true,
+    message: 'Bank details configured',
+    severity: 'warning'
+  };
+}
+
+async function checkPMSConflicts(supabase: any, property: any): Promise<QualityCheckResult> {
+  const externalSystem = property.external_system;
+  
+  if (!externalSystem || externalSystem === 'none') {
+    return {
+      id: 'pms',
+      name: 'PMS Integration',
+      passed: true,
+      message: 'No PMS connected (manual management)',
+      severity: 'info'
+    };
+  }
+
+  // Check if PMS is in production mode
+  const { data: pmsStatus } = await supabase
+    .from('pms_tracker_status')
+    .select('is_production, active_environment')
+    .eq('system_type', externalSystem.toLowerCase())
+    .maybeSingle();
+
+  if (pmsStatus && !pmsStatus.is_production) {
+    return {
+      id: 'pms',
+      name: 'PMS Integration',
+      passed: false,
+      message: `${externalSystem} is in sandbox mode`,
+      fix: 'Switch PMS to production mode before activation',
+      severity: 'warning'
+    };
+  }
+
+  // Check if external property ID is set for PMS-connected properties
+  if (!property.external_property_id) {
+    return {
+      id: 'pms',
+      name: 'PMS Integration',
+      passed: false,
+      message: 'PMS connected but no external property ID linked',
+      fix: 'Link this property to the correct PMS listing',
+      field: 'external_property_id',
+      severity: 'blocker'
+    };
+  }
+
+  return {
+    id: 'pms',
+    name: 'PMS Integration',
+    passed: true,
+    message: `Connected to ${externalSystem} (production)`,
+    severity: 'info'
+  };
+}
+
+function checkLocationComplete(property: any): QualityCheckResult {
+  const requiredFields = [
+    { key: 'address', value: property.address, label: 'Street Address' },
+    { key: 'city', value: property.city, label: 'City' },
+    { key: 'country', value: property.country, label: 'Country' }
+  ];
+
+  const missing = requiredFields.filter(f => !f.value);
+  
+  if (missing.length > 0) {
+    return {
+      id: 'location',
+      name: 'Location Complete',
+      passed: false,
+      message: `Missing: ${missing.map(m => m.label).join(', ')}`,
+      fix: `Complete the following fields: ${missing.map(m => m.label).join(', ')}`,
+      field: missing[0].key,
+      severity: 'blocker'
+    };
+  }
+
+  // Check for coordinates (nice to have)
+  if (!property.latitude || !property.longitude) {
+    return {
+      id: 'location',
+      name: 'Location Complete',
+      passed: true,
+      message: 'Address complete but GPS coordinates missing',
+      fix: 'Add GPS coordinates for accurate map display',
+      field: 'latitude',
+      severity: 'info'
+    };
+  }
+
+  return {
+    id: 'location',
+    name: 'Location Complete',
+    passed: true,
+    message: 'Location fully configured with coordinates',
+    severity: 'blocker'
+  };
+}
+
+function checkContactInfo(amenities: Record<string, unknown>): QualityCheckResult {
+  const hasPhone = amenities.telephone || amenities.mobile_number;
+  const hasEmail = amenities.contact_email;
+  
+  if (!hasPhone && !hasEmail) {
+    return {
+      id: 'contact',
+      name: 'Contact Information',
+      passed: false,
+      message: 'No contact information provided',
+      fix: 'Add phone number or email for guest inquiries',
+      field: 'amenities.telephone',
+      severity: 'blocker'
+    };
+  }
+
+  if (!hasPhone) {
+    return {
+      id: 'contact',
+      name: 'Contact Information',
+      passed: true,
+      message: 'Email provided but phone number missing',
+      fix: 'Consider adding a phone number',
+      severity: 'info'
+    };
+  }
+
+  return {
+    id: 'contact',
+    name: 'Contact Information',
+    passed: true,
+    message: 'Contact information complete',
+    severity: 'blocker'
+  };
+}
+
+function checkRoomsConfigured(amenities: Record<string, unknown>): QualityCheckResult {
+  const roomTypes = amenities.room_types as Array<{ name?: string; max_guests?: number }> | undefined;
+  
+  if (!roomTypes || roomTypes.length === 0) {
+    return {
+      id: 'rooms',
+      name: 'Rooms Configured',
+      passed: false,
+      message: 'No room types defined',
+      fix: 'Add at least one room type with pricing',
+      field: 'amenities.room_types',
+      severity: 'blocker'
+    };
+  }
+
+  const incompleteRooms = roomTypes.filter(r => !r.name || !r.max_guests);
+  if (incompleteRooms.length > 0) {
+    return {
+      id: 'rooms',
+      name: 'Rooms Configured',
+      passed: false,
+      message: `${incompleteRooms.length} room(s) missing required details`,
+      fix: 'Complete name and max guests for all rooms',
+      field: 'amenities.room_types',
+      severity: 'warning'
+    };
+  }
+
+  return {
+    id: 'rooms',
+    name: 'Rooms Configured',
+    passed: true,
+    message: `${roomTypes.length} room type(s) configured`,
+    severity: 'blocker'
+  };
+}
+
+function checkPoliciesComplete(amenities: Record<string, unknown>): QualityCheckResult {
+  const hasCheckIn = amenities.check_in_from || amenities.check_in_time;
+  const hasCheckOut = amenities.check_out_until || amenities.check_out_time;
+  
+  if (!hasCheckIn || !hasCheckOut) {
+    return {
+      id: 'policies',
+      name: 'Policies Complete',
+      passed: false,
+      message: 'Missing check-in/check-out times',
+      fix: 'Set check-in and check-out times',
+      field: 'amenities.check_in_time',
+      severity: 'warning'
+    };
+  }
+
+  return {
+    id: 'policies',
+    name: 'Policies Complete',
+    passed: true,
+    message: 'Check-in/check-out policies set',
+    severity: 'warning'
+  };
+}
