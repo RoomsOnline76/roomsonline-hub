@@ -88,6 +88,7 @@ import { syncFromWebsite } from "@/lib/api/websiteSync";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { ContractManagementPanel } from "@/components/contract";
 import { PropertyOnboardingWizard } from "@/components/onboarding";
+import { AdditionalChargesManager } from "@/components/charges";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -7288,6 +7289,7 @@ export default function PropertyForm() {
                       <TabsTrigger value="rate-types">Rate Types</TabsTrigger>
                       <TabsTrigger value="season">Seasons</TabsTrigger>
                       <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
+                      <TabsTrigger value="charges">Charges</TabsTrigger>
                       <TabsTrigger value="overview">Overview</TabsTrigger>
                       {isDev && <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>}
                     </TabsList>
@@ -8212,6 +8214,25 @@ export default function PropertyForm() {
                             })()}
                         </>
                       )}
+                    </TabsContent>
+
+                    {/* Charges Sub-tab */}
+                    <TabsContent value="charges" className="p-6 space-y-6">
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="text-lg font-medium">Additional Charges</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Configure taxes, fees, deposits, and surcharges that apply to bookings at this property.
+                          </p>
+                        </div>
+                        {propertyId && (
+                          <AdditionalChargesManager
+                            propertyId={propertyId}
+                            pmsSystem={selectedPMS}
+                            ownerEmail={formData.owner_email}
+                          />
+                        )}
+                      </div>
                     </TabsContent>
 
                     {/* Overview Sub-tab */}
