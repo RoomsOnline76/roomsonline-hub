@@ -2470,6 +2470,7 @@ export type Database = {
           price_per_night: number
           property_type: string
           property_url: string | null
+          review_sentiment: Json | null
           short_description: string | null
           show_on_website: boolean | null
           siteminder_property_code: string | null
@@ -2525,6 +2526,7 @@ export type Database = {
           price_per_night: number
           property_type: string
           property_url?: string | null
+          review_sentiment?: Json | null
           short_description?: string | null
           show_on_website?: boolean | null
           siteminder_property_code?: string | null
@@ -2580,6 +2582,7 @@ export type Database = {
           price_per_night?: number
           property_type?: string
           property_url?: string | null
+          review_sentiment?: Json | null
           short_description?: string | null
           show_on_website?: boolean | null
           siteminder_property_code?: string | null

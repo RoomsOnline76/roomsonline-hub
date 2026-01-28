@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useItinerary } from '@/contexts/ItineraryContext';
 import { StayCard, TimelineVisualizer } from '@/components/journey';
+import { PropertyRecommendations } from '@/components/booking/PropertyRecommendations';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -133,6 +134,14 @@ export default function JourneyReview() {
               >
                 Add Another Destination
               </Button>
+
+              {/* AI-Powered Recommendations */}
+              <PropertyRecommendations 
+                currentPropertyId={stays[0]?.property_id}
+                variant="compact"
+                maxItems={3}
+                className="mt-8"
+              />
             </div>
 
             {/* Summary column */}
