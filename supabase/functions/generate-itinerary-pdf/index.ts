@@ -5,6 +5,92 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Tone types for adaptive narrative generation
+type JourneyTone = 'luxury' | 'romantic' | 'adventure' | 'relaxation' | 'professional' | 'family';
+
+// Tone-specific introduction templates
+const TONE_INTROS: Record<JourneyTone, string> = {
+  luxury: 'An exquisite collection of Africa\'s finest retreats, curated for the discerning traveller.',
+  romantic: 'A journey crafted for two, where every moment becomes a cherished memory.',
+  adventure: 'An expedition through Africa\'s most extraordinary landscapes and experiences.',
+  relaxation: 'A sanctuary of calm awaits – your escape to tranquility begins here.',
+  professional: 'Your itinerary has been confirmed. All arrangements are in place.',
+  family: 'Adventures for all ages – creating memories that will last a lifetime.',
+};
+
+// Tone-specific stay intro phrases
+const TONE_STAY_PHRASES: Record<JourneyTone, string[]> = {
+  luxury: ['Arrive in style at', 'Experience unparalleled elegance at', 'Indulge in the refined atmosphere of'],
+  romantic: ['Begin your love story at', 'Let romance blossom at', 'Create intimate moments at'],
+  adventure: ['Your adventure awaits at', 'Discover the thrill of', 'Explore from your base at'],
+  relaxation: ['Unwind in the serenity of', 'Find your peace at', 'Restore your spirit at'],
+  professional: ['Check in at', 'Your accommodation:', 'Confirmed booking at'],
+  family: ['Fun for everyone at', 'The whole family will love', 'Create memories together at'],
+};
+
+// Detect tone from booking context
+function detectTone(itinerary: any, stays: any[]): JourneyTone {
+  const specialRequests = (itinerary.special_requests || '').toLowerCase();
+  const guestEmail = (itinerary.guest_email || '').toLowerCase();
+  
+  // Check special requests for signals
+  if (specialRequests.includes('anniversary') || specialRequests.includes('honeymoon') || 
+      specialRequests.includes('romantic') || specialRequests.includes('proposal')) {
+    return 'romantic';
+  }
+  
+  if (specialRequests.includes('child') || specialRequests.includes('kid') || 
+      specialRequests.includes('family') || specialRequests.includes('children')) {
+    return 'family';
+  }
+  
+  if (specialRequests.includes('spa') || specialRequests.includes('wellness') || 
+      specialRequests.includes('relax') || specialRequests.includes('peaceful')) {
+    return 'relaxation';
+  }
+  
+  if (specialRequests.includes('adventure') || specialRequests.includes('safari') || 
+      specialRequests.includes('hiking') || specialRequests.includes('explore')) {
+    return 'adventure';
+  }
+  
+  // Check email domain for business travel
+  const businessDomains = ['.com', '.co.za', '.org', '.net'];
+  const personalDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com'];
+  if (guestEmail && !personalDomains.some(d => guestEmail.includes(d)) && 
+      businessDomains.some(d => guestEmail.endsWith(d))) {
+    return 'professional';
+  }
+  
+  // Check property types and pricing for luxury signals
+  const avgPrice = stays.length > 0 
+    ? stays.reduce((sum, s) => sum + (s.price || 0), 0) / stays.length 
+    : 0;
+  
+  if (avgPrice > 5000) {
+    return 'luxury';
+  }
+  
+  // Check for luxury tags in property names
+  const luxuryKeywords = ['spa', 'resort', 'lodge', 'manor', 'estate', 'boutique'];
+  const hasLuxuryProperty = stays.some(s => 
+    luxuryKeywords.some(kw => (s.propertyName || '').toLowerCase().includes(kw))
+  );
+  
+  if (hasLuxuryProperty) {
+    return 'luxury';
+  }
+  
+  // Default to relaxation for leisure travel
+  return 'relaxation';
+}
+
+// Get random phrase from tone array
+function getTonePhrase(tone: JourneyTone): string {
+  const phrases = TONE_STAY_PHRASES[tone];
+  return phrases[Math.floor(Math.random() * phrases.length)];
+}
+
 // Format currency
 function formatCurrency(amount: number, currency: string = "ZAR"): string {
   return new Intl.NumberFormat("en-ZA", {
@@ -176,9 +262,12 @@ interface EnrichedStay extends Stay {
   propertyDetails: PropertyDetails | null;
 }
 
-function generateBrochureHTML(itinerary: any, stays: EnrichedStay[]): string {
+function generateBrochureHTML(itinerary: any, stays: EnrichedStay[], tone: JourneyTone): string {
+  const toneIntro = TONE_INTROS[tone];
+  
   const staysHTML = stays.map((stay, index) => {
     const diningExp = stay.experiences?.find(e => e.category === 'dining');
+    const stayIntro = getTonePhrase(tone);
     
     return `
     <div class="stay-card">
@@ -188,6 +277,7 @@ function generateBrochureHTML(itinerary: any, stays: EnrichedStay[]): string {
       </div>
       ${stay.propertyImage ? `<img src="${stay.propertyImage}" alt="${stay.propertyName}" class="stay-image" />` : ''}
       <div class="stay-content">
+        <p class="stay-intro">${stayIntro}</p>
         <h3 class="property-name">${stay.propertyName}</h3>
         ${stay.city ? `<p class="property-location">${stay.city}${stay.country ? `, ${stay.country}` : ''}</p>` : ''}
         <div class="stay-details">
@@ -217,6 +307,9 @@ function generateBrochureHTML(itinerary: any, stays: EnrichedStay[]): string {
       </div>
     </div>
   `}).join('');
+  
+  // Add tone-specific intro to subtitle
+  const toneSubtitle = `<p class="tone-intro">${toneIntro}</p>`;
 
   return `
 <!DOCTYPE html>
@@ -282,7 +375,25 @@ function generateBrochureHTML(itinerary: any, stays: EnrichedStay[]): string {
       text-align: center;
       color: #666;
       font-size: 12pt;
+      margin-bottom: 10px;
+    }
+    
+    .tone-intro {
+      text-align: center;
+      color: #e91e8c;
+      font-size: 11pt;
+      font-style: italic;
       margin-bottom: 30px;
+      padding: 12px;
+      background: linear-gradient(135deg, #fdf2f8 0%, #fff 100%);
+      border-radius: 6px;
+    }
+    
+    .stay-intro {
+      color: #666;
+      font-size: 10pt;
+      font-style: italic;
+      margin-bottom: 8px;
     }
     
     h2 {
@@ -686,6 +797,7 @@ function generateBrochureHTML(itinerary: any, stays: EnrichedStay[]): string {
   <!-- Title -->
   <h1>${itinerary.title || 'Your Journey'}</h1>
   <p class="subtitle">${itinerary.total_nights} nights across ${stays.length} destination${stays.length > 1 ? 's' : ''}</p>
+  ${toneSubtitle}
   
   <!-- Guest Information -->
   <div class="guest-info">
@@ -839,8 +951,12 @@ Deno.serve(async (req) => {
       propertyDetails: propertyMap.get(stay.propertyId) || null,
     }));
 
-    // Generate HTML brochure
-    const html = generateBrochureHTML(itinerary, enrichedStays);
+    // Detect tone from booking context
+    const tone = detectTone(itinerary, stays);
+    console.log(`Detected journey tone: ${tone}`);
+
+    // Generate HTML brochure with tone-adaptive content
+    const html = generateBrochureHTML(itinerary, enrichedStays, tone);
 
     // Store HTML in storage bucket for client-side PDF generation
     const fileName = `brochures/itinerary-${itinerary_id}-${Date.now()}.html`;

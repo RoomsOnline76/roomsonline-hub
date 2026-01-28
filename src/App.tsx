@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { MobileBookingProvider } from "@/contexts/MobileBookingContext";
 import { ItineraryProvider } from "@/contexts/ItineraryContext";
+import { BehavioralMemoryProvider } from "@/contexts/BehavioralMemoryContext";
 import { RecaptchaProvider } from "@/components/RecaptchaProvider";
 import JourneyReview from "./pages/JourneyReview";
 import JourneyConfirmation from "./pages/JourneyConfirmation";
@@ -89,6 +90,7 @@ const App = () => (
     <CurrencyProvider>
       <MobileBookingProvider>
         <ItineraryProvider>
+        <BehavioralMemoryProvider>
         <RecaptchaProvider>
           <TooltipProvider>
             <Toaster />
@@ -463,6 +465,7 @@ const App = () => (
           </BrowserRouter>
         </TooltipProvider>
       </RecaptchaProvider>
+      </BehavioralMemoryProvider>
       </ItineraryProvider>
     </MobileBookingProvider>
     </CurrencyProvider>
