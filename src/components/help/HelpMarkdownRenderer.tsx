@@ -1,6 +1,6 @@
 import { useMemo } from "react";
+import DOMPurify from "dompurify";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Info, AlertCircle } from "lucide-react";
 
 interface HelpMarkdownRendererProps {
   content: string;
@@ -86,7 +86,14 @@ export function HelpMarkdownRenderer({ content, className }: HelpMarkdownRendere
     // Horizontal rules
     html = html.replace(/^---$/gm, '<hr class="my-4 border-border" />');
 
-    return html;
+    // Sanitize HTML to prevent XSS attacks
+    const sanitized = DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'p', 'ul', 'ol', 'li', 'strong', 'em', 
+                     'code', 'pre', 'a', 'table', 'tr', 'th', 'td', 'hr', 'div', 'span'],
+      ALLOWED_ATTR: ['class', 'href', 'target', 'rel'],
+    });
+
+    return sanitized;
   }, [content]);
 
   return (
