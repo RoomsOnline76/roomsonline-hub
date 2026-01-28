@@ -10,7 +10,9 @@ import {
   Clock,
   Play,
   Circle,
+  Wifi,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,6 +72,8 @@ export default function DevPMS() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<string | null>(null);
+  const [nightsBridgeLastActivity, setNightsBridgeLastActivity] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -79,8 +83,8 @@ export default function DevPMS() {
     try {
       setLoading(true);
       
-      // Fetch both pms_credentials and pms_tracker_status in parallel
-      const [credentialsResult, trackerResult] = await Promise.all([
+      // Fetch pms_credentials, pms_tracker_status, and NightsBridge sessions in parallel
+      const [credentialsResult, trackerResult, nbSessionResult] = await Promise.all([
         supabase
           .from('pms_credentials')
           .select('*')
@@ -89,6 +93,12 @@ export default function DevPMS() {
           .from('pms_tracker_status')
           .select('system_type, integration_status, is_production')
           .order('system_type'),
+        supabase
+          .from('nightsbridge_booking_sessions')
+          .select('created_at')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
       
       if (credentialsResult.error) throw credentialsResult.error;
@@ -110,6 +120,8 @@ export default function DevPMS() {
         integration_status: t.integration_status,
         is_production: t.is_production ?? false,
       })));
+
+      setNightsBridgeLastActivity(nbSessionResult?.data?.created_at || null);
     } catch (error) {
       console.error('Error loading PMS data:', error);
       toast.error('Failed to load PMS data');
@@ -155,15 +167,44 @@ export default function DevPMS() {
   };
 
   const triggerSync = async (adapter: PMSAdapter) => {
+    setSyncing(adapter.id);
     toast.info(`Triggering sync for ${adapter.property_name || adapter.system_type}...`);
-    // In production, this would call the sync edge function
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    toast.success('Sync triggered successfully');
+    
+    try {
+      // Call the appropriate edge function based on system_type
+      const { error } = await supabase.functions.invoke(`${adapter.system_type}-api`, {
+        body: { action: 'health_check', credential_id: adapter.id }
+      });
+      
+      if (error) throw error;
+      
+      // Update last_sync_at on success
+      const { error: updateError } = await supabase
+        .from('pms_credentials')
+        .update({ last_sync_at: new Date().toISOString() })
+        .eq('id', adapter.id);
+      
+      if (updateError) throw updateError;
+      
+      // Refresh data to show updated status
+      await loadData();
+      toast.success('Sync completed successfully');
+    } catch (err) {
+      console.error('Sync failed:', err);
+      toast.error('Sync failed - check edge function logs');
+    } finally {
+      setSyncing(null);
+    }
   };
 
   // Sync status is determined by last_sync_at timestamp, not the unused sync_status field
-  const getConnectionIcon = (isActive: boolean, lastSyncAt: string | null) => {
+  const getConnectionIcon = (isActive: boolean, lastSyncAt: string | null, isWidgetBased: boolean) => {
     if (!isActive) return <PowerOff className="h-4 w-4 text-muted-foreground" />;
+    
+    // Widget-based systems are always "online"
+    if (isWidgetBased) {
+      return <Wifi className="h-4 w-4 text-emerald-500" />;
+    }
     
     // If has synced, it's operational
     if (lastSyncAt) {
@@ -174,8 +215,13 @@ export default function DevPMS() {
   };
 
   // Connection sync badge based on actual sync history
-  const getConnectionSyncBadge = (isActive: boolean, lastSyncAt: string | null) => {
+  const getConnectionSyncBadge = (isActive: boolean, lastSyncAt: string | null, isWidgetBased: boolean) => {
     if (!isActive) return <Badge variant="outline">Disabled</Badge>;
+    
+    // Widget-based systems show "Online" status
+    if (isWidgetBased) {
+      return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Online</Badge>;
+    }
     
     if (lastSyncAt) {
       // Has synced - show when
@@ -193,6 +239,14 @@ export default function DevPMS() {
     }
     
     return <Badge variant="outline" className="text-muted-foreground">Never Synced</Badge>;
+  };
+
+  // Get last activity display for widget-based systems
+  const getWidgetLastActivity = () => {
+    if (nightsBridgeLastActivity) {
+      return `Active ${formatDistanceToNow(new Date(nightsBridgeLastActivity))} ago`;
+    }
+    return 'No sessions';
   };
 
   // Build systems list from centralized config with their connections and tracker status
@@ -347,8 +401,8 @@ export default function DevPMS() {
                       <TableRow>
                         <TableHead>Property</TableHead>
                         <TableHead>Environment</TableHead>
-                        <TableHead>Sync Status</TableHead>
-                        <TableHead>Last Sync</TableHead>
+                        <TableHead>{config.isWidgetOnly ? 'Status' : 'Sync Status'}</TableHead>
+                        <TableHead>{config.isWidgetOnly ? 'Last Activity' : 'Last Sync'}</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -357,7 +411,7 @@ export default function DevPMS() {
                         <TableRow key={adapter.id}>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
-                              {getConnectionIcon(adapter.is_active, adapter.last_sync_at)}
+                              {getConnectionIcon(adapter.is_active, adapter.last_sync_at, config.isWidgetOnly)}
                               {adapter.property_name || 'Unnamed'}
                             </div>
                           </TableCell>
@@ -367,24 +421,29 @@ export default function DevPMS() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {getConnectionSyncBadge(adapter.is_active, adapter.last_sync_at)}
+                            {getConnectionSyncBadge(adapter.is_active, adapter.last_sync_at, config.isWidgetOnly)}
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
-                            {adapter.last_sync_at 
-                              ? format(new Date(adapter.last_sync_at), 'MMM d, HH:mm')
-                              : 'Never'
+                            {config.isWidgetOnly 
+                              ? getWidgetLastActivity()
+                              : (adapter.last_sync_at 
+                                  ? format(new Date(adapter.last_sync_at), 'MMM d, HH:mm')
+                                  : 'Never')
                             }
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => triggerSync(adapter)}
-                                disabled={!adapter.is_active}
-                              >
-                                <Play className="h-4 w-4" />
-                              </Button>
+                              {/* Hide Play button for widget-based systems */}
+                              {!config.isWidgetOnly && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => triggerSync(adapter)}
+                                  disabled={!adapter.is_active || syncing === adapter.id}
+                                >
+                                  <Play className={`h-4 w-4 ${syncing === adapter.id ? 'animate-spin' : ''}`} />
+                                </Button>
+                              )}
                               
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
