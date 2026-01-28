@@ -142,24 +142,18 @@ export default function DevDanger() {
   return (
     <AppLayout>
       <PageHeader
-        title="Danger Zone"
-        subtitle="Destructive operations with system-wide impact"
+        title="System Operations"
+        subtitle="Cache and sync management tools"
       />
 
-      {/* Warning Banner */}
-      <Card className="mb-8 border-destructive/50 bg-destructive/5">
-        <CardHeader>
+      {/* Info Banner */}
+      <Card className="mb-8 border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20">
+        <CardHeader className="pb-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-full bg-destructive/10">
-              <Shield className="h-6 w-6 text-destructive" />
-            </div>
-            <div>
-              <CardTitle className="text-destructive">Extreme Caution Required</CardTitle>
-              <CardDescription className="text-destructive/80">
-                Actions on this page cannot be undone. They affect the entire platform and all users.
-                All actions are logged to the audit trail.
-              </CardDescription>
-            </div>
+            <Shield className="h-5 w-5 text-amber-600" />
+            <CardDescription className="text-amber-700 dark:text-amber-400">
+              These actions affect live data and are logged. Type the confirmation text to proceed.
+            </CardDescription>
           </div>
         </CardHeader>
       </Card>
@@ -170,12 +164,12 @@ export default function DevDanger() {
           const Icon = action.icon;
           
           return (
-            <Card key={action.id} className="border-destructive/30">
+            <Card key={action.id}>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
-                    <div className="p-2 rounded-lg bg-destructive/10">
-                      <Icon className="h-5 w-5 text-destructive" />
+                    <div className="p-2 rounded-lg bg-muted">
+                      <Icon className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div>
                       <CardTitle className="text-lg">{action.title}</CardTitle>
@@ -194,9 +188,9 @@ export default function DevDanger() {
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-                          <AlertTriangle className="h-5 w-5" />
-                          Confirm Destructive Action
+                        <AlertDialogTitle className="flex items-center gap-2">
+                          <AlertTriangle className="h-5 w-5 text-amber-500" />
+                          Confirm Action
                         </AlertDialogTitle>
                         <AlertDialogDescription asChild>
                           <div className="space-y-4">
