@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { Plus, Loader2, FileText } from "lucide-react";
+import { Plus, Loader2, FileText, Search } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -29,6 +30,7 @@ export default function AdminJournals() {
   const navigate = useNavigate();
   const [journals, setJournals] = useState<Journal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     loadJournals();
@@ -52,6 +54,27 @@ export default function AdminJournals() {
   const publishedCount = journals.filter(j => j.status === "published").length;
   const draftCount = journals.filter(j => j.status !== "published").length;
 
+  // Filter journals by search term across all columns
+  const filteredJournals = useMemo(() => {
+    if (!searchTerm.trim()) return journals;
+    
+    const term = searchTerm.toLowerCase();
+    return journals.filter(journal => {
+      const statusLabel = journal.status === "published" ? "published" : "draft";
+      const publishDate = journal.publish_date 
+        ? format(new Date(journal.publish_date), "PPP").toLowerCase() 
+        : "";
+      const updatedDate = format(new Date(journal.updated_at), "PPP").toLowerCase();
+      
+      return (
+        journal.title.toLowerCase().includes(term) ||
+        statusLabel.includes(term) ||
+        publishDate.includes(term) ||
+        updatedDate.includes(term)
+      );
+    });
+  }, [journals, searchTerm]);
+
   return (
     <AppLayout>
       <PageHeader 
@@ -64,6 +87,19 @@ export default function AdminJournals() {
           </Button>
         }
       />
+
+      {/* Search */}
+      <div className="mb-4">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search all columns..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      </div>
 
       {loading ? (
         <div className="flex items-center justify-center h-[40vh]">
@@ -91,31 +127,39 @@ export default function AdminJournals() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {journals.map((journal) => (
-                <TableRow 
-                  key={journal.id} 
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => navigate(`/admin/journals/${journal.id}`)}
-                >
-                  <TableCell className="font-medium">{journal.title}</TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant={journal.status === "published" ? "default" : "secondary"}
-                    >
-                      {journal.status === "published" ? "Published" : "Draft"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {journal.publish_date 
-                      ? format(new Date(journal.publish_date), "PPP")
-                      : "—"
-                    }
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {format(new Date(journal.updated_at), "PPP")}
+              {filteredJournals.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                    {searchTerm ? "No journals match your search" : "No journals yet"}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filteredJournals.map((journal) => (
+                  <TableRow 
+                    key={journal.id} 
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => navigate(`/admin/journals/${journal.id}`)}
+                  >
+                    <TableCell className="font-medium">{journal.title}</TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={journal.status === "published" ? "default" : "secondary"}
+                      >
+                        {journal.status === "published" ? "Published" : "Draft"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {journal.publish_date 
+                        ? format(new Date(journal.publish_date), "PPP")
+                        : "—"
+                      }
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {format(new Date(journal.updated_at), "PPP")}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>

@@ -161,11 +161,21 @@ export default function AdminOnboarding() {
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (t) =>
+      result = result.filter((t) => {
+        const status = getTokenStatus(t);
+        const createdDate = format(new Date(t.created_at), "MMM d, yyyy").toLowerCase();
+        const expiresDate = format(new Date(t.expires_at), "MMM d, yyyy").toLowerCase();
+        const progressStr = String(t.onboarding_score || 0);
+        
+        return (
           t.owner_email.toLowerCase().includes(query) ||
-          t.property_name?.toLowerCase().includes(query)
-      );
+          t.property_name?.toLowerCase().includes(query) ||
+          status.includes(query) ||
+          createdDate.includes(query) ||
+          expiresDate.includes(query) ||
+          progressStr.includes(query)
+        );
+      });
     }
 
     return result;
@@ -355,7 +365,7 @@ export default function AdminOnboarding() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by property or email..."
+            placeholder="Search all columns..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"

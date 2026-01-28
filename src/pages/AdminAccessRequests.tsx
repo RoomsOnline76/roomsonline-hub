@@ -1,16 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { Check, X, Clock, UserPlus, Shield } from "lucide-react";
+import { Check, X, Clock, UserPlus, Shield, Search } from "lucide-react";
 import { AddUserModal } from "@/components/AddUserModal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
@@ -33,6 +34,7 @@ export default function AdminAccessRequests() {
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<AccessRequest | null>(null);
   const [selectedRole, setSelectedRole] = useState<"admin" | "user">("user");
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     if (!authLoading && (!user || !isAdmin)) {
@@ -128,6 +130,25 @@ export default function AdminAccessRequests() {
 
   const pendingCount = requests.filter(r => r.status === "pending").length;
 
+  // Filter requests by search term across all columns
+  const filteredRequests = useMemo(() => {
+    if (!searchTerm.trim()) return requests;
+    
+    const term = searchTerm.toLowerCase();
+    return requests.filter(request => {
+      const statusLabel = request.status.toLowerCase();
+      const submittedDate = format(new Date(request.created_at), "MMM d, yyyy HH:mm").toLowerCase();
+      
+      return (
+        request.full_name.toLowerCase().includes(term) ||
+        request.email.toLowerCase().includes(term) ||
+        (request.message?.toLowerCase().includes(term) || false) ||
+        statusLabel.includes(term) ||
+        submittedDate.includes(term)
+      );
+    });
+  }, [requests, searchTerm]);
+
   if (authLoading || loading) {
     return (
       <AppLayout>
@@ -146,6 +167,19 @@ export default function AdminAccessRequests() {
         title="Access Requests"
         subtitle={`${pendingCount} pending`}
       />
+
+      {/* Search */}
+      <div className="mb-3">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search all columns..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 h-9"
+          />
+        </div>
+      </div>
 
         <div className="grid grid-cols-3 gap-2 mb-3">
           <Card>
@@ -182,8 +216,10 @@ export default function AdminAccessRequests() {
             </div>
           </CardHeader>
           <CardContent className="py-2 px-4">
-            {requests.length === 0 ? (
-              <p className="text-center text-muted-foreground text-xs py-4">No access requests yet</p>
+            {filteredRequests.length === 0 ? (
+              <p className="text-center text-muted-foreground text-xs py-4">
+                {searchTerm ? "No requests match your search" : "No access requests yet"}
+              </p>
             ) : (
               <Table>
                 <TableHeader>
@@ -197,7 +233,7 @@ export default function AdminAccessRequests() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {requests.map((request) => (
+                  {filteredRequests.map((request) => (
                     <TableRow key={request.id} className="h-10">
                       <TableCell className="font-medium text-xs py-1">{request.full_name}</TableCell>
                       <TableCell className="text-xs py-1">{request.email}</TableCell>

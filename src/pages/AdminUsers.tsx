@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -172,11 +173,26 @@ export default function AdminUsers() {
 
   useEffect(() => {
     if (searchTerm) {
-      const filtered = users.filter(
-        (user) =>
-          user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          user.email.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      const term = searchTerm.toLowerCase();
+      const filtered = users.filter((user) => {
+        // Get PMS system names for this user
+        const pmsNames = user.pms_credentials?.map(c => {
+          const pmsSystem = getPMSSystemByKey(c.system_type);
+          return pmsSystem?.name?.toLowerCase() || c.system_type.toLowerCase();
+        }).join(' ') || '';
+        
+        // Format joined date for search
+        const joinedDate = format(new Date(user.created_at), "MMM d, yyyy").toLowerCase();
+        
+        return (
+          user.full_name?.toLowerCase().includes(term) ||
+          user.email.toLowerCase().includes(term) ||
+          user.role.toLowerCase().includes(term) ||
+          pmsNames.includes(term) ||
+          String(user.property_count || 0).includes(term) ||
+          joinedDate.includes(term)
+        );
+      });
       setFilteredUsers(filtered);
     } else {
       setFilteredUsers(users);
@@ -417,7 +433,7 @@ export default function AdminUsers() {
                   aria-hidden="true"
                 />
                 <Input
-                  placeholder="Search users..."
+                  placeholder="Search all columns..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9 h-9"

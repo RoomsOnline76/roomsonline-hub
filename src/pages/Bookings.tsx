@@ -402,17 +402,34 @@ const Bookings = () => {
       );
     }
     
-    // Filter by search term
+    // Filter by search term - searches all visible columns
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       result = result.filter(booking => {
         const internalRef = booking.id.slice(0, 8).toLowerCase();
+        const checkInDate = format(parseISO(booking.check_in_date), "MMM d, yyyy").toLowerCase();
+        const checkOutDate = format(parseISO(booking.check_out_date), "MMM d, yyyy").toLowerCase();
+        const bookedDate = booking.created_at 
+          ? format(new Date(booking.created_at), "dd MMM HH:mm").toLowerCase() 
+          : "";
+        const status = booking.status?.toLowerCase() || "";
+        const rateType = booking.rate_type_name?.toLowerCase() || "";
+        const totalGuests = String(booking.adults + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0));
+        const totalPrice = String(booking.total_price);
+        
         return (
           booking.guest_name.toLowerCase().includes(term) ||
           booking.guest_email.toLowerCase().includes(term) ||
           booking.property_name?.toLowerCase().includes(term) ||
           booking.external_reservation_id?.toLowerCase().includes(term) ||
-          internalRef.startsWith(term)
+          internalRef.startsWith(term) ||
+          checkInDate.includes(term) ||
+          checkOutDate.includes(term) ||
+          bookedDate.includes(term) ||
+          status.includes(term) ||
+          rateType.includes(term) ||
+          totalGuests.includes(term) ||
+          totalPrice.includes(term)
         );
       });
     }
