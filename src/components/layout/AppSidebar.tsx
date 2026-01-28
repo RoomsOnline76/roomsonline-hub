@@ -28,6 +28,11 @@ import {
   Wand2,
   Sparkles,
   TrendingUp,
+  Activity,
+  Database,
+  Flag,
+  FlaskConical,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -122,9 +127,15 @@ const editAuditItems: NavItem[] = [
 
 // System menu - Dev/Fearless Leader technical items (Integrations dev-only)
 const systemItems: NavItem[] = [
+  { title: "System Overview", icon: Activity, href: "/dev/overview", requireDev: true },
+  { title: "PMS Control", icon: Server, href: "/dev/pms", requireDev: true },
   { title: "Integrations", icon: KeyRound, href: "/admin-keys", requireDev: true },
   { title: "Supporting Systems", icon: Settings, href: "/admin/supporting-systems", requireDevOrFearless: true },
   { title: "System Health", icon: HeartPulse, href: "/admin/system-health", requireDevOrFearless: true },
+  { title: "Data & Logs", icon: Database, href: "/dev/logs", requireDev: true },
+  { title: "Feature Flags", icon: Flag, href: "/dev/features", requireDev: true },
+  { title: "AI Testing", icon: FlaskConical, href: "/dev/testing", requireDev: true },
+  { title: "Danger Zone", icon: AlertTriangle, href: "/dev/danger", requireDev: true },
 ];
 
 export function AppSidebar() {
