@@ -401,6 +401,33 @@ export type Database = {
           },
         ]
       }
+      brochure_templates: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_default: boolean | null
+          name: string
+          sections: Json | null
+          styles: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name: string
+          sections?: Json | null
+          styles?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          sections?: Json | null
+          styles?: Json | null
+        }
+        Relationships: []
+      }
       charge_presets: {
         Row: {
           category: string
@@ -1180,6 +1207,81 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      local_experiences: {
+        Row: {
+          best_time: string | null
+          booking_link: string | null
+          category: string | null
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          distance_km: number | null
+          duration_hours: number | null
+          id: string
+          image_url: string | null
+          is_active: boolean | null
+          price_indicator: string | null
+          property_id: string | null
+          source: string | null
+          title: string
+          updated_at: string | null
+          why_locals_love_it: string | null
+        }
+        Insert: {
+          best_time?: string | null
+          booking_link?: string | null
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          distance_km?: number | null
+          duration_hours?: number | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          price_indicator?: string | null
+          property_id?: string | null
+          source?: string | null
+          title: string
+          updated_at?: string | null
+          why_locals_love_it?: string | null
+        }
+        Update: {
+          best_time?: string | null
+          booking_link?: string | null
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          distance_km?: number | null
+          duration_hours?: number | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          price_indicator?: string | null
+          property_id?: string | null
+          source?: string | null
+          title?: string
+          updated_at?: string | null
+          why_locals_love_it?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "local_experiences_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "local_experiences_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       meal_type_suggestions: {
         Row: {
