@@ -8,6 +8,13 @@
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│  STREAMLINED FLOW (Single-Room Properties)                                              │
+│                                                                                         │
+│  HOME (/)  ───►  PROPERTY SHOWCASE  ───►  [QuickBookDrawer]  ───►  BOOKING  ───►  CONFIRM
+│                  /property/:slug           (embedded drawer)      /booking/:slug        │
+│                                            3-4 clicks total                             │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│  MULTI-ROOM FLOW                                                                        │
 │                                                                                         │
 │  HOME (/)  ───►  PROPERTY SHOWCASE  ───►  ROOM SHOWCASE  ───►  AVAILABILITY  ───►  BOOKING
 │                  /property/:slug         /property/:slug/      /property/:slug/   /booking/:slug
@@ -17,11 +24,9 @@
 │                                                                      ▼
 │                                                               CONFIRMATION
 │                                                               /booking-confirmation/:bookingId
-│                                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────────────────────┐   │
-│  │ ALTERNATIVE: NightsBridge Properties                                             │   │
-│  │ PropertyShowcase → Embedded Iframe Booking (no /booking/:slug page)              │   │
-│  └─────────────────────────────────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│  ALTERNATIVE: NightsBridge Properties                                                   │
+│  PropertyShowcase → Embedded Iframe Booking (no /booking/:slug page)                    │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -50,11 +55,12 @@
 - Editorial description and property facts
 - Room collection gallery
 - Sticky booking CTA bar
+- Floating date/guest picker (for PMS properties)
 
 **User Actions**:
 1. Scroll through property content
-2. Click room card → navigates to Room Showcase
-3. Click "Explore Rooms" → scrolls to room collection
+2. **Single-room properties**: Click "Book Now" → Opens `QuickBookDrawer` (embedded)
+3. **Multi-room properties**: Click room card → navigates to Room Showcase
 4. Use floating date/guest picker for availability check
 
 **Key Components**:
@@ -64,7 +70,25 @@ PropertyShowcase.tsx
 ├── QuietFacts.tsx              # Property quick facts
 ├── RoomCollection.tsx          # Grid of room cards
 ├── StickyBookingCTA.tsx        # Fixed bottom bar
-└── FloatingDateGuestPicker.tsx # Date/guest selector overlay
+├── FloatingDateGuestPicker.tsx # Date/guest selector overlay
+└── QuickBookDrawer.tsx         # NEW: Embedded booking drawer (single-room shortcut)
+```
+
+**Key Logic for Single-Room Optimization**:
+```typescript
+const handleBookProperty = () => {
+  // NightsBridge: External iframe
+  if (isNightsBridgeProperty) { /* redirect */ }
+  
+  // Single-room property: Open QuickBookDrawer directly
+  if (roomTypes.length === 1) {
+    setQuickBookDrawerOpen(true);
+    return;
+  }
+  
+  // Multi-room: Scroll to rooms section
+  scrollToRooms();
+};
 ```
 
 **Data Sources**:

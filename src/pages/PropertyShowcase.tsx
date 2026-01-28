@@ -11,6 +11,7 @@ import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 import TripAdvisorReviews from "@/components/TripAdvisorReviews";
 import { PublicLayout } from "@/components/layout/PublicLayout";
 import { FloatingDateGuestPicker } from "@/components/booking/FloatingDateGuestPicker";
+import { QuickBookDrawer } from "@/components/booking/QuickBookDrawer";
 import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
 import { ChevronLeft, ChevronRight, ExternalLink, Info } from "lucide-react";
 
@@ -185,6 +186,7 @@ export default function PropertyShowcase() {
   const [bookedRooms, setBookedRooms] = useState<BookingRoom[]>([]);
   const [showLeavingModal, setShowLeavingModal] = useState(false);
   const [externalBookingUrl, setExternalBookingUrl] = useState<string>("");
+  const [quickBookDrawerOpen, setQuickBookDrawerOpen] = useState(false);
 
   useEffect(() => {
     if (id) fetchPropertyData();
@@ -435,11 +437,24 @@ export default function PropertyShowcase() {
         return;
       }
     }
-    if ((isBensonProperty || isHotelBedsProperty) && bookedRooms.length > 0) {
+    // For PMS properties with booked rooms, go to checkout
+    if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty) && bookedRooms.length > 0) {
       navigate(`/booking/${property?.slug || property?.id}`);
       return;
     }
+    // For single-room properties, open quick book drawer directly
+    const rooms = getRoomTypes();
+    if (rooms.length === 1 && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty)) {
+      setQuickBookDrawerOpen(true);
+      return;
+    }
+    // Otherwise scroll to rooms section
     scrollToRooms();
+  };
+
+  const handleQuickBook = (roomId?: string) => {
+    // Open drawer with optional pre-selected room
+    setQuickBookDrawerOpen(true);
   };
 
   const handleRoomClick = (room: RoomType) => {
@@ -560,7 +575,7 @@ export default function PropertyShowcase() {
         latitude={property.latitude}
         longitude={property.longitude}
         onBookNow={handleBookProperty}
-        bookingLabel={isNightsBridgeProperty ? "Book Now" : bookedRooms.length > 0 ? "Checkout" : "Select a Room"}
+        bookingLabel={isNightsBridgeProperty ? "Book Now" : bookedRooms.length > 0 ? "Checkout" : roomTypes.length === 1 ? "Book Now" : "Select a Room"}
       />
 
       {/* Sticky Booking CTA */}
@@ -570,6 +585,9 @@ export default function PropertyShowcase() {
         isExternal={isNightsBridgeProperty}
         bookedRoomsCount={bookedRooms.length}
         propertyName={property.name}
+        propertyId={property.id}
+        propertySlug={property.slug || property.id}
+        propertyImage={property.images?.[0]}
       />
 
       {/* NightsBridge Leaving Modal */}
@@ -580,9 +598,27 @@ export default function PropertyShowcase() {
         propertyName={property?.name}
       />
       
+      {/* Quick Book Drawer for streamlined booking */}
+      {(isBensonProperty || isHotelBedsProperty || isHostfullyProperty) && (
+        <QuickBookDrawer
+          open={quickBookDrawerOpen}
+          onOpenChange={setQuickBookDrawerOpen}
+          propertyId={property.id}
+          propertySlug={property.slug || property.id}
+          propertyName={property.name}
+          propertyImage={property.images?.[0]}
+          externalSystem={property.external_system || undefined}
+          roomTypes={roomTypes}
+          defaultRoomId={roomTypes.length === 1 ? roomTypes[0].id : undefined}
+        />
+      )}
+      
       {/* Floating Date/Guest Picker for Benson and HotelBeds properties */}
       {(isBensonProperty || isHotelBedsProperty || isHostfullyProperty) && (
-        <FloatingDateGuestPicker onContinue={scrollToRooms} ctaLabel="Check Rates" />
+        <FloatingDateGuestPicker 
+          onContinue={() => setQuickBookDrawerOpen(true)} 
+          ctaLabel="Book Now" 
+        />
       )}
     </PublicLayout>
   );
