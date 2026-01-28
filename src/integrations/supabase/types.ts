@@ -274,6 +274,7 @@ export type Database = {
           adults: number
           booking_channel: string | null
           calculated_commission: number | null
+          charges_breakdown: Json | null
           check_in_date: string
           check_out_date: string
           children: number | null
@@ -311,6 +312,7 @@ export type Database = {
           adults?: number
           booking_channel?: string | null
           calculated_commission?: number | null
+          charges_breakdown?: Json | null
           check_in_date: string
           check_out_date: string
           children?: number | null
@@ -348,6 +350,7 @@ export type Database = {
           adults?: number
           booking_channel?: string | null
           calculated_commission?: number | null
+          charges_breakdown?: Json | null
           check_in_date?: string
           check_out_date?: string
           children?: number | null
@@ -397,6 +400,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      charge_presets: {
+        Row: {
+          category: string
+          created_at: string | null
+          default_calculation_method: string | null
+          default_description: string | null
+          display_order: number | null
+          id: string
+          is_common: boolean | null
+          name: string
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          default_calculation_method?: string | null
+          default_description?: string | null
+          display_order?: number | null
+          id?: string
+          is_common?: boolean | null
+          name: string
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          default_calculation_method?: string | null
+          default_description?: string | null
+          display_order?: number | null
+          id?: string
+          is_common?: boolean | null
+          name?: string
+        }
+        Relationships: []
       }
       checkfront_connections: {
         Row: {
@@ -2572,6 +2608,117 @@ export type Database = {
             foreignKeyName: "property_bank_details_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: true
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_charges: {
+        Row: {
+          amount: number
+          applies_to_adults: boolean | null
+          applies_to_all_rooms: boolean | null
+          applies_to_children: boolean | null
+          applies_to_infants: boolean | null
+          calculation_method: string
+          category: string
+          created_at: string | null
+          currency: string | null
+          description: string | null
+          display_order: number | null
+          id: string
+          internal_code: string | null
+          is_active: boolean | null
+          is_refundable: boolean | null
+          max_cap: number | null
+          max_nights: number | null
+          min_cap: number | null
+          min_nights: number | null
+          name: string
+          partial_refund_percentage: number | null
+          percentage_apply_to: string | null
+          pms_external_id: string | null
+          property_id: string
+          rate_type_ids: string[] | null
+          refund_timing: string | null
+          refund_type: string | null
+          room_type_ids: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          applies_to_adults?: boolean | null
+          applies_to_all_rooms?: boolean | null
+          applies_to_children?: boolean | null
+          applies_to_infants?: boolean | null
+          calculation_method: string
+          category: string
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          internal_code?: string | null
+          is_active?: boolean | null
+          is_refundable?: boolean | null
+          max_cap?: number | null
+          max_nights?: number | null
+          min_cap?: number | null
+          min_nights?: number | null
+          name: string
+          partial_refund_percentage?: number | null
+          percentage_apply_to?: string | null
+          pms_external_id?: string | null
+          property_id: string
+          rate_type_ids?: string[] | null
+          refund_timing?: string | null
+          refund_type?: string | null
+          room_type_ids?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          applies_to_adults?: boolean | null
+          applies_to_all_rooms?: boolean | null
+          applies_to_children?: boolean | null
+          applies_to_infants?: boolean | null
+          calculation_method?: string
+          category?: string
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          internal_code?: string | null
+          is_active?: boolean | null
+          is_refundable?: boolean | null
+          max_cap?: number | null
+          max_nights?: number | null
+          min_cap?: number | null
+          min_nights?: number | null
+          name?: string
+          partial_refund_percentage?: number | null
+          percentage_apply_to?: string | null
+          pms_external_id?: string | null
+          property_id?: string
+          rate_type_ids?: string[] | null
+          refund_timing?: string | null
+          refund_type?: string | null
+          room_type_ids?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_charges_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_charges_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "public_properties"
             referencedColumns: ["id"]
           },
