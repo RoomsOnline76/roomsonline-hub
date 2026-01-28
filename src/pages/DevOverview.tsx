@@ -67,11 +67,12 @@ export default function DevOverview() {
         .from('pms_credentials')
         .select('system_type, sync_status, last_sync_at, is_active');
 
-      // Load actual properties to count how many use each PMS
+      // Load actual ACTIVE properties to count how many use each PMS
       // Properties use 'external_system' column, with fallbacks for benson_property_code and owner_pms_credential_id
       const { data: properties } = await supabase
         .from('properties')
-        .select('id, external_system, benson_property_code, owner_pms_credential_id');
+        .select('id, external_system, benson_property_code, owner_pms_credential_id')
+        .eq('is_active', true);
 
       // Count properties per PMS type
       const propertyCountByPms = new Map<string, number>();
