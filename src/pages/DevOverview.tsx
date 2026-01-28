@@ -68,15 +68,21 @@ export default function DevOverview() {
         .select('system_type, sync_status, last_sync_at, is_active');
 
       // Load actual properties to count how many use each PMS
+      // Properties use 'external_system' column, with fallbacks for benson_property_code and owner_pms_credential_id
       const { data: properties } = await supabase
         .from('properties')
-        .select('id, pms_type')
-        .not('pms_type', 'is', null);
+        .select('id, external_system, benson_property_code, owner_pms_credential_id');
 
       // Count properties per PMS type
       const propertyCountByPms = new Map<string, number>();
       (properties || []).forEach((prop: any) => {
-        const pmsType = prop.pms_type?.toLowerCase();
+        let pmsType = prop.external_system?.toLowerCase();
+        // Fallback detection for properties without external_system set
+        if (!pmsType && prop.benson_property_code) {
+          pmsType = 'benson';
+        } else if (!pmsType && prop.owner_pms_credential_id) {
+          pmsType = 'hostfully';
+        }
         if (pmsType) {
           propertyCountByPms.set(pmsType, (propertyCountByPms.get(pmsType) || 0) + 1);
         }
