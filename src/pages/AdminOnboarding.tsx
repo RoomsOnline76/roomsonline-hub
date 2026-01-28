@@ -78,6 +78,25 @@ interface TokenData {
   property_id: string;
 }
 
+interface PropertyData {
+  id: string;
+  name: string;
+  owner_email: string | null;
+  listing_status: string | null;
+  show_on_website: boolean;
+  amenities: Record<string, unknown> | null;
+  description: string | null;
+  short_description: string | null;
+  address: string | null;
+  city: string | null;
+  country: string | null;
+  price_per_night: number | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  images: string[] | null;
+  hero_video_url: string | null;
+}
+
 interface PropertyOnboardingRow {
   id: string;
   name: string;
@@ -85,8 +104,40 @@ interface PropertyOnboardingRow {
   listing_status: string | null;
   show_on_website: boolean;
   onboarding_score: number;
+  fieldCompletionScore: number;
+  effectiveProgress: number;
   token: TokenData | null;
 }
+
+// Calculate field completion percentage based on key property fields
+const calculateFieldCompletion = (prop: PropertyData): number => {
+  const amenities = prop.amenities || {};
+  
+  const fields = [
+    { filled: !!prop.name, weight: 1 },
+    { filled: !!prop.description, weight: 2 },
+    { filled: !!prop.short_description, weight: 1 },
+    { filled: !!prop.owner_email, weight: 1 },
+    { filled: !!prop.address, weight: 1 },
+    { filled: !!prop.city, weight: 1 },
+    { filled: !!prop.country, weight: 1 },
+    { filled: prop.price_per_night !== null && prop.price_per_night > 0, weight: 2 },
+    { filled: prop.bedrooms !== null && prop.bedrooms > 0, weight: 1 },
+    { filled: prop.bathrooms !== null && prop.bathrooms > 0, weight: 1 },
+    { filled: Array.isArray(prop.images) && prop.images.length > 0, weight: 2 },
+    { filled: !!prop.hero_video_url || !!(amenities as Record<string, unknown>).hero_image_url, weight: 2 },
+    { filled: !!(amenities as Record<string, unknown>).check_in_time, weight: 1 },
+    { filled: !!(amenities as Record<string, unknown>).check_out_time, weight: 1 },
+    { filled: !!(amenities as Record<string, unknown>).cancellation_policy, weight: 1 },
+    // Check amenities for additional required fields
+    { filled: !!(amenities as Record<string, unknown>).telephone || !!((amenities as Record<string, unknown>).contact as Record<string, unknown>)?.telephone, weight: 1 },
+  ];
+
+  const totalWeight = fields.reduce((sum, f) => sum + f.weight, 0);
+  const filledWeight = fields.reduce((sum, f) => sum + (f.filled ? f.weight : 0), 0);
+  
+  return Math.round((filledWeight / totalWeight) * 100);
+};
 
 type StatusFilter = "all" | OnboardingStatus;
 
@@ -168,10 +219,10 @@ export default function AdminOnboarding() {
     try {
       setLoading(true);
 
-      // Load all properties (non-deleted)
+      // Load all properties (non-deleted) with fields needed for completion calculation
       const { data: propData, error: propError } = await supabase
         .from("properties")
-        .select("id, name, owner_email, listing_status, show_on_website, amenities")
+        .select("id, name, owner_email, listing_status, show_on_website, amenities, description, short_description, address, city, country, price_per_night, bedrooms, bathrooms, images, hero_video_url")
         .is("permanently_deleted_at", null)
         .order("created_at", { ascending: false });
 
@@ -196,15 +247,42 @@ export default function AdminOnboarding() {
 
       const enrichedProperties: PropertyOnboardingRow[] = (propData || []).map((prop) => {
         const amenities = prop.amenities as Record<string, unknown> | null;
+        const onboardingScore = typeof amenities?.onboarding_score === "number" 
+          ? amenities.onboarding_score 
+          : 0;
+        
+        // Calculate field completion from property data
+        const fieldCompletionScore = calculateFieldCompletion({
+          id: prop.id,
+          name: prop.name,
+          owner_email: prop.owner_email,
+          listing_status: prop.listing_status,
+          show_on_website: prop.show_on_website || false,
+          amenities,
+          description: prop.description,
+          short_description: prop.short_description,
+          address: prop.address,
+          city: prop.city,
+          country: prop.country,
+          price_per_night: prop.price_per_night,
+          bedrooms: prop.bedrooms,
+          bathrooms: prop.bathrooms,
+          images: prop.images as string[] | null,
+          hero_video_url: prop.hero_video_url,
+        });
+        
+        // Use the higher of wizard score or field completion
+        const effectiveProgress = Math.max(onboardingScore, fieldCompletionScore);
+        
         return {
           id: prop.id,
           name: prop.name,
           owner_email: prop.owner_email,
           listing_status: prop.listing_status,
           show_on_website: prop.show_on_website || false,
-          onboarding_score: typeof amenities?.onboarding_score === "number" 
-            ? amenities.onboarding_score 
-            : 0,
+          onboarding_score: onboardingScore,
+          fieldCompletionScore,
+          effectiveProgress,
           token: tokensByProperty.get(prop.id) || null,
         };
       });
@@ -531,9 +609,9 @@ export default function AdminOnboarding() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2 min-w-32">
-                        <Progress value={row.onboarding_score} className="h-2" />
+                        <Progress value={row.effectiveProgress} className="h-2" />
                         <span className="text-sm text-muted-foreground w-10">
-                          {row.onboarding_score}%
+                          {row.effectiveProgress}%
                         </span>
                       </div>
                     </TableCell>
