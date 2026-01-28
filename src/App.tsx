@@ -10,6 +10,7 @@ import { RecaptchaProvider } from "@/components/RecaptchaProvider";
 import JourneyReview from "./pages/JourneyReview";
 import JourneyConfirmation from "./pages/JourneyConfirmation";
 import JourneyCheckout from "./pages/JourneyCheckout";
+import ItineraryBuilder from "./pages/ItineraryBuilder";
 import Home from "./pages/Home";
 import HomeOld from "./pages/HomeOld";
 import StagingBook from "./pages/StagingBook";
@@ -394,6 +395,7 @@ const App = () => (
               }
             />
             {/* Journey routes */}
+            <Route path="/journey/builder" element={<ItineraryBuilder />} />
             <Route path="/journey/review" element={<JourneyReview />} />
             <Route path="/journey/checkout" element={<JourneyCheckout />} />
             <Route path="/journey/confirmation/:itineraryId" element={<JourneyConfirmation />} />
