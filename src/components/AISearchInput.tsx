@@ -43,7 +43,7 @@ export function AISearchInput() {
         <div className="relative w-full">
           {/* Frosted glass container */}
           <div className="flex items-center gap-3 px-5 py-4 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-lg transition-all focus-within:bg-white/15 focus-within:border-white/30 focus-within:ring-2 focus-within:ring-primary/30">
-            {/* AI Icon */}
+            {/* Smart Search Icon */}
             <div className="flex-shrink-0">
               {isLoading ? (
                 <Loader2 className="h-5 w-5 text-white/80 animate-spin" />

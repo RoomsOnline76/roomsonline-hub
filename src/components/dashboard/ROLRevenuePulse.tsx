@@ -346,7 +346,7 @@ export function ROLRevenuePulse() {
             return fnData?.insight || "No insight generated.";
           } catch (err) {
             const message = err instanceof Error ? err.message : "Unknown error";
-            toast.error("AI Assistant Error", { description: message });
+            toast.error("Insight Error", { description: message });
             return "Error: " + message;
           }
         }}

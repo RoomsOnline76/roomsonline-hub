@@ -25,7 +25,7 @@ export function TobiAssistant() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Hi there! I'm TOBI, your friendly ROL assistant 🐱 Ask me anything about using Rooms Online - from adding properties to managing bookings. How can I help you today?",
+      content: "Hi there! I'm TOBI, your built-in ROL guide 🐱 Ask me anything about using Rooms Online - from adding properties to managing bookings. How can I help you today?",
     },
   ]);
   const [input, setInput] = useState("");
@@ -154,7 +154,7 @@ export function TobiAssistant() {
     setMessages([
       {
         role: "assistant",
-        content: "Hi there! I'm TOBI, your friendly ROL assistant 🐱 Ask me anything about using Rooms Online - from adding properties to managing bookings. How can I help you today?",
+        content: "Hi there! I'm TOBI, your built-in ROL guide 🐱 Ask me anything about using Rooms Online - from adding properties to managing bookings. How can I help you today?",
       },
     ]);
     setInput("");
@@ -177,7 +177,7 @@ export function TobiAssistant() {
           </div>
           <div>
             <h3 className="font-semibold text-sm">TOBI</h3>
-            <p className="text-xs text-muted-foreground">Your ROL Assistant</p>
+            <p className="text-xs text-muted-foreground">Your ROL Guide</p>
           </div>
         </div>
         <Button variant="ghost" size="icon" onClick={resetChat} title="Start new chat">

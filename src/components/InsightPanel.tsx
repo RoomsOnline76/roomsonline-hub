@@ -134,7 +134,7 @@ export function InsightPanel({
             <div className="text-center py-8">
               <Sparkles className="h-8 w-8 text-muted-foreground/50 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">
-                Ask a question to get AI-powered insights about your data
+                Ask a question to get insights about your data
               </p>
             </div>
           )}

@@ -594,7 +594,7 @@ export default function PropertyShowcase() {
         bookingLabel={isNightsBridgeProperty ? "Book Now" : bookedRooms.length > 0 ? "Checkout" : roomTypes.length === 1 ? "Book Now" : "Select a Room"}
       />
 
-      {/* AI-Powered Recommendations */}
+      {/* Personalized Recommendations */}
       <PropertyRecommendations 
         currentPropertyId={property.id} 
         variant="full"

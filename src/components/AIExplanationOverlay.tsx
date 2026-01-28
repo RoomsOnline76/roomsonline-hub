@@ -30,7 +30,7 @@ export function AIExplanationOverlay() {
         <button
           onClick={resetAISearch}
           className="absolute top-3 right-3 p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-          aria-label="Close AI results"
+          aria-label="Close smart search results"
         >
           <X className="h-4 w-4 text-white" />
         </button>
@@ -49,7 +49,7 @@ export function AIExplanationOverlay() {
         {/* Query echo */}
         <p className="text-xs text-white/60 mb-2 italic">"{aiQuery}"</p>
 
-        {/* AI Explanation */}
+        {/* Explanation */}
         <p className="text-sm sm:text-base text-white leading-relaxed">
           {aiExplanation}
         </p>
