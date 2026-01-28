@@ -231,10 +231,10 @@ export default function DevOverview() {
   return (
     <AppLayout>
       <div className="flex items-center justify-between mb-6">
-        <PageHeader
-          title="System Overview"
-          subtitle="Global health of PMS adapters, edge functions, and sync pipelines"
-        />
+      <PageHeader
+        title="System Overview"
+        subtitle="PMS adapters, edge functions, and sync pipelines"
+      />
         <div className="flex gap-2">
           <Button 
             variant="outline" 
