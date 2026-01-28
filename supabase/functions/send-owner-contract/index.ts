@@ -6,6 +6,36 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Intent-aware step mapping
+const INTENT_STEPS: Record<string, string[]> = {
+  accommodation: ['property_identity', 'contact_details', 'location', 'rooms_overview', 'policies_pricing', 'facilities', 'media_documents', 'guest_experience', 'review'],
+  venue: ['property_identity', 'contact_details', 'location', 'capacity', 'event_types', 'facilities', 'media_documents', 'guest_experience', 'review'],
+  hybrid: ['property_identity', 'contact_details', 'location', 'rooms_overview', 'capacity', 'event_types', 'policies_pricing', 'facilities', 'media_documents', 'guest_experience', 'review'],
+  experience: ['property_identity', 'contact_details', 'location', 'experience_details', 'logistics', 'media_documents', 'review'],
+};
+
+// Minimum requirements per intent
+const INTENT_REQUIREMENTS: Record<string, Record<string, unknown>> = {
+  accommodation: {
+    min_images: 5,
+    min_rooms: 1,
+    required_fields: ['name', 'address', 'description', 'check_in_time', 'check_out_time', 'price_per_night'],
+  },
+  venue: {
+    min_images: 5,
+    required_fields: ['name', 'address', 'description', 'venue_capacity', 'event_types'],
+  },
+  hybrid: {
+    min_images: 8,
+    min_rooms: 1,
+    required_fields: ['name', 'address', 'description', 'check_in_time', 'check_out_time', 'venue_capacity'],
+  },
+  experience: {
+    min_images: 3,
+    required_fields: ['name', 'address', 'description', 'duration', 'max_participants'],
+  },
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -17,7 +47,15 @@ Deno.serve(async (req) => {
     const resendKey = Deno.env.get("RESEND_API_KEY");
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const { owner_email, owner_name, resend: isResend } = await req.json();
+    const { 
+      owner_email, 
+      owner_name, 
+      resend: isResend,
+      // New intent-aware fields
+      listing_intent,
+      commercial_model,
+      property_id // Optional: if sending contract for specific property created via preflight
+    } = await req.json();
 
     if (!owner_email) {
       return new Response(JSON.stringify({ error: "owner_email required" }), {
@@ -31,7 +69,7 @@ Deno.serve(async (req) => {
     // Check if properties exist for this owner (determines if new owner)
     const { data: properties, error: propError } = await supabase
       .from("properties")
-      .select("id, name, slug, address, city, country, property_type, amenities")
+      .select("id, name, slug, address, city, country, property_type, amenities, listing_intent, commercial_model")
       .eq("owner_email", normalizedEmail)
       .is("permanently_deleted_at", null)
       .order("name");
@@ -45,6 +83,31 @@ Deno.serve(async (req) => {
     }
 
     const isNewOwner = !properties || properties.length === 0;
+    
+    // Determine listing intent - from request, property, or default
+    let resolvedIntent = listing_intent || 'accommodation';
+    let resolvedCommercialModel = commercial_model || 'commission';
+    
+    // If property_id is provided, get intent from that property
+    if (property_id) {
+      const property = properties?.find(p => p.id === property_id);
+      if (property) {
+        resolvedIntent = property.listing_intent || resolvedIntent;
+        resolvedCommercialModel = property.commercial_model || resolvedCommercialModel;
+      }
+    }
+    
+    // If updating property status when sending contract
+    if (property_id) {
+      const { error: statusError } = await supabase
+        .from("properties")
+        .update({ listing_status: 'contract_sent' })
+        .eq("id", property_id);
+      
+      if (statusError) {
+        console.error("Error updating property status:", statusError);
+      }
+    }
 
     // Check if user exists and create if needed
     let userId: string | null = null;
@@ -119,8 +182,19 @@ Deno.serve(async (req) => {
 
     console.log("Active template version:", activeTemplate?.id || "none found");
     console.log("Is new owner:", isNewOwner);
+    console.log("Listing intent:", resolvedIntent);
+    console.log("Commercial model:", resolvedCommercialModel);
 
-    // Create contract record with template_version_id and is_new_owner flag
+    // Build contract metadata with intent information
+    const contractMetadata = {
+      listing_intent: resolvedIntent,
+      commercial_model: resolvedCommercialModel,
+      expected_steps: INTENT_STEPS[resolvedIntent] || INTENT_STEPS.accommodation,
+      min_requirements: INTENT_REQUIREMENTS[resolvedIntent] || INTENT_REQUIREMENTS.accommodation,
+      property_id: property_id || null,
+    };
+
+    // Create contract record with template_version_id, is_new_owner flag, and metadata
     const { data: contract, error: createError } = await supabase
       .from("owner_contracts")
       .insert({
@@ -132,6 +206,7 @@ Deno.serve(async (req) => {
         token_expires_at: tokenExpiresAt,
         template_version_id: activeTemplate?.id || null,
         is_new_owner: isNewOwner,
+        metadata: contractMetadata,
       })
       .select()
       .single();
@@ -247,6 +322,7 @@ Deno.serve(async (req) => {
       signing_url: signingUrl,
       properties_count: properties?.length || 0,
       is_new_owner: isNewOwner,
+      metadata: contractMetadata,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
