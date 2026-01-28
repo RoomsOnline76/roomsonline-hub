@@ -7,11 +7,13 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { useMobileBooking } from "@/contexts/MobileBookingContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useNightsBridgeTracking } from "@/hooks/useNightsBridgeTracking";
+import { useBehavioralMemory } from "@/hooks/useBehavioralMemory";
 import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 import TripAdvisorReviews from "@/components/TripAdvisorReviews";
 import { PublicLayout } from "@/components/layout/PublicLayout";
 import { FloatingDateGuestPicker } from "@/components/booking/FloatingDateGuestPicker";
 import { QuickBookDrawer } from "@/components/booking/QuickBookDrawer";
+import { PropertyRecommendations } from "@/components/booking/PropertyRecommendations";
 import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
 import { ChevronLeft, ChevronRight, ExternalLink, Info } from "lucide-react";
 
@@ -178,6 +180,7 @@ export default function PropertyShowcase() {
   const { currency } = useCurrency();
   const { setProperty } = useMobileBooking();
   const { createBookingSession } = useNightsBridgeTracking();
+  const { trackPropertyView } = useBehavioralMemory();
   const [property, setPropertyData] = useState<Property | null>(null);
   const [availability, setAvailability] = useState<Map<string, AvailabilityData>>(new Map());
   const [nightsBridgeAgentCode, setNightsBridgeAgentCode] = useState<string | null>(null);
@@ -187,6 +190,19 @@ export default function PropertyShowcase() {
   const [showLeavingModal, setShowLeavingModal] = useState(false);
   const [externalBookingUrl, setExternalBookingUrl] = useState<string>("");
   const [quickBookDrawerOpen, setQuickBookDrawerOpen] = useState(false);
+
+  // Track property view in behavioral memory
+  useEffect(() => {
+    if (property) {
+      trackPropertyView({
+        propertyId: property.id,
+        propertyName: property.name,
+        location: property.city,
+        priceRange: property.price_per_night > 5000 ? 'luxury' : property.price_per_night > 2000 ? 'mid' : 'budget',
+        tags: property.amenities?.facilities?.slice(0, 5) || [],
+      });
+    }
+  }, [property?.id]);
 
   useEffect(() => {
     if (id) fetchPropertyData();
@@ -576,6 +592,13 @@ export default function PropertyShowcase() {
         longitude={property.longitude}
         onBookNow={handleBookProperty}
         bookingLabel={isNightsBridgeProperty ? "Book Now" : bookedRooms.length > 0 ? "Checkout" : roomTypes.length === 1 ? "Book Now" : "Select a Room"}
+      />
+
+      {/* AI-Powered Recommendations */}
+      <PropertyRecommendations 
+        currentPropertyId={property.id} 
+        variant="full"
+        className="runway-section-spacing"
       />
 
       {/* Sticky Booking CTA */}
