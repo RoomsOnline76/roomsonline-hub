@@ -1,125 +1,125 @@
 
-# AI-Assisted Testing System Implementation Plan
 
-## ✅ IMPLEMENTATION COMPLETE
+# Dev Side Menu Alignment Plan
 
-All 5 phases have been implemented and tested successfully.
+## Current State Analysis
+
+The navigation configuration (`src/config/navigation.ts`) correctly defines all 9 dev-only items under the **System Control** section, but the **AppSidebar component** only renders 3 of them. This creates a mismatch where developers cannot access most of the dev-only features from the sidebar.
+
+### Missing Items in Sidebar
+
+| Item | Route | Description |
+|------|-------|-------------|
+| System Overview | `/dev/overview` | Global health dashboard (where manual health report button is) |
+| PMS Control | `/dev/pms` | Adapter status and controls |
+| Data & Logs | `/dev/logs` | Sync and error logs |
+| Feature Flags | `/dev/features` | Feature flag management |
+| **AI Testing** | `/dev/testing` | AI-assisted test generation (the feature you asked about) |
+| Danger Zone | `/dev/danger` | Destructive operations |
+
+### Current Sidebar Items (incomplete)
+- Integrations (`/admin-keys`)
+- Supporting Systems (`/admin/supporting-systems`)
+- System Health (`/admin/system-health`)
 
 ---
 
-## Status Summary
+## Solution: Sync AppSidebar with Navigation Config
 
-| Phase | Description | Status | Verified |
-|-------|-------------|--------|----------|
-| **Phase 1** | Foundation (Database + Navigation) | ✅ Complete | Tables exist, navigation added |
-| **Phase 2** | AI Scenario Generation | ✅ Complete | Edge function generates scenarios |
-| **Phase 3** | Test Execution Engine | ✅ Complete | Invariant checks running |
-| **Phase 4** | Results Dashboard | ✅ Complete | Results stored & displayed |
-| **Phase 5** | Integration | ✅ Complete | End-to-end workflow working |
+### Technical Approach
+
+Update `src/components/layout/AppSidebar.tsx` to include all dev-only items from the navigation config. The items will be grouped under the collapsible **System** section.
+
+### Updated `systemItems` Array
+
+```typescript
+const systemItems: NavItem[] = [
+  { title: "System Overview", icon: Activity, href: "/dev/overview", requireDev: true },
+  { title: "PMS Control", icon: Server, href: "/dev/pms", requireDev: true },
+  { title: "Integrations", icon: KeyRound, href: "/admin-keys", requireDev: true },
+  { title: "Supporting Systems", icon: Settings, href: "/admin/supporting-systems", requireDevOrFearless: true },
+  { title: "System Health", icon: HeartPulse, href: "/admin/system-health", requireDevOrFearless: true },
+  { title: "Data & Logs", icon: Database, href: "/dev/logs", requireDev: true },
+  { title: "Feature Flags", icon: Flag, href: "/dev/features", requireDev: true },
+  { title: "AI Testing", icon: FlaskConical, href: "/dev/testing", requireDev: true },
+  { title: "Danger Zone", icon: AlertTriangle, href: "/dev/danger", requireDev: true },
+];
+```
+
+### Required Icon Imports
+
+Add these imports to the file:
+- `Activity`
+- `Database`
+- `Flag`
+- `FlaskConical`
+- `AlertTriangle`
 
 ---
 
 ## Implementation Details
 
-### Database Tables Created
-- `test_runs` - Stores test execution sessions
-- `test_logs` - Stores individual test results and assertions
-- RLS policies restrict access to `dev` role only
+### File: `src/components/layout/AppSidebar.tsx`
 
-### Edge Functions Deployed
-1. **`generate-test-scenarios`** - Uses Lovable AI (gemini-3-flash-preview) to generate structured test scenarios
-2. **`execute-test-run`** - Executes scenarios and validates invariants
+**Changes:**
 
-### Frontend Components
-- `src/pages/DevTesting.tsx` - Main dashboard
-- `src/components/testing/ScenarioGenerator.tsx` - AI scenario configuration
-- `src/components/testing/TestResultsPanel.tsx` - Results display with export
-- `src/components/testing/TestRunHistory.tsx` - Historical runs table
+1. **Add missing icon imports** (lines 3-31):
+   ```typescript
+   import {
+     // ... existing imports
+     Activity,
+     Database,
+     Flag,
+     FlaskConical,
+     AlertTriangle,
+   } from "lucide-react";
+   ```
 
-### Navigation
-- Added to System Control section at `/dev/testing`
-- Restricted to `dev` role
-
----
-
-## Invariants Enforced
-
-1. **RULE #1**: PMS availability verification before booking
-2. **RLS Enforcement**: Cross-user data access blocked
-3. **PII Encryption**: Guest data encrypted by trigger
-4. **Adapter Contract**: PMS adapters return standardized format
-5. **Auth Boundaries**: Protected routes require authentication
+2. **Replace `systemItems` array** (lines 123-128):
+   Update to include all 9 dev-only navigation items with correct permission flags.
 
 ---
 
-## Test Results
+## Access Pattern Summary
 
-**Initial Validation Run:**
-- Run ID: `583075e8-3882-4b13-97b1-c597fd496fe6`
-- Status: `completed`
-- Result: `1/1 passed` (367ms)
-- Assertions verified:
-  - Properties table accessible via RLS ✅
-  - User roles table protected by RLS ✅
-  - Bookings decrypted view accessible to authorized roles ✅
-
----
-
-## Usage
-
-1. Navigate to **System Control → AI Testing** (requires dev role)
-2. Select a **Feature Target** (e.g., Booking Flow, RLS Validation)
-3. Configure **Invariants** to enforce
-4. Click **Generate Scenarios with AI**
-5. Review generated scenarios
-6. Click **Create Test Run**
-7. Execute the run from the Results or History tab
-8. View detailed assertions and export results
-
----
-
-## Architecture
+After this change, the sidebar under **System** (for dev/fearless_leader users) will show:
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        AI-ASSISTED TESTING SYSTEM                          │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   ┌────────────────────┐    ┌─────────────────────┐    ┌────────────────┐  │
-│   │  AI SCENARIO       │───▶│  TEST EXECUTION     │───▶│  RESULTS       │  │
-│   │  GENERATOR         │    │  ENGINE             │    │  DASHBOARD     │  │
-│   │                    │    │                     │    │                │  │
-│   │  - Lovable AI      │    │  - Edge Function    │    │  - test_runs   │  │
-│   │  - gemini-3-flash  │    │  - Supabase Client  │    │  - test_logs   │  │
-│   │  - Prompt Template │    │  - API Verification │    │  - JSON Output │  │
-│   └────────────────────┘    └─────────────────────┘    └────────────────┘  │
-│                                                                             │
-│   ┌─────────────────────────────────────────────────────────────────────┐  │
-│   │                    INVARIANT ENFORCEMENT LAYER                       │  │
-│   │                                                                       │  │
-│   │   ✓ RULE #1: Live PMS availability verification before booking       │  │
-│   │   ✓ RLS Policy Enforcement (no unauthorized data access)             │  │
-│   │   ✓ PMS Adapter Contract Compliance (adapter-contract.ts)            │  │
-│   │   ✓ Encryption Verification (guest PII trigger check)                │  │
-│   └─────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+SYSTEM (collapsible)
+├── System Overview        [dev only]
+├── PMS Control           [dev only]
+├── Integrations          [dev only]
+├── Supporting Systems    [dev/fearless_leader]
+├── System Health         [dev/fearless_leader]
+├── Data & Logs           [dev only]
+├── Feature Flags         [dev only]
+├── AI Testing            [dev only]  ← The feature you asked about
+└── Danger Zone           [dev only]
 ```
 
 ---
 
-## Files Created/Modified
+## Security Notes
 
-| File | Action | Description |
-|------|--------|-------------|
-| `supabase/migrations/XXX_create_test_tables.sql` | ✅ Created | Test runs and logs tables |
-| `src/config/navigation.ts` | ✅ Modified | Added AI Testing nav item |
-| `src/App.tsx` | ✅ Modified | Added DevTesting route |
-| `src/pages/DevTesting.tsx` | ✅ Created | Main testing dashboard |
-| `src/components/testing/ScenarioGenerator.tsx` | ✅ Created | AI scenario generator UI |
-| `src/components/testing/TestResultsPanel.tsx` | ✅ Created | Results display component |
-| `src/components/testing/TestRunHistory.tsx` | ✅ Created | Run history table |
-| `src/components/testing/index.ts` | ✅ Created | Component exports |
-| `supabase/functions/generate-test-scenarios/index.ts` | ✅ Created | AI scenario generation |
-| `supabase/functions/execute-test-run/index.ts` | ✅ Created | Test execution engine |
-| `supabase/config.toml` | ✅ Modified | Added new edge functions |
+- All routes are already protected by `ProtectedRoute` with `requireDev={true}` or `requireDevOrFearless={true}` in `App.tsx`
+- The sidebar only controls visibility; actual access enforcement happens at the route level
+- RLS policies on `test_runs` and `test_logs` tables further restrict data access to `dev` role
+
+---
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `src/components/layout/AppSidebar.tsx` | Add missing icon imports and expand `systemItems` array |
+
+---
+
+## Expected Outcome
+
+After implementation:
+- Developers can access all 9 system control features from the sidebar
+- AI Testing (`/dev/testing`) will be visible under the collapsible **System** section
+- The sidebar will match the navigation configuration exactly
+- No changes to route protection or database access
+
