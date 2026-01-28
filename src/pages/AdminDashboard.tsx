@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays } from "date-fns";
 import { NarrativeSummary } from "@/components/dashboard/NarrativeSummary";
+import { SystemAlertsPanel } from "@/components/dashboard/SystemAlertsPanel";
 
 interface DashboardStats {
   totalBookings: number;
@@ -186,34 +187,10 @@ export default function AdminDashboard() {
         />
       </div>
 
-      {/* Issues Alert */}
-      {stats?.issuesCount ? (
-        <Card className="mb-8 border-amber-500/50 bg-amber-500/5">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              <CardTitle className="text-lg">Attention Required</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              There are {stats.issuesCount} items requiring your attention.
-            </p>
-            <div className="flex gap-2">
-              {stats.pendingBookings > 0 && (
-                <Button variant="outline" size="sm" onClick={() => navigate('/admin/all-bookings?status=pending')}>
-                  {stats.pendingBookings} Pending Bookings
-                </Button>
-              )}
-              {stats.pendingAccessRequests > 0 && (
-                <Button variant="outline" size="sm" onClick={() => navigate('/admin/access-requests')}>
-                  {stats.pendingAccessRequests} Access Requests
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
+      {/* System Alerts */}
+      <div className="mb-8">
+        <SystemAlertsPanel maxAlerts={5} />
+      </div>
 
       <div className="grid gap-6 md:grid-cols-2 xl:gap-8">
         {/* Recent Bookings */}

@@ -123,3 +123,6 @@ verify_jwt = false
 
 [functions.validate-images-against-data]
 verify_jwt = true
+
+[functions.monitor-anomalies]
+verify_jwt = false
