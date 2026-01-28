@@ -62,6 +62,7 @@ import AdminContracts from "./pages/AdminContracts";
 import AdminOnboarding from "./pages/AdminOnboarding";
 import AdminContractEditor from "./pages/AdminContractEditor";
 import AdminWizardEditor from "./pages/AdminWizardEditor";
+import AdminPreFlight from "./pages/AdminPreFlight";
 import DevOverview from "./pages/DevOverview";
 import DevPMS from "./pages/DevPMS";
 import DevLogs from "./pages/DevLogs";
@@ -175,6 +176,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <PropertyForm />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/properties/new/preflight"
+            element={
+              <ProtectedRoute requireAdmin={true}>
+                <AdminPreFlight />
               </ProtectedRoute>
             }
           />
