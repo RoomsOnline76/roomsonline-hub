@@ -135,7 +135,7 @@ export default function JourneyReview() {
                 Add Another Destination
               </Button>
 
-              {/* AI-Powered Recommendations */}
+              {/* Personalized Recommendations */}
               <PropertyRecommendations 
                 currentPropertyId={stays[0]?.property_id}
                 variant="compact"
