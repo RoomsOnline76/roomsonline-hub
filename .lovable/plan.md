@@ -1,428 +1,358 @@
-# ✅ COMPLETED: Streamlined Booking Flow with Destination Brochures
 
-**Status: All 6 Phases Implemented**
 
-## Current State Analysis
+# Enhanced AI-Powered Local Experience Generation with xAI (Grok) Integration
 
-**What Already Exists:**
-- `ItineraryContext` with multi-property journey support (`stays[]`, `addStay`, `removeStay`)
-- `JourneyBuilder` floating panel for viewing/managing itinerary
-- `generate-itinerary-pdf` edge function with HTML brochure generation
-- `FloatingDateGuestPicker` component (basic date/guest selection)
-- `RoomAvailabilityCalendar` (981 lines - full availability/rate selection)
-- `TimelineVisualizer` and `StayCard` journey components
+## Overview
 
-**Current Click Flow:**
-```
-PropertyShowcase → RoomShowcase → RoomAvailability (separate page) → Booking → Confirmation
-(5 pages, ~6-8 clicks to book)
-```
+Upgrade the `enrich-property-experiences` edge function to combine Lovable AI with xAI (Grok) for intelligent dining recommendations. The system will match dining style (fine dining, rustic, casual) to property type and tier.
 
-**Target Click Flow:**
-```
-PropertyShowcase (embedded availability) → Booking → Confirmation
-(3 pages, ~3-4 clicks to book)
+---
+
+## Phase 1: Secret Configuration
+
+### 1.1 Add xAI API Key
+
+**Action:** Request user to add `XAI_API_KEY` secret via Lovable Cloud
+
+The xAI API uses OpenAI-compatible endpoints at `https://api.x.ai/v1` with models like `grok-4-latest`.
+
+---
+
+## Phase 2: Database Schema Update
+
+### 2.1 Add "dining" Category
+
+```sql
+-- Update the category check constraint to include 'dining'
+ALTER TABLE local_experiences 
+DROP CONSTRAINT IF EXISTS local_experiences_category_check;
+
+ALTER TABLE local_experiences 
+ADD CONSTRAINT local_experiences_category_check 
+CHECK (category IN ('nature', 'culture', 'food', 'adventure', 'relaxation', 'wellness', 'dining'));
+
+-- Add new columns for restaurant-specific data
+ALTER TABLE local_experiences ADD COLUMN IF NOT EXISTS venue_type VARCHAR(50);
+ALTER TABLE local_experiences ADD COLUMN IF NOT EXISTS cuisine_type VARCHAR(100);
+ALTER TABLE local_experiences ADD COLUMN IF NOT EXISTS reservation_required BOOLEAN DEFAULT false;
+ALTER TABLE local_experiences ADD COLUMN IF NOT EXISTS dress_code VARCHAR(50);
 ```
 
 ---
 
-## Phase 1: Streamlined Single-Property Flow (Week 1-2)
+## Phase 3: Property Tier Classification
 
-### 1.1 Create `QuickBookDrawer` Component
+### 3.1 Dining Style Mapping Logic
 
-**File:** `src/components/booking/QuickBookDrawer.tsx`
-
-A slide-up drawer that embeds the core availability selection without leaving the property page.
-
-**Features:**
-- Condensed calendar with date range selection
-- Guest count steppers (reuse `GuestCountStepper`)
-- Room type selector (for multi-room properties)
-- Rate type selector
-- Live pricing display
-- "Proceed to Checkout" CTA
-
-**Implementation:**
 ```typescript
-// Key props interface
-interface QuickBookDrawerProps {
-  propertyId: string;
-  propertySlug: string;
-  propertyName: string;
-  roomTypes: RoomType[];
-  defaultRoomId?: string; // Pre-select if single room
-  onContinue: (selection: BookingSelection) => void;
-}
-```
+// Property type to dining tier mapping
+type DiningTier = 'fine_dining' | 'casual_elegant' | 'rustic_local' | 'relaxed_casual';
 
-### 1.2 Modify `PropertyShowcase.tsx`
-
-**Changes:**
-- Add `QuickBookDrawer` trigger button in hero/CTA area
-- For single-room properties: Auto-select room, show drawer immediately
-- For multi-room properties: Show drawer after room card click
-- Replace "Check Availability" button with "Book Now" that opens drawer
-
-**Key Logic:**
-```typescript
-const isSingleRoomProperty = roomTypes.length === 1;
-
-const handleBookClick = () => {
-  if (isSingleRoomProperty) {
-    setDrawerOpen(true);
-    setSelectedRoom(roomTypes[0]);
-  } else {
-    scrollToRooms();
+function determineDiningTier(property: PropertyContext): DiningTier {
+  const { property_type, editorial_rating, amenities } = property;
+  const type = property_type?.toLowerCase() || '';
+  
+  // Editorial rating hierarchy
+  const luxuryRatings = ['truly_special', 'exceptionally_considered'];
+  const upscaleRatings = ['standout_character', 'quietly_excellent'];
+  
+  // Luxury properties → Fine dining
+  if (luxuryRatings.includes(editorial_rating)) {
+    return 'fine_dining';
   }
-};
+  
+  // Lodge/Farm properties → Rustic local
+  if (type.includes('lodge') || type.includes('farm') || type.includes('country')) {
+    return 'rustic_local';
+  }
+  
+  // Upscale hotels/villas → Casual elegant
+  if (upscaleRatings.includes(editorial_rating) || 
+      type.includes('hotel') || type.includes('villa')) {
+    return 'casual_elegant';
+  }
+  
+  // Guest houses, apartments, BnBs → Relaxed casual
+  return 'relaxed_casual';
+}
 ```
 
-### 1.3 Update `StickyBookingCTA` Component
+### 3.2 Dining Style Descriptions
 
-**File:** `src/components/showcase/StickyBookingCTA.tsx`
+| Property Tier | Dining Style | Examples |
+|--------------|--------------|----------|
+| Truly Special / Exceptionally Considered | Fine Dining | Tasting menus, Michelin-star, wine pairing |
+| Standout Character / Hotel / Villa | Casual Elegant | Farm-to-table, bistros, upscale cafes |
+| Lodge / Farm / Country Estate | Rustic Local | Farmhouse cooking, local pubs, wine farms |
+| Guest House / Apartment / BnB | Relaxed Casual | Cozy cafes, local eateries, takeaway spots |
 
-**Changes:**
-- Add drawer trigger variant
-- Show mini price preview when dates selected
-- Display "Book Now - ZAR X,XXX" instead of generic "Book Now"
+---
 
-### 1.4 Enhance Session Storage State
+## Phase 4: Enhanced Edge Function
 
-**Update booking state structure:**
+### 4.1 Updated `enrich-property-experiences/index.ts`
+
+**Key Changes:**
+1. Add xAI integration for dining-specific recommendations
+2. Add property tier detection
+3. Combine outputs from both AI providers
+4. Enhanced structured output
+
 ```typescript
-interface EnhancedBookingState {
-  property_id: string;
-  room_id: string;
-  room_name: string;
-  rate_type_id?: string;
-  rate_type_name?: string;
-  check_in: string;
-  check_out: string;
-  guests: {
-    adults: number;
-    teens: number;
-    children: number;
-    infants: number;
-    pets: number;
+// New interface for dining recommendations
+interface DiningRecommendation {
+  title: string;
+  description: string;
+  category: 'dining';
+  venue_type: 'restaurant' | 'cafe' | 'pub' | 'wine_bar' | 'farm_table' | 'takeaway';
+  cuisine_type: string;
+  price_indicator: 'budget' | 'moderate' | 'luxury';
+  why_locals_love_it: string;
+  best_time: string;
+  reservation_required: boolean;
+  dress_code?: string;
+  distance_km?: number;
+}
+
+// Main flow
+async function enrichPropertyExperiences(property_id: string) {
+  // 1. Fetch property details
+  const property = await fetchPropertyDetails(property_id);
+  
+  // 2. Determine dining tier
+  const diningTier = determineDiningTier(property);
+  
+  // 3. Generate general experiences with Lovable AI (4 experiences)
+  const generalExperiences = await generateWithLovableAI(property, 4);
+  
+  // 4. Generate dining recommendation with xAI Grok (1-2 recommendations)
+  const diningRecs = await generateDiningWithXAI(property, diningTier);
+  
+  // 5. Combine and save
+  const allExperiences = [...generalExperiences, ...diningRecs];
+  await saveExperiences(property_id, allExperiences);
+}
+```
+
+### 4.2 xAI Grok Integration
+
+```typescript
+async function generateDiningWithXAI(
+  property: PropertyContext, 
+  diningTier: DiningTier
+): Promise<DiningRecommendation[]> {
+  const xaiApiKey = Deno.env.get("XAI_API_KEY");
+  
+  if (!xaiApiKey) {
+    console.log("XAI_API_KEY not configured, falling back to Lovable AI");
+    return generateDiningWithLovable(property, diningTier);
+  }
+  
+  const tierPrompts = {
+    fine_dining: `Find the highest-rated fine dining restaurant near ${property.city}. 
+      Look for: tasting menus, wine pairing, Michelin recognition, chef's table experiences.
+      The clientele at ${property.name} expects world-class cuisine.`,
+      
+    casual_elegant: `Find an upscale but relaxed restaurant near ${property.city}.
+      Look for: farm-to-table, contemporary cuisine, good wine list, stylish atmosphere.
+      Perfect for guests who appreciate quality without formality.`,
+      
+    rustic_local: `Find an authentic local dining spot near ${property.city}.
+      Look for: regional cuisine, family-run establishments, wine farms, historic pubs.
+      Guests at ${property.name} seek genuine local experiences.`,
+      
+    relaxed_casual: `Find a cozy local eatery or cafe near ${property.city}.
+      Look for: comfort food, friendly service, local favorites, hidden gems.
+      Perfect for ${property.property_type} guests wanting easy, quality meals.`
   };
-  calculated_price: number;
-  price_breakdown: {
-    accommodation: number;
-    charges: CalculatedCharge[]; // Use existing ChargeCalculator
-    total: number;
-  };
-  is_part_of_itinerary: boolean;
+
+  const response = await fetch("https://api.x.ai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${xaiApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "grok-4-latest",
+      messages: [
+        {
+          role: "system",
+          content: `You are a local food critic and dining expert for ${property.country || 'South Africa'}. 
+            You know the best restaurants that match specific guest profiles.
+            Provide real, specific restaurant recommendations - not generic descriptions.
+            Include the actual restaurant name if you know it.`
+        },
+        {
+          role: "user",
+          content: tierPrompts[diningTier]
+        }
+      ],
+      tools: [{
+        type: "function",
+        function: {
+          name: "recommend_dining",
+          description: "Recommend a dining establishment",
+          parameters: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "Restaurant/venue name" },
+              description: { type: "string", description: "2-3 sentences about what makes it special" },
+              venue_type: { type: "string", enum: ["restaurant", "cafe", "pub", "wine_bar", "farm_table", "takeaway"] },
+              cuisine_type: { type: "string", description: "Type of cuisine (e.g., French, Farm-to-table, Cape Malay)" },
+              price_indicator: { type: "string", enum: ["budget", "moderate", "luxury"] },
+              why_locals_love_it: { type: "string", description: "One sentence insider tip" },
+              best_time: { type: "string", description: "Best time to visit" },
+              reservation_required: { type: "boolean" },
+              dress_code: { type: "string", description: "Dress code if any" }
+            },
+            required: ["title", "description", "venue_type", "cuisine_type", "price_indicator", "why_locals_love_it", "best_time", "reservation_required"]
+          }
+        }
+      }],
+      tool_choice: { type: "function", function: { name: "recommend_dining" } }
+    }),
+  });
+
+  // Parse and return dining recommendation
+  // ... error handling and parsing
+}
+```
+
+### 4.3 Fallback Strategy
+
+```typescript
+// If xAI fails, fallback to Lovable AI with dining-specific prompt
+async function generateDiningWithLovable(
+  property: PropertyContext,
+  diningTier: DiningTier
+): Promise<DiningRecommendation[]> {
+  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+  
+  const prompt = buildDiningPrompt(property, diningTier);
+  
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${lovableApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-3-flash-preview",
+      messages: [
+        { role: "system", content: "You are a local dining expert." },
+        { role: "user", content: prompt }
+      ],
+      // ... tool configuration
+    }),
+  });
+  
+  // ... parse response
 }
 ```
 
 ---
 
-## Phase 2: Multi-Stop Itinerary Enhancement (Week 3)
+## Phase 5: Updated Experience Structure
 
-### 2.1 Create Itinerary Builder Page
+### 5.1 Final Experience Mix (6 total)
 
-**File:** `src/pages/ItineraryBuilder.tsx`
+| Slot | Category | AI Provider | Notes |
+|------|----------|-------------|-------|
+| 1 | nature | Lovable AI | Outdoor activity |
+| 2 | culture | Lovable AI | Historical/cultural visit |
+| 3 | adventure | Lovable AI | Exciting activity |
+| 4 | relaxation/wellness | Lovable AI | Spa, beach, etc. |
+| 5 | dining | xAI Grok (primary) | Tier-matched restaurant |
+| 6 | food | Lovable AI (backup) | Local food experience |
 
-**Route:** `/itinerary/builder`
+### 5.2 Sample Output by Property Type
 
-**Layout:**
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Header: "Build Your Journey"                                   │
-├─────────────────────────────────────────────────────────────────┤
-│ Left (40%)          │ Center (35%)        │ Right (25%)         │
-│ Timeline            │ Property Search     │ Booking Summary     │
-│ - Stay 1            │ - Search input      │ - Total nights      │
-│ - Stay 2            │ - Results grid      │ - Total price       │
-│ - + Add Stay        │ - Map view toggle   │ - [Checkout] btn    │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Features:**
-- Drag-and-drop stay reordering (using `TimelineVisualizer`)
-- Property search/add functionality
-- Date continuity suggestions ("Your checkout is Feb 10, show properties available Feb 10+")
-- Visual timeline with gap warnings
-
-### 2.2 Enhance `JourneyBuilder` Component
-
-**File:** `src/components/journey/JourneyBuilder.tsx`
-
-**Additions:**
-- "Build Full Journey" mode toggle
-- Date overlap detection with warnings
-- Gap filling suggestions
-- Quick property suggestions based on location
-
-### 2.3 Create Unified Journey Checkout
-
-**File:** `src/pages/JourneyCheckout.tsx`
-
-**Route:** `/journey/checkout`
-
-**Features:**
-- Single form for guest details (applies to all stays)
-- Per-stay special requests
-- Unified payment flow
-- Multi-property pricing summary with property charges
-
----
-
-## Phase 3: Database Schema for Local Experiences (Week 4)
-
-### 3.1 Create `local_experiences` Table
-
-```sql
-CREATE TABLE local_experiences (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
-  title VARCHAR(200) NOT NULL,
-  description TEXT,
-  category VARCHAR(50) CHECK (category IN ('nature', 'culture', 'food', 'adventure', 'relaxation', 'wellness')),
-  distance_km DECIMAL(5,2),
-  duration_hours DECIMAL(4,2),
-  price_indicator VARCHAR(20) CHECK (price_indicator IN ('free', 'budget', 'moderate', 'luxury')),
-  image_url VARCHAR(500),
-  booking_link VARCHAR(500),
-  why_locals_love_it TEXT,
-  best_time VARCHAR(100),
-  display_order INTEGER DEFAULT 0,
-  source VARCHAR(20) DEFAULT 'manual' CHECK (source IN ('manual', 'ai_generated', 'pms_sync')),
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE INDEX idx_local_experiences_property ON local_experiences(property_id);
-
--- RLS policies
-ALTER TABLE local_experiences ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Anyone can view active experiences"
-  ON local_experiences FOR SELECT
-  USING (is_active = true);
-
-CREATE POLICY "Admins can manage all experiences"
-  ON local_experiences FOR ALL
-  USING (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'dev'));
+**Luxury Hotel (Truly Special):**
+```json
+{
+  "dining": {
+    "title": "La Colombe",
+    "venue_type": "restaurant",
+    "cuisine_type": "Contemporary French-Asian fusion",
+    "price_indicator": "luxury",
+    "reservation_required": true,
+    "dress_code": "Smart casual"
+  }
+}
 ```
 
-### 3.2 Create `brochure_templates` Table
+**Country Lodge (Standout Character):**
+```json
+{
+  "dining": {
+    "title": "Pierneef à La Motte",
+    "venue_type": "farm_table",
+    "cuisine_type": "Cape Winelands farm-to-table",
+    "price_indicator": "moderate",
+    "reservation_required": true,
+    "dress_code": null
+  }
+}
+```
 
-```sql
-CREATE TABLE brochure_templates (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  is_default BOOLEAN DEFAULT false,
-  sections JSONB DEFAULT '[
-    {"id": "cover", "type": "cover", "enabled": true},
-    {"id": "stay_details", "type": "details", "enabled": true},
-    {"id": "experiences", "type": "experiences", "title": "Top 5 Local Experiences", "enabled": true},
-    {"id": "dining", "type": "dining", "title": "Where to Eat", "enabled": true},
-    {"id": "practical", "type": "practical", "title": "Getting There & Around", "enabled": true},
-    {"id": "share", "type": "social", "title": "Share Your Journey", "enabled": true}
-  ]'::jsonb,
-  styles JSONB DEFAULT '{
-    "primaryColor": "#e91e8c",
-    "fontFamily": "Playfair Display",
-    "accentColor": "#1a1a1a"
-  }'::jsonb,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-INSERT INTO brochure_templates (name, is_default) VALUES ('Standard Journey', true);
+**Guest House (A Good Find):**
+```json
+{
+  "dining": {
+    "title": "Kloof Street House",
+    "venue_type": "cafe",
+    "cuisine_type": "Contemporary South African",
+    "price_indicator": "moderate",
+    "reservation_required": false
+  }
+}
 ```
 
 ---
 
-## Phase 4: Enhanced Brochure Generation (Week 4-5)
+## Phase 6: Config & Deployment
 
-### 4.1 Create AI Experience Curation Function
+### 6.1 Update `supabase/config.toml`
 
-**File:** `supabase/functions/enrich-property-experiences/index.ts`
-
-**Purpose:** Auto-generate local experiences for properties without manually curated content.
-
-**Flow:**
-1. Check if property has 5+ local_experiences
-2. If not, call Lovable AI to generate suggestions
-3. Store with `source: 'ai_generated'`
-
-**Prompt Template:**
-```
-Generate 5 compelling local experiences near [Property Name] in [City], [Country].
-Property type: [Property Type]
-Property vibe: [Editorial content snippet]
-
-Include:
-- 1 nature/outdoor activity
-- 1 cultural/historical visit  
-- 1 food/dining experience
-- 1 adventure activity
-- 1 relaxation/wellness option
-
-Format as JSON with: title, description, category, duration_hours, price_indicator, why_locals_love_it, best_time
+```toml
+[functions.enrich-property-experiences]
+verify_jwt = false
 ```
 
-### 4.2 Update `generate-itinerary-pdf` Edge Function
+### 6.2 Error Handling
 
-**File:** `supabase/functions/generate-itinerary-pdf/index.ts`
-
-**Additions:**
-- Fetch `local_experiences` for each property
-- Add "Top 5 Experiences" section to brochure
-- Add dining recommendations section
-- Add practical info (directions, check-in times)
-- Add social sharing QR codes
-
-**New HTML Sections:**
-```html
-<!-- Experiences Section -->
-<div class="experiences-section">
-  <h2>Don't Miss These Local Gems</h2>
-  <div class="experience-grid">
-    <!-- Dynamic experience cards -->
-  </div>
-</div>
-
-<!-- Share Section -->
-<div class="share-section">
-  <h2>Share Your Adventure</h2>
-  <p>Show friends where you're heading!</p>
-  <div class="qr-codes">
-    <img src="[WhatsApp QR]" alt="Share on WhatsApp" />
-  </div>
-</div>
-```
-
----
-
-## Phase 5: Enhanced Confirmation & Sharing (Week 5-6)
-
-### 5.1 Update `BookingConfirmation.tsx`
-
-**File:** `src/pages/BookingConfirmation.tsx`
-
-**Additions:**
-- Prominent brochure download CTA
-- Social sharing buttons
-- Countdown to trip
-- "Add to Calendar" option
-
-**New UI Section:**
-```tsx
-<Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
-  <CardContent className="text-center py-8">
-    <Sparkles className="h-12 w-12 text-primary mx-auto mb-4" />
-    <h3 className="font-serif text-xl mb-2">Your Personal Travel Brochure</h3>
-    <p className="text-muted-foreground mb-6">
-      Curated experiences, dining tips, and everything you need for an amazing stay
-    </p>
-    <div className="flex flex-wrap gap-3 justify-center">
-      <Button onClick={downloadBrochure}>
-        <Download className="h-4 w-4 mr-2" />
-        Download PDF
-      </Button>
-      <Button variant="outline" onClick={shareWhatsApp}>
-        <MessageCircle className="h-4 w-4 mr-2" />
-        Share on WhatsApp
-      </Button>
-    </div>
-  </CardContent>
-</Card>
-```
-
-### 5.2 Create `ShareBrochureButtons` Component
-
-**File:** `src/components/booking/ShareBrochureButtons.tsx`
-
-**Features:**
-- WhatsApp deep link with pre-filled message
-- Copy link button
-- Email share
-- Download PDF
-
-### 5.3 Update Confirmation Email Template
-
-**File:** `supabase/functions/send-booking-email/index.ts`
-
-**Additions:**
-- Brochure download link
-- Social sharing links
-- "Share the excitement" CTA section
-
----
-
-## Phase 6: Admin Experience Management (Week 6)
-
-### 6.1 Create `LocalExperiencesManager` Component
-
-**File:** `src/components/experiences/LocalExperiencesManager.tsx`
-
-**Location:** PropertyForm.tsx → new "Experiences" tab
-
-**Features:**
-- CRUD for local experiences
-- AI generation trigger button
-- Category badges
-- Drag-and-drop ordering
-- Image upload
-
-### 6.2 Add to PropertyForm
-
-**File:** `src/pages/PropertyForm.tsx`
-
-**Add new tab:** "Local Experiences"
+- **xAI API unavailable:** Fall back to Lovable AI
+- **Rate limiting (429):** Return partial results with warning
+- **Payment required (402):** Log and surface to admin
 
 ---
 
 ## File Changes Summary
 
-| Phase | File | Action | Description |
-|-------|------|--------|-------------|
-| 1 | `src/components/booking/QuickBookDrawer.tsx` | Create | Embedded availability drawer |
-| 1 | `src/pages/PropertyShowcase.tsx` | Modify | Add drawer integration |
-| 1 | `src/components/showcase/StickyBookingCTA.tsx` | Modify | Add drawer trigger |
-| 2 | `src/pages/ItineraryBuilder.tsx` | Create | Full journey builder page |
-| 2 | `src/pages/JourneyCheckout.tsx` | Create | Unified multi-stay checkout |
-| 2 | `src/components/journey/JourneyBuilder.tsx` | Modify | Enhanced features |
-| 3 | Migration | Create | local_experiences, brochure_templates tables |
-| 4 | `supabase/functions/enrich-property-experiences/index.ts` | Create | AI curation |
-| 4 | `supabase/functions/generate-itinerary-pdf/index.ts` | Modify | Enhanced brochure |
-| 5 | `src/pages/BookingConfirmation.tsx` | Modify | Brochure download |
-| 5 | `src/components/booking/ShareBrochureButtons.tsx` | Create | Social sharing |
-| 5 | `supabase/functions/send-booking-email/index.ts` | Modify | Brochure links |
-| 6 | `src/components/experiences/LocalExperiencesManager.tsx` | Create | Admin UI |
-| 6 | `src/pages/PropertyForm.tsx` | Modify | Add experiences tab |
+| File | Action | Description |
+|------|--------|-------------|
+| Migration | Create | Add dining columns and update category constraint |
+| `supabase/functions/enrich-property-experiences/index.ts` | Rewrite | Dual AI integration with property tier logic |
+| `src/components/experiences/LocalExperiencesManager.tsx` | Modify | Add dining-specific fields in editor |
 
 ---
 
-## Implementation Priority
+## Implementation Order
 
-**Week 1:** QuickBookDrawer + PropertyShowcase integration (biggest UX win)
-**Week 2:** Session state updates + checkout flow refinements  
-**Week 3:** ItineraryBuilder page + JourneyCheckout
-**Week 4:** Database schema + AI experience curation
-**Week 5:** Enhanced brochure generation + sharing
-**Week 6:** Admin experience management + polish
-
----
-
-## Success Metrics
-
-| Metric | Current | Target |
-|--------|---------|--------|
-| Clicks to book (single property) | 6-8 | 3-4 |
-| Time to book | ~4 min | ~90 sec |
-| Brochure download rate | N/A | >60% |
-| Social share rate | N/A | >25% |
-| Multi-property bookings | <5% | >15% |
+1. **Request xAI API Key** from user
+2. **Run migration** for schema updates
+3. **Update edge function** with dual-AI logic
+4. **Update admin UI** for dining fields
+5. **Test with sample properties** across tiers
 
 ---
 
-## Technical Dependencies
+## Expected Outcome
 
-- **Existing:** ItineraryContext, ChargeCalculator, FormattedPrice
-- **New:** Lovable AI for experience generation
-- **Libraries:** No new dependencies needed (html2pdf.js already installed)
+| Before | After |
+|--------|-------|
+| 5 generic AI experiences | 4 curated + 1-2 tier-matched dining |
+| Same dining for all properties | Fine dining for luxury, rustic for lodges |
+| Single AI provider | Dual AI for specialized expertise |
+| Basic food category | Rich dining metadata (dress code, cuisine type, reservations) |
 
