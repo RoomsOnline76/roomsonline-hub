@@ -8,8 +8,6 @@ import {
   TrendingUp,
   Users,
   Clock,
-  CheckCircle,
-  XCircle,
   ArrowRight,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -19,7 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays, startOfDay } from "date-fns";
+import { format, subDays } from "date-fns";
+import { NarrativeSummary } from "@/components/dashboard/NarrativeSummary";
 
 interface DashboardStats {
   totalBookings: number;
@@ -152,7 +151,8 @@ export default function AdminDashboard() {
         subtitle="Platform overview and quick actions"
       />
 
-      {/* Quick Stats Grid */}
+      {/* AI Narrative Summary */}
+      <NarrativeSummary stats={stats} loading={loading} />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:gap-6 mb-8">
         <StatCard
           title="Total Bookings"

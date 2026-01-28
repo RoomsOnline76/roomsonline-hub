@@ -5,3 +5,4 @@ export { ChannelBreakdownChart } from "./ChannelBreakdownChart";
 export { TopPropertiesTable } from "./TopPropertiesTable";
 export { RiskIndicators } from "./RiskIndicators";
 export { PropertyAcquisitionTracker } from "./PropertyAcquisitionTracker";
+export { NarrativeSummary } from "./NarrativeSummary";

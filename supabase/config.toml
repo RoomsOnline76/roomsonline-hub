@@ -117,3 +117,6 @@ verify_jwt = true
 
 [functions.enrich-property-experiences]
 verify_jwt = true
+
+[functions.parse-special-requests]
+verify_jwt = false

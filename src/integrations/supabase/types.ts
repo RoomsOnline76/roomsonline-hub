@@ -272,6 +272,7 @@ export type Database = {
       bookings: {
         Row: {
           adults: number
+          ai_metadata: Json | null
           booking_channel: string | null
           calculated_commission: number | null
           charges_breakdown: Json | null
@@ -301,6 +302,7 @@ export type Database = {
           room_type_id: string | null
           rooms: Json | null
           special_requests: string | null
+          special_requests_parsed: Json | null
           status: string
           teens: number | null
           total_price: number
@@ -310,6 +312,7 @@ export type Database = {
         }
         Insert: {
           adults?: number
+          ai_metadata?: Json | null
           booking_channel?: string | null
           calculated_commission?: number | null
           charges_breakdown?: Json | null
@@ -339,6 +342,7 @@ export type Database = {
           room_type_id?: string | null
           rooms?: Json | null
           special_requests?: string | null
+          special_requests_parsed?: Json | null
           status?: string
           teens?: number | null
           total_price: number
@@ -348,6 +352,7 @@ export type Database = {
         }
         Update: {
           adults?: number
+          ai_metadata?: Json | null
           booking_channel?: string | null
           calculated_commission?: number | null
           charges_breakdown?: Json | null
@@ -377,6 +382,7 @@ export type Database = {
           room_type_id?: string | null
           rooms?: Json | null
           special_requests?: string | null
+          special_requests_parsed?: Json | null
           status?: string
           teens?: number | null
           total_price?: number
@@ -2422,6 +2428,7 @@ export type Database = {
       properties: {
         Row: {
           address: string
+          ai_confidence_metadata: Json | null
           amenities: Json | null
           bathrooms: number | null
           bedrooms: number | null
@@ -2476,6 +2483,7 @@ export type Database = {
         }
         Insert: {
           address: string
+          ai_confidence_metadata?: Json | null
           amenities?: Json | null
           bathrooms?: number | null
           bedrooms?: number | null
@@ -2530,6 +2538,7 @@ export type Database = {
         }
         Update: {
           address?: string
+          ai_confidence_metadata?: Json | null
           amenities?: Json | null
           bathrooms?: number | null
           bedrooms?: number | null
