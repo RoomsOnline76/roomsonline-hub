@@ -56,9 +56,11 @@ import {
   CalendarPlus,
   Circle,
   Globe,
+  Zap,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Types
 type OnboardingStatus = 
@@ -84,6 +86,8 @@ interface PropertyData {
   owner_email: string | null;
   listing_status: string | null;
   show_on_website: boolean;
+  is_active: boolean;
+  external_system: string | null;
   amenities: Record<string, unknown> | null;
   description: string | null;
   short_description: string | null;
@@ -95,6 +99,13 @@ interface PropertyData {
   bathrooms: number | null;
   images: string[] | null;
   hero_video_url: string | null;
+  // ROL Spec fields
+  why_we_chose_this_place: string | null;
+  who_this_suits: string | null;
+  what_its_really_like: string | null;
+  why_this_place_matters: string | null;
+  who_its_not_for: string | null;
+  navigation_tags: string[] | null;
 }
 
 interface PropertyOnboardingRow {
@@ -103,11 +114,36 @@ interface PropertyOnboardingRow {
   owner_email: string | null;
   listing_status: string | null;
   show_on_website: boolean;
+  external_system: string | null;
+  isNightsBridge: boolean;
   onboarding_score: number;
   fieldCompletionScore: number;
+  rolSpecScore: number;
   effectiveProgress: number;
   token: TokenData | null;
 }
+
+// Calculate ROL Spec completion (applies to ALL properties)
+const calculateROLSpecCompletion = (prop: PropertyData): number => {
+  const amenities = prop.amenities || {};
+  
+  const rolSpecFields = [
+    { filled: !!prop.why_we_chose_this_place, weight: 2 },
+    { filled: !!prop.who_this_suits, weight: 2 },
+    { filled: !!prop.what_its_really_like, weight: 2 },
+    { filled: !!prop.why_this_place_matters, weight: 1 },
+    { filled: !!prop.who_its_not_for, weight: 1 },
+    { filled: Array.isArray(prop.navigation_tags) && prop.navigation_tags.length > 0, weight: 2 },
+    // Extras from amenities
+    { filled: !!(amenities as Record<string, unknown>).local_experiences, weight: 1 },
+    { filled: !!(amenities as Record<string, unknown>).unique_selling_points, weight: 1 },
+  ];
+
+  const totalWeight = rolSpecFields.reduce((sum, f) => sum + f.weight, 0);
+  const filledWeight = rolSpecFields.reduce((sum, f) => sum + (f.filled ? f.weight : 0), 0);
+  
+  return Math.round((filledWeight / totalWeight) * 100);
+};
 
 // Calculate field completion percentage based on key property fields
 const calculateFieldCompletion = (prop: PropertyData): number => {
@@ -129,7 +165,6 @@ const calculateFieldCompletion = (prop: PropertyData): number => {
     { filled: !!(amenities as Record<string, unknown>).check_in_time, weight: 1 },
     { filled: !!(amenities as Record<string, unknown>).check_out_time, weight: 1 },
     { filled: !!(amenities as Record<string, unknown>).cancellation_policy, weight: 1 },
-    // Check amenities for additional required fields
     { filled: !!(amenities as Record<string, unknown>).telephone || !!((amenities as Record<string, unknown>).contact as Record<string, unknown>)?.telephone, weight: 1 },
   ];
 
@@ -139,11 +174,37 @@ const calculateFieldCompletion = (prop: PropertyData): number => {
   return Math.round((filledWeight / totalWeight) * 100);
 };
 
+// Calculate combined progress including ROL Spec
+const calculateEffectiveProgress = (
+  onboardingScore: number,
+  fieldCompletionScore: number,
+  rolSpecScore: number,
+  isNightsBridge: boolean
+): number => {
+  // ROL Spec contributes 20% to overall progress for all properties
+  const rolSpecWeight = 0.20;
+  const baseWeight = 0.80;
+  
+  if (isNightsBridge) {
+    // NightsBridge: Field data comes from PMS (assume 100% complete), only ROL Spec matters
+    const pmsDataScore = fieldCompletionScore; // Use actual field completion from NightsBridge
+    return Math.round((pmsDataScore * baseWeight) + (rolSpecScore * rolSpecWeight));
+  } else {
+    // Standard properties: Use higher of wizard or field completion, plus ROL Spec
+    const baseScore = Math.max(onboardingScore, fieldCompletionScore);
+    return Math.round((baseScore * baseWeight) + (rolSpecScore * rolSpecWeight));
+  }
+};
+
 type StatusFilter = "all" | OnboardingStatus;
 
 // Helper function to derive onboarding status
 const getOnboardingStatus = (row: PropertyOnboardingRow): OnboardingStatus => {
   if (row.show_on_website) return "live";
+  
+  // NightsBridge properties are considered "completed" by default (data from PMS)
+  if (row.isNightsBridge && !row.token) return "completed";
+  
   if (!row.token) return "not_started";
   if (row.token.used_at) return "completed";
   if (isBefore(new Date(row.token.expires_at), new Date())) return "token_expired";
@@ -151,44 +212,66 @@ const getOnboardingStatus = (row: PropertyOnboardingRow): OnboardingStatus => {
 };
 
 // Status Badge Component
-const StatusBadge = ({ status }: { status: OnboardingStatus }) => {
-  switch (status) {
-    case "not_started":
-      return (
-        <Badge variant="outline" className="gap-1">
-          <Circle className="h-3 w-3" />
-          Not Started
-        </Badge>
-      );
-    case "in_progress":
-      return (
-        <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600">
-          <Clock className="h-3 w-3" />
-          In Progress
-        </Badge>
-      );
-    case "token_expired":
-      return (
-        <Badge variant="destructive" className="gap-1">
-          <AlertCircle className="h-3 w-3" />
-          Expired
-        </Badge>
-      );
-    case "completed":
-      return (
-        <Badge variant="default" className="gap-1">
-          <Check className="h-3 w-3" />
-          Completed
-        </Badge>
-      );
-    case "live":
-      return (
-        <Badge className="gap-1 bg-emerald-500 text-white border-emerald-500">
-          <Globe className="h-3 w-3" />
-          Live
-        </Badge>
-      );
+const StatusBadge = ({ status, isNightsBridge }: { status: OnboardingStatus; isNightsBridge?: boolean }) => {
+  const badge = (() => {
+    switch (status) {
+      case "not_started":
+        return (
+          <Badge variant="outline" className="gap-1">
+            <Circle className="h-3 w-3" />
+            Not Started
+          </Badge>
+        );
+      case "in_progress":
+        return (
+          <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600">
+            <Clock className="h-3 w-3" />
+            In Progress
+          </Badge>
+        );
+      case "token_expired":
+        return (
+          <Badge variant="destructive" className="gap-1">
+            <AlertCircle className="h-3 w-3" />
+            Expired
+          </Badge>
+        );
+      case "completed":
+        return (
+          <Badge variant="default" className="gap-1">
+            <Check className="h-3 w-3" />
+            Completed
+          </Badge>
+        );
+      case "live":
+        return (
+          <Badge className="gap-1 bg-emerald-500 text-white border-emerald-500">
+            <Globe className="h-3 w-3" />
+            Live
+          </Badge>
+        );
+    }
+  })();
+
+  if (isNightsBridge) {
+    return (
+      <div className="flex items-center gap-1.5">
+        {badge}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger>
+              <Zap className="h-3.5 w-3.5 text-amber-500" />
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>NightsBridge property - data synced from PMS</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+    );
   }
+
+  return badge;
 };
 
 export default function AdminOnboarding() {
@@ -219,11 +302,19 @@ export default function AdminOnboarding() {
     try {
       setLoading(true);
 
-      // Load all properties (non-deleted) with fields needed for completion calculation
+      // Load only ACTIVE properties (non-deleted, is_active = true)
       const { data: propData, error: propError } = await supabase
         .from("properties")
-        .select("id, name, owner_email, listing_status, show_on_website, amenities, description, short_description, address, city, country, price_per_night, bedrooms, bathrooms, images, hero_video_url")
+        .select(`
+          id, name, owner_email, listing_status, show_on_website, is_active,
+          external_system, amenities, description, short_description, 
+          address, city, country, price_per_night, bedrooms, bathrooms, 
+          images, hero_video_url,
+          why_we_chose_this_place, who_this_suits, what_its_really_like,
+          why_this_place_matters, who_its_not_for, navigation_tags
+        `)
         .is("permanently_deleted_at", null)
+        .eq("is_active", true)
         .order("created_at", { ascending: false });
 
       if (propError) throw propError;
@@ -251,13 +342,16 @@ export default function AdminOnboarding() {
           ? amenities.onboarding_score 
           : 0;
         
-        // Calculate field completion from property data
-        const fieldCompletionScore = calculateFieldCompletion({
+        const isNightsBridge = prop.external_system === "nightsbridge";
+        
+        const propertyData: PropertyData = {
           id: prop.id,
           name: prop.name,
           owner_email: prop.owner_email,
           listing_status: prop.listing_status,
           show_on_website: prop.show_on_website || false,
+          is_active: prop.is_active || true,
+          external_system: prop.external_system,
           amenities,
           description: prop.description,
           short_description: prop.short_description,
@@ -269,10 +363,25 @@ export default function AdminOnboarding() {
           bathrooms: prop.bathrooms,
           images: prop.images as string[] | null,
           hero_video_url: prop.hero_video_url,
-        });
+          why_we_chose_this_place: prop.why_we_chose_this_place,
+          who_this_suits: prop.who_this_suits,
+          what_its_really_like: prop.what_its_really_like,
+          why_this_place_matters: prop.why_this_place_matters,
+          who_its_not_for: prop.who_its_not_for,
+          navigation_tags: prop.navigation_tags,
+        };
         
-        // Use the higher of wizard score or field completion
-        const effectiveProgress = Math.max(onboardingScore, fieldCompletionScore);
+        // Calculate scores
+        const fieldCompletionScore = calculateFieldCompletion(propertyData);
+        const rolSpecScore = calculateROLSpecCompletion(propertyData);
+        
+        // Calculate effective progress including ROL Spec
+        const effectiveProgress = calculateEffectiveProgress(
+          onboardingScore,
+          fieldCompletionScore,
+          rolSpecScore,
+          isNightsBridge
+        );
         
         return {
           id: prop.id,
@@ -280,8 +389,11 @@ export default function AdminOnboarding() {
           owner_email: prop.owner_email,
           listing_status: prop.listing_status,
           show_on_website: prop.show_on_website || false,
+          external_system: prop.external_system,
+          isNightsBridge,
           onboarding_score: onboardingScore,
           fieldCompletionScore,
+          rolSpecScore,
           effectiveProgress,
           token: tokensByProperty.get(prop.id) || null,
         };
@@ -320,14 +432,15 @@ export default function AdminOnboarding() {
         const tokenSentDate = r.token 
           ? format(new Date(r.token.created_at), "MMM d, yyyy").toLowerCase() 
           : "";
-        const progressStr = String(r.onboarding_score || 0);
+        const progressStr = String(r.effectiveProgress || 0);
 
         return (
           r.name.toLowerCase().includes(query) ||
           r.owner_email?.toLowerCase().includes(query) ||
           status.replace("_", " ").includes(query) ||
           tokenSentDate.includes(query) ||
-          progressStr.includes(query)
+          progressStr.includes(query) ||
+          (r.isNightsBridge && "nightsbridge".includes(query))
         );
       });
     }
@@ -343,6 +456,7 @@ export default function AdminOnboarding() {
     expired: propertyRows.filter((r) => getOnboardingStatus(r) === "token_expired").length,
     completed: propertyRows.filter((r) => getOnboardingStatus(r) === "completed").length,
     live: propertyRows.filter((r) => getOnboardingStatus(r) === "live").length,
+    nightsBridge: propertyRows.filter((r) => r.isNightsBridge).length,
   }), [propertyRows]);
 
   const handleSendOnboarding = async () => {
@@ -474,7 +588,7 @@ export default function AdminOnboarding() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 xl:gap-6 mb-6">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Active</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{stats.total}</p>
@@ -566,6 +680,7 @@ export default function AdminOnboarding() {
               <TableHead>Owner Email</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Progress</TableHead>
+              <TableHead>ROL Spec</TableHead>
               <TableHead>Token Sent</TableHead>
               <TableHead>Expires</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -574,15 +689,15 @@ export default function AdminOnboarding() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   Loading properties...
                 </TableCell>
               </TableRow>
             ) : filteredProperties.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   {propertyRows.length === 0 
-                    ? "No properties found" 
+                    ? "No active properties found" 
                     : showCompleted 
                       ? "No properties match your filters"
                       : "No active onboarding. Toggle 'Show Completed & Live' to see all."}
@@ -605,20 +720,42 @@ export default function AdminOnboarding() {
                       {row.owner_email || <span className="italic">Not set</span>}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge status={status} />
+                      <StatusBadge status={status} isNightsBridge={row.isNightsBridge} />
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2 min-w-32">
-                        <Progress value={row.effectiveProgress} className="h-2" />
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-2 min-w-32">
+                              <Progress value={row.effectiveProgress} className="h-2" />
+                              <span className="text-sm text-muted-foreground w-10">
+                                {row.effectiveProgress}%
+                              </span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Fields: {row.fieldCompletionScore}%</p>
+                            <p>ROL Spec: {row.rolSpecScore}%</p>
+                            {row.isNightsBridge && <p className="text-amber-400">NightsBridge synced</p>}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2 min-w-20">
+                        <Progress 
+                          value={row.rolSpecScore} 
+                          className={`h-2 ${row.rolSpecScore < 50 ? "[&>div]:bg-amber-500" : ""}`} 
+                        />
                         <span className="text-sm text-muted-foreground w-10">
-                          {row.effectiveProgress}%
+                          {row.rolSpecScore}%
                         </span>
                       </div>
                     </TableCell>
                     <TableCell>
                       {row.token 
                         ? format(new Date(row.token.created_at), "MMM d, yyyy")
-                        : <span className="text-muted-foreground">Never</span>}
+                        : <span className="text-muted-foreground">{row.isNightsBridge ? "N/A" : "Never"}</span>}
                     </TableCell>
                     <TableCell>
                       {row.token ? (
@@ -638,17 +775,17 @@ export default function AdminOnboarding() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="bg-popover">
                           {/* Issue/Resend token based on status */}
-                          {status === "not_started" ? (
+                          {status === "not_started" && !row.isNightsBridge ? (
                             <DropdownMenuItem onClick={() => handleIssueToken(row)}>
                               <Send className="h-4 w-4 mr-2" />
                               Issue Onboarding Token
                             </DropdownMenuItem>
-                          ) : (
+                          ) : !row.isNightsBridge ? (
                             <DropdownMenuItem onClick={() => handleResendOnboarding(row)}>
                               <RefreshCw className="h-4 w-4 mr-2" />
                               Re-issue Token
                             </DropdownMenuItem>
-                          )}
+                          ) : null}
 
                           {/* Copy link (only if token exists) */}
                           {row.token && (
@@ -738,11 +875,13 @@ export default function AdminOnboarding() {
                   <SelectValue placeholder="Select a property" />
                 </SelectTrigger>
                 <SelectContent>
-                  {propertyRows.map((prop) => (
-                    <SelectItem key={prop.id} value={prop.id}>
-                      {prop.name}
-                    </SelectItem>
-                  ))}
+                  {propertyRows
+                    .filter((prop) => !prop.isNightsBridge)
+                    .map((prop) => (
+                      <SelectItem key={prop.id} value={prop.id}>
+                        {prop.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
