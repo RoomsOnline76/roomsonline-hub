@@ -141,3 +141,9 @@ verify_jwt = true
 
 [functions.review-property]
 verify_jwt = true
+
+[functions.post-launch-validator]
+verify_jwt = true
+
+[functions.send-activation-notification]
+verify_jwt = true
