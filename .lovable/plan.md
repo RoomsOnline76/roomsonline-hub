@@ -163,119 +163,84 @@ CREATE POLICY "Owners can view their roadmaps" ON property_onboarding_roadmap
 
 ---
 
-## Phase 3: Intent-Aware Contract System (Week 3)
+## Phase 3: Intent-Aware Contract System (Week 3) ✅ COMPLETED
 
-### 3.1 Update: `send-owner-contract` Edge Function
+### 3.1 Update: `send-owner-contract` Edge Function ✅
 
 **File:** `supabase/functions/send-owner-contract/index.ts`
 
 **Enhancements:**
 - Accept `listing_intent` and `commercial_model` parameters
-- Store metadata in owner_contracts record
-- Select template based on intent/model combination
+- Store metadata in owner_contracts record including expected steps
 - Update property `listing_status` to `contract_sent`
+- Added `INTENT_STEPS` and `INTENT_REQUIREMENTS` mappings
 
-```typescript
-// Add to request body handling
-const { owner_email, owner_name, listing_intent, commercial_model } = await req.json();
-
-// Store in contract metadata
-metadata: {
-  listing_intent,
-  commercial_model,
-  expected_steps: getStepsForIntent(listing_intent),
-  min_requirements: getRequirementsForIntent(listing_intent)
-}
-```
-
-### 3.2 Update: `process-signature` Edge Function
+### 3.2 Update: `process-signature` Edge Function ✅
 
 **File:** `supabase/functions/process-signature/index.ts`
 
 **Enhancements:**
 - Update property `listing_status` to `contract_signed`
-- Generate onboarding roadmap based on intent
-- Create initial checklist items
+- Generate onboarding roadmap based on intent metadata
+- Trigger `generate-checklist` edge function
+- Create property records for new owners with business info
 
-```typescript
-// After successful signing
-await supabase.from('properties')
-  .update({ listing_status: 'contract_signed' })
-  .eq('owner_email', contract.owner_email);
-
-// Generate roadmap
-await generateOnboardingRoadmap(propertyId, contract.metadata);
-
-// Create checklist
-await generatePropertyChecklist(propertyId, contract.metadata.listing_intent);
-```
-
-### 3.3 New Edge Function: `generate-checklist`
+### 3.3 New Edge Function: `generate-checklist` ✅
 
 **File:** `supabase/functions/generate-checklist/index.ts`
 
 **Purpose:** Creates intent-specific checklist items from master template
 
 **Implementation:**
-- Load master checklist template from config
-- Filter items by listing_intent
-- Insert into property_checklist table
+- Master `CHECKLIST_ITEMS` template with 15+ items
+- Filters items by `listing_intent`
+- Supports auto-verification logic per item
+- Inserts into `property_checklist` table
 
 ---
 
-## Phase 4: Dynamic Onboarding Wizard (Week 4)
+## Phase 4: Dynamic Onboarding Wizard (Week 4) ✅ COMPLETED
 
-### 4.1 Update: `onboardingFieldSchema.ts`
+### 4.1 Update: `onboardingFieldSchema.ts` ✅
 
 **File:** `src/config/onboardingFieldSchema.ts`
 
 **Enhancements:**
-- Add intent-based step filtering
-- Define conditional requirements per intent
+- Added `ListingIntent` type
+- Added `getWizardStepsForIntent()` for intent-aware step filtering
+- Added `COMPLETION_STATES` with blocked/unblocked indicators
+- Added `getCompletionState()` and `getCompletionStateDetails()` functions
+- Added venue-specific sections (`VENUE_SECTIONS`) 
+- Added experience-specific sections (`EXPERIENCE_SECTIONS`)
+- Added field impact levels (`FieldImpactLevel`)
+- Added `getMissingFieldsByImpact()` function
+- Defined `CRITICAL_FIELDS`, `HIGH_IMPACT_FIELDS`, `MEDIUM_IMPACT_FIELDS`
 
-```typescript
-export function getWizardStepsForIntent(intent: string): WizardSection[] {
-  const baseSteps = ['property_identity', 'contact_details', 'location'];
-  
-  switch (intent) {
-    case 'accommodation':
-      return [...baseSteps, 'rooms_overview', 'policies_pricing', 'facilities', 'media_documents', 'guest_experience', 'review'];
-    case 'venue':
-      return [...baseSteps, 'capacity', 'event_types', 'facilities', 'media_documents', 'guest_experience', 'review'];
-    case 'experience':
-      return [...baseSteps, 'experience_details', 'logistics', 'media_documents', 'review'];
-    default:
-      return WIZARD_SECTIONS;
-  }
-}
-
-export const COMPLETION_STATES = {
-  INCOMPLETE: { min: 0, max: 49, label: 'Needs Work', blocked: true },
-  REVIEWABLE: { min: 50, max: 69, label: 'Ready for Review', blocked: false },
-  ELIGIBLE: { min: 70, max: 84, label: 'Activation Eligible', blocked: false },
-  SHOWCASE_READY: { min: 85, max: 100, label: 'Showcase Ready', blocked: false }
-};
-```
-
-### 4.2 Update: `PropertyOnboardingWizard.tsx`
+### 4.2 Update: `PropertyOnboardingWizard.tsx` ✅
 
 **File:** `src/components/onboarding/PropertyOnboardingWizard.tsx`
 
 **Enhancements:**
-- Load roadmap on mount to determine steps
-- Show "Why this matters" hints per step
-- Display real-time completion state (not just percentage)
-- Add "Missing fields by impact level" section
+- Now uses dynamic `wizardSteps` from hook (intent-aware)
+- Added "Why it matters" hints for each step
+- Added completion state badge with tooltip
+- Added missing fields panel on review step (by impact level)
+- Added "Next Action" hint in footer
+- Step component mapping via `STEP_COMPONENT_MAP`
 
-### 4.3 Update: `usePropertyOnboarding.tsx`
+### 4.3 Update: `usePropertyOnboarding.tsx` ✅
 
 **File:** `src/hooks/usePropertyOnboarding.tsx`
 
 **Enhancements:**
-- Add roadmap loading
-- Implement getCompletionState() function
-- Auto-update checklist items on field completion
-- Update property status to `onboarding_active` when wizard starts
+- Added roadmap loading from `property_onboarding_roadmap` table
+- Added checklist loading/updating from `property_checklist` table
+- Implemented `getCompletionState()` integration
+- Added `autoVerifyChecklist()` for automatic checklist completion
+- Added `calculateNextAction()` for "next action" suggestions
+- Added `goToStepById()` for navigation by step ID
+- Score calculation respects intent-specific step filtering
+- Auto-updates `listing_status` to `onboarding_active` when wizard loads
 
 ---
 
