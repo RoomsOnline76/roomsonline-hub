@@ -9,14 +9,13 @@ import {
   CheckCircle,
   Clock,
   Play,
-  Pause,
+  Circle,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -40,6 +39,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { ALL_PMS_SYSTEMS, PMSSystemConfig } from "@/lib/pmsSystemsConfig";
 
 interface PMSAdapter {
   id: string;
@@ -50,6 +50,11 @@ interface PMSAdapter {
   last_sync_at: string | null;
   environment: string;
   capabilities: Record<string, boolean> | null;
+}
+
+interface SystemWithConnections {
+  config: PMSSystemConfig;
+  connections: PMSAdapter[];
 }
 
 export default function DevPMS() {
@@ -166,14 +171,17 @@ export default function DevPMS() {
     }
   };
 
-  // Group by system type
-  const adaptersByType = adapters.reduce((acc, adapter) => {
-    if (!acc[adapter.system_type]) {
-      acc[adapter.system_type] = [];
-    }
-    acc[adapter.system_type].push(adapter);
-    return acc;
-  }, {} as Record<string, PMSAdapter[]>);
+  // Build systems list from centralized config with their connections
+  const systemsWithConnections: SystemWithConnections[] = ALL_PMS_SYSTEMS.map(config => ({
+    config,
+    connections: adapters.filter(a => a.system_type === config.key),
+  }));
+
+  // Stats
+  const totalConnections = adapters.length;
+  const activeConnections = adapters.filter(a => a.is_active).length;
+  const errorConnections = adapters.filter(a => a.sync_status === 'error').length;
+  const systemsWithActiveConnections = systemsWithConnections.filter(s => s.connections.length > 0).length;
 
   return (
     <AppLayout>
@@ -197,21 +205,22 @@ export default function DevPMS() {
       <div className="grid gap-4 md:grid-cols-4 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Adapters</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Systems</CardTitle>
             <Server className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{adapters.length}</div>
+            <div className="text-2xl font-bold">{ALL_PMS_SYSTEMS.length}</div>
+            <p className="text-xs text-muted-foreground">{totalConnections} connections</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active</CardTitle>
+            <CardTitle className="text-sm font-medium">Active Connections</CardTitle>
             <Power className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-500">
-              {adapters.filter(a => a.is_active).length}
+              {activeConnections}
             </div>
           </CardContent>
         </Card>
@@ -222,24 +231,24 @@ export default function DevPMS() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-destructive">
-              {adapters.filter(a => a.sync_status === 'error').length}
+              {errorConnections}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Adapter Types</CardTitle>
+            <CardTitle className="text-sm font-medium">Connected Systems</CardTitle>
             <Settings className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {Object.keys(adaptersByType).length}
+              {systemsWithActiveConnections} / {ALL_PMS_SYSTEMS.length}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Adapters by Type */}
+      {/* All PMS Systems */}
       {loading ? (
         <Card>
           <CardContent className="pt-6">
@@ -250,114 +259,129 @@ export default function DevPMS() {
             </div>
           </CardContent>
         </Card>
-      ) : adapters.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-12">
-              <Server className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No PMS adapters configured</p>
-            </div>
-          </CardContent>
-        </Card>
       ) : (
         <div className="space-y-6">
-          {Object.entries(adaptersByType).map(([systemType, typeAdapters]) => (
-            <Card key={systemType}>
+          {systemsWithConnections.map(({ config, connections }) => (
+            <Card key={config.key} className={connections.length === 0 ? "opacity-60" : ""}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 capitalize">
+                <CardTitle className="flex items-center gap-2">
                   <Server className="h-5 w-5" />
-                  {systemType.replace(/_/g, ' ')}
+                  {config.name}
+                  {config.isInternal && (
+                    <Badge variant="outline" className="ml-2 text-xs">Internal</Badge>
+                  )}
+                  {config.hasCustomCard && connections.length === 0 && (
+                    <Badge variant="secondary" className="ml-2 text-xs">Ready</Badge>
+                  )}
+                  {!config.hasCustomCard && connections.length === 0 && (
+                    <Badge variant="outline" className="ml-2 text-xs text-muted-foreground">Planned</Badge>
+                  )}
                 </CardTitle>
                 <CardDescription>
-                  {typeAdapters.length} connection{typeAdapters.length !== 1 ? 's' : ''}
+                  {config.description}
+                  {connections.length > 0 && (
+                    <span className="ml-2 font-medium">
+                      • {connections.length} connection{connections.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Property</TableHead>
-                      <TableHead>Environment</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Last Sync</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {typeAdapters.map((adapter) => (
-                      <TableRow key={adapter.id}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {getStatusIcon(adapter.sync_status, adapter.is_active)}
-                            {adapter.property_name || 'Unnamed'}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {adapter.environment}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {getStatusBadge(adapter.sync_status, adapter.is_active)}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {adapter.last_sync_at 
-                            ? format(new Date(adapter.last_sync_at), 'MMM d, HH:mm')
-                            : 'Never'
-                          }
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => triggerSync(adapter)}
-                              disabled={!adapter.is_active}
-                            >
-                              <Play className="h-4 w-4" />
-                            </Button>
-                            
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  disabled={toggling === adapter.id}
-                                >
-                                  {adapter.is_active ? (
-                                    <Power className="h-4 w-4 text-emerald-500" />
-                                  ) : (
-                                    <PowerOff className="h-4 w-4 text-muted-foreground" />
-                                  )}
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>
-                                    {adapter.is_active ? 'Disable' : 'Enable'} Adapter?
-                                  </AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    {adapter.is_active 
-                                      ? 'This will stop all sync operations for this connection. Bookings will not be pushed until re-enabled.'
-                                      : 'This will resume sync operations for this connection.'
-                                    }
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => toggleAdapter(adapter)}>
-                                    {adapter.is_active ? 'Disable' : 'Enable'}
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </TableCell>
+              {connections.length > 0 && (
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Property</TableHead>
+                        <TableHead>Environment</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Last Sync</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
+                    </TableHeader>
+                    <TableBody>
+                      {connections.map((adapter) => (
+                        <TableRow key={adapter.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {getStatusIcon(adapter.sync_status, adapter.is_active)}
+                              {adapter.property_name || 'Unnamed'}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">
+                              {adapter.environment}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadge(adapter.sync_status, adapter.is_active)}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">
+                            {adapter.last_sync_at 
+                              ? format(new Date(adapter.last_sync_at), 'MMM d, HH:mm')
+                              : 'Never'
+                            }
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => triggerSync(adapter)}
+                                disabled={!adapter.is_active}
+                              >
+                                <Play className="h-4 w-4" />
+                              </Button>
+                              
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    disabled={toggling === adapter.id}
+                                  >
+                                    {adapter.is_active ? (
+                                      <Power className="h-4 w-4 text-emerald-500" />
+                                    ) : (
+                                      <PowerOff className="h-4 w-4 text-muted-foreground" />
+                                    )}
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                      {adapter.is_active ? 'Disable' : 'Enable'} Adapter?
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      {adapter.is_active 
+                                        ? 'This will stop all sync operations for this connection. Bookings will not be pushed until re-enabled.'
+                                        : 'This will resume sync operations for this connection.'
+                                      }
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => toggleAdapter(adapter)}>
+                                      {adapter.is_active ? 'Disable' : 'Enable'}
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              )}
+              {connections.length === 0 && (
+                <CardContent className="pt-0">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Circle className="h-3 w-3" />
+                    No connections configured
+                  </div>
+                </CardContent>
+              )}
             </Card>
           ))}
         </div>
