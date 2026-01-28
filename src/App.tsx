@@ -64,6 +64,7 @@ import AdminContractEditor from "./pages/AdminContractEditor";
 import AdminWizardEditor from "./pages/AdminWizardEditor";
 import AdminPreFlight from "./pages/AdminPreFlight";
 import AdminReviewQueue from "./pages/AdminReviewQueue";
+import PropertyProgress from "./pages/PropertyProgress";
 import DevOverview from "./pages/DevOverview";
 import DevPMS from "./pages/DevPMS";
 import DevLogs from "./pages/DevLogs";
@@ -474,6 +475,15 @@ const App = () => (
               element={
                 <ProtectedRoute requireDev={true}>
                   <DevDanger />
+                </ProtectedRoute>
+              }
+            />
+            {/* Property Progress Dashboard */}
+            <Route
+              path="/dashboard/property/:id/progress"
+              element={
+                <ProtectedRoute>
+                  <PropertyProgress />
                 </ProtectedRoute>
               }
             />
