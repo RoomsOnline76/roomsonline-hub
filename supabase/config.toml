@@ -132,3 +132,6 @@ verify_jwt = true
 
 [functions.smart-room-parser]
 verify_jwt = true
+
+[functions.generate-checklist]
+verify_jwt = true

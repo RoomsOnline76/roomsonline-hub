@@ -21,6 +21,115 @@ interface PendingPropertyData {
   key_representative?: string;
 }
 
+// Master checklist template
+const CHECKLIST_ITEMS = [
+  // Contract phase
+  { phase: 'contract', key: 'contract_signed', label: 'Contract signed', required_for: ['all'] },
+  
+  // Onboarding phase - common
+  { phase: 'onboarding', key: 'property_name', label: 'Property name set', required_for: ['all'] },
+  { phase: 'onboarding', key: 'property_address', label: 'Address configured', required_for: ['all'] },
+  { phase: 'onboarding', key: 'property_description', label: 'Description added', required_for: ['all'] },
+  { phase: 'onboarding', key: 'contact_details', label: 'Contact details complete', required_for: ['all'] },
+  { phase: 'onboarding', key: 'location_configured', label: 'Location/map configured', required_for: ['all'] },
+  { phase: 'onboarding', key: 'images_uploaded', label: 'Images uploaded (min 3)', required_for: ['all'] },
+  
+  // Accommodation-specific
+  { phase: 'onboarding', key: 'rooms_configured', label: 'Room types added', required_for: ['accommodation', 'hybrid'] },
+  { phase: 'onboarding', key: 'pricing_set', label: 'Pricing configured', required_for: ['accommodation', 'hybrid'] },
+  { phase: 'onboarding', key: 'check_in_out_times', label: 'Check-in/out times set', required_for: ['accommodation', 'hybrid'] },
+  
+  // Venue-specific
+  { phase: 'onboarding', key: 'venue_capacity', label: 'Venue capacity set', required_for: ['venue', 'hybrid'] },
+  { phase: 'onboarding', key: 'event_types', label: 'Event types defined', required_for: ['venue', 'hybrid'] },
+  
+  // Experience-specific
+  { phase: 'onboarding', key: 'experience_details', label: 'Experience details complete', required_for: ['experience'] },
+  { phase: 'onboarding', key: 'logistics', label: 'Logistics configured', required_for: ['experience'] },
+  
+  // Commercial phase
+  { phase: 'commercial', key: 'bank_details', label: 'Bank details provided', required_for: ['all'] },
+  { phase: 'commercial', key: 'commission_agreed', label: 'Commission rate confirmed', required_for: ['all'] },
+  
+  // Activation phase
+  { phase: 'activation', key: 'admin_review', label: 'Admin review complete', required_for: ['all'] },
+  { phase: 'activation', key: 'quality_gate_passed', label: 'Quality gate passed', required_for: ['all'] },
+];
+
+async function generatePropertyChecklist(
+  supabase: any,
+  propertyId: string,
+  listingIntent: string
+): Promise<void> {
+  // Filter items based on listing intent
+  const applicableItems = CHECKLIST_ITEMS.filter(item => 
+    item.required_for.includes('all') || item.required_for.includes(listingIntent)
+  );
+  
+  // Insert checklist items
+  const checklistRecords = applicableItems.map(item => ({
+    property_id: propertyId,
+    phase: item.phase,
+    item_key: item.key,
+    item_label: item.label,
+    required_for: item.required_for,
+    completed: item.key === 'contract_signed', // Auto-complete contract item
+    completed_at: item.key === 'contract_signed' ? new Date().toISOString() : null,
+    auto_verified: item.key === 'contract_signed',
+  }));
+  
+  const { error } = await supabase
+    .from('property_checklist')
+    .upsert(checklistRecords, { 
+      onConflict: 'property_id,phase,item_key',
+      ignoreDuplicates: false 
+    });
+  
+  if (error) {
+    console.error('Error creating checklist:', error);
+  } else {
+    console.log(`Created ${checklistRecords.length} checklist items for property ${propertyId}`);
+  }
+}
+
+async function generateOnboardingRoadmap(
+  supabase: any,
+  propertyId: string,
+  metadata: Record<string, unknown> | null
+): Promise<void> {
+  const listingIntent = (metadata?.listing_intent as string) || 'accommodation';
+  const commercialModel = (metadata?.commercial_model as string) || 'commission';
+  
+  const roadmap = {
+    listing_intent: listingIntent,
+    commercial_model: commercialModel,
+    expected_steps: metadata?.expected_steps || [],
+    min_requirements: metadata?.min_requirements || {},
+    milestones: [
+      { key: 'contract_signed', label: 'Contract Signed', completed: true, completed_at: new Date().toISOString() },
+      { key: 'onboarding_started', label: 'Onboarding Started', completed: false },
+      { key: 'content_complete', label: 'Content Complete', completed: false },
+      { key: 'media_uploaded', label: 'Media Uploaded', completed: false },
+      { key: 'review_submitted', label: 'Review Submitted', completed: false },
+      { key: 'activated', label: 'Property Activated', completed: false },
+    ],
+    created_at: new Date().toISOString(),
+  };
+  
+  const { error } = await supabase
+    .from('property_onboarding_roadmap')
+    .upsert({
+      property_id: propertyId,
+      roadmap,
+    }, { onConflict: 'property_id' });
+  
+  if (error) {
+    console.error('Error creating roadmap:', error);
+  } else {
+    console.log(`Created onboarding roadmap for property ${propertyId}`);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -111,6 +220,10 @@ Deno.serve(async (req) => {
       .from("signatures")
       .getPublicUrl(signatureFileName);
 
+    // Extract contract metadata for intent-aware processing
+    const contractMetadata = contract.metadata as Record<string, unknown> | null;
+    const listingIntent = (contractMetadata?.listing_intent as string) || 'accommodation';
+
     // Handle property creation for new owners
     let createdPropertyId: string | null = null;
     let createdPropertyName: string | null = null;
@@ -118,7 +231,7 @@ Deno.serve(async (req) => {
     if (contract_type === "owner" && contract.is_new_owner && pending_property_data) {
       const propData = pending_property_data as PendingPropertyData;
       
-      // Create the property
+      // Create the property with listing_status = 'contract_signed'
       const { data: newProperty, error: propError } = await supabase
         .from("properties")
         .insert({
@@ -135,6 +248,11 @@ Deno.serve(async (req) => {
           bedrooms: 1,
           bathrooms: 1,
           price_per_night: 0,
+          // New status fields
+          listing_status: 'contract_signed',
+          listing_intent: listingIntent,
+          commercial_model: contractMetadata?.commercial_model || 'commission',
+          pms_readiness: 'none',
           amenities: {
             // Root level (for contract variable resolution)
             registered_business_name: propData.registered_business_name || propData.property_name,
@@ -170,6 +288,14 @@ Deno.serve(async (req) => {
       createdPropertyId = newProperty.id;
       createdPropertyName = newProperty.name;
       console.log("Created new property:", createdPropertyId, createdPropertyName);
+
+      // Generate onboarding roadmap
+      if (createdPropertyId) {
+        await generateOnboardingRoadmap(supabase, createdPropertyId, contractMetadata);
+        
+        // Generate property checklist
+        await generatePropertyChecklist(supabase, createdPropertyId, listingIntent);
+      }
 
       // Ensure profile and user_role exist for the new owner
       const { data: existingProfile } = await supabase
@@ -214,6 +340,28 @@ Deno.serve(async (req) => {
         }
       } else {
         console.log("Profile already exists for:", contract.owner_email);
+      }
+    } else if (contract_type === "owner" && !contract.is_new_owner) {
+      // Existing owner signing - update all their properties to 'contract_signed' status
+      const { data: ownerProperties, error: propsError } = await supabase
+        .from("properties")
+        .select("id, listing_intent")
+        .eq("owner_email", contract.owner_email)
+        .is("permanently_deleted_at", null);
+      
+      if (!propsError && ownerProperties) {
+        for (const prop of ownerProperties) {
+          // Update status
+          await supabase
+            .from("properties")
+            .update({ listing_status: 'contract_signed' })
+            .eq("id", prop.id);
+          
+          // Generate roadmap and checklist for each property
+          await generateOnboardingRoadmap(supabase, prop.id, contractMetadata);
+          await generatePropertyChecklist(supabase, prop.id, prop.listing_intent || listingIntent);
+        }
+        console.log(`Updated ${ownerProperties.length} properties for existing owner`);
       }
     }
 
@@ -267,7 +415,7 @@ Deno.serve(async (req) => {
           .is("permanently_deleted_at", null);
         
         propertiesCount = properties?.length || 0;
-        propertiesText = properties?.map(p => p.name).join(", ") || "your properties";
+        propertiesText = properties?.map((p: { name: string }) => p.name).join(", ") || "your properties";
       }
     } else {
       // Legacy property contract
