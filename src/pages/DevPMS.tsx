@@ -39,7 +39,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { ALL_PMS_SYSTEMS, PMSSystemConfig } from "@/lib/pmsSystemsConfig";
+import { ALL_PMS_SYSTEMS, PMSSystemConfig, getDeploymentStatusInfo } from "@/lib/pmsSystemsConfig";
 
 interface PMSAdapter {
   id: string;
@@ -262,7 +262,7 @@ export default function DevPMS() {
       ) : (
         <div className="space-y-6">
           {systemsWithConnections.map(({ config, connections }) => (
-            <Card key={config.key} className={connections.length === 0 ? "opacity-60" : ""}>
+            <Card key={config.key} className={connections.length === 0 && config.deploymentStatus === 'planned' ? "opacity-50" : ""}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Server className="h-5 w-5" />
@@ -270,11 +270,13 @@ export default function DevPMS() {
                   {config.isInternal && (
                     <Badge variant="outline" className="ml-2 text-xs">Internal</Badge>
                   )}
-                  {config.hasCustomCard && connections.length === 0 && (
-                    <Badge variant="secondary" className="ml-2 text-xs">Ready</Badge>
-                  )}
-                  {!config.hasCustomCard && connections.length === 0 && (
-                    <Badge variant="outline" className="ml-2 text-xs text-muted-foreground">Planned</Badge>
+                  {connections.length === 0 && (
+                    <Badge 
+                      variant={getDeploymentStatusInfo(config.deploymentStatus).variant}
+                      className={`ml-2 text-xs ${getDeploymentStatusInfo(config.deploymentStatus).className}`}
+                    >
+                      {getDeploymentStatusInfo(config.deploymentStatus).label}
+                    </Badge>
                   )}
                 </CardTitle>
                 <CardDescription>
