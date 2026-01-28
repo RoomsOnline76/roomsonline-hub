@@ -296,39 +296,57 @@ CREATE POLICY "Owners can view their roadmaps" ON property_onboarding_roadmap
 
 ---
 
-## Phase 6: Admin Review System (Week 6)
+## Phase 6: Admin Review System (Week 6) ✅ COMPLETED
 
-### 6.1 New Page: `AdminReviewQueue.tsx`
+### 6.1 New Page: `AdminReviewQueue.tsx` ✅
 
 **Location:** `src/pages/AdminReviewQueue.tsx`
 **Route:** `/admin/review-queue`
 
 **Features:**
-- List properties by status (review_pending, activation_ready)
-- Show completion score, intent type, blocker count
-- Filter by status, intent, owner
-- Quick actions: Approve, Request Fixes, Override
+- List properties by status (review_pending, activation_ready, review_failed, rejected, onboarding_active)
+- Show completion score, intent type, quality gate status
+- Filter by status, intent, search by name/owner
+- Status summary cards for quick overview
+- Quick actions: View, Edit, Review
 
-### 6.2 Update: `PropertyForm.tsx`
-
-**File:** `src/pages/PropertyForm.tsx`
-
-**Enhancements:**
-- Tab headers show completion status (checkmark/warning icons)
-- Add "Review Mode" banner when status is review_pending
-- Add review action buttons in header
-- Integrate AI-powered inconsistency detection
-
-### 6.3 New Component: `ReviewActionPanel.tsx`
+### 6.2 New Component: `ReviewActionPanel.tsx` ✅
 
 **Location:** `src/components/property/ReviewActionPanel.tsx`
 
-**Purpose:** Admin actions for property review
+**Purpose:** Slide-over panel for admin review actions
+
+**Features:**
+- Property details display with owner info
+- Quality Gate integration showing current status
+- Checklist progress visualization
+- Request Fixes textarea with "Send to Owner" action
+- Footer action buttons: Reject, Override, Approve
 
 **Actions:**
-- **Approve**: Sets status to `activation_ready`, triggers quality gate
+- **Approve**: Runs quality gate; if passed, sets status to `live` and activates; otherwise `activation_ready`
+- **Reject**: Sets status to `rejected`, logs reason, sends notification email
 - **Request Fixes**: Sets status to `onboarding_active`, sends revision email
-- **Override**: Sets status to `activation_ready` with override reason logged
+- **Override**: Sets status to `activation_ready` with override reason logged (for bypassing quality gate)
+
+### 6.3 New Edge Function: `review-property` ✅
+
+**Location:** `supabase/functions/review-property/index.ts`
+
+**Purpose:** Handle review actions (approve, reject, request_fixes, override)
+
+**Implementation:**
+- Validates property exists
+- Handles each action type with appropriate status updates
+- Logs all actions to `property_activation_logs` table
+- Sends notification emails to property owners via Resend
+- Returns success/failure with new status
+
+### 6.4 Navigation Integration ✅
+
+- Added "Review Queue" to admin navigation in `src/config/navigation.ts`
+- Added route `/admin/review-queue` in `src/App.tsx`
+- Exported `ReviewActionPanel` from `src/components/property/index.ts`
 
 ---
 
