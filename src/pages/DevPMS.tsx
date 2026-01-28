@@ -39,7 +39,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { ALL_PMS_SYSTEMS, PMSSystemConfig, getDeploymentStatusInfo } from "@/lib/pmsSystemsConfig";
+import { ALL_PMS_SYSTEMS, PMSSystemConfig, getIntegrationStatusInfo, IntegrationStatus } from "@/lib/pmsSystemsConfig";
 
 interface PMSAdapter {
   id: string;
@@ -52,33 +52,49 @@ interface PMSAdapter {
   capabilities: Record<string, boolean> | null;
 }
 
+interface TrackerStatus {
+  system_type: string;
+  integration_status: IntegrationStatus | null;
+  is_production: boolean;
+}
+
 interface SystemWithConnections {
   config: PMSSystemConfig;
   connections: PMSAdapter[];
+  trackerStatus: TrackerStatus | null;
 }
 
 export default function DevPMS() {
   const [adapters, setAdapters] = useState<PMSAdapter[]>([]);
+  const [trackerStatuses, setTrackerStatuses] = useState<TrackerStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
 
   useEffect(() => {
-    loadAdapters();
+    loadData();
   }, []);
 
-  const loadAdapters = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
       
-      const { data, error } = await supabase
-        .from('pms_credentials')
-        .select('*')
-        .order('system_type');
+      // Fetch both pms_credentials and pms_tracker_status in parallel
+      const [credentialsResult, trackerResult] = await Promise.all([
+        supabase
+          .from('pms_credentials')
+          .select('*')
+          .order('system_type'),
+        supabase
+          .from('pms_tracker_status')
+          .select('system_type, integration_status, is_production')
+          .order('system_type'),
+      ]);
       
-      if (error) throw error;
+      if (credentialsResult.error) throw credentialsResult.error;
+      if (trackerResult.error) throw trackerResult.error;
 
-      setAdapters((data || []).map((a: any) => ({
+      setAdapters((credentialsResult.data || []).map((a: any) => ({
         id: a.id,
         system_type: a.system_type,
         property_name: a.property_name,
@@ -88,9 +104,15 @@ export default function DevPMS() {
         environment: a.environment,
         capabilities: a.capabilities,
       })));
+
+      setTrackerStatuses((trackerResult.data || []).map((t: any) => ({
+        system_type: t.system_type,
+        integration_status: t.integration_status,
+        is_production: t.is_production ?? false,
+      })));
     } catch (error) {
-      console.error('Error loading PMS adapters:', error);
-      toast.error('Failed to load PMS adapters');
+      console.error('Error loading PMS data:', error);
+      toast.error('Failed to load PMS data');
     } finally {
       setLoading(false);
     }
@@ -98,9 +120,9 @@ export default function DevPMS() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadAdapters();
+    await loadData();
     setRefreshing(false);
-    toast.success('Adapters refreshed');
+    toast.success('Data refreshed');
   };
 
   const toggleAdapter = async (adapter: PMSAdapter) => {
@@ -171,17 +193,27 @@ export default function DevPMS() {
     }
   };
 
-  // Build systems list from centralized config with their connections
+  // Build systems list from centralized config with their connections and tracker status
   const systemsWithConnections: SystemWithConnections[] = ALL_PMS_SYSTEMS.map(config => ({
     config,
     connections: adapters.filter(a => a.system_type === config.key),
+    trackerStatus: trackerStatuses.find(t => t.system_type === config.key) || null,
   }));
+
+  // Get the latest sync across all connections for a system
+  const getLatestSync = (connections: PMSAdapter[]): string | null => {
+    const syncs = connections
+      .map(c => c.last_sync_at)
+      .filter((s): s is string => s !== null)
+      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    return syncs[0] || null;
+  };
 
   // Stats
   const totalConnections = adapters.length;
   const activeConnections = adapters.filter(a => a.is_active).length;
   const errorConnections = adapters.filter(a => a.sync_status === 'error').length;
-  const systemsWithActiveConnections = systemsWithConnections.filter(s => s.connections.length > 0).length;
+  const deployedSystems = trackerStatuses.filter(t => t.integration_status === 'deployed').length;
 
   return (
     <AppLayout>
@@ -237,13 +269,14 @@ export default function DevPMS() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Connected Systems</CardTitle>
+            <CardTitle className="text-sm font-medium">Deployed Systems</CardTitle>
             <Settings className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {systemsWithActiveConnections} / {ALL_PMS_SYSTEMS.length}
+              {deployedSystems} / {ALL_PMS_SYSTEMS.length}
             </div>
+            <p className="text-xs text-muted-foreground">From pms_tracker_status</p>
           </CardContent>
         </Card>
       </div>
@@ -261,33 +294,50 @@ export default function DevPMS() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {systemsWithConnections.map(({ config, connections }) => (
-            <Card key={config.key} className={connections.length === 0 && config.deploymentStatus === 'planned' ? "opacity-50" : ""}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Server className="h-5 w-5" />
-                  {config.name}
-                  {config.isInternal && (
-                    <Badge variant="outline" className="ml-2 text-xs">Internal</Badge>
-                  )}
-                  {connections.length === 0 && (
+          {systemsWithConnections.map(({ config, connections, trackerStatus }) => {
+            const integrationStatus = trackerStatus?.integration_status || 'coming_soon';
+            const statusInfo = getIntegrationStatusInfo(integrationStatus);
+            const latestSync = getLatestSync(connections);
+            const isDeployed = integrationStatus === 'deployed' || integrationStatus === 'in_testing';
+            
+            return (
+              <Card key={config.key} className={!isDeployed && connections.length === 0 ? "opacity-50" : ""}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Server className="h-5 w-5" />
+                    {config.name}
+                    {config.isInternal && (
+                      <Badge variant="outline" className="ml-2 text-xs">Internal</Badge>
+                    )}
+                    {config.isWidgetOnly && (
+                      <Badge variant="outline" className="ml-2 text-xs">Widget</Badge>
+                    )}
                     <Badge 
-                      variant={getDeploymentStatusInfo(config.deploymentStatus).variant}
-                      className={`ml-2 text-xs ${getDeploymentStatusInfo(config.deploymentStatus).className}`}
+                      variant={statusInfo.variant}
+                      className={`ml-2 text-xs ${statusInfo.className}`}
                     >
-                      {getDeploymentStatusInfo(config.deploymentStatus).label}
+                      {statusInfo.label}
                     </Badge>
-                  )}
-                </CardTitle>
-                <CardDescription>
-                  {config.description}
-                  {connections.length > 0 && (
-                    <span className="ml-2 font-medium">
-                      • {connections.length} connection{connections.length !== 1 ? 's' : ''}
-                    </span>
-                  )}
-                </CardDescription>
-              </CardHeader>
+                    {trackerStatus?.is_production && (
+                      <Badge className="ml-1 text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                        Production
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    {config.description}
+                    {connections.length > 0 && (
+                      <span className="ml-2 font-medium">
+                        • {connections.length} connection{connections.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {latestSync && (
+                      <span className="ml-2 text-muted-foreground">
+                        • Last sync: {format(new Date(latestSync), 'MMM d, HH:mm')}
+                      </span>
+                    )}
+                  </CardDescription>
+                </CardHeader>
               {connections.length > 0 && (
                 <CardContent>
                   <Table>
@@ -380,12 +430,15 @@ export default function DevPMS() {
                 <CardContent className="pt-0">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Circle className="h-3 w-3" />
-                    No connections configured
+                    {config.isWidgetOnly 
+                      ? 'Widget-based integration (no API connections)' 
+                      : 'No connections configured'}
                   </div>
                 </CardContent>
               )}
             </Card>
-          ))}
+          );
+        })}
         </div>
       )}
     </AppLayout>

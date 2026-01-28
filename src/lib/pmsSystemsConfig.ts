@@ -3,6 +3,9 @@
 
 export type DeploymentStatus = 'deployed' | 'ready' | 'in_development' | 'planned';
 
+// Maps pms_tracker_status.integration_status to display status
+export type IntegrationStatus = 'deployed' | 'in_testing' | 'in_development' | 'coming_soon' | 'parked';
+
 export interface PMSSystemConfig {
   key: string;
   name: string;
@@ -10,7 +13,26 @@ export interface PMSSystemConfig {
   isInternal?: boolean; // RoomsOnline API is internal
   hasCustomCard?: boolean; // Systems with custom UI cards in AdminKeys
   deploymentStatus: DeploymentStatus;
+  isWidgetOnly?: boolean; // NightsBridge uses widget, no API
 }
+
+// Get integration status badge info (from pms_tracker_status)
+export const getIntegrationStatusInfo = (status: IntegrationStatus | string | null) => {
+  switch (status) {
+    case 'deployed':
+      return { label: 'Deployed', variant: 'default' as const, className: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' };
+    case 'in_testing':
+      return { label: 'In Testing', variant: 'secondary' as const, className: 'bg-amber-500/10 text-amber-600 border-amber-500/20' };
+    case 'in_development':
+      return { label: 'In Development', variant: 'outline' as const, className: 'text-amber-600 border-amber-500/30' };
+    case 'coming_soon':
+      return { label: 'Coming Soon', variant: 'outline' as const, className: 'text-muted-foreground' };
+    case 'parked':
+      return { label: 'Parked', variant: 'outline' as const, className: 'text-muted-foreground' };
+    default:
+      return { label: 'Unknown', variant: 'outline' as const, className: 'text-muted-foreground' };
+  }
+};
 
 // All available PMS and API systems - sorted alphabetically by name
 export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
@@ -78,9 +100,10 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
   {
     key: 'nightsbridge',
     name: 'NightsBridge',
-    description: 'South African booking and channel management platform',
+    description: 'Deployed via widget integration (no API access)',
     hasCustomCard: true,
     deploymentStatus: 'deployed',
+    isWidgetOnly: true,
   },
   // R
   {
@@ -105,10 +128,10 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
   {
     key: 'roomsonline',
     name: 'RoomsOnline',
-    description: "RoomsOnline's proprietary API for direct property management",
+    description: "RoomsOnline's proprietary API (future project)",
     isInternal: true,
     hasCustomCard: true,
-    deploymentStatus: 'deployed',
+    deploymentStatus: 'in_development',
   },
   // S
   {
