@@ -161,44 +161,38 @@ export default function DevPMS() {
     toast.success('Sync triggered successfully');
   };
 
-  const getStatusIcon = (status: string | null, isActive: boolean, lastSyncAt: string | null) => {
+  // Sync status is determined by last_sync_at timestamp, not the unused sync_status field
+  const getConnectionIcon = (isActive: boolean, lastSyncAt: string | null) => {
     if (!isActive) return <PowerOff className="h-4 w-4 text-muted-foreground" />;
     
-    switch (status) {
-      case 'healthy':
-      case 'synced':
-        return <CheckCircle className="h-4 w-4 text-emerald-500" />;
-      case 'syncing':
-        return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
-      case 'error':
-      case 'failed':
-        return <AlertTriangle className="h-4 w-4 text-destructive" />;
-      default:
-        // If never synced, show clock; otherwise show pending
-        return lastSyncAt ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <Clock className="h-4 w-4 text-muted-foreground" />;
+    // If has synced, it's operational
+    if (lastSyncAt) {
+      return <CheckCircle className="h-4 w-4 text-emerald-500" />;
     }
+    // Never synced yet
+    return <Clock className="h-4 w-4 text-muted-foreground" />;
   };
 
-  const getSyncStatusBadge = (status: string | null, isActive: boolean, lastSyncAt: string | null) => {
+  // Connection sync badge based on actual sync history
+  const getConnectionSyncBadge = (isActive: boolean, lastSyncAt: string | null) => {
     if (!isActive) return <Badge variant="outline">Disabled</Badge>;
     
-    switch (status) {
-      case 'healthy':
-      case 'synced':
+    if (lastSyncAt) {
+      // Has synced - show when
+      const syncDate = new Date(lastSyncAt);
+      const now = new Date();
+      const hoursSince = (now.getTime() - syncDate.getTime()) / (1000 * 60 * 60);
+      
+      if (hoursSince < 24) {
         return <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Synced</Badge>;
-      case 'syncing':
-        return <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">Syncing</Badge>;
-      case 'error':
-      case 'failed':
-        return <Badge variant="destructive">Error</Badge>;
-      case 'pending':
-      default:
-        // Distinguish between "never synced" and "awaiting sync"
-        if (!lastSyncAt) {
-          return <Badge variant="outline" className="text-muted-foreground">Never Synced</Badge>;
-        }
-        return <Badge variant="secondary">Awaiting Sync</Badge>;
+      } else if (hoursSince < 72) {
+        return <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20">Stale</Badge>;
+      } else {
+        return <Badge variant="secondary">Outdated</Badge>;
+      }
     }
+    
+    return <Badge variant="outline" className="text-muted-foreground">Never Synced</Badge>;
   };
 
   // Build systems list from centralized config with their connections and tracker status
@@ -363,7 +357,7 @@ export default function DevPMS() {
                         <TableRow key={adapter.id}>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
-                              {getStatusIcon(adapter.sync_status, adapter.is_active, adapter.last_sync_at)}
+                              {getConnectionIcon(adapter.is_active, adapter.last_sync_at)}
                               {adapter.property_name || 'Unnamed'}
                             </div>
                           </TableCell>
@@ -373,7 +367,7 @@ export default function DevPMS() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {getSyncStatusBadge(adapter.sync_status, adapter.is_active, adapter.last_sync_at)}
+                            {getConnectionSyncBadge(adapter.is_active, adapter.last_sync_at)}
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
                             {adapter.last_sync_at 
