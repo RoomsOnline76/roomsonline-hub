@@ -23,7 +23,14 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { propertyId, ownerEmail, ownerName, propertyName, createdBy } = await req.json();
+    const body = await req.json();
+    
+    // Support both camelCase and snake_case field names
+    const propertyId = body.propertyId || body.property_id;
+    const ownerEmail = body.ownerEmail || body.owner_email;
+    const ownerName = body.ownerName || body.owner_name;
+    const propertyName = body.propertyName || body.property_name;
+    const createdBy = body.createdBy || body.created_by;
 
     if (!propertyId || !ownerEmail) {
       throw new Error("Missing required fields: propertyId and ownerEmail");
