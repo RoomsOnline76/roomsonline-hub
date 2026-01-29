@@ -41,7 +41,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { ALL_PMS_SYSTEMS, PMSSystemConfig, getIntegrationStatusInfo, IntegrationStatus } from "@/lib/pmsSystemsConfig";
+import { VISIBLE_PMS_SYSTEMS, PMSSystemConfig, getIntegrationStatusInfo, IntegrationStatus } from "@/lib/pmsSystemsConfig";
 
 interface PMSAdapter {
   id: string;
@@ -250,7 +250,7 @@ export default function DevPMS() {
   };
 
   // Build systems list from centralized config with their connections and tracker status
-  const systemsWithConnections: SystemWithConnections[] = ALL_PMS_SYSTEMS.map(config => ({
+  const systemsWithConnections: SystemWithConnections[] = VISIBLE_PMS_SYSTEMS.map(config => ({
     config,
     connections: adapters.filter(a => a.system_type === config.key),
     trackerStatus: trackerStatuses.find(t => t.system_type === config.key) || null,
@@ -265,11 +265,13 @@ export default function DevPMS() {
     return syncs[0] || null;
   };
 
-  // Stats
-  const totalConnections = adapters.length;
-  const activeConnections = adapters.filter(a => a.is_active).length;
-  const errorConnections = adapters.filter(a => a.sync_status === 'error').length;
-  const deployedSystems = trackerStatuses.filter(t => t.integration_status === 'deployed').length;
+  // Stats - filter to only visible systems
+  const visibleSystemKeys = VISIBLE_PMS_SYSTEMS.map(s => s.key);
+  const visibleConnections = adapters.filter(a => visibleSystemKeys.includes(a.system_type));
+  const totalConnections = visibleConnections.length;
+  const activeConnections = visibleConnections.filter(a => a.is_active).length;
+  const errorConnections = visibleConnections.filter(a => a.sync_status === 'error').length;
+  const deployedSystems = trackerStatuses.filter(t => t.integration_status === 'deployed' && visibleSystemKeys.includes(t.system_type)).length;
 
   return (
     <AppLayout>
@@ -297,7 +299,7 @@ export default function DevPMS() {
             <Server className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{ALL_PMS_SYSTEMS.length}</div>
+            <div className="text-2xl font-bold">{VISIBLE_PMS_SYSTEMS.length}</div>
             <p className="text-xs text-muted-foreground">{totalConnections} connections</p>
           </CardContent>
         </Card>
@@ -330,7 +332,7 @@ export default function DevPMS() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {deployedSystems} / {ALL_PMS_SYSTEMS.length}
+              {deployedSystems} / {VISIBLE_PMS_SYSTEMS.length}
             </div>
             <p className="text-xs text-muted-foreground">From pms_tracker_status</p>
           </CardContent>
