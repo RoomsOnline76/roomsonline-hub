@@ -14,6 +14,7 @@ export interface PMSSystemConfig {
   hasCustomCard?: boolean; // Systems with custom UI cards in AdminKeys
   deploymentStatus: DeploymentStatus;
   isWidgetOnly?: boolean; // NightsBridge uses widget, no API
+  hidden?: boolean; // Hide from UI without removing config
 }
 
 // Get integration status badge info (from pms_tracker_status)
@@ -65,6 +66,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     name: 'Guesty',
     description: 'Property management and guest experience platform for vacation rentals',
     deploymentStatus: 'planned',
+    hidden: true, // No longer required
   },
   // H
   {
@@ -88,6 +90,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     description: 'Cloud-based property management system designed for small hotels, B&Bs, and guest houses',
     hasCustomCard: true,
     deploymentStatus: 'in_development',
+    hidden: true, // No longer required
   },
   // M
   {
@@ -112,6 +115,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     description: 'Channel manager and distribution platform for vacation rentals',
     hasCustomCard: true,
     deploymentStatus: 'in_development',
+    hidden: true, // No longer required
   },
   {
     key: 'roomkey',
@@ -148,8 +152,11 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
   },
 ];
 
-// Get total count of all systems
-export const TOTAL_PMS_SYSTEMS_COUNT = ALL_PMS_SYSTEMS.length;
+// Get only visible systems (excludes hidden)
+export const VISIBLE_PMS_SYSTEMS = ALL_PMS_SYSTEMS.filter(s => !s.hidden);
+
+// Get total count of visible systems (used for milestones)
+export const TOTAL_PMS_SYSTEMS_COUNT = VISIBLE_PMS_SYSTEMS.length;
 
 // Get only PMS systems (excluding internal RoomsOnline API)
 export const PMS_ONLY_SYSTEMS = ALL_PMS_SYSTEMS.filter(s => !s.isInternal);

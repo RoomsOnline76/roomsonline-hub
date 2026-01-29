@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { PMSProgressToggles } from "@/components/PMSProgressToggles";
-import { TOTAL_PMS_SYSTEMS_COUNT, ALL_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
+import { TOTAL_PMS_SYSTEMS_COUNT, VISIBLE_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
 import PMSTrackerStatusDisplay from "@/components/PMSTrackerStatus";
 import PMSDevNotes from "@/components/PMSDevNotes";
 import PMSContactDetails from "@/components/PMSContactDetails";
@@ -3870,11 +3870,7 @@ export default function AdminKeys() {
           {renderBensonCard()}
           {renderCheckfrontCard()}
           {renderCloudbedsCard()}
-          {renderPlaceholderPMSCard(
-            "Guesty",
-            "guesty",
-            "Property management and guest experience platform for vacation rentals",
-          )}
+          {/* Guesty hidden - no longer required */}
           {renderHostfullyCard()}
           {/* HotelBeds - Custom card with API key/secret */}
           <AccordionItem
@@ -4049,13 +4045,9 @@ export default function AdminKeys() {
               </div>
             </AccordionContent>
           </AccordionItem>
-          {renderLittlehotelierCard()}
+          {/* Little Hotelier hidden - no longer required */}
           {renderNightsbridgeCard()}
-          {renderPlaceholderPMSCard(
-            "Rentals United",
-            "rentalsunited",
-            "Channel manager and distribution platform for vacation rentals",
-          )}
+          {/* Rentals United hidden - no longer required */}
           {renderPlaceholderPMSCard(
             "RoomKey",
             "roomkey",
