@@ -112,7 +112,7 @@ function wrapCustomTemplate(customContent: string, property: any): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reservation Confirmation</title>
+  <title>Booking Confirmation</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5;">
   <table role="presentation" style="width: 100%; border-collapse: collapse;">
@@ -210,7 +210,7 @@ function generateSuccessEmail(booking: any, property: any): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reservation Confirmation</title>
+  <title>Booking Confirmation</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5;">
   <table role="presentation" style="width: 100%; border-collapse: collapse;">
@@ -222,8 +222,8 @@ function generateSuccessEmail(booking: any, property: any): string {
           <tr>
             <td style="padding: 40px 40px 20px; text-align: center; background-color: #ffffff; border-radius: 8px 8px 0 0;">
               <div style="font-size: 32px; color: #22c55e; margin-bottom: 10px;">✓</div>
-              <h1 style="margin: 0; font-size: 24px; color: #333; font-weight: 600;">Reservation Confirmed!</h1>
-              <p style="margin: 10px 0 0; color: #666; font-size: 14px;">Thank you for your reservation</p>
+              <h1 style="margin: 0; font-size: 24px; color: #333; font-weight: 600;">Booking Confirmed!</h1>
+              <p style="margin: 10px 0 0; color: #666; font-size: 14px;">Thank you for your booking</p>
             </td>
           </tr>
 
@@ -231,7 +231,7 @@ function generateSuccessEmail(booking: any, property: any): string {
           <tr>
             <td style="padding: 0 40px;">
               <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 20px;">
-                <p style="margin: 0 0 5px; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Reservation Reference</p>
+                <p style="margin: 0 0 5px; color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Booking Reference</p>
                 <p style="margin: 0; color: #333; font-size: 20px; font-weight: 600; font-family: monospace;">${booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase()}</p>
               </div>
             </td>
