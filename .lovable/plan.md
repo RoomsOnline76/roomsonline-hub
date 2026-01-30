@@ -1,117 +1,93 @@
 
-# Fix Consistent Rate Calculation Failures Across PMS Properties
+# Fix PayFast Signature Mismatch Error
 
-## Problem Summary
+## Problem Identified
 
-The booking page crashes with `Cannot read properties of undefined (reading 'rates')` when the rate type lookup fails. This affects:
-- **Hostfully properties**: API returns `rate_type_id: "per-unit"` but `selectedRateType` may be mismatched
-- **Latter Days / cache properties**: Similar ID mismatch between local room IDs and cache slugified IDs
-- **HotelBeds properties**: Same structural issue
+The edge function logs show:
+```
+signature: Generated signature does not match submitted signature.
+```
 
-The crash occurs at line 548 in Booking.tsx where `rateType.rates` is accessed without checking if `rateType` exists.
+The root cause is a **mismatch between signature generation and API submission**:
 
----
+1. **Current (broken)**: Signature is generated from non-URL-encoded values, but the POST body uses URL-encoded values
+2. **PayFast requirement**: Signature MUST be calculated from the exact same parameter string that gets submitted
 
-## Root Causes
+## Technical Details
 
-1. **Missing null check**: Line 548 accesses `rateType.rates` without verifying `rateType` exists
-2. **Rate type mismatch**: `selectedRateType` may be "default" while API returns "per-unit"
-3. **Race condition**: `calculateCost` can run before `cachedRateTypes` query completes, leaving `rateTypes` empty and setting `selectedRateType` to "default"
-
----
-
-## Technical Section
-
-### File Changes: `src/pages/Booking.tsx`
-
+Current code flow:
 ```text
-1. Add safety check before accessing rateType.rates (line 548)
-   - If rateType is undefined, try fallback to first available rate type
-   - If still undefined, skip this room with a warning
+1. generateSignature() builds: "amount=3150.00&cancel_url=https://site.com/..."
+   → Uses raw values with spaces replaced by +
 
-2. Improve rate type matching logic (lines 541-546)
-   - First try exact match with selectedRateType
-   - Then try matching "default" or "per-unit" as synonyms
-   - Fallback to first available rate type if no match
+2. paramString for POST builds: "amount=3150.00&cancel_url=https%3A%2F%2Fsite.com%2F..."
+   → Uses encodeURIComponent()
 
-3. Add debug logging for rate type matching
-   - Log selectedRateType value
-   - Log available rate types in the array
-   - Log match result
+3. PayFast receives URL-encoded values but signature was calculated from non-encoded values
+   → MISMATCH!
 ```
 
-### Implementation Details
+PayFast's official PHP example shows the correct approach:
+```php
+// dataToString uses urlencode for the param string
+$pfOutput .= $key . '=' . urlencode( trim( $val ) ) . '&';
+// Signature is generated from this SAME urlencode'd string
+$data["signature"] = generateSignature($data, $passPhrase);
+```
 
-**Current unsafe code (lines 541-549):**
+## Solution
+
+Modify the signature generation to use URL-encoded values (matching what gets sent):
+
+### Changes to `supabase/functions/payfast-api/index.ts`
+
+1. **Update `generateSignature()` function** (lines 222-241):
+   - Use `encodeURIComponent()` for values
+   - Replace `%20` with `+` (PayFast's space encoding requirement)
+
 ```typescript
-const rateType = rateTypesArray.find(
-  (rt: any) => {
-    const rtId = String(rt.rate_type_id || rt.rateTypeId);
-    return rtId === selectedRateType || rtId === 'default';
-  }
-);
-
-const allRates = rateType.rates || []; // CRASHES if rateType undefined
+function generateSignature(data: Record<string, string>, passphrase?: string): string {
+  const sortedKeys = Object.keys(data).sort();
+  
+  // Build param string WITH URL encoding (must match what we POST)
+  // PayFast requires %20 to be replaced with + for spaces
+  const paramString = sortedKeys
+    .filter(key => data[key] !== "" && data[key] !== undefined && data[key] !== null)
+    .map(key => `${key}=${encodeURIComponent(String(data[key]).trim()).replace(/%20/g, "+")}`)
+    .join("&");
+  
+  // Add passphrase if provided (also URL-encoded)
+  const stringToHash = passphrase && passphrase.length > 0
+    ? `${paramString}&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, "+")}`
+    : paramString;
+  
+  console.log("[PayFast] Signature string for hashing:", paramString.substring(0, 200) + "...");
+  
+  return md5Hash(stringToHash);
+}
 ```
 
-**Fixed safe code:**
+2. **Update POST body construction** (lines 634-637) to match:
+   - Ensure the encoding matches exactly what was used for signature generation
+
 ```typescript
-// First try exact match, then flexible fallbacks
-let rateType = rateTypesArray.find((rt: any) => {
-  const rtId = String(rt.rate_type_id || rt.rateTypeId);
-  return rtId === selectedRateType;
-});
-
-// Fallback 1: Try 'default' or 'per-unit' as universal rate types
-if (!rateType) {
-  rateType = rateTypesArray.find((rt: any) => {
-    const rtId = String(rt.rate_type_id || rt.rateTypeId);
-    return rtId === 'default' || rtId === 'per-unit';
-  });
-}
-
-// Fallback 2: Use first available rate type
-if (!rateType && rateTypesArray.length > 0) {
-  console.warn('[Booking] Using first available rate type as fallback');
-  rateType = rateTypesArray[0];
-}
-
-// Safety check before accessing rates
-if (!rateType) {
-  console.warn('[Booking] No rate type found for room:', room.roomTypeName);
-  continue;
-}
-
-const allRates = rateType.rates || [];
+// Build param string for onsite API - MUST match signature generation encoding
+const paramString = Object.entries(formFields)
+  .filter(([_, value]) => value !== "" && value !== undefined && value !== null)
+  .sort(([a], [b]) => a.localeCompare(b)) // Sort alphabetically to match signature
+  .map(([key, value]) => `${key}=${encodeURIComponent(String(value).trim()).replace(/%20/g, "+")}`)
+  .join("&");
 ```
 
----
+## Verification
 
-## Implementation Steps
+After deployment, the logs should show:
+- Signature string matches what gets POSTed
+- PayFast returns a valid UUID instead of "400 Bad Request"
+- Payment modal opens successfully
 
-1. **Add null safety for rateType**
-   - Add explicit check before accessing `rateType.rates`
-   - Skip room calculation with warning if no rate type found
+## Files to Modify
 
-2. **Add flexible rate type matching fallbacks**
-   - Try exact match with `selectedRateType` first
-   - Fall back to universal types: `'default'`, `'per-unit'`
-   - Last resort: use first rate type in array
-
-3. **Add debug logging**
-   - Log `selectedRateType` value
-   - Log available rate type IDs
-   - Log which fallback was used (if any)
-
----
-
-## Testing Checklist
-
-After implementation:
-1. Navigate to Hostfully property (Victorian House), select dates, proceed to booking
-2. Verify cost breakdown appears with correct ZAR pricing
-3. Navigate to Latter Days property, select dates, proceed to booking
-4. Verify cost breakdown appears without errors
-5. Navigate to HotelBeds property, select dates, proceed to booking
-6. Verify cost breakdown appears with correct EUR pricing
-7. Complete a test booking on each property type to confirm full flow works
+| File | Change |
+|------|--------|
+| `supabase/functions/payfast-api/index.ts` | Fix signature generation to use URL-encoded values matching POST body |
