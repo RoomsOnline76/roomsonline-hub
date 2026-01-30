@@ -1,121 +1,187 @@
 
+# Fix: Email Not Sending After Payment + Add Journey PDF Attachment
 
-# PayFast Signature Fix - Complete Root Cause Analysis
+## Problem Summary
 
-## Summary of All Issues Found
+Two issues were identified after successful PayFast payment:
 
-After reviewing the edge function logs, PayFast documentation, and all attempted fixes, I've identified the **actual root cause** of the signature mismatch.
-
----
-
-## The Real Problem
-
-### Issue: Passphrase NOT Being URL-Encoded (Recently Broken)
-
-The PayFast PHP documentation explicitly shows:
-```php
-$getString .= '&passphrase='. urlencode( trim( $passPhrase ) );
-```
-
-**The passphrase MUST be URL-encoded**, but a recent "fix" changed it to NOT encode:
-
-```typescript
-// Current code (WRONG - introduced as a "fix"):
-? `${paramString}&passphrase=${passphrase.trim()}`
-
-// Should be (CORRECT - matches PHP):
-? `${paramString}&passphrase=${pfUrlencode(passphrase)}`
-```
-
-This was changed based on an incorrect assumption that "working Python implementations don't encode the passphrase" - but the official PayFast PHP SDK clearly shows it must be encoded.
+1. **Confirmation email not sent** - The PayFast ITN (Instant Transaction Notification) signature verification is failing, preventing the payment status from being updated and the email from being triggered
+2. **Journey PDF not attached** - The email function has no attachment capability; it only sends HTML content
 
 ---
 
-## Timeline of Changes (What Happened)
+## Root Cause Analysis
 
-| Change | Status |
-|--------|--------|
-| Uppercase hex encoding (`%3A` not `%3a`) | Correct - implemented |
-| Passphrase invisible character stripping | Correct - implemented |
-| Passphrase encoding REMOVED | **WRONG - this broke it** |
+### Issue 1: ITN Signature Verification Failure
 
----
-
-## Evidence From Logs
-
-The current logs show:
+From the logs:
 ```
-Last 100 chars: ...&passphrase=DawieCarikeSLPafrica247
+Generated signature: d20946fff87c4106ffb9e3b20145a2f4
+Received signature: 2ea1e08fccf3ddae0814cac563af13a5
 ```
 
-But if the passphrase contained special characters (like `+` or `&`), they would NOT be escaped, corrupting the signature string. Even if the current passphrase is alphanumeric, the PHP implementation always encodes it, so we must match that behavior exactly.
+The problem is in how we verify ITN signatures:
+- When generating signatures for outbound requests, we order fields using `PAYFAST_FIELD_ORDER`
+- When verifying ITN signatures, PayFast sends fields in THEIR order (alphabetical by key)
+- Our `dataToString` function reorders fields to `PAYFAST_FIELD_ORDER`, which breaks the signature
+
+**PayFast ITN signature is calculated using alphabetical field order, not the custom order we use for outbound requests.**
+
+### Issue 2: Missing PDF Attachment
+
+The `send-booking-email` edge function only generates HTML content. It has no logic to:
+- Generate or fetch the itinerary PDF brochure
+- Attach files to the Resend email
 
 ---
 
 ## Solution
 
-Revert the passphrase encoding to use `pfUrlencode()`:
+### Part 1: Fix ITN Signature Verification
+
+Create a separate function for verifying ITN signatures that uses alphabetical field ordering (matching PayFast's server-side behavior).
+
+**Changes to `supabase/functions/payfast-api/index.ts`:**
 
 ```typescript
-function generateSignature(data: Record<string, string>, passphrase?: string): string {
-  const paramString = dataToString(data, true);
+// NEW: ITN-specific param string builder (uses alphabetical order like PayFast)
+function dataToStringForItn(data: Record<string, string>): string {
+  // PayFast ITN signatures use ALPHABETICAL field order, not custom order
+  const sortedKeys = Object.keys(data)
+    .filter(k => k !== 'signature' && data[k] !== "" && data[k] !== undefined && data[k] !== null)
+    .sort(); // Alphabetical order
   
-  // CORRECT: passphrase MUST be URL-encoded per PayFast PHP implementation
+  return sortedKeys.map(key => `${key}=${pfUrlencode(String(data[key]))}`).join("&");
+}
+
+// UPDATE: Generate signature for ITN verification (alphabetical order)
+function generateItnSignature(data: Record<string, string>, passphrase?: string): string {
+  const paramString = dataToStringForItn(data);
+  
   const stringToHash = passphrase && passphrase.length > 0
     ? `${paramString}&passphrase=${pfUrlencode(passphrase)}`
     : paramString;
   
   return md5Hash(stringToHash);
 }
+
+// UPDATE: verifySignature to use ITN-specific function
+function verifySignature(data: Record<string, string>, signature: string, passphrase?: string): boolean {
+  const dataWithoutSign = { ...data };
+  delete dataWithoutSign.signature;
+  
+  const calculatedSignature = generateItnSignature(dataWithoutSign, passphrase);
+  console.log("[PayFast] ITN Calculated signature:", calculatedSignature);
+  console.log("[PayFast] ITN Received signature:", signature);
+  
+  return calculatedSignature === signature;
+}
 ```
 
----
+### Part 2: Add PDF Attachment to Confirmation Email
 
-## Secondary Issue: Passphrase Length (23 vs expected)
+**Changes to `supabase/functions/send-booking-email/index.ts`:**
 
-The logs show:
+1. After generating the HTML email, call `generate-itinerary-pdf` to get the brochure
+2. Convert the HTML brochure to PDF using a service or send as HTML attachment
+3. Attach to the Resend email using their attachments API
+
+```typescript
+// Generate PDF brochure if booking has an itinerary
+let attachments = [];
+
+try {
+  // Check if this booking has an associated itinerary
+  const { data: itinerary } = await supabaseClient
+    .from('itineraries')
+    .select('id')
+    .eq('booking_id', booking_id)
+    .single();
+
+  if (itinerary) {
+    // Generate brochure HTML
+    const brochureResponse = await fetch(
+      `${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-itinerary-pdf`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+        },
+        body: JSON.stringify({ itinerary_id: itinerary.id }),
+      }
+    );
+    
+    if (brochureResponse.ok) {
+      const brochureData = await brochureResponse.json();
+      if (brochureData.html) {
+        // Convert to base64 for attachment
+        const encoder = new TextEncoder();
+        const base64Content = btoa(String.fromCharCode(...encoder.encode(brochureData.html)));
+        
+        attachments.push({
+          filename: `Journey-Brochure-${bookingRef}.html`,
+          content: base64Content,
+          content_type: 'text/html',
+        });
+      }
+    }
+  }
+} catch (brochureError) {
+  console.error('Failed to generate brochure attachment:', brochureError);
+}
+
+// Send email with attachments
+const { data: emailData, error: emailError } = await resend.emails.send({
+  from: fromEmail,
+  to: [booking.guest_email],
+  subject,
+  html,
+  attachments: attachments.length > 0 ? attachments : undefined,
+});
 ```
-All char codes: 68,97,119,105,101,67,97,114,105,107,101,83,76,80,97,102,114,105,99,97,50,52,55
-```
-
-Decoding: D-a-w-i-e-C-a-r-i-k-e-S-L-P-a-f-r-i-c-a-2-4-7 = **23 characters**
-
-The passphrase `DawieCarikeSLPafrica247` IS 23 characters. This is correct - there was confusion earlier about it being 22 characters, but counting the string:
-- DawieCarike = 11
-- SLPafrica = 9
-- 247 = 3
-- Total = 23 characters
-
-So the passphrase is correct; the encoding was the problem.
 
 ---
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `supabase/functions/payfast-api/index.ts` | Restore `pfUrlencode(passphrase)` in generateSignature function |
+| File | Changes |
+|------|---------|
+| `supabase/functions/payfast-api/index.ts` | Add `dataToStringForItn()` and `generateItnSignature()` functions; update `verifySignature()` to use alphabetical field order |
+| `supabase/functions/send-booking-email/index.ts` | Add logic to fetch itinerary, generate brochure, and attach to email |
 
 ---
 
 ## Technical Details
 
-The `pfUrlencode` function correctly:
-1. Trims whitespace
-2. URL-encodes using `encodeURIComponent`
-3. Converts hex codes to uppercase (`%3a` -> `%3A`)
-4. Converts `%20` to `+` (PHP urlencode behavior)
+### PayFast Signature Ordering
 
-For the passphrase `DawieCarikeSLPafrica247`:
-- All characters are alphanumeric
-- `pfUrlencode("DawieCarikeSLPafrica247")` returns `DawieCarikeSLPafrica247` unchanged
-- BUT this ensures consistency with PHP's `urlencode()` behavior
+**Outbound Requests (initiate_payment, initiate_onsite_payment):**
+- Use `PAYFAST_FIELD_ORDER` array to ensure fields are in PayFast's expected order
+- This matches their documentation for form submissions
 
-The key insight is that the signature string being hashed must be **byte-for-byte identical** to what PayFast generates on their end using their PHP implementation.
+**Inbound ITN Verification:**
+- PayFast signs ITN data using **alphabetical field order**
+- This is standard PHP `ksort()` behavior on their server
+- We must match this ordering when verifying
+
+### Resend Attachments API
+
+Resend supports attachments with:
+```typescript
+{
+  filename: string,
+  content: string, // base64 encoded
+  content_type: string,
+}
+```
 
 ---
 
-## Verification
+## Testing Verification
 
-After the fix, the logs should show the same signature input string, but with the signature now matching what PayFast expects. The payment UUID request should return a valid UUID instead of "400 Bad Request - signature mismatch".
-
+After implementation:
+1. Complete a test payment through PayFast sandbox
+2. Check edge function logs for `push-booking` execution
+3. Verify confirmation email arrives with PDF attachment
+4. Verify booking status updates to "paid" in database
