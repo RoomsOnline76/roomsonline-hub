@@ -128,19 +128,23 @@ export function QualityGateIndicator({
               )}
             </div>
           </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-xs">
-            <div className="space-y-1">
+          <TooltipContent side="top" className="max-w-md z-[100]" sideOffset={5} avoidCollisions={true}>
+            <div className="space-y-1.5 max-h-80 overflow-y-auto">
               <div className="font-medium">
                 {passed ? "Ready for activation" : "Cannot activate yet"}
               </div>
               {blockers.length > 0 && (
-                <ul className="text-xs text-muted-foreground list-disc list-inside">
-                  {blockers.slice(0, 3).map(b => (
-                    <li key={b.id}>{b.message}</li>
+                <ul className="text-xs text-muted-foreground list-disc list-inside space-y-1">
+                  {blockers.map(b => (
+                    <li key={b.id} className="whitespace-normal break-words">{b.message}</li>
                   ))}
-                  {blockers.length > 3 && (
-                    <li>+{blockers.length - 3} more...</li>
-                  )}
+                </ul>
+              )}
+              {warnings.length > 0 && blockers.length === 0 && (
+                <ul className="text-xs text-muted-foreground list-disc list-inside space-y-1">
+                  {warnings.map(w => (
+                    <li key={w.id} className="whitespace-normal break-words">{w.message}</li>
+                  ))}
                 </ul>
               )}
             </div>
