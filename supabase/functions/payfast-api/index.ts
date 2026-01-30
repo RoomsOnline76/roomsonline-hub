@@ -276,9 +276,11 @@ function generateSignature(data: Record<string, string>, passphrase?: string): s
   const paramString = dataToString(data, true);
   
   // Add passphrase if provided
-  // CRITICAL: passphrase must be URL-encoded exactly like other values
+  // NOTE: Based on working implementations, passphrase should NOT be URL-encoded
+  // even though PayFast docs show urlencode() in PHP. The working Python implementation
+  // at deanmalan.co.za does NOT encode the passphrase.
   const stringToHash = passphrase && passphrase.length > 0
-    ? `${paramString}&passphrase=${pfUrlencode(passphrase)}`
+    ? `${paramString}&passphrase=${passphrase.trim()}`
     : paramString;
   
   const hash = md5Hash(stringToHash);
@@ -852,8 +854,57 @@ Deno.serve(async (req) => {
             pf_payment_id: transaction.pf_payment_id,
             m_payment_id: transaction.m_payment_id,
           },
-          source: "payfast-api",
+        source: "payfast-api",
           action: "verify_payment",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // DEBUG: Test signature with PayFast's documented example
+    if (action === "debug_signature_test") {
+      // PayFast documentation example from Step 2
+      const testData: Record<string, string> = {
+        merchant_id: '10000100',
+        merchant_key: '46f0cd694581a',
+        return_url: 'http://www.yourdomain.co.za/return.php',
+        cancel_url: 'http://www.yourdomain.co.za/cancel.php',
+        notify_url: 'http://www.yourdomain.co.za/notify.php',
+        name_first: 'First Name',
+        name_last: 'Last Name',
+        email_address: 'test@test.com',
+        m_payment_id: '1234',
+        amount: '10.00',
+        item_name: 'Order#123',
+      };
+      
+      const testPassphrase = 'jt7NOE43FZPn';
+      
+      // Generate our signature
+      const ourSignature = generateSignature(testData, testPassphrase);
+      
+      // Also generate without passphrase for comparison
+      const ourSignatureNoPass = generateSignature(testData, undefined);
+      
+      // Log full string for manual verification
+      const fullStringNoPass = dataToString(testData, true);
+      const fullStringWithPass = fullStringNoPass + '&passphrase=' + pfUrlencode(testPassphrase);
+      
+      console.log("[PayFast Debug] Test data string (no pass):", fullStringNoPass);
+      console.log("[PayFast Debug] Test data string (with pass):", fullStringWithPass);
+      console.log("[PayFast Debug] Our signature (with pass):", ourSignature);
+      console.log("[PayFast Debug] Our signature (no pass):", ourSignatureNoPass);
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          test_data: testData,
+          passphrase: testPassphrase,
+          full_string_no_pass: fullStringNoPass,
+          full_string_with_pass: fullStringWithPass,
+          our_signature_with_pass: ourSignature,
+          our_signature_no_pass: ourSignatureNoPass,
+          note: "Compare with PayFast PHP implementation. Expected signature should match.",
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
