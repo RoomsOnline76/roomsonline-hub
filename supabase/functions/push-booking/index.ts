@@ -1505,8 +1505,31 @@ Deno.serve(async (req) => {
       .filter((r: any) => r.success && r.external_booking_id)
       .map((r: any) => r.external_booking_id);
     
+    // CRITICAL: If payment was successful, guest should get a success email
+    // even if PMS sync failed (that's a backend issue, not guest's problem)
+    // Re-fetch booking to get latest payment_status
+    const { data: latestBooking } = await supabaseClient
+      .from('bookings')
+      .select('payment_status')
+      .eq('id', booking_id)
+      .single();
+    
+    const paymentSucceeded = latestBooking?.payment_status === 'paid';
+    
+    // Determine email status: 
+    // - If payment succeeded OR PMS sync succeeded -> success email
+    // - Only send failure email if both payment failed AND PMS sync failed
+    const emailStatus = (paymentSucceeded || anySuccess) ? 'success' : 'failed';
+    
+    // If PMS sync failed but payment succeeded, include a note (but still success email)
+    let syncWarning: string | undefined;
+    if (paymentSucceeded && !anySuccess && firstError) {
+      syncWarning = `Note: Your payment was successful, but we encountered a minor sync issue. Our team has been notified and will ensure your booking is confirmed with the property.`;
+      console.log('[Push Booking] Payment succeeded but PMS sync failed - sending success email with warning');
+    }
+    
     try {
-      console.log('Triggering booking confirmation email...');
+      console.log(`Triggering booking ${emailStatus} email (payment: ${paymentSucceeded ? 'paid' : 'unpaid'}, PMS: ${anySuccess ? 'synced' : 'failed'})...`);
       
       // Use internal fetch to call the send-booking-email function
       const emailResponse = await fetch(
@@ -1519,8 +1542,9 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             booking_id,
-            status: anySuccess ? 'success' : 'failed',
-            error_message: firstError?.error || undefined,
+            status: emailStatus,
+            error_message: emailStatus === 'failed' ? (firstError?.error || undefined) : undefined,
+            sync_warning: syncWarning,
             external_reservation_ids: allExternalIds,
           }),
         }
