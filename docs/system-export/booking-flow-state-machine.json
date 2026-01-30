@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "schema_version": "1.0.0",
-  "export_date": "2025-01-07T00:00:00.000Z",
+  "export_date": "2025-01-30T00:00:00.000Z",
   "description": "State machine representation of ROL booking flows with guards, transitions, and failure modes",
   "flows": {
     "single_room_booking": {
@@ -376,45 +376,100 @@
     },
     "payment_flow": {
       "flow_id": "payment_flow",
-      "description": "Payment processing flow (separate from booking creation)",
-      "entry_point": "supabase/functions/addpay-api/index.ts",
+      "description": "Payment processing flow via PayFast PayWeb v3",
+      "entry_point": "supabase/functions/payfast-api/index.ts",
+      "gateway": "PayFast (Network International)",
+      "integration_type": "hosted_redirect",
       "states": [
         {
           "state_id": "P1_INITIATE",
           "name": "Initiate Payment",
-          "action": "Create payment transaction record",
-          "table": "payment_transactions",
+          "action": "Create payment_transactions record, build PayFast form fields",
+          "api_call": {
+            "function": "payfast-api",
+            "action": "initiate_payment",
+            "params": ["booking_id", "return_url", "cancel_url"]
+          },
+          "output": {
+            "trans_ref": "ROL-xxx transaction reference",
+            "checkout_url": "PayFast hosted page URL",
+            "form_fields": "merchant_id, amount, signature, etc."
+          },
           "initial_status": "pending"
         },
         {
           "state_id": "P2_REDIRECT",
-          "name": "Redirect to Payment Gateway",
-          "action": "Generate AddPay redirect URL",
-          "external": true
+          "name": "Redirect to PayFast",
+          "action": "Auto-submit hidden form to PayFast hosted page",
+          "url": {
+            "sandbox": "https://sandbox.payfast.co.za/eng/process",
+            "production": "https://www.payfast.co.za/eng/process"
+          },
+          "external": true,
+          "notes": "User completes payment on PayFast secure page"
         },
         {
-          "state_id": "P3_CALLBACK",
-          "name": "Process Callback",
-          "action": "Receive AddPay webhook/redirect",
-          "verify": "PSN and signature validation"
+          "state_id": "P3_ITN_CALLBACK",
+          "name": "Receive ITN Webhook",
+          "action": "PayFast POSTs to notify_url with payment result",
+          "endpoint": "/functions/v1/payfast-api",
+          "content_type": "application/x-www-form-urlencoded",
+          "verify": {
+            "ip_whitelist": ["197.97.145.144-147", "41.74.179.194-197"],
+            "signature": "MD5 of params + passphrase",
+            "server_validation": "Optional POST to PayFast validate endpoint"
+          },
+          "fields": {
+            "m_payment_id": "Our transaction reference",
+            "pf_payment_id": "PayFast transaction ID",
+            "payment_status": "COMPLETE|FAILED|CANCELLED",
+            "amount_gross": "Total amount paid"
+          }
         },
         {
           "state_id": "P4_UPDATE",
           "name": "Update Payment Status",
-          "action": "Update payment_transactions and booking",
+          "action": "Update payment_transactions and bookings tables",
           "fields": {
-            "payment_transactions.status": "completed|failed",
-            "bookings.payment_status": "paid|failed",
+            "payment_transactions.status": "paid|failed|cancelled",
+            "payment_transactions.pf_payment_id": "PayFast transaction ID",
+            "payment_transactions.gateway_response": "Full ITN payload",
+            "bookings.payment_status": "paid|failed|cancelled",
+            "bookings.payment_reference": "pf_payment_id",
+            "bookings.payment_method": "payfast",
             "bookings.paid_at": "timestamp if paid"
           }
         },
         {
           "state_id": "P5_TRIGGER_BOOKING",
-          "name": "Trigger Booking Push",
+          "name": "Trigger PMS Push + Email",
           "action": "Call push-booking if payment successful",
-          "condition": "payment_status === 'paid'"
+          "condition": "payment_status === 'paid'",
+          "api_call": {
+            "function": "push-booking",
+            "payload": { "booking_id": "booking.id" }
+          },
+          "notes": "push-booking internally calls send-booking-email on success"
         }
-      ]
+      ],
+      "browser_return": {
+        "return_url": "/booking-confirmation/:id?payment=success",
+        "cancel_url": "/booking/:slug?payment=cancelled",
+        "notes": "Browser redirects here after PayFast. ITN is authoritative for status."
+      },
+      "testing": {
+        "sandbox_credentials": {
+          "merchant_id": "10000100",
+          "merchant_key": "46f0cd694581a",
+          "passphrase": ""
+        },
+        "test_cards": {
+          "success": "4000 0000 0000 0003",
+          "declined": "4000 0000 0000 0019",
+          "expiry": "Any future date",
+          "cvv": "Any 3 digits"
+        }
+      }
     }
   },
   "invariants": {
@@ -437,6 +492,12 @@
         "description": "All booking attempts must be logged to sync_logs",
         "enforcement": "Always insert sync_log, even on failure",
         "violation_action": "Log and continue"
+      },
+      {
+        "invariant_id": "INV_ITN_AUTHORITATIVE",
+        "description": "PayFast ITN callback is the source of truth for payment status",
+        "enforcement": "Always trust ITN over browser return URL params",
+        "violation_action": "Update status from ITN only"
       }
     ]
   },
@@ -451,6 +512,10 @@
     },
     "database_query": {
       "default": "10 seconds"
+    },
+    "payment_session": {
+      "default": "30 minutes",
+      "notes": "PayFast hosted page session timeout"
     }
   },
   "retry_policy": {
@@ -462,6 +527,10 @@
       "enabled": true,
       "max_retries": 3,
       "backoff": "exponential"
+    },
+    "payment_itn": {
+      "enabled": true,
+      "notes": "PayFast retries ITN if 200 not received within timeout"
     }
   }
 }

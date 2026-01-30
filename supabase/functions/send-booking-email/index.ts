@@ -51,6 +51,12 @@ function replaceTemplateVariables(template: string, booking: any, property: any)
   // Build property location string
   const propertyLocation = [property.city, property.country].filter(Boolean).join(", ");
   
+  // Payment details
+  const paymentRef = booking.payment_reference || "N/A";
+  const paymentStatus = booking.payment_status === "paid" ? "Paid" : booking.payment_status === "pending" ? "Pending" : "Not Paid";
+  const paymentMethod = booking.payment_method || "N/A";
+  const paidAt = booking.paid_at ? formatDate(booking.paid_at) : "N/A";
+  
   const replacements: Record<string, string> = {
     // Reservation
     "{{reservation_reference}}": bookingRef,
@@ -81,6 +87,12 @@ function replaceTemplateVariables(template: string, booking: any, property: any)
     "{{teens}}": String(booking.teens || 0),
     "{{children}}": String(booking.children || 0),
     "{{infants}}": String(booking.infants || 0),
+    
+    // Payment Details
+    "{{payment_reference}}": paymentRef,
+    "{{payment_status}}": paymentStatus,
+    "{{payment_method}}": paymentMethod,
+    "{{paid_at}}": paidAt,
   };
   
   let result = template;
@@ -293,6 +305,34 @@ function generateSuccessEmail(booking: any, property: any): string {
             </td>
           </tr>
 
+          ${
+            booking.payment_status === "paid"
+              ? `
+          <!-- Payment Confirmation -->
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <div style="background-color: #dcfce7; border: 1px solid #22c55e; border-radius: 8px; padding: 15px;">
+                <h3 style="margin: 0 0 10px; font-size: 16px; color: #166534;">✓ Payment Confirmed</h3>
+                <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 4px 0; color: #166534; font-size: 13px;">Transaction Reference</td>
+                    <td style="padding: 4px 0; color: #166534; font-size: 13px; text-align: right; font-family: monospace;">${booking.payment_reference || "N/A"}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; color: #166534; font-size: 13px;">Payment Method</td>
+                    <td style="padding: 4px 0; color: #166534; font-size: 13px; text-align: right;">${booking.payment_method === "payfast" ? "PayFast" : booking.payment_method || "Card"}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; color: #166534; font-size: 13px;">Paid At</td>
+                    <td style="padding: 4px 0; color: #166534; font-size: 13px; text-align: right;">${booking.paid_at ? formatDate(booking.paid_at) : "N/A"}</td>
+                  </tr>
+                </table>
+                <p style="margin: 10px 0 0; color: #15803d; font-size: 11px;">Processed securely via PayFast</p>
+              </div>
+            </td>
+          </tr>
+          `
+              : `
           <!-- Payment Notice -->
           <tr>
             <td style="padding: 0 40px 20px;">
@@ -303,6 +343,8 @@ function generateSuccessEmail(booking: any, property: any): string {
               </div>
             </td>
           </tr>
+          `
+          }
 
           ${
             booking.special_requests

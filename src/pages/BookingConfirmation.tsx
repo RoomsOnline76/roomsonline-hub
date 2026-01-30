@@ -5,7 +5,7 @@ import { PublicLayout } from "@/components/layout/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle, AlertCircle } from "lucide-react";
+import { CheckCircle, AlertCircle, CreditCard, XCircle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useEffect } from "react";
 
@@ -34,9 +34,11 @@ const BookingConfirmation = () => {
   
   // Get external reservation ID from URL if available
   const externalRef = searchParams.get("ref");
+  // Check for payment status from PayFast redirect
+  const paymentStatus = searchParams.get("payment");
 
   // Fetch booking details
-  const { data: booking, isLoading, error } = useQuery({
+  const { data: booking, isLoading, error, refetch } = useQuery({
     queryKey: ["booking-confirmation", bookingId],
     queryFn: async () => {
       if (!bookingId) throw new Error("No booking ID provided");
@@ -60,6 +62,17 @@ const BookingConfirmation = () => {
     },
     enabled: !!bookingId,
   });
+
+  // Refetch booking when returning from payment to get updated status
+  useEffect(() => {
+    if (paymentStatus === "success") {
+      // Give PayFast ITN time to update the booking
+      const timer = setTimeout(() => {
+        refetch();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [paymentStatus, refetch]);
 
   // Fire Google Ads conversion on page load
   useEffect(() => {
@@ -110,20 +123,39 @@ const BookingConfirmation = () => {
   );
 
   const displayRef = externalRef || booking.external_reservation_id || bookingId?.slice(0, 8).toUpperCase();
+  const isPaid = booking.payment_status === "paid";
+  const paymentCancelled = paymentStatus === "cancelled";
 
   return (
     <PublicLayout>
       <div className="container mx-auto px-3 sm:px-4 py-12 sm:py-20">
         <Card className="max-w-lg mx-auto text-center border-border/50">
           <CardContent className="pt-8 pb-8 sm:pt-10 sm:pb-10 px-6 sm:px-8">
-            <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
-              <CheckCircle className="h-8 w-8 text-green-500" />
-            </div>
-            <h2 className="font-display text-2xl sm:text-3xl mb-3">Reservation Submitted!</h2>
-            <p className="text-muted-foreground mb-6">
-              Your reservation for <span className="font-medium text-foreground">{property?.name || "this property"}</span> has been submitted. 
-              A confirmation email will be sent to {booking.guest_email}.
-            </p>
+            {paymentCancelled ? (
+              <>
+                <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-6">
+                  <XCircle className="h-8 w-8 text-amber-500" />
+                </div>
+                <h2 className="font-display text-2xl sm:text-3xl mb-3">Payment Cancelled</h2>
+                <p className="text-muted-foreground mb-6">
+                  Your payment was cancelled. Your reservation is still pending. 
+                  You can return to the property page to try again.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle className="h-8 w-8 text-green-500" />
+                </div>
+                <h2 className="font-display text-2xl sm:text-3xl mb-3">
+                  {isPaid ? "Reservation Confirmed!" : "Reservation Submitted!"}
+                </h2>
+                <p className="text-muted-foreground mb-6">
+                  Your reservation for <span className="font-medium text-foreground">{property?.name || "this property"}</span> has been {isPaid ? "confirmed" : "submitted"}. 
+                  A confirmation email will be sent to {booking.guest_email}.
+                </p>
+              </>
+            )}
             <div className="space-y-2 text-sm text-left bg-muted/30 rounded-lg p-4 sm:p-5 mb-6">
               <p><strong>Reference:</strong> {displayRef}</p>
               
@@ -156,6 +188,21 @@ const BookingConfirmation = () => {
                   <p><strong>Check-out:</strong> {booking.check_out_date && format(parseISO(booking.check_out_date), "MMM d, yyyy")}</p>
                   <p><strong>Guests:</strong> {totalGuests}</p>
                 </>
+              )}
+              
+              {/* Payment Status */}
+              {isPaid && (
+                <div className="mt-3 pt-3 border-t border-border/30">
+                  <div className="flex items-center gap-2 text-green-600">
+                    <CreditCard className="h-4 w-4" />
+                    <span className="font-medium">Payment Confirmed</span>
+                  </div>
+                  {booking.payment_reference && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Transaction: {booking.payment_reference}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
             <Button onClick={() => navigate("/")} className="w-full sm:w-auto">

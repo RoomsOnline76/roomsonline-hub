@@ -1734,39 +1734,51 @@ export type Database = {
       }
       payment_transactions: {
         Row: {
-          addpay_response: Json | null
           amount: number
           booking_id: string | null
           created_at: string | null
           currency: string | null
+          gateway_response: Json | null
           id: string
+          m_payment_id: string | null
           payment_method: string | null
-          psn: string | null
+          payment_provider: string | null
+          pf_payment_id: string | null
+          signature_valid: boolean | null
           status: string
+          transaction_ref: string | null
           updated_at: string | null
         }
         Insert: {
-          addpay_response?: Json | null
           amount: number
           booking_id?: string | null
           created_at?: string | null
           currency?: string | null
+          gateway_response?: Json | null
           id?: string
+          m_payment_id?: string | null
           payment_method?: string | null
-          psn?: string | null
+          payment_provider?: string | null
+          pf_payment_id?: string | null
+          signature_valid?: boolean | null
           status: string
+          transaction_ref?: string | null
           updated_at?: string | null
         }
         Update: {
-          addpay_response?: Json | null
           amount?: number
           booking_id?: string | null
           created_at?: string | null
           currency?: string | null
+          gateway_response?: Json | null
           id?: string
+          m_payment_id?: string | null
           payment_method?: string | null
-          psn?: string | null
+          payment_provider?: string | null
+          pf_payment_id?: string | null
+          signature_valid?: boolean | null
           status?: string
+          transaction_ref?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -2469,6 +2481,7 @@ export type Database = {
           owner_name: string | null
           owner_notes: string | null
           owner_pms_credential_id: string | null
+          payment_provider: string | null
           permanently_deleted_at: string | null
           pms_managed_fields: string[] | null
           pms_readiness: string | null
@@ -2531,6 +2544,7 @@ export type Database = {
           owner_name?: string | null
           owner_notes?: string | null
           owner_pms_credential_id?: string | null
+          payment_provider?: string | null
           permanently_deleted_at?: string | null
           pms_managed_fields?: string[] | null
           pms_readiness?: string | null
@@ -2593,6 +2607,7 @@ export type Database = {
           owner_name?: string | null
           owner_notes?: string | null
           owner_pms_credential_id?: string | null
+          payment_provider?: string | null
           permanently_deleted_at?: string | null
           pms_managed_fields?: string[] | null
           pms_readiness?: string | null
