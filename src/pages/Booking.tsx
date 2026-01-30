@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import { useItinerary } from "@/contexts/ItineraryContext";
+import { PayFastOnsiteModal } from "@/components/booking/PayFastOnsiteModal";
 
 // Booking form validation schema
 const bookingSchema = z.object({
@@ -106,6 +107,11 @@ const Booking = () => {
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [externalReservationId, setExternalReservationId] = useState<string | null>(null);
+  
+  // Payment modal state
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
+  const [pendingPaymentAmount, setPendingPaymentAmount] = useState<number>(0);
   
   // Date state - can be restored from sessionStorage
   const [checkIn, setCheckIn] = useState<string | null>(urlCheckIn);
@@ -936,62 +942,24 @@ const Booking = () => {
       if (error) throw error;
 
       // --- PAYMENT GATE ---
-      // All bookings must go through PayFast before PMS push
+      // All bookings use PayFast onsite modal (stays in ROL UI)
       // The ITN handler in payfast-api will trigger push-booking after successful payment
       
-      console.log('[Booking] Initiating PayFast payment for booking:', data.id);
+      console.log('[Booking] Created booking, opening payment modal:', data.id);
       
-      const { data: paymentData, error: paymentError } = await supabase.functions.invoke('payfast-api', {
-        body: {
-          action: 'initiate_payment',
-          booking_id: data.id,
-        },
-      });
-      
-      if (paymentError) {
-        console.error('[Booking] PayFast initiation failed:', paymentError);
-        throw new Error('Failed to initiate payment. Please try again.');
-      }
-      
-      if (!paymentData?.success || !paymentData?.checkout_url) {
-        console.error('[Booking] PayFast response invalid:', paymentData);
-        throw new Error(paymentData?.error || 'Failed to initiate payment');
-      }
-      
-      console.log('[Booking] Redirecting to PayFast:', paymentData.checkout_url);
-      
-      // Return payment data for redirect
+      // Return booking data - payment modal will be triggered in onSuccess
       return { 
         ...data, 
-        paymentRedirect: true,
-        checkoutUrl: paymentData.checkout_url,
-        formFields: paymentData.form_fields,
+        requiresPayment: true,
+        paymentAmount: data.total_price,
       };
     },
     onSuccess: (data) => {
-      // If we have payment redirect data, submit form to PayFast
-      if (data.paymentRedirect && data.checkoutUrl && data.formFields) {
-        // Create a form and submit to PayFast
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = data.checkoutUrl;
-        form.style.display = 'none';
-        
-        // Add all form fields
-        Object.entries(data.formFields).forEach(([key, value]) => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = key;
-          input.value = String(value);
-          form.appendChild(input);
-        });
-        
-        document.body.appendChild(form);
-        
-        toast.success("Redirecting to payment...");
-        
-        // Submit the form
-        form.submit();
+      // Open payment modal for onsite payment
+      if (data.requiresPayment) {
+        setPendingBookingId(data.id);
+        setPendingPaymentAmount(data.paymentAmount);
+        setShowPaymentModal(true);
         return;
       }
       
@@ -1815,6 +1783,29 @@ const Booking = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* PayFast Onsite Payment Modal */}
+      <PayFastOnsiteModal
+        isOpen={showPaymentModal}
+        onClose={() => {
+          setShowPaymentModal(false);
+          setPendingBookingId(null);
+        }}
+        onPaymentSuccess={() => {
+          setShowPaymentModal(false);
+          if (pendingBookingId) {
+            navigate(`/booking-confirmation/${pendingBookingId}?payment=success`);
+          }
+        }}
+        onPaymentCancelled={() => {
+          setShowPaymentModal(false);
+          toast.info("Payment cancelled. Your booking is saved - you can pay later.");
+        }}
+        bookingId={pendingBookingId || ""}
+        amount={pendingPaymentAmount}
+        propertyName={property?.name || ""}
+        isSandbox={true} // TODO: Configure based on environment
+      />
     </PublicLayout>
   );
 };
