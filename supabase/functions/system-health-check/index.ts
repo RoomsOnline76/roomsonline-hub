@@ -222,28 +222,32 @@ async function checkResendEmail(): Promise<HealthCheckResult> {
   }
 }
 
-async function checkAddPay(): Promise<HealthCheckResult> {
+async function checkPayFast(): Promise<HealthCheckResult> {
   const start = Date.now();
-  const publicKey = Deno.env.get('ADDPAY_PUBLIC_KEY');
+  const merchantId = Deno.env.get('PAYFAST_MERCHANT_ID');
+  const merchantKey = Deno.env.get('PAYFAST_MERCHANT_KEY');
   
-  if (!publicKey) {
+  if (!merchantId || !merchantKey) {
     return {
-      component_key: 'addpay_gateway',
+      component_key: 'payfast_gateway',
       status: 'unknown',
       latency_ms: 0,
-      error_code: 'NO_API_KEY',
-      error_message: 'ADDPAY_PUBLIC_KEY not configured',
+      error_code: 'NO_CREDENTIALS',
+      error_message: 'PayFast credentials not configured',
       metadata: { note: 'Cannot verify without credentials' },
     };
   }
 
-  // AddPay doesn't have a simple health check endpoint, so we just verify credentials exist
+  // PayFast doesn't have a simple health check endpoint, verify credentials exist
   return {
-    component_key: 'addpay_gateway',
+    component_key: 'payfast_gateway',
     status: 'healthy',
     latency_ms: Date.now() - start,
     response_data: { credentials_configured: true },
-    metadata: { note: 'Credentials verified, no live endpoint test' },
+    metadata: { 
+      note: 'Credentials verified',
+      sandbox: Deno.env.get('PAYFAST_SANDBOX') !== 'false',
+    },
   };
 }
 
@@ -433,7 +437,7 @@ async function runHealthCheck(
         break;
       case 'external':
         if (component.component_key === 'resend_email') return checkResendEmail();
-        if (component.component_key === 'addpay_gateway') return checkAddPay();
+        if (component.component_key === 'payfast_gateway') return checkPayFast();
         if (component.component_key === 'google_maps') return checkGoogleMaps(supabase);
         if (component.component_key === 'tripadvisor') return checkTripAdvisor();
         break;

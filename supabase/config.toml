@@ -57,7 +57,7 @@ verify_jwt = true
 [functions.ai-property-search]
 verify_jwt = false
 
-[functions.addpay-api]
+[functions.payfast-api]
 verify_jwt = false
 
 [functions.send-pms-status-report]
