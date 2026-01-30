@@ -315,21 +315,28 @@ function generateSignature(data: Record<string, string>, passphrase?: string): s
   return hash;
 }
 
-// ITN-specific param string builder - uses ALPHABETICAL order (matching PayFast's PHP ksort behavior)
-// CRITICAL: ITN signatures are calculated differently from outbound request signatures
-function dataToStringForItn(data: Record<string, string>): string {
-  // PayFast ITN signatures use ALPHABETICAL field order (PHP ksort behavior)
-  // NOT the custom PAYFAST_FIELD_ORDER we use for outbound requests
-  const sortedKeys = Object.keys(data)
-    .filter(k => k !== 'signature' && data[k] !== "" && data[k] !== undefined && data[k] !== null)
-    .sort(); // Alphabetical order - crucial for ITN verification
+// ITN-specific param string builder - uses ORIGINAL POST ORDER (as received from PayFast)
+// CRITICAL: The PHP code iterates through $_POST in the order received and BREAKS at 'signature'
+// This is NOT alphabetical - it's the exact order PayFast sends the fields
+// See: https://developers.payfast.co.za/docs#step_4_confirm_payment
+function dataToStringForItn(data: Record<string, string>, orderedKeys: string[]): string {
+  const parts: string[] = [];
   
-  return sortedKeys.map(key => `${key}=${pfUrlencode(String(data[key]))}`).join("&");
+  for (const key of orderedKeys) {
+    if (key === 'signature') {
+      break; // Stop when we hit signature, just like PHP code does
+    }
+    // Include ALL fields, even empty ones (unlike outbound requests)
+    const value = data[key] ?? '';
+    parts.push(`${key}=${pfUrlencode(String(value))}`);
+  }
+  
+  return parts.join("&");
 }
 
-// Generate signature for ITN verification (uses alphabetical field order)
-function generateItnSignature(data: Record<string, string>, passphrase?: string): string {
-  const paramString = dataToStringForItn(data);
+// Generate signature for ITN verification (uses original POST order)
+function generateItnSignature(data: Record<string, string>, orderedKeys: string[], passphrase?: string): string {
+  const paramString = dataToStringForItn(data, orderedKeys);
   
   const stringToHash = passphrase && passphrase.length > 0
     ? `${paramString}&passphrase=${pfUrlencode(passphrase)}`
@@ -341,14 +348,10 @@ function generateItnSignature(data: Record<string, string>, passphrase?: string)
   return md5Hash(stringToHash);
 }
 
-// Verify PayFast signature from ITN - uses alphabetical ordering
-function verifySignature(data: Record<string, string>, signature: string, passphrase?: string): boolean {
-  // Remove signature from data for verification
-  const dataWithoutSign = { ...data };
-  delete dataWithoutSign.signature;
-  
-  // Use ITN-specific signature generation (alphabetical order)
-  const calculatedSignature = generateItnSignature(dataWithoutSign, passphrase);
+// Verify PayFast signature from ITN - uses original POST order
+function verifySignature(data: Record<string, string>, orderedKeys: string[], signature: string, passphrase?: string): boolean {
+  // Use ITN-specific signature generation (original POST order)
+  const calculatedSignature = generateItnSignature(data, orderedKeys, passphrase);
   console.log("[PayFast] ITN Calculated signature:", calculatedSignature);
   console.log("[PayFast] ITN Received signature:", signature);
   
@@ -437,11 +440,14 @@ Deno.serve(async (req) => {
       
       const formData = await req.formData();
       const itnData: Record<string, string> = {};
+      const itnKeyOrder: string[] = []; // Capture original POST order
       formData.forEach((value, key) => {
         itnData[key] = value.toString();
+        itnKeyOrder.push(key);
       });
       
       console.log("[PayFast] ITN data:", JSON.stringify(itnData));
+      console.log("[PayFast] ITN key order:", itnKeyOrder.join(", "));
       
       // Validate source IP
       const sourceIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() 
@@ -454,8 +460,8 @@ Deno.serve(async (req) => {
         return new Response("OK", { status: 200, headers: corsHeaders });
       }
       
-      // Verify signature
-      const signatureValid = verifySignature(itnData, itnData.signature, passphrase);
+      // Verify signature using original POST order
+      const signatureValid = verifySignature(itnData, itnKeyOrder, itnData.signature, passphrase);
       
       if (!signatureValid) {
         console.error("[PayFast] Invalid signature");
