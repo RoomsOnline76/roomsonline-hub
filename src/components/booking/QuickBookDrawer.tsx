@@ -120,6 +120,11 @@ export function QuickBookDrawer({
 
       const selectedRoom = roomTypes.find(r => r.id === selectedRoomId);
       const roomPmsId = selectedRoom?.pmsRoomId || selectedRoomId;
+      
+      // Helper to slugify room name for fallback matching
+      const slugifyRoomName = (name: string) => 
+        name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const slugifiedName = selectedRoom?.name ? slugifyRoomName(selectedRoom.name) : null;
 
       // Fetch from appropriate source based on PMS
       if (externalSystem === 'hostfully') {
@@ -158,14 +163,27 @@ export function QuickBookDrawer({
           }
         }
       } else {
-        // Default: fetch from cache
-        const { data } = await supabase
+        // Default: fetch from cache - try primary ID first
+        let { data } = await supabase
           .from("pms_availability_cache")
           .select("date, available_units, rates")
           .eq("property_id", propertyId)
           .eq("external_room_type_id", roomPmsId)
           .gte("date", format(today, "yyyy-MM-dd"))
           .lte("date", format(endDate, "yyyy-MM-dd"));
+
+        // If no data and we have a slugified name to try
+        if ((!data || data.length === 0) && slugifiedName && slugifiedName !== roomPmsId) {
+          const { data: slugData } = await supabase
+            .from("pms_availability_cache")
+            .select("date, available_units, rates")
+            .eq("property_id", propertyId)
+            .eq("external_room_type_id", slugifiedName)
+            .gte("date", format(today, "yyyy-MM-dd"))
+            .lte("date", format(endDate, "yyyy-MM-dd"));
+          
+          data = slugData;
+        }
 
         if (data) {
           const availMap = new Map<string, AvailabilityData>();
