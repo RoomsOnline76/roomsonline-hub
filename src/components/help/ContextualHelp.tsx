@@ -58,12 +58,15 @@ export function ContextualHelp({ table, field, className }: ContextualHelpProps)
       </TooltipTrigger>
       <TooltipContent 
         side="top" 
-        className="max-w-xs"
+        align="start"
+        className="max-w-md z-[100]"
+        sideOffset={5}
+        avoidCollisions={true}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="space-y-1">
+        <div className="space-y-1.5 max-h-64 overflow-y-auto">
           <p className="font-medium text-sm">{primaryArticle.title}</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground whitespace-normal break-words">
             {getPreview(primaryArticle.content_markdown)}
           </p>
           <p className="text-xs text-primary">Click for more details</p>

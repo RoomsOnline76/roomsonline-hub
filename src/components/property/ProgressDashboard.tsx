@@ -435,10 +435,10 @@ function BlockerItem({ item, type, propertyId }: BlockerItemProps) {
         <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
       )}
       <div className="flex-1 min-w-0">
-        <p className="font-medium">{item.name}</p>
-        <p className="text-xs text-muted-foreground">{item.message}</p>
+        <p className="font-medium text-wrap">{item.name}</p>
+        <p className="text-xs text-muted-foreground whitespace-normal break-words">{item.message}</p>
         {item.fix && (
-          <p className="text-xs text-primary/80 mt-0.5">{item.fix}</p>
+          <p className="text-xs text-primary/80 mt-0.5 whitespace-normal break-words">{item.fix}</p>
         )}
       </div>
       {item.field && (

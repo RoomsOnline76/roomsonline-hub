@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     checks.push(commercialCheck);
 
     // ============= CHECK 5: PMS Conflicts =============
-    const pmsCheck = await checkPMSConflicts(supabase, property);
+    const pmsCheck = await checkPMSConflicts(supabase, property, amenities);
     checks.push(pmsCheck);
 
     // ============= CHECK 6: Location Complete =============
@@ -131,6 +131,82 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// ============= PMS CODE HELPERS =============
+
+/**
+ * Get the correct property code based on PMS type
+ */
+function getPMSPropertyCode(property: any, amenities: Record<string, unknown>, externalSystem: string): string | null {
+  const externalIds = amenities.external_ids as Record<string, unknown> | undefined;
+  
+  switch (externalSystem.toLowerCase()) {
+    case 'nightsbridge':
+      // NightsBridge uses BBID - check multiple locations
+      return property.external_id || 
+             property.bb_id || 
+             externalIds?.nightsbridge_bb_id as string || 
+             externalIds?.bb_id as string ||
+             null;
+    case 'benson':
+      return property.benson_property_code || null;
+    case 'checkfront':
+      return property.checkfront_property_code || null;
+    case 'cloudbeds':
+      return property.cloudbeds_property_id || null;
+    case 'littlehotelier':
+      return property.littlehotelier_channel_code || null;
+    case 'hotelbeds':
+      return property.hotelbeds_hotel_code || null;
+    case 'hostfully':
+      return property.hostfully_property_uid || property.owner_pms_credential_id || null;
+    case 'siteminder':
+      return property.siteminder_property_code || null;
+    case 'rentalsunited':
+      return property.rentalsunited_property_id || null;
+    case 'rol':
+      // Internal ROL-managed properties don't need external ID
+      return 'internal';
+    default:
+      return property.external_property_id || null;
+  }
+}
+
+/**
+ * Get human-readable PMS code label
+ */
+function getPMSCodeLabel(externalSystem: string): string {
+  switch (externalSystem.toLowerCase()) {
+    case 'nightsbridge': return 'BBID';
+    case 'benson': return 'Benson Code';
+    case 'checkfront': return 'Checkfront Property Code';
+    case 'cloudbeds': return 'Cloudbeds Property ID';
+    case 'littlehotelier': return 'Channel Code';
+    case 'hotelbeds': return 'Hotel Code';
+    case 'hostfully': return 'Hostfully Property UID';
+    case 'siteminder': return 'SiteMinder Property Code';
+    case 'rentalsunited': return 'Rentals United Property ID';
+    case 'rol': return 'Internal Property';
+    default: return 'External Property ID';
+  }
+}
+
+/**
+ * Get the field name for navigation
+ */
+function getPMSCodeField(externalSystem: string): string {
+  switch (externalSystem.toLowerCase()) {
+    case 'nightsbridge': return 'external_id';
+    case 'benson': return 'benson_property_code';
+    case 'checkfront': return 'checkfront_property_code';
+    case 'cloudbeds': return 'cloudbeds_property_id';
+    case 'littlehotelier': return 'littlehotelier_channel_code';
+    case 'hotelbeds': return 'hotelbeds_hotel_code';
+    case 'hostfully': return 'hostfully_property_uid';
+    case 'siteminder': return 'siteminder_property_code';
+    default: return 'external_property_id';
+  }
+}
 
 // ============= CHECK FUNCTIONS =============
 
@@ -307,7 +383,7 @@ function checkCommercialFields(amenities: Record<string, unknown>): QualityCheck
   };
 }
 
-async function checkPMSConflicts(supabase: any, property: any): Promise<QualityCheckResult> {
+async function checkPMSConflicts(supabase: any, property: any, amenities: Record<string, unknown>): Promise<QualityCheckResult> {
   const externalSystem = property.external_system;
   
   if (!externalSystem || externalSystem === 'none') {
@@ -338,15 +414,31 @@ async function checkPMSConflicts(supabase: any, property: any): Promise<QualityC
     };
   }
 
-  // Check if external property ID is set for PMS-connected properties
-  if (!property.external_property_id) {
+  // Get PMS-specific property code
+  const propertyCode = getPMSPropertyCode(property, amenities, externalSystem);
+  const codeLabel = getPMSCodeLabel(externalSystem);
+  const codeField = getPMSCodeField(externalSystem);
+  
+  // Internal ROL properties don't need external ID validation
+  if (externalSystem.toLowerCase() === 'rol') {
+    return {
+      id: 'pms',
+      name: 'PMS Integration',
+      passed: true,
+      message: 'ROL-managed property (internal)',
+      severity: 'info'
+    };
+  }
+
+  // Check if the PMS-specific property code is set
+  if (!propertyCode) {
     return {
       id: 'pms',
       name: 'PMS Integration',
       passed: false,
-      message: 'PMS connected but no external property ID linked',
-      fix: 'Link this property to the correct PMS listing',
-      field: 'external_property_id',
+      message: `${externalSystem} connected but no ${codeLabel} linked`,
+      fix: `Enter the ${codeLabel} to link this property to ${externalSystem}`,
+      field: codeField,
       severity: 'blocker'
     };
   }
@@ -355,7 +447,7 @@ async function checkPMSConflicts(supabase: any, property: any): Promise<QualityC
     id: 'pms',
     name: 'PMS Integration',
     passed: true,
-    message: `Connected to ${externalSystem} (production)`,
+    message: `Connected to ${externalSystem} (${codeLabel}: ${propertyCode})`,
     severity: 'info'
   };
 }
