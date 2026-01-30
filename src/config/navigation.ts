@@ -133,6 +133,7 @@ const systemControlSection: NavSection = {
     { id: 'data-logs', title: 'Data & Logs', icon: Database, href: '/dev/logs', minRole: 'dev', description: 'Sync and error logs' },
     { id: 'feature-flags', title: 'Feature Flags', icon: Flag, href: '/dev/features', minRole: 'dev' },
     { id: 'ai-testing', title: 'AI Testing', icon: FlaskConical, href: '/dev/testing', minRole: 'dev', description: 'AI-assisted test generation' },
+    { id: 'nb-widget', title: 'NB Widget', icon: CalendarDays, href: '/nb', minRole: 'dev', description: 'NightsBridge widget testing' },
     { id: 'danger-zone', title: 'Danger Zone', icon: AlertTriangle, href: '/dev/danger', minRole: 'dev', description: 'Destructive operations' },
   ],
 };
