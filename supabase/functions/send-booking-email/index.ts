@@ -557,17 +557,73 @@ Deno.serve(async (req) => {
     const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
     const subject =
       status === "success"
-        ? `Reservation Confirmed #${bookingRef} - ${property.name}`
-        : `Reservation Issue #${bookingRef} - ${property.name}`;
+        ? `Booking Confirmed #${bookingRef} - ${property.name}`
+        : `Booking Issue #${bookingRef} - ${property.name}`;
 
     console.log(`Sending email to ${booking.guest_email} from ${fromEmail}`);
 
-    // Send email
+    // Generate journey brochure attachment if booking has an itinerary
+    let attachments: Array<{ filename: string; content: string; content_type: string }> = [];
+    
+    try {
+      // Check if this booking has an associated itinerary
+      const { data: itineraryBooking } = await supabaseClient
+        .from("itinerary_bookings")
+        .select("itinerary_id")
+        .eq("booking_id", booking_id)
+        .maybeSingle();
+      
+      if (itineraryBooking?.itinerary_id) {
+        console.log(`[Email] Booking has itinerary: ${itineraryBooking.itinerary_id}`);
+        
+        // Generate brochure HTML via edge function
+        const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+        const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+        
+        const brochureResponse = await fetch(
+          `${supabaseUrl}/functions/v1/generate-itinerary-pdf`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${supabaseAnonKey}`,
+            },
+            body: JSON.stringify({ itinerary_id: itineraryBooking.itinerary_id }),
+          }
+        );
+        
+        if (brochureResponse.ok) {
+          const brochureData = await brochureResponse.json();
+          if (brochureData.html) {
+            // Convert HTML to base64 for attachment
+            const encoder = new TextEncoder();
+            const htmlBytes = encoder.encode(brochureData.html);
+            const base64Content = btoa(String.fromCharCode(...htmlBytes));
+            
+            attachments.push({
+              filename: `Journey-Brochure-${bookingRef}.html`,
+              content: base64Content,
+              content_type: "text/html",
+            });
+            
+            console.log(`[Email] Journey brochure attached (${htmlBytes.length} bytes)`);
+          }
+        } else {
+          console.warn(`[Email] Failed to generate brochure: ${brochureResponse.status}`);
+        }
+      }
+    } catch (brochureError) {
+      console.error("[Email] Failed to generate brochure attachment:", brochureError);
+      // Continue without attachment - email is still valuable
+    }
+
+    // Send email with optional attachments
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: fromEmail,
       to: [booking.guest_email],
       subject,
       html,
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
 
     if (emailError) {

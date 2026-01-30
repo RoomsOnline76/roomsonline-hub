@@ -315,15 +315,42 @@ function generateSignature(data: Record<string, string>, passphrase?: string): s
   return hash;
 }
 
-// Verify PayFast signature from ITN
+// ITN-specific param string builder - uses ALPHABETICAL order (matching PayFast's PHP ksort behavior)
+// CRITICAL: ITN signatures are calculated differently from outbound request signatures
+function dataToStringForItn(data: Record<string, string>): string {
+  // PayFast ITN signatures use ALPHABETICAL field order (PHP ksort behavior)
+  // NOT the custom PAYFAST_FIELD_ORDER we use for outbound requests
+  const sortedKeys = Object.keys(data)
+    .filter(k => k !== 'signature' && data[k] !== "" && data[k] !== undefined && data[k] !== null)
+    .sort(); // Alphabetical order - crucial for ITN verification
+  
+  return sortedKeys.map(key => `${key}=${pfUrlencode(String(data[key]))}`).join("&");
+}
+
+// Generate signature for ITN verification (uses alphabetical field order)
+function generateItnSignature(data: Record<string, string>, passphrase?: string): string {
+  const paramString = dataToStringForItn(data);
+  
+  const stringToHash = passphrase && passphrase.length > 0
+    ? `${paramString}&passphrase=${pfUrlencode(passphrase)}`
+    : paramString;
+  
+  console.log("[PayFast] ITN Signature input (first 500 chars):", stringToHash.substring(0, 500));
+  console.log("[PayFast] ITN Full string length:", stringToHash.length);
+  
+  return md5Hash(stringToHash);
+}
+
+// Verify PayFast signature from ITN - uses alphabetical ordering
 function verifySignature(data: Record<string, string>, signature: string, passphrase?: string): boolean {
   // Remove signature from data for verification
   const dataWithoutSign = { ...data };
   delete dataWithoutSign.signature;
   
-  const calculatedSignature = generateSignature(dataWithoutSign, passphrase);
-  console.log("[PayFast] Calculated signature:", calculatedSignature);
-  console.log("[PayFast] Received signature:", signature);
+  // Use ITN-specific signature generation (alphabetical order)
+  const calculatedSignature = generateItnSignature(dataWithoutSign, passphrase);
+  console.log("[PayFast] ITN Calculated signature:", calculatedSignature);
+  console.log("[PayFast] ITN Received signature:", signature);
   
   return calculatedSignature === signature;
 }
