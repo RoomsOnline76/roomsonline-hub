@@ -39,6 +39,7 @@ export const PayFastOnsiteModal = ({
   const [paymentUuid, setPaymentUuid] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [scriptLoaded, setScriptLoaded] = useState(false);
+  const [payFastActive, setPayFastActive] = useState(false);
 
   // Load PayFast onsite script
   useEffect(() => {
@@ -75,27 +76,6 @@ export const PayFastOnsiteModal = ({
     };
   }, [isOpen, isSandbox]);
 
-  // Listen for payment completion via postMessage
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      // PayFast sends messages for payment status
-      if (event.data?.source === "payfast" || event.data?.type?.includes("payfast")) {
-        console.log("[PayFast Onsite] Received message:", event.data);
-        
-        if (event.data.status === "COMPLETE" || event.data.payment_status === "COMPLETE") {
-          toast.success("Payment successful!");
-          onPaymentSuccess();
-        } else if (event.data.status === "CANCELLED" || event.data.payment_status === "CANCELLED") {
-          toast.info("Payment cancelled");
-          onPaymentCancelled();
-        }
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [onPaymentSuccess, onPaymentCancelled]);
-
   // Trigger PayFast onsite payment
   const triggerOnsitePayment = useCallback((uuid: string) => {
     if (!window.payfast_do_onsite_payment) {
@@ -105,6 +85,9 @@ export const PayFastOnsiteModal = ({
     }
 
     console.log("[PayFast Onsite] Triggering payment with UUID:", uuid);
+    
+    // Mark PayFast as active - this hides our modal
+    setPayFastActive(true);
 
     try {
       // PayFast onsite requires a callback function as second parameter
@@ -112,11 +95,14 @@ export const PayFastOnsiteModal = ({
         { uuid: uuid },
         (result: boolean) => {
           console.log("[PayFast Onsite] Payment callback result:", result);
+          setPayFastActive(false);
+          
           if (result === true) {
+            // Success - navigate immediately
             toast.success("Payment successful!");
             onPaymentSuccess();
           } else {
-            // Result is false when user cancels or payment fails
+            // User cancelled or payment failed
             console.log("[PayFast Onsite] Payment was cancelled or failed");
             onPaymentCancelled();
           }
@@ -124,6 +110,7 @@ export const PayFastOnsiteModal = ({
       );
     } catch (err) {
       console.error("[PayFast Onsite] Error triggering payment:", err);
+      setPayFastActive(false);
       setError("Failed to open payment window. Please try again.");
     }
   }, [onPaymentSuccess, onPaymentCancelled]);
@@ -159,16 +146,14 @@ export const PayFastOnsiteModal = ({
 
         console.log("[PayFast Onsite] Received UUID:", data.uuid);
         setPaymentUuid(data.uuid);
+        setIsLoading(false);
         
-        // Small delay to ensure UI is ready
-        setTimeout(() => {
-          triggerOnsitePayment(data.uuid);
-        }, 500);
+        // Trigger PayFast immediately after getting UUID
+        triggerOnsitePayment(data.uuid);
         
       } catch (err) {
         console.error("[PayFast Onsite] Initiation error:", err);
         setError(err instanceof Error ? err.message : "Payment initiation failed");
-      } finally {
         setIsLoading(false);
       }
     };
@@ -182,12 +167,14 @@ export const PayFastOnsiteModal = ({
       setPaymentUuid(null);
       setError(null);
       setIsLoading(false);
+      setPayFastActive(false);
     }
   }, [isOpen]);
 
   const handleRetry = () => {
     setPaymentUuid(null);
     setError(null);
+    setPayFastActive(false);
   };
 
   const formatCurrency = (amount: number) => {
@@ -198,8 +185,11 @@ export const PayFastOnsiteModal = ({
     }).format(amount);
   };
 
+  // Hide our modal when PayFast popup is active - only show for loading/error states
+  const shouldShowModal = isOpen && !payFastActive;
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={shouldShowModal} onOpenChange={(open) => !open && !payFastActive && onClose()}>
       <DialogContent className="sm:max-w-md" hideCloseButton={isLoading}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -242,15 +232,13 @@ export const PayFastOnsiteModal = ({
             </div>
           )}
 
-          {/* Waiting for PayFast Modal */}
-          {!isLoading && !error && paymentUuid && (
+          {/* Waiting for PayFast Modal - only show if there's an error reopening */}
+          {!isLoading && !error && paymentUuid && !payFastActive && (
             <div className="text-center py-4">
               <p className="text-sm text-muted-foreground mb-4">
-                The PayFast payment window should have opened.
-                <br />
-                If not, click below to try again.
+                Click below to open the payment window.
               </p>
-              <Button onClick={() => triggerOnsitePayment(paymentUuid)} variant="outline">
+              <Button onClick={() => triggerOnsitePayment(paymentUuid)} variant="default">
                 Open Payment Window
               </Button>
             </div>
