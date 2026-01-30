@@ -444,8 +444,24 @@ const Booking = () => {
           if (error) throw error;
           // Unwrap adapter response - data may be in data.data or data directly
           availability = data?.data || data;
+        } else if (externalSystem === 'hotelbeds') {
+          // HotelBeds: fetch from API directly with camelCase params
+          console.log('[Booking] Fetching HotelBeds live availability for', property.id, checkIn, checkOut);
+          const { data, error } = await supabase.functions.invoke("hotelbeds-api", {
+            body: {
+              action: "fetch_availability",
+              property_id: property.id,
+              startDate: checkIn,
+              endDate: checkOut,
+            },
+          });
+
+          if (error) throw error;
+          // Unwrap adapter response - data may be in data.data or data directly
+          availability = data?.data || data;
+          console.log('[Booking] HotelBeds availability response:', availability);
         } else {
-          // Other PMS systems (HotelBeds, etc.) or no PMS: fetch from pms_availability_cache
+          // Other PMS systems or no PMS: fetch from pms_availability_cache
           const { data: cacheData, error } = await supabase
             .from("pms_availability_cache")
             .select("*")
@@ -494,18 +510,27 @@ const Booking = () => {
 
         // Find room type - handle both snake_case and camelCase field names
         // Also check room_type_aliases for slugified name matching (e.g., "4" matches "two-bedroom-suite")
+        // Debug: log available room types and the room we're trying to match
+        console.log('[Booking] Looking for room:', room.roomTypeId, 'in', roomTypesArray.map((rt: any) => rt.room_type_id || rt.roomTypeId));
+        
         const roomType = roomTypesArray.find(
           (rt: any) => {
             const rtId = String(rt.room_type_id || rt.roomTypeId);
+            // Direct ID match
             if (rtId === room.roomTypeId) return true;
-            // Check aliases if available
+            // Check aliases if available (cache-based matching)
             if (rt.room_type_aliases?.includes(room.roomTypeId)) return true;
-            // Also try slugified match
+            // Forward match: room definition name slugified matches cache ID
             const roomDef = roomTypes.find(r => String(r.id) === room.roomTypeId);
             if (roomDef && slugifyRoomName(roomDef.name) === rtId) return true;
+            // Reverse match: cache ID (slugified) matches any room definition
+            const reverseMatch = roomTypes.find(r => slugifyRoomName(r.name) === rtId);
+            if (reverseMatch && String(reverseMatch.id) === room.roomTypeId) return true;
             return false;
           }
         );
+        
+        console.log('[Booking] Room match result:', roomType ? 'found' : 'NOT FOUND');
 
         if (!roomType) continue;
 
