@@ -148,11 +148,11 @@ const BookingConfirmation = () => {
                   <CheckCircle className="h-8 w-8 text-green-500" />
                 </div>
                 <h2 className="font-display text-2xl sm:text-3xl mb-3">
-                  {isPaid ? "Reservation Confirmed!" : "Reservation Submitted!"}
+                  {isPaid ? "Booking Confirmed!" : "Reservation Submitted!"}
                 </h2>
                 <p className="text-muted-foreground mb-6">
-                  Your reservation for <span className="font-medium text-foreground">{property?.name || "this property"}</span> has been {isPaid ? "confirmed" : "submitted"}. 
-                  A confirmation email will be sent to {booking.guest_email}.
+                  Your booking at <span className="font-medium text-foreground">{property?.name || "this property"}</span> has been {isPaid ? "confirmed" : "submitted"}. 
+                  A confirmation email has been sent to {booking.guest_email}.
                 </p>
               </>
             )}
