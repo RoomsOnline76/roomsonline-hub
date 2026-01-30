@@ -312,6 +312,9 @@ const Booking = () => {
       setSelectedRateType(preSelectedRateTypeId);
     } else if (rateTypes.length > 0 && !selectedRateType) {
       setSelectedRateType(String(rateTypes[0].id));
+    } else if (rateTypes.length === 0 && !selectedRateType) {
+      // For properties without rate types (no PMS), use 'default' 
+      setSelectedRateType('default');
     }
   }, [property, roomTypes, rateTypes, initialGuests, preSelectedRoomTypeId, preSelectedRateTypeId, searchParams]);
 
@@ -321,16 +324,30 @@ const Booking = () => {
   );
   const nights = checkIn && checkOut ? differenceInDays(parseISO(checkOut), parseISO(checkIn)) : 0;
 
+  // Helper to slugify room name for fallback matching (same as in RoomShowcase)
+  const slugifyRoomName = (name: string) => 
+    name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
   // Transform pms_availability_cache rows into the availability format expected by cost calculator
-  const transformCacheToAvailability = (cacheData: any[]) => {
+  // Now includes aliases for room type ID matching (original ID + slugified name)
+  const transformCacheToAvailability = (cacheData: any[], roomAliases: Map<string, string[]>) => {
     // Group by room type
     const roomTypeMap = new Map<string, any>();
     
     for (const row of cacheData) {
       const rtId = row.external_room_type_id;
       if (!roomTypeMap.has(rtId)) {
+        // Find all alias IDs that should map to this room type
+        const aliases: string[] = [rtId];
+        for (const [originalId, slugAliases] of roomAliases) {
+          if (slugAliases.includes(rtId)) {
+            aliases.push(originalId);
+          }
+        }
+        
         roomTypeMap.set(rtId, {
           room_type_id: rtId,
+          room_type_aliases: aliases, // Include all IDs that should match this room
           room_type_name: row.raw_data?.roomTypeName || rtId,
           rooms_available_per_night: [],
           rate_types: [],
@@ -346,16 +363,22 @@ const Booking = () => {
         ...(row.restrictions || {}),
       });
       
-      // Add rates (grouped by rate_type_id)
-      if (row.rates && Array.isArray(row.rates)) {
-        for (const rate of row.rates) {
-          let rateType = rt.rate_types.find((r: any) => r.rate_type_id === rate.rate_type_id);
+      // Add rates - handle both array and object formats
+      const ratesData = row.rates;
+      if (ratesData) {
+        // If rates is an object (like {currency, room_amount}), wrap in array
+        const ratesArray = Array.isArray(ratesData) ? ratesData : [ratesData];
+        
+        for (const rate of ratesArray) {
+          // For simple rate objects (no rate_type_id), create a default rate type
+          const rateTypeId = rate.rate_type_id || 'default';
+          let rateType = rt.rate_types.find((r: any) => r.rate_type_id === rateTypeId);
           if (!rateType) {
             rateType = {
-              rate_type_id: rate.rate_type_id,
-              rate_type_name: rate.rate_type_name,
-              price_type: rate.price_type,
-              rate_key: rate.rate_key, // Critical for HotelBeds booking
+              rate_type_id: rateTypeId,
+              rate_type_name: rate.rate_type_name || 'Standard',
+              price_type: rate.price_type || 'PER_ROOM',
+              rate_key: rate.rate_key,
               rates: [],
             };
             rt.rate_types.push(rateType);
@@ -422,7 +445,7 @@ const Booking = () => {
           // Unwrap adapter response - data may be in data.data or data directly
           availability = data?.data || data;
         } else {
-          // Other PMS systems (HotelBeds, etc.): fetch from pms_availability_cache
+          // Other PMS systems (HotelBeds, etc.) or no PMS: fetch from pms_availability_cache
           const { data: cacheData, error } = await supabase
             .from("pms_availability_cache")
             .select("*")
@@ -439,8 +462,17 @@ const Booking = () => {
             return;
           }
           
-          // Transform cache data into availability format
-          availability = transformCacheToAvailability(cacheData);
+          // Build room aliases map: original ID -> [slugified name]
+          // This allows matching room IDs like "4" to cache keys like "two-bedroom-suite"
+          const roomAliases = new Map<string, string[]>();
+          for (const rt of roomTypes) {
+            const origId = String(rt.id);
+            const slugName = slugifyRoomName(rt.name);
+            roomAliases.set(origId, [slugName]);
+          }
+          
+          // Transform cache data into availability format with aliases
+          availability = transformCacheToAvailability(cacheData, roomAliases);
         }
         setAvailabilityData(availability);
       }
@@ -461,8 +493,18 @@ const Booking = () => {
           : nights;
 
         // Find room type - handle both snake_case and camelCase field names
+        // Also check room_type_aliases for slugified name matching (e.g., "4" matches "two-bedroom-suite")
         const roomType = roomTypesArray.find(
-          (rt: any) => String(rt.room_type_id || rt.roomTypeId) === room.roomTypeId
+          (rt: any) => {
+            const rtId = String(rt.room_type_id || rt.roomTypeId);
+            if (rtId === room.roomTypeId) return true;
+            // Check aliases if available
+            if (rt.room_type_aliases?.includes(room.roomTypeId)) return true;
+            // Also try slugified match
+            const roomDef = roomTypes.find(r => String(r.id) === room.roomTypeId);
+            if (roomDef && slugifyRoomName(roomDef.name) === rtId) return true;
+            return false;
+          }
         );
 
         if (!roomType) continue;
@@ -470,12 +512,13 @@ const Booking = () => {
         // Get rate types array - handle both formats
         const rateTypesArray = roomType.rate_types || roomType.rateTypes || [];
         
-        // Find rate type - handle both formats
+        // Find rate type - handle both formats, also allow 'default' for simple cache entries
         const rateType = rateTypesArray.find(
-          (rt: any) => String(rt.rate_type_id || rt.rateTypeId) === selectedRateType
+          (rt: any) => {
+            const rtId = String(rt.rate_type_id || rt.rateTypeId);
+            return rtId === selectedRateType || rtId === 'default';
+          }
         );
-
-        if (!rateType) continue;
 
         const allRates = rateType.rates || [];
         
