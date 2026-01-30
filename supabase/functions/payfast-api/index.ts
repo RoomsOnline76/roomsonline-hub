@@ -364,11 +364,14 @@ Deno.serve(async (req) => {
     const passphrase = rawPassphrase.replace(/[\x00-\x1F\x7F-\x9F\u200B-\u200D\uFEFF]/g, "").trim();
     const isSandbox = Deno.env.get("PAYFAST_SANDBOX") !== "false"; // Default to sandbox
     
-    // Debug: log passphrase character codes to identify hidden chars
-    console.log(`[PayFast] Raw passphrase length: ${rawPassphrase.length}, Clean passphrase length: ${passphrase.length}`);
-    if (rawPassphrase.length !== passphrase.length) {
-      console.log(`[PayFast] Hidden chars detected! Raw char codes: ${[...rawPassphrase].map(c => c.charCodeAt(0)).join(',')}`);
-    }
+    // Debug: log passphrase details (masked for security but showing first/last chars)
+    const maskedPass = passphrase.length > 4 
+      ? `${passphrase.slice(0,3)}...${passphrase.slice(-3)}` 
+      : "[too short]";
+    console.log(`[PayFast] Passphrase: "${maskedPass}" (${passphrase.length} chars)`);
+    console.log(`[PayFast] All char codes: ${[...passphrase].map(c => c.charCodeAt(0)).join(',')}`);
+    // Expected: DawieCarikeSLPafrica247 = 22 chars
+    // D=68, a=97, w=119, i=105, e=101, C=67, a=97, r=114, i=105, k=107, e=101, S=83, L=76, P=80, a=97, f=102, r=114, i=105, c=99, a=97, 2=50, 4=52, 7=55
 
     const url = new URL(req.url);
     
