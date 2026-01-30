@@ -1,158 +1,136 @@
 
-# Hide Deprecated PMS Systems from Integrations & PMS Control
+# Enhance Terms of Service for PayGate/PayFast Compliance
 
-## Problem Summary
-Four PMS systems are no longer required and should be hidden from the Integrations (`/admin-keys`) and PMS Control (`/dev/pms`) dashboards:
-- **Little Hotelier** (`littlehotelier`)
-- **Guesty** (`guesty`) - Note: No "Guestly" exists; assuming this was a typo
-- **Rentals United** (`rentalsunited`)
-
-Hiding these systems should also adjust the milestone counts and totals so they are not included in statistics.
+## Overview
+Update the Terms of Service page to comply with PayGate/PayFast (Network International) Internet Merchant Requirements. The uploaded document specifies mandatory T&C sections that must be displayed for card processing compliance.
 
 ---
 
-## Solution Overview
+## Current State Analysis
 
-Add a `hidden` flag to the centralized PMS configuration and filter these systems from all views and statistics. This approach:
-- Keeps the data available for reference if needed later
-- Ensures clean removal from UI without breaking any existing database records
-- Automatically adjusts all milestone/total counts
+**Existing Terms of Service** contains:
+- Acceptance of Terms
+- Description of Service
+- User Accounts
+- Booking Terms (Reservations, Pricing, Cancellations)
+- User Responsibilities
+- Intellectual Property
+- Limitation of Liability
+- Governing Law
+- Changes to Terms
+- Contact Information
+
+**Missing PayGate Requirements** (from the IMR document):
+1. Detailed Description of Goods/Services
+2. Delivery Policy
+3. Export Restriction
+4. Returns and Refunds Policy
+5. Customer Privacy Policy reference
+6. Payment Options Accepted (card types)
+7. Card Security Statement (SSL3/PayFast)
+8. Customer Details Separate from Card Details
+9. Merchant Outlet Country and Transaction Currency
+10. Responsibility Statement
+11. Country of Domicile
+12. Company Information
+
+---
+
+## Implementation Plan
+
+### File: `src/pages/TermsOfService.tsx`
+
+Restructure and enhance the Terms of Service to include all PayGate-mandated sections:
+
+**New Section Structure:**
+1. **Acceptance of Terms** (keep existing)
+2. **Description of Service** (enhance with detailed goods/services description)
+3. **Payment Terms** (NEW - major section)
+   - 3.1 Payment Options Accepted (Visa, MasterCard, Diners, American Express, bank transfer)
+   - 3.2 Payment Security (PayFast/PayGate, SSL encryption, no card storage on site)
+   - 3.3 Customer Details Separation (card details entered on PayFast secure site)
+   - 3.4 Transaction Currency (ZAR only)
+   - 3.5 Merchant Outlet Country (South Africa)
+4. **Booking & Delivery Policy** (enhance existing booking terms)
+   - Confirmation process and timeframes
+   - Booking voucher delivery method
+5. **Export Restriction** (NEW - South African clients only for SA properties)
+6. **Returns and Refunds Policy** (NEW)
+   - Unavailability refunds (within 30 days)
+   - Cancellation fees per property policy
+   - Administration fee structure
+7. **User Accounts** (keep existing)
+8. **User Responsibilities** (keep existing)
+9. **Intellectual Property** (keep existing)
+10. **Liability and Responsibility** (enhance)
+    - Merchant responsibility statement
+    - Dispute resolution
+11. **Privacy** (NEW - link to Privacy Policy + PayFast reference)
+12. **Governing Law and Domicile** (enhance with domicilium citandi et executandi)
+13. **Variation of Terms** (enhance existing)
+14. **Company Information** (NEW - RoomsOnline company details)
+15. **Contact Information** (keep existing)
+
+---
+
+## Key Content to Add
+
+### Payment Security Statement
+```text
+Card transactions are acquired for RoomsOnline via PayFast by Network, 
+the approved payment gateway for South African Acquiring Banks. PayFast 
+uses Secure Socket Layer 3 (SSL3) encryption and no card details are 
+stored on this website. View the PayFast security certificate at 
+https://payfast.io/
+```
+
+### Payment Options
+```text
+Payment may be made via Visa, MasterCard, Diners or American Express 
+Cards, or by bank transfer. Card details are entered directly on 
+PayFast's secure site - RoomsOnline does not store card information.
+```
+
+### Merchant Responsibility
+```text
+RoomsOnline takes responsibility for all aspects relating to the 
+transaction including sale of services on this website, customer 
+service and support, dispute resolution and delivery of booking 
+confirmations.
+```
+
+### Domicile Statement
+```text
+This website is governed by the laws of South Africa and RoomsOnline 
+chooses as its domicilium citandi et executandi for all purposes under 
+this agreement, whether in respect of court process, notice, or other 
+documents or communication of whatsoever nature, the registered 
+business address.
+```
 
 ---
 
 ## Technical Implementation
 
-### File 1: `src/lib/pmsSystemsConfig.ts`
+### Changes to `src/pages/TermsOfService.tsx`:
+- Add new sections for PayGate compliance
+- Update section numbering
+- Add PayFast links (https://payfast.io/, https://payfast.io/privacy-policy/)
+- Add company registration details placeholder
+- Maintain existing visual styling (consistent with current design)
 
-**1. Add `hidden` property to interface**
+### No Database Changes Required
+This is a pure frontend content update.
 
-```typescript
-export interface PMSSystemConfig {
-  key: string;
-  name: string;
-  description: string;
-  isInternal?: boolean;
-  hasCustomCard?: boolean;
-  deploymentStatus: DeploymentStatus;
-  isWidgetOnly?: boolean;
-  hidden?: boolean; // NEW: Hide from UI without removing config
-}
-```
-
-**2. Mark systems as hidden**
-
-```typescript
-// G
-{
-  key: 'guesty',
-  name: 'Guesty',
-  description: 'Property management and guest experience platform for vacation rentals',
-  deploymentStatus: 'planned',
-  hidden: true, // No longer required
-},
-// L
-{
-  key: 'littlehotelier',
-  name: 'Little Hotelier',
-  description: 'Cloud-based property management system designed for small hotels, B&Bs, and guest houses',
-  hasCustomCard: true,
-  deploymentStatus: 'in_development',
-  hidden: true, // No longer required
-},
-// R
-{
-  key: 'rentalsunited',
-  name: 'Rentals United',
-  description: 'Channel manager and distribution platform for vacation rentals',
-  hasCustomCard: true,
-  deploymentStatus: 'in_development',
-  hidden: true, // No longer required
-},
-```
-
-**3. Add filtered export for visible systems**
-
-```typescript
-// Get only visible systems (excludes hidden)
-export const VISIBLE_PMS_SYSTEMS = ALL_PMS_SYSTEMS.filter(s => !s.hidden);
-
-// Update total count to use visible systems
-export const TOTAL_PMS_SYSTEMS_COUNT = VISIBLE_PMS_SYSTEMS.length;
-```
+### No Edge Function Changes
+The addpay-api edge function can remain as-is for now (separate task to replace with PayGate integration).
 
 ---
 
-### File 2: `src/pages/DevPMS.tsx`
+## Note on AddPay Removal
+The codebase still contains AddPay edge functions and references. Fully removing AddPay and implementing PayGate payment processing would be a separate, larger task involving:
+- New PayGate edge function
+- Database column renaming
+- System health check updates
 
-**1. Use VISIBLE_PMS_SYSTEMS instead of ALL_PMS_SYSTEMS**
-
-Update the import:
-```typescript
-import { VISIBLE_PMS_SYSTEMS, PMSSystemConfig, getIntegrationStatusInfo, IntegrationStatus } from "@/lib/pmsSystemsConfig";
-```
-
-**2. Update systemsWithConnections mapping**
-```typescript
-// Build systems list from centralized config (visible only)
-const systemsWithConnections: SystemWithConnections[] = VISIBLE_PMS_SYSTEMS.map(config => ({
-  config,
-  connections: adapters.filter(a => a.system_type === config.key),
-  trackerStatus: trackerStatuses.find(t => t.system_type === config.key) || null,
-}));
-```
-
-**3. Update stats to use visible systems**
-```typescript
-// Stats - use visible systems count
-const totalSystems = VISIBLE_PMS_SYSTEMS.length;
-const deployedSystems = trackerStatuses.filter(t => 
-  t.integration_status === 'deployed' && 
-  VISIBLE_PMS_SYSTEMS.some(s => s.key === t.system_type)
-).length;
-```
-
----
-
-### File 3: `src/pages/AdminKeys.tsx`
-
-**1. Update import**
-```typescript
-import { TOTAL_PMS_SYSTEMS_COUNT, VISIBLE_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
-```
-
-**2. Filter out hidden systems from card rendering**
-
-The AdminKeys page uses `hasCustomCard` to determine which systems show cards. By marking the hidden systems, we need to ensure they're excluded. The cleanest approach is to check `hidden` when iterating through systems.
-
-Since AdminKeys renders individual cards manually (not from a loop), we need to:
-- Remove or skip the Little Hotelier card section
-- Rentals United card section (if present)
-- Guesty doesn't have a custom card, so no change needed there
-
-Alternatively, wrap the existing card sections in a conditional that checks visibility:
-```typescript
-{!VISIBLE_PMS_SYSTEMS.find(s => s.key === 'littlehotelier')?.hidden && (
-  // Little Hotelier Card JSX
-)}
-```
-
-However, since we're marking these as `hidden: true` and they won't be in `VISIBLE_PMS_SYSTEMS`, a simpler approach is to check if the system exists in `VISIBLE_PMS_SYSTEMS` before rendering.
-
----
-
-## Summary of Changes
-
-| File | Change |
-|------|--------|
-| `src/lib/pmsSystemsConfig.ts` | Add `hidden` flag to interface; mark 3 systems as hidden; add `VISIBLE_PMS_SYSTEMS` export; update `TOTAL_PMS_SYSTEMS_COUNT` |
-| `src/pages/DevPMS.tsx` | Use `VISIBLE_PMS_SYSTEMS` for rendering and stats |
-| `src/pages/AdminKeys.tsx` | Filter out hidden systems from card display |
-
-## Result
-
-After implementation:
-- **Total Systems count** will decrease from 15 to 12
-- **Deployed Systems ratio** will adjust to exclude hidden systems
-- No cards or rows will appear for Little Hotelier, Guesty, or Rentals United
-- All milestone tracking excludes these systems
-- Database records remain intact (no data loss)
+This plan focuses on the Terms of Service compliance update only.
