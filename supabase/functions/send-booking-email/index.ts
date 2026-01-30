@@ -9,7 +9,7 @@ const corsHeaders = {
 
 const requestSchema = z.object({
   booking_id: z.string().uuid({ message: "Invalid booking ID format" }),
-  status: z.enum(["success", "failed"]),
+  status: z.enum(["success", "failed", "admin_alert"]),
   error_message: z.string().optional(),
   sync_warning: z.string().optional(),
 });
@@ -494,6 +494,180 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
   `;
 }
 
+// Generate admin alert email HTML for failed sync on paid bookings
+function generateAdminAlertEmail(booking: any, property: any, errorMessage?: string): string {
+  const nights = calculateNights(booking.check_in_date, booking.check_out_date);
+  const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
+  const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
+  const dashboardUrl = "https://roomsonline-hub.lovable.app/dashboard/bookings";
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ACTION REQUIRED: Booking Sync Failed</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="padding: 40px 40px 20px; text-align: center; background-color: #fef2f2; border-radius: 8px 8px 0 0;">
+              <div style="font-size: 48px; margin-bottom: 10px;">⚠️</div>
+              <h1 style="margin: 0; font-size: 24px; color: #991b1b; font-weight: 600;">MANUAL ACTION REQUIRED</h1>
+              <p style="margin: 10px 0 0; color: #dc2626; font-size: 14px; font-weight: 500;">A guest has paid but the booking failed to sync to the PMS</p>
+            </td>
+          </tr>
+
+          <!-- Booking Reference -->
+          <tr>
+            <td style="padding: 20px 40px 0;">
+              <div style="background-color: #fee2e2; border: 2px solid #ef4444; border-radius: 8px; padding: 20px; text-align: center;">
+                <p style="margin: 0 0 5px; color: #991b1b; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Booking Reference</p>
+                <p style="margin: 0; color: #7f1d1d; font-size: 24px; font-weight: 700; font-family: monospace;">${bookingRef}</p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Sync Error -->
+          <tr>
+            <td style="padding: 20px 40px;">
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #ef4444; padding-bottom: 10px;">Sync Error Details</h2>
+              <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 15px;">
+                <p style="margin: 0; color: #991b1b; font-size: 14px; font-family: monospace; word-break: break-word;">
+                  ${errorMessage || "Unknown sync error - check sync_logs for details"}
+                </p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Booking Details -->
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">Booking Details</h2>
+              <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">Property</td>
+                  <td style="padding: 8px 0; color: #333; font-weight: 600; text-align: right;">${property.name}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">PMS System</td>
+                  <td style="padding: 8px 0; color: #333; text-align: right;">${property.external_system || "Unknown"}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">Check-in</td>
+                  <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">${formatDate(booking.check_in_date)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">Check-out</td>
+                  <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">${formatDate(booking.check_out_date)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">Duration</td>
+                  <td style="padding: 8px 0; color: #333; text-align: right;">${nights} night${nights > 1 ? "s" : ""}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">Guests</td>
+                  <td style="padding: 8px 0; color: #333; text-align: right;">${totalGuests} guest${totalGuests > 1 ? "s" : ""}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Guest Details -->
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">Guest Information</h2>
+              <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">Name</td>
+                  <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">${booking.guest_name}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">Email</td>
+                  <td style="padding: 8px 0; color: #333; text-align: right;">${booking.guest_email}</td>
+                </tr>
+                ${booking.guest_phone ? `
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">Phone</td>
+                  <td style="padding: 8px 0; color: #333; text-align: right;">${booking.guest_phone}</td>
+                </tr>
+                ` : ""}
+              </table>
+            </td>
+          </tr>
+
+          <!-- Payment Confirmation -->
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <div style="background-color: #dcfce7; border: 2px solid #22c55e; border-radius: 8px; padding: 20px;">
+                <h3 style="margin: 0 0 15px; font-size: 16px; color: #166534;">✓ Payment Confirmed</h3>
+                <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="color: #166534; font-size: 14px; font-weight: 600;">Amount Paid</td>
+                    <td style="color: #166534; font-size: 20px; font-weight: 700; text-align: right;">${formatCurrency(booking.total_price)}</td>
+                  </tr>
+                  ${booking.payment_reference ? `
+                  <tr>
+                    <td style="padding-top: 8px; color: #166534; font-size: 13px;">Payment Reference</td>
+                    <td style="padding-top: 8px; color: #166534; font-size: 13px; text-align: right; font-family: monospace;">${booking.payment_reference}</td>
+                  </tr>
+                  ` : ""}
+                  ${booking.paid_at ? `
+                  <tr>
+                    <td style="padding-top: 4px; color: #166534; font-size: 13px;">Paid At</td>
+                    <td style="padding-top: 4px; color: #166534; font-size: 13px; text-align: right;">${formatDate(booking.paid_at)}</td>
+                  </tr>
+                  ` : ""}
+                </table>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Required Action -->
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <div style="background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 20px;">
+                <h3 style="margin: 0 0 10px; font-size: 16px; color: #92400e;">📋 Required Action</h3>
+                <p style="margin: 0 0 15px; color: #78350f; font-size: 14px; line-height: 1.6;">
+                  Please <strong>manually enter this booking</strong> in the PMS for <strong>${property.name}</strong>.
+                </p>
+                <p style="margin: 0; color: #78350f; font-size: 13px;">
+                  Once complete, mark the booking as resolved in the dashboard.
+                </p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Dashboard Link -->
+          <tr>
+            <td style="padding: 0 40px 30px; text-align: center;">
+              <a href="${dashboardUrl}" style="display: inline-block; background-color: #e91e8c; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">View Booking in Dashboard</a>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
+              <p style="margin: 0 0 10px; color: #666; font-size: 12px;">This is an automated alert from RoomsOnline</p>
+              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 120px; height: auto;" />
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -538,6 +712,56 @@ Deno.serve(async (req) => {
     }
 
     const property = booking.property;
+
+    // Handle admin_alert status - send to admin team, not guest
+    if (status === "admin_alert") {
+      console.log(`[Admin Alert] Sending sync failure notification for booking ${booking_id}`);
+      
+      const { data: emailConfig } = await supabaseClient
+        .from("api_keys")
+        .select("key_name, key_value")
+        .eq("key_name", "RESEND_FROM_EMAIL")
+        .maybeSingle();
+
+      const adminFromEmail = emailConfig?.key_value || "RoomsOnline <hello@notify.roomsonline.co.za>";
+      const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
+      
+      const adminEmailHtml = generateAdminAlertEmail(booking, property, error_message);
+      
+      const { data: emailData, error: emailError } = await resend.emails.send({
+        from: adminFromEmail,
+        to: ["admin@roomsonline.co.za"],
+        subject: `⚠️ ACTION REQUIRED: Paid booking sync failed - ${property.name} - ${booking.guest_name}`,
+        html: adminEmailHtml,
+      });
+
+      if (emailError) {
+        console.error("[Admin Alert] Email send error:", emailError);
+        throw new Error(emailError.message || "Failed to send admin alert email");
+      }
+
+      console.log("[Admin Alert] Email sent successfully:", emailData);
+
+      // Log the admin alert email
+      await supabaseClient.from("sync_logs").insert({
+        booking_id,
+        property_id: property.id,
+        external_system: "resend",
+        sync_type: "admin_alert_email",
+        status: "success",
+        message: `Admin alert sent for failed sync on paid booking`,
+        response_data: emailData,
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Admin alert email sent successfully",
+          email_id: emailData?.id,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     // Fetch configured from email (same as access request notifications)
     const { data: emailConfig } = await supabaseClient

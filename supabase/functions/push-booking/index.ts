@@ -1525,7 +1525,48 @@ Deno.serve(async (req) => {
     let syncWarning: string | undefined;
     if (paymentSucceeded && !anySuccess && firstError) {
       syncWarning = `Note: Your payment was successful, but we encountered a minor sync issue. Our team has been notified and will ensure your booking is confirmed with the property.`;
-      console.log('[Push Booking] Payment succeeded but PMS sync failed - sending success email with warning');
+      console.log('[Push Booking] Payment succeeded but PMS sync failed - flagging for intervention and sending admin alert');
+      
+      // Flag booking as requiring manual intervention
+      const { error: flagError } = await supabaseClient
+        .from('bookings')
+        .update({ requires_intervention: true })
+        .eq('id', booking_id);
+      
+      if (flagError) {
+        console.error('[Push Booking] Failed to set requires_intervention flag:', flagError);
+      } else {
+        console.log('[Push Booking] Booking flagged for intervention');
+      }
+      
+      // Send admin alert email
+      try {
+        console.log('[Push Booking] Sending admin alert email...');
+        const adminAlertResponse = await fetch(
+          `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-booking-email`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              booking_id,
+              status: 'admin_alert',
+              error_message: firstError?.error || 'Unknown sync error',
+            }),
+          }
+        );
+        
+        if (!adminAlertResponse.ok) {
+          const alertError = await adminAlertResponse.text();
+          console.error('[Push Booking] Failed to send admin alert:', alertError);
+        } else {
+          console.log('[Push Booking] Admin alert email sent successfully');
+        }
+      } catch (alertError) {
+        console.error('[Push Booking] Error sending admin alert:', alertError);
+      }
     }
     
     try {
