@@ -935,84 +935,69 @@ const Booking = () => {
 
       if (error) throw error;
 
-      let externalRefIds: string[] = [];
-
-      // Push to external system if configured (which also sends email)
-      if (property?.external_system) {
-        try {
-          const pushResponse = await supabase.functions.invoke('push-booking', {
-            body: { booking_id: data.id },
-          });
-          
-          // Check for availability-specific errors (RULE #1: PMS is source of truth)
-          const availabilityError = pushResponse.data?.results?.find(
-            (r: any) => r.error_code === 'AVAILABILITY_CHANGED'
-          );
-          
-          if (availabilityError) {
-            // Delete the booking record since it can't be fulfilled
-            console.error('Availability changed during booking:', availabilityError.error);
-            await supabase.from('bookings').delete().eq('id', data.id);
-            
-            // Throw specific error to show user
-            throw new Error('AVAILABILITY_CHANGED: The selected dates or rooms are no longer available. Please choose again.');
-          }
-          
-          // Check if ALL external pushes failed (no success at all)
-          const pushResults = pushResponse.data?.results || [];
-          const hasAnySuccess = pushResults.some((r: any) => r.success);
-          const failedResult = pushResults.find((r: any) => !r.success);
-          
-          if (pushResults.length > 0 && !hasAnySuccess) {
-            // All pushes failed - mark booking as failed and show error to user
-            console.error('All external pushes failed:', failedResult?.error);
-            await supabase.from('bookings').update({ status: 'failed' }).eq('id', data.id);
-            
-            const errorMessage = failedResult?.error || 'Failed to complete booking with property';
-            throw new Error(`Booking failed: ${errorMessage}`);
-          }
-          
-          // Extract all external reservation IDs from push response
-          // For multi-room bookings with different dates, there may be multiple reservation IDs
-          if (pushResponse.data?.external_reservation_ids && Array.isArray(pushResponse.data.external_reservation_ids)) {
-            externalRefIds = pushResponse.data.external_reservation_ids.map((id: any) => String(id));
-          } else {
-            // Fallback: check individual results
-            const successfulResults = pushResults.filter((r: any) => r.success && r.external_booking_id);
-            externalRefIds = successfulResults.map((r: any) => String(r.external_booking_id));
-          }
-        } catch (pushError) {
-          // Re-throw all booking errors to show user (no more silent swallowing)
-          if (pushError instanceof Error) {
-            throw pushError;
-          }
-          console.error('Failed to push booking to external system:', pushError);
-          throw new Error('Failed to complete booking with property. Please try again.');
-        }
-      } else {
-        // For non-PMS properties, send confirmation email directly
-        try {
-          await supabase.functions.invoke('send-booking-email', {
-            body: { 
-              booking_id: data.id,
-              status: 'success'
-            },
-          });
-        } catch (emailError) {
-          console.error('Failed to send booking confirmation email:', emailError);
-          // Don't fail the booking, just log the error
-        }
+      // --- PAYMENT GATE ---
+      // All bookings must go through PayFast before PMS push
+      // The ITN handler in payfast-api will trigger push-booking after successful payment
+      
+      console.log('[Booking] Initiating PayFast payment for booking:', data.id);
+      
+      const { data: paymentData, error: paymentError } = await supabase.functions.invoke('payfast-api', {
+        body: {
+          action: 'initiate_payment',
+          booking_id: data.id,
+        },
+      });
+      
+      if (paymentError) {
+        console.error('[Booking] PayFast initiation failed:', paymentError);
+        throw new Error('Failed to initiate payment. Please try again.');
       }
-
-      // Return comma-separated IDs or null
-      const combinedExternalId = externalRefIds.length > 0 ? externalRefIds.join(', ') : null;
-      return { ...data, externalReservationId: combinedExternalId };
+      
+      if (!paymentData?.success || !paymentData?.checkout_url) {
+        console.error('[Booking] PayFast response invalid:', paymentData);
+        throw new Error(paymentData?.error || 'Failed to initiate payment');
+      }
+      
+      console.log('[Booking] Redirecting to PayFast:', paymentData.checkout_url);
+      
+      // Return payment data for redirect
+      return { 
+        ...data, 
+        paymentRedirect: true,
+        checkoutUrl: paymentData.checkout_url,
+        formFields: paymentData.form_fields,
+      };
     },
     onSuccess: (data) => {
+      // If we have payment redirect data, submit form to PayFast
+      if (data.paymentRedirect && data.checkoutUrl && data.formFields) {
+        // Create a form and submit to PayFast
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = data.checkoutUrl;
+        form.style.display = 'none';
+        
+        // Add all form fields
+        Object.entries(data.formFields).forEach(([key, value]) => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = String(value);
+          form.appendChild(input);
+        });
+        
+        document.body.appendChild(form);
+        
+        toast.success("Redirecting to payment...");
+        
+        // Submit the form
+        form.submit();
+        return;
+      }
+      
+      // Fallback: direct navigation (shouldn't happen with payment gate)
       toast.success("Booking request submitted successfully!");
-      // Redirect to confirmation page for Google Ads tracking
-      const refParam = data.externalReservationId ? `?ref=${encodeURIComponent(data.externalReservationId)}` : '';
-      navigate(`/booking-confirmation/${data.id}${refParam}`);
+      navigate(`/booking-confirmation/${data.id}`);
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Failed to create booking";
