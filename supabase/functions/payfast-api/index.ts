@@ -358,8 +358,17 @@ Deno.serve(async (req) => {
     // PayFast credentials
     const merchantId = Deno.env.get("PAYFAST_MERCHANT_ID");
     const merchantKey = Deno.env.get("PAYFAST_MERCHANT_KEY");
-    const passphrase = (Deno.env.get("PAYFAST_PASSPHRASE") || "").trim(); // Trim to prevent whitespace issues
+    // Get passphrase and strip ALL whitespace/invisible chars (not just trim)
+    const rawPassphrase = Deno.env.get("PAYFAST_PASSPHRASE") || "";
+    // Remove any non-printable characters and trim
+    const passphrase = rawPassphrase.replace(/[\x00-\x1F\x7F-\x9F\u200B-\u200D\uFEFF]/g, "").trim();
     const isSandbox = Deno.env.get("PAYFAST_SANDBOX") !== "false"; // Default to sandbox
+    
+    // Debug: log passphrase character codes to identify hidden chars
+    console.log(`[PayFast] Raw passphrase length: ${rawPassphrase.length}, Clean passphrase length: ${passphrase.length}`);
+    if (rawPassphrase.length !== passphrase.length) {
+      console.log(`[PayFast] Hidden chars detected! Raw char codes: ${[...rawPassphrase].map(c => c.charCodeAt(0)).join(',')}`);
+    }
 
     const url = new URL(req.url);
     
