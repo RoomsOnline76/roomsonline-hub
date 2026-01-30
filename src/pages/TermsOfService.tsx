@@ -402,19 +402,19 @@ const TermsOfService = () => {
               <p className="text-foreground">
                 <span className="font-medium">Booking Support:</span>{" "}
                 <a
-                  href="mailto:support@roomsonline.co.za"
+                  href="mailto:admin@roomsonline.co.za"
                   className="text-primary hover:underline transition-colors duration-200"
                 >
-                  support@roomsonline.co.za
+                  admin@roomsonline.co.za
                 </a>
               </p>
               <p className="text-foreground">
                 <span className="font-medium">Legal:</span>{" "}
                 <a
-                  href="mailto:legal@roomsonline.co.za"
+                  href="mailto:carike@roomsonline.co.za"
                   className="text-primary hover:underline transition-colors duration-200"
                 >
-                  legal@roomsonline.co.za
+                  carike@roomsonline.co.za
                 </a>
               </p>
               <p className="text-foreground">
