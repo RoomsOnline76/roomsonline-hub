@@ -140,7 +140,8 @@ export const PayFastOnsiteModal = ({
         }
 
         if (!data?.success || !data?.uuid) {
-          throw new Error(data?.error || "Failed to get payment identifier");
+          const errorMessage = data?.details || data?.error || "Failed to get payment identifier";
+          throw new Error(errorMessage);
         }
 
         console.log("[PayFast Onsite] Received UUID:", data.uuid);

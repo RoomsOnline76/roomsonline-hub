@@ -648,17 +648,28 @@ Deno.serve(async (req) => {
       console.log("[PayFast] Onsite API response:", onsiteResult);
       
       let uuid: string | null = null;
+      let payfastError: string | null = null;
+      
       try {
         const parsed = JSON.parse(onsiteResult);
         uuid = parsed.uuid || null;
       } catch (e) {
         console.error("[PayFast] Failed to parse onsite response:", e);
+        // Try to extract error from HTML response
+        const errorMatch = onsiteResult.match(/<span class="err-msg">([^<]+)<\/span>/);
+        if (errorMatch) {
+          payfastError = errorMatch[1];
+        }
       }
       
       if (!uuid) {
-        console.error("[PayFast] No UUID received from onsite API");
+        console.error("[PayFast] No UUID received from onsite API. PayFast error:", payfastError);
         return new Response(
-          JSON.stringify({ success: false, error: "Failed to initiate onsite payment" }),
+          JSON.stringify({ 
+            success: false, 
+            error: payfastError || "Failed to initiate onsite payment",
+            details: payfastError ? `PayFast: ${payfastError}` : undefined
+          }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
