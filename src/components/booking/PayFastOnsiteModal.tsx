@@ -1,0 +1,270 @@
+import { useEffect, useState, useCallback } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Loader2, CreditCard, ShieldCheck, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
+
+// Extend Window interface for PayFast
+declare global {
+  interface Window {
+    payfast_do_onsite_payment: (config: { uuid: string; return_url?: string; cancel_url?: string }) => void;
+  }
+}
+
+interface PayFastOnsiteModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onPaymentSuccess: () => void;
+  onPaymentCancelled: () => void;
+  bookingId: string;
+  amount: number;
+  propertyName: string;
+  isSandbox?: boolean;
+}
+
+export const PayFastOnsiteModal = ({
+  isOpen,
+  onClose,
+  onPaymentSuccess,
+  onPaymentCancelled,
+  bookingId,
+  amount,
+  propertyName,
+  isSandbox = true,
+}: PayFastOnsiteModalProps) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [paymentUuid, setPaymentUuid] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [scriptLoaded, setScriptLoaded] = useState(false);
+
+  // Load PayFast onsite script
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const scriptId = "payfast-onsite-script";
+    let script = document.getElementById(scriptId) as HTMLScriptElement | null;
+
+    if (!script) {
+      script = document.createElement("script");
+      script.id = scriptId;
+      script.src = isSandbox
+        ? "https://sandbox.payfast.co.za/onsite/engine.js"
+        : "https://www.payfast.co.za/onsite/engine.js";
+      script.async = true;
+
+      script.onload = () => {
+        console.log("[PayFast Onsite] Script loaded successfully");
+        setScriptLoaded(true);
+      };
+
+      script.onerror = () => {
+        console.error("[PayFast Onsite] Failed to load script");
+        setError("Failed to load payment system. Please refresh and try again.");
+      };
+
+      document.body.appendChild(script);
+    } else {
+      setScriptLoaded(true);
+    }
+
+    return () => {
+      // Don't remove script - it may be needed for other payments
+    };
+  }, [isOpen, isSandbox]);
+
+  // Listen for payment completion via postMessage
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // PayFast sends messages for payment status
+      if (event.data?.source === "payfast" || event.data?.type?.includes("payfast")) {
+        console.log("[PayFast Onsite] Received message:", event.data);
+        
+        if (event.data.status === "COMPLETE" || event.data.payment_status === "COMPLETE") {
+          toast.success("Payment successful!");
+          onPaymentSuccess();
+        } else if (event.data.status === "CANCELLED" || event.data.payment_status === "CANCELLED") {
+          toast.info("Payment cancelled");
+          onPaymentCancelled();
+        }
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [onPaymentSuccess, onPaymentCancelled]);
+
+  // Trigger PayFast onsite payment
+  const triggerOnsitePayment = useCallback((uuid: string) => {
+    if (!window.payfast_do_onsite_payment) {
+      console.error("[PayFast Onsite] payfast_do_onsite_payment not available");
+      setError("Payment system not ready. Please try again.");
+      return;
+    }
+
+    console.log("[PayFast Onsite] Triggering payment with UUID:", uuid);
+
+    try {
+      window.payfast_do_onsite_payment({
+        uuid: uuid,
+        return_url: window.location.origin + `/booking-confirmation/${bookingId}?payment=success`,
+        cancel_url: window.location.origin + window.location.pathname + "?payment=cancelled",
+      });
+    } catch (err) {
+      console.error("[PayFast Onsite] Error triggering payment:", err);
+      setError("Failed to open payment window. Please try again.");
+    }
+  }, [bookingId]);
+
+  // Get payment UUID and trigger modal
+  useEffect(() => {
+    if (!isOpen || !scriptLoaded || paymentUuid) return;
+
+    const initiatePayment = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const { supabase } = await import("@/integrations/supabase/client");
+        
+        console.log("[PayFast Onsite] Requesting payment UUID for booking:", bookingId);
+        
+        const { data, error: apiError } = await supabase.functions.invoke("payfast-api", {
+          body: {
+            action: "initiate_onsite_payment",
+            booking_id: bookingId,
+          },
+        });
+
+        if (apiError) {
+          throw new Error(apiError.message || "Failed to initiate payment");
+        }
+
+        if (!data?.success || !data?.uuid) {
+          throw new Error(data?.error || "Failed to get payment identifier");
+        }
+
+        console.log("[PayFast Onsite] Received UUID:", data.uuid);
+        setPaymentUuid(data.uuid);
+        
+        // Small delay to ensure UI is ready
+        setTimeout(() => {
+          triggerOnsitePayment(data.uuid);
+        }, 500);
+        
+      } catch (err) {
+        console.error("[PayFast Onsite] Initiation error:", err);
+        setError(err instanceof Error ? err.message : "Payment initiation failed");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initiatePayment();
+  }, [isOpen, scriptLoaded, paymentUuid, bookingId, triggerOnsitePayment]);
+
+  // Reset state on close
+  useEffect(() => {
+    if (!isOpen) {
+      setPaymentUuid(null);
+      setError(null);
+      setIsLoading(false);
+    }
+  }, [isOpen]);
+
+  const handleRetry = () => {
+    setPaymentUuid(null);
+    setError(null);
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-ZA", {
+      style: "currency",
+      currency: "ZAR",
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md" hideCloseButton={isLoading}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-primary" />
+            Secure Payment
+          </DialogTitle>
+          <DialogDescription>
+            Complete your payment for {propertyName}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 py-4">
+          {/* Amount Display */}
+          <div className="bg-muted/50 rounded-lg p-4 text-center">
+            <p className="text-sm text-muted-foreground mb-1">Amount Due</p>
+            <p className="text-3xl font-bold text-primary">{formatCurrency(amount)}</p>
+          </div>
+
+          {/* Loading State */}
+          {isLoading && (
+            <div className="flex flex-col items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+              <p className="text-sm text-muted-foreground">Preparing secure payment...</p>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-destructive">Payment Error</p>
+                  <p className="text-sm text-destructive/80 mt-1">{error}</p>
+                </div>
+              </div>
+              <Button onClick={handleRetry} variant="outline" size="sm" className="mt-3 w-full">
+                Try Again
+              </Button>
+            </div>
+          )}
+
+          {/* Waiting for PayFast Modal */}
+          {!isLoading && !error && paymentUuid && (
+            <div className="text-center py-4">
+              <p className="text-sm text-muted-foreground mb-4">
+                The PayFast payment window should have opened.
+                <br />
+                If not, click below to try again.
+              </p>
+              <Button onClick={() => triggerOnsitePayment(paymentUuid)} variant="outline">
+                Open Payment Window
+              </Button>
+            </div>
+          )}
+
+          {/* Security Badge */}
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <ShieldCheck className="h-4 w-4" />
+            <span>Secured by PayFast · SSL Encrypted</span>
+          </div>
+
+          {/* Sandbox Notice */}
+          {isSandbox && (
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-center">
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                🔧 Test Mode: Use card 4000000000000002 with any future date and CVV
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Cancel Button */}
+        <div className="flex justify-end">
+          <Button variant="ghost" onClick={onClose} disabled={isLoading}>
+            Cancel
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};

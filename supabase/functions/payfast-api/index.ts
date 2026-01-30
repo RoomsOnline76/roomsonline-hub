@@ -26,6 +26,11 @@ const InitiatePaymentSchema = z.object({
   cancel_url: z.string().url().optional(),
 });
 
+const InitiateOnsitePaymentSchema = z.object({
+  action: z.literal("initiate_onsite_payment"),
+  booking_id: z.string().uuid(),
+});
+
 const VerifyItnSchema = z.object({
   action: z.literal("verify_itn"),
 });
@@ -38,6 +43,10 @@ const VerifyPaymentSchema = z.object({
 const HealthCheckSchema = z.object({
   action: z.literal("health_check"),
 });
+
+// PayFast Onsite URLs
+const PAYFAST_SANDBOX_ONSITE_URL = "https://sandbox.payfast.co.za/onsite/process";
+const PAYFAST_PRODUCTION_ONSITE_URL = "https://www.payfast.co.za/onsite/process";
 
 // Generate MD5 hash using Web Crypto API
 async function md5(text: string): Promise<string> {
@@ -554,6 +563,141 @@ Deno.serve(async (req) => {
           is_sandbox: isSandbox,
           source: "payfast-api",
           action: "initiate_payment",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // INITIATE ONSITE PAYMENT (Modal-based, stays in ROL UI)
+    if (action === "initiate_onsite_payment") {
+      const validation = InitiateOnsitePaymentSchema.safeParse(body);
+      
+      if (!validation.success) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Invalid request", details: validation.error.errors }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      const { booking_id } = validation.data;
+      
+      // Fetch booking details
+      const { data: booking, error: bookingError } = await supabase
+        .from("bookings")
+        .select("*, properties(name, slug)")
+        .eq("id", booking_id)
+        .single();
+      
+      if (bookingError || !booking) {
+        console.error("[PayFast] Booking not found:", bookingError);
+        return new Response(
+          JSON.stringify({ success: false, error: "Booking not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      const transRef = generateTransRef();
+      const amount = booking.total_price.toFixed(2);
+      const propertyName = (booking.properties as any)?.name || "RoomsOnline";
+      
+      // Build URLs for callbacks
+      const siteUrl = Deno.env.get("SITE_URL") || "https://book.sleepinafrica.roomsonline.co.za";
+      const notifyUrl = `${supabaseUrl}/functions/v1/payfast-api`;
+      
+      // Build form fields for PayFast onsite
+      const formFields: Record<string, string> = {
+        merchant_id: merchantId,
+        merchant_key: merchantKey,
+        return_url: `${siteUrl}/booking-confirmation/${booking_id}?payment=success`,
+        cancel_url: `${siteUrl}/booking/${(booking.properties as any)?.slug || ''}?payment=cancelled`,
+        notify_url: notifyUrl,
+        m_payment_id: transRef,
+        amount: amount,
+        item_name: `Booking at ${propertyName}`.substring(0, 100),
+        item_description: `Reservation #${booking_id.substring(0, 8).toUpperCase()}`.substring(0, 255),
+        email_address: booking.guest_email,
+        name_first: booking.guest_name.split(" ")[0] || "",
+        name_last: booking.guest_name.split(" ").slice(1).join(" ") || "",
+        cell_number: booking.guest_phone?.replace(/\D/g, "") || "",
+      };
+      
+      // Generate signature
+      const signature = generateSignature(formFields, passphrase);
+      formFields.signature = signature;
+      
+      console.log("[PayFast] Onsite payment initiated:", { transRef, amount, booking_id });
+      
+      // Build param string for onsite API
+      const paramString = Object.entries(formFields)
+        .filter(([_, value]) => value !== "" && value !== undefined && value !== null)
+        .map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`)
+        .join("&");
+      
+      // Request UUID from PayFast onsite API
+      const onsiteUrl = isSandbox ? PAYFAST_SANDBOX_ONSITE_URL : PAYFAST_PRODUCTION_ONSITE_URL;
+      
+      console.log("[PayFast] Requesting onsite UUID from:", onsiteUrl);
+      
+      const onsiteResponse = await fetch(onsiteUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: paramString,
+      });
+      
+      const onsiteResult = await onsiteResponse.text();
+      console.log("[PayFast] Onsite API response:", onsiteResult);
+      
+      let uuid: string | null = null;
+      try {
+        const parsed = JSON.parse(onsiteResult);
+        uuid = parsed.uuid || null;
+      } catch (e) {
+        console.error("[PayFast] Failed to parse onsite response:", e);
+      }
+      
+      if (!uuid) {
+        console.error("[PayFast] No UUID received from onsite API");
+        return new Response(
+          JSON.stringify({ success: false, error: "Failed to initiate onsite payment" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      // Create payment transaction record
+      const { error: txError } = await supabase
+        .from("payment_transactions")
+        .insert({
+          booking_id,
+          amount: booking.total_price,
+          currency: "ZAR",
+          status: "pending",
+          payment_provider: "payfast",
+          m_payment_id: transRef,
+          gateway_response: { trans_ref: transRef, uuid, onsite: true },
+        });
+      
+      if (txError) {
+        console.error("[PayFast] Failed to create transaction record:", txError);
+      }
+      
+      // Update booking with payment reference
+      await supabase
+        .from("bookings")
+        .update({ 
+          payment_reference: transRef, 
+          payment_status: "pending",
+          payment_method: "payfast",
+        })
+        .eq("id", booking_id);
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          uuid: uuid,
+          trans_ref: transRef,
+          is_sandbox: isSandbox,
+          source: "payfast-api",
+          action: "initiate_onsite_payment",
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
