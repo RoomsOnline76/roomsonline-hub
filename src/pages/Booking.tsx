@@ -537,13 +537,38 @@ const Booking = () => {
         // Get rate types array - handle both formats
         const rateTypesArray = roomType.rate_types || roomType.rateTypes || [];
         
-        // Find rate type - handle both formats, also allow 'default' for simple cache entries
-        const rateType = rateTypesArray.find(
-          (rt: any) => {
+        // Find rate type - use flexible matching with fallbacks
+        const availableRateTypeIds = rateTypesArray.map((rt: any) => String(rt.rate_type_id || rt.rateTypeId));
+        console.log('[Booking] Looking for rate type:', selectedRateType, 'Available:', availableRateTypeIds);
+        
+        // Step 1: Try exact match with selectedRateType
+        let rateType = rateTypesArray.find((rt: any) => {
+          const rtId = String(rt.rate_type_id || rt.rateTypeId);
+          return rtId === selectedRateType;
+        });
+
+        // Step 2: Fallback to universal rate types ('default' or 'per-unit')
+        if (!rateType) {
+          rateType = rateTypesArray.find((rt: any) => {
             const rtId = String(rt.rate_type_id || rt.rateTypeId);
-            return rtId === selectedRateType || rtId === 'default';
+            return rtId === 'default' || rtId === 'per-unit';
+          });
+          if (rateType) {
+            console.log('[Booking] Using fallback rate type:', String(rateType.rate_type_id || rateType.rateTypeId));
           }
-        );
+        }
+
+        // Step 3: Last resort - use first available rate type
+        if (!rateType && rateTypesArray.length > 0) {
+          rateType = rateTypesArray[0];
+          console.warn('[Booking] Using first available rate type as last resort:', String(rateType.rate_type_id || rateType.rateTypeId));
+        }
+
+        // Safety check: skip this room if no rate type found
+        if (!rateType) {
+          console.warn('[Booking] No rate type found for room:', room.roomTypeName, '- skipping calculation');
+          continue;
+        }
 
         const allRates = rateType.rates || [];
         
