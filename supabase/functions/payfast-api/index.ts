@@ -217,22 +217,23 @@ function generateTransRef(): string {
 }
 
 // Generate PayFast signature
-// CRITICAL: PayFast requires NON-URL-encoded values for signature calculation
-// But the values need URL encoding when posting to their API
+// CRITICAL: PayFast requires the signature to be calculated from the SAME string that gets POSTed
+// Since we POST URL-encoded values, we must also generate signature from URL-encoded values
+// PayFast uses urlencode() in PHP which encodes spaces as + (not %20)
 function generateSignature(data: Record<string, string>, passphrase?: string): string {
   // Sort alphabetically by key
   const sortedKeys = Object.keys(data).sort();
   
-  // Build param string WITHOUT URL encoding (PayFast signature requirement)
-  // Spaces should be replaced with + as per PayFast spec
+  // Build param string WITH URL encoding - must match what we POST to PayFast
+  // encodeURIComponent encodes spaces as %20, but PayFast expects + for spaces
   const paramString = sortedKeys
     .filter(key => data[key] !== "" && data[key] !== undefined && data[key] !== null)
-    .map(key => `${key}=${String(data[key]).replace(/ /g, "+")}`)
+    .map(key => `${key}=${encodeURIComponent(String(data[key]).trim()).replace(/%20/g, "+")}`)
     .join("&");
   
-  // Add passphrase if provided (also without URL encoding, just space to +)
+  // Add passphrase if provided (also URL-encoded with + for spaces)
   const stringToHash = passphrase && passphrase.length > 0
-    ? `${paramString}&passphrase=${passphrase.replace(/ /g, "+")}`
+    ? `${paramString}&passphrase=${encodeURIComponent(passphrase.trim()).replace(/%20/g, "+")}`
     : paramString;
   
   console.log("[PayFast] Signature string for hashing:", paramString.substring(0, 200) + "...");
@@ -630,10 +631,12 @@ Deno.serve(async (req) => {
       
       console.log("[PayFast] Onsite payment initiated:", { transRef, amount, booking_id });
       
-      // Build param string for onsite API
+      // Build param string for onsite API - MUST match signature generation encoding
+      // Sort alphabetically and use same encoding as generateSignature
       const paramString = Object.entries(formFields)
         .filter(([_, value]) => value !== "" && value !== undefined && value !== null)
-        .map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, value]) => `${key}=${encodeURIComponent(String(value).trim()).replace(/%20/g, "+")}`)
         .join("&");
       
       // Request UUID from PayFast onsite API
