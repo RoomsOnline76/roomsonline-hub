@@ -217,22 +217,25 @@ function generateTransRef(): string {
 }
 
 // Generate PayFast signature
+// CRITICAL: PayFast requires NON-URL-encoded values for signature calculation
+// But the values need URL encoding when posting to their API
 function generateSignature(data: Record<string, string>, passphrase?: string): string {
   // Sort alphabetically by key
   const sortedKeys = Object.keys(data).sort();
   
-  // Build param string
+  // Build param string WITHOUT URL encoding (PayFast signature requirement)
+  // Spaces should be replaced with + as per PayFast spec
   const paramString = sortedKeys
     .filter(key => data[key] !== "" && data[key] !== undefined && data[key] !== null)
-    .map(key => `${key}=${encodeURIComponent(data[key]).replace(/%20/g, "+")}`)
+    .map(key => `${key}=${String(data[key]).replace(/ /g, "+")}`)
     .join("&");
   
-  // Add passphrase if provided
-  const stringToHash = passphrase 
-    ? `${paramString}&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, "+")}`
+  // Add passphrase if provided (also without URL encoding, just space to +)
+  const stringToHash = passphrase && passphrase.length > 0
+    ? `${paramString}&passphrase=${passphrase.replace(/ /g, "+")}`
     : paramString;
   
-  console.log("[PayFast] Signature string (excluding passphrase):", paramString.substring(0, 200) + "...");
+  console.log("[PayFast] Signature string for hashing:", paramString.substring(0, 200) + "...");
   
   return md5Hash(stringToHash);
 }
