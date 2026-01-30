@@ -176,7 +176,7 @@ export function PublicHeader({
                 How It Works
               </Link>
               <Link
-                to="/privacy"
+                to="/privacy-policy"
                 className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
                 onClick={() => setMobileMenuOpen(false)}
               >
@@ -184,7 +184,7 @@ export function PublicHeader({
                 Privacy
               </Link>
               <Link
-                to="/terms"
+                to="/terms-of-service"
                 className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
                 onClick={() => setMobileMenuOpen(false)}
               >
