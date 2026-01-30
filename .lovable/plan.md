@@ -1,93 +1,74 @@
 
-# Fix PayFast Signature Mismatch Error
+# Fix PayFast Signature - Uppercase Encoding & Passphrase Issue
 
-## Problem Identified
+## Root Cause Identified
 
-The edge function logs show:
-```
-signature: Generated signature does not match submitted signature.
-```
+After reviewing the official PayFast documentation and edge function logs, I found **two critical issues**:
 
-The root cause is a **mismatch between signature generation and API submission**:
+### Issue 1: Uppercase Encoding Requirement
 
-1. **Current (broken)**: Signature is generated from non-URL-encoded values, but the POST body uses URL-encoded values
-2. **PayFast requirement**: Signature MUST be calculated from the exact same parameter string that gets submitted
+PayFast docs explicitly state (Step 2):
+> "The resultant URL encoding must be in **upper case** (eg. http%3A%2F%2F), and spaces encoded as '+'."
 
-## Technical Details
-
-Current code flow:
+JavaScript's `encodeURIComponent()` produces lowercase hex codes:
 ```text
-1. generateSignature() builds: "amount=3150.00&cancel_url=https://site.com/..."
-   → Uses raw values with spaces replaced by +
-
-2. paramString for POST builds: "amount=3150.00&cancel_url=https%3A%2F%2Fsite.com%2F..."
-   → Uses encodeURIComponent()
-
-3. PayFast receives URL-encoded values but signature was calculated from non-encoded values
-   → MISMATCH!
+Current:  https%3a%2f%2fsite.com  (lowercase - WRONG)
+Required: https%3A%2F%2Fsite.com  (uppercase - CORRECT)
 ```
 
-PayFast's official PHP example shows the correct approach:
-```php
-// dataToString uses urlencode for the param string
-$pfOutput .= $key . '=' . urlencode( trim( $val ) ) . '&';
-// Signature is generated from this SAME urlencode'd string
-$data["signature"] = generateSignature($data, $passPhrase);
-```
+### Issue 2: Passphrase Length Mismatch
+
+The logs show `Passphrase length: 23` but your screenshot shows the passphrase is `DawieCarikeSLPafrica247` which is **22 characters**. This suggests:
+- A trailing space or newline was accidentally stored in the secret
+- The extra character causes MD5 to produce a completely different hash
+
+---
 
 ## Solution
 
-Modify the signature generation to use URL-encoded values (matching what gets sent):
+### 1. Fix URL Encoding to Use Uppercase
 
-### Changes to `supabase/functions/payfast-api/index.ts`
-
-1. **Update `generateSignature()` function** (lines 222-241):
-   - Use `encodeURIComponent()` for values
-   - Replace `%20` with `+` (PayFast's space encoding requirement)
+Update the `pfUrlencode()` function to convert hex codes to uppercase:
 
 ```typescript
-function generateSignature(data: Record<string, string>, passphrase?: string): string {
-  const sortedKeys = Object.keys(data).sort();
-  
-  // Build param string WITH URL encoding (must match what we POST)
-  // PayFast requires %20 to be replaced with + for spaces
-  const paramString = sortedKeys
-    .filter(key => data[key] !== "" && data[key] !== undefined && data[key] !== null)
-    .map(key => `${key}=${encodeURIComponent(String(data[key]).trim()).replace(/%20/g, "+")}`)
-    .join("&");
-  
-  // Add passphrase if provided (also URL-encoded)
-  const stringToHash = passphrase && passphrase.length > 0
-    ? `${paramString}&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, "+")}`
-    : paramString;
-  
-  console.log("[PayFast] Signature string for hashing:", paramString.substring(0, 200) + "...");
-  
-  return md5Hash(stringToHash);
+function pfUrlencode(val: string): string {
+  // encodeURIComponent produces lowercase hex, PayFast requires uppercase
+  return encodeURIComponent(val.trim())
+    .replace(/%([0-9a-f]{2})/gi, (_, hex) => '%' + hex.toUpperCase())
+    .replace(/%20/g, "+");
 }
 ```
 
-2. **Update POST body construction** (lines 634-637) to match:
-   - Ensure the encoding matches exactly what was used for signature generation
+### 2. Trim Passphrase Before Use
+
+Ensure no trailing whitespace affects the signature:
 
 ```typescript
-// Build param string for onsite API - MUST match signature generation encoding
-const paramString = Object.entries(formFields)
-  .filter(([_, value]) => value !== "" && value !== undefined && value !== null)
-  .sort(([a], [b]) => a.localeCompare(b)) // Sort alphabetically to match signature
-  .map(([key, value]) => `${key}=${encodeURIComponent(String(value).trim()).replace(/%20/g, "+")}`)
-  .join("&");
+const passphrase = (Deno.env.get("PAYFAST_PASSPHRASE") || "").trim();
 ```
 
-## Verification
-
-After deployment, the logs should show:
-- Signature string matches what gets POSTed
-- PayFast returns a valid UUID instead of "400 Bad Request"
-- Payment modal opens successfully
+---
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
-| `supabase/functions/payfast-api/index.ts` | Fix signature generation to use URL-encoded values matching POST body |
+| `supabase/functions/payfast-api/index.ts` | Fix `pfUrlencode()` to produce uppercase hex codes; trim passphrase |
+
+---
+
+## Verification Steps
+
+After deployment:
+1. Check logs show signature input with uppercase encoding (`%3A` not `%3a`)
+2. Check passphrase length is exactly 22 (matches your screenshot)
+3. PayFast should return a valid UUID instead of "400 Bad Request"
+
+---
+
+## Technical Summary
+
+The signature calculation now matches PayFast's PHP implementation exactly:
+- PHP `urlencode()` produces uppercase hex codes
+- Passphrase trimmed to remove any accidental whitespace
+- Field order maintained per PayFast specification
