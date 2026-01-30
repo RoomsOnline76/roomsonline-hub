@@ -318,6 +318,17 @@ const Booking = () => {
     }
   }, [property, roomTypes, rateTypes, initialGuests, preSelectedRoomTypeId, preSelectedRateTypeId, searchParams]);
 
+  // Fix timing race: When cachedRateTypes loads AFTER selectedRateType was set to 'default',
+  // update to use the actual rate type from the database
+  useEffect(() => {
+    if (cachedRateTypes && cachedRateTypes.length > 0 && selectedRateType === 'default') {
+      const firstRateType = cachedRateTypes[0];
+      const betterRateTypeId = firstRateType.external_rate_type_id || 'default';
+      console.log('[Booking] Updating selectedRateType from default to:', betterRateTypeId);
+      setSelectedRateType(betterRateTypeId);
+    }
+  }, [cachedRateTypes, selectedRateType]);
+
   // Calculate totals
   const totalGuests = rooms.reduce((sum, room) => 
     sum + room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants, 0
@@ -579,6 +590,12 @@ const Booking = () => {
           // Include rate if it's >= checkIn and < checkOut (nights, not including checkout date)
           return rateDate >= roomCheckIn && rateDate < roomCheckOut;
         });
+        
+        // Debug: Log when rates filter to empty (common failure point)
+        if (rates.length === 0 && allRates.length > 0) {
+          console.warn('[Booking] No rates found for date range:', roomCheckIn, 'to', roomCheckOut);
+          console.warn('[Booking] Available rate dates:', allRates.slice(0, 10).map((r: any) => r.date));
+        }
         
         // Handle both snake_case and camelCase for priceType
         const priceType = (rateType.price_type || rateType.priceType || 'PER ROOM').toUpperCase();
