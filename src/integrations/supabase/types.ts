@@ -299,6 +299,7 @@ export type Database = {
           pets: number | null
           property_id: string
           rate_type_id: string | null
+          requires_intervention: boolean | null
           room_type_id: string | null
           rooms: Json | null
           special_requests: string | null
@@ -339,6 +340,7 @@ export type Database = {
           pets?: number | null
           property_id: string
           rate_type_id?: string | null
+          requires_intervention?: boolean | null
           room_type_id?: string | null
           rooms?: Json | null
           special_requests?: string | null
@@ -379,6 +381,7 @@ export type Database = {
           pets?: number | null
           property_id?: string
           rate_type_id?: string | null
+          requires_intervention?: boolean | null
           room_type_id?: string | null
           rooms?: Json | null
           special_requests?: string | null
