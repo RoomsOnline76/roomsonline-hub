@@ -98,6 +98,13 @@ interface AvailabilityData {
   date: string;
 }
 
+interface CachedRateData {
+  currency: string;
+  room_amount?: number;
+  adult_amount_1?: number;
+  adult_amount_2?: number;
+}
+
 const facilityIcons: Record<string, any> = {
   wifi: Wifi,
   "air conditioning": Wind,
@@ -124,6 +131,7 @@ export default function RoomShowcase() {
   const [room, setRoom] = useState<RoomType | null>(null);
   const [rates, setRates] = useState<RateData[]>([]);
   const [availableUnits, setAvailableUnits] = useState<number | null>(null);
+  const [cachedRate, setCachedRate] = useState<CachedRateData | null>(null);
   const [nightsBridgeAgentCode, setNightsBridgeAgentCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -194,7 +202,7 @@ export default function RoomShowcase() {
           setRates(ratesData);
         }
 
-        // Fetch availability for today to get available units
+        // Fetch availability AND rates for today from pms_availability_cache
         // Try multiple ID formats: pmsRoomId, id, slugified name
         const roomId = foundRoom.pmsRoomId || foundRoom.id;
         const slugifiedName = slugifyRoomName(foundRoom.name);
@@ -203,7 +211,7 @@ export default function RoomShowcase() {
         // Try with roomId first
         let { data: availData } = await supabase
           .from("pms_availability_cache")
-          .select("available_units, date")
+          .select("available_units, date, rates")
           .eq("property_id", propertyData.id)
           .eq("external_room_type_id", roomId)
           .gte("date", today)
@@ -214,7 +222,7 @@ export default function RoomShowcase() {
         if ((!availData || availData.length === 0) && slugifiedName !== roomId) {
           const { data: slugAvailData } = await supabase
             .from("pms_availability_cache")
-            .select("available_units, date")
+            .select("available_units, date, rates")
             .eq("property_id", propertyData.id)
             .eq("external_room_type_id", slugifiedName)
             .gte("date", today)
@@ -226,6 +234,16 @@ export default function RoomShowcase() {
 
         if (availData && availData.length > 0) {
           setAvailableUnits(availData[0].available_units);
+          // Extract rates from cache if available
+          if (availData[0].rates) {
+            const ratesObj = availData[0].rates as any;
+            setCachedRate({
+              currency: ratesObj.currency || 'ZAR',
+              room_amount: ratesObj.room_amount,
+              adult_amount_1: ratesObj.adult_amount_1,
+              adult_amount_2: ratesObj.adult_amount_2,
+            });
+          }
         }
       }
 
@@ -415,7 +433,7 @@ export default function RoomShowcase() {
   // Use liveAvailability if available, fallback to cached
   const displayedAvailability = liveAvailability ?? availableUnits;
   
-  // Calculate lowest rate from live rates first, then dailyRate, then pms_rates, then property_rates
+  // Calculate lowest rate from live rates first, then cachedRate, then dailyRate, then pms_rates, then property_rates
   const getLowestRate = (): number | null => {
     // First check live rates (real-time from API for HotelBeds, Hostfully, etc.)
     if (liveRates.length > 0) {
@@ -442,7 +460,15 @@ export default function RoomShowcase() {
       if (lowest !== null) return lowest;
     }
     
-    // NEW: Check room.dailyRate (Hostfully cached rate from sync)
+    // Check cached rates from pms_availability_cache (Benson, test data, etc.)
+    if (cachedRate) {
+      const amt = cachedRate.room_amount || cachedRate.adult_amount_1 || cachedRate.adult_amount_2;
+      if (typeof amt === 'number' && amt > 0) {
+        return amt;
+      }
+    }
+    
+    // Check room.dailyRate (Hostfully cached rate from sync)
     const roomAny = room as any;
     if (roomAny?.dailyRate && typeof roomAny.dailyRate === 'number' && roomAny.dailyRate > 0) {
       return roomAny.dailyRate;
