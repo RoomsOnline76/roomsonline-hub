@@ -11,6 +11,7 @@ const requestSchema = z.object({
   booking_id: z.string().uuid({ message: "Invalid booking ID format" }),
   status: z.enum(["success", "failed"]),
   error_message: z.string().optional(),
+  sync_warning: z.string().optional(),
 });
 
 // Format currency
@@ -139,7 +140,7 @@ function wrapCustomTemplate(customContent: string, property: any): string {
 }
 
 // Generate success email HTML
-function generateSuccessEmail(booking: any, property: any): string {
+function generateSuccessEmail(booking: any, property: any, syncWarning?: string): string {
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
   const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
 
@@ -360,6 +361,23 @@ function generateSuccessEmail(booking: any, property: any): string {
               : ""
           }
 
+          ${
+            syncWarning
+              ? `
+          <!-- Sync Warning -->
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px;">
+                <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.5;">
+                  <strong>ℹ️ Note:</strong> ${syncWarning}
+                </p>
+              </div>
+            </td>
+          </tr>
+          `
+              : ""
+          }
+
           <!-- Footer -->
           <tr>
             <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
@@ -500,9 +518,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { booking_id, status, error_message } = validationResult.data;
+    const { booking_id, status, error_message, sync_warning } = validationResult.data;
 
-    console.log(`Sending ${status} booking email for booking ${booking_id}`);
+    console.log(`Sending ${status} booking email for booking ${booking_id}${sync_warning ? ' (with sync warning)' : ''}`);
 
     // Get booking details
     const { data: booking, error: bookingError } = await supabaseClient
@@ -545,9 +563,25 @@ Deno.serve(async (req) => {
       const processedContent = replaceTemplateVariables(customTemplateContent, booking, property);
       html = wrapCustomTemplate(processedContent, property);
       console.log("Using custom confirmation template");
+      // If there's a sync warning, append it to custom template
+      if (sync_warning) {
+        html = html.replace('</body>', `
+          <table role="presentation" style="max-width: 600px; width: 100%; margin: 0 auto; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 20px 40px;">
+                <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 15px;">
+                  <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.5;">
+                    <strong>ℹ️ Note:</strong> ${sync_warning}
+                  </p>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </body>`);
+      }
     } else if (status === "success") {
-      // Fall back to default template
-      html = generateSuccessEmail(booking, property);
+      // Fall back to default template - pass sync_warning to include warning box
+      html = generateSuccessEmail(booking, property, sync_warning);
       console.log("Using default confirmation template");
     } else {
       // Failure emails always use default template
