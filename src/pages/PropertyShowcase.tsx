@@ -264,7 +264,11 @@ export default function PropertyShowcase() {
 
       if (availData) {
         const availMap = new Map<string, AvailabilityData>();
-        availData.forEach((item) => availMap.set(item.external_room_type_id, item));
+        availData.forEach((item) => {
+          availMap.set(item.external_room_type_id, item);
+          // Also map by slugified name for easy lookup
+          // This handles cases where room IDs don't match external_room_type_id
+        });
         setAvailability(availMap);
       }
     } catch (error) {
@@ -362,7 +366,19 @@ export default function PropertyShowcase() {
   };
   
   const getAvailabilityForRoom = (room: RoomType): AvailabilityData | undefined => {
-    return availability.get(room.pmsRoomId || room.id);
+    // Try multiple ID formats: pmsRoomId, id, slugified name
+    const primaryId = room.pmsRoomId || room.id;
+    const slugifiedName = slugifyRoomName(room.name);
+    
+    // First try the primary ID
+    let result = availability.get(primaryId);
+    
+    // If not found, try slugified room name
+    if (!result && slugifiedName !== primaryId) {
+      result = availability.get(slugifiedName);
+    }
+    
+    return result;
   };
 
   const getBookedCountForRoom = (room: RoomType): number => {

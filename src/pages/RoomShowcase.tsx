@@ -195,10 +195,13 @@ export default function RoomShowcase() {
         }
 
         // Fetch availability for today to get available units
+        // Try multiple ID formats: pmsRoomId, id, slugified name
         const roomId = foundRoom.pmsRoomId || foundRoom.id;
+        const slugifiedName = slugifyRoomName(foundRoom.name);
         const today = new Date().toISOString().split('T')[0];
         
-        const { data: availData } = await supabase
+        // Try with roomId first
+        let { data: availData } = await supabase
           .from("pms_availability_cache")
           .select("available_units, date")
           .eq("property_id", propertyData.id)
@@ -206,6 +209,20 @@ export default function RoomShowcase() {
           .gte("date", today)
           .order("date", { ascending: true })
           .limit(1);
+
+        // If no data found, try with slugified room name
+        if ((!availData || availData.length === 0) && slugifiedName !== roomId) {
+          const { data: slugAvailData } = await supabase
+            .from("pms_availability_cache")
+            .select("available_units, date")
+            .eq("property_id", propertyData.id)
+            .eq("external_room_type_id", slugifiedName)
+            .gte("date", today)
+            .order("date", { ascending: true })
+            .limit(1);
+          
+          availData = slugAvailData;
+        }
 
         if (availData && availData.length > 0) {
           setAvailableUnits(availData[0].available_units);
