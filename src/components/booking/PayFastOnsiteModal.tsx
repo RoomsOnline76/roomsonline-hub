@@ -7,7 +7,10 @@ import { toast } from "sonner";
 // Extend Window interface for PayFast
 declare global {
   interface Window {
-    payfast_do_onsite_payment: (config: { uuid: string; return_url?: string; cancel_url?: string }) => void;
+    payfast_do_onsite_payment: (
+      config: { uuid: string; return_url?: string; cancel_url?: string },
+      callback?: (result: boolean) => void
+    ) => void;
   }
 }
 
@@ -104,16 +107,26 @@ export const PayFastOnsiteModal = ({
     console.log("[PayFast Onsite] Triggering payment with UUID:", uuid);
 
     try {
-      window.payfast_do_onsite_payment({
-        uuid: uuid,
-        return_url: window.location.origin + `/booking-confirmation/${bookingId}?payment=success`,
-        cancel_url: window.location.origin + window.location.pathname + "?payment=cancelled",
-      });
+      // PayFast onsite requires a callback function as second parameter
+      window.payfast_do_onsite_payment(
+        { uuid: uuid },
+        (result: boolean) => {
+          console.log("[PayFast Onsite] Payment callback result:", result);
+          if (result === true) {
+            toast.success("Payment successful!");
+            onPaymentSuccess();
+          } else {
+            // Result is false when user cancels or payment fails
+            console.log("[PayFast Onsite] Payment was cancelled or failed");
+            onPaymentCancelled();
+          }
+        }
+      );
     } catch (err) {
       console.error("[PayFast Onsite] Error triggering payment:", err);
       setError("Failed to open payment window. Please try again.");
     }
-  }, [bookingId]);
+  }, [onPaymentSuccess, onPaymentCancelled]);
 
   // Get payment UUID and trigger modal
   useEffect(() => {
