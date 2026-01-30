@@ -1002,114 +1002,162 @@ Deno.serve(async (req) => {
           validatedRateKey = checkRateResult.hotel?.rooms?.[0]?.rates?.[0]?.rateKey || rateKey;
           console.log(`Live PMS availability verified successfully via CheckRate`);
         } else {
-          // TEST/STAGING: Skip CheckRate (API not available in test environment)
+          // TEST/STAGING: Skip CheckRate AND booking API (sandbox is read-only)
           console.log(`[RULE #1 SKIPPED] HotelBeds test environment - CheckRate API not available`);
-          console.log(`Proceeding with cached rate_key. WARNING: Production bookings WILL verify via CheckRate.`);
-        }
-
-        // Build HotelBeds booking payload using validated rate key
-        const bookingPayload = {
-          holder: {
-            name: booking.guest_name.split(' ')[0] || 'Guest',
-            surname: booking.guest_name.split(' ').slice(1).join(' ') || 'Guest',
-          },
-          rooms: [{
-            rateKey: validatedRateKey,
-            paxes: [
-              {
-                roomId: 1,
-                type: 'AD',
-                name: booking.guest_name.split(' ')[0] || 'Guest',
-                surname: booking.guest_name.split(' ').slice(1).join(' ') || 'Guest',
-              },
-            ],
-          }],
-          clientReference: booking.id,
-          remark: booking.special_requests || '',
-        };
-
-        console.log('HotelBeds booking payload:', JSON.stringify(bookingPayload, null, 2));
-
-        // Generate fresh signature for the booking call (signatures expire quickly)
-        const bookingSignature = await generateHotelbedsSignature();
-
-        const response = await fetch(
-          `${baseUrl}/hotel-api/1.0/bookings`,
-          {
-            method: 'POST',
-            headers: {
-              'Api-key': api_key,
-              'X-Signature': bookingSignature,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'Accept-Encoding': 'gzip',
-            },
-            body: JSON.stringify(bookingPayload),
-          }
-        );
-
-        const responseText = await response.text();
-        console.log('HotelBeds response status:', response.status);
-        console.log('HotelBeds response:', responseText);
-
-        if (!response.ok) {
-          throw new Error(`HotelBeds API error: ${response.status} - ${responseText}`);
-        }
-
-        let result;
-        try {
-          result = JSON.parse(responseText);
-        } catch {
-          result = { raw: responseText };
-        }
-
-        // Check for API-level error
-        if (result.error) {
-          throw new Error(result.error.message || 'HotelBeds API returned error');
-        }
-
-        const externalBookingId = result.booking?.reference || result.reference || result.id;
-
-        if (externalBookingId) {
-          externalReservationIds.push(String(externalBookingId));
+          console.log(`[BOOKING MOCKED] HotelBeds sandbox is read-only - returning mock success response`);
           
-          // Update booking with external reservation ID
+          // Generate a mock booking reference for testing
+          const mockBookingId = `TEST-HB-${Date.now()}`;
+          
+          // Update booking with mock external reservation ID
           await supabaseClient
             .from('bookings')
-            .update({ external_reservation_id: String(externalBookingId) })
+            .update({ external_reservation_id: mockBookingId })
             .eq('id', booking_id);
+          
+          externalReservationIds.push(mockBookingId);
+          
+          // Update sync status
+          await supabaseClient.from('booking_sync_status').upsert({
+            booking_id,
+            external_system: 'hotelbeds',
+            external_booking_id: mockBookingId,
+            sync_status: 'synced',
+            sync_attempts: 1,
+            last_sync_at: new Date().toISOString(),
+            error_message: null,
+          }, {
+            onConflict: 'booking_id,external_system',
+          });
+
+          // Log success
+          await supabaseClient.from('sync_logs').insert({
+            booking_id,
+            property_id: property.id,
+            external_system: 'hotelbeds',
+            sync_type: 'booking_push',
+            status: 'success',
+            message: 'Booking mocked for HotelBeds test environment',
+            response_data: { external_booking_id: mockBookingId, mocked: true },
+          });
+
+          results.push({
+            system: 'hotelbeds',
+            success: true,
+            external_booking_id: mockBookingId,
+            mocked: true,
+          });
+          
+          // Skip the real booking API call - jump to end of HotelBeds block
+          // (The code below won't execute, we return early from this branch)
         }
 
-        // Update sync status
-        await supabaseClient.from('booking_sync_status').upsert({
-          booking_id,
-          external_system: 'hotelbeds',
-          external_booking_id: externalBookingId || null,
-          sync_status: 'synced',
-          sync_attempts: 1,
-          last_sync_at: new Date().toISOString(),
-          error_message: null,
-        }, {
-          onConflict: 'booking_id,external_system',
-        });
+        // Only proceed with real booking API if NOT test environment
+        if (environment === 'production') {
+          // Build HotelBeds booking payload using validated rate key
+          const bookingPayload = {
+            holder: {
+              name: booking.guest_name.split(' ')[0] || 'Guest',
+              surname: booking.guest_name.split(' ').slice(1).join(' ') || 'Guest',
+            },
+            rooms: [{
+              rateKey: validatedRateKey,
+              paxes: [
+                {
+                  roomId: 1,
+                  type: 'AD',
+                  name: booking.guest_name.split(' ')[0] || 'Guest',
+                  surname: booking.guest_name.split(' ').slice(1).join(' ') || 'Guest',
+                },
+              ],
+            }],
+            clientReference: booking.id,
+            remark: booking.special_requests || '',
+          };
 
-        // Log success
-        await supabaseClient.from('sync_logs').insert({
-          booking_id,
-          property_id: property.id,
-          external_system: 'hotelbeds',
-          sync_type: 'booking_push',
-          status: 'success',
-          message: 'Booking pushed successfully to HotelBeds',
-          request_data: bookingPayload,
-          response_data: result,
-        });
+          console.log('HotelBeds booking payload:', JSON.stringify(bookingPayload, null, 2));
 
-        results.push({
-          system: 'hotelbeds',
-          success: true,
-          external_booking_id: externalBookingId,
-        });
+          // Generate fresh signature for the booking call (signatures expire quickly)
+          const bookingSignature = await generateHotelbedsSignature();
+
+          const response = await fetch(
+            `${baseUrl}/hotel-api/1.0/bookings`,
+            {
+              method: 'POST',
+              headers: {
+                'Api-key': api_key,
+                'X-Signature': bookingSignature,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Accept-Encoding': 'gzip',
+              },
+              body: JSON.stringify(bookingPayload),
+            }
+          );
+
+          const responseText = await response.text();
+          console.log('HotelBeds response status:', response.status);
+          console.log('HotelBeds response:', responseText);
+
+          if (!response.ok) {
+            throw new Error(`HotelBeds API error: ${response.status} - ${responseText}`);
+          }
+
+          let result;
+          try {
+            result = JSON.parse(responseText);
+          } catch {
+            result = { raw: responseText };
+          }
+
+          // Check for API-level error
+          if (result.error) {
+            throw new Error(result.error.message || 'HotelBeds API returned error');
+          }
+
+          const externalBookingId = result.booking?.reference || result.reference || result.id;
+
+          if (externalBookingId) {
+            externalReservationIds.push(String(externalBookingId));
+            
+            // Update booking with external reservation ID
+            await supabaseClient
+              .from('bookings')
+              .update({ external_reservation_id: String(externalBookingId) })
+              .eq('id', booking_id);
+          }
+
+          // Update sync status
+          await supabaseClient.from('booking_sync_status').upsert({
+            booking_id,
+            external_system: 'hotelbeds',
+            external_booking_id: externalBookingId || null,
+            sync_status: 'synced',
+            sync_attempts: 1,
+            last_sync_at: new Date().toISOString(),
+            error_message: null,
+          }, {
+            onConflict: 'booking_id,external_system',
+          });
+
+          // Log success
+          await supabaseClient.from('sync_logs').insert({
+            booking_id,
+            property_id: property.id,
+            external_system: 'hotelbeds',
+            sync_type: 'booking_push',
+            status: 'success',
+            message: 'Booking pushed successfully to HotelBeds',
+            request_data: bookingPayload,
+            response_data: result,
+          });
+
+          results.push({
+            system: 'hotelbeds',
+            success: true,
+            external_booking_id: externalBookingId,
+          });
+        } // End of production environment block
 
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
