@@ -316,19 +316,29 @@ export default function PropertyShowcase() {
     const end = endDate.toISOString().split('T')[0];
 
     try {
-      const { data, error } = await supabase.functions.invoke(apiName, {
-        body: {
-          action: 'fetch_availability',
-          property_id: property.id,
-          start_date: today,
-          end_date: end,
-        }
-      });
+      // HotelBeds uses camelCase params, Hostfully uses snake_case
+      const body = isHotelBedsProperty 
+        ? {
+            action: 'fetch_availability',
+            property_id: property.id,
+            startDate: today,
+            endDate: end,
+          }
+        : {
+            action: 'fetch_availability',
+            property_id: property.id,
+            start_date: today,
+            end_date: end,
+          };
+      
+      const { data, error } = await supabase.functions.invoke(apiName, { body });
+      
+      console.log(`[PropertyShowcase] ${apiName} response:`, data?.success, data?.data?.room_types?.length || 0, 'rooms');
       
       if (data?.success && data?.data?.room_types) {
         const availMap = new Map<string, AvailabilityData>();
         data.data.room_types.forEach((rt: any) => {
-          const roomId = rt.room_type_id || rt.id;
+          const roomId = rt.room_type_id || rt.id || rt.name;
           // Handle different PMS response formats
           const availabilityArray = rt.rooms_available_per_night || 
                                     rt.daily_availability || 
@@ -342,6 +352,17 @@ export default function PropertyShowcase() {
             rates: rt.rate_types || [],
             date: todayData?.date || today,
           });
+          
+          // Also map by slugified name for matching with local room types
+          const slugName = slugifyRoomName(rt.name || roomId);
+          if (slugName !== roomId) {
+            availMap.set(slugName, {
+              external_room_type_id: roomId,
+              available_units: todayData?.available_units ?? 1,
+              rates: rt.rate_types || [],
+              date: todayData?.date || today,
+            });
+          }
         });
         setAvailability(availMap);
       }
