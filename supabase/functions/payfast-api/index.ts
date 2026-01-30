@@ -238,9 +238,12 @@ const PAYFAST_FIELD_ORDER = [
 ];
 
 // Helper to URL-encode a value exactly like PHP's urlencode()
-// PHP urlencode: spaces become +, special chars become %XX (uppercase)
+// PHP urlencode: spaces become +, special chars become %XX (UPPERCASE)
+// CRITICAL: PayFast requires uppercase hex codes (e.g., %3A not %3a)
 function pfUrlencode(val: string): string {
-  return encodeURIComponent(val.trim()).replace(/%20/g, "+");
+  return encodeURIComponent(val.trim())
+    .replace(/%([0-9a-f]{2})/gi, (_, hex) => '%' + hex.toUpperCase())
+    .replace(/%20/g, "+");
 }
 
 // Convert data object to URL-encoded param string (like PHP's dataToString)
@@ -355,7 +358,7 @@ Deno.serve(async (req) => {
     // PayFast credentials
     const merchantId = Deno.env.get("PAYFAST_MERCHANT_ID");
     const merchantKey = Deno.env.get("PAYFAST_MERCHANT_KEY");
-    const passphrase = Deno.env.get("PAYFAST_PASSPHRASE") || "";
+    const passphrase = (Deno.env.get("PAYFAST_PASSPHRASE") || "").trim(); // Trim to prevent whitespace issues
     const isSandbox = Deno.env.get("PAYFAST_SANDBOX") !== "false"; // Default to sandbox
 
     const url = new URL(req.url);
