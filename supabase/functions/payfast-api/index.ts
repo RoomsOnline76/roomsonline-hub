@@ -216,59 +216,74 @@ function generateTransRef(): string {
   return `ROL-${timestamp}-${random}`.toUpperCase();
 }
 
-// Generate PayFast signature
-// CRITICAL: PayFast Custom Integration requires specific field order (NOT alphabetical!)
+// PayFast required field order for Custom Integration (from their documentation)
 // See: https://developers.payfast.co.za/docs#step_2_signature
-// "The pairs must be listed in the order in which they appear in the attributes description"
-// Uses urlencode() in PHP which encodes spaces as + (not %20)
-function generateSignature(data: Record<string, string>, passphrase?: string, useSpecificOrder: boolean = true): string {
-  // PayFast required field order for Custom Integration (from their documentation)
-  const PAYFAST_FIELD_ORDER = [
-    // Merchant details
-    'merchant_id', 'merchant_key', 'return_url', 'cancel_url', 'notify_url',
-    // Buyer details  
-    'name_first', 'name_last', 'email_address', 'cell_number',
-    // Transaction details
-    'm_payment_id', 'amount', 'item_name', 'item_description',
-    'custom_int1', 'custom_int2', 'custom_int3', 'custom_int4', 'custom_int5',
-    'custom_str1', 'custom_str2', 'custom_str3', 'custom_str4', 'custom_str5',
-    // Transaction options
-    'email_confirmation', 'confirmation_address',
-    // Payment method
-    'payment_method',
-    // Recurring billing
-    'subscription_type', 'billing_date', 'recurring_amount', 'frequency', 'cycles',
-    // Signature is added last (but not included in signature calculation)
-  ];
+const PAYFAST_FIELD_ORDER = [
+  // Merchant details
+  'merchant_id', 'merchant_key', 'return_url', 'cancel_url', 'notify_url',
+  // Buyer details  
+  'name_first', 'name_last', 'email_address', 'cell_number',
+  // Transaction details
+  'm_payment_id', 'amount', 'item_name', 'item_description',
+  'custom_int1', 'custom_int2', 'custom_int3', 'custom_int4', 'custom_int5',
+  'custom_str1', 'custom_str2', 'custom_str3', 'custom_str4', 'custom_str5',
+  // Transaction options
+  'email_confirmation', 'confirmation_address',
+  // Payment method
+  'payment_method',
+  // Recurring billing
+  'subscription_type', 'billing_date', 'recurring_amount', 'frequency', 'cycles',
+  // Signature is added last (but not included in signature calculation)
+  'signature',
+];
+
+// Helper to URL-encode a value exactly like PHP's urlencode()
+// PHP urlencode: spaces become +, special chars become %XX (uppercase)
+function pfUrlencode(val: string): string {
+  return encodeURIComponent(val.trim()).replace(/%20/g, "+");
+}
+
+// Convert data object to URL-encoded param string (like PHP's dataToString)
+// This is used for BOTH signature generation AND POST body
+function dataToString(data: Record<string, string>, excludeSignature: boolean = false): string {
+  // Get keys in PayFast's required order
+  const orderedKeys = PAYFAST_FIELD_ORDER.filter(key => {
+    if (excludeSignature && key === 'signature') return false;
+    return key in data && data[key] !== "" && data[key] !== undefined && data[key] !== null;
+  });
   
-  // Get keys in correct order - use specific order or alphabetical
-  let orderedKeys: string[];
-  if (useSpecificOrder) {
-    // Use PayFast's specific order, then any remaining keys not in the list
-    orderedKeys = PAYFAST_FIELD_ORDER.filter(key => key in data && data[key] !== "" && data[key] !== undefined && data[key] !== null);
-    // Add any extra keys not in the standard list (sorted)
-    const extraKeys = Object.keys(data).filter(k => !PAYFAST_FIELD_ORDER.includes(k) && data[k] !== "" && data[k] !== undefined && data[k] !== null).sort();
-    orderedKeys = [...orderedKeys, ...extraKeys];
-  } else {
-    // API format uses alphabetical order
-    orderedKeys = Object.keys(data).sort().filter(key => data[key] !== "" && data[key] !== undefined && data[key] !== null);
-  }
+  // Add any extra keys not in the standard list (sorted alphabetically)
+  const extraKeys = Object.keys(data)
+    .filter(k => !PAYFAST_FIELD_ORDER.includes(k) && data[k] !== "" && data[k] !== undefined && data[k] !== null)
+    .sort();
   
-  // Build param string WITH URL encoding (matches PHP urlencode behavior)
-  // PHP urlencode: spaces become +, special chars become %XX
-  // JS encodeURIComponent: spaces become %20, need to convert to +
-  const paramString = orderedKeys
-    .map(key => `${key}=${encodeURIComponent(String(data[key]).trim()).replace(/%20/g, "+")}`)
-    .join("&");
+  const allKeys = [...orderedKeys, ...extraKeys];
   
-  // Add passphrase if provided (also URL-encoded with + for spaces)
+  // Build URL-encoded param string
+  return allKeys.map(key => `${key}=${pfUrlencode(String(data[key]))}`).join("&");
+}
+
+// Generate PayFast signature
+// CRITICAL: Must match PHP implementation exactly
+// 1. Create param string from data using urlencode (excluding signature field)
+// 2. Append passphrase if set
+// 3. MD5 hash the result
+function generateSignature(data: Record<string, string>, passphrase?: string): string {
+  // Create param string (excluding signature)
+  const paramString = dataToString(data, true);
+  
+  // Add passphrase if provided
   const stringToHash = passphrase && passphrase.length > 0
-    ? `${paramString}&passphrase=${encodeURIComponent(passphrase.trim()).replace(/%20/g, "+")}`
+    ? `${paramString}&passphrase=${pfUrlencode(passphrase)}`
     : paramString;
   
-  console.log("[PayFast] Signature string for hashing:", stringToHash.substring(0, 300) + "...");
+  const hash = md5Hash(stringToHash);
   
-  return md5Hash(stringToHash);
+  console.log("[PayFast] Signature input (first 500 chars):", stringToHash.substring(0, 500));
+  console.log("[PayFast] Passphrase length:", passphrase?.length || 0, "| Has passphrase:", !!passphrase && passphrase.length > 0);
+  console.log("[PayFast] Generated signature:", hash);
+  
+  return hash;
 }
 
 // Verify PayFast signature from ITN
@@ -470,11 +485,34 @@ Deno.serve(async (req) => {
     
     console.log(`[PayFast] Action: ${action}`);
     
-    // HEALTH CHECK
+    // HEALTH CHECK - also tests signature generation with known data
     if (action === "health_check") {
       HealthCheckSchema.parse(body);
       
       const configured = !!(merchantId && merchantKey);
+      
+      // Test signature generation with PayFast's official test data
+      // From https://developers.payfast.co.za/docs#step_2_signature
+      // Expected: with passphrase "jt7NOE43FZPn" should match their example
+      const testData: Record<string, string> = {
+        merchant_id: "10000100",
+        merchant_key: "46f0cd694581a",
+        return_url: "http://www.yourdomain.co.za/return.php",
+        cancel_url: "http://www.yourdomain.co.za/cancel.php",
+        notify_url: "http://www.yourdomain.co.za/notify.php",
+        name_first: "First Name",
+        name_last: "Last Name",
+        email_address: "test@test.com",
+        m_payment_id: "1234",
+        amount: "10.00",
+        item_name: "Order#123",
+      };
+      
+      const testPassphrase = "jt7NOE43FZPn";
+      const testSignature = generateSignature(testData, testPassphrase);
+      
+      console.log("[PayFast] Health check - Test signature:", testSignature);
+      console.log("[PayFast] Health check - Current passphrase length:", passphrase?.length || 0);
       
       return new Response(
         JSON.stringify({
@@ -483,6 +521,12 @@ Deno.serve(async (req) => {
           status: configured ? "ok" : "not_configured",
           source: "payfast-api",
           fetched_at: new Date().toISOString(),
+          debug: {
+            test_signature: testSignature,
+            passphrase_configured: !!passphrase && passphrase.length > 0,
+            passphrase_length: passphrase?.length || 0,
+            is_sandbox: isSandbox,
+          },
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -655,34 +699,17 @@ Deno.serve(async (req) => {
         cell_number: booking.guest_phone?.replace(/\D/g, "") || "",
       };
       
-      // Generate signature
+      // Generate signature (calculated from URL-encoded param string, excluding signature)
       const signature = generateSignature(formFields, passphrase);
       formFields.signature = signature;
       
       console.log("[PayFast] Onsite payment initiated:", { transRef, amount, booking_id });
       
-      // Build param string for onsite API - MUST match signature generation encoding and ORDER
-      // PayFast requires specific field order (NOT alphabetical)
-      const PAYFAST_FIELD_ORDER = [
-        'merchant_id', 'merchant_key', 'return_url', 'cancel_url', 'notify_url',
-        'name_first', 'name_last', 'email_address', 'cell_number',
-        'm_payment_id', 'amount', 'item_name', 'item_description',
-        'custom_int1', 'custom_int2', 'custom_int3', 'custom_int4', 'custom_int5',
-        'custom_str1', 'custom_str2', 'custom_str3', 'custom_str4', 'custom_str5',
-        'email_confirmation', 'confirmation_address', 'payment_method',
-        'subscription_type', 'billing_date', 'recurring_amount', 'frequency', 'cycles',
-        'signature', // Signature comes at the end
-      ];
+      // Build param string for POST - MUST use same encoding as signature
+      // Using dataToString ensures exact same encoding and order
+      const paramString = dataToString(formFields, false);
       
-      // Get keys in correct order
-      const orderedKeys = PAYFAST_FIELD_ORDER.filter(key => key in formFields && formFields[key] !== "" && formFields[key] !== undefined && formFields[key] !== null);
-      // Add any extra keys not in the standard list (sorted)
-      const extraKeys = Object.keys(formFields).filter(k => !PAYFAST_FIELD_ORDER.includes(k) && formFields[k] !== "" && formFields[k] !== undefined && formFields[k] !== null).sort();
-      const allKeys = [...orderedKeys, ...extraKeys];
-      
-      const paramString = allKeys
-        .map(key => `${key}=${encodeURIComponent(String(formFields[key]).trim()).replace(/%20/g, "+")}`)
-        .join("&");
+      console.log("[PayFast] POST body (first 400 chars):", paramString.substring(0, 400));
       
       // Request UUID from PayFast onsite API
       const onsiteUrl = isSandbox ? PAYFAST_SANDBOX_ONSITE_URL : PAYFAST_PRODUCTION_ONSITE_URL;
