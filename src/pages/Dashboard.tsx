@@ -461,6 +461,28 @@ const Dashboard = () => {
     return breakdown.sort((a, b) => b.revenue - a.revenue);
   }, [properties, bookings]);
 
+  // Helper to get display status prioritizing payment info
+  const getBookingDisplayStatus = (booking: any) => {
+    // Payment status takes priority
+    if (booking.payment_status === "paid") {
+      return { label: "paid", variant: "success" };
+    }
+    if (booking.payment_status === "pending") {
+      return { label: "paying...", variant: "info" };
+    }
+    // Fall back to booking status
+    if (booking.status === "confirmed") {
+      return { label: "confirmed", variant: "success" };
+    }
+    if (booking.status === "cancelled") {
+      return { label: "cancelled", variant: "error" };
+    }
+    if (booking.status === "failed") {
+      return { label: "failed", variant: "error" };
+    }
+    return { label: "pending", variant: "warning" };
+  };
+
   // Export chart data to CSV
   const exportToCSV = () => {
     if (chartData.length === 0) return;
@@ -1470,14 +1492,20 @@ const Dashboard = () => {
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className="font-medium">R{Number(booking.total_price).toLocaleString()}</span>
-                            <span className={cn(
-                              "text-[10px] px-1 rounded",
-                              booking.status === "confirmed" && "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400",
-                              booking.status === "pending" && "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400",
-                              booking.status === "cancelled" && "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
-                            )}>
-                              {booking.status}
-                            </span>
+                            {(() => {
+                              const displayStatus = getBookingDisplayStatus(booking);
+                              return (
+                                <span className={cn(
+                                  "text-[10px] px-1 rounded",
+                                  displayStatus.variant === "success" && "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400",
+                                  displayStatus.variant === "info" && "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400",
+                                  displayStatus.variant === "warning" && "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400",
+                                  displayStatus.variant === "error" && "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                                )}>
+                                  {displayStatus.label}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
                       );
