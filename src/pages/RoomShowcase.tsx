@@ -870,7 +870,7 @@ export default function RoomShowcase() {
                       <span className="text-xs font-medium">{room.bathrooms} Bathroom{room.bathrooms > 1 ? 's' : ''}</span>
                     </div>
                   )}
-                  {room.roomSize && (
+                  {room.roomSize != null && room.roomSize > 0 && (
                     <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
                       <Maximize className="h-4 w-4 text-primary shrink-0" />
                       <span className="text-xs font-medium">{room.roomSize} m²</span>
