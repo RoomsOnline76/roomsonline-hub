@@ -1,115 +1,173 @@
 
 
-# Display Payment Status in Property Pulse Dashboard
+# Add Sync Failure Admin Notification and Intervention Tracking
 
 ## Problem
 
-The "Recent" bookings section in the Property Pulse dashboard currently only displays `booking.status` (pending, confirmed, cancelled). When a guest completes payment through PayFast, the `payment_status` field is updated to "paid", but this is not reflected in the dashboard. Paid bookings should display differently from unpaid/pending ones.
-
-## Current State
-
-From the database query:
-- Most bookings have `status: pending` and `payment_status: unpaid`
-- A few have `payment_status: pending` (payment in progress)
-- Once PayFast ITN confirms payment, `payment_status` will be set to "paid"
-
-Currently the badge only shows:
-- Green: "confirmed"
-- Yellow: "pending"
-- Red: "cancelled"
+When a booking payment succeeds but PMS sync fails:
+1. The guest receives a success email with a sync warning note
+2. BUT the admin team is NOT notified to take action
+3. There's no flag to easily filter bookings requiring manual intervention
 
 ## Solution
 
-Update the Recent bookings display to show a **combined status** that prioritizes payment status for clarity:
+### 1. Database Changes
 
-| Status Logic | Display | Color |
-|-------------|---------|-------|
-| `payment_status === "paid"` | **paid** | Green (success) |
-| `status === "confirmed"` | confirmed | Green |
-| `payment_status === "pending"` | paying... | Blue (info) |
-| `status === "pending"` | pending | Yellow (warning) |
-| `status === "cancelled"` | cancelled | Red |
-| `status === "failed"` | failed | Red |
+Add a `requires_intervention` boolean column to the `bookings` table to flag paid bookings with failed syncs:
 
-This ensures paid bookings are immediately visible as such, regardless of whether the booking status has been updated to "confirmed".
+```sql
+ALTER TABLE bookings 
+ADD COLUMN requires_intervention boolean DEFAULT false;
+```
 
----
+### 2. Update `push-booking` Edge Function
 
-## Implementation
-
-### File: `src/pages/Dashboard.tsx`
-
-#### Change 1: Create a status display helper function
-
-Add a helper function around line 500 (after other useMemo hooks) to determine the display status:
+After detecting a paid booking with failed PMS sync:
 
 ```typescript
-// Helper to get display status prioritizing payment info
-const getBookingDisplayStatus = (booking: any) => {
-  // Payment status takes priority
-  if (booking.payment_status === "paid") {
-    return { label: "paid", variant: "success" };
-  }
-  if (booking.payment_status === "pending") {
-    return { label: "paying...", variant: "info" };
-  }
-  // Fall back to booking status
-  if (booking.status === "confirmed") {
-    return { label: "confirmed", variant: "success" };
-  }
-  if (booking.status === "cancelled") {
-    return { label: "cancelled", variant: "error" };
-  }
-  if (booking.status === "failed") {
-    return { label: "failed", variant: "error" };
-  }
-  return { label: "pending", variant: "warning" };
-};
+// Flag booking as requiring intervention
+if (paymentSucceeded && !anySuccess) {
+  await supabaseClient
+    .from('bookings')
+    .update({ requires_intervention: true })
+    .eq('id', booking_id);
+}
 ```
 
-#### Change 2: Update the Recent bookings badge rendering
+### 3. Add Admin Notification Email
 
-Update lines ~1473-1480 to use the new helper:
+When sync fails for a paid booking, send an email to `admin@roomsonline.co.za`:
 
-```tsx
-{(() => {
-  const displayStatus = getBookingDisplayStatus(booking);
-  return (
-    <span className={cn(
-      "text-[10px] px-1 rounded",
-      displayStatus.variant === "success" && "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400",
-      displayStatus.variant === "info" && "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400",
-      displayStatus.variant === "warning" && "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400",
-      displayStatus.variant === "error" && "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
-    )}>
-      {displayStatus.label}
-    </span>
+```typescript
+// Send admin notification for failed sync on paid booking
+if (paymentSucceeded && !anySuccess) {
+  try {
+    await fetch(
+      `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-booking-email`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          booking_id,
+          status: 'admin_alert',  // New status type for admin notifications
+          error_message: firstError?.error,
+        }),
+      }
+    );
+  } catch (alertError) {
+    console.error('Failed to send admin alert:', alertError);
+  }
+}
+```
+
+### 4. Update `send-booking-email` Edge Function
+
+Add a new email type `admin_alert` that sends to `admin@roomsonline.co.za`:
+
+```typescript
+// Handle admin_alert status
+if (status === 'admin_alert') {
+  const adminEmailHtml = generateAdminAlertEmail(booking, property, errorMessage);
+  
+  await resend.emails.send({
+    from: fromEmail,
+    to: ['admin@roomsonline.co.za'],
+    subject: `ACTION REQUIRED: Paid booking sync failed - ${property.name} - ${booking.guest_name}`,
+    html: adminEmailHtml,
+  });
+  
+  return new Response(
+    JSON.stringify({ success: true, message: 'Admin alert sent' }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   );
-})()}
+}
+```
+
+Admin email content includes:
+- Booking reference, guest name, property, dates, total amount
+- PMS error message
+- Clear call-to-action: "Please manually enter this booking in the PMS"
+- Link to dashboard/bookings page
+
+---
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `supabase/functions/push-booking/index.ts` | Set `requires_intervention = true` and trigger admin alert email |
+| `supabase/functions/send-booking-email/index.ts` | Add `admin_alert` handler with admin-specific email template |
+
+## Database Migration
+
+```sql
+-- Add intervention tracking
+ALTER TABLE bookings 
+ADD COLUMN requires_intervention boolean DEFAULT false;
+
+-- Create index for quick filtering
+CREATE INDEX idx_bookings_requires_intervention 
+ON bookings(requires_intervention) 
+WHERE requires_intervention = true;
 ```
 
 ---
 
-## Visual Reference
+## Technical Flow
 
-**Before:**
-```
-Dawie TEST [SANDBOX] Victorian House   R3,150   pending
-Dawie TEST [SANDBOX] Victorian House   R4,050   pending
-```
-
-**After (with paid booking):**
-```
-Dawie TEST [SANDBOX] Victorian House   R3,150   paid      (green)
-Dawie TEST [SANDBOX] Victorian House   R4,050   paying... (blue)
-Dawie TEST [SANDBOX] Victorian House   R4,050   pending   (yellow)
+```text
+Payment Succeeds → PMS Sync Fails
+         ↓
+  [1] Update booking: requires_intervention = true
+         ↓
+  [2] Send guest email (success with sync warning)
+         ↓
+  [3] Send admin email (ACTION REQUIRED)
+         ↓
+  Admin sees email → Manually enters booking in PMS
+         ↓
+  Admin marks requires_intervention = false
 ```
 
 ---
 
-## Files Modified
+## Admin Alert Email Template
 
-| File | Change |
-|------|--------|
-| `src/pages/Dashboard.tsx` | Add `getBookingDisplayStatus` helper; update badge rendering in Recent bookings section |
+```
+Subject: ACTION REQUIRED: Paid booking sync failed - [Property Name] - [Guest Name]
+
+Body:
+------------------------------------------
+⚠️ MANUAL ACTION REQUIRED
+
+A guest has paid for a booking but it failed to sync to the PMS.
+
+BOOKING DETAILS
+Reference: [BOOKING-REF]
+Guest: [Guest Name] ([Guest Email])
+Property: [Property Name]
+Dates: [Check-in] to [Check-out]
+Amount Paid: R[Amount]
+
+SYNC ERROR
+[Error message from PMS]
+
+REQUIRED ACTION
+Please manually enter this booking in the PMS for [Property Name].
+
+View Booking: [Link to booking in dashboard]
+------------------------------------------
+```
+
+---
+
+## Dashboard Enhancement (Future)
+
+The `requires_intervention` flag enables:
+- A filtered view showing only bookings needing attention
+- A badge count in the navigation showing pending interventions
+- Quick action buttons to mark as resolved
 
