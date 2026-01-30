@@ -31,13 +31,13 @@ export function PublicFooter() {
               Journal
             </Link>
             <Link
-              to="/privacy"
+              to="/privacy-policy"
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
               Privacy
             </Link>
             <Link
-              to="/terms"
+              to="/terms-of-service"
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
               Terms
