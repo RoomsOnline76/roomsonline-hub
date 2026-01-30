@@ -238,12 +238,33 @@ const PAYFAST_FIELD_ORDER = [
 ];
 
 // Helper to URL-encode a value exactly like PHP's urlencode()
-// PHP urlencode: spaces become +, special chars become %XX (UPPERCASE)
-// CRITICAL: PayFast requires uppercase hex codes (e.g., %3A not %3a)
+// PHP urlencode: Encodes EVERYTHING except letters, digits, underscore, hyphen, period
+// CRITICAL DIFFERENCES from JavaScript encodeURIComponent:
+// - PHP encodes: ! ' ( ) * ~ (encodeURIComponent leaves these unencoded)
+// - Both encode: @ # $ % ^ & + = [ ] { } | \ : ; " < > , ? /
+// - Spaces become + (not %20)
+// - Hex codes MUST be uppercase (%3A not %3a)
 function pfUrlencode(val: string): string {
-  return encodeURIComponent(val.trim())
-    .replace(/%([0-9a-f]{2})/gi, (_, hex) => '%' + hex.toUpperCase())
-    .replace(/%20/g, "+");
+  // First, use encodeURIComponent for base encoding
+  let encoded = encodeURIComponent(val.trim());
+  
+  // PHP urlencode encodes these chars that encodeURIComponent does NOT:
+  // ! ' ( ) * ~
+  encoded = encoded
+    .replace(/!/g, '%21')
+    .replace(/'/g, '%27')
+    .replace(/\(/g, '%28')
+    .replace(/\)/g, '%29')
+    .replace(/\*/g, '%2A')
+    .replace(/~/g, '%7E');
+  
+  // Ensure all hex codes are uppercase
+  encoded = encoded.replace(/%([0-9a-f]{2})/gi, (_, hex) => '%' + hex.toUpperCase());
+  
+  // Convert %20 to + (PHP urlencode behavior)
+  encoded = encoded.replace(/%20/g, '+');
+  
+  return encoded;
 }
 
 // Convert data object to URL-encoded param string (like PHP's dataToString)
