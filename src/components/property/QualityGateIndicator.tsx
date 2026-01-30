@@ -272,12 +272,12 @@ function CheckItem({ check, onNavigate }: CheckItemProps) {
     <div className="flex items-start gap-2 bg-background/50 rounded p-2 text-xs">
       {severityIcon}
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-foreground">{check.name}</div>
-        <div className="text-muted-foreground">{check.message}</div>
+        <div className="font-medium text-foreground text-wrap">{check.name}</div>
+        <div className="text-muted-foreground whitespace-normal break-words">{check.message}</div>
         {check.fix && (
-          <div className="mt-1 text-primary/80 flex items-center gap-1">
-            <Shield className="h-3 w-3" />
-            {check.fix}
+          <div className="mt-1 text-primary/80 flex items-start gap-1 whitespace-normal break-words">
+            <Shield className="h-3 w-3 flex-shrink-0 mt-0.5" />
+            <span>{check.fix}</span>
           </div>
         )}
       </div>
