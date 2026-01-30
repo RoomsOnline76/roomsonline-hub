@@ -276,13 +276,17 @@ function generateSignature(data: Record<string, string>, passphrase?: string): s
   const paramString = dataToString(data, true);
   
   // Add passphrase if provided
+  // CRITICAL: passphrase must be URL-encoded exactly like other values
   const stringToHash = passphrase && passphrase.length > 0
     ? `${paramString}&passphrase=${pfUrlencode(passphrase)}`
     : paramString;
   
   const hash = md5Hash(stringToHash);
   
+  // Debug: log full hash input for troubleshooting
   console.log("[PayFast] Signature input (first 500 chars):", stringToHash.substring(0, 500));
+  console.log("[PayFast] Full string length:", stringToHash.length);
+  console.log("[PayFast] Last 100 chars (with passphrase):", stringToHash.slice(-100));
   console.log("[PayFast] Passphrase length:", passphrase?.length || 0, "| Has passphrase:", !!passphrase && passphrase.length > 0);
   console.log("[PayFast] Generated signature:", hash);
   
