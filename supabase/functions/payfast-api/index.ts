@@ -217,17 +217,47 @@ function generateTransRef(): string {
 }
 
 // Generate PayFast signature
-// CRITICAL: PayFast requires the signature to be calculated from the SAME string that gets POSTed
-// Since we POST URL-encoded values, we must also generate signature from URL-encoded values
-// PayFast uses urlencode() in PHP which encodes spaces as + (not %20)
-function generateSignature(data: Record<string, string>, passphrase?: string): string {
-  // Sort alphabetically by key
-  const sortedKeys = Object.keys(data).sort();
+// CRITICAL: PayFast Custom Integration requires specific field order (NOT alphabetical!)
+// See: https://developers.payfast.co.za/docs#step_2_signature
+// "The pairs must be listed in the order in which they appear in the attributes description"
+// Uses urlencode() in PHP which encodes spaces as + (not %20)
+function generateSignature(data: Record<string, string>, passphrase?: string, useSpecificOrder: boolean = true): string {
+  // PayFast required field order for Custom Integration (from their documentation)
+  const PAYFAST_FIELD_ORDER = [
+    // Merchant details
+    'merchant_id', 'merchant_key', 'return_url', 'cancel_url', 'notify_url',
+    // Buyer details  
+    'name_first', 'name_last', 'email_address', 'cell_number',
+    // Transaction details
+    'm_payment_id', 'amount', 'item_name', 'item_description',
+    'custom_int1', 'custom_int2', 'custom_int3', 'custom_int4', 'custom_int5',
+    'custom_str1', 'custom_str2', 'custom_str3', 'custom_str4', 'custom_str5',
+    // Transaction options
+    'email_confirmation', 'confirmation_address',
+    // Payment method
+    'payment_method',
+    // Recurring billing
+    'subscription_type', 'billing_date', 'recurring_amount', 'frequency', 'cycles',
+    // Signature is added last (but not included in signature calculation)
+  ];
   
-  // Build param string WITH URL encoding - must match what we POST to PayFast
-  // encodeURIComponent encodes spaces as %20, but PayFast expects + for spaces
-  const paramString = sortedKeys
-    .filter(key => data[key] !== "" && data[key] !== undefined && data[key] !== null)
+  // Get keys in correct order - use specific order or alphabetical
+  let orderedKeys: string[];
+  if (useSpecificOrder) {
+    // Use PayFast's specific order, then any remaining keys not in the list
+    orderedKeys = PAYFAST_FIELD_ORDER.filter(key => key in data && data[key] !== "" && data[key] !== undefined && data[key] !== null);
+    // Add any extra keys not in the standard list (sorted)
+    const extraKeys = Object.keys(data).filter(k => !PAYFAST_FIELD_ORDER.includes(k) && data[k] !== "" && data[k] !== undefined && data[k] !== null).sort();
+    orderedKeys = [...orderedKeys, ...extraKeys];
+  } else {
+    // API format uses alphabetical order
+    orderedKeys = Object.keys(data).sort().filter(key => data[key] !== "" && data[key] !== undefined && data[key] !== null);
+  }
+  
+  // Build param string WITH URL encoding (matches PHP urlencode behavior)
+  // PHP urlencode: spaces become +, special chars become %XX
+  // JS encodeURIComponent: spaces become %20, need to convert to +
+  const paramString = orderedKeys
     .map(key => `${key}=${encodeURIComponent(String(data[key]).trim()).replace(/%20/g, "+")}`)
     .join("&");
   
@@ -236,7 +266,7 @@ function generateSignature(data: Record<string, string>, passphrase?: string): s
     ? `${paramString}&passphrase=${encodeURIComponent(passphrase.trim()).replace(/%20/g, "+")}`
     : paramString;
   
-  console.log("[PayFast] Signature string for hashing:", paramString.substring(0, 200) + "...");
+  console.log("[PayFast] Signature string for hashing:", stringToHash.substring(0, 300) + "...");
   
   return md5Hash(stringToHash);
 }
@@ -631,12 +661,27 @@ Deno.serve(async (req) => {
       
       console.log("[PayFast] Onsite payment initiated:", { transRef, amount, booking_id });
       
-      // Build param string for onsite API - MUST match signature generation encoding
-      // Sort alphabetically and use same encoding as generateSignature
-      const paramString = Object.entries(formFields)
-        .filter(([_, value]) => value !== "" && value !== undefined && value !== null)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, value]) => `${key}=${encodeURIComponent(String(value).trim()).replace(/%20/g, "+")}`)
+      // Build param string for onsite API - MUST match signature generation encoding and ORDER
+      // PayFast requires specific field order (NOT alphabetical)
+      const PAYFAST_FIELD_ORDER = [
+        'merchant_id', 'merchant_key', 'return_url', 'cancel_url', 'notify_url',
+        'name_first', 'name_last', 'email_address', 'cell_number',
+        'm_payment_id', 'amount', 'item_name', 'item_description',
+        'custom_int1', 'custom_int2', 'custom_int3', 'custom_int4', 'custom_int5',
+        'custom_str1', 'custom_str2', 'custom_str3', 'custom_str4', 'custom_str5',
+        'email_confirmation', 'confirmation_address', 'payment_method',
+        'subscription_type', 'billing_date', 'recurring_amount', 'frequency', 'cycles',
+        'signature', // Signature comes at the end
+      ];
+      
+      // Get keys in correct order
+      const orderedKeys = PAYFAST_FIELD_ORDER.filter(key => key in formFields && formFields[key] !== "" && formFields[key] !== undefined && formFields[key] !== null);
+      // Add any extra keys not in the standard list (sorted)
+      const extraKeys = Object.keys(formFields).filter(k => !PAYFAST_FIELD_ORDER.includes(k) && formFields[k] !== "" && formFields[k] !== undefined && formFields[k] !== null).sort();
+      const allKeys = [...orderedKeys, ...extraKeys];
+      
+      const paramString = allKeys
+        .map(key => `${key}=${encodeURIComponent(String(formFields[key]).trim()).replace(/%20/g, "+")}`)
         .join("&");
       
       // Request UUID from PayFast onsite API
