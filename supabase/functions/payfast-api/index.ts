@@ -276,11 +276,10 @@ function generateSignature(data: Record<string, string>, passphrase?: string): s
   const paramString = dataToString(data, true);
   
   // Add passphrase if provided
-  // NOTE: Based on working implementations, passphrase should NOT be URL-encoded
-  // even though PayFast docs show urlencode() in PHP. The working Python implementation
-  // at deanmalan.co.za does NOT encode the passphrase.
+  // CRITICAL: Per PayFast PHP SDK, passphrase MUST be URL-encoded using urlencode()
+  // PHP: $getString .= '&passphrase='. urlencode( trim( $passPhrase ) );
   const stringToHash = passphrase && passphrase.length > 0
-    ? `${paramString}&passphrase=${passphrase.trim()}`
+    ? `${paramString}&passphrase=${pfUrlencode(passphrase)}`
     : paramString;
   
   const hash = md5Hash(stringToHash);
