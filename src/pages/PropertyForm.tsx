@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
@@ -89,6 +90,7 @@ import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { ContractManagementPanel } from "@/components/contract";
 import { PropertyOnboardingWizard } from "@/components/onboarding";
 import { AdditionalChargesManager } from "@/components/charges";
+import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -4161,6 +4163,40 @@ export default function PropertyForm() {
 
             <TabsContent value="general">
               <form onSubmit={handleSubmit} className="space-y-3">
+                {/* Rates Overview Section - Show comprehensive rates setup */}
+                {!selectedPMS && roomTypes.length > 0 && (
+                  <Collapsible defaultOpen={true}>
+                    <Card className="border-primary/20">
+                      <CollapsibleTrigger asChild>
+                        <CardHeader className="py-2 px-4 cursor-pointer hover:bg-muted/50 transition-colors">
+                          <CardTitle className="text-sm flex items-center justify-between">
+                            <span className="flex items-center gap-2">
+                              <DollarSign className="h-4 w-4 text-primary" />
+                              Rates Overview
+                            </span>
+                            <Badge variant="outline" className="text-xs">
+                              {roomTypes.length} rooms, {pmsRateTypes.length} rate types, {seasons.length} seasons
+                            </Badge>
+                          </CardTitle>
+                        </CardHeader>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <CardContent className="py-4 px-4">
+                          <RatesOverviewPanel
+                            roomTypes={roomTypes}
+                            rateTypes={pmsRateTypes}
+                            seasons={seasons}
+                            seasonRates={seasonRates}
+                            currency={formData.currency || "ZAR"}
+                            hasPMS={!!selectedPMS}
+                            pmsName={selectedPMS ? getPMSDisplayName(selectedPMS) : undefined}
+                          />
+                        </CardContent>
+                      </CollapsibleContent>
+                    </Card>
+                  </Collapsible>
+                )}
+
                 {/* Offerings Section */}
                 <Card>
                   <CardHeader className="py-2 px-4">
