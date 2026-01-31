@@ -4,10 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Map, X, ChevronUp, ChevronDown, Check, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useItinerary } from '@/contexts/ItineraryContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
 export function JourneyBuilder() {
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { stays, totalPrice, totalNights, hasStays, stayCount, removeStay } = useItinerary();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -49,14 +51,35 @@ export function JourneyBuilder() {
     }
   };
 
+  // On mobile, use minimal pill view when not expanded to avoid blocking CTAs
+  const showMinimalPill = isMobile && !isExpanded;
+
   return (
     <AnimatePresence>
       <motion.div
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
-        className="fixed bottom-4 right-4 z-50 w-80 max-w-[calc(100vw-2rem)]"
+        className={cn(
+          "fixed z-50 w-80 max-w-[calc(100vw-2rem)]",
+          // On mobile: position higher to avoid blocking FloatingDateGuestPicker and drawer CTAs
+          isMobile ? "bottom-28 right-4" : "bottom-4 right-4"
+        )}
       >
+        {/* Minimal pill view for mobile when not expanded */}
+        {showMinimalPill ? (
+          <button
+            onClick={() => setIsExpanded(true)}
+            className="flex items-center gap-3 px-4 py-3 bg-card border border-border rounded-full shadow-xl hover:bg-muted/50 transition-colors"
+          >
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <Map className="h-4 w-4 text-primary" />
+            </div>
+            <span className="text-sm font-medium">{stayCount} stay{stayCount !== 1 ? 's' : ''}</span>
+            <span className="text-sm font-semibold text-primary">{formatCurrency(totalPrice)}</span>
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          </button>
+        ) : (
         <div className="bg-card border border-border rounded-xl shadow-xl overflow-hidden">
           {/* Header - Always visible */}
           <button
@@ -176,6 +199,7 @@ export function JourneyBuilder() {
             )}
           </AnimatePresence>
         </div>
+        )}
       </motion.div>
     </AnimatePresence>
   );
