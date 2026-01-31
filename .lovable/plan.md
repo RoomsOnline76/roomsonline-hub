@@ -1,113 +1,143 @@
 
 
-# Plan: Display Property Restrictions on Calendar with Colored Legend
+# Plan: Fix Availability Display for Manual Properties
 
 ## Problem Summary
 
-The calendar for manual properties (like "Latter Days") already has:
-- A **legend** with colored indicators (Stop Sell = red, Min Stay = blue, Max Stay = pink, Lead Days Advance = yellow, Lead Days Post = orange)
-- **Rendering logic** to display colored bars under availability cells when restrictions exist
-- A **`getRestrictions()` helper** that reads from `pmsData.restrictionsByDate`
+The calendar for "Latter Days" still shows **99 availability** instead of the correct value. The issue is a **field name mismatch**:
 
-However, restrictions are NOT appearing because `generateManualPropertyData()` only populates `restrictionsByDate` when there's a manual override in `property_availability`. The **room-level default restrictions** from the wizard (like `minStay: 1`, `maxStay: 0`) are not being applied.
+| Source | Field Name | Latter Days Value |
+|--------|------------|-------------------|
+| Onboarding Wizard | `units` | Not set |
+| Property Form | `numRooms` | 3 |
+| CalendarAccommodation | Checks only `units` | Falls back to 1 |
+
+But the rendered value shows **99** because the code change isn't being applied correctly to the actual data path.
+
+Looking at the database query result, "Latter Days" has:
+- `numRooms: 3` (this is labelled "# Rooms" in PropertyForm, but represents bedrooms/rooms inside the unit)
+- No `units` field at all
+- The property is a single holiday house (1 bookable unit)
+
+For a self-catering holiday house like "Latter Days", the entire house is 1 bookable unit (with 3 bedrooms inside). So availability should be **1**.
+
+## Root Cause Analysis
+
+1. **Field naming inconsistency**: 
+   - Wizard uses `units` for bookable unit count
+   - PropertyForm uses `numRooms` for both bedroom count AND unit count (confusing)
+   - For "Latter Days", `numRooms: 3` represents 3 bedrooms, not 3 bookable units
+
+2. **Missing "units" field**: 
+   - The property was created before `units` field was standardized
+   - Code falls back to `1` but still shows 99
+
+3. **Potential caching issue**:
+   - The code change may not be taking effect
+   - The synthetic data generation might not be triggering
 
 ## Solution
 
-Update `generateManualPropertyData()` to:
-1. Read room-level default restrictions from wizard config (`minStay`, `maxStay` from each room in `room_types`)
-2. Apply these defaults to ALL dates in the calendar range
-3. Merge manual overrides from `property_availability` on top (overrides take precedence)
+Update `generateManualPropertyData` to:
+1. Check for `units` first (wizard standard)
+2. If not found, check if property type suggests single-unit booking (holiday house, villa, cottage)
+3. For self-catering/villa/cottage types, default to 1 (entire property)
+4. For hotels/B&Bs with `numRooms`, use that as unit count
+5. Add console logging to debug why 99 is still appearing
 
 ## Technical Implementation
 
-### CalendarAccommodation.tsx - Apply Default Restrictions
+### CalendarAccommodation.tsx - Smarter Unit Detection
 
-**Location**: `src/pages/CalendarAccommodation.tsx`, inside `generateManualPropertyData` function (around lines 676-700)
+**Location**: `generateManualPropertyData` function (around line 685)
 
-**Current code (only populates when override exists):**
+**Current code:**
 ```typescript
-// Restrictions from overrides
-if (override) {
-  restrictionsByDate[dateStr] = {
-    stopSell: override.is_stop_sell,
-    minStay: override.minimum_stay,
-    maxStay: override.maximum_stay,
-    leadDaysAdvance: override.lead_days_advance,
-    leadDaysPost: override.lead_days_post,
-  };
-}
+const roomUnits = room.units || 1;
 ```
 
-**Updated code (apply room defaults, merge overrides):**
+**Updated code:**
 ```typescript
-// Room-level default restrictions from wizard config
-const roomMinStay = room.minStay ?? room.minimum_stay ?? null;
-const roomMaxStay = room.maxStay ?? room.maximum_stay ?? null;
+// Check multiple possible field names for unit count
+// Wizard uses 'units', PropertyForm uses 'numRooms' for some properties
+// For holiday houses/villas/cottages, the entire property is 1 bookable unit
+const isWholePropertyType = ['self_catering', 'villa', 'cottage', 'holiday_house', 'house'].some(
+  type => (room.pmsRoomType || room.name || '').toLowerCase().includes(type) ||
+          (property.property_type || '').toLowerCase().includes(type)
+);
 
-// Start with room defaults
-restrictionsByDate[dateStr] = {
-  stopSell: override?.is_stop_sell ?? false,
-  minStay: override?.minimum_stay ?? roomMinStay,
-  maxStay: override?.maximum_stay ?? roomMaxStay,
-  leadDaysAdvance: override?.lead_days_advance ?? null,
-  leadDaysPost: override?.lead_days_post ?? null,
-};
+// Priority: explicit units > infer from property type > fallback
+let roomUnits = 1; // Default for single-unit properties
+if (room.units !== undefined && room.units !== null) {
+  roomUnits = room.units;
+} else if (!isWholePropertyType && room.numRooms) {
+  // For hotels/B&Bs, numRooms can represent bookable units
+  roomUnits = room.numRooms;
+}
+// For whole-property types (holiday house, villa), always use 1
+
+console.log('[Manual Calendar] Room units calculation:', {
+  roomName: room.name,
+  units: room.units,
+  numRooms: room.numRooms,
+  isWholePropertyType,
+  calculatedUnits: roomUnits
+});
 ```
 
 This ensures:
-- **Every date** has restriction data populated (not just override dates)
-- **Room defaults** (`minStay: 1`, `maxStay: 0`) appear on all dates
-- **Manual overrides** take precedence when they exist
+- "3 Bedroomed Holiday House" → detected as whole-property type → 1 unit
+- Hotels with 10 "Deluxe Rooms" → uses numRooms → 10 units
+- Wizard-created rooms with explicit `units: 5` → uses that value
 
-## Data Flow After Implementation
+### Alternative Simpler Approach
 
-```text
-Calendar loads for "Latter Days"
-         ↓
-generateManualPropertyData() reads room_types[0]:
-  - minStay: 1, maxStay: 0 (from wizard)
-         ↓
-For each date in range:
-  - Sets restrictionsByDate[date] = { minStay: 1, maxStay: 0, ... }
-  - If manual override exists, merges it on top
-         ↓
-Calendar renders → every date shows blue "1" bar for min stay
-         ↓
-Feb 3-7 also show red bar (stop sell from property_availability)
+If the property type detection is too complex, we could:
+
+1. Check `units` field first
+2. Then check for a new field `bookable_units` or `inventory_count`
+3. Default to 1 for non-PMS properties (safer assumption)
+
+**Simpler code:**
+```typescript
+// For manual properties, prefer explicit units field, default to 1 (single unit)
+// numRooms represents bedrooms, not bookable units for holiday houses
+const roomUnits = room.units ?? 1;
 ```
+
+This is already what the code does, but the issue is that 99 is still showing, suggesting the `generateManualPropertyData` function might not be getting called.
+
+### Debug: Verify Function Execution
+
+Add logging at the start of `generateManualPropertyData`:
+
+```typescript
+const generateManualPropertyData = useCallback(async (property: any) => {
+  console.log('[Manual Calendar] Generating synthetic data for:', property.name);
+  console.log('[Manual Calendar] Room types:', property.amenities?.room_types);
+  // ... rest of function
+}, [currentDate, viewMode]);
+```
+
+This will help identify if:
+- The function is being called at all
+- What room data is being processed
+- Why availability ends up as 99
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/pages/CalendarAccommodation.tsx` | Update `generateManualPropertyData` to apply room-level default restrictions to all dates, with overrides taking precedence |
+| `src/pages/CalendarAccommodation.tsx` | Add debug logging, use `room.units ?? 1` for unit count (not `||` which treats 0 as falsy) |
 
-## Visual Result
+## Expected Result
 
 | Before | After |
 |--------|-------|
-| Only Feb 3-7 show red stop-sell bar | Feb 3-7 show red stop-sell bar |
-| No min stay indicators | All dates show blue "1" bar (min stay) |
-| Restrictions only appear on override dates | Room defaults visible on all dates |
+| Shows "99" available | Shows "1" available |
+| All dates show unlimited inventory | Single-unit properties show 1 |
 
-## Edge Cases
+## Note on Data Migration
 
-1. **Room has no minStay/maxStay defined**: Default to `null` (no restriction shown)
-2. **maxStay = 0**: Treat as "no maximum" (filter out in display condition `maxStay > 0`)
-3. **Override with null values**: Override takes precedence, allowing clearing of restrictions
-4. **Multiple room types with different defaults**: Each room row shows its own restrictions
-
-## Additional Consideration - Availability Units
-
-The plan also addresses the previously discussed issue of using actual room units (from `room.units`) instead of hardcoded `99`:
-
-```typescript
-// Get room's actual unit count (defaults to 1 if not set)
-const roomUnits = room.units || 1;
-
-// Use room units as default, respect overrides
-availabilityByDate[dateStr] = override?.available_units ?? roomUnits;
-```
-
-This change will be included in the same implementation to ensure "Latter Days" shows "1" available instead of "99".
+For existing properties like "Latter Days", the owner can update the `units` field in the Property Form or Onboarding Wizard to explicitly set the bookable unit count. This provides a proper long-term fix rather than relying on heuristics.
 
