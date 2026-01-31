@@ -7469,6 +7469,7 @@ export default function PropertyForm() {
                                                 rt.id === rateType.id ? { ...rt, baseRate: value } : rt
                                               )
                                             );
+                                            setIsDirty(true);
                                           }}
                                           className="bg-background"
                                         />
@@ -7486,6 +7487,7 @@ export default function PropertyForm() {
                                                 rt.id === rateType.id ? { ...rt, priceType: value } : rt
                                               )
                                             );
+                                            setIsDirty(true);
                                           }}
                                         >
                                           <SelectTrigger className="bg-background">
@@ -7527,6 +7529,7 @@ export default function PropertyForm() {
                                               rt.id === rateType.id ? { ...rt, minStayDays: value } : rt
                                             )
                                           );
+                                          setIsDirty(true);
                                         }}
                                         className="h-8"
                                       />
@@ -7553,6 +7556,7 @@ export default function PropertyForm() {
                                               rt.id === rateType.id ? { ...rt, maxStayDays: value } : rt
                                             )
                                           );
+                                          setIsDirty(true);
                                         }}
                                         className="h-8"
                                       />
@@ -7576,6 +7580,7 @@ export default function PropertyForm() {
                                               rt.id === rateType.id ? { ...rt, minAdvanceDays: value } : rt
                                             )
                                           );
+                                          setIsDirty(true);
                                         }}
                                         className="h-8"
                                       />
@@ -7598,6 +7603,7 @@ export default function PropertyForm() {
                                               rt.id === rateType.id ? { ...rt, maxAdvanceDays: value } : rt
                                             )
                                           );
+                                          setIsDirty(true);
                                         }}
                                         className="h-8"
                                       />
@@ -7629,6 +7635,7 @@ export default function PropertyForm() {
                                                 rt.id === rateType.id ? { ...rt, stayPayStayNights: value } : rt
                                               )
                                             );
+                                            setIsDirty(true);
                                           }}
                                           className="h-8"
                                         />
@@ -7651,6 +7658,7 @@ export default function PropertyForm() {
                                                 rt.id === rateType.id ? { ...rt, stayPayDiscountNights: value } : rt
                                               )
                                             );
+                                            setIsDirty(true);
                                           }}
                                           className="h-8"
                                         />
@@ -7678,6 +7686,7 @@ export default function PropertyForm() {
                                                 rt.id === rateType.id ? { ...rt, stayPayDiscountPercentage: value } : rt
                                               )
                                             );
+                                            setIsDirty(true);
                                           }}
                                           className="h-8"
                                         />
