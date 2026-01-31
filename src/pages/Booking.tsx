@@ -416,6 +416,75 @@ const Booking = () => {
     return { room_types: Array.from(roomTypeMap.values()) };
   };
 
+  // Helper: Generate daily rates from wizard base rate with seasonal adjustments
+  const generateDailyRates = (
+    startDate: string, 
+    endDate: string, 
+    baseRate: number, 
+    seasons: any[], 
+    seasonRates: any[],
+    roomId: string
+  ) => {
+    const rates: any[] = [];
+    const currentDate = new Date(startDate);
+    const end = new Date(endDate);
+    
+    while (currentDate < end) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+      let dayRate = baseRate;
+      
+      // Check if date falls within any season and apply adjustment
+      if (seasons.length > 0) {
+        for (const season of seasons) {
+          const seasonStart = season.start_date || season.startDate;
+          const seasonEnd = season.end_date || season.endDate;
+          
+          if (seasonStart && seasonEnd && dateStr >= seasonStart && dateStr <= seasonEnd) {
+            // Look for season-specific rate for this room
+            const seasonRate = seasonRates?.find((sr: any) => 
+              (sr.room_id === roomId || sr.room_type_id === roomId) && 
+              sr.season_id === season.id
+            );
+            
+            if (seasonRate?.rate || seasonRate?.daily_rate) {
+              dayRate = seasonRate.rate || seasonRate.daily_rate;
+            } else if (season.rate_multiplier) {
+              // Apply multiplier if defined
+              dayRate = baseRate * (season.rate_multiplier || 1);
+            }
+            break;
+          }
+        }
+      }
+      
+      rates.push({
+        date: dateStr,
+        room_amount: dayRate,
+      });
+      
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return rates;
+  };
+
+  // Helper: Generate availability array for date range (all available)
+  const generateAvailabilityArray = (startDate: string, endDate: string, availableUnits: number) => {
+    const availability: any[] = [];
+    const currentDate = new Date(startDate);
+    const end = new Date(endDate);
+    
+    while (currentDate < end) {
+      availability.push({
+        date: currentDate.toISOString().split('T')[0],
+        available_units: availableUnits,
+      });
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return availability;
+  };
+
   // Calculate cost based on availability data
   const calculateCost = async () => {
     if (!property?.id || !checkIn || !checkOut || rooms.length === 0 || !selectedRateType) {
@@ -489,12 +558,6 @@ const Booking = () => {
           
           if (error) throw error;
           
-          if (!cacheData || cacheData.length === 0) {
-            console.warn("No cached availability data found for this property");
-            setCalculatingCost(false);
-            return;
-          }
-          
           // Build room aliases map: original ID -> [slugified name]
           // This allows matching room IDs like "4" to cache keys like "two-bedroom-suite"
           const roomAliases = new Map<string, string[]>();
@@ -504,8 +567,51 @@ const Booking = () => {
             roomAliases.set(origId, [slugName]);
           }
           
-          // Transform cache data into availability format with aliases
-          availability = transformCacheToAvailability(cacheData, roomAliases);
+          if (cacheData && cacheData.length > 0) {
+            // Transform cache data into availability format with aliases
+            availability = transformCacheToAvailability(cacheData, roomAliases);
+          } else if (!externalSystem || externalSystem === 'none') {
+            // No PMS and no cache - build synthetic availability from wizard rates
+            console.log('[Booking] No PMS - building synthetic availability from wizard rates');
+            const wizardRooms = amenities?.room_types || [];
+            const seasons = amenities?.seasons || [];
+            const seasonRates = amenities?.season_rates || [];
+            
+            if (wizardRooms.length === 0) {
+              console.warn("No wizard room types found for this property");
+              setCalculatingCost(false);
+              return;
+            }
+            
+            // Generate synthetic room types with daily rates
+            const syntheticRoomTypes = wizardRooms.map((room: any) => {
+              const roomId = room.id || room.room_type_id || `wizard-room-${room.name}`;
+              const baseRate = room.base_rate || room.baseRate || room.daily_rate || 0;
+              const rateUnit = room.rate_unit || room.rateUnit || 'per_night';
+              
+              // Generate daily rates with season adjustments
+              const dailyRates = generateDailyRates(checkIn!, checkOut!, baseRate, seasons, seasonRates, roomId);
+              
+              return {
+                room_type_id: roomId,
+                room_type_name: room.name,
+                rate_types: [{
+                  rate_type_id: 'wizard-rate',
+                  rate_type_name: 'Standard Rate',
+                  price_type: rateUnit === 'per_stay' ? 'PerStay' : 'PER_NIGHT',
+                  rates: dailyRates,
+                }],
+                rooms_available_per_night: generateAvailabilityArray(checkIn!, checkOut!, 99),
+              };
+            });
+            
+            availability = { room_types: syntheticRoomTypes };
+            console.log('[Booking] Synthetic availability:', availability);
+          } else {
+            console.warn("No cached availability data found for this property");
+            setCalculatingCost(false);
+            return;
+          }
         }
         setAvailabilityData(availability);
       }

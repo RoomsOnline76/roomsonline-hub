@@ -137,9 +137,70 @@ Deno.serve(async (req) => {
     const externalSystem = property.external_system;
 
     if (!externalSystem) {
-      console.log('No external system configured for property');
+      console.log('No external system configured for property - sending owner notification');
+      
+      // Mark as confirmed (no PMS to sync to)
+      await supabaseClient
+        .from('bookings')
+        .update({ status: 'confirmed' })
+        .eq('id', booking_id);
+      
+      // Send property owner notification email
+      const ownerEmail = property.owner_email;
+      if (ownerEmail) {
+        try {
+          const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+          const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+          
+          await fetch(
+            `${supabaseUrl}/functions/v1/send-booking-email`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${serviceKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                booking_id,
+                status: 'property_notification',
+                recipient_email: ownerEmail,
+              }),
+            }
+          );
+          console.log('Property owner notification sent to:', ownerEmail);
+        } catch (error) {
+          console.error('Failed to send owner notification:', error);
+        }
+      } else {
+        console.warn('No owner_email configured for property:', property.id);
+      }
+      
+      // Also send guest confirmation email
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+        
+        await fetch(
+          `${supabaseUrl}/functions/v1/send-booking-email`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${serviceKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              booking_id,
+              status: 'success',
+            }),
+          }
+        );
+        console.log('Guest confirmation email sent');
+      } catch (error) {
+        console.error('Failed to send guest confirmation:', error);
+      }
+      
       return new Response(
-        JSON.stringify({ success: true, message: 'No external system configured' }),
+        JSON.stringify({ success: true, message: 'Booking confirmed, owner notified' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
