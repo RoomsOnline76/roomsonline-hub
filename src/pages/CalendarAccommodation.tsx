@@ -638,21 +638,15 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     const seasonRates = amenities.season_rates || {};
     const pmsRateTypes = amenities.pms_rate_types || [];
     
-    // Generate date range based on current view
+    // Generate date range starting from currentDate (today), matching calendar display
     const startDate = new Date(currentDate);
-    if (viewMode === "month") {
-      startDate.setDate(1);
-    } else {
-      const day = startDate.getDay();
-      const diff = day === 6 ? 0 : -(day + 1);
-      startDate.setDate(startDate.getDate() + diff);
-    }
     const endDate = new Date(startDate);
     if (viewMode === "month") {
-      endDate.setMonth(endDate.getMonth() + 1);
-      endDate.setDate(0);
+      // Month view shows 31 days from today
+      endDate.setDate(endDate.getDate() + 31);
     } else {
-      endDate.setDate(endDate.getDate() + 8);
+      // Week view shows 7 days from today
+      endDate.setDate(endDate.getDate() + 7);
     }
     
     // Fetch manual overrides from property_availability table
