@@ -3039,7 +3039,9 @@ export default function PropertyForm() {
           if (amenities?.room_types && Array.isArray(amenities.room_types) && amenities.room_types.length > 0) {
             // Transform PMS format (snake_case, room_type_id) to UI format (camelCase, id)
             // Also handle wizard format fields (base_rate, rate_unit, units)
+            // Wizard data is SOURCE OF TRUTH until PMS overwrites it
             const transformedRooms = amenities.room_types.map((room: any, idx: number) => {
+              // Generate consistent room ID - use existing ID or create stable fallback
               const roomId = room.id || room.room_type_id || `room-${idx}`;
               // Auto-link to wizard-generated rate type if no existing links
               const existingLinks = room.linkedRateTypes || room.linked_rate_type_ids || [];
@@ -3067,7 +3069,7 @@ export default function PropertyForm() {
                 maxStay: room.maxStay || room.max_stay || 0,
                 // Map rate_unit from wizard to rateType, also handle rate_type from PMS
                 rateType: room.rateType || room.rate_type || (room.rate_unit === 'per_stay' ? 'per-stay' : room.rate_unit === 'per_night' ? 'per-unit' : 'per-unit'),
-                // Map base_rate from wizard
+                // Map base_rate from wizard - SOURCE OF TRUTH until PMS data arrives
                 baseRate: room.baseRate || room.base_rate || null,
                 splitPercent: room.splitPercent || room.split_percent || 0,
                 images: room.images || [],
@@ -3075,6 +3077,7 @@ export default function PropertyForm() {
                 amenities: room.amenities || [],
                 // Auto-link wizard rooms to their generated rate types if no existing links
                 linkedRateTypes: existingLinks.length > 0 ? existingLinks : [autoLinkedRateTypeId],
+                // Wizard rooms are NOT PMS-synced until a PMS actually syncs them
                 pms_synced: room.pms_synced !== undefined ? room.pms_synced : false,
               };
             });
@@ -3196,14 +3199,17 @@ export default function PropertyForm() {
           } else if (amenities?.room_types && Array.isArray(amenities.room_types) && amenities.room_types.length > 0) {
             // Auto-generate rate types from ALL wizard rooms (not just those with rates)
             // This ensures every room has a linkable rate type entry
+            // Wizard data is source of truth until PMS overwrites it
             const generatedRateTypes = amenities.room_types.map((room: any, idx: number) => {
               const rateUnit = room.rate_unit || room.rateUnit || 'per_night';
               const priceType = rateUnit === 'per_stay' ? 'PerStay' : 'UnitRate';
               const baseRate = room.base_rate || room.baseRate || null;
               const roomName = room.name || `Room ${idx + 1}`;
+              // Generate consistent room ID - use existing ID or create stable fallback
+              const roomId = room.id || `room-${idx}`;
               
               return {
-                id: `wizard-rate-${room.id || idx + 1}`,
+                id: `wizard-rate-${roomId}`,
                 name: `${roomName} Rate`,
                 priceType,
                 minStayDays: room.min_stay || room.minStay || 1,
@@ -3215,7 +3221,7 @@ export default function PropertyForm() {
                   : `Rate for ${roomName} - configure rate amount`,
                 baseRate,
                 pms_synced: false,
-                linkedRoomId: room.id || `room-${idx}`, // Track which room this rate is for
+                linkedRoomId: roomId, // Track which room this rate is for
               };
             });
             setPmsRateTypes(generatedRateTypes);

@@ -15,7 +15,10 @@ export function StepRoomsOverview({
   const roomTypes = getAmenityValue<OnboardingRoomType[]>("room_types", []);
 
   const addRoom = () => {
+    // Generate stable ID for consistent linking between wizard and property form
+    const roomId = `wizard-room-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
     const newRoom: OnboardingRoomType = {
+      id: roomId,
       name: "",
       units: 1,
       max_guests: 2,
@@ -39,8 +42,11 @@ export function StepRoomsOverview({
 
   const duplicateRoom = (index: number) => {
     const room = roomTypes[index];
+    // Generate new stable ID for duplicated room
+    const roomId = `wizard-room-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
     const duplicated: OnboardingRoomType = {
       ...room,
+      id: roomId,
       name: `${room.name} (Copy)`
     };
     updateField("amenities.room_types", [...roomTypes, duplicated]);
