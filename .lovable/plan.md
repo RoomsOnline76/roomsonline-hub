@@ -1,164 +1,139 @@
 
-# Plan: Complete Rewrite of booking-flow-complete.md
+# Plan: Incorporate "Sleep in Africa Like Never Before" Brand Messaging
 
 ## Objective
 
-Create a new, authoritative developer reference document that reflects the **AI Concierge-first booking flow** as the primary system architecture. The document will deprecate legacy components (QuickBookDrawer, FloatingDateGuestPicker, separate /journey pages) and present the unified, inline booking experience as the definitive RoomsOnline booking process.
+Integrate the brand message **"Sleep in Africa like never before by booking with Sleep in Africa by RoomsOnline"** as a consistent, premium messaging layer throughout the entire booking journey — from the property showcase page through to the confirmation PDF attached to emails.
 
-## Document Structure
+This is a **messaging/branding enhancement**, not a functional change. The message will be conveyed elegantly at key emotional touchpoints to reinforce the unique value proposition.
 
-The rewritten document will include:
+---
 
-### 1. Header & Metadata
-- Title: "RoomsOnline Booking Flow — Complete Developer Reference"
-- Last Updated: January 2026
-- Version: 1.1
-- Audience: Developers, Technical Architects
+## Message Touchpoints (7 Integration Points)
 
-### 2. Architecture Overview (Revised)
-- **AI-First Design Philosophy**: Natural language + voice-powered booking
-- **PMS-Agnostic Engine**: Benson, Hostfully, HotelBeds, NightsBridge adapters
-- **Payment-First Logic**: PayFast success required before PMS sync
-- **Unified Data Model**: All bookings → `bookings` + `itineraries` tables
-- **Inline Experience**: No separate checkout pages; accordion-based flow
+### 1. AI Concierge Panel Welcome
+**File:** `src/components/booking/AIConciergePanel.tsx`
 
-### 3. User Journey Flowchart (Completely Rewritten)
-Primary path (ASCII diagram):
+- **Current:** "Tell me about your ideal stay"
+- **Change:** Add brand tagline as subtle intro text when panel is first opened
+- **Implementation:** 
+  - Update the desktop sidebar header subtitle
+  - Add a subtle "Sleep in Africa like never before" tagline below "Your Travel Concierge"
+  - Mobile: Show in the collapsed orb tooltip or first message
+
+### 2. Smart Cart Checkout Button Area
+**File:** `src/components/booking/SmartCart.tsx`
+
+- **Current:** Plain "Checkout" button
+- **Change:** Add micro-copy above or below the checkout CTA
+- **Implementation:**
+  - Add small text: "Sleep in Africa like never before"
+  - Styled as muted, elegant typography (similar to "Secured by PayFast" pattern)
+
+### 3. Inline Checkout Header
+**File:** `src/components/booking/InlineCheckout.tsx`
+
+- **Current:** "Checkout" with stay count and price
+- **Change:** Add aspirational message in the checkout overlay header
+- **Implementation:**
+  - Add tagline after the title or as a decorative element
+  - Example: "You're about to sleep in Africa like never before"
+
+### 4. Journey Confirmation Page Hero
+**File:** `src/pages/JourneyConfirmation.tsx`
+
+- **Current:** "Your Journey is Confirmed!" with property summary
+- **Change:** Add brand message as a celebration statement
+- **Implementation:**
+  - Add below the main heading: "You're about to sleep in Africa like never before"
+  - Styled with serif font, editorial feel
+  - Reinforce the "Sleep in Africa by RoomsOnline" brand
+
+### 5. Enchanting PDF Brochure
+**File:** `supabase/functions/generate-itinerary-pdf/index.ts`
+
+- **Current:** Header shows logo + "Curated African Hospitality" tagline
+- **Change:** Replace/enhance tagline with the new brand message
+- **Implementation:**
+  - Update the `.tagline` class content in the header section
+  - Change from "Curated African Hospitality" to "Sleep in Africa like never before"
+  - Add footer message: "Thank you for booking with Sleep in Africa by RoomsOnline"
+
+### 6. Confirmation Email Template
+**File:** `supabase/functions/send-booking-email/index.ts`
+
+- **Current:** Footer says "RoomsOnline on behalf of [Property]"
+- **Change:** Add brand message in the email footer
+- **Implementation:**
+  - Add tagline before the logo in the footer section
+  - "Sleep in Africa like never before"
+  - Subtle, elegant positioning
+
+### 7. Itinerary Email Template
+**File:** `supabase/functions/send-itinerary-email/index.ts`
+
+- **Current:** Footer says "RoomsOnline – Curated African Hospitality"
+- **Change:** Update to the new brand message
+- **Implementation:**
+  - Replace "Curated African Hospitality" with "Sleep in Africa like never before"
+  - Ensure consistency with PDF brochure messaging
+
+---
+
+## Visual Treatment Guidelines
+
+The message should appear with these characteristics:
+- **Typography:** Serif font where possible (Playfair Display in PDF, Georgia fallback in emails)
+- **Weight:** Light/elegant — not bold or attention-grabbing
+- **Color:** Muted foreground or subtle accent (not primary pink unless in PDF)
+- **Context:** Appears at moments of decision or celebration, never feels intrusive
+- **Variations allowed:**
+  - Full: "Sleep in Africa like never before by booking with Sleep in Africa by RoomsOnline"
+  - Short: "Sleep in Africa like never before"
+  - Sign-off: "Thank you for booking with Sleep in Africa by RoomsOnline"
+
+---
+
+## Technical Changes Summary
+
+| File | Change Type | Notes |
+|------|-------------|-------|
+| `AIConciergePanel.tsx` | UI text update | Add tagline to header |
+| `SmartCart.tsx` | UI text addition | Micro-copy near checkout |
+| `InlineCheckout.tsx` | UI text addition | Header tagline |
+| `JourneyConfirmation.tsx` | UI text addition | Hero celebration message |
+| `generate-itinerary-pdf/index.ts` | HTML template update | Header tagline + footer thank you |
+| `send-booking-email/index.ts` | HTML template update | Footer message |
+| `send-itinerary-email/index.ts` | HTML template update | Footer message |
+
+---
+
+## Message Consistency Map
+
+```text
+Booking Flow Stage          │ Message Variation
+────────────────────────────┼──────────────────────────────────────────────────
+Property Showcase (start)   │ "Sleep in Africa like never before"
+AI Concierge Header         │ "Sleep in Africa like never before"
+Smart Cart (pre-checkout)   │ "Sleep in Africa like never before"
+Inline Checkout Header      │ "You're about to sleep in Africa like never before"
+Confirmation Page           │ "You're about to sleep in Africa like never before"
+PDF Brochure Header         │ "Sleep in Africa like never before"
+PDF Brochure Footer         │ "Thank you for booking with Sleep in Africa by RoomsOnline"
+Confirmation Email Footer   │ "Sleep in Africa like never before"
+Itinerary Email Footer      │ "Sleep in Africa like never before"
 ```
-Home → PropertyShowcase (/property/:slug)
-    ├─ AI Concierge Panel (persistent, chat + voice)
-    │   └─ Collapsed: "✨ AI Travel Concierge" orb/button
-    │   └─ Expanded: Chat interface + mic icon
-    ├─ Smart Cart (sticky bottom bar, real-time preview)
-    └─ Inline Checkout Accordion (expands from Smart Cart)
-        ├─ Order Summary (collapsible)
-        ├─ Guest Details Form
-        ├─ Special Requests
-        └─ Pay Button → PayFast Modal Overlay
-            ↓
-JourneyConfirmation (/journey/confirmation/:id)
-    └─ AI-generated summary + enchanting PDF download
-```
 
-### 4. Component Reference (Updated File Locations)
-- **Active Components**:
-  - `AIConciergePanel.tsx` - Natural language + voice input
-  - `SmartCart.tsx` - Sticky bottom bar with cart preview
-  - `InlineCheckout.tsx` - Accordion checkout overlay
-  - `VoiceInputButton.tsx` - Web Speech API integration
-  - `PayFastOnsiteModal.tsx` - Payment modal
-- **Deprecated Components** (marked as legacy fallback):
-  - `QuickBookDrawer.tsx` - Only used if AI_CONCIERGE_ENABLED=false
-  - `FloatingDateGuestPicker.tsx` - Only used if AI_CONCIERGE_ENABLED=false
-  - Separate `/journey/review` and `/journey/checkout` routes - Bypassed entirely
+---
 
-### 5. AI Concierge Panel Features (New Section)
-- Default collapsed state with subtle "✨ AI Travel Concierge" orb
-- Web Speech API voice input (mic icon, start/stop, real-time transcription)
-- Natural language parsing examples:
-  - "4 nights for 2 adults in March"
-  - "Weekend getaway for a family with 2 kids"
-  - "Romantic week in April"
-- Proactive surprise injection (1-2 delights per session)
-  - Example: "I've found a complimentary upgrade – want to see it?"
-- 8-second inactivity prompt trigger
-- Suggestion cards with:
-  - Date alternatives
-  - Room options with live pricing
-  - Upsells and value badges
+## No Functional Changes
 
-### 6. State Management (Updated)
-- `ItineraryContext` - Multi-property journey state + stays[] array
-- `MobileBookingContext` - Check-in/out dates, guest counts
-- localStorage keys: `rol_guest_details`, `rol_itinerary`, `rol_currency`
-- New field: `ai_metadata JSONB` for suggestion provenance
+This plan involves **zero changes** to:
+- Booking logic
+- Payment flow
+- PMS integration
+- State management
+- API calls
+- Database schema
 
-### 7. Payment Flow (PayFast Onsite)
-- Architecture diagram
-- Step-by-step: Initiate → Modal → ITN Callback → PMS Push → Confirmation
-- PayFast modal visibility management
-
-### 8. Enchanting PDF System (New Comprehensive Section)
-**Document Structure**:
-1. **Cover Page**: Hero image + AI-generated welcome line with guest name
-2. **Personalized Poem**: 4-line poem generated via Lovable AI (Gemini 2.5 Flash)
-3. **Itinerary Timeline**: Visual timeline of all stays
-4. **Weather Forecast**: 5-day forecast via Open-Meteo API
-5. **AI-Generated Visuals**: 2-3 embedded images (property sunset, local gem)
-6. **Personalized Map**: Static Google Maps with property pin + POIs + QR code
-7. **Surprise Voucher**: Unique code (e.g., `SAFARI-X7K2`), 25% discount, stored in `experience_vouchers` table
-8. **Local Tips**: Curated experiences from `local_experiences` table
-9. **Thank You Message**: Tone-matched closing
-
-**Edge Functions**:
-- `generate-itinerary-pdf`: Enhanced version with AI personalization
-- `send-itinerary-email`: Attaches PDF as base64
-
-### 9. Delight & Surprise Layer (New Section)
-- AI surprise injection during booking flow
-- PDF voucher generation with Cape Town flair examples:
-  - "Complimentary sundowner at the rooftop bar"
-  - "25% off Table Mountain cable car tickets"
-  - "Private braai experience for two"
-- Experience vouchers stored in `experience_vouchers` table
-
-### 10. Database Schema (Updated)
-- `bookings` table: Add `surprise_elements JSONB` (poem, voucher_code, map_url, image_urls[])
-- `bookings.ai_metadata`: Stores suggestion provenance for analytics
-- `itineraries` table: Journey container
-- `itinerary_bookings`: Links bookings to journeys
-- `experience_vouchers`: Surprise gift codes
-
-### 11. Edge Functions Reference (Updated)
-| Function | Description |
-|----------|-------------|
-| `ai-booking-concierge` | Parses natural language via Lovable API, always performs live PMS adapter calls (never cache), returns structured suggestions + alternatives |
-| `generate-itinerary-pdf` | Enhanced version with AI personalization: poem, weather, voucher, map |
-| `push-booking` | Verifies availability + creates PMS reservation |
-| `multi-push-booking` | Atomic sequential bookings with rollback |
-| `payfast-api` | Payment initiation and ITN handling |
-
-### 12. Feature Flags (Updated)
-| Flag | Default | Description |
-|------|---------|-------------|
-| `AI_CONCIERGE_ENABLED` | `true` | Enables AI panel on PropertyShowcase |
-| `VOICE_INPUT_ENABLED` | `true` | Enables Web Speech API voice input |
-| `ENHANCED_PDF_ENABLED` | `true` | Enables AI-enhanced PDF brochures |
-
-### 13. Error Handling
-- `ConciergeErrorBoundary` wraps AI components
-- Fallback to legacy flow if AI fails
-- `AVAILABILITY_CHANGED` → DateReselectDialog
-- PMS push failures → Mark booking as 'failed', display error
-
-### 14. Changelog (Appended)
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | Jan 2026 | Initial complete documentation |
-| 1.1 | Jan 2026 | Full inline AI Concierge + Smart Cart flow, voice input, deprecated drawer & separate checkout pages, enchanting personalized PDF with poem, visuals, map + QR voucher |
-
-## Technical Notes
-
-### Files to Reference
-- `src/components/booking/AIConciergePanel.tsx` (741 lines)
-- `src/components/booking/SmartCart.tsx` (148 lines)
-- `src/components/booking/InlineCheckout.tsx` (313 lines)
-- `src/components/booking/VoiceInputButton.tsx`
-- `supabase/functions/ai-booking-concierge/index.ts` (634 lines)
-- `supabase/functions/generate-itinerary-pdf/index.ts` (1554 lines)
-
-### Current Implementation State
-The codebase currently has BOTH flows:
-- **AI Concierge flow**: Active when `AI_CONCIERGE_ENABLED=true` (AIConciergePanel + SmartCart + InlineCheckout)
-- **Legacy flow**: Fallback when flag is false or AI fails (FloatingDateGuestPicker + QuickBookDrawer)
-
-The document will present the AI Concierge as the **PRIMARY** architecture and note the legacy as deprecated fallback only.
-
-## Output Format
-The complete markdown file will be output as a single, clean document with:
-- Professional formatting
-- Consistent heading hierarchy
-- ASCII diagrams for flows
-- Tables for schemas and references
-- No emojis in technical sections (emojis only in user-facing content descriptions)
-- Code examples where helpful
+All changes are cosmetic/branding text updates.
