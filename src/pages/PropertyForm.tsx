@@ -9873,6 +9873,19 @@ export default function PropertyForm() {
                         <div
                           className="aspect-video border-2 border-dashed border-primary/50 rounded-lg flex flex-col items-center justify-center bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors"
                           onClick={() => document.getElementById("room-image-upload")?.click()}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onDragEnter={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleRoomImageUpload(e.dataTransfer.files);
+                          }}
                         >
                           {isRoomImageUploading ? (
                             <RefreshCw className="h-8 w-8 text-primary mb-2 animate-spin" />
