@@ -18,8 +18,10 @@ import { PropertyRecommendations } from "@/components/booking/PropertyRecommenda
 import { AIConciergePanel } from "@/components/booking/AIConciergePanel";
 import { SmartCart } from "@/components/booking/SmartCart";
 import { InlineCheckout } from "@/components/booking/InlineCheckout";
+import { ConciergeErrorBoundary } from "@/components/booking/ConciergeErrorBoundary";
 import { useAIConciergeEnabled } from "@/hooks/useFeatureFlags";
 import { useItinerary } from "@/contexts/ItineraryContext";
+import { toast } from "sonner";
 import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
 import { ChevronLeft, ChevronRight, ExternalLink, Info } from "lucide-react";
 
@@ -198,6 +200,36 @@ export default function PropertyShowcase() {
   const [quickBookDrawerOpen, setQuickBookDrawerOpen] = useState(false);
   // Calendar availability for 90-day range (for FloatingDateGuestPicker)
   const [calendarAvailability, setCalendarAvailability] = useState<Map<string, { available: boolean; rate?: number }>>(new Map());
+  
+  // AI Concierge state
+  const { enabled: aiConciergeEnabled, isLoading: aiConciergeLoading } = useAIConciergeEnabled();
+  const [aiFailed, setAiFailed] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const { hasStays, clearItinerary } = useItinerary();
+
+  // Handle AI concierge error - gracefully fall back to legacy flow
+  const handleAIError = useCallback(() => {
+    setAiFailed(true);
+    toast.info("Switching to manual booking...");
+  }, []);
+
+  // Handle fallback from error boundary
+  const handleFallbackToLegacy = useCallback(() => {
+    setAiFailed(true);
+  }, []);
+
+  // Handle successful payment
+  const handlePaymentSuccess = useCallback((bookingId: string) => {
+    setCheckoutOpen(false);
+    clearItinerary();
+    navigate(`/booking-confirmation/${bookingId}?payment=success`);
+  }, [navigate, clearItinerary]);
+
+  // Handle cancelled payment  
+  const handlePaymentCancelled = useCallback(() => {
+    setCheckoutOpen(false);
+    toast.info("Payment cancelled. Your selection is still saved.");
+  }, []);
 
   // Track property view in behavioral memory
   useEffect(() => {
@@ -782,28 +814,61 @@ export default function PropertyShowcase() {
         propertyName={property?.name}
       />
       
-      {/* Quick Book Drawer for streamlined booking (including manual rates properties) */}
-      {(isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && (
-        <QuickBookDrawer
-          open={quickBookDrawerOpen}
-          onOpenChange={setQuickBookDrawerOpen}
-          propertyId={property.id}
-          propertySlug={property.slug || property.id}
-          propertyName={property.name}
-          propertyImage={property.images?.[0]}
-          externalSystem={property.external_system || undefined}
-          roomTypes={roomTypes}
-          defaultRoomId={roomTypes.length === 1 ? roomTypes[0].id : undefined}
-        />
+      {/* AI Concierge Mode: Show AI-powered booking UI when enabled and not failed */}
+      {aiConciergeEnabled && !aiFailed && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && (
+        <>
+          <ConciergeErrorBoundary 
+            onFallback={handleFallbackToLegacy}
+            fallbackMessage="The booking assistant is having trouble"
+          >
+            <AIConciergePanel
+              propertyId={property.id}
+              propertyName={property.name}
+              propertySlug={property.slug || property.id}
+              propertyImage={property.images?.[0]}
+              externalSystem={property.external_system || undefined}
+              roomTypes={roomTypes}
+              availabilityMap={calendarAvailability}
+              onError={handleAIError}
+            />
+          </ConciergeErrorBoundary>
+          
+          {/* SmartCart - shows when items are added */}
+          <SmartCart 
+            onCheckout={() => setCheckoutOpen(true)}
+          />
+          
+          {/* InlineCheckout - full-screen overlay */}
+          <InlineCheckout
+            open={checkoutOpen}
+            onClose={() => setCheckoutOpen(false)}
+            onPaymentSuccess={handlePaymentSuccess}
+            onPaymentCancelled={handlePaymentCancelled}
+          />
+        </>
       )}
       
-      {/* Floating Date/Guest Picker for Benson, HotelBeds, Hostfully and manual rates properties */}
-      {(isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && (
-        <FloatingDateGuestPicker
-          onContinue={() => setQuickBookDrawerOpen(true)} 
-          ctaLabel="Book Now"
-          availabilityMap={calendarAvailability}
-        />
+      {/* Legacy Flow: Quick Book Drawer for streamlined booking */}
+      {(!aiConciergeEnabled || aiFailed) && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && (
+        <>
+          <QuickBookDrawer
+            open={quickBookDrawerOpen}
+            onOpenChange={setQuickBookDrawerOpen}
+            propertyId={property.id}
+            propertySlug={property.slug || property.id}
+            propertyName={property.name}
+            propertyImage={property.images?.[0]}
+            externalSystem={property.external_system || undefined}
+            roomTypes={roomTypes}
+            defaultRoomId={roomTypes.length === 1 ? roomTypes[0].id : undefined}
+          />
+          
+          <FloatingDateGuestPicker
+            onContinue={() => setQuickBookDrawerOpen(true)} 
+            ctaLabel="Book Now"
+            availabilityMap={calendarAvailability}
+          />
+        </>
       )}
     </PublicLayout>
   );

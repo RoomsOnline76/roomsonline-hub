@@ -472,6 +472,138 @@
       }
     }
   },
+  "ai_concierge_flow": {
+    "flow_id": "ai_concierge_flow",
+    "description": "AI-powered conversational booking flow replacing traditional date/room pickers",
+    "entry_point": "src/components/booking/AIConciergePanel.tsx",
+    "feature_flag": "AI_CONCIERGE_ENABLED",
+    "states": [
+      {
+        "state_id": "IDLE",
+        "name": "Idle",
+        "description": "User on property page, concierge panel visible",
+        "transitions": {
+          "user_types": "LISTENING",
+          "user_speaks": "LISTENING",
+          "8_seconds_idle": "PROACTIVE_PROMPT"
+        }
+      },
+      {
+        "state_id": "PROACTIVE_PROMPT",
+        "name": "Proactive Prompt",
+        "description": "Show helpful prompt after idle period",
+        "message": "Need help choosing dates? Tell me about your ideal trip.",
+        "transitions": {
+          "user_interaction": "LISTENING",
+          "dismissed": "IDLE"
+        }
+      },
+      {
+        "state_id": "LISTENING",
+        "name": "Listening",
+        "description": "User typing or speaking query",
+        "transitions": {
+          "query_submitted": "THINKING",
+          "voice_transcript_complete": "THINKING"
+        }
+      },
+      {
+        "state_id": "THINKING",
+        "name": "Thinking",
+        "description": "AI processing query via ai-booking-concierge edge function",
+        "api_call": {
+          "function": "ai-booking-concierge",
+          "action": "process_query"
+        },
+        "transitions": {
+          "response_received": "SUGGESTING",
+          "error": "ERROR_RECOVERY"
+        }
+      },
+      {
+        "state_id": "SUGGESTING",
+        "name": "Suggesting",
+        "description": "Display AI suggestions as selectable cards",
+        "ui_elements": ["suggestion_cards", "date_alternatives", "upsells"],
+        "transitions": {
+          "suggestion_selected": "CART_READY",
+          "new_query": "LISTENING",
+          "manual_date_select": "CART_READY"
+        }
+      },
+      {
+        "state_id": "CART_READY",
+        "name": "Cart Ready",
+        "description": "Stay added to ItineraryContext, SmartCart visible",
+        "ui_elements": ["SmartCart", "checkout_button"],
+        "transitions": {
+          "checkout_clicked": "CHECKOUT_OPEN",
+          "add_more": "LISTENING",
+          "remove_stay": "IDLE"
+        }
+      },
+      {
+        "state_id": "CHECKOUT_OPEN",
+        "name": "Checkout Open",
+        "description": "InlineCheckout accordion expanded",
+        "ui_elements": ["guest_form", "order_summary", "pay_button"],
+        "transitions": {
+          "pay_clicked": "VALIDATING",
+          "close": "CART_READY"
+        }
+      },
+      {
+        "state_id": "VALIDATING",
+        "name": "Validating",
+        "description": "Save itinerary, initiate PayFast payment",
+        "api_calls": [
+          { "action": "save_itinerary", "target": "itineraries table" },
+          { "function": "payfast-api", "action": "create_payment" }
+        ],
+        "transitions": {
+          "payment_initiated": "PAYMENT_ACTIVE",
+          "validation_error": "CHECKOUT_OPEN"
+        }
+      },
+      {
+        "state_id": "PAYMENT_ACTIVE",
+        "name": "Payment Active",
+        "description": "PayFast modal open, awaiting ITN callback",
+        "transitions": {
+          "itn_success": "CONFIRMED",
+          "itn_failed": "CHECKOUT_OPEN",
+          "cancelled": "CART_READY"
+        }
+      },
+      {
+        "state_id": "CONFIRMED",
+        "name": "Confirmed",
+        "description": "Booking complete, redirect to confirmation page",
+        "actions": ["clear_cart", "navigate_to_confirmation"],
+        "artifacts": ["booking_record", "pdf_brochure", "confirmation_email"]
+      },
+      {
+        "state_id": "ERROR_RECOVERY",
+        "name": "Error Recovery",
+        "description": "Handle AI/network errors gracefully",
+        "transitions": {
+          "retry": "THINKING",
+          "fallback": "LEGACY_FLOW"
+        }
+      },
+      {
+        "state_id": "LEGACY_FLOW",
+        "name": "Legacy Flow",
+        "description": "Fallback to FloatingDateGuestPicker + QuickBookDrawer",
+        "components": ["FloatingDateGuestPicker", "QuickBookDrawer"]
+      }
+    ],
+    "fallback_strategy": {
+      "trigger": "Any AI error OR feature flag disabled",
+      "action": "Gracefully switch to LEGACY_FLOW",
+      "user_message": "Switching to manual booking..."
+    }
+  },
   "invariants": {
     "description": "Conditions that must always hold true during booking flow",
     "rules": [
@@ -489,48 +621,57 @@
       },
       {
         "invariant_id": "INV_AUDIT_TRAIL",
-        "description": "All booking attempts must be logged to sync_logs",
-        "enforcement": "Always insert sync_log, even on failure",
-        "violation_action": "Log and continue"
+        "description": "All booking state changes must be logged",
+        "enforcement": "Database triggers + sync_logs table",
+        "violation_action": "Log warning, continue flow"
       },
       {
-        "invariant_id": "INV_ITN_AUTHORITATIVE",
-        "description": "PayFast ITN callback is the source of truth for payment status",
-        "enforcement": "Always trust ITN over browser return URL params",
-        "violation_action": "Update status from ITN only"
+        "invariant_id": "INV_PAYMENT_FIRST",
+        "description": "Payment must succeed before PMS push",
+        "enforcement": "ITN callback triggers push-booking",
+        "violation_action": "Do not push to PMS"
+      },
+      {
+        "invariant_id": "INV_AI_FALLBACK",
+        "description": "AI concierge failures must never block booking",
+        "enforcement": "ConciergeErrorBoundary + aiFailed state",
+        "violation_action": "Switch to legacy flow"
       }
     ]
   },
-  "timeouts": {
-    "pms_api_call": {
-      "default": "30 seconds",
-      "configurable": false
-    },
-    "edge_function": {
-      "max": "60 seconds",
-      "notes": "Supabase/Deno limit"
-    },
-    "database_query": {
-      "default": "10 seconds"
-    },
-    "payment_session": {
-      "default": "30 minutes",
-      "notes": "PayFast hosted page session timeout"
-    }
-  },
-  "retry_policy": {
-    "pms_api_calls": {
-      "enabled": false,
-      "notes": "PMS calls are not automatically retried to prevent duplicate bookings"
-    },
-    "database_operations": {
-      "enabled": true,
-      "max_retries": 3,
-      "backoff": "exponential"
-    },
-    "payment_itn": {
-      "enabled": true,
-      "notes": "PayFast retries ITN if 200 not received within timeout"
-    }
+  "ai_concierge_nlp_patterns": {
+    "description": "Patterns recognized by ai-booking-concierge for date/guest extraction",
+    "patterns": [
+      {
+        "pattern": "(\\d+)\\s*nights?",
+        "extracts": "nights",
+        "example": "4 nights → nights: 4"
+      },
+      {
+        "pattern": "(\\d+)\\s*adults?",
+        "extracts": "guests.adults",
+        "example": "2 adults → adults: 2"
+      },
+      {
+        "pattern": "(\\d+)\\s*child(?:ren)?",
+        "extracts": "guests.children",
+        "example": "1 child → children: 1"
+      },
+      {
+        "pattern": "in\\s+(january|february|march|...)",
+        "extracts": "month",
+        "example": "in March → month: 3"
+      },
+      {
+        "pattern": "next\\s+week(?:end)?",
+        "extracts": "relative_dates",
+        "example": "next weekend → calculated dates"
+      },
+      {
+        "pattern": "weekday|midweek",
+        "extracts": "day_preference",
+        "example": "weekday → Mon-Thu preference"
+      }
+    ]
   }
 }
