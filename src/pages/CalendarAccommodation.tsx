@@ -1149,6 +1149,24 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     }
   };
 
+  // Refresh calendar data after bulk updates (for manual properties, re-fetches from property_availability)
+  const refreshCalendarData = useCallback(async () => {
+    if (!selectedProperty) return;
+    
+    const propertyData = properties.find(p => p.id === selectedProperty);
+    if (!propertyData) return;
+    
+    const isPms = !!propertyData.external_system && propertyData.external_system !== 'none';
+    
+    if (isPms) {
+      // For PMS properties, refresh from cache (force = true to get latest)
+      await fetchPmsAvailability(true);
+    } else {
+      // For manual properties, regenerate data from property_availability table
+      await generateManualPropertyData(propertyData);
+    }
+  }, [selectedProperty, properties, fetchPmsAvailability, generateManualPropertyData]);
+
   const handlePropertyChange = (propertyId: string) => {
     setSelectedProperty(propertyId);
   };
@@ -2534,7 +2552,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
         roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
-        onRuleCreated={() => fetchRoomTypes(selectedProperty)}
+        onRuleCreated={refreshCalendarData}
       />
       <BulkAvailabilityRuleDialog 
         open={bulkAvailabilityOpen} 
@@ -2542,7 +2560,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
         roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
-        onRuleCreated={() => fetchRoomTypes(selectedProperty)}
+        onRuleCreated={refreshCalendarData}
       />
       <BulkStopSellDialog 
         open={stopSellOpen} 
@@ -2550,13 +2568,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
         roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
-        onRuleCreated={() => {
-          // Refresh calendar data after rule created
-          if (!isPmsProperty) {
-            // For manual properties, just refresh the page data
-            fetchRoomTypes(selectedProperty);
-          }
-        }}
+        onRuleCreated={refreshCalendarData}
       />
       <BulkMinimumStayDialog 
         open={minStayOpen} 
@@ -2564,7 +2576,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
         roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
-        onRuleCreated={() => fetchRoomTypes(selectedProperty)}
+        onRuleCreated={refreshCalendarData}
       />
       <BulkMaximumStayDialog 
         open={maxStayOpen} 
@@ -2572,7 +2584,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
         roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
-        onRuleCreated={() => fetchRoomTypes(selectedProperty)}
+        onRuleCreated={refreshCalendarData}
       />
       <BulkLeadDaysAdvanceDialog 
         open={leadDaysAdvanceOpen} 
@@ -2580,7 +2592,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
         roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
-        onRuleCreated={() => fetchRoomTypes(selectedProperty)}
+        onRuleCreated={refreshCalendarData}
       />
       <BulkLeadDaysPostDialog 
         open={leadDaysPostOpen} 
@@ -2588,7 +2600,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
         roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
-        onRuleCreated={() => fetchRoomTypes(selectedProperty)}
+        onRuleCreated={refreshCalendarData}
       />
     </AppLayout>
   );
