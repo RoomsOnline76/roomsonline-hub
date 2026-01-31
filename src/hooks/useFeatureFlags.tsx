@@ -6,6 +6,7 @@ interface FeatureFlags {
   roomsonline_active: boolean;
   home_icon_open_new_tab: boolean;
   book_open_new_tab: boolean;
+  ai_concierge_enabled: boolean;
   // String flags
   benson_active_environment: string | null;
   // Public keys (publishable, not secrets)
@@ -19,6 +20,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   roomsonline_active: false,
   home_icon_open_new_tab: true,
   book_open_new_tab: true,
+  ai_concierge_enabled: false,
   benson_active_environment: null,
   google_maps_api_key: null,
   google_recaptcha_site_key: null,
@@ -85,4 +87,9 @@ export function useGoogleMapsApiKey() {
 export function useRecaptchaSiteKey() {
   const { data, isLoading } = useFeatureFlags();
   return { siteKey: data?.google_recaptcha_site_key ?? null, isLoading };
+}
+
+export function useAIConciergeEnabled() {
+  const { data, isLoading } = useFeatureFlags();
+  return { enabled: data?.ai_concierge_enabled ?? false, isLoading };
 }

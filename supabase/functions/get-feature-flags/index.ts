@@ -10,6 +10,7 @@ const ALLOWED_FEATURE_FLAGS = [
   'ROOMSONLINE_ACTIVE',
   'HOME_ICON_OPEN_NEW_TAB',
   'BOOK_OPEN_NEW_TAB',
+  'AI_CONCIERGE_ENABLED',
 ];
 
 // STRING FLAGS: These return string values (not boolean)
