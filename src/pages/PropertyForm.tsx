@@ -4190,6 +4190,15 @@ export default function PropertyForm() {
                             currency={formData.currency || "ZAR"}
                             hasPMS={!!selectedPMS}
                             pmsName={selectedPMS ? getPMSDisplayName(selectedPMS) : undefined}
+                            onNavigate={(tab, roomId) => {
+                              setActiveTab(tab);
+                              if (roomId && tab === 'rooms') {
+                                // Select the specific room when navigating
+                                setTimeout(() => {
+                                  setSelectedRoomType(roomId);
+                                }, 100);
+                              }
+                            }}
                           />
                         </CardContent>
                       </CollapsibleContent>
