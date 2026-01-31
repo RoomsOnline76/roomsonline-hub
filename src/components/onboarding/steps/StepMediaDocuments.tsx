@@ -70,10 +70,9 @@ export function StepMediaDocuments({
     
     return {
       hasMinimum: imageCount >= 3,
-      hasMaximum: imageCount <= 5,
       hasHero: heroExists,
       count: imageCount,
-      isValid: imageCount >= 3 && imageCount <= 5 && heroExists
+      isValid: imageCount >= 3 && heroExists
     };
   };
 
@@ -82,12 +81,6 @@ export function StepMediaDocuments({
   // Image upload handler
   const handleImageUpload = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-
-    // Check max limit
-    if (images.length + files.length > 5) {
-      toast({ title: "Too many images", description: "Maximum 5 images allowed", variant: "destructive" });
-      return;
-    }
 
     setIsUploading(true);
     setUploadProgress(0);
@@ -214,7 +207,7 @@ export function StepMediaDocuments({
           <div className="flex items-center gap-2">
             <ImageIcon className="h-4 w-4 text-primary" />
             <span className="font-medium">Property Images</span>
-            <span className="text-xs text-muted-foreground">({images.length}/5)</span>
+            <span className="text-xs text-muted-foreground">({images.length} images)</span>
             {imageStatus.isValid ? (
               <CheckCircle className="h-4 w-4 text-green-500" />
             ) : (
@@ -231,7 +224,6 @@ export function StepMediaDocuments({
               <AlertDescription className="text-amber-800 text-sm">
                 <ul className="list-disc list-inside space-y-0.5">
                   {!imageStatus.hasMinimum && <li>Upload at least 3 images (currently {imageStatus.count})</li>}
-                  {!imageStatus.hasMaximum && <li>Maximum 5 images allowed</li>}
                   {!imageStatus.hasHero && imageStatus.count > 0 && <li>Set one image as the hero image</li>}
                 </ul>
               </AlertDescription>
@@ -246,12 +238,11 @@ export function StepMediaDocuments({
               multiple
               onChange={(e) => handleImageUpload(e.target.files)}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-              disabled={isUploading || images.length >= 5}
+              disabled={isUploading}
             />
             <div className={cn(
               "flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 transition-colors",
-              isUploading ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary",
-              images.length >= 5 && "opacity-50 cursor-not-allowed"
+              isUploading ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary"
             )}>
               {isUploading ? (
                 <>
@@ -262,7 +253,7 @@ export function StepMediaDocuments({
                 <>
                   <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                   <p className="text-sm">Drop images or click to upload</p>
-                  <p className="text-xs text-muted-foreground">{5 - images.length} more allowed</p>
+                  <p className="text-xs text-muted-foreground">No limit on number of images</p>
                 </>
               )}
             </div>
@@ -316,7 +307,7 @@ export function StepMediaDocuments({
 
           {images.length === 0 && (
             <p className="text-center text-sm text-muted-foreground py-4">
-              Upload 3-5 high-quality images. First image will be the hero.
+              Upload at least 3 high-quality images. First image will be the hero.
             </p>
           )}
         </CollapsibleContent>
