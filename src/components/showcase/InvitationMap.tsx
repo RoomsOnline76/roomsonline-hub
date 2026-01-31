@@ -128,33 +128,62 @@ export function InvitationMap({
     }
   }, [mapsLoaded, hasCoordinates, latitude, longitude, propertyName]);
 
-  // Fetch nearby attractions after map initializes
+  // Fetch nearby attractions + one eatery after map initializes
   useEffect(() => {
     if (!mapInstanceRef.current || !mapsLoaded || !hasCoordinates) return;
     if (!window.google?.maps?.places) return;
 
     const service = new google.maps.places.PlacesService(mapInstanceRef.current);
-    const request: google.maps.places.PlaceSearchRequest = {
-      location: { lat: Number(latitude), lng: Number(longitude) },
+    const propertyLocation = { lat: Number(latitude), lng: Number(longitude) };
+
+    // Fetch tourist attractions
+    const attractionsRequest: google.maps.places.PlaceSearchRequest = {
+      location: propertyLocation,
       radius: 2000,
       type: 'tourist_attraction',
     };
 
-    service.nearbySearch(request, (results, status) => {
+    // Fetch restaurants/eateries
+    const eateryRequest: google.maps.places.PlaceSearchRequest = {
+      location: propertyLocation,
+      radius: 1500,
+      type: 'restaurant',
+    };
+
+    let attractionResults: google.maps.places.PlaceResult[] = [];
+    let eateryResult: google.maps.places.PlaceResult | null = null;
+
+    // Fetch attractions first
+    service.nearbySearch(attractionsRequest, (results, status) => {
       if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-        const topAttractions = results
+        attractionResults = results
           .filter(r => r.rating && r.user_ratings_total && r.user_ratings_total >= 10)
           .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-          .slice(0, 5);
-        
-        setAttractions(topAttractions);
+          .slice(0, 4); // Take 4 attractions, leave room for 1 eatery
       }
+
+      // Then fetch eatery
+      service.nearbySearch(eateryRequest, (eateryResults, eateryStatus) => {
+        if (eateryStatus === google.maps.places.PlacesServiceStatus.OK && eateryResults) {
+          // Get top-rated restaurant
+          eateryResult = eateryResults
+            .filter(r => r.rating && r.rating >= 4.0 && r.user_ratings_total && r.user_ratings_total >= 20)
+            .sort((a, b) => (b.rating || 0) - (a.rating || 0))[0] || null;
+        }
+
+        // Combine: 4 attractions + 1 eatery
+        const combined = [...attractionResults];
+        if (eateryResult) {
+          combined.push(eateryResult);
+        }
+        setAttractions(combined);
+      });
     });
   }, [mapsLoaded, hasCoordinates, latitude, longitude]);
 
-  // Render attraction markers when attractions are loaded
+  // Render attraction markers when attractions are loaded and fit bounds
   useEffect(() => {
-    if (!mapInstanceRef.current || attractions.length === 0) return;
+    if (!mapInstanceRef.current || attractions.length === 0 || !hasCoordinates) return;
 
     // Clear existing attraction markers
     attractionMarkersRef.current.forEach(m => m.setMap(null));
@@ -165,8 +194,18 @@ export function InvitationMap({
       attractionInfoWindowRef.current = new google.maps.InfoWindow();
     }
 
+    // Create bounds to fit all markers
+    const bounds = new google.maps.LatLngBounds();
+    bounds.extend({ lat: Number(latitude), lng: Number(longitude) }); // Include property
+
     attractions.forEach((place, index) => {
       if (!place.geometry?.location) return;
+
+      // Extend bounds to include this attraction
+      bounds.extend(place.geometry.location);
+
+      // Check if this is an eatery (last item if we have 5)
+      const isEatery = index === attractions.length - 1 && attractions.length === 5;
 
       const marker = new google.maps.Marker({
         position: place.geometry.location,
@@ -183,16 +222,18 @@ export function InvitationMap({
         zIndex: 100 + index,
       });
 
-      // Create InfoWindow content with rating
+      // Create InfoWindow content with rating and type indicator
       const ratingStars = place.rating ? '★'.repeat(Math.round(place.rating)) : '';
       const displayName = (place.name || '').substring(0, 25) + ((place.name?.length || 0) > 25 ? '...' : '');
+      const typeLabel = isEatery ? '<span style="font-size: 10px; color: #888;">🍽️ Eatery</span>' : '';
 
       // Show InfoWindow on hover
       marker.addListener('mouseover', () => {
         attractionInfoWindowRef.current?.setContent(`
-          <div style="font-family: system-ui, sans-serif; padding: 6px 10px; max-width: 160px;">
+          <div style="font-family: system-ui, sans-serif; padding: 6px 10px; max-width: 180px;">
             <p style="font-weight: 600; font-size: 12px; margin: 0 0 2px 0; color: #111;">${displayName}</p>
             <p style="font-size: 11px; color: ${ATTRACTION_COLORS[index]}; margin: 0;">${ratingStars} ${place.rating?.toFixed(1) || ''}</p>
+            ${typeLabel}
           </div>
         `);
         attractionInfoWindowRef.current?.open(mapInstanceRef.current, marker);
@@ -212,11 +253,14 @@ export function InvitationMap({
       attractionMarkersRef.current.push(marker);
     });
 
+    // Fit map to show all markers with padding
+    mapInstanceRef.current.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+
     // Cleanup on unmount
     return () => {
       attractionMarkersRef.current.forEach(m => m.setMap(null));
     };
-  }, [attractions]);
+  }, [attractions, hasCoordinates, latitude, longitude]);
 
   const handleShare = async () => {
     if (navigator.share) {
