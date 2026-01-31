@@ -55,6 +55,7 @@ export function StepMediaDocuments({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [docUploading, setDocUploading] = useState(false);
+  const [videoUploading, setVideoUploading] = useState(false);
   const [selectedType, setSelectedType] = useState<string>("rate_sheet");
   const [openSections, setOpenSections] = useState({ images: true, video: false, docs: false });
 
@@ -158,7 +159,76 @@ export function StepMediaDocuments({
     updateField("images", updated);
   };
 
-  // Document upload handler
+  // Video upload handler with duration validation
+  const handleVideoUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (50MB max for videos)
+    if (file.size > 50 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Maximum 50MB for videos", variant: "destructive" });
+      e.target.value = "";
+      return;
+    }
+
+    // Validate video duration
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    
+    const durationCheck = new Promise<boolean>((resolve) => {
+      video.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(video.src);
+        if (video.duration > 10) {
+          toast({ 
+            title: "Video too long", 
+            description: `Video is ${Math.round(video.duration)}s. Maximum 10 seconds allowed.`, 
+            variant: "destructive" 
+          });
+          resolve(false);
+        } else {
+          resolve(true);
+        }
+      };
+      video.onerror = () => {
+        toast({ title: "Invalid video", description: "Could not read video file", variant: "destructive" });
+        resolve(false);
+      };
+    });
+
+    video.src = URL.createObjectURL(file);
+    const isValid = await durationCheck;
+    
+    if (!isValid) {
+      e.target.value = "";
+      return;
+    }
+
+    setVideoUploading(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const fileName = `${propertyData.id}/${Date.now()}-hero.${ext}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("hero-videos")
+        .upload(fileName, file, { cacheControl: '3600', upsert: false });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("hero-videos")
+        .getPublicUrl(fileName);
+
+      updateField("amenities.hero_video_url", publicUrl);
+      toast({ title: "Video uploaded successfully" });
+    } catch (error) {
+      console.error('Video upload error:', error);
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setVideoUploading(false);
+      e.target.value = "";
+    }
+  }, [propertyData.id, updateField, toast]);
+
   const handleDocUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -331,19 +401,88 @@ export function StepMediaDocuments({
           </div>
           <ChevronDown className={cn("h-4 w-4 transition-transform", openSections.video && "rotate-180")} />
         </CollapsibleTrigger>
-        <CollapsibleContent className="pt-3 space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="hero_video_url">Video URL (Optional)</Label>
-            <Input
-              id="hero_video_url"
-              value={heroVideoUrl}
-              onChange={(e) => updateField("amenities.hero_video_url", e.target.value)}
-              placeholder="https://youtube.com/... or https://vimeo.com/..."
-            />
-            <p className="text-xs text-muted-foreground">
-              Add a YouTube or Vimeo link to showcase your property
-            </p>
-          </div>
+        <CollapsibleContent className="pt-3 space-y-4">
+          {/* Video preview if exists */}
+          {heroVideoUrl && (
+            <div className="space-y-2">
+              <Label>Current Video</Label>
+              <div className="relative aspect-video rounded-lg overflow-hidden border bg-muted">
+                {heroVideoUrl.includes('youtube') || heroVideoUrl.includes('vimeo') ? (
+                  <div className="flex items-center justify-center h-full">
+                    <a href={heroVideoUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline text-sm">
+                      View on {heroVideoUrl.includes('youtube') ? 'YouTube' : 'Vimeo'}
+                    </a>
+                  </div>
+                ) : (
+                  <video src={heroVideoUrl} controls className="w-full h-full object-cover" />
+                )}
+                <Button 
+                  type="button" 
+                  variant="destructive" 
+                  size="icon" 
+                  onClick={() => updateField("amenities.hero_video_url", "")} 
+                  className="absolute top-2 right-2 h-7 w-7"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {!heroVideoUrl && (
+            <>
+              {/* Upload option */}
+              <div className="space-y-2">
+                <Label>Upload Video (max 10 seconds)</Label>
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime"
+                    onChange={handleVideoUpload}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    disabled={videoUploading}
+                  />
+                  <div className={cn(
+                    "flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 transition-colors",
+                    videoUploading ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary"
+                  )}>
+                    {videoUploading ? (
+                      <>
+                        <Loader2 className="h-6 w-6 animate-spin text-primary mb-2" />
+                        <p className="text-sm">Uploading video...</p>
+                      </>
+                    ) : (
+                      <>
+                        <Video className="h-6 w-6 text-muted-foreground mb-2" />
+                        <p className="text-sm">Drop video or click to upload</p>
+                        <p className="text-xs text-muted-foreground">MP4, WebM, MOV • Max 10 seconds</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex-1 border-t" />
+                <span className="text-xs text-muted-foreground">OR</span>
+                <div className="flex-1 border-t" />
+              </div>
+
+              {/* URL option */}
+              <div className="space-y-2">
+                <Label htmlFor="hero_video_url">Paste Video URL</Label>
+                <Input
+                  id="hero_video_url"
+                  value={heroVideoUrl}
+                  onChange={(e) => updateField("amenities.hero_video_url", e.target.value)}
+                  placeholder="https://youtube.com/... or https://vimeo.com/..."
+                />
+                <p className="text-xs text-muted-foreground">
+                  YouTube, Vimeo, or direct video link
+                </p>
+              </div>
+            </>
+          )}
         </CollapsibleContent>
       </Collapsible>
 
