@@ -2,12 +2,19 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, CheckCircle, AlertCircle, Send, Award } from "lucide-react";
+import { Loader2, CheckCircle, AlertCircle, Send, Award, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import { StepProps } from "./types";
 import { SCORE_WEIGHTS, getScoreBand, OnboardingImage } from "@/config/onboardingFieldSchema";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
+
+interface MissingItem {
+  label: string;
+  impact: 'critical' | 'high' | 'medium' | 'low';
+}
 
 interface SectionStatus {
   id: string;
@@ -15,7 +22,15 @@ interface SectionStatus {
   score: number;
   maxScore: number;
   isComplete: boolean;
+  missingItems: MissingItem[];
 }
+
+const IMPACT_STYLES = {
+  critical: { bg: "bg-destructive/10", text: "text-destructive", border: "border-destructive/30" },
+  high: { bg: "bg-orange-500/10", text: "text-orange-600", border: "border-orange-500/30" },
+  medium: { bg: "bg-yellow-500/10", text: "text-yellow-600", border: "border-yellow-500/30" },
+  low: { bg: "bg-muted", text: "text-muted-foreground", border: "border-muted" },
+};
 
 export function StepReviewSubmit({
   propertyData,
@@ -24,6 +39,7 @@ export function StepReviewSubmit({
 }: StepProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   const amenities = (propertyData.amenities || {}) as Record<string, unknown>;
 
@@ -47,119 +63,200 @@ export function StepReviewSubmit({
     return undefined;
   };
 
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) {
+        next.delete(sectionId);
+      } else {
+        next.add(sectionId);
+      }
+      return next;
+    });
+  };
+
   const calculateSectionScores = (): SectionStatus[] => {
     const sections: SectionStatus[] = [];
 
     // Property Identity (includes offerings & business)
     const offerings = amenities.offerings as Record<string, boolean> | undefined;
     const offeringCount = offerings ? Object.values(offerings).filter(Boolean).length : 0;
-    const identityFields = [propertyData.name, propertyData.property_type, offeringCount > 0].filter(Boolean).length;
+    const hasName = !!propertyData.name;
+    const hasType = !!propertyData.property_type;
+    const hasOfferings = offeringCount > 0;
+    const identityFields = [hasName, hasType, hasOfferings].filter(Boolean).length;
+    
+    const identityMissing: MissingItem[] = [];
+    if (!hasName) identityMissing.push({ label: "Property name", impact: "critical" });
+    if (!hasType) identityMissing.push({ label: "Property type", impact: "critical" });
+    if (!hasOfferings) identityMissing.push({ label: "Offerings (accommodation, events, etc.)", impact: "high" });
+    
     sections.push({
       id: "property_identity",
       title: "Property Identity",
       score: Math.round((identityFields / 3) * SCORE_WEIGHTS.property_identity),
       maxScore: SCORE_WEIGHTS.property_identity,
-      isComplete: identityFields >= 2
+      isComplete: identityFields >= 2,
+      missingItems: identityMissing
     });
 
     // Contact Details - check nested paths
     const hasPhone = !!(getNestedValue('contact.telephone', 'telephone') || getNestedValue('contact.mobile', 'mobile'));
     const hasEmail = !!(getNestedValue('contact.email', 'contact_email'));
     const contactFields = [hasPhone, hasEmail].filter(Boolean).length;
+    
+    const contactMissing: MissingItem[] = [];
+    if (!hasPhone) contactMissing.push({ label: "Phone number", impact: "high" });
+    if (!hasEmail) contactMissing.push({ label: "Email address", impact: "high" });
+    
     sections.push({
       id: "contact_details",
       title: "Contact & Team",
       score: Math.round((contactFields / 2) * SCORE_WEIGHTS.contact_details),
       maxScore: SCORE_WEIGHTS.contact_details,
-      isComplete: contactFields >= 1
+      isComplete: contactFields >= 1,
+      missingItems: contactMissing
     });
 
     // Location
-    const locationFields = [propertyData.address, propertyData.city, propertyData.country, propertyData.latitude].filter(Boolean).length;
+    const hasAddress = !!propertyData.address;
+    const hasCity = !!propertyData.city;
+    const hasCountry = !!propertyData.country;
+    const hasCoords = !!propertyData.latitude;
+    const locationFields = [hasAddress, hasCity, hasCountry, hasCoords].filter(Boolean).length;
+    
+    const locationMissing: MissingItem[] = [];
+    if (!hasAddress) locationMissing.push({ label: "Street address", impact: "critical" });
+    if (!hasCity) locationMissing.push({ label: "City", impact: "critical" });
+    if (!hasCountry) locationMissing.push({ label: "Country", impact: "critical" });
+    if (!hasCoords) locationMissing.push({ label: "Map coordinates", impact: "medium" });
+    
     sections.push({
       id: "location",
       title: "Location",
       score: Math.round((locationFields / 4) * SCORE_WEIGHTS.location),
       maxScore: SCORE_WEIGHTS.location,
-      isComplete: locationFields >= 3
+      isComplete: locationFields >= 3,
+      missingItems: locationMissing
     });
 
-    // Policies & Pricing (enhanced with nested paths)
-    // Check-in/out times - check nested house_rules paths
+    // Policies & Pricing
     const hasCheckInTime = !!(getNestedValue('house_rules.check_in_from', 'check_in_from', 'check_in_time'));
     const hasCheckOutTime = !!(getNestedValue('house_rules.check_out_to', 'check_out_to', 'check_out_from'));
-    // Banking - check nested paths
     const hasBanking = !!(getNestedValue('banking.bank_name', 'bank_name', 'banking.bank_confirmation_letter_url', 'bank_confirmation_letter_url'));
-    // Cancellation - check both array and flat field
     const cancellationPolicies = getNestedValue('cancellation_policies') as unknown[] | undefined;
     const hasCancellation = !!(cancellationPolicies && cancellationPolicies.length > 0) || !!getNestedValue('cancellation_policy');
     const hasPaymentPolicy = !!getNestedValue('payment_policy');
     
-    const policyFields = [
-      hasCheckInTime,
-      hasCheckOutTime,
-      hasBanking,
-      hasCancellation,
-      hasPaymentPolicy
-    ].filter(Boolean).length;
+    const policyFields = [hasCheckInTime, hasCheckOutTime, hasBanking, hasCancellation, hasPaymentPolicy].filter(Boolean).length;
+    
+    const policyMissing: MissingItem[] = [];
+    if (!hasCheckInTime) policyMissing.push({ label: "Check-in time", impact: "critical" });
+    if (!hasCheckOutTime) policyMissing.push({ label: "Check-out time", impact: "critical" });
+    if (!hasBanking) policyMissing.push({ label: "Banking details", impact: "high" });
+    if (!hasCancellation) policyMissing.push({ label: "Cancellation policy", impact: "high" });
+    if (!hasPaymentPolicy) policyMissing.push({ label: "Payment policy", impact: "medium" });
+    
     sections.push({
       id: "policies_pricing",
       title: "Policies & Pricing",
       score: Math.round((policyFields / 5) * SCORE_WEIGHTS.policies_pricing),
       maxScore: SCORE_WEIGHTS.policies_pricing,
-      isComplete: hasCheckInTime && hasCheckOutTime
+      isComplete: hasCheckInTime && hasCheckOutTime,
+      missingItems: policyMissing
     });
 
-    // Guest Experience (enhanced with nested paths)
+    // Guest Experience
+    const hasDescription = !!propertyData.description;
+    const hasShortDesc = !!propertyData.short_description;
+    const hasUSP = !!getNestedValue('unique_selling_points');
     const hasMealPlan = !!(getNestedValue('meal_plan') || (getNestedValue('breakfast_options') as unknown[] | undefined)?.length);
-    const descFields = [
-      propertyData.description,
-      propertyData.short_description,
-      getNestedValue('unique_selling_points'),
-      hasMealPlan
-    ].filter(Boolean).length;
+    const descFields = [hasDescription, hasShortDesc, hasUSP, hasMealPlan].filter(Boolean).length;
+    
+    const guestMissing: MissingItem[] = [];
+    if (!hasDescription) guestMissing.push({ label: "Full description", impact: "critical" });
+    if (!hasShortDesc) guestMissing.push({ label: "Short marketing summary", impact: "high" });
+    if (!hasUSP) guestMissing.push({ label: "Unique selling points", impact: "medium" });
+    if (!hasMealPlan) guestMissing.push({ label: "Meal options", impact: "low" });
+    
     sections.push({
       id: "guest_experience",
       title: "Guest Experience",
       score: Math.round((descFields / 4) * SCORE_WEIGHTS.guest_experience),
       maxScore: SCORE_WEIGHTS.guest_experience,
-      isComplete: !!propertyData.description
+      isComplete: !!propertyData.description,
+      missingItems: guestMissing
     });
 
     // Facilities
     const facilities = amenities.facilities as string[] | undefined;
+    const hasFacilities = (facilities?.length || 0) >= 5;
+    
+    const facilityMissing: MissingItem[] = [];
+    if (!facilities || facilities.length === 0) {
+      facilityMissing.push({ label: "No facilities selected", impact: "high" });
+    } else if (facilities.length < 5) {
+      facilityMissing.push({ label: `Only ${facilities.length} facilities (recommend 5+)`, impact: "medium" });
+    }
+    
     sections.push({
       id: "facilities",
       title: "Facilities",
       score: facilities && facilities.length > 0 ? SCORE_WEIGHTS.facilities : 0,
       maxScore: SCORE_WEIGHTS.facilities,
-      isComplete: (facilities?.length || 0) >= 5
+      isComplete: hasFacilities,
+      missingItems: facilityMissing
     });
 
-    // Rooms (enhanced with units and rate_unit)
-    const roomTypes = amenities.room_types as Array<{ name?: string; units?: number; max_guests?: number }> | undefined;
-    const roomsComplete = roomTypes && roomTypes.length > 0 && roomTypes.every(r => r.name && r.max_guests);
+    // Rooms
+    const roomTypes = amenities.room_types as Array<{ name?: string; units?: number; max_guests?: number; base_rate?: number }> | undefined;
+    const hasRooms = roomTypes && roomTypes.length > 0;
+    const allRoomsNamed = roomTypes?.every(r => r.name) ?? false;
+    const allRoomsHaveGuests = roomTypes?.every(r => r.max_guests) ?? false;
+    const allRoomsHaveRates = roomTypes?.every(r => r.base_rate) ?? false;
+    const roomsComplete = hasRooms && allRoomsNamed && allRoomsHaveGuests;
+    
+    const roomMissing: MissingItem[] = [];
+    if (!hasRooms) {
+      roomMissing.push({ label: "No rooms added", impact: "critical" });
+    } else {
+      if (!allRoomsNamed) roomMissing.push({ label: "Some rooms missing names", impact: "critical" });
+      if (!allRoomsHaveGuests) roomMissing.push({ label: "Some rooms missing max guests", impact: "critical" });
+      if (!allRoomsHaveRates) roomMissing.push({ label: "Some rooms missing rates", impact: "high" });
+    }
+    
     sections.push({
       id: "rooms_overview",
       title: "Rooms",
-      score: roomTypes && roomTypes.length > 0 ? SCORE_WEIGHTS.rooms_overview : 0,
+      score: hasRooms ? SCORE_WEIGHTS.rooms_overview : 0,
       maxScore: SCORE_WEIGHTS.rooms_overview,
-      isComplete: !!roomsComplete
+      isComplete: !!roomsComplete,
+      missingItems: roomMissing
     });
 
-    // Media & Documents (enhanced with image validation)
+    // Media & Documents
     const images = (propertyData.images || []) as unknown as OnboardingImage[];
     const hasHero = images.some(img => img.type === 'hero');
     const hasMinImages = images.length >= 3;
     const imageScore = hasHero && hasMinImages ? 1 : 
                        hasMinImages ? 0.7 : 
                        images.length / 3;
+    
+    const mediaMissing: MissingItem[] = [];
+    if (images.length === 0) {
+      mediaMissing.push({ label: "No images uploaded", impact: "critical" });
+    } else {
+      if (!hasMinImages) mediaMissing.push({ label: `Only ${images.length} images (minimum 3)`, impact: "critical" });
+      if (!hasHero) mediaMissing.push({ label: "No hero image designated", impact: "high" });
+    }
+    
     sections.push({
       id: "media_documents",
       title: "Media & Documents",
       score: Math.round(imageScore * SCORE_WEIGHTS.media_documents),
       maxScore: SCORE_WEIGHTS.media_documents,
-      isComplete: hasMinImages && hasHero
+      isComplete: hasMinImages && hasHero,
+      missingItems: mediaMissing
     });
 
     return sections;
@@ -236,23 +333,86 @@ export function StepReviewSubmit({
       </Card>
 
       <div className="space-y-2">
-        {sectionScores.map((section) => (
-          <div key={section.id} className="flex items-center gap-3 rounded-lg border p-3">
-            <div className={cn(
-              "flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center",
-              section.isComplete ? "bg-green-100 text-green-600" : "bg-muted text-muted-foreground"
-            )}>
-              {section.isComplete ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{section.title}</p>
-            </div>
-            <div className="flex-shrink-0 text-sm">
-              <span className={section.isComplete ? "text-green-600" : "text-muted-foreground"}>{section.score}</span>
-              <span className="text-muted-foreground">/{section.maxScore}</span>
-            </div>
-          </div>
-        ))}
+        {sectionScores.map((section) => {
+          const hasMissing = section.missingItems.length > 0;
+          const isExpanded = expandedSections.has(section.id);
+          
+          return (
+            <Collapsible
+              key={section.id}
+              open={isExpanded}
+              onOpenChange={() => hasMissing && toggleSection(section.id)}
+            >
+              <div className={cn(
+                "rounded-lg border transition-colors",
+                hasMissing && "cursor-pointer hover:bg-muted/50"
+              )}>
+                <CollapsibleTrigger asChild disabled={!hasMissing}>
+                  <div className="flex items-center gap-3 p-3">
+                    <div className={cn(
+                      "flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center",
+                      section.isComplete ? "bg-green-100 text-green-600" : "bg-muted text-muted-foreground"
+                    )}>
+                      {section.isComplete ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{section.title}</p>
+                      {!section.isComplete && hasMissing && (
+                        <p className="text-xs text-muted-foreground">
+                          {section.missingItems.length} item{section.missingItems.length > 1 ? 's' : ''} missing
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-shrink-0 text-sm">
+                        <span className={section.isComplete ? "text-green-600" : "text-muted-foreground"}>{section.score}</span>
+                        <span className="text-muted-foreground">/{section.maxScore}</span>
+                      </div>
+                      {hasMissing && (
+                        isExpanded ? 
+                          <ChevronUp className="h-4 w-4 text-muted-foreground" /> : 
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </div>
+                </CollapsibleTrigger>
+                
+                <CollapsibleContent>
+                  <div className="px-3 pb-3 pt-0 border-t">
+                    <div className="pt-3 space-y-2">
+                      {section.missingItems.map((item, idx) => {
+                        const style = IMPACT_STYLES[item.impact];
+                        return (
+                          <div 
+                            key={idx} 
+                            className={cn(
+                              "flex items-center gap-2 p-2 rounded-md border",
+                              style.bg,
+                              style.border
+                            )}
+                          >
+                            <AlertTriangle className={cn("h-3.5 w-3.5 flex-shrink-0", style.text)} />
+                            <span className="text-sm flex-1">{item.label}</span>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-[10px] uppercase font-semibold",
+                                style.text,
+                                style.border
+                              )}
+                            >
+                              {item.impact}
+                            </Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+          );
+        })}
       </div>
 
       <Button size="lg" onClick={handleSubmit} disabled={isSubmitting} className="w-full gap-2">
