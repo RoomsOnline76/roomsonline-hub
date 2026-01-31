@@ -681,23 +681,26 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         const dateStr = format(iterDate, "yyyy-MM-dd");
         const override = overridesMap.get(`${room.name}-${dateStr}`);
         
-        // Availability: default 99 (unlimited), respect overrides
+        // Get room's actual unit count and default restrictions from wizard config
+        const roomUnits = room.units || 1;
+        const roomMinStay = room.minStay ?? room.minimum_stay ?? null;
+        const roomMaxStay = room.maxStay ?? room.maximum_stay ?? null;
+        
+        // Availability: use room units as default (not 99), respect overrides
         if (override?.is_stop_sell) {
           availabilityByDate[dateStr] = 0;
         } else {
-          availabilityByDate[dateStr] = override?.available_units ?? 99;
+          availabilityByDate[dateStr] = override?.available_units ?? roomUnits;
         }
         
-        // Restrictions from overrides
-        if (override) {
-          restrictionsByDate[dateStr] = {
-            stopSell: override.is_stop_sell,
-            minStay: override.minimum_stay,
-            maxStay: override.maximum_stay,
-            leadDaysAdvance: override.lead_days_advance,
-            leadDaysPost: override.lead_days_post,
-          };
-        }
+        // Restrictions: apply room defaults for ALL dates, merge overrides on top
+        restrictionsByDate[dateStr] = {
+          stopSell: override?.is_stop_sell ?? false,
+          minStay: override?.minimum_stay ?? roomMinStay,
+          maxStay: override?.maximum_stay ?? roomMaxStay,
+          leadDaysAdvance: override?.lead_days_advance ?? null,
+          leadDaysPost: override?.lead_days_post ?? null,
+        };
         
         // Rates: find applicable season, then look up season rate
         ratesByDate[dateStr] = [];
