@@ -1243,15 +1243,12 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
 
   const generateWeekDates = () => {
     const dates: Date[] = [];
-    const startOfWeek = new Date(currentDate);
-    // Start from Saturday
-    const day = startOfWeek.getDay();
-    const diff = day === 6 ? 0 : -(day + 1);
-    startOfWeek.setDate(startOfWeek.getDate() + diff);
+    // Always start from today (currentDate), not start of calendar week
+    const startDate = new Date(currentDate);
     
-    for (let i = 0; i < 9; i++) { // 9 days for the grid view
-      const date = new Date(startOfWeek);
-      date.setDate(startOfWeek.getDate() + i);
+    for (let i = 0; i < 9; i++) { // 9 days starting from today
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
       dates.push(date);
     }
     return dates;
@@ -1259,12 +1256,14 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
 
   const generateMonthDates = () => {
     const dates: Date[] = [];
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    // Always start from currentDate (which is today on initial load), not first of month
+    const startDate = new Date(currentDate);
     
-    for (let day = 1; day <= daysInMonth; day++) {
-      dates.push(new Date(year, month, day));
+    // Generate 31 days starting from currentDate
+    for (let i = 0; i < 31; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      dates.push(date);
     }
     return dates;
   };
