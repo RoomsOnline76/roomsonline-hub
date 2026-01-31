@@ -621,6 +621,47 @@ export type Database = {
           },
         ]
       }
+      experience_vouchers: {
+        Row: {
+          code: string
+          created_at: string | null
+          description: string | null
+          discount_percent: number | null
+          id: string
+          itinerary_id: string | null
+          redeemed_at: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          description?: string | null
+          discount_percent?: number | null
+          id?: string
+          itinerary_id?: string | null
+          redeemed_at?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          description?: string | null
+          discount_percent?: number | null
+          id?: string
+          itinerary_id?: string | null
+          redeemed_at?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "experience_vouchers_itinerary_id_fkey"
+            columns: ["itinerary_id"]
+            isOneToOne: false
+            referencedRelation: "itineraries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       field_registry: {
         Row: {
           created_at: string | null
