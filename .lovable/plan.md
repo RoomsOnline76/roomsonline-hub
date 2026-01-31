@@ -1,291 +1,572 @@
 
 
-# Plan: Streamline Journey Booking Flow and Fix Critical UX Issues
+# Plan: AI Concierge Booking Experience – Complete 4-Phase Implementation
 
-## Summary of Issues Identified
+## Executive Summary
 
-Based on code analysis, the user is experiencing these interconnected issues:
-
-1. **Two Competing Booking Flows**: The codebase has two parallel booking flows:
-   - **"Journey" Flow**: PropertyShowcase -> QuickBookDrawer -> ItineraryContext -> /journey/review -> /journey/checkout
-   - **"Legacy/Single" Flow**: PropertyShowcase -> QuickBookDrawer -> /booking/:slug (Booking.tsx)
-
-   Currently, `QuickBookDrawer.handleContinueToCheckout()` routes to `/booking/:slug` (legacy), NOT the journey flow!
-
-2. **Dates Not Passing Through**: MobileBookingContext dates are read in QuickBookDrawer but:
-   - The initial FloatingDateGuestPicker on PropertyShowcase updates `MobileBookingContext`
-   - QuickBookDrawer reads from MobileBookingContext for initial values only - if drawer was previously opened/closed, local state may not sync
-
-3. **JourneyBuilder Blocking Checkout on Mobile**: The floating JourneyBuilder panel sits at `bottom-4 right-4` with a fixed width of `w-80`. On mobile, this overlaps with checkout buttons in the QuickBookDrawer footer (which also appears at the bottom).
-
-4. **Too Many Clicks**: Current flow requires 6+ clicks:
-   1. Select dates on PropertyShowcase (FloatingDateGuestPicker) 
-   2. Click "Book Now" to open QuickBookDrawer
-   3. Select room (if multiple)
-   4. Confirm dates (often re-select since not synced)
-   5. Set guests
-   6. Click "Continue to Checkout"
-   7. Land on /booking/:slug - fill guest details
-   8. Click "Complete Booking"
-
-   Target: 2-3 steps maximum
+Transform the RoomsOnline booking flow from a multi-widget, navigation-heavy experience into a magical AI-powered concierge system. This plan covers all four phases: Core UI, AI Intelligence, Enchanting PDF, and Production Polish.
 
 ---
 
-## Solution Architecture: Unify to Journey-Only Flow
+## Current Architecture Analysis
 
-### Core Change: Remove Legacy Booking Route Dependency
+### Existing Components
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `FloatingDateGuestPicker` | `src/components/booking/` | Bottom pill for date/guest selection |
+| `QuickBookDrawer` | `src/components/booking/` | Slide-up room selection & pricing |
+| `JourneyBuilder` | `src/components/journey/` | Floating mini panel for journey |
+| `JourneyCheckout` | `src/pages/` | Separate checkout page |
+| `MobileBookingContext` | `src/contexts/` | Session state for booking |
+| `ItineraryContext` | `src/contexts/` | Multi-property journey state |
+| `PayFastOnsiteModal` | `src/components/booking/` | Payment modal |
 
-**File: `src/components/booking/QuickBookDrawer.tsx`**
-
-Change the `handleContinueToCheckout` function to route to Journey flow instead of legacy `/booking/:slug`:
-
-```typescript
-const handleContinueToCheckout = () => {
-  if (!checkIn || !checkOut || !selectedRoomId) return;
-  
-  const selectedRoom = roomTypes.find(r => r.id === selectedRoomId);
-  const nights = differenceInDays(checkOut, checkIn);
-  
-  // Add to itinerary context
-  addStay({
-    property_id: propertyId,
-    property_name: propertyName,
-    property_slug: propertySlug,
-    property_image: propertyImage || "",
-    external_system: externalSystem || "",
-    dates: {
-      check_in: format(checkIn, "yyyy-MM-dd"),
-      check_out: format(checkOut, "yyyy-MM-dd"),
-    },
-    rooms: [{
-      room_type_id: selectedRoomId,
-      room_type_name: selectedRoom?.name || "",
-      quantity: 1,
-      rate_per_night: estimatedPrice ? estimatedPrice / nights : 0,
-      total_price: estimatedPrice || 0,
-    }],
-    guests,
-    price_breakdown: {
-      subtotal: estimatedPrice || 0,
-      fees: [],
-      taxes: [],
-      total: estimatedPrice || 0,
-    },
-    availability_status: 'available',
-    nights,
-  });
-  
-  onOpenChange(false);
-  
-  // Go directly to journey checkout (skip review for single-stay)
-  navigate('/journey/checkout');
-};
-```
-
-This reduces the flow to:
-1. Select dates + guests on PropertyShowcase
-2. Click "Book Now" -> QuickBookDrawer confirms room & price
-3. Click "Continue to Checkout" -> JourneyCheckout for guest details + payment
-
-**That's 3 steps maximum.**
+### Key PMS Integration Points (Must Preserve)
+- Live availability via `validate-itinerary-availability`
+- Booking creation via `multi-push-booking`
+- PayFast payment-first flow via `payfast-api`
+- Support: Benson, Hostfully, HotelBeds, NightsBridge, Manual properties
 
 ---
 
-### Fix 1: Sync Dates Between FloatingDateGuestPicker and QuickBookDrawer
+## Phase 1: Core UI Transformation
 
-**File: `src/components/booking/QuickBookDrawer.tsx`**
+### Goal
+Replace FloatingDateGuestPicker + QuickBookDrawer + separate checkout with:
+- AI Concierge Panel (sidebar/bottom sheet)
+- Smart Cart (sticky summary bar)
+- Inline Checkout (accordion, no navigation)
 
-Add a `useEffect` to sync dates from MobileBookingContext whenever the drawer opens:
+### New Components
 
-```typescript
-// Sync dates from MobileBookingContext when drawer opens
-useEffect(() => {
-  if (open) {
-    // Always sync from MobileBookingContext when drawer opens
-    if (mobileBookingState.checkIn) {
-      setCheckIn(new Date(mobileBookingState.checkIn));
-    }
-    if (mobileBookingState.checkOut) {
-      setCheckOut(new Date(mobileBookingState.checkOut));
-    }
-  }
-}, [open, mobileBookingState.checkIn, mobileBookingState.checkOut]);
+#### 1. `src/components/booking/AIConciergePanel.tsx`
+
+```text
+Desktop: Right sidebar (w-80)
+Mobile: Bottom sheet (collapsible)
+
+┌─────────────────────────────────────┐
+│ 🌿 Your Personal Travel Concierge  │
+├─────────────────────────────────────┤
+│ ┌─────────────────────────────────┐ │
+│ │ "Book 4 nights for 2 adults    │🎤│
+│ │  + 1 child in March..."        │ │
+│ └─────────────────────────────────┘ │
+│                                     │
+│ ┌─ AI Message Bubble ─────────────┐ │
+│ │ 💬 "I found 3 great options..." │ │
+│ └─────────────────────────────────┘ │
+│                                     │
+│ ┌─ Suggestion Cards ──────────────┐ │
+│ │ 📅 Mar 15-19 · R2,650/night    │ │
+│ │ ✨ Best value! Save R500       │ │
+│ │ [Select]                       │ │
+│ └─────────────────────────────────┘ │
+│                                     │
+│ ┌─ Manual Override ───────────────┐ │
+│ │ 📅 Select dates  │ 👥 Guests   │ │
+│ └─────────────────────────────────┘ │
+└─────────────────────────────────────┘
 ```
 
-Also update the date picker to write back to MobileBookingContext:
+**Features:**
+- Natural language input with placeholder examples
+- Voice input button (Web Speech API with fallback)
+- Initially collapsed on mobile, slides up on first interaction
+- Message bubble UI for AI responses
+- Selectable suggestion cards with pricing
+- Manual date/guest pickers as fallback
+- Proactive message after 8 seconds: "Need help choosing?"
 
-```typescript
-const handleDatesChange = (newCheckIn: Date, newCheckOut: Date) => {
-  setCheckIn(newCheckIn);
-  setCheckOut(newCheckOut);
-  
-  // Sync back to MobileBookingContext for consistency
-  const { setDates } = useMobileBooking();
-  setDates(format(newCheckIn, "yyyy-MM-dd"), format(newCheckOut, "yyyy-MM-dd"));
-};
+#### 2. `src/components/booking/SmartCart.tsx`
+
+```text
+Sticky bar at bottom of PropertyShowcase
+
+┌───────────────────────────────────────────────────────────────┐
+│ 🛏️ Ocean Suite · 4 nights · 2+1 guests │ R10,600 │ [Checkout]│
+│   ▲ Expand for details                                       │
+└───────────────────────────────────────────────────────────────┘
 ```
 
----
+**Features:**
+- Shows selected room, nights, guests, total price
+- Expands on tap to show breakdown
+- Real-time price updates from ItineraryContext
+- "Checkout" button triggers InlineCheckout accordion
+- Synced with ItineraryContext stays
 
-### Fix 2: Reposition JourneyBuilder on Mobile to Not Block CTAs
+#### 3. `src/components/booking/InlineCheckout.tsx`
 
-**File: `src/components/journey/JourneyBuilder.tsx`**
+```text
+Accordion that expands FROM SmartCart (no page navigation)
 
-Change the positioning to avoid blocking bottom CTAs on mobile:
-
-```typescript
-<motion.div
-  initial={{ y: 100, opacity: 0 }}
-  animate={{ y: 0, opacity: 1 }}
-  exit={{ y: 100, opacity: 0 }}
-  className={cn(
-    "fixed z-50",
-    // On mobile: position above the safe area and FloatingDateGuestPicker
-    // Use bottom-24 to clear the floating picker (~80px height)
-    "bottom-24 right-4 sm:bottom-4",
-    "w-80 max-w-[calc(100vw-2rem)]"
-  )}
->
+┌─ Guest Details ─────────────────────┐
+│ Name: [__________________________ ] │
+│ Email: [_________________________ ] │
+│ Phone: [_________________________ ] │
+└─────────────────────────────────────┘
+┌─ Special Requests ──────────────────┐
+│ [Any dietary requirements...      ] │
+└─────────────────────────────────────┘
+┌─ Payment ───────────────────────────┐
+│ Grand Total: R10,600                │
+│ [💳 Pay Now with PayFast]           │
+│ 🔒 Secured by PayFast · SSL        │
+└─────────────────────────────────────┘
 ```
 
-Alternatively, implement a "minimized" state on mobile that shows just a pill with count, not the full panel:
+**Features:**
+- Slides up from SmartCart when "Checkout" clicked
+- Guest details form with validation (name, email, phone)
+- Special requests textarea
+- Booking summary with price breakdown
+- PayFast button integrates with existing PayFastOnsiteModal
+- All on same page – zero navigation to /journey/checkout
+
+### Files to Create
+
+| File | Purpose |
+|------|---------|
+| `src/components/booking/AIConciergePanel.tsx` | Main AI input + suggestions UI |
+| `src/components/booking/SmartCart.tsx` | Sticky booking summary bar |
+| `src/components/booking/InlineCheckout.tsx` | Embedded checkout accordion |
+| `src/components/booking/VoiceInputButton.tsx` | Web Speech API wrapper |
+| `src/hooks/useSpeechRecognition.ts` | Speech recognition hook |
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/pages/PropertyShowcase.tsx` | Replace FloatingDateGuestPicker with AIConciergePanel + SmartCart |
+| `src/contexts/MobileBookingContext.tsx` | Add AI suggestions state, concierge messages |
+| `src/contexts/ItineraryContext.tsx` | Add concierge interaction tracking |
+| `src/hooks/useFeatureFlags.tsx` | Add `ai_concierge_enabled` flag |
+| `supabase/functions/get-feature-flags/index.ts` | Whitelist AI_CONCIERGE_ENABLED |
+
+### Feature Flag Implementation
 
 ```typescript
-const isMobile = useIsMobile();
+// In FeatureFlags interface
+ai_concierge_enabled: boolean;
 
-// On mobile, auto-minimize when not expanded
-const showMinimal = isMobile && !isExpanded;
+// In DEFAULT_FLAGS
+ai_concierge_enabled: false,
 
-return (
-  <motion.div className={cn(
-    "fixed z-50",
-    showMinimal 
-      ? "bottom-24 right-4" // Above the picker when minimized
-      : "bottom-4 right-4"   // Normal position when expanded
-  )}>
-    {showMinimal ? (
-      // Minimal pill view for mobile
-      <button
-        onClick={() => setIsExpanded(true)}
-        className="flex items-center gap-2 px-4 py-2 bg-card border rounded-full shadow-lg"
-      >
-        <Map className="h-4 w-4 text-primary" />
-        <span className="text-sm font-medium">{stayCount} stay{stayCount !== 1 ? 's' : ''}</span>
-        <span className="text-sm font-semibold text-primary">{formatCurrency(totalPrice)}</span>
-      </button>
-    ) : (
-      // Full panel view
-      <div className="bg-card border rounded-xl shadow-xl">
-        {/* existing content */}
-      </div>
-    )}
-  </motion.div>
-);
+// In get-feature-flags edge function
+const ALLOWED_FEATURE_FLAGS = [
+  // ... existing
+  'AI_CONCIERGE_ENABLED',
+];
 ```
 
----
-
-### Fix 3: Hide JourneyBuilder on Booking/Checkout Pages
-
-The JourneyBuilder is shown on Booking.tsx (legacy flow) which causes confusion. Since we're unifying to Journey flow:
-
-**File: `src/pages/Booking.tsx`**
-
-Add `hideJourneyBuilder` prop to PublicLayout:
+### PropertyShowcase Integration Logic
 
 ```typescript
-return (
-  <PublicLayout 
-    backLabel="Back to Property" 
-    backTo={`/property/${property.slug || property.id}`}
-    hideJourneyBuilder // Hide the floating builder on checkout pages
-  >
-```
+// In PropertyShowcase.tsx
+const { data: flags } = useFeatureFlags();
+const aiConciergeEnabled = flags?.ai_concierge_enabled ?? false;
 
----
-
-### Fix 4: Simplify QuickBookDrawer Flow for Single-Room Properties
-
-For properties with only one room type (like holiday houses), skip the room selection step entirely:
-
-**File: `src/components/booking/QuickBookDrawer.tsx`**
-
-The drawer already auto-selects single rooms. Enhance by showing a more streamlined view:
-
-```typescript
-// If single room and dates are pre-selected, show condensed view
-const isReadyToBook = checkIn && checkOut && selectedRoomId && estimatedPrice;
-
-// ... in render:
-{isReadyToBook && roomTypes.length === 1 && (
-  <div className="space-y-4">
-    {/* Single room display */}
-    <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50">
-      <Home className="h-5 w-5 text-primary" />
-      <div className="flex-1">
-        <p className="font-medium text-sm">{selectedRoom?.name}</p>
-        <p className="text-xs text-muted-foreground">
-          {format(checkIn, "MMM d")} – {format(checkOut, "MMM d, yyyy")} · {nights} nights
-        </p>
-      </div>
-      <Check className="h-4 w-4 text-primary" />
-    </div>
-    
-    {/* Price */}
-    <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10">
-      <div className="flex justify-between items-center">
-        <span>Estimated total</span>
-        <span className="text-xl font-bold">
-          <FormattedPrice amount={estimatedPrice} />
-        </span>
-      </div>
-    </div>
-  </div>
+// Render:
+{aiConciergeEnabled ? (
+  <>
+    <AIConciergePanel
+      propertyId={property.id}
+      propertyName={property.name}
+      roomTypes={roomTypes}
+      availability={calendarAvailability}
+      onRoomSelected={handleRoomSelection}
+    />
+    <SmartCart />
+    <InlineCheckout
+      onPaymentSuccess={handlePaymentSuccess}
+      onPaymentCancelled={handlePaymentCancelled}
+    />
+  </>
+) : (
+  <>
+    {/* Legacy flow - keep as fallback */}
+    <FloatingDateGuestPicker
+      onContinue={() => setQuickBookDrawerOpen(true)}
+      ctaLabel="Check Rates"
+      availabilityMap={calendarAvailability}
+    />
+    <QuickBookDrawer {...existingProps} />
+  </>
 )}
 ```
 
 ---
 
-## Files to Modify
+## Phase 2: AI Concierge Intelligence Layer
 
-1. **`src/components/booking/QuickBookDrawer.tsx`**
-   - Route to `/journey/checkout` instead of `/booking/:slug`
-   - Add date sync from MobileBookingContext on drawer open
-   - Simplify view for single-room, ready-to-book scenarios
+### New Edge Function: `supabase/functions/ai-booking-concierge/index.ts`
 
-2. **`src/components/journey/JourneyBuilder.tsx`**
-   - Reposition on mobile to `bottom-24` to avoid blocking CTAs
-   - Add minimal pill view option for mobile
+```typescript
+// Request structure
+interface ConciergeRequest {
+  property_id: string;
+  user_query: string;
+  current_dates?: { check_in: string; check_out: string };
+  current_guests?: { adults: number; children: number; infants: number };
+  session_id?: string;  // For surprise gift tracking
+}
 
-3. **`src/pages/Booking.tsx`**
-   - Add `hideJourneyBuilder` to PublicLayout
-   - (Optional) Add redirect to journey flow if stays exist in context
+// Response structure
+interface ConciergeResponse {
+  suggestions: {
+    type: 'dates' | 'room' | 'upsell' | 'date_alternative';
+    dates?: { check_in: string; check_out: string };
+    room?: { id: string; name: string; price_per_night: number; total: number };
+    message: string;
+    savings?: number;
+    is_best_value?: boolean;
+  }[];
+  narrative_response: string;  // Conversational reply from "Carike"
+  surprise_gift?: {
+    type: 'voucher' | 'upgrade' | 'amenity';
+    code?: string;
+    description: string;
+  };
+  proactive_tip?: string;  // Optional tip about the property
+}
+```
 
-4. **`src/pages/JourneyCheckout.tsx`**
-   - Handle single-stay flow gracefully (already works, just verify)
+### Intelligence Features
+
+1. **Natural Language Date Parsing**
+   - "4 nights in March" → Find best 4-night slots in March
+   - "Weekend getaway" → Friday-Sunday options
+   - "Avoid school holidays" → Filter peak periods
+   - "Next week for 2 adults and a child" → Parse guests + relative dates
+
+2. **Live PMS Availability (RULE #1)**
+   - ALWAYS fetch live availability from PMS (no stale cache for booking decisions)
+   - Route to correct adapter based on `external_system`
+   - Return availability-verified suggestions only
+
+3. **Smart Suggestions**
+   - Cheaper date alternatives: "Save R500 by arriving Wednesday"
+   - Room upsells: "Upgrade to Ocean View for +R450/night"
+   - Stay extensions: "Add an extra night for just R1,800"
+   - Value indicators on suggestions
+
+4. **Surprise & Delight (1x per session)**
+   - 10% random chance to offer surprise
+   - "I've arranged a complimentary bottle of wine"
+   - Track in session to prevent multiple offers
+
+### Proactive Messaging
+
+After 8 seconds idle on PropertyShowcase:
+```
+"Need help choosing dates? Tell me your ideal trip and I'll find the best options."
+```
+
+### Files to Create
+
+| File | Purpose |
+|------|---------|
+| `supabase/functions/ai-booking-concierge/index.ts` | AI brain for natural language booking |
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `supabase/config.toml` | Add ai-booking-concierge function config |
+| `src/components/booking/AIConciergePanel.tsx` | Connect to edge function, display suggestions |
 
 ---
 
-## User Flow After Changes
+## Phase 3: Enchanting PDF Brochure
 
-**Streamlined 3-Step Journey:**
+### Enhancements to Confirmation PDF
 
-1. **PropertyShowcase**: User sees property, taps dates in FloatingDateGuestPicker, adjusts guests
-2. **QuickBookDrawer**: Opens with dates pre-filled, confirms room & price, taps "Continue to Checkout"  
-3. **JourneyCheckout**: Enters guest details, completes booking
+The existing `generate-itinerary-pdf` already has good structure. Enhance with:
 
-**Mobile Specifically:**
-- JourneyBuilder floats above the date picker, showing as a minimal pill
-- Tapping pill expands to review journey
-- Checkout button always visible and accessible
+#### 1. AI-Generated Personal Poem/Story
+
+```typescript
+// Call Lovable AI for personalized 4-line poem
+const poemPrompt = `Create a 4-line poem for a guest named ${guestName} 
+visiting ${propertyNames.join(' and ')}. 
+Tone: ${detectedTone}. 
+Make it warm, personal, and memorable.`;
+
+// Example output:
+"Where mountains meet the morning light,
+Two hearts find peace from day to night.
+At Latter Days, your story grows—
+A love that only Africa knows."
+```
+
+#### 2. Personalized Cover Hero
+
+- Property hero image with gradient overlay
+- "Welcome, [GuestName]!" in elegant typography
+- Journey dates and destination count
+- Tone-appropriate subtitle
+
+#### 3. Weather Forecast
+
+```typescript
+// Fetch weather for travel dates
+const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,weathercode&start_date=${checkIn}&end_date=${checkOut}`;
+```
+
+#### 4. Surprise Voucher System
+
+```sql
+-- New table for experience vouchers
+CREATE TABLE experience_vouchers (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  itinerary_id uuid REFERENCES itineraries(id),
+  code text UNIQUE NOT NULL,
+  discount_percent int DEFAULT 25,
+  description text,
+  valid_until timestamptz,
+  redeemed_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE experience_vouchers ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public can read own vouchers" ON experience_vouchers
+  FOR SELECT USING (
+    itinerary_id IN (
+      SELECT id FROM itineraries WHERE guest_email = current_setting('request.jwt.claims', true)::json->>'email'
+    )
+  );
+```
+
+Generate unique voucher code like `SUNSET-[random4]` for local experience discount.
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `supabase/functions/generate-itinerary-pdf/index.ts` | Add poem, weather, voucher generation |
+| `supabase/functions/send-itinerary-email/index.ts` | Ensure PDF attachment works |
+
+### Database Migration
+
+- Create `experience_vouchers` table for tracking surprise gifts
 
 ---
 
-## Technical Considerations
+## Phase 4: Polish & Production Readiness
 
-- **Backward Compatibility**: The legacy `/booking/:slug` route can remain for direct links, but primary flow uses Journey
-- **Session Persistence**: ItineraryContext already persists to sessionStorage
-- **Guest Details Sticky**: Already implemented via localStorage in ItineraryContext
-- **PMS Integration**: JourneyCheckout already calls `multi-push-booking` which handles all PMS types
+### Voice Input Implementation
+
+```typescript
+// src/hooks/useSpeechRecognition.ts
+export function useSpeechRecognition() {
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [isSupported, setIsSupported] = useState(false);
+
+  useEffect(() => {
+    setIsSupported('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
+  }, []);
+
+  const startListening = useCallback(() => {
+    if (!isSupported) return;
+    
+    const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map(result => result[0].transcript)
+        .join('');
+      setTranscript(transcript);
+    };
+    
+    recognition.onend = () => setIsListening(false);
+    recognition.start();
+    setIsListening(true);
+  }, [isSupported]);
+
+  return { isListening, transcript, startListening, isSupported };
+}
+```
+
+### Graceful Fallback Logic
+
+```typescript
+// In PropertyShowcase.tsx
+const { data: flags, isLoading: flagsLoading } = useFeatureFlags();
+const aiConciergeEnabled = flags?.ai_concierge_enabled ?? false;
+
+// If AI fails, fall back to legacy
+const [aiFailed, setAiFailed] = useState(false);
+
+const handleAIError = () => {
+  setAiFailed(true);
+  toast.info("Switching to manual booking...");
+};
+
+// Render:
+{aiConciergeEnabled && !aiFailed ? (
+  <AIConciergePanel onError={handleAIError} ... />
+) : (
+  <FloatingDateGuestPicker ... />
+)}
+```
+
+### Loading States
+
+| Component | Loading State |
+|-----------|---------------|
+| AIConciergePanel | Skeleton placeholder for suggestions |
+| AI Response | Animated typing indicator |
+| SmartCart | Price calculation shimmer |
+| InlineCheckout | Form skeleton |
+
+### Error States
+
+| Error | User Message |
+|-------|--------------|
+| Network error | "I'm having trouble connecting. Let me try again..." |
+| Rate limit | "I need a moment to catch my breath. Please try again shortly." |
+| PMS unavailable | Falls back to calendar-based selection |
+| AI parse failure | "I didn't quite catch that. Try: '3 nights for 2 adults in March'" |
+
+### JourneyConfirmation Enhancement
+
+Update confirmation page to highlight the PDF:
+```
+🎁 Your Magical Itinerary
+We've created a beautiful travel document just for you.
+[Download PDF] [Share Journey]
+```
+
+### State Machine Update
+
+Update `docs/system-export/booking-flow-state-machine.json`:
+
+```json
+{
+  "ai_concierge_flow": {
+    "states": [
+      "idle",
+      "listening",
+      "thinking", 
+      "suggesting",
+      "cart_ready",
+      "checkout_open",
+      "validating",
+      "payment_active",
+      "confirmed"
+    ],
+    "transitions": {
+      "idle → listening": "user_speaks OR user_types",
+      "listening → thinking": "query_submitted",
+      "thinking → suggesting": "ai_response_received",
+      "suggesting → cart_ready": "suggestion_selected",
+      "cart_ready → checkout_open": "checkout_button_clicked",
+      "checkout_open → validating": "pay_button_clicked",
+      "validating → payment_active": "availability_confirmed",
+      "payment_active → confirmed": "payfast_callback_success"
+    },
+    "fallback": "On any AI error → revert to legacy FloatingDateGuestPicker flow"
+  }
+}
+```
+
+---
+
+## Technical Implementation Order
+
+### Week 1: Phase 1 Foundation
+1. ✅ Create feature flag infrastructure (`AI_CONCIERGE_ENABLED`)
+2. Build AIConciergePanel shell (UI only, no AI backend)
+3. Build SmartCart component with ItineraryContext sync
+4. Build InlineCheckout with PayFast integration
+5. Wire all components together on PropertyShowcase
+6. Test full flow with manual date/guest selection
+
+### Week 2: Phase 2 Intelligence
+1. Create `ai-booking-concierge` edge function
+2. Implement NLP date/guest parsing with Lovable AI
+3. Connect to PMS adapters for live availability
+4. Build suggestion card UI in AIConciergePanel
+5. Add proactive messaging (8-second idle prompt)
+6. Test end-to-end with AI suggestions
+
+### Week 3: Phase 3 PDF Enhancement
+1. Add AI poem/story generation to PDF
+2. Integrate weather forecast API
+3. Create experience_vouchers table
+4. Generate surprise voucher codes
+5. Update PDF styling for luxury feel
+6. Test email delivery with attachments
+
+### Week 4: Phase 4 Polish
+1. Implement voice input with Web Speech API
+2. Add all loading skeletons and error states
+3. Comprehensive cross-PMS testing (Benson, Hostfully, NightsBridge, Manual)
+4. Update booking-flow-state-machine.json
+5. Update developer documentation
+6. Feature flag rollout strategy
+
+---
+
+## Files Summary
+
+### New Files (8)
+| File | Purpose |
+|------|---------|
+| `src/components/booking/AIConciergePanel.tsx` | Main AI concierge UI |
+| `src/components/booking/SmartCart.tsx` | Sticky cart summary |
+| `src/components/booking/InlineCheckout.tsx` | Embedded checkout form |
+| `src/components/booking/VoiceInputButton.tsx` | Voice input trigger |
+| `src/hooks/useSpeechRecognition.ts` | Speech recognition hook |
+| `supabase/functions/ai-booking-concierge/index.ts` | AI intelligence layer |
+| Database migration | `experience_vouchers` table |
+| `docs/ai-concierge-developer-guide.md` | Developer documentation |
+
+### Modified Files (12)
+| File | Changes |
+|------|---------|
+| `src/pages/PropertyShowcase.tsx` | Integrate concierge components |
+| `src/contexts/MobileBookingContext.tsx` | Add AI state management |
+| `src/contexts/ItineraryContext.tsx` | Add concierge tracking |
+| `src/hooks/useFeatureFlags.tsx` | Add ai_concierge_enabled |
+| `supabase/functions/get-feature-flags/index.ts` | Whitelist new flag |
+| `supabase/functions/generate-itinerary-pdf/index.ts` | Add poem, weather, voucher |
+| `supabase/functions/send-itinerary-email/index.ts` | Verify PDF attachment |
+| `supabase/config.toml` | Add ai-booking-concierge |
+| `src/pages/JourneyConfirmation.tsx` | Highlight PDF download |
+| `docs/booking-flow-developer-guide.md` | Update documentation |
+| `docs/system-export/booking-flow-state-machine.json` | Add AI flow states |
+
+---
+
+## Risk Mitigation
+
+| Risk | Mitigation |
+|------|------------|
+| AI service outage | Feature flag + graceful fallback to legacy flow |
+| Voice input not supported | Text input always available as primary |
+| PMS integration failures | Same error handling as current QuickBookDrawer |
+| Payment failures | Existing PayFastOnsiteModal error handling |
+| Session state loss | ItineraryContext already persists to sessionStorage |
+| Rate limiting | Lovable AI handles gracefully; show friendly message |
+
+---
+
+## Success Metrics
+
+| Metric | Target |
+|--------|--------|
+| Clicks to checkout | ≤ 3 (from 6+) |
+| Time to first booking intent | < 30 seconds |
+| AI suggestion acceptance rate | > 60% |
+| Voice input usage | > 15% of mobile users |
+| PDF open rate | > 80% |
+| Surprise gift redemption | > 20% |
 
