@@ -382,9 +382,10 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
           <!-- Footer -->
           <tr>
             <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
+              <p style="margin: 0 0 8px; font-family: Georgia, serif; font-style: italic; color: #666; font-size: 14px;">Sleep in Africa like never before</p>
               <p style="margin: 0 0 20px; color: #666; font-size: 14px;">Kind regards</p>
               <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
-                RoomsOnline on behalf of <strong>${property.name}</strong>
+                Sleep in Africa by RoomsOnline on behalf of <strong>${property.name}</strong>
               </p>
               <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
             </td>

@@ -144,19 +144,24 @@ export function InlineCheckout({
         >
           <div className="fixed inset-x-0 bottom-0 max-h-[90vh] overflow-y-auto bg-background border-t border-border shadow-2xl rounded-t-3xl">
             {/* Header */}
-            <div className="sticky top-0 bg-background/98 backdrop-blur-xl border-b border-border px-4 py-4 flex items-center justify-between">
-              <div>
-                <h2 className="font-serif text-xl font-semibold">Checkout</h2>
-                <p className="text-sm text-muted-foreground">
-                  {stays.length} stay{stays.length !== 1 ? 's' : ''} · {formatPrice(totalPrice)}
-                </p>
+            <div className="sticky top-0 bg-background/98 backdrop-blur-xl border-b border-border px-4 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-serif text-xl font-semibold">Checkout</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {stays.length} stay{stays.length !== 1 ? 's' : ''} · {formatPrice(totalPrice)}
+                  </p>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="h-8 w-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                onClick={onClose}
-                className="h-8 w-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <p className="text-center text-xs text-muted-foreground mt-3 font-serif italic">
+                You're about to sleep in Africa like never before
+              </p>
             </div>
 
             <div className="p-4 space-y-4 pb-32">

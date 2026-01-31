@@ -129,6 +129,12 @@ export default function JourneyConfirmation() {
             {isConfirmed ? 'Your Journey is Confirmed!' : 'Booking Status'}
           </h1>
           
+          {isConfirmed && (
+            <p className="text-lg font-serif italic text-muted-foreground mb-3">
+              You're about to sleep in Africa like never before
+            </p>
+          )}
+          
           <p className="text-muted-foreground max-w-lg mx-auto">
             {isConfirmed 
               ? `We've sent a confirmation email to ${itinerary.guest_email}. Your adventure awaits!`

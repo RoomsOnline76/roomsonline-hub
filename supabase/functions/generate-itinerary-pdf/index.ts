@@ -1250,7 +1250,7 @@ function generateBrochureHTML(
   <!-- Header -->
   <div class="header">
     <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" />
-    <p class="tagline">Curated African Hospitality</p>
+    <p class="tagline">Sleep in Africa like never before</p>
   </div>
   
   <!-- Welcome Hero -->
@@ -1326,7 +1326,7 @@ function generateBrochureHTML(
     <p>This brochure was generated on ${new Date().toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
     <p class="brochure-id">Itinerary ID: ${itinerary.id}</p>
     <p style="margin-top: 16px;">
-      <strong>RoomsOnline</strong> – Curated African Hospitality<br />
+      Thank you for booking with <strong>Sleep in Africa by RoomsOnline</strong><br />
       <a href="https://sleepinafrica.roomsonline.co.za" style="color: #e91e8c;">sleepinafrica.roomsonline.co.za</a>
     </p>
   </div>
