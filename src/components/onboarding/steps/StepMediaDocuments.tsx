@@ -87,6 +87,9 @@ export function StepMediaDocuments({
 
     const uploadedImages: OnboardingImage[] = [];
     const totalFiles = files.length;
+    
+    // Get current images fresh from propertyData to avoid stale closure
+    const currentImages = normalizeImages(propertyData.images);
 
     try {
       for (let i = 0; i < files.length; i++) {
@@ -105,7 +108,10 @@ export function StepMediaDocuments({
           .from('property-images')
           .upload(filename, file, { cacheControl: '3600', upsert: false });
 
-        if (error) continue;
+        if (error) {
+          console.error('Upload error:', error);
+          continue;
+        }
 
         const { data: { publicUrl } } = supabase.storage
           .from('property-images')
@@ -113,7 +119,7 @@ export function StepMediaDocuments({
 
         uploadedImages.push({
           url: publicUrl,
-          type: images.length === 0 && i === 0 ? 'hero' : 'gallery',
+          type: currentImages.length === 0 && uploadedImages.length === 0 ? 'hero' : 'gallery',
           is_favourite: false
         });
 
@@ -121,16 +127,18 @@ export function StepMediaDocuments({
       }
 
       if (uploadedImages.length > 0) {
-        updateField("images", [...images, ...uploadedImages]);
+        const newImages = [...currentImages, ...uploadedImages];
+        updateField("images", newImages);
         toast({ title: "Upload complete", description: `${uploadedImages.length} image(s) uploaded` });
       }
     } catch (error) {
+      console.error('Upload failed:', error);
       toast({ title: "Upload failed", variant: "destructive" });
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
     }
-  }, [propertyData.id, images, updateField, toast]);
+  }, [propertyData.id, propertyData.images, updateField, toast]);
 
   const removeImage = (index: number) => {
     updateField("images", images.filter((_, i) => i !== index));

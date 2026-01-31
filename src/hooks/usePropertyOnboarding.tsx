@@ -409,8 +409,7 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
       const images: OnboardingImage[] = Array.isArray(rawImages) ? rawImages as unknown as OnboardingImage[] : [];
       const hasHero = images.some(img => img.type === 'hero');
       const hasMinImages = images.length >= 3;
-      const hasMaxImages = images.length <= 5;
-      const imageScore = hasHero && hasMinImages && hasMaxImages ? 1 : 
+      const imageScore = hasHero && hasMinImages ? 1 : 
                          hasMinImages ? 0.7 : 
                          images.length / 3;
       earnedScore += imageScore * SCORE_WEIGHTS.media_documents;
