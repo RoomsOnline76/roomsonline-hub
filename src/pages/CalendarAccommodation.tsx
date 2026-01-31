@@ -47,6 +47,7 @@ interface Property {
   siteminder_property_code: string | null;
   hotelbeds_hotel_code: string | null;
   hostfully_property_uid: string | null;
+  property_type?: string | null;
 }
 
 interface PMSRoomTypeData {
@@ -631,11 +632,16 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const generateManualPropertyData = useCallback(async (property: Property) => {
     setPmsSyncStatus("loading");
     
+    console.log('[Manual Calendar] Generating synthetic data for:', property.name);
+    console.log('[Manual Calendar] Property type:', property.property_type);
+    
     const amenities = property.amenities || {};
     const roomTypes = amenities.room_types || [];
     const seasons = amenities.seasons || [];
     const seasonRates = amenities.season_rates || {}; // Object keyed by roomId or "{roomId}-{rateTypeId}"
     const pmsRateTypes = amenities.pms_rate_types || [];
+    
+    console.log('[Manual Calendar] Room types:', roomTypes);
     
     // Generate date range based on current view
     const startDate = new Date(currentDate);
@@ -675,16 +681,39 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       const ratesByDate: { [date: string]: any[] } = {};
       const restrictionsByDate: { [date: string]: any } = {};
       
+      // Smart unit detection: whole-property types (holiday house, villa, cottage) = 1 unit
+      // For hotels/B&Bs, use explicit units field or numRooms
+      const isWholePropertyType = ['self_catering', 'villa', 'cottage', 'holiday_house', 'house', 'holiday'].some(
+        type => (room.pmsRoomType || room.name || '').toLowerCase().includes(type) ||
+                (property.property_type || '').toLowerCase().includes(type)
+      );
+      
+      // Priority: explicit units field > infer from property type > fallback to 1
+      let roomUnits = 1; // Default for single-unit properties
+      if (room.units !== undefined && room.units !== null) {
+        roomUnits = room.units;
+      } else if (!isWholePropertyType && room.numRooms) {
+        // For hotels/B&Bs, numRooms can represent bookable units
+        roomUnits = room.numRooms;
+      }
+      // For whole-property types (holiday house, villa), always use 1
+      
+      console.log('[Manual Calendar] Room units calculation:', {
+        roomName: room.name,
+        units: room.units,
+        numRooms: room.numRooms,
+        isWholePropertyType,
+        calculatedUnits: roomUnits
+      });
+      
+      const roomMinStay = room.minStay ?? room.minimum_stay ?? null;
+      const roomMaxStay = room.maxStay ?? room.maximum_stay ?? null;
+      
       // Generate data for each date in range
       const iterDate = new Date(startDate);
       while (iterDate <= endDate) {
         const dateStr = format(iterDate, "yyyy-MM-dd");
         const override = overridesMap.get(`${room.name}-${dateStr}`);
-        
-        // Get room's actual unit count and default restrictions from wizard config
-        const roomUnits = room.units || 1;
-        const roomMinStay = room.minStay ?? room.minimum_stay ?? null;
-        const roomMaxStay = room.maxStay ?? room.maximum_stay ?? null;
         
         // Availability: use room units as default (not 99), respect overrides
         if (override?.is_stop_sell) {
