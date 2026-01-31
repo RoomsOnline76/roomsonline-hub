@@ -399,6 +399,12 @@ export const MEDIUM_IMPACT_FIELDS: FieldDefinition[] = [
   { key: 'amenities.cancellation_policy', label: 'Cancellation Policy', section: 'policies_pricing', impact: 'medium', requiredFor: ['accommodation', 'venue', 'hybrid', 'experience'] },
 ];
 
+// Map of field keys to their alternative keys (for checking multiple paths)
+const FIELD_ALTERNATIVES: Record<string, string[]> = {
+  'amenities.check_in_time': ['check_in_from', 'check_in_time', 'check_in_to'],
+  'amenities.check_out_time': ['check_out_from', 'check_out_time', 'check_out_to'],
+};
+
 export function getMissingFieldsByImpact(
   data: Record<string, unknown>,
   amenities: Record<string, unknown>,
@@ -413,21 +419,28 @@ export function getMissingFieldsByImpact(
     low: []
   };
   
+  const checkHasValue = (value: unknown): boolean => {
+    return value !== null && value !== undefined && value !== '' && 
+           (Array.isArray(value) ? value.length > 0 : true);
+  };
+  
   for (const field of allFields) {
     // Skip if not required for this intent
     if (!field.requiredFor.includes(intent)) continue;
     
     // Check if field has value
     let hasValue = false;
-    if (field.key.startsWith('amenities.')) {
+    
+    // Check for alternative field keys first
+    const alternatives = FIELD_ALTERNATIVES[field.key];
+    if (alternatives) {
+      // Check if any of the alternative keys have a value
+      hasValue = alternatives.some(altKey => checkHasValue(amenities[altKey]));
+    } else if (field.key.startsWith('amenities.')) {
       const amenityKey = field.key.replace('amenities.', '');
-      const value = amenities[amenityKey];
-      hasValue = value !== null && value !== undefined && value !== '' && 
-                 (Array.isArray(value) ? value.length > 0 : true);
+      hasValue = checkHasValue(amenities[amenityKey]);
     } else {
-      const value = data[field.key];
-      hasValue = value !== null && value !== undefined && value !== '' &&
-                 (Array.isArray(value) ? value.length > 0 : true);
+      hasValue = checkHasValue(data[field.key]);
     }
     
     if (!hasValue) {
