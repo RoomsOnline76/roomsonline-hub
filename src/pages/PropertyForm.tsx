@@ -3036,12 +3036,14 @@ export default function PropertyForm() {
           // Load room types if available - transform from PMS format to UI format
           if (amenities?.room_types && Array.isArray(amenities.room_types) && amenities.room_types.length > 0) {
             // Transform PMS format (snake_case, room_type_id) to UI format (camelCase, id)
+            // Also handle wizard format fields (base_rate, rate_unit, units)
             const transformedRooms = amenities.room_types.map((room: any, idx: number) => ({
               id: room.id || room.room_type_id || `room-${idx}`,
               name: room.name || "Unnamed Room",
               url: room.url || "",
               selected: room.selected || false,
-              numRooms: room.numRooms || room.num_rooms || 1,
+              // Map units from wizard OR numRooms from PMS
+              numRooms: room.numRooms || room.num_rooms || room.units || 1,
               pmsRoomType: room.pmsRoomType || room.pms_room_type || room.name || "",
               pmsRoomId: room.pmsRoomId || room.pms_room_id || room.room_type_id || "",
               description: room.description || "",
@@ -3055,13 +3057,16 @@ export default function PropertyForm() {
               maxChildren: room.maxChildren || room.max_children || 0,
               minStay: room.minStay || room.min_stay || 1,
               maxStay: room.maxStay || room.max_stay || 0,
-              rateType: room.rateType || room.rate_type || "per-unit",
+              // Map rate_unit from wizard to rateType, also handle rate_type from PMS
+              rateType: room.rateType || room.rate_type || (room.rate_unit === 'per_stay' ? 'per-stay' : room.rate_unit === 'per_night' ? 'per-unit' : 'per-unit'),
+              // Map base_rate from wizard
+              baseRate: room.baseRate || room.base_rate || null,
               splitPercent: room.splitPercent || room.split_percent || 0,
               images: room.images || [],
               facilities: room.facilities || [],
               amenities: room.amenities || [],
               linkedRateTypes: room.linkedRateTypes || room.linked_rate_type_ids || [],
-              pms_synced: true,
+              pms_synced: room.pms_synced !== undefined ? room.pms_synced : false,
             }));
             setRoomTypes(transformedRooms);
             // Auto-select first room on initial load
