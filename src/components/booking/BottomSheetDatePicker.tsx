@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { format, addDays, isBefore, isAfter, isSameDay, startOfDay, eachDayOfInterval } from "date-fns";
-import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
+import { format, addDays, addMonths, isBefore, isAfter, isSameDay, startOfDay, eachDayOfInterval } from "date-fns";
+import { ChevronLeft, ChevronRight, Calendar, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Drawer,
   DrawerContent,
@@ -22,6 +23,15 @@ interface BottomSheetDatePickerProps {
   availabilityMap?: Map<string, { available: boolean; rate?: number }>;
 }
 
+// Format rate for display (compact format for calendar cells)
+const formatRate = (rate: number): string => {
+  if (rate >= 1000) {
+    const k = rate / 1000;
+    return k % 1 === 0 ? `${k}k` : `${k.toFixed(1)}k`;
+  }
+  return rate.toFixed(0);
+};
+
 export function BottomSheetDatePicker({
   open,
   onOpenChange,
@@ -31,6 +41,7 @@ export function BottomSheetDatePicker({
   minDate = new Date(),
   availabilityMap,
 }: BottomSheetDatePickerProps) {
+  const isMobile = useIsMobile();
   const [tempCheckIn, setTempCheckIn] = useState<Date | null>(checkIn);
   const [tempCheckOut, setTempCheckOut] = useState<Date | null>(checkOut);
   const [currentMonth, setCurrentMonth] = useState(() => checkIn || new Date());
@@ -49,11 +60,11 @@ export function BottomSheetDatePicker({
     }
   }, [open, checkIn, checkOut]);
 
-  // Generate 14 days for horizontal scroll
+  // Generate 21 days for horizontal scroll (expanded for easier navigation)
   const today = startOfDay(new Date());
   const quickDates = eachDayOfInterval({
     start: today,
-    end: addDays(today, 13),
+    end: addDays(today, 20),
   });
 
   // Get days for current month
@@ -134,6 +145,10 @@ export function BottomSheetDatePicker({
     setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   };
 
+  const jumpMonths = (offset: number) => {
+    setCurrentMonth((prev) => addMonths(prev, offset));
+  };
+
   const nights = tempCheckIn && tempCheckOut
     ? Math.ceil((tempCheckOut.getTime() - tempCheckIn.getTime()) / (1000 * 60 * 60 * 24))
     : 0;
@@ -193,27 +208,49 @@ export function BottomSheetDatePicker({
 
         {/* Calendar grid */}
         <div className="px-4 py-3 overflow-y-auto max-h-[50vh]">
-          {/* Month navigation */}
+          {/* Month navigation with jump buttons */}
           <div className="flex items-center justify-between mb-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={prevMonth}
-              className="h-10 w-10 rounded-full"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => jumpMonths(-3)}
+                className="h-8 w-8 rounded-full hidden sm:flex"
+                title="Back 3 months"
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={prevMonth}
+                className="h-10 w-10 rounded-full"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+            </div>
             <span className="font-medium tracking-tight">
               {format(currentMonth, "MMMM yyyy")}
             </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={nextMonth}
-              className="h-10 w-10 rounded-full"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={nextMonth}
+                className="h-10 w-10 rounded-full"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => jumpMonths(3)}
+                className="h-8 w-8 rounded-full hidden sm:flex"
+                title="Forward 3 months"
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Day headers */}
@@ -232,7 +269,7 @@ export function BottomSheetDatePicker({
           <div className="grid grid-cols-7 gap-1">
             {getDaysInMonth(currentMonth).map((date, index) => {
               if (!date) {
-                return <div key={`empty-${index}`} className="h-11" />;
+                return <div key={`empty-${index}`} className={cn("h-11", !isMobile && "sm:h-14")} />;
               }
 
               const status = getDateStatus(date);
@@ -248,6 +285,7 @@ export function BottomSheetDatePicker({
                   className={cn(
                     "h-11 rounded-xl text-sm font-medium transition-all duration-200",
                     "flex flex-col items-center justify-center gap-0.5",
+                    !isMobile && "sm:h-14",
                     selected
                       ? "bg-primary text-primary-foreground"
                       : inRange
@@ -260,12 +298,22 @@ export function BottomSheetDatePicker({
                   )}
                 >
                   <span>{format(date, "d")}</span>
-                  {status && !selected && (
+                  {/* Show rate on larger screens, availability dot on mobile */}
+                  {!isMobile && status?.rate && status.available && !selected ? (
+                    <span className="text-[9px] text-muted-foreground leading-none">
+                      {formatRate(status.rate)}
+                    </span>
+                  ) : isMobile && status && !selected ? (
                     <span className={cn(
                       "w-1 h-1 rounded-full",
                       status.available ? "bg-green-500" : "bg-red-400"
                     )} />
-                  )}
+                  ) : !isMobile && status && !selected ? (
+                    <span className={cn(
+                      "w-1.5 h-1.5 rounded-full",
+                      status.available ? "bg-green-500" : "bg-red-400"
+                    )} />
+                  ) : null}
                 </button>
               );
             })}
