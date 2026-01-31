@@ -262,7 +262,7 @@ export default function PropertyShowcase() {
         .eq("property_id", propertyData.id)
         .eq("date", today);
 
-      if (availData) {
+      if (availData && availData.length > 0) {
         const availMap = new Map<string, AvailabilityData>();
         availData.forEach((item) => {
           availMap.set(item.external_room_type_id, item);
@@ -270,6 +270,30 @@ export default function PropertyShowcase() {
           // This handles cases where room IDs don't match external_room_type_id
         });
         setAvailability(availMap);
+      } else if (!propertyData.external_system) {
+        // No PMS connected - build synthetic availability from wizard rates
+        const amenitiesData = propertyData.amenities as Record<string, any> | null;
+        const wizardRooms = amenitiesData?.room_types || [];
+        const syntheticAvailMap = new Map<string, AvailabilityData>();
+        
+        wizardRooms.forEach((room: any) => {
+          const roomId = room.id || room.room_type_id || `wizard-room-${room.name}`;
+          syntheticAvailMap.set(roomId, {
+            external_room_type_id: roomId,
+            available_units: 99, // Unlimited availability for manual properties
+            rates: [{
+              rate_type_id: 'wizard-rate',
+              room_amount: room.base_rate || room.baseRate || room.daily_rate,
+              price_type: (room.rate_unit || room.rateUnit) === 'per_stay' ? 'PerStay' : 'UnitRate',
+            }],
+            date: today,
+          });
+        });
+        
+        if (syntheticAvailMap.size > 0) {
+          console.log('[PropertyShowcase] Built synthetic availability from wizard rates:', syntheticAvailMap.size, 'rooms');
+          setAvailability(syntheticAvailMap);
+        }
       }
     } catch (error) {
       console.error("Error fetching property:", error);
@@ -460,6 +484,15 @@ export default function PropertyShowcase() {
       });
       return lowest;
     }
+    
+    // Final fallback: Check wizard base_rate directly (for non-PMS properties)
+    const wizardRoom = property?.amenities?.room_types?.find((rt: any) => 
+      (rt.id || rt.room_type_id) === room.id
+    );
+    if (wizardRoom?.base_rate || wizardRoom?.baseRate || wizardRoom?.daily_rate) {
+      return wizardRoom.base_rate || wizardRoom.baseRate || wizardRoom.daily_rate;
+    }
+    
     return null;
   };
 
@@ -475,6 +508,7 @@ export default function PropertyShowcase() {
   const getFacilities = (): string[] => property?.amenities?.facilities || [];
   
   const isBensonProperty = property?.external_system?.toLowerCase() === "benson";
+  const isManualRatesProperty = !property?.external_system && getRoomTypes().length > 0;
   
   const getNightsBridgeBBID = (): string | null => {
     if (!property) return null;
@@ -490,15 +524,20 @@ export default function PropertyShowcase() {
         return;
       }
     }
-    // For PMS properties with booked rooms, go to checkout
-    if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty) && bookedRooms.length > 0) {
+    // For PMS or manual rates properties with booked rooms, go to checkout
+    if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && bookedRooms.length > 0) {
       navigate(`/booking/${property?.slug || property?.id}`);
       return;
     }
-    // For single-room properties, open quick book drawer directly
+    // For single-room properties (including manual rates), open quick book drawer directly
     const rooms = getRoomTypes();
-    if (rooms.length === 1 && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty)) {
+    if (rooms.length === 1 && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty)) {
       setQuickBookDrawerOpen(true);
+      return;
+    }
+    // For manual rates properties with multiple rooms, go to rooms section
+    if (isManualRatesProperty) {
+      scrollToRooms();
       return;
     }
     // Otherwise scroll to rooms section
@@ -658,8 +697,8 @@ export default function PropertyShowcase() {
         propertyName={property?.name}
       />
       
-      {/* Quick Book Drawer for streamlined booking */}
-      {(isBensonProperty || isHotelBedsProperty || isHostfullyProperty) && (
+      {/* Quick Book Drawer for streamlined booking (including manual rates properties) */}
+      {(isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && (
         <QuickBookDrawer
           open={quickBookDrawerOpen}
           onOpenChange={setQuickBookDrawerOpen}
@@ -673,9 +712,9 @@ export default function PropertyShowcase() {
         />
       )}
       
-      {/* Floating Date/Guest Picker for Benson and HotelBeds properties */}
-      {(isBensonProperty || isHotelBedsProperty || isHostfullyProperty) && (
-        <FloatingDateGuestPicker 
+      {/* Floating Date/Guest Picker for Benson, HotelBeds, Hostfully and manual rates properties */}
+      {(isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && (
+        <FloatingDateGuestPicker
           onContinue={() => setQuickBookDrawerOpen(true)} 
           ctaLabel="Book Now" 
         />

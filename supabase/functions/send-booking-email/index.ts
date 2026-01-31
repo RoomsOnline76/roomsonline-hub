@@ -9,9 +9,10 @@ const corsHeaders = {
 
 const requestSchema = z.object({
   booking_id: z.string().uuid({ message: "Invalid booking ID format" }),
-  status: z.enum(["success", "failed", "admin_alert"]),
+  status: z.enum(["success", "failed", "admin_alert", "property_notification"]),
   error_message: z.string().optional(),
   sync_warning: z.string().optional(),
+  recipient_email: z.string().email().optional(), // For property notifications
 });
 
 // Format currency
@@ -494,6 +495,204 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
   `;
 }
 
+// Generate property owner notification email for non-PMS properties
+function generatePropertyNotificationEmail(booking: any, property: any): string {
+  const nights = calculateNights(booking.check_in_date, booking.check_out_date);
+  const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
+  const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
+  
+  // Build room info
+  let roomInfo = "";
+  if (booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0) {
+    roomInfo = booking.rooms.map((room: any, idx: number) => {
+      const guestSummary = [
+        `${room.numberOfAdults || 1} Adult${(room.numberOfAdults || 1) > 1 ? "s" : ""}`,
+        room.numberOfTeens ? `${room.numberOfTeens} Teen${room.numberOfTeens > 1 ? "s" : ""}` : "",
+        room.numberOfChildren ? `${room.numberOfChildren} Child${room.numberOfChildren > 1 ? "ren" : ""}` : "",
+        room.numberOfInfants ? `${room.numberOfInfants} Infant${room.numberOfInfants > 1 ? "s" : ""}` : "",
+      ].filter(Boolean).join(", ");
+      
+      return `
+        <tr>
+          <td style="padding: 12px 0; border-bottom: 1px solid #eee;">
+            <div style="background-color: #f0fdf4; border-radius: 6px; padding: 12px; border-left: 3px solid #22c55e;">
+              <p style="margin: 0 0 6px; font-weight: 600; color: #333;">Room ${idx + 1}: ${room.roomTypeName || "Standard Room"}</p>
+              <p style="margin: 0; color: #666; font-size: 13px;"><strong>Guests:</strong> ${guestSummary}</p>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Booking Received</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="padding: 40px 40px 20px; text-align: center; background-color: #f0fdf4; border-radius: 8px 8px 0 0;">
+              <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
+              <h1 style="margin: 0; font-size: 24px; color: #166534; font-weight: 600;">NEW BOOKING RECEIVED</h1>
+              <p style="margin: 10px 0 0; color: #15803d; font-size: 14px;">A guest has booked a stay at ${property.name}</p>
+            </td>
+          </tr>
+
+          <!-- Booking Reference -->
+          <tr>
+            <td style="padding: 20px 40px 0;">
+              <div style="background-color: #dcfce7; border: 2px solid #22c55e; border-radius: 8px; padding: 20px; text-align: center;">
+                <p style="margin: 0 0 5px; color: #166534; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Booking Reference</p>
+                <p style="margin: 0; color: #14532d; font-size: 24px; font-weight: 700; font-family: monospace;">${bookingRef}</p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Stay Details -->
+          <tr>
+            <td style="padding: 20px 40px;">
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #22c55e; padding-bottom: 10px;">Stay Details</h2>
+              <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">Check-in</td>
+                  <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">${formatDate(booking.check_in_date)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">Check-out</td>
+                  <td style="padding: 8px 0; color: #333; font-weight: 500; text-align: right;">${formatDate(booking.check_out_date)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">Duration</td>
+                  <td style="padding: 8px 0; color: #333; text-align: right;">${nights} night${nights > 1 ? "s" : ""}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">Total Guests</td>
+                  <td style="padding: 8px 0; color: #333; text-align: right;">${totalGuests} guest${totalGuests > 1 ? "s" : ""}</td>
+                </tr>
+                ${roomInfo}
+              </table>
+            </td>
+          </tr>
+
+          <!-- Guest Information -->
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #22c55e; padding-bottom: 10px;">Guest Information</h2>
+              <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">Name</td>
+                  <td style="padding: 8px 0; color: #333; font-weight: 600; text-align: right;">${booking.guest_name}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">Email</td>
+                  <td style="padding: 8px 0; color: #333; text-align: right;">
+                    <a href="mailto:${booking.guest_email}" style="color: #e91e8c; text-decoration: none;">${booking.guest_email}</a>
+                  </td>
+                </tr>
+                ${booking.guest_phone ? `
+                <tr>
+                  <td style="padding: 8px 0; color: #666;">Phone</td>
+                  <td style="padding: 8px 0; color: #333; text-align: right;">
+                    <a href="tel:${booking.guest_phone}" style="color: #e91e8c; text-decoration: none;">${booking.guest_phone}</a>
+                  </td>
+                </tr>
+                ` : ""}
+              </table>
+            </td>
+          </tr>
+
+          <!-- Payment Confirmation -->
+          ${booking.payment_status === "paid" ? `
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <div style="background-color: #dcfce7; border: 1px solid #22c55e; border-radius: 8px; padding: 20px;">
+                <h3 style="margin: 0 0 10px; font-size: 16px; color: #166534;">✓ Payment Confirmed</h3>
+                <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 4px 0; color: #166534; font-size: 14px; font-weight: 600;">Amount Paid</td>
+                    <td style="padding: 4px 0; color: #166534; font-size: 18px; font-weight: 700; text-align: right;">${formatCurrency(booking.total_price)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; color: #166534; font-size: 13px;">Transaction Reference</td>
+                    <td style="padding: 4px 0; color: #166534; font-size: 13px; text-align: right; font-family: monospace;">${booking.payment_reference || "N/A"}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; color: #166534; font-size: 13px;">Payment Method</td>
+                    <td style="padding: 4px 0; color: #166534; font-size: 13px; text-align: right;">${booking.payment_method === "payfast" ? "PayFast" : booking.payment_method || "Card"}</td>
+                  </tr>
+                </table>
+              </div>
+            </td>
+          </tr>
+          ` : `
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px;">
+                <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="color: #333; font-size: 18px; font-weight: 600;">Total Amount</td>
+                    <td style="color: #e91e8c; font-size: 24px; font-weight: 700; text-align: right;">${formatCurrency(booking.total_price)}</td>
+                  </tr>
+                </table>
+              </div>
+            </td>
+          </tr>
+          `}
+
+          <!-- Special Requests -->
+          ${booking.special_requests ? `
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #22c55e; padding-bottom: 10px;">Special Requests</h2>
+              <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px;">
+                <p style="margin: 0; color: #92400e; font-style: italic;">"${booking.special_requests}"</p>
+              </div>
+            </td>
+          </tr>
+          ` : ""}
+
+          <!-- Action Required -->
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <div style="background-color: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 20px;">
+                <h3 style="margin: 0 0 10px; font-size: 16px; color: #1e40af;">📋 Action Required</h3>
+                <p style="margin: 0; color: #1e40af; font-size: 14px; line-height: 1.6;">
+                  Please ensure this room is reserved for the guest. As this property is not connected to a PMS, 
+                  you'll need to manually record this booking in your property management system or calendar.
+                </p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
+              <p style="margin: 0 0 15px; color: #666; font-size: 14px;">
+                This notification was sent by RoomsOnline on behalf of your guests.
+              </p>
+              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+}
+
 // Generate admin alert email HTML for failed sync on paid bookings
 function generateAdminAlertEmail(booking: any, property: any, errorMessage?: string): string {
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
@@ -692,7 +891,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { booking_id, status, error_message, sync_warning } = validationResult.data;
+    const { booking_id, status, error_message, sync_warning, recipient_email } = validationResult.data;
 
     console.log(`Sending ${status} booking email for booking ${booking_id}${sync_warning ? ' (with sync warning)' : ''}`);
 
@@ -757,6 +956,70 @@ Deno.serve(async (req) => {
         JSON.stringify({
           success: true,
           message: "Admin alert email sent successfully",
+          email_id: emailData?.id,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Handle property_notification status - send to property owner for non-PMS properties
+    if (status === "property_notification") {
+      console.log(`[Property Notification] Sending owner notification for booking ${booking_id}`);
+      
+      const { data: emailConfig } = await supabaseClient
+        .from("api_keys")
+        .select("key_name, key_value")
+        .eq("key_name", "RESEND_FROM_EMAIL")
+        .maybeSingle();
+
+      const notifyFromEmail = emailConfig?.key_value || "RoomsOnline <hello@notify.roomsonline.co.za>";
+      const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
+      
+      // Use recipient_email from request body, or fall back to property owner_email
+      const ownerEmail = recipient_email || property.owner_email;
+      
+      if (!ownerEmail) {
+        console.warn(`[Property Notification] No owner email found for property ${property.id}`);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "No owner email configured for property",
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      
+      const ownerEmailHtml = generatePropertyNotificationEmail(booking, property);
+      
+      const { data: emailData, error: emailError } = await resend.emails.send({
+        from: notifyFromEmail,
+        to: [ownerEmail],
+        subject: `🎉 New Booking Received - ${booking.guest_name} - ${formatDate(booking.check_in_date)} to ${formatDate(booking.check_out_date)}`,
+        html: ownerEmailHtml,
+      });
+
+      if (emailError) {
+        console.error("[Property Notification] Email send error:", emailError);
+        throw new Error(emailError.message || "Failed to send property notification email");
+      }
+
+      console.log("[Property Notification] Email sent successfully to:", ownerEmail, emailData);
+
+      // Log the property notification email
+      await supabaseClient.from("sync_logs").insert({
+        booking_id,
+        property_id: property.id,
+        external_system: "resend",
+        sync_type: "property_notification_email",
+        status: "success",
+        message: `Property owner notification sent to ${ownerEmail}`,
+        response_data: emailData,
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Property notification email sent successfully",
           email_id: emailData?.id,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
