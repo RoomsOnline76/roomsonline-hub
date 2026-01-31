@@ -627,6 +627,174 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     }
   }, [selectedProperty, pmsData]);
 
+  // Generate synthetic PMS data for non-PMS properties from wizard configuration
+  const generateManualPropertyData = useCallback(async (property: Property) => {
+    setPmsSyncStatus("loading");
+    
+    const amenities = property.amenities || {};
+    const roomTypes = amenities.room_types || [];
+    const seasons = amenities.seasons || [];
+    const seasonRates = amenities.season_rates || {}; // Object keyed by roomId or "{roomId}-{rateTypeId}"
+    const pmsRateTypes = amenities.pms_rate_types || [];
+    
+    // Generate date range based on current view
+    const startDate = new Date(currentDate);
+    if (viewMode === "month") {
+      startDate.setDate(1);
+    } else {
+      const day = startDate.getDay();
+      const diff = day === 6 ? 0 : -(day + 1);
+      startDate.setDate(startDate.getDate() + diff);
+    }
+    const endDate = new Date(startDate);
+    if (viewMode === "month") {
+      endDate.setMonth(endDate.getMonth() + 1);
+      endDate.setDate(0);
+    } else {
+      endDate.setDate(endDate.getDate() + 8);
+    }
+    
+    // Fetch manual overrides from property_availability table
+    const { data: manualOverrides } = await supabase
+      .from("property_availability")
+      .select("*")
+      .eq("property_id", property.id)
+      .gte("date", format(startDate, "yyyy-MM-dd"))
+      .lte("date", format(endDate, "yyyy-MM-dd"));
+    
+    const overridesMap = new Map<string, any>(
+      (manualOverrides || []).map(o => [`${o.room_type}-${o.date}`, o])
+    );
+    
+    // Transform each wizard room type into PMS-compatible format
+    const transformedRooms: PMSRoomTypeData[] = roomTypes.map((room: any) => {
+      const roomId = room.id?.toString() || room.name;
+      const linkedRateTypes = room.linkedRateTypes || [];
+      
+      const availabilityByDate: { [date: string]: number } = {};
+      const ratesByDate: { [date: string]: any[] } = {};
+      const restrictionsByDate: { [date: string]: any } = {};
+      
+      // Generate data for each date in range
+      const iterDate = new Date(startDate);
+      while (iterDate <= endDate) {
+        const dateStr = format(iterDate, "yyyy-MM-dd");
+        const override = overridesMap.get(`${room.name}-${dateStr}`);
+        
+        // Availability: default 99 (unlimited), respect overrides
+        if (override?.is_stop_sell) {
+          availabilityByDate[dateStr] = 0;
+        } else {
+          availabilityByDate[dateStr] = override?.available_units ?? 99;
+        }
+        
+        // Restrictions from overrides
+        if (override) {
+          restrictionsByDate[dateStr] = {
+            stopSell: override.is_stop_sell,
+            minStay: override.minimum_stay,
+            maxStay: override.maximum_stay,
+            leadDaysAdvance: override.lead_days_advance,
+            leadDaysPost: override.lead_days_post,
+          };
+        }
+        
+        // Rates: find applicable season, then look up season rate
+        ratesByDate[dateStr] = [];
+        
+        // If room has linked rate types, use those
+        if (linkedRateTypes.length > 0) {
+          for (const rateTypeId of linkedRateTypes) {
+            const rateType = pmsRateTypes.find((rt: any) => rt.id === rateTypeId);
+            const baseRate = rateType?.baseRate || room.baseRate || 0;
+            
+            // Find applicable season for this date
+            let rateAmount = baseRate;
+            const checkDate = new Date(iterDate);
+            
+            for (const season of seasons) {
+              const seasonStart = new Date(season.from || season.startDate);
+              const seasonEnd = new Date(season.to || season.endDate);
+              if (checkDate >= seasonStart && checkDate <= seasonEnd) {
+                // Look up season rate: try multiple key formats
+                // Format 1: "{roomId}-{rateTypeId}"
+                // Format 2: Direct lookup in seasonRates object by room id
+                const seasonRateKey = `${roomId}-${rateTypeId}`;
+                const roomSeasonRates = seasonRates[roomId] || seasonRates[room.name] || {};
+                const seasonRate = roomSeasonRates[seasonRateKey] || roomSeasonRates[rateTypeId];
+                
+                if (seasonRate?.roomAmount != null) {
+                  rateAmount = seasonRate.roomAmount;
+                } else if (typeof seasonRate === 'number') {
+                  rateAmount = seasonRate;
+                }
+                break;
+              }
+            }
+            
+            ratesByDate[dateStr].push({
+              rateTypeId: rateTypeId,
+              rateTypeName: rateType?.name || 'Standard Rate',
+              priceType: rateType?.priceType || 'PER ROOM',
+              roomAmount: rateAmount,
+            });
+          }
+        } else {
+          // No linked rate types - create a default rate from room's base rate or first pms_rate_type
+          const defaultRateType = pmsRateTypes[0];
+          const baseRate = room.baseRate || defaultRateType?.baseRate || 0;
+          
+          // Check for seasonal rate
+          let rateAmount = baseRate;
+          const checkDate = new Date(iterDate);
+          
+          for (const season of seasons) {
+            const seasonStart = new Date(season.from || season.startDate);
+            const seasonEnd = new Date(season.to || season.endDate);
+            if (checkDate >= seasonStart && checkDate <= seasonEnd) {
+              // Try to find a season rate for this room
+              const roomSeasonRates = seasonRates[roomId] || seasonRates[room.name] || {};
+              const defaultRateId = defaultRateType?.id || 'default';
+              const seasonRate = roomSeasonRates[defaultRateId] || roomSeasonRates[`${roomId}-${defaultRateId}`];
+              
+              if (seasonRate?.roomAmount != null) {
+                rateAmount = seasonRate.roomAmount;
+              } else if (typeof seasonRate === 'number') {
+                rateAmount = seasonRate;
+              }
+              break;
+            }
+          }
+          
+          ratesByDate[dateStr].push({
+            rateTypeId: defaultRateType?.id || 'default',
+            rateTypeName: defaultRateType?.name || 'Standard Rate',
+            priceType: defaultRateType?.priceType || 'PER ROOM',
+            roomAmount: rateAmount,
+          });
+        }
+        
+        iterDate.setDate(iterDate.getDate() + 1);
+      }
+      
+      return {
+        roomTypeId: roomId,
+        roomTypeName: room.name || `Room ${roomId}`,
+        availabilityByDate,
+        ratesByDate,
+        restrictionsByDate,
+      };
+    });
+    
+    setPmsData({
+      roomTypes: transformedRooms,
+      lastSynced: new Date(),
+      systemType: 'manual',
+    });
+    setPmsSyncStatus("success");
+    setLastSyncTime(new Date());
+  }, [currentDate, viewMode]);
+
   // Trigger PMS sync when property changes and data is available
   useEffect(() => {
     // Wait until properties are loaded and we have the selected property in the list
@@ -636,18 +804,16 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     const propertyData = properties.find(p => p.id === selectedProperty);
     if (!propertyData) return;
     
-    const isPms = !!propertyData.external_system;
+    const isPms = !!propertyData.external_system && propertyData.external_system !== 'none';
     
     if (isPms) {
       // Always fetch on property change - the function will handle caching
       fetchPmsAvailability(false);
     } else {
-      // Clear data for non-PMS properties
-      setPmsSyncStatus("idle");
-      setPmsData({ roomTypes: [], lastSynced: null, systemType: "" });
-      sessionStorage.removeItem(`pms_data_${selectedProperty}`);
+      // Generate synthetic PMS data from wizard configuration
+      generateManualPropertyData(propertyData);
     }
-  }, [selectedProperty, properties, fetchPmsAvailability]);
+  }, [selectedProperty, properties, fetchPmsAvailability, generateManualPropertyData, currentDate, viewMode]);
 
   const checkUserRoleAndFetchProperties = async () => {
     try {
@@ -1324,10 +1490,23 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 </div>
               )}
               {!isPmsProperty && (
-                <Badge variant="secondary" className="flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-                  <CloudOff className="h-3 w-3" />
-                  RoomsOnline PMS (Manual Mode)
-                </Badge>
+                <div className="flex items-center gap-2">
+                  {pmsSyncStatus === "loading" && (
+                    <StatusIndicator status="syncing" label="Loading..." size="sm" />
+                  )}
+                  {pmsSyncStatus === "success" && (
+                    <Badge variant="secondary" className="flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                      <Cloud className="h-3 w-3" />
+                      RoomsOnline PMS (Manual Mode)
+                    </Badge>
+                  )}
+                  {pmsSyncStatus === "idle" && (
+                    <Badge variant="secondary" className="flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                      <CloudOff className="h-3 w-3" />
+                      RoomsOnline PMS (Manual Mode)
+                    </Badge>
+                  )}
+                </div>
               )}
               <Badge variant="default">Accommodation</Badge>
               {hasEventWedding && <Badge variant="outline">Event/Wedding</Badge>}
@@ -1361,6 +1540,13 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           <div className="mb-2 text-xs text-muted-foreground flex items-center gap-1">
             <Cloud className="h-3 w-3 text-green-600" />
             Synced from {selectedPropertyData.external_system}: {lastSyncTime.toLocaleTimeString()}
+          </div>
+        )}
+
+        {selectedPropertyData && !isPmsProperty && pmsSyncStatus === "success" && lastSyncTime && (
+          <div className="mb-2 text-xs text-muted-foreground flex items-center gap-1">
+            <Cloud className="h-3 w-3 text-amber-600" />
+            Manual rates loaded from wizard config: {lastSyncTime.toLocaleTimeString()}
           </div>
         )}
 
