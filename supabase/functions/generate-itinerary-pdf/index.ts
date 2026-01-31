@@ -28,12 +28,34 @@ const TONE_STAY_PHRASES: Record<JourneyTone, string[]> = {
   family: ['Fun for everyone at', 'The whole family will love', 'Create memories together at'],
 };
 
+// Weather code descriptions
+const WEATHER_CODES: Record<number, { icon: string; desc: string }> = {
+  0: { icon: '☀️', desc: 'Clear sky' },
+  1: { icon: '🌤️', desc: 'Mostly clear' },
+  2: { icon: '⛅', desc: 'Partly cloudy' },
+  3: { icon: '☁️', desc: 'Overcast' },
+  45: { icon: '🌫️', desc: 'Fog' },
+  48: { icon: '🌫️', desc: 'Depositing rime fog' },
+  51: { icon: '🌦️', desc: 'Light drizzle' },
+  53: { icon: '🌦️', desc: 'Moderate drizzle' },
+  55: { icon: '🌧️', desc: 'Dense drizzle' },
+  61: { icon: '🌧️', desc: 'Slight rain' },
+  63: { icon: '🌧️', desc: 'Moderate rain' },
+  65: { icon: '🌧️', desc: 'Heavy rain' },
+  71: { icon: '❄️', desc: 'Slight snow' },
+  73: { icon: '❄️', desc: 'Moderate snow' },
+  75: { icon: '❄️', desc: 'Heavy snow' },
+  80: { icon: '🌦️', desc: 'Slight showers' },
+  81: { icon: '🌧️', desc: 'Moderate showers' },
+  82: { icon: '⛈️', desc: 'Violent showers' },
+  95: { icon: '⛈️', desc: 'Thunderstorm' },
+};
+
 // Detect tone from booking context
 function detectTone(itinerary: any, stays: any[]): JourneyTone {
   const specialRequests = (itinerary.special_requests || '').toLowerCase();
   const guestEmail = (itinerary.guest_email || '').toLowerCase();
   
-  // Check special requests for signals
   if (specialRequests.includes('anniversary') || specialRequests.includes('honeymoon') || 
       specialRequests.includes('romantic') || specialRequests.includes('proposal')) {
     return 'romantic';
@@ -54,7 +76,6 @@ function detectTone(itinerary: any, stays: any[]): JourneyTone {
     return 'adventure';
   }
   
-  // Check email domain for business travel
   const businessDomains = ['.com', '.co.za', '.org', '.net'];
   const personalDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com'];
   if (guestEmail && !personalDomains.some(d => guestEmail.includes(d)) && 
@@ -62,7 +83,6 @@ function detectTone(itinerary: any, stays: any[]): JourneyTone {
     return 'professional';
   }
   
-  // Check property types and pricing for luxury signals
   const avgPrice = stays.length > 0 
     ? stays.reduce((sum, s) => sum + (s.price || 0), 0) / stays.length 
     : 0;
@@ -71,7 +91,6 @@ function detectTone(itinerary: any, stays: any[]): JourneyTone {
     return 'luxury';
   }
   
-  // Check for luxury tags in property names
   const luxuryKeywords = ['spa', 'resort', 'lodge', 'manor', 'estate', 'boutique'];
   const hasLuxuryProperty = stays.some(s => 
     luxuryKeywords.some(kw => (s.propertyName || '').toLowerCase().includes(kw))
@@ -81,7 +100,6 @@ function detectTone(itinerary: any, stays: any[]): JourneyTone {
     return 'luxury';
   }
   
-  // Default to relaxation for leisure travel
   return 'relaxation';
 }
 
@@ -165,6 +183,16 @@ interface PropertyDetails {
   check_out_time: string | null;
   contact_phone: string | null;
   contact_email: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+interface WeatherDay {
+  date: string;
+  icon: string;
+  desc: string;
+  high: number;
+  low: number;
 }
 
 // Category icons for experiences
@@ -177,6 +205,186 @@ const categoryIcons: Record<string, string> = {
   food: '🍴',
   dining: '🍷'
 };
+
+// Generate AI poem using Lovable AI
+async function generatePersonalPoem(
+  guestName: string,
+  propertyNames: string[],
+  tone: JourneyTone
+): Promise<string | null> {
+  try {
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!lovableApiKey) {
+      console.log("[PDF] LOVABLE_API_KEY not set, skipping poem generation");
+      return null;
+    }
+
+    const toneDescriptions: Record<JourneyTone, string> = {
+      luxury: 'elegant and refined',
+      romantic: 'romantic and intimate',
+      adventure: 'exciting and adventurous',
+      relaxation: 'peaceful and serene',
+      professional: 'professional yet warm',
+      family: 'joyful and family-friendly',
+    };
+
+    const prompt = `Create a beautiful 4-line poem for a guest named ${guestName || 'our guest'} who is visiting ${propertyNames.join(' and ')} in Africa. 
+    
+The tone should be ${toneDescriptions[tone]}. 
+Make it warm, personal, and memorable. 
+The poem should evoke the magic of African hospitality and the anticipation of their journey.
+Only return the poem, no explanations or titles.`;
+
+    const response = await fetch("https://api.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${lovableApiKey}`,
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 200,
+        temperature: 0.8,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("[PDF] Poem generation failed:", response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const poem = data.choices?.[0]?.message?.content?.trim();
+    console.log("[PDF] Generated poem:", poem?.substring(0, 50) + "...");
+    return poem || null;
+  } catch (error) {
+    console.error("[PDF] Error generating poem:", error);
+    return null;
+  }
+}
+
+// Fetch weather forecast for travel dates
+async function fetchWeatherForecast(
+  latitude: number,
+  longitude: number,
+  startDate: string,
+  endDate: string
+): Promise<WeatherDay[]> {
+  try {
+    // Open-Meteo only provides 16-day forecast, so check if dates are within range
+    const today = new Date();
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    // If start date is more than 16 days away, return empty
+    const daysUntilStart = Math.floor((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysUntilStart > 16) {
+      console.log("[PDF] Travel dates too far in future for weather forecast");
+      return [];
+    }
+
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto&start_date=${startDate}&end_date=${endDate}`;
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error("[PDF] Weather API error:", response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    
+    if (!data.daily) {
+      return [];
+    }
+
+    const weatherDays: WeatherDay[] = [];
+    const dates = data.daily.time || [];
+    const maxTemps = data.daily.temperature_2m_max || [];
+    const minTemps = data.daily.temperature_2m_min || [];
+    const codes = data.daily.weathercode || [];
+
+    for (let i = 0; i < Math.min(dates.length, 5); i++) {
+      const code = codes[i] || 0;
+      const weather = WEATHER_CODES[code] || { icon: '🌡️', desc: 'Variable' };
+      
+      weatherDays.push({
+        date: dates[i],
+        icon: weather.icon,
+        desc: weather.desc,
+        high: Math.round(maxTemps[i] || 0),
+        low: Math.round(minTemps[i] || 0),
+      });
+    }
+
+    console.log(`[PDF] Fetched ${weatherDays.length} days of weather data`);
+    return weatherDays;
+  } catch (error) {
+    console.error("[PDF] Error fetching weather:", error);
+    return [];
+  }
+}
+
+// Generate surprise voucher
+async function generateSurpriseVoucher(
+  supabase: any,
+  itineraryId: string,
+  propertyNames: string[]
+): Promise<{ code: string; description: string } | null> {
+  try {
+    // Check if voucher already exists for this itinerary
+    const { data: existing } = await supabase
+      .from("experience_vouchers")
+      .select("code, description")
+      .eq("itinerary_id", itineraryId)
+      .single();
+    
+    if (existing) {
+      console.log("[PDF] Existing voucher found:", existing.code);
+      return existing;
+    }
+
+    // Generate unique voucher code
+    const prefixes = ['SUNSET', 'SAFARI', 'AFRICA', 'JOURNEY', 'EXPLORE', 'WONDER'];
+    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const code = `${prefix}-${randomPart}`;
+
+    // Create voucher
+    const validUntil = new Date();
+    validUntil.setMonth(validUntil.getMonth() + 6); // Valid for 6 months
+
+    const descriptions = [
+      `25% off your next local experience at ${propertyNames[0] || 'any partner property'}`,
+      `Complimentary sunset drinks for two on your next visit`,
+      `25% discount on spa treatments or local tours`,
+      `A special gift awaits you at reception – mention this code!`,
+    ];
+    
+    const description = descriptions[Math.floor(Math.random() * descriptions.length)];
+
+    const { error } = await supabase
+      .from("experience_vouchers")
+      .insert({
+        itinerary_id: itineraryId,
+        code,
+        discount_percent: 25,
+        description,
+        valid_until: validUntil.toISOString(),
+      });
+
+    if (error) {
+      console.error("[PDF] Error creating voucher:", error);
+      return null;
+    }
+
+    console.log("[PDF] Created surprise voucher:", code);
+    return { code, description };
+  } catch (error) {
+    console.error("[PDF] Error in voucher generation:", error);
+    return null;
+  }
+}
 
 function generateExperiencesHTML(experiences: LocalExperience[]): string {
   if (!experiences || experiences.length === 0) return '';
@@ -242,6 +450,64 @@ function generatePracticalHTML(property: PropertyDetails): string {
   `;
 }
 
+function generateWeatherHTML(weather: WeatherDay[]): string {
+  if (!weather || weather.length === 0) return '';
+  
+  const weatherItems = weather.map(day => `
+    <div class="weather-day">
+      <span class="weather-date">${new Date(day.date).toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric' })}</span>
+      <span class="weather-icon">${day.icon}</span>
+      <span class="weather-temps">${day.high}° / ${day.low}°</span>
+    </div>
+  `).join('');
+  
+  return `
+    <div class="weather-section">
+      <h4>🌤️ Weather Forecast</h4>
+      <div class="weather-grid">
+        ${weatherItems}
+      </div>
+      <p class="weather-note">Forecast provided by Open-Meteo</p>
+    </div>
+  `;
+}
+
+function generatePoemHTML(poem: string | null): string {
+  if (!poem) return '';
+  
+  const lines = poem.split('\n').filter(l => l.trim()).map(l => `<span>${l}</span>`).join('');
+  
+  return `
+    <div class="poem-section">
+      <div class="poem-content">
+        ${lines}
+      </div>
+      <p class="poem-attribution">— Written just for you ✨</p>
+    </div>
+  `;
+}
+
+function generateVoucherHTML(voucher: { code: string; description: string } | null): string {
+  if (!voucher) return '';
+  
+  return `
+    <div class="voucher-section">
+      <div class="voucher-card">
+        <div class="voucher-header">
+          <span class="voucher-gift">🎁</span>
+          <span class="voucher-title">A Special Gift For You</span>
+        </div>
+        <p class="voucher-description">${voucher.description}</p>
+        <div class="voucher-code-box">
+          <span class="voucher-label">Your Code:</span>
+          <span class="voucher-code">${voucher.code}</span>
+        </div>
+        <p class="voucher-terms">Valid for 6 months. Present this code at reception.</p>
+      </div>
+    </div>
+  `;
+}
+
 function generateShareHTML(itineraryId: string): string {
   const shareUrl = `https://book.sleepinafrica.roomsonline.co.za/journey/confirmation/${itineraryId}`;
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(shareUrl)}`;
@@ -262,8 +528,20 @@ interface EnrichedStay extends Stay {
   propertyDetails: PropertyDetails | null;
 }
 
-function generateBrochureHTML(itinerary: any, stays: EnrichedStay[], tone: JourneyTone): string {
+interface BrochureEnhancements {
+  poem: string | null;
+  weather: WeatherDay[];
+  voucher: { code: string; description: string } | null;
+}
+
+function generateBrochureHTML(
+  itinerary: any,
+  stays: EnrichedStay[],
+  tone: JourneyTone,
+  enhancements: BrochureEnhancements
+): string {
   const toneIntro = TONE_INTROS[tone];
+  const guestFirstName = (itinerary.guest_name || 'Guest').split(' ')[0];
   
   const staysHTML = stays.map((stay, index) => {
     const diningExp = stay.experiences?.find(e => e.category === 'dining');
@@ -361,6 +639,31 @@ function generateBrochureHTML(itinerary: any, stays: EnrichedStay[], tone: Journ
       margin-top: 4px;
     }
     
+    /* Welcome Hero */
+    .welcome-hero {
+      text-align: center;
+      background: linear-gradient(135deg, #1a1a1a 0%, #333 100%);
+      color: white;
+      padding: 40px 30px;
+      border-radius: 12px;
+      margin-bottom: 30px;
+    }
+    
+    .welcome-hero h1 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 32pt;
+      font-weight: 600;
+      margin: 0 0 10px;
+      color: white;
+      border: none;
+    }
+    
+    .welcome-subtitle {
+      color: rgba(255,255,255,0.8);
+      font-size: 14pt;
+      margin-bottom: 0;
+    }
+    
     /* Title */
     h1 {
       font-family: 'Playfair Display', Georgia, serif;
@@ -387,6 +690,162 @@ function generateBrochureHTML(itinerary: any, stays: EnrichedStay[], tone: Journ
       padding: 12px;
       background: linear-gradient(135deg, #fdf2f8 0%, #fff 100%);
       border-radius: 6px;
+    }
+    
+    /* Poem Section */
+    .poem-section {
+      background: linear-gradient(135deg, #fef3c7 0%, #fff7ed 100%);
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 30px;
+      text-align: center;
+      border: 1px solid #fcd34d;
+    }
+    
+    .poem-content {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 14pt;
+      font-style: italic;
+      line-height: 2;
+      color: #78350f;
+    }
+    
+    .poem-content span {
+      display: block;
+    }
+    
+    .poem-attribution {
+      margin-top: 16px;
+      font-size: 10pt;
+      color: #92400e;
+    }
+    
+    /* Weather Section */
+    .weather-section {
+      background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 30px;
+      border: 1px solid #7dd3fc;
+    }
+    
+    .weather-section h4 {
+      font-size: 12pt;
+      font-weight: 600;
+      color: #0369a1;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    
+    .weather-grid {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    
+    .weather-day {
+      background: white;
+      border-radius: 8px;
+      padding: 12px 16px;
+      text-align: center;
+      min-width: 80px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    
+    .weather-date {
+      display: block;
+      font-size: 9pt;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    
+    .weather-icon {
+      display: block;
+      font-size: 24pt;
+      margin: 4px 0;
+    }
+    
+    .weather-temps {
+      display: block;
+      font-size: 10pt;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    .weather-note {
+      text-align: center;
+      font-size: 8pt;
+      color: #666;
+      margin-top: 12px;
+    }
+    
+    /* Voucher Section */
+    .voucher-section {
+      margin-bottom: 30px;
+    }
+    
+    .voucher-card {
+      background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%);
+      border: 2px dashed #e91e8c;
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+    }
+    
+    .voucher-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    
+    .voucher-gift {
+      font-size: 28pt;
+    }
+    
+    .voucher-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 18pt;
+      font-weight: 600;
+      color: #be185d;
+    }
+    
+    .voucher-description {
+      color: #666;
+      font-size: 11pt;
+      margin-bottom: 16px;
+    }
+    
+    .voucher-code-box {
+      background: white;
+      border-radius: 8px;
+      padding: 12px 24px;
+      display: inline-block;
+      margin-bottom: 12px;
+    }
+    
+    .voucher-label {
+      font-size: 9pt;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: block;
+      margin-bottom: 4px;
+    }
+    
+    .voucher-code {
+      font-family: monospace;
+      font-size: 20pt;
+      font-weight: 700;
+      color: #e91e8c;
+      letter-spacing: 2px;
+    }
+    
+    .voucher-terms {
+      font-size: 9pt;
+      color: #999;
     }
     
     .stay-intro {
@@ -794,10 +1253,22 @@ function generateBrochureHTML(itinerary: any, stays: EnrichedStay[], tone: Journ
     <p class="tagline">Curated African Hospitality</p>
   </div>
   
-  <!-- Title -->
-  <h1>${itinerary.title || 'Your Journey'}</h1>
-  <p class="subtitle">${itinerary.total_nights} nights across ${stays.length} destination${stays.length > 1 ? 's' : ''}</p>
+  <!-- Welcome Hero -->
+  <div class="welcome-hero">
+    <h1>Welcome, ${guestFirstName}!</h1>
+    <p class="welcome-subtitle">${itinerary.total_nights} nights across ${stays.length} destination${stays.length > 1 ? 's' : ''}</p>
+  </div>
+  
   ${toneSubtitle}
+  
+  <!-- AI-Generated Poem -->
+  ${generatePoemHTML(enhancements.poem)}
+  
+  <!-- Weather Forecast -->
+  ${generateWeatherHTML(enhancements.weather)}
+  
+  <!-- Surprise Voucher -->
+  ${generateVoucherHTML(enhancements.voucher)}
   
   <!-- Guest Information -->
   <div class="guest-info">
@@ -905,10 +1376,10 @@ Deno.serve(async (req) => {
     // Get unique property IDs
     const propertyIds = [...new Set(stays.map(s => s.propertyId))];
     
-    // Fetch property details including practical info
+    // Fetch property details including practical info and coordinates
     const { data: properties } = await supabase
       .from("properties")
-      .select("id, name, main_image, city, country, address, check_in_time, check_out_time, contact_phone, contact_email")
+      .select("id, name, main_image, city, country, address, check_in_time, check_out_time, contact_phone, contact_email, latitude, longitude")
       .in("id", propertyIds);
 
     const propertyMap = new Map(properties?.map(p => [p.id, p]) || []);
@@ -934,7 +1405,6 @@ Deno.serve(async (req) => {
       const experiences = experiencesMap.get(propertyId) || [];
       if (experiences.length < 3) {
         console.log(`Auto-enriching experiences for property ${propertyId}`);
-        // Non-blocking call to enrich experiences
         supabase.functions.invoke('enrich-property-experiences', {
           body: { property_id: propertyId }
         }).catch(err => console.error(`Enrichment failed for ${propertyId}:`, err));
@@ -953,10 +1423,69 @@ Deno.serve(async (req) => {
 
     // Detect tone from booking context
     const tone = detectTone(itinerary, stays);
-    console.log(`Detected journey tone: ${tone}`);
+    console.log(`[PDF] Detected journey tone: ${tone}`);
 
-    // Generate HTML brochure with tone-adaptive content
-    const html = generateBrochureHTML(itinerary, enrichedStays, tone);
+    // Get property names for AI and voucher generation
+    const propertyNames = enrichedStays.map(s => s.propertyName);
+
+    // === PHASE 3 ENHANCEMENTS ===
+    
+    // 1. Generate AI poem (non-blocking, with timeout)
+    const poemPromise = generatePersonalPoem(
+      itinerary.guest_name || 'Guest',
+      propertyNames,
+      tone
+    ).catch(err => {
+      console.error("[PDF] Poem generation failed:", err);
+      return null;
+    });
+
+    // 2. Fetch weather for first property (if coordinates available)
+    let weatherPromise: Promise<WeatherDay[]> = Promise.resolve([]);
+    const firstPropertyWithCoords = properties?.find(p => p.latitude && p.longitude);
+    if (firstPropertyWithCoords && stays.length > 0) {
+      const firstStay = stays[0];
+      weatherPromise = fetchWeatherForecast(
+        firstPropertyWithCoords.latitude!,
+        firstPropertyWithCoords.longitude!,
+        firstStay.checkIn,
+        firstStay.checkOut
+      ).catch(err => {
+        console.error("[PDF] Weather fetch failed:", err);
+        return [];
+      });
+    }
+
+    // 3. Generate surprise voucher (always for Phase 3)
+    const voucherPromise = generateSurpriseVoucher(
+      supabase,
+      itinerary_id,
+      propertyNames
+    ).catch(err => {
+      console.error("[PDF] Voucher generation failed:", err);
+      return null;
+    });
+
+    // Wait for all enhancements (with timeout for poem)
+    const [poem, weather, voucher] = await Promise.all([
+      Promise.race([
+        poemPromise,
+        new Promise<null>(resolve => setTimeout(() => resolve(null), 5000))
+      ]),
+      weatherPromise,
+      voucherPromise,
+    ]);
+
+    const enhancements: BrochureEnhancements = {
+      poem,
+      weather,
+      voucher,
+    };
+
+    console.log(`[PDF] Enhancements: poem=${!!poem}, weather=${weather.length}d, voucher=${voucher?.code || 'none'}`);
+
+    // Generate HTML brochure with tone-adaptive content and enhancements
+    const html = generateBrochureHTML(itinerary, enrichedStays, tone, enhancements);
 
     // Store HTML in storage bucket for client-side PDF generation
     const fileName = `brochures/itinerary-${itinerary_id}-${Date.now()}.html`;
@@ -1001,6 +1530,11 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         html,
         html_url: urlData.publicUrl,
+        enhancements: {
+          has_poem: !!poem,
+          weather_days: weather.length,
+          voucher_code: voucher?.code || null,
+        },
         message: "Brochure generated successfully"
       }),
       { 

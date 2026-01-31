@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Loader2, CheckCircle, AlertCircle, Download, Home, Calendar } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle, Download, Home, Calendar, Sparkles, Share2, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -219,21 +219,81 @@ export default function JourneyConfirmation() {
           </CardContent>
         </Card>
 
+        {/* Magical Itinerary Section */}
+        {isConfirmed && (
+          <Card className="mb-8 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 border-amber-200 dark:border-amber-800">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="inline-flex items-center gap-2 bg-amber-100 dark:bg-amber-900/50 px-4 py-2 rounded-full mb-4">
+                  <Gift className="h-5 w-5 text-amber-600" />
+                  <span className="text-amber-700 dark:text-amber-300 font-medium">Your Magical Itinerary</span>
+                </div>
+                
+                <h3 className="text-xl font-serif font-semibold mb-2">
+                  We've created a beautiful travel document just for you
+                </h3>
+                
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                  Complete with a personalized poem, weather forecast, and a surprise gift waiting inside!
+                </p>
+                
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Button
+                    onClick={handleDownloadPdf}
+                    disabled={isGeneratingPdf}
+                    className="gap-2 bg-amber-600 hover:bg-amber-700"
+                    size="lg"
+                  >
+                    {isGeneratingPdf ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                    Download Your Journey Brochure
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => {
+                      if (navigator.share) {
+                        navigator.share({
+                          title: 'My African Journey',
+                          text: `Check out my upcoming trip!`,
+                          url: window.location.href,
+                        });
+                      } else {
+                        navigator.clipboard.writeText(window.location.href);
+                        toast.success('Link copied to clipboard!');
+                      }
+                    }}
+                  >
+                    <Share2 className="h-4 w-4" />
+                    Share Journey
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button
-            variant="outline"
-            onClick={handleDownloadPdf}
-            disabled={isGeneratingPdf}
-            className="gap-2"
-          >
-            {isGeneratingPdf ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4" />
-            )}
-            Download Brochure
-          </Button>
+          {!isConfirmed && (
+            <Button
+              variant="outline"
+              onClick={handleDownloadPdf}
+              disabled={isGeneratingPdf}
+              className="gap-2"
+            >
+              {isGeneratingPdf ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Download Brochure
+            </Button>
+          )}
           
           <Button onClick={() => navigate('/')} className="gap-2">
             <Home className="h-4 w-4" />
