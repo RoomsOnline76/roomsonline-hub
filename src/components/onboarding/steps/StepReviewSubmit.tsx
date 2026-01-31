@@ -27,6 +27,26 @@ export function StepReviewSubmit({
 
   const amenities = (propertyData.amenities || {}) as Record<string, unknown>;
 
+  // Helper to get nested values from amenities
+  const getNestedValue = (...paths: string[]): unknown => {
+    for (const path of paths) {
+      const parts = path.split('.');
+      let current: unknown = amenities;
+      for (const part of parts) {
+        if (current && typeof current === 'object' && part in (current as Record<string, unknown>)) {
+          current = (current as Record<string, unknown>)[part];
+        } else {
+          current = undefined;
+          break;
+        }
+      }
+      if (current !== undefined && current !== null && current !== '') {
+        return current;
+      }
+    }
+    return undefined;
+  };
+
   const calculateSectionScores = (): SectionStatus[] => {
     const sections: SectionStatus[] = [];
 
@@ -42,8 +62,10 @@ export function StepReviewSubmit({
       isComplete: identityFields >= 2
     });
 
-    // Contact Details
-    const contactFields = [amenities.telephone, amenities.contact_email].filter(Boolean).length;
+    // Contact Details - check nested paths
+    const hasPhone = !!(getNestedValue('contact.telephone', 'telephone') || getNestedValue('contact.mobile', 'mobile'));
+    const hasEmail = !!(getNestedValue('contact.email', 'contact_email'));
+    const contactFields = [hasPhone, hasEmail].filter(Boolean).length;
     sections.push({
       id: "contact_details",
       title: "Contact & Team",
@@ -62,18 +84,23 @@ export function StepReviewSubmit({
       isComplete: locationFields >= 3
     });
 
-    // Policies & Pricing (enhanced with new fields)
-    // Check-in/out times are complete if either the window fields OR legacy fields exist
-    const hasCheckInTime = !!(amenities.check_in_from || amenities.check_in_time);
-    const hasCheckOutTime = !!(amenities.check_out_from || amenities.check_out_to);
-    const hasBanking = !!(amenities.bank_name || amenities.bank_confirmation_letter_url || amenities.account_number);
+    // Policies & Pricing (enhanced with nested paths)
+    // Check-in/out times - check nested house_rules paths
+    const hasCheckInTime = !!(getNestedValue('house_rules.check_in_from', 'check_in_from', 'check_in_time'));
+    const hasCheckOutTime = !!(getNestedValue('house_rules.check_out_to', 'check_out_to', 'check_out_from'));
+    // Banking - check nested paths
+    const hasBanking = !!(getNestedValue('banking.bank_name', 'bank_name', 'banking.bank_confirmation_letter_url', 'bank_confirmation_letter_url'));
+    // Cancellation - check both array and flat field
+    const cancellationPolicies = getNestedValue('cancellation_policies') as unknown[] | undefined;
+    const hasCancellation = !!(cancellationPolicies && cancellationPolicies.length > 0) || !!getNestedValue('cancellation_policy');
+    const hasPaymentPolicy = !!getNestedValue('payment_policy');
     
     const policyFields = [
       hasCheckInTime,
       hasCheckOutTime,
       hasBanking,
-      amenities.cancellation_policy,
-      amenities.payment_policy
+      hasCancellation,
+      hasPaymentPolicy
     ].filter(Boolean).length;
     sections.push({
       id: "policies_pricing",
@@ -83,12 +110,13 @@ export function StepReviewSubmit({
       isComplete: hasCheckInTime && hasCheckOutTime
     });
 
-    // Guest Experience (enhanced with new fields)
+    // Guest Experience (enhanced with nested paths)
+    const hasMealPlan = !!(getNestedValue('meal_plan') || (getNestedValue('breakfast_options') as unknown[] | undefined)?.length);
     const descFields = [
       propertyData.description,
       propertyData.short_description,
-      amenities.unique_selling_points,
-      amenities.meal_plan
+      getNestedValue('unique_selling_points'),
+      hasMealPlan
     ].filter(Boolean).length;
     sections.push({
       id: "guest_experience",

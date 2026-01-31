@@ -401,9 +401,27 @@ export const MEDIUM_IMPACT_FIELDS: FieldDefinition[] = [
 
 // Map of field keys to their alternative keys (for checking multiple paths)
 const FIELD_ALTERNATIVES: Record<string, string[]> = {
-  'amenities.check_in_time': ['check_in_from', 'check_in_time', 'check_in_to'],
-  'amenities.check_out_time': ['check_out_from', 'check_out_time', 'check_out_to'],
+  'amenities.check_in_time': ['house_rules.check_in_from', 'check_in_from', 'check_in_time', 'check_in_to'],
+  'amenities.check_out_time': ['house_rules.check_out_to', 'check_out_to', 'check_out_from', 'house_rules.check_out_from'],
+  'amenities.contact_email': ['contact.email', 'contact_email'],
+  'amenities.telephone': ['contact.telephone', 'telephone', 'contact.mobile', 'mobile'],
+  'amenities.cancellation_policy': ['cancellation_policies', 'cancellation_policy'],
+  'amenities.meal_plan': ['meal_plan', 'breakfast_options'],
 };
+
+// Helper to get nested values from an object
+function getNestedValueFromObject(obj: Record<string, unknown>, path: string): unknown {
+  const parts = path.split('.');
+  let current: unknown = obj;
+  for (const part of parts) {
+    if (current && typeof current === 'object' && part in (current as Record<string, unknown>)) {
+      current = (current as Record<string, unknown>)[part];
+    } else {
+      return undefined;
+    }
+  }
+  return current;
+}
 
 export function getMissingFieldsByImpact(
   data: Record<string, unknown>,
@@ -434,11 +452,16 @@ export function getMissingFieldsByImpact(
     // Check for alternative field keys first
     const alternatives = FIELD_ALTERNATIVES[field.key];
     if (alternatives) {
-      // Check if any of the alternative keys have a value
-      hasValue = alternatives.some(altKey => checkHasValue(amenities[altKey]));
+      // Check if any of the alternative keys have a value (using nested path support)
+      hasValue = alternatives.some(altKey => {
+        const value = getNestedValueFromObject(amenities, altKey);
+        return checkHasValue(value);
+      });
     } else if (field.key.startsWith('amenities.')) {
       const amenityKey = field.key.replace('amenities.', '');
-      hasValue = checkHasValue(amenities[amenityKey]);
+      // Support nested paths like 'contact.email'
+      const value = getNestedValueFromObject(amenities, amenityKey);
+      hasValue = checkHasValue(value);
     } else {
       hasValue = checkHasValue(data[field.key]);
     }
