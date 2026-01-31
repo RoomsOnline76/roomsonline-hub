@@ -282,7 +282,7 @@ function AuthContent() {
   // Password Recovery Mode - User clicked reset link from email
   if (isRecoveryMode) {
     return (
-      <PublicLayout hideFooter hideHeader>
+      <PublicLayout hideFooter hideHeader hideJourneyBuilder>
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md">
             <div className="text-center mb-8">
@@ -363,7 +363,7 @@ function AuthContent() {
   // Forgot Password View
   if (showForgotPassword) {
     return (
-      <PublicLayout hideFooter hideHeader>
+      <PublicLayout hideFooter hideHeader hideJourneyBuilder>
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md">
             <div className="text-center mb-8">
@@ -454,7 +454,7 @@ function AuthContent() {
     (loginRecaptcha.error || loginRecaptcha.isVerifying);
 
   return (
-    <PublicLayout hideFooter hideHeader>
+    <PublicLayout hideFooter hideHeader hideJourneyBuilder>
       {showLoginOverlay && (
         <RecaptchaOverlay
           isVerifying={loginRecaptcha.isVerifying}
@@ -765,7 +765,7 @@ function AuthContentFallback() {
 
   if (isRecoveryMode) {
     return (
-      <PublicLayout hideFooter hideHeader>
+      <PublicLayout hideFooter hideHeader hideJourneyBuilder>
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md">
             <div className="text-center mb-8">
@@ -810,7 +810,7 @@ function AuthContentFallback() {
 
   if (showForgotPassword) {
     return (
-      <PublicLayout hideFooter hideHeader>
+      <PublicLayout hideFooter hideHeader hideJourneyBuilder>
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md">
             <div className="text-center mb-8">
@@ -854,7 +854,7 @@ function AuthContentFallback() {
   }
 
   return (
-    <PublicLayout hideFooter hideHeader>
+    <PublicLayout hideFooter hideHeader hideJourneyBuilder>
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
