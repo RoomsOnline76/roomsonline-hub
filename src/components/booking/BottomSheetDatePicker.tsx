@@ -155,59 +155,62 @@ export function BottomSheetDatePicker({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[90vh]">
-        <DrawerHeader className="pb-2">
-          <DrawerTitle className="font-sans text-lg font-medium tracking-tight">
-            Select Dates
-          </DrawerTitle>
-          <p className="text-sm text-muted-foreground">
-            {selectingCheckOut ? "Select check-out date" : "Select check-in date"}
-          </p>
-        </DrawerHeader>
+      <DrawerContent className="max-h-[90vh] mx-auto sm:max-w-lg md:max-w-xl">
+        <div className="mx-auto w-full max-w-md">
+          <DrawerHeader className="pb-2">
+            <DrawerTitle className="font-sans text-lg font-medium tracking-tight">
+              Select Dates
+            </DrawerTitle>
+            <p className="text-sm text-muted-foreground">
+              {selectingCheckOut ? "Select check-out date" : "Select check-in date"}
+            </p>
+          </DrawerHeader>
 
-        {/* Quick date scroll */}
-        <div 
-          ref={scrollRef}
-          className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide border-b"
-        >
-          {quickDates.map((date) => {
-            const isSelected = isCheckIn(date) || isCheckOut(date);
-            const status = getDateStatus(date);
-            
-            return (
-              <button
-                key={date.toISOString()}
-                onClick={() => handleDateClick(date)}
-                className={cn(
-                  "flex flex-col items-center min-w-[3.5rem] py-2 px-3 rounded-xl transition-all duration-200",
-                  "border border-transparent",
-                  isSelected
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : isInRange(date)
-                    ? "bg-primary/10 border-primary/20"
-                    : "hover:bg-muted hover:border-border/60",
-                  isDisabled(date) && "opacity-30 pointer-events-none"
-                )}
-              >
-                <span className="text-[10px] uppercase tracking-wider opacity-70">
-                  {format(date, "EEE")}
-                </span>
-                <span className="text-lg font-medium">
-                  {format(date, "d")}
-                </span>
-                {status && (
-                  <span className={cn(
-                    "w-1.5 h-1.5 rounded-full mt-1",
-                    status.available ? "bg-green-500" : "bg-red-400"
-                  )} />
-                )}
-              </button>
-            );
-          })}
-        </div>
+          {/* Quick date scroll */}
+          <div 
+            ref={scrollRef}
+            className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide border-b"
+          >
+            {quickDates.map((date) => {
+              const isSelected = isCheckIn(date) || isCheckOut(date);
+              const status = getDateStatus(date);
+              const disabled = isDisabled(date);
+              
+              return (
+                <button
+                  key={date.toISOString()}
+                  onClick={() => !disabled && handleDateClick(date)}
+                  disabled={disabled}
+                  className={cn(
+                    "flex flex-col items-center min-w-[3.5rem] py-2 px-3 rounded-xl transition-all duration-200",
+                    "border border-transparent",
+                    isSelected
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : isInRange(date)
+                      ? "bg-primary/10 border-primary/20"
+                      : "hover:bg-muted hover:border-border/60",
+                    disabled && "opacity-30 cursor-not-allowed"
+                  )}
+                >
+                  <span className="text-[10px] uppercase tracking-wider opacity-70">
+                    {format(date, "EEE")}
+                  </span>
+                  <span className="text-lg font-medium">
+                    {format(date, "d")}
+                  </span>
+                  {status && !disabled && (
+                    <span className={cn(
+                      "w-1.5 h-1.5 rounded-full mt-1",
+                      status.available ? "bg-green-500" : "bg-red-400"
+                    )} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-        {/* Calendar grid */}
-        <div className="px-4 py-3 overflow-y-auto max-h-[50vh]">
+          {/* Calendar grid */}
+          <div className="px-4 py-3 overflow-y-auto max-h-[50vh]">
           {/* Month navigation with jump buttons */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-1">
@@ -318,42 +321,43 @@ export function BottomSheetDatePicker({
               );
             })}
           </div>
-        </div>
-
-        {/* Summary */}
-        {tempCheckIn && (
-          <div className="px-4 py-3 border-t bg-muted/30">
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-primary" />
-                <span>
-                  {format(tempCheckIn, "MMM d")}
-                  {tempCheckOut && ` – ${format(tempCheckOut, "MMM d")}`}
-                </span>
-              </div>
-              {nights > 0 && (
-                <span className="text-muted-foreground">
-                  {nights} night{nights !== 1 ? "s" : ""}
-                </span>
-              )}
-            </div>
           </div>
-        )}
 
-        <DrawerFooter className="pt-2">
-          <Button
-            onClick={handleConfirm}
-            disabled={!tempCheckIn || !tempCheckOut}
-            className="w-full h-12 text-base font-medium"
-          >
-            Confirm Dates
-          </Button>
-          <DrawerClose asChild>
-            <Button variant="ghost" className="w-full">
-              Cancel
+          {/* Summary */}
+          {tempCheckIn && (
+            <div className="px-4 py-3 border-t bg-muted/30">
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-primary" />
+                  <span>
+                    {format(tempCheckIn, "MMM d")}
+                    {tempCheckOut && ` – ${format(tempCheckOut, "MMM d")}`}
+                  </span>
+                </div>
+                {nights > 0 && (
+                  <span className="text-muted-foreground">
+                    {nights} night{nights !== 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DrawerFooter className="pt-2">
+            <Button
+              onClick={handleConfirm}
+              disabled={!tempCheckIn || !tempCheckOut}
+              className="w-full h-12 text-base font-medium"
+            >
+              Confirm Dates
             </Button>
-          </DrawerClose>
-        </DrawerFooter>
+            <DrawerClose asChild>
+              <Button variant="ghost" className="w-full">
+                Cancel
+              </Button>
+            </DrawerClose>
+          </DrawerFooter>
+        </div>
       </DrawerContent>
     </Drawer>
   );
