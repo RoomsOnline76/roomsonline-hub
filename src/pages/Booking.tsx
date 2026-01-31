@@ -338,33 +338,43 @@ const Booking = () => {
   // Initialize rooms and cost from ItineraryContext when available (for non-PMS properties)
   // This ensures the pre-calculated price from QuickBookDrawer carries through to checkout
   useEffect(() => {
-    if (property && stays.length > 0 && rooms.length === 0) {
+    if (property && stays.length > 0) {
       // Find the stay for this property
       const currentStay = stays.find(s => 
         s.property_id === property.id || s.property_slug === property.slug
       );
       
       if (currentStay) {
-        console.log('[Booking] Initializing from ItineraryContext stay:', currentStay);
+        // Initialize rooms if not already set
+        if (rooms.length === 0) {
+          console.log('[Booking] Initializing rooms from ItineraryContext stay:', currentStay);
+          
+          // Initialize rooms from itinerary context
+          const mappedRooms: RoomBooking[] = currentStay.rooms.map(r => ({
+            roomTypeId: r.room_type_id,
+            roomTypeName: r.room_type_name,
+            numberOfAdults: currentStay.guests.adults,
+            numberOfTeens: 0,
+            numberOfChildren: currentStay.guests.children,
+            numberOfInfants: currentStay.guests.infants,
+            numberOfPets: 0,
+            checkIn: currentStay.dates.check_in,
+            checkOut: currentStay.dates.check_out,
+          }));
+          setRooms(mappedRooms);
+          setCheckIn(currentStay.dates.check_in);
+          setCheckOut(currentStay.dates.check_out);
+          
+          // Set rate type if available
+          if (currentStay.rate_type_id) {
+            setSelectedRateType(currentStay.rate_type_id);
+          }
+        }
         
-        // Initialize rooms from itinerary context
-        const mappedRooms: RoomBooking[] = currentStay.rooms.map(r => ({
-          roomTypeId: r.room_type_id,
-          roomTypeName: r.room_type_name,
-          numberOfAdults: currentStay.guests.adults,
-          numberOfTeens: 0,
-          numberOfChildren: currentStay.guests.children,
-          numberOfInfants: currentStay.guests.infants,
-          numberOfPets: 0,
-          checkIn: currentStay.dates.check_in,
-          checkOut: currentStay.dates.check_out,
-        }));
-        setRooms(mappedRooms);
-        setCheckIn(currentStay.dates.check_in);
-        setCheckOut(currentStay.dates.check_out);
-        
-        // Use the pre-calculated price from context
-        if (currentStay.price_breakdown.total > 0) {
+        // ALWAYS copy price from context if we don't have it calculated locally
+        // This ensures QuickBookDrawer's calculation carries through even when rooms were initialized by URL params
+        if (currentStay.price_breakdown.total > 0 && totalCost === 0 && costBreakdown.length === 0) {
+          console.log('[Booking] Using price from ItineraryContext:', currentStay.price_breakdown.total);
           setTotalCost(currentStay.price_breakdown.total);
           // Build cost breakdown from rooms
           setCostBreakdown(currentStay.rooms.map(r => ({
@@ -375,14 +385,9 @@ const Booking = () => {
             total: r.total_price,
           })));
         }
-        
-        // Set rate type if available
-        if (currentStay.rate_type_id) {
-          setSelectedRateType(currentStay.rate_type_id);
-        }
       }
     }
-  }, [property, stays, rooms.length]);
+  }, [property, stays, rooms.length, totalCost, costBreakdown.length]);
 
   // Calculate totals
   const totalGuests = rooms.reduce((sum, room) => 

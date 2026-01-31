@@ -281,8 +281,9 @@ export function QuickBookDrawer({
         const dateStr = format(currentDate, "yyyy-MM-dd");
         const availData = availability.get(dateStr);
         
-        // Check if date is blocked
-        if (!availData || availData.available_units === 0) {
+        // For manual properties: no record means available (only blocked dates are stored)
+        // Check if date is explicitly blocked
+        if (availData && availData.available_units === 0) {
           setEstimatedPrice(null);
           return; // Date is blocked
         }
@@ -389,20 +390,62 @@ export function QuickBookDrawer({
   const isValid = checkIn && checkOut && selectedRoomId && nights > 0;
 
   // Build availability map for date picker
+  // For manual properties, synthesize availability for all 90 days (blocked dates are sparse)
   const datePickerAvailability = useMemo(() => {
     const map = new Map<string, { available: boolean; rate?: number }>();
     
     // For manual properties, get base rate from amenities
     let baseRate: number | undefined;
+    let roomData: any = null;
+    let linkedRateTypeId: string | undefined;
+    
     if ((!externalSystem || externalSystem === 'none') && propertyAmenities) {
-      const roomData = propertyAmenities.room_types?.find((rt: any) => 
+      roomData = propertyAmenities.room_types?.find((rt: any) => 
         String(rt.id) === String(selectedRoomId) || rt.name === selectedRoom?.name
       );
-      const linkedRateTypeId = roomData?.linkedRateTypes?.[0];
+      linkedRateTypeId = roomData?.linkedRateTypes?.[0];
       const rateType = propertyAmenities.pms_rate_types?.find((rt: any) => rt.id === linkedRateTypeId);
       baseRate = rateType?.baseRate || roomData?.baseRate;
     }
     
+    // For manual properties, synthesize availability for all dates in the next 90 days
+    // Dates without explicit records are assumed available (only blocked dates are stored)
+    if ((!externalSystem || externalSystem === 'none') && baseRate) {
+      const today = new Date();
+      const seasons = propertyAmenities?.seasons || [];
+      const seasonRates = propertyAmenities?.season_rates || {};
+      
+      for (let i = 0; i < 90; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() + i);
+        const dateStr = format(date, "yyyy-MM-dd");
+        
+        // Check if we have explicit availability data for this date (blocked dates)
+        const explicitData = availability.get(dateStr);
+        const isBlocked = explicitData && explicitData.available_units === 0;
+        
+        // Calculate rate for this date (check for season rates)
+        let dayRate = baseRate;
+        for (const season of seasons) {
+          if (dateStr >= season.from && dateStr <= season.to) {
+            const seasonRateKey = `${roomData?.id || selectedRoomId}-${linkedRateTypeId}`;
+            const seasonRateData = seasonRates[season.id]?.[seasonRateKey];
+            if (seasonRateData?.roomAmount) {
+              dayRate = seasonRateData.roomAmount;
+            }
+            break;
+          }
+        }
+        
+        map.set(dateStr, {
+          available: !isBlocked,
+          rate: dayRate,
+        });
+      }
+      return map;
+    }
+    
+    // For PMS properties, use the fetched data as-is
     availability.forEach((data, date) => {
       const ratesArray = Array.isArray(data.rates) ? data.rates : data.rates ? [data.rates] : [];
       const pmsRate = ratesArray[0]?.room_amount || ratesArray[0]?.adult_amounts?.adultAmount1;
