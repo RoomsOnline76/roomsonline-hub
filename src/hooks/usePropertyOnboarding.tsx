@@ -37,6 +37,7 @@ interface PropertyData {
   pms_managed_fields: string[] | null;
   listing_intent?: string | null;
   listing_status?: string | null;
+  [key: string]: unknown; // Allow dynamic property access for updateField
 }
 
 interface RoadmapMilestone {

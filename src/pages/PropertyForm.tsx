@@ -2005,10 +2005,20 @@ export default function PropertyForm() {
 
   const handleRoomImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    
+    // Need property ID for the storage path
+    if (!propertyId) {
+      toast({
+        title: "Upload failed",
+        description: "Property must be saved before uploading room images",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsRoomImageUploading(true);
     const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
-    const existingImages = currentRoom?.images || [];
+    const existingImages = [...(currentRoom?.images || [])];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -2017,7 +2027,8 @@ export default function PropertyForm() {
       try {
         const fileExt = file.name.split(".").pop();
         const fileName = `room-${selectedRoomType}-${Date.now()}-${i}.${fileExt}`;
-        const filePath = `rooms/${fileName}`;
+        // Use property ID as folder path for RLS policy compatibility
+        const filePath = `${propertyId}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage.from("property-images").upload(filePath, file);
 
@@ -2028,10 +2039,11 @@ export default function PropertyForm() {
         } = supabase.storage.from("property-images").getPublicUrl(filePath);
 
         existingImages.push(publicUrl);
-      } catch (error) {
+      } catch (error: any) {
+        console.error("Room image upload error:", error);
         toast({
           title: "Upload failed",
-          description: "Failed to upload room image",
+          description: error?.message || "Failed to upload room image",
           variant: "destructive",
         });
       }

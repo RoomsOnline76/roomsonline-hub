@@ -23,10 +23,18 @@ export function StepLocation({
 
   const hasCoordinates = propertyData.latitude && propertyData.longitude;
 
-  // Surroundings distances
-  const restaurantsCafesKm = getAmenityValue<number | null>("restaurants_cafes_km", null);
-  const publicTransportKm = getAmenityValue<number | null>("public_transport_km", null);
-  const closestAirportKm = getAmenityValue<number | null>("closest_airport_km", null);
+  // Property info object for surroundings (matches PropertyForm structure)
+  const propertyInfo = getAmenityValue<Record<string, string>>("property_info", {});
+  const restaurantsCafesDistance = propertyInfo?.restaurants_cafes_distance || "";
+  const publicTransportDistance = propertyInfo?.public_transport_distance || "";
+  const closestAirportDistance = propertyInfo?.closest_airport_distance || "";
+
+  // Helper to update property_info fields
+  const updatePropertyInfo = (field: string, value: string) => {
+    const currentPropertyInfo = getAmenityValue<Record<string, string>>("property_info", {});
+    const updatedPropertyInfo = { ...currentPropertyInfo, [field]: value };
+    updateField("amenities.property_info", updatedPropertyInfo);
+  };
 
   const handleGeocode = async () => {
     if (!propertyData.address || !propertyData.city) {
@@ -212,41 +220,32 @@ export function StepLocation({
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="restaurants_cafes_km">Restaurants/Cafés (km)</Label>
+            <Label htmlFor="restaurants_cafes_distance">Restaurants/Cafés Distance</Label>
             <Input
-              id="restaurants_cafes_km"
-              type="number"
-              min={0}
-              step={0.1}
-              value={restaurantsCafesKm || ""}
-              onChange={(e) => updateField("amenities.restaurants_cafes_km", e.target.value ? parseFloat(e.target.value) : null)}
-              placeholder="e.g., 0.5"
+              id="restaurants_cafes_distance"
+              value={restaurantsCafesDistance}
+              onChange={(e) => updatePropertyInfo("restaurants_cafes_distance", e.target.value)}
+              placeholder="e.g., 0.5 km"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="public_transport_km">Public Transport (km)</Label>
+            <Label htmlFor="public_transport_distance">Public Transport Distance</Label>
             <Input
-              id="public_transport_km"
-              type="number"
-              min={0}
-              step={0.1}
-              value={publicTransportKm || ""}
-              onChange={(e) => updateField("amenities.public_transport_km", e.target.value ? parseFloat(e.target.value) : null)}
-              placeholder="e.g., 1.2"
+              id="public_transport_distance"
+              value={publicTransportDistance}
+              onChange={(e) => updatePropertyInfo("public_transport_distance", e.target.value)}
+              placeholder="e.g., 1.2 km"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="closest_airport_km">Closest Airport (km)</Label>
+            <Label htmlFor="closest_airport_distance">Closest Airport Distance</Label>
             <Input
-              id="closest_airport_km"
-              type="number"
-              min={0}
-              step={0.1}
-              value={closestAirportKm || ""}
-              onChange={(e) => updateField("amenities.closest_airport_km", e.target.value ? parseFloat(e.target.value) : null)}
-              placeholder="e.g., 45"
+              id="closest_airport_distance"
+              value={closestAirportDistance}
+              onChange={(e) => updatePropertyInfo("closest_airport_distance", e.target.value)}
+              placeholder="e.g., 45 km"
             />
           </div>
         </div>
