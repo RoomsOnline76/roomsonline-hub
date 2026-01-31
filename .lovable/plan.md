@@ -1,327 +1,246 @@
 
-# Plan: Fix Calendar Restrictions, Unblock Logic, and Bulk Dialogs
+# Plan: Fix Booking Flow Issues - Back Navigation, Calendar UX, and Rate Passthrough
 
-## Problems Identified
-
-### 1. Visual Color Coding Not Showing for Stop Sell (and other restrictions)
-**Root Cause**: The `getRestrictions()` helper function only finds restrictions if the PMS room name matches. For manual properties, the room matching logic may fail because `restrictionsByDate` is populated in `generateManualPropertyData()` but `getRestrictions()` uses fuzzy name matching that doesn't find the room correctly.
-
-**Current code (lines 1384-1400)**:
-```typescript
-const getRestrictions = (roomName: string, date: Date) => {
-  if (pmsData.roomTypes.length > 0) {
-    const pmsRoom = pmsData.roomTypes.find(rt => 
-      rt.roomTypeName.toLowerCase().includes(roomName.toLowerCase()) ||
-      roomName.toLowerCase().includes(rt.roomTypeName.toLowerCase())
-    );
-    
-    if (pmsRoom && pmsRoom.restrictionsByDate[dateStr]) {
-      // Returns restrictions...
-    }
-  }
-  
-  // Returns null if no match - restrictions don't show!
-  return { stopSell: null, minStay: null, ... };
-}
-```
-
-**Issue**: If the room name passed to `getRestrictions()` doesn't fuzzy-match, restrictions return as `null` and no color bars appear.
-
-### 2. Unblocking Blocked Dates Corrupts Availability and Rates
-**Root Cause**: In `BulkStopSellDialog.tsx` (line 135), when unblocking:
-```typescript
-available_units: isStopSell ? 0 : 99, // 0 if blocking, 99 if unblocking
-```
-
-This hardcodes availability to `99` when unblocking, which:
-- Overwrites the correct room unit count (should be 1 for holiday houses)
-- Doesn't preserve any rate information that was set
-
-### 3. Bulk Availability Dialog Shows Wrong Room Types
-**Root Cause**: All bulk dialogs (except `BulkStopSellDialog`) have **hardcoded room types** instead of receiving them as props from the parent:
-
-```typescript
-// BulkAvailabilityRuleDialog.tsx (lines 65-86)
-const roomTypes = [
-  { id: "holidayHouse", name: "Holiday House", count: 9 },
-  { id: "oneBedroom", name: "One Bedroom Suite", count: 14 },
-  { id: "petiteHotel", name: "Petite Hotel Room", count: 14 },
-  { id: "twoBedroom", name: "Two Bedroom Suite", count: 6 },
-];
-```
-
-These are placeholder/demo values, not the actual property's room types.
-
-### 4. Bulk Restriction Dialogs Don't Honor Property Setup
-**Root Cause**: Same as issue 3 - `BulkMinimumStayDialog`, `BulkMaximumStayDialog`, `BulkLeadDaysAdvanceDialog`, `BulkLeadDaysPostDialog`, and `BulkRateRuleDialog` all have hardcoded room types instead of receiving property-specific data.
+## Summary
+Three interconnected issues in the booking flow need to be addressed:
+1. **Double URL 404 Error**: Clicking "Back" during booking creates malformed URL like `/booking/latter-days/https://book.sleepinafrica.roomsonline.co.za/property/latter-days`
+2. **Calendar Picker UX**: The BottomSheetDatePicker is not device-aware and lacks rates display on larger screens
+3. **Rate Not Carried to Payment**: The calculated rate (R5,300) from QuickBookDrawer/ItineraryContext is not being used by Booking.tsx for the final price calculation
 
 ---
 
-## Technical Implementation
+## Issue 1: Double URL 404 Error
 
-### Fix 1: Calendar Restrictions - Improve Room Matching in `getRestrictions()`
-
-**File**: `src/pages/CalendarAccommodation.tsx`
-
-**Changes**:
-- Make the room matching more robust by using exact match first, then fuzzy match
-- Add fallback to check by room ID as well as name
-
-```typescript
-const getRestrictions = (roomName: string, date: Date) => {
-  const dateStr = format(date, "yyyy-MM-dd");
-  
-  if (pmsData.roomTypes.length > 0) {
-    // Try exact match first
-    let pmsRoom = pmsData.roomTypes.find(rt => rt.roomTypeName === roomName);
-    
-    // Fallback to fuzzy match
-    if (!pmsRoom) {
-      pmsRoom = pmsData.roomTypes.find(rt => 
-        rt.roomTypeName.toLowerCase().includes(roomName.toLowerCase()) ||
-        roomName.toLowerCase().includes(rt.roomTypeName.toLowerCase())
-      );
-    }
-    
-    if (pmsRoom && pmsRoom.restrictionsByDate[dateStr]) {
-      const r = pmsRoom.restrictionsByDate[dateStr];
-      return {
-        stopSell: r.stopSell ?? null,
-        minStay: r.minStay ?? null,
-        maxStay: r.maxStay ?? null,
-        leadDaysAdvance: r.leadDaysAdvance ?? null,
-        leadDaysPost: r.leadDaysPost ?? null,
-        fromPms: true,
-      };
-    }
-  }
-  
-  return {
-    stopSell: null,
-    minStay: null,
-    maxStay: null,
-    leadDaysAdvance: null,
-    leadDaysPost: null,
-    fromPms: false,
-  };
-};
+### Root Cause
+In `src/pages/Booking.tsx` (line 1261), the `backTo` prop uses `getPropertyUrl()` which returns a **full URL** including the domain:
+```javascript
+backTo={`${getPropertyUrl(property.slug)}${searchParams...}`}
 ```
 
-### Fix 2: Unblocking Logic - Use Actual Room Units
-
-**File**: `src/components/BulkStopSellDialog.tsx`
-
-**Changes**:
-1. Update interface to include `units` in room types
-2. When unblocking, use the room's actual `units` value instead of hardcoded `99`
-3. Optionally delete the override record instead of setting `available_units: 99` (cleaner approach)
-
-**Updated Interface**:
-```typescript
-interface BulkStopSellDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  propertyId?: string;
-  propertyName?: string;
-  roomTypes?: { name: string; id?: string; units?: number }[]; // Add units
-  onRuleCreated?: () => void;
-}
+`getPropertyUrl()` in `src/lib/config.ts` returns:
+```javascript
+`https://book.sleepinafrica.roomsonline.co.za/property/${slugOrId}`
 ```
 
-**Updated Logic**:
-```typescript
-// Create records for each room type and date
-const records = [];
-for (const roomType of selectedRoomTypes) {
-  // Find the room's actual units
-  const roomConfig = roomTypes.find(r => r.name === roomType);
-  const roomUnits = roomConfig?.units || 1;
-  
-  for (const date of filteredDates) {
-    if (isStopSell) {
-      // Blocking: set available_units to 0
-      records.push({
-        property_id: propertyId,
-        room_type: roomType,
-        date: format(date, "yyyy-MM-dd"),
-        is_stop_sell: true,
-        available_units: 0,
-        external_system: 'manual',
-      });
-    } else {
-      // Unblocking: DELETE the override instead of setting to 99
-      // This allows the default room units to be used
-    }
-  }
-}
+When React Router's `navigate()` receives this full URL, it treats it as a relative path and appends it to the current location, creating the malformed double URL.
 
-// For unblocking, delete the records instead
-if (!isStopSell) {
-  const { error } = await supabase
-    .from("property_availability")
-    .delete()
-    .eq("property_id", propertyId)
-    .in("room_type", selectedRoomTypes)
-    .gte("date", fromDate)
-    .lte("date", toDate);
-  
-  if (error) throw error;
-} else {
-  // For blocking, upsert as before
-  const { error } = await supabase
-    .from("property_availability")
-    .upsert(records, { 
-      onConflict: 'property_id,room_type,date',
-      ignoreDuplicates: false 
-    });
-  
-  if (error) throw error;
-}
+### Solution
+Change the `backTo` prop to use a relative path instead of the full URL:
+
+**File: `src/pages/Booking.tsx` (line 1261)**
+```typescript
+// FROM:
+backTo={`${getPropertyUrl(property.slug || property.id)}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
+
+// TO:
+backTo={`/property/${property.slug || property.id}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
 ```
 
-### Fix 3: Update CalendarAccommodation to Pass Room Units
-
-**File**: `src/pages/CalendarAccommodation.tsx`
-
-**Changes**: Update the `roomTypes` prop passed to `BulkStopSellDialog` to include `units`:
-
+Apply same fix to line 1181:
 ```typescript
-<BulkStopSellDialog 
-  open={stopSellOpen} 
-  onOpenChange={setStopSellOpen}
-  propertyId={selectedProperty}
-  propertyName={selectedPropertyData?.name}
-  roomTypes={calendarRoomData.map(r => ({ 
-    name: r.name, 
-    id: r.pmsRoomTypeId,
-    units: r.units || 1  // Include units
-  }))}
-  onRuleCreated={() => {
-    if (!isPmsProperty) {
-      fetchRoomTypes(selectedProperty);
-    }
-  }}
-/>
+// FROM:
+backTo={`/property/${property.slug || property.id}`}
 ```
-
-Also need to ensure `calendarRoomData` includes `units` - check the mapping logic.
-
-### Fix 4: Update All Bulk Dialogs to Accept Property-Specific Room Types
-
-**Files to update**:
-- `src/components/BulkAvailabilityRuleDialog.tsx`
-- `src/components/BulkMinimumStayDialog.tsx`
-- `src/components/BulkMaximumStayDialog.tsx`
-- `src/components/BulkLeadDaysAdvanceDialog.tsx`
-- `src/components/BulkLeadDaysPostDialog.tsx`
-- `src/components/BulkRateRuleDialog.tsx`
-
-**For each dialog**:
-1. Add props interface to accept room types from parent
-2. Remove hardcoded `roomTypes` array
-3. Use the passed-in room types for display and operations
-
-**Example for BulkAvailabilityRuleDialog**:
-```typescript
-interface BulkAvailabilityRuleDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  propertyId?: string;
-  propertyName?: string;
-  roomTypes?: { name: string; id?: string; units?: number }[];
-  onRuleCreated?: () => void;
-}
-
-export function BulkAvailabilityRuleDialog({ 
-  open, 
-  onOpenChange,
-  propertyId,
-  propertyName,
-  roomTypes = [],
-  onRuleCreated
-}: BulkAvailabilityRuleDialogProps) {
-  // Remove hardcoded roomTypes const
-  // Use props roomTypes instead
-}
-```
-
-### Fix 5: Update CalendarAccommodation to Pass Props to All Dialogs
-
-**File**: `src/pages/CalendarAccommodation.tsx`
-
-Update all dialog invocations to pass the required props:
-
-```typescript
-<BulkAvailabilityRuleDialog 
-  open={bulkAvailabilityOpen} 
-  onOpenChange={setBulkAvailabilityOpen}
-  propertyId={selectedProperty}
-  propertyName={selectedPropertyData?.name}
-  roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
-  onRuleCreated={() => fetchRoomTypes(selectedProperty)}
-/>
-
-<BulkMinimumStayDialog 
-  open={minStayOpen} 
-  onOpenChange={setMinStayOpen}
-  propertyId={selectedProperty}
-  propertyName={selectedPropertyData?.name}
-  roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId }))}
-  onRuleCreated={() => fetchRoomTypes(selectedProperty)}
-/>
-
-// Same pattern for MaxStay, LeadDaysAdvance, LeadDaysPost, RateRule dialogs
-```
+(This one is already correct)
 
 ---
 
-## Files to Modify
+## Issue 2: Calendar Picker Device-Awareness and UX
 
-| File | Changes |
-|------|---------|
-| `src/pages/CalendarAccommodation.tsx` | Improve `getRestrictions()` matching; pass room types to all bulk dialogs |
-| `src/components/BulkStopSellDialog.tsx` | Fix unblock logic to delete overrides; add `units` to interface |
-| `src/components/BulkAvailabilityRuleDialog.tsx` | Accept room types as props; remove hardcoded data |
-| `src/components/BulkMinimumStayDialog.tsx` | Accept room types as props; implement database save |
-| `src/components/BulkMaximumStayDialog.tsx` | Accept room types as props; implement database save |
-| `src/components/BulkLeadDaysAdvanceDialog.tsx` | Accept room types as props; implement database save |
-| `src/components/BulkLeadDaysPostDialog.tsx` | Accept room types as props; implement database save |
-| `src/components/BulkRateRuleDialog.tsx` | Accept room types as props; remove hardcoded data |
+### Root Cause
+The `BottomSheetDatePicker` component in `src/components/booking/BottomSheetDatePicker.tsx`:
+1. Does not display rates in calendar cells (unlike `RoomAvailabilityCalendar`)
+2. Shows only 14 days in the quick scroll, making it hard to skip ahead months
+3. Uses a simple month-by-month navigation without jump-ahead options
+4. Does not differentiate between mobile and desktop views
+
+### Solution
+Enhance the BottomSheetDatePicker to be device-aware with rate display:
+
+**File: `src/components/booking/BottomSheetDatePicker.tsx`**
+
+1. **Add device detection**:
+   ```typescript
+   import { useIsMobile } from "@/hooks/use-mobile";
+   // ...
+   const isMobile = useIsMobile();
+   ```
+
+2. **Show rates on larger screens** (in the calendar grid):
+   ```typescript
+   {/* Days grid */}
+   <div className="grid grid-cols-7 gap-1">
+     {getDaysInMonth(currentMonth).map((date, index) => {
+       // ... existing code ...
+       return (
+         <button ...>
+           <span>{format(date, "d")}</span>
+           {/* Show rate on larger screens */}
+           {!isMobile && status?.rate && status.available && (
+             <span className="text-[9px] text-muted-foreground leading-none">
+               {status.rate >= 1000 
+                 ? `${(status.rate / 1000).toFixed(1)}k`.replace('.0k', 'k')
+                 : status.rate.toFixed(0)}
+             </span>
+           )}
+           {/* Show availability dot on mobile */}
+           {isMobile && status && (
+             <span className={cn(
+               "w-1 h-1 rounded-full",
+               status.available ? "bg-green-500" : "bg-red-400"
+             )} />
+           )}
+         </button>
+       );
+     })}
+   </div>
+   ```
+
+3. **Add month jump-ahead buttons**:
+   ```typescript
+   {/* Month navigation with jump buttons */}
+   <div className="flex items-center justify-between mb-4 gap-2">
+     <div className="flex items-center gap-1">
+       <Button variant="ghost" size="sm" onClick={() => jumpToMonth(-3)}>-3m</Button>
+       <Button variant="ghost" size="icon" onClick={prevMonth}>
+         <ChevronLeft className="h-5 w-5" />
+       </Button>
+     </div>
+     <span className="font-medium tracking-tight">
+       {format(currentMonth, "MMMM yyyy")}
+     </span>
+     <div className="flex items-center gap-1">
+       <Button variant="ghost" size="icon" onClick={nextMonth}>
+         <ChevronRight className="h-5 w-5" />
+       </Button>
+       <Button variant="ghost" size="sm" onClick={() => jumpToMonth(3)}>+3m</Button>
+     </div>
+   </div>
+   ```
+
+4. **Expand quick-scroll to 21+ days** for easier navigation:
+   ```typescript
+   const quickDates = eachDayOfInterval({
+     start: today,
+     end: addDays(today, 20), // Expanded from 13 to 20
+   });
+   ```
+
+5. **Increase cell sizes for desktop**:
+   ```typescript
+   className={cn(
+     "h-11 sm:h-14 rounded-xl text-sm font-medium transition-all duration-200",
+     "flex flex-col items-center justify-center gap-0.5",
+     // ... rest of styles
+   )}
+   ```
 
 ---
 
-## Expected Results
+## Issue 3: Rate Not Carried to Final Payment Calculation
 
-| Issue | Before | After |
-|-------|--------|-------|
-| Stop sell color indicator | Not showing on calendar | Red bar appears for blocked dates |
-| Min stay indicator | Not showing | Blue bar with number appears |
-| Unblocking dates | Sets availability to 99, corrupts data | Deletes override, restores room's default units |
-| Bulk Availability room types | Shows "Holiday House, One Bedroom Suite..." (hardcoded) | Shows actual property room types (e.g., "3 Bedroomed Holiday House") |
-| Other bulk dialogs | All show hardcoded room types | All show actual property room types |
+### Root Cause
+The booking flow has a disconnect:
+1. `QuickBookDrawer` calculates the price (R2650/night x 2 nights = R5,300) and adds it to `ItineraryContext`
+2. The "Your Journey" panel correctly shows R5,300 (from ItineraryContext.stays[].price_breakdown.total)
+3. BUT `Booking.tsx` only uses `useItinerary()` for `guestDetails`, NOT for the price
+4. `Booking.tsx` re-calculates cost using `calculateCost()` which looks for availability data from PMS cache - but for manual properties with no PMS, this data structure differs
+
+When `costBreakdown.length === 0` AND `preSelectedTotalCost === null`, it shows "On request" (line 1793).
+
+### Solution
+Modify `Booking.tsx` to pull the pre-calculated price from `ItineraryContext`:
+
+**File: `src/pages/Booking.tsx`**
+
+1. **Extract stays and pricing from ItineraryContext**:
+   ```typescript
+   // Line ~80, update the destructuring:
+   const { guestDetails, setGuestDetails, stays, totalPrice } = useItinerary();
+   ```
+
+2. **Initialize rooms and cost from ItineraryContext when available**:
+   ```typescript
+   // After property loads, check if we have stay data in context
+   useEffect(() => {
+     if (property && stays.length > 0) {
+       // Find the stay for this property
+       const currentStay = stays.find(s => 
+         s.property_id === property.id || s.property_slug === property.slug
+       );
+       
+       if (currentStay && rooms.length === 0) {
+         // Initialize rooms from itinerary context
+         const mappedRooms = currentStay.rooms.map(r => ({
+           roomTypeId: r.room_type_id,
+           roomTypeName: r.room_type_name,
+           numberOfAdults: currentStay.guests.adults,
+           numberOfTeens: 0,
+           numberOfChildren: currentStay.guests.children,
+           numberOfInfants: currentStay.guests.infants,
+           numberOfPets: 0,
+           checkIn: currentStay.dates.check_in,
+           checkOut: currentStay.dates.check_out,
+         }));
+         setRooms(mappedRooms);
+         setCheckIn(currentStay.dates.check_in);
+         setCheckOut(currentStay.dates.check_out);
+         
+         // Use the pre-calculated price from context
+         if (currentStay.price_breakdown.total > 0) {
+           setTotalCost(currentStay.price_breakdown.total);
+           // Build cost breakdown from rooms
+           setCostBreakdown(currentStay.rooms.map(r => ({
+             description: `${r.room_type_name} (${currentStay.guests.adults + currentStay.guests.children} guests)`,
+             nights: currentStay.nights,
+             quantity: r.quantity,
+             unitPrice: r.rate_per_night,
+             total: r.total_price,
+           })));
+         }
+       }
+     }
+   }, [property, stays]);
+   ```
+
+3. **Add fallback to itinerary pricing when local calculation fails**:
+   ```typescript
+   // In the cost display section (~line 1788), add fallback:
+   ) : costBreakdown.length > 0 ? (
+     // ... existing breakdown display
+   ) : (
+     <div className="flex justify-between items-center">
+       <span className="text-muted-foreground">Total</span>
+       <span className="text-xl font-bold">
+         {preSelectedTotalCost !== null 
+           ? <FormattedPrice amount={preSelectedTotalCost} />
+           : totalCost > 0
+           ? <FormattedPrice amount={totalCost} />
+           : 'On request'}
+       </span>
+     </div>
+   )}
+   ```
 
 ---
 
-## Data Flow After Fix
+## Technical Details
 
-```text
-Owner opens Bulk Stop Sell for "Latter Days"
-         ↓
-Dialog receives roomTypes=[{ name: "3 Bedroomed Holiday House", units: 1 }]
-         ↓
-Owner selects room, date range, clicks "Block"
-         ↓
-Saves: available_units=0, is_stop_sell=true
-         ↓
-Calendar refreshes → getRestrictions() finds exact room match
-         ↓
-Red stop sell bar appears on blocked dates
+### Files to Modify:
+1. `src/pages/Booking.tsx` - Fix back navigation URL and add ItineraryContext price integration
+2. `src/components/booking/BottomSheetDatePicker.tsx` - Add device-awareness, rate display, and improved navigation
 
-Owner later clicks "Unblock"
-         ↓
-DELETE FROM property_availability WHERE room_type=... AND date BETWEEN ...
-         ↓
-Override removed → generateManualPropertyData() uses default units (1)
-         ↓
-Calendar shows "1" available, no corruption
-```
+### Dependencies:
+- No new dependencies required
+- Uses existing `useIsMobile` hook from `src/hooks/use-mobile.tsx`
+
+### Testing Considerations:
+- Test back navigation from booking page on both preview and production domains
+- Test calendar on mobile (should show dots) and desktop (should show rates)
+- Test booking flow for manual properties (non-PMS) to verify rate carries through to payment
+
+### Risk Assessment:
+- Low risk: Changes are additive and fall back to existing behavior
+- The URL fix is straightforward and won't affect other navigation
+- Calendar changes are UI-only and don't affect booking logic
+- Price integration adds a new data source but preserves existing calculation as fallback
