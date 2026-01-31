@@ -78,14 +78,33 @@ interface OnboardingState {
 
 const DEBOUNCE_MS = 2000;
 
+// Helper to get stored step from sessionStorage
+const getStoredStep = (propId: string): number => {
+  try {
+    const stored = sessionStorage.getItem(`onboarding_step_${propId}`);
+    return stored ? parseInt(stored, 10) : 0;
+  } catch {
+    return 0;
+  }
+};
+
+// Helper to persist step to sessionStorage
+const persistStep = (propId: string, step: number) => {
+  try {
+    sessionStorage.setItem(`onboarding_step_${propId}`, String(step));
+  } catch {
+    // Ignore storage errors
+  }
+};
+
 export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: string) {
   const { toast } = useToast();
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingChangesRef = useRef<Partial<PropertyData>>({});
   const emailPrePopulatedRef = useRef(false);
 
-  const [state, setState] = useState<OnboardingState>({
-    currentStep: 0,
+  const [state, setState] = useState<OnboardingState>(() => ({
+    currentStep: getStoredStep(propertyId),
     propertyData: null,
     isLoading: true,
     isSaving: false,
@@ -103,7 +122,7 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
     roadmap: [],
     checklist: [],
     nextAction: null
-  });
+  }));
 
   // Fetch roadmap from database
   const fetchRoadmap = useCallback(async (propId: string) => {
@@ -520,26 +539,39 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
   }, [state.pmsManagedFields]);
 
   const goToStep = useCallback((step: number) => {
-    setState(prev => ({ ...prev, currentStep: Math.max(0, Math.min(prev.wizardSteps.length - 1, step)) }));
-  }, []);
+    setState(prev => {
+      const newStep = Math.max(0, Math.min(prev.wizardSteps.length - 1, step));
+      persistStep(propertyId, newStep);
+      return { ...prev, currentStep: newStep };
+    });
+  }, [propertyId]);
 
   const goToStepById = useCallback((stepId: string) => {
     setState(prev => {
       const stepIndex = prev.wizardSteps.findIndex(s => s.id === stepId);
       if (stepIndex >= 0) {
+        persistStep(propertyId, stepIndex);
         return { ...prev, currentStep: stepIndex };
       }
       return prev;
     });
-  }, []);
+  }, [propertyId]);
 
   const nextStep = useCallback(() => {
-    setState(prev => ({ ...prev, currentStep: Math.min(prev.wizardSteps.length - 1, prev.currentStep + 1) }));
-  }, []);
+    setState(prev => {
+      const newStep = Math.min(prev.wizardSteps.length - 1, prev.currentStep + 1);
+      persistStep(propertyId, newStep);
+      return { ...prev, currentStep: newStep };
+    });
+  }, [propertyId]);
 
   const prevStep = useCallback(() => {
-    setState(prev => ({ ...prev, currentStep: Math.max(0, prev.currentStep - 1) }));
-  }, []);
+    setState(prev => {
+      const newStep = Math.max(0, prev.currentStep - 1);
+      persistStep(propertyId, newStep);
+      return { ...prev, currentStep: newStep };
+    });
+  }, [propertyId]);
 
   const getAmenityValue = useCallback(<T,>(key: string, defaultValue: T): T => {
     if (!state.propertyData?.amenities) return defaultValue;
