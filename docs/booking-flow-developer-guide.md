@@ -570,10 +570,64 @@ await supabase.from('sync_logs').insert({
 
 ---
 
+## AI Concierge Mode (Phase 4)
+
+As of 2026-01-31, the booking flow supports an optional **AI Concierge Mode** that replaces the traditional picker-based flow with a conversational interface.
+
+### Feature Flag
+
+Enable via `AI_CONCIERGE_ENABLED=true` in the `api_keys` table.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        AI CONCIERGE FLOW                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐       │
+│  │ AIConciergePanel │───▶│    SmartCart     │───▶│  InlineCheckout  │       │
+│  │ (Sidebar/Sheet)  │    │  (Sticky Bar)    │    │   (Accordion)    │       │
+│  └──────────────────┘    └──────────────────┘    └──────────────────┘       │
+│         │                        │                        │                  │
+│         ▼                        ▼                        ▼                  │
+│  • Natural language        • Cart summary          • Guest details          │
+│  • Voice input             • Price breakdown       • PayFast payment        │
+│  • Smart suggestions       • Expand/collapse       • No page navigation     │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| `AIConciergePanel` | `src/components/booking/AIConciergePanel.tsx` | Conversational UI |
+| `SmartCart` | `src/components/booking/SmartCart.tsx` | Sticky cart summary |
+| `InlineCheckout` | `src/components/booking/InlineCheckout.tsx` | Embedded checkout |
+| `VoiceInputButton` | `src/components/booking/VoiceInputButton.tsx` | Voice input trigger |
+| `ConciergeErrorBoundary` | `src/components/booking/ConciergeErrorBoundary.tsx` | Error handling |
+| `ConciergeSkeleton` | `src/components/booking/ConciergeSkeleton.tsx` | Loading states |
+
+### Edge Function
+
+`ai-booking-concierge` parses natural language queries and returns availability-verified suggestions.
+
+### Graceful Fallback
+
+If AI fails, the system automatically falls back to the legacy `FloatingDateGuestPicker` + `QuickBookDrawer` flow.
+
+### Full Documentation
+
+See `docs/ai-concierge-developer-guide.md` for complete implementation details.
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1.0 | 2026-01-31 | Added AI Concierge Mode documentation |
 | 1.0.0 | 2026-01-31 | Initial documentation |
 
 ---
