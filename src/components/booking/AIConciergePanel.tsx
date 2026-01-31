@@ -91,7 +91,7 @@ export function AIConciergePanel({
   const isMobile = useIsMobile();
   const { formatPrice } = useCurrency();
   const { state: mobileBookingState, setDates, updateRoom, addRoom } = useMobileBooking();
-  const { addStay } = useItinerary();
+  const { addStay, totalPrice } = useItinerary();
 
   const [isExpanded, setIsExpanded] = useState(!isMobile);
   const [isLoading, setIsLoading] = useState(false);
@@ -174,7 +174,12 @@ export function AIConciergePanel({
     setIsLoading(true);
 
     try {
-      // Call AI concierge edge function
+      // Get delight tracking info from itinerary context
+      const sessionDelightCount = typeof window !== 'undefined' 
+        ? parseInt(sessionStorage.getItem('rol_session_delight_count') || '0', 10)
+        : 0;
+      
+      // Call AI concierge edge function with value-based delight parameters
       const { data, error } = await supabase.functions.invoke('ai-booking-concierge', {
         body: {
           property_id: propertyId,
@@ -194,6 +199,9 @@ export function AIConciergePanel({
             max_guests: rt.maxPeople || rt.maxAdults || 2,
           })),
           session_id: sessionIdRef.current,
+          // NEW: Value-based delight parameters - use ItineraryContext totalPrice or fallback to MobileBooking
+          current_booking_value: totalPrice || mobileBookingState.totalCost || 0,
+          session_delight_count: sessionDelightCount,
         },
       });
 
@@ -211,11 +219,15 @@ export function AIConciergePanel({
       };
       setMessages(prev => [...prev, assistantMessage]);
 
-      // Handle surprise gift
+      // Handle surprise gift and track delight delivery
       if (data?.surprise_gift) {
+        // Increment session delight count
+        const currentCount = parseInt(sessionStorage.getItem('rol_session_delight_count') || '0', 10);
+        sessionStorage.setItem('rol_session_delight_count', String(currentCount + 1));
+        
         toast.success(data.surprise_gift.description, {
           icon: '🎁',
-          duration: 5000,
+          duration: 6000,
         });
       }
 
