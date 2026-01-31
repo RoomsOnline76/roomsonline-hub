@@ -55,6 +55,14 @@ function AuthContent() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('Auth event:', event, 'isRecoveryModeRef:', isRecoveryModeRef.current);
       
+      // Check if this session is from a recovery flow (aal1 with recovery type)
+      // Supabase sets session.user.aal to 'aal1' during recovery
+      const isRecoverySession = session?.user?.recovery_sent_at && 
+        new Date(session.user.recovery_sent_at).getTime() > Date.now() - 1000 * 60 * 60; // Within last hour
+      
+      // Also check URL hash for recovery indicators
+      const hashIndicatesRecovery = window.location.hash.includes('type=recovery');
+      
       if (event === 'PASSWORD_RECOVERY') {
         // User clicked the password reset link - show password reset form
         // Update ref synchronously to prevent race condition with SIGNED_IN event
@@ -64,7 +72,17 @@ function AuthContent() {
           title: "Set your new password",
           description: "Please enter a new password below",
         });
-      } else if (event === 'SIGNED_IN' && session && !isRecoveryModeRef.current) {
+      } else if (event === 'INITIAL_SESSION' && session && (hashIndicatesRecovery || isRecoveryModeRef.current)) {
+        // This is the recovery flow - Supabase processed the token and created a session
+        // but we need to show the password reset form, not redirect
+        console.log('INITIAL_SESSION in recovery flow - showing password form');
+        isRecoveryModeRef.current = true;
+        setIsRecoveryMode(true);
+        toast({
+          title: "Set your new password",
+          description: "Please enter a new password below",
+        });
+      } else if (event === 'SIGNED_IN' && session && !isRecoveryModeRef.current && !hashIndicatesRecovery) {
         // Normal sign in (not during password recovery)
         // Use ref for synchronous check - state may not have updated yet
         toast({
@@ -72,13 +90,8 @@ function AuthContent() {
           description: "Successfully logged in",
         });
         navigate("/");
-      }
-    });
-
-    // Check for existing session (but not if we're in recovery mode)
-    // Use ref for synchronous check
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session && !isRecoveryModeRef.current) {
+      } else if (event === 'INITIAL_SESSION' && session && !isRecoveryModeRef.current && !hashIndicatesRecovery) {
+        // Existing session on page load - redirect to home
         navigate("/");
       }
     });
