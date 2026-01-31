@@ -75,16 +75,12 @@ export function QuickBookDrawer({
   const { addStay } = useItinerary();
   
   // Import MobileBookingContext to read dates selected on PropertyShowcase
-  const { state: mobileBookingState } = useMobileBooking();
-  
-  // Initialize dates from MobileBookingContext if available
-  const initialCheckIn = mobileBookingState.checkIn ? new Date(mobileBookingState.checkIn) : null;
-  const initialCheckOut = mobileBookingState.checkOut ? new Date(mobileBookingState.checkOut) : null;
+  const { state: mobileBookingState, setDates: setMobileBookingDates } = useMobileBooking();
   
   // State
   const [selectedRoomId, setSelectedRoomId] = useState<string>(defaultRoomId || "");
-  const [checkIn, setCheckIn] = useState<Date | null>(initialCheckIn);
-  const [checkOut, setCheckOut] = useState<Date | null>(initialCheckOut);
+  const [checkIn, setCheckIn] = useState<Date | null>(null);
+  const [checkOut, setCheckOut] = useState<Date | null>(null);
   const [guests, setGuests] = useState<GuestCounts>({ adults: 2, children: 0, infants: 0 });
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [guestPickerExpanded, setGuestPickerExpanded] = useState(false);
@@ -94,6 +90,19 @@ export function QuickBookDrawer({
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
   const [propertyAmenities, setPropertyAmenities] = useState<any>(null);
+
+  // Sync dates from MobileBookingContext whenever drawer opens
+  // This ensures dates selected in FloatingDateGuestPicker carry through
+  useEffect(() => {
+    if (open) {
+      if (mobileBookingState.checkIn) {
+        setCheckIn(new Date(mobileBookingState.checkIn));
+      }
+      if (mobileBookingState.checkOut) {
+        setCheckOut(new Date(mobileBookingState.checkOut));
+      }
+    }
+  }, [open, mobileBookingState.checkIn, mobileBookingState.checkOut]);
 
   // Auto-select room if only one
   useEffect(() => {
@@ -338,6 +347,8 @@ export function QuickBookDrawer({
   const handleDatesChange = (newCheckIn: Date, newCheckOut: Date) => {
     setCheckIn(newCheckIn);
     setCheckOut(newCheckOut);
+    // Sync back to MobileBookingContext for consistency across components
+    setMobileBookingDates(format(newCheckIn, "yyyy-MM-dd"), format(newCheckOut, "yyyy-MM-dd"));
   };
 
   const handleGuestChange = (field: keyof GuestCounts, value: number) => {
@@ -380,7 +391,8 @@ export function QuickBookDrawer({
     });
     
     onOpenChange(false);
-    navigate(`/booking/${propertySlug}`);
+    // Route directly to journey checkout (unified flow, skip legacy /booking route)
+    navigate('/journey/checkout');
   };
 
   const nights = checkIn && checkOut ? differenceInDays(checkOut, checkIn) : 0;

@@ -1313,6 +1313,7 @@ const Booking = () => {
     <PublicLayout 
       backLabel="Back to Property" 
       backTo={`/property/${property.slug || property.id}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
+      hideJourneyBuilder
     >
       <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-10">
         {/* Page Header */}
