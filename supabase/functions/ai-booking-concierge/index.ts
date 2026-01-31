@@ -20,6 +20,9 @@ interface ConciergeRequest {
   current_guests?: { adults: number; children: number; infants: number };
   room_types?: { id: string; name: string; max_guests: number }[];
   session_id?: string;
+  // NEW: Value-based delight parameters
+  current_booking_value?: number;
+  session_delight_count?: number;
 }
 
 interface ConciergeSuggestion {
@@ -434,9 +437,193 @@ async function generateNarrativeResponse(
 }
 
 // ============================================================================
-// SURPRISE & DELIGHT
+// SURPRISE & DELIGHT - VALUE-BASED, DESTINATION-AWARE
 // ============================================================================
 
+type DelightTier = 'none' | 'bronze' | 'silver' | 'gold' | 'platinum';
+
+interface Delight {
+  type: 'tip' | 'upgrade' | 'amenity' | 'voucher' | 'experience';
+  message: string;
+  code?: string;
+  destinationContext?: string;
+  icon: string;
+  tier: DelightTier;
+}
+
+/**
+ * Calculate delight tier based on booking value in ZAR
+ * NONE: < R5,000 | BRONZE: R5k-9.9k | SILVER: R10k-24.9k | GOLD: R25k-49.9k | PLATINUM: R50k+
+ */
+function calculateDelightTier(bookingValue: number): DelightTier {
+  if (bookingValue < 5000) return 'none';
+  if (bookingValue < 10000) return 'bronze';
+  if (bookingValue < 25000) return 'silver';
+  if (bookingValue < 50000) return 'gold';
+  return 'platinum';
+}
+
+function getMaxDelightsForTier(tier: DelightTier): number {
+  switch (tier) {
+    case 'none': return 0;
+    case 'bronze': return 1;
+    case 'silver': return 2;
+    case 'gold': return 2;
+    case 'platinum': return 2;
+    default: return 0;
+  }
+}
+
+function generateVoucherCode(city: string, tier: DelightTier): string {
+  const prefix = tier === 'platinum' ? 'VIP' : 'EXPLORE';
+  const cityCode = (city || 'AFR').substring(0, 3).toUpperCase();
+  const random = Date.now().toString(36).slice(-4).toUpperCase();
+  return `${prefix}-${cityCode}-${random}`;
+}
+
+/**
+ * Generate destination-aware delight based on booking value and local experiences
+ */
+async function generateValueBasedDelight(
+  supabase: any,
+  propertyId: string,
+  bookingValue: number,
+  sessionId: string,
+  sessionDelightCount: number
+): Promise<ConciergeResponse['surprise_gift'] | undefined> {
+  const tier = calculateDelightTier(bookingValue);
+  const maxDelights = getMaxDelightsForTier(tier);
+  
+  // Check if we've hit the limit for this session
+  if (sessionDelightCount >= maxDelights) {
+    console.log(`[Concierge] Session ${sessionId} has reached max delights (${maxDelights})`);
+    return undefined;
+  }
+
+  if (tier === 'none') {
+    console.log(`[Concierge] Booking value R${bookingValue} below R5k threshold - no delight`);
+    return undefined;
+  }
+
+  try {
+    // Get property destination info
+    const { data: property } = await supabase
+      .from('properties')
+      .select('city, country, highlights, tagline')
+      .eq('id', propertyId)
+      .single();
+
+    const city = property?.city || 'Africa';
+    const country = property?.country || '';
+
+    // Fetch local experiences for this destination
+    const { data: experiences } = await supabase
+      .from('local_experiences')
+      .select('*')
+      .eq('property_id', propertyId)
+      .eq('is_active', true)
+      .limit(10);
+
+    console.log(`[Concierge] Generating ${tier} tier delight for R${bookingValue} booking in ${city}`);
+
+    let delight: Delight | null = null;
+
+    // BRONZE: Simple destination tip
+    if (tier === 'bronze') {
+      const nature = experiences?.find((e: any) => e.category === 'nature');
+      const culture = experiences?.find((e: any) => e.category === 'culture');
+      const experience = nature || culture;
+      
+      if (experience) {
+        delight = {
+          type: 'tip',
+          icon: nature ? '🌿' : '🎨',
+          message: `Local tip: Don't miss ${experience.title}!`,
+          destinationContext: experience.why_locals_love_it || `A must-see experience in ${city}.`,
+          tier,
+        };
+      } else {
+        delight = {
+          type: 'tip',
+          icon: '✨',
+          message: `Welcome to ${city}! You're in for a treat.`,
+          destinationContext: `${city}${country ? `, ${country}` : ''} offers unforgettable experiences.`,
+          tier,
+        };
+      }
+    }
+
+    // SILVER: Experience voucher
+    if (tier === 'silver') {
+      const adventure = experiences?.find((e: any) => e.category === 'adventure');
+      const activity = experiences?.find((e: any) => 
+        e.category === 'nature' || e.category === 'culture' || e.category === 'wellness'
+      );
+      const experience = adventure || activity;
+
+      delight = {
+        type: 'experience',
+        icon: '🎁',
+        message: `I've arranged something special – 15% off ${experience?.title || 'a local adventure'}!`,
+        code: generateVoucherCode(city, tier),
+        destinationContext: experience?.why_locals_love_it || 
+          `${city} is known for its ${experience?.category || 'natural beauty'}.`,
+        tier,
+      };
+    }
+
+    // GOLD: Premium upgrade
+    if (tier === 'gold') {
+      const dining = experiences?.find((e: any) => e.category === 'dining');
+      const wellness = experiences?.find((e: any) => e.category === 'wellness');
+      const premium = dining || wellness;
+
+      delight = {
+        type: 'upgrade',
+        icon: '🌟',
+        message: premium 
+          ? `VIP upgrade: Complimentary experience at ${premium.title}!`
+          : `VIP treatment: I've flagged your booking for a room upgrade!`,
+        code: generateVoucherCode(city, tier),
+        destinationContext: premium?.why_locals_love_it || `Enjoy the finest ${city} has to offer.`,
+        tier,
+      };
+    }
+
+    // PLATINUM: Premium package with dining
+    if (tier === 'platinum') {
+      const dining = experiences?.find((e: any) => e.category === 'dining');
+      
+      delight = {
+        type: 'voucher',
+        icon: '✨',
+        message: dining
+          ? `VIP treatment awaits – complimentary dinner for two at ${dining.title}!`
+          : `VIP treatment awaits – complimentary dinner for two at our partner restaurant!`,
+        code: generateVoucherCode(city, tier),
+        destinationContext: dining?.why_locals_love_it || 
+          `A signature ${city} dining experience curated just for you.`,
+        tier,
+      };
+    }
+
+    if (delight) {
+      console.log(`[Concierge] Generated ${tier} delight: ${delight.type}`);
+      return {
+        type: delight.type as 'voucher' | 'upgrade' | 'amenity',
+        code: delight.code,
+        description: `${delight.icon} ${delight.message}${delight.destinationContext ? `\n\n${delight.destinationContext}` : ''}`,
+      };
+    }
+
+    return undefined;
+  } catch (error) {
+    console.error('[Concierge] Error generating value-based delight:', error);
+    return undefined;
+  }
+}
+
+// Legacy fallback for sessions without booking value
 function generateSurpriseGift(sessionId?: string): ConciergeResponse['surprise_gift'] | undefined {
   // 10% chance of surprise, tracked by session
   if (!sessionId) return undefined;
@@ -470,7 +657,7 @@ serve(async (req) => {
 
   try {
     const body: ConciergeRequest = await req.json();
-    const { property_id, user_query, current_dates, current_guests, room_types, session_id } = body;
+    const { property_id, user_query, current_dates, current_guests, room_types, session_id, current_booking_value, session_delight_count } = body;
 
     if (!property_id || !user_query) {
       return new Response(
@@ -585,8 +772,22 @@ serve(async (req) => {
     // Generate narrative response
     const narrativeResponse = await generateNarrativeResponse(intent, suggestions, propertyName);
 
-    // Check for surprise gift
-    const surpriseGift = generateSurpriseGift(session_id);
+    // Check for surprise gift - use value-based system if booking value provided
+    let surpriseGift: ConciergeResponse['surprise_gift'] | undefined;
+    
+    if (current_booking_value !== undefined && current_booking_value > 0) {
+      // NEW: Value-based, destination-aware delight system
+      surpriseGift = await generateValueBasedDelight(
+        supabase,
+        property_id,
+        current_booking_value,
+        session_id || 'anonymous',
+        session_delight_count || 0
+      );
+    } else {
+      // Legacy: Random 10% chance fallback
+      surpriseGift = generateSurpriseGift(session_id);
+    }
 
     // Build response
     const response: ConciergeResponse = {

@@ -69,6 +69,11 @@ export interface ItineraryContextValue {
   saveToDatabase: () => Promise<string | null>;
   loadFromDatabase: (itineraryId: string) => Promise<void>;
   
+  // Delight Tracking (NEW)
+  getSessionDelightCount: () => number;
+  incrementSessionDelightCount: () => void;
+  getSessionId: () => string;
+  
   // Helpers
   hasStays: boolean;
   stayCount: number;
@@ -79,6 +84,7 @@ const ItineraryContext = createContext<ItineraryContextValue | undefined>(undefi
 const STORAGE_KEY = 'rol_itinerary';
 const SESSION_ID_KEY = 'rol_session_id';
 const GUEST_DETAILS_KEY = 'rol_guest_details'; // Persistent across sessions
+const SESSION_DELIGHT_COUNT_KEY = 'rol_session_delight_count'; // Delight tracking
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -91,6 +97,17 @@ function getSessionId(): string {
     sessionStorage.setItem(SESSION_ID_KEY, sessionId);
   }
   return sessionId;
+}
+
+// Delight tracking helpers
+function getSessionDelightCount(): number {
+  const count = sessionStorage.getItem(SESSION_DELIGHT_COUNT_KEY);
+  return count ? parseInt(count, 10) : 0;
+}
+
+function incrementSessionDelightCount(): void {
+  const current = getSessionDelightCount();
+  sessionStorage.setItem(SESSION_DELIGHT_COUNT_KEY, String(current + 1));
 }
 
 function calculateNights(checkIn: string, checkOut: string): number {
@@ -320,6 +337,10 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
     clearItinerary,
     saveToDatabase,
     loadFromDatabase,
+    // Delight tracking (NEW)
+    getSessionDelightCount,
+    incrementSessionDelightCount,
+    getSessionId,
     hasStays,
     stayCount
   };
