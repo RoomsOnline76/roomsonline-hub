@@ -3162,6 +3162,9 @@ export default function PropertyForm() {
           
           // Load rate types - check both pms_rate_types and rate_types for compatibility
           const rawRateTypes = amenities?.pms_rate_types || amenities?.rate_types;
+          // Determine if this property has a real PMS connection
+          const hasExternalSystem = !!(data as any).external_system && (data as any).external_system !== 'none';
+          
           if (rawRateTypes && Array.isArray(rawRateTypes) && rawRateTypes.length > 0) {
             const transformedRateTypes = rawRateTypes.map((rt: any, idx: number) => ({
               id: rt.id ?? rt.rate_type_id ?? idx + 1,
@@ -3173,7 +3176,9 @@ export default function PropertyForm() {
               maxAdvanceDays: rt.maxAdvanceDays || rt.max_advance_days || 0,
               description: rt.description || "",
               baseRate: rt.baseRate || rt.base_rate || null,
-              pms_synced: true,
+              // Only mark as PMS synced if property has a real external system
+              // For wizard-generated rate types or non-PMS properties, allow editing
+              pms_synced: hasExternalSystem && (rt.pms_synced !== false),
             }));
             setPmsRateTypes(transformedRateTypes);
           } else if ((data as any).external_system === "hostfully" && data.id) {
@@ -7447,39 +7452,160 @@ export default function PropertyForm() {
                                 )}
                               </CardHeader>
                               <CardContent className="pt-0">
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                                  {/* Price Type */}
-                                  <div className="space-y-1">
-                                    <Label className="text-xs text-muted-foreground">Price Type</Label>
-                                    <p className="font-medium">{rateType.priceType || "-"}</p>
+                                {/* Base Rate - only editable for non-PMS */}
+                                {!rateType.pms_synced && (
+                                  <div className="mb-4 p-3 bg-muted/50 rounded-lg">
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label className="text-sm font-medium">Base Rate (R)</Label>
+                                        <Input
+                                          type="number"
+                                          placeholder="e.g. 1500"
+                                          value={rateType.baseRate || ""}
+                                          onChange={(e) => {
+                                            const value = e.target.value ? parseFloat(e.target.value) : null;
+                                            setPmsRateTypes((prev) =>
+                                              prev.map((rt) =>
+                                                rt.id === rateType.id ? { ...rt, baseRate: value } : rt
+                                              )
+                                            );
+                                          }}
+                                          className="bg-background"
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                          The default nightly or per-stay rate for this room
+                                        </p>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label className="text-sm font-medium">Price Type</Label>
+                                        <Select
+                                          value={rateType.priceType || "UnitRate"}
+                                          onValueChange={(value) => {
+                                            setPmsRateTypes((prev) =>
+                                              prev.map((rt) =>
+                                                rt.id === rateType.id ? { ...rt, priceType: value } : rt
+                                              )
+                                            );
+                                          }}
+                                        >
+                                          <SelectTrigger className="bg-background">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="UnitRate">Per Night</SelectItem>
+                                            <SelectItem value="PerStay">Per Stay</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
                                   </div>
+                                )}
+                                
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                  {/* Price Type - read-only display for PMS */}
+                                  {rateType.pms_synced && (
+                                    <div className="space-y-1">
+                                      <Label className="text-xs text-muted-foreground">Price Type</Label>
+                                      <p className="font-medium">{rateType.priceType || "-"}</p>
+                                    </div>
+                                  )}
 
-                                  {/* Stay Requirements */}
+                                  {/* Stay Requirements - editable for non-PMS */}
                                   <div className="space-y-1">
                                     <Label className="text-xs text-muted-foreground">Min Stay (Days)</Label>
-                                    <p className="font-medium">{rateType.minStayDays ?? rateType.minNights ?? "-"}</p>
+                                    {rateType.pms_synced ? (
+                                      <p className="font-medium">{rateType.minStayDays ?? rateType.minNights ?? "-"}</p>
+                                    ) : (
+                                      <Input
+                                        type="number"
+                                        min="1"
+                                        value={rateType.minStayDays || ""}
+                                        onChange={(e) => {
+                                          const value = e.target.value ? parseInt(e.target.value) : 1;
+                                          setPmsRateTypes((prev) =>
+                                            prev.map((rt) =>
+                                              rt.id === rateType.id ? { ...rt, minStayDays: value } : rt
+                                            )
+                                          );
+                                        }}
+                                        className="h-8"
+                                      />
+                                    )}
                                   </div>
                                   <div className="space-y-1">
                                     <Label className="text-xs text-muted-foreground">Max Stay (Days)</Label>
-                                    <p className="font-medium">
-                                      {(rateType.maxStayDays ?? rateType.maxNights)
-                                        ? (rateType.maxStayDays ?? rateType.maxNights)
-                                        : "-"}
-                                    </p>
+                                    {rateType.pms_synced ? (
+                                      <p className="font-medium">
+                                        {(rateType.maxStayDays ?? rateType.maxNights)
+                                          ? (rateType.maxStayDays ?? rateType.maxNights)
+                                          : "-"}
+                                      </p>
+                                    ) : (
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        placeholder="0 = unlimited"
+                                        value={rateType.maxStayDays || ""}
+                                        onChange={(e) => {
+                                          const value = e.target.value ? parseInt(e.target.value) : 0;
+                                          setPmsRateTypes((prev) =>
+                                            prev.map((rt) =>
+                                              rt.id === rateType.id ? { ...rt, maxStayDays: value } : rt
+                                            )
+                                          );
+                                        }}
+                                        className="h-8"
+                                      />
+                                    )}
                                   </div>
 
-                                  {/* Advance Booking Requirements */}
+                                  {/* Advance Booking Requirements - editable for non-PMS */}
                                   <div className="space-y-1">
                                     <Label className="text-xs text-muted-foreground">Min Advance (Days)</Label>
-                                    <p className="font-medium">{rateType.minAdvanceDays ?? "-"}</p>
+                                    {rateType.pms_synced ? (
+                                      <p className="font-medium">{rateType.minAdvanceDays ?? "-"}</p>
+                                    ) : (
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        value={rateType.minAdvanceDays || ""}
+                                        onChange={(e) => {
+                                          const value = e.target.value ? parseInt(e.target.value) : 0;
+                                          setPmsRateTypes((prev) =>
+                                            prev.map((rt) =>
+                                              rt.id === rateType.id ? { ...rt, minAdvanceDays: value } : rt
+                                            )
+                                          );
+                                        }}
+                                        className="h-8"
+                                      />
+                                    )}
                                   </div>
                                   <div className="space-y-1">
                                     <Label className="text-xs text-muted-foreground">Max Advance (Days)</Label>
-                                    <p className="font-medium">{rateType.maxAdvanceDays ?? "-"}</p>
+                                    {rateType.pms_synced ? (
+                                      <p className="font-medium">{rateType.maxAdvanceDays ?? "-"}</p>
+                                    ) : (
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        placeholder="0 = unlimited"
+                                        value={rateType.maxAdvanceDays || ""}
+                                        onChange={(e) => {
+                                          const value = e.target.value ? parseInt(e.target.value) : 0;
+                                          setPmsRateTypes((prev) =>
+                                            prev.map((rt) =>
+                                              rt.id === rateType.id ? { ...rt, maxAdvanceDays: value } : rt
+                                            )
+                                          );
+                                        }}
+                                        className="h-8"
+                                      />
+                                    )}
                                   </div>
                                 </div>
 
-                                {/* Stay Pay Discount Section - Always show */}
+                                {/* Stay Pay Discount Section - editable for non-PMS */}
                                 <Separator className="my-4" />
                                 <div className="space-y-2">
                                   <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -7488,19 +7614,74 @@ export default function PropertyForm() {
                                   <div className="grid grid-cols-3 gap-4">
                                     <div className="space-y-1">
                                       <Label className="text-xs text-muted-foreground">Stay Nights</Label>
-                                      <p className="font-medium">{rateType.stayPayStayNights ?? "-"}</p>
+                                      {rateType.pms_synced ? (
+                                        <p className="font-medium">{rateType.stayPayStayNights ?? "-"}</p>
+                                      ) : (
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          placeholder="e.g. 7"
+                                          value={rateType.stayPayStayNights || ""}
+                                          onChange={(e) => {
+                                            const value = e.target.value ? parseInt(e.target.value) : null;
+                                            setPmsRateTypes((prev) =>
+                                              prev.map((rt) =>
+                                                rt.id === rateType.id ? { ...rt, stayPayStayNights: value } : rt
+                                              )
+                                            );
+                                          }}
+                                          className="h-8"
+                                        />
+                                      )}
                                     </div>
                                     <div className="space-y-1">
                                       <Label className="text-xs text-muted-foreground">Discount Nights</Label>
-                                      <p className="font-medium">{rateType.stayPayDiscountNights ?? "-"}</p>
+                                      {rateType.pms_synced ? (
+                                        <p className="font-medium">{rateType.stayPayDiscountNights ?? "-"}</p>
+                                      ) : (
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          placeholder="e.g. 1"
+                                          value={rateType.stayPayDiscountNights || ""}
+                                          onChange={(e) => {
+                                            const value = e.target.value ? parseInt(e.target.value) : null;
+                                            setPmsRateTypes((prev) =>
+                                              prev.map((rt) =>
+                                                rt.id === rateType.id ? { ...rt, stayPayDiscountNights: value } : rt
+                                              )
+                                            );
+                                          }}
+                                          className="h-8"
+                                        />
+                                      )}
                                     </div>
                                     <div className="space-y-1">
                                       <Label className="text-xs text-muted-foreground">Discount %</Label>
-                                      <p className="font-medium">
-                                        {rateType.stayPayDiscountPercentage != null
-                                          ? `${rateType.stayPayDiscountPercentage}%`
-                                          : "-"}
-                                      </p>
+                                      {rateType.pms_synced ? (
+                                        <p className="font-medium">
+                                          {rateType.stayPayDiscountPercentage != null
+                                            ? `${rateType.stayPayDiscountPercentage}%`
+                                            : "-"}
+                                        </p>
+                                      ) : (
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          max="100"
+                                          placeholder="e.g. 15"
+                                          value={rateType.stayPayDiscountPercentage || ""}
+                                          onChange={(e) => {
+                                            const value = e.target.value ? parseFloat(e.target.value) : null;
+                                            setPmsRateTypes((prev) =>
+                                              prev.map((rt) =>
+                                                rt.id === rateType.id ? { ...rt, stayPayDiscountPercentage: value } : rt
+                                              )
+                                            );
+                                          }}
+                                          className="h-8"
+                                        />
+                                      )}
                                     </div>
                                   </div>
                                 </div>
