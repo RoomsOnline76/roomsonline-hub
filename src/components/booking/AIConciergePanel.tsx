@@ -104,6 +104,8 @@ export function AIConciergePanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const proactiveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionIdRef = useRef<string>(crypto.randomUUID());
+  const lastActivityRef = useRef<Date>(new Date());
 
   // Get current dates and guests from context
   const checkInDate = mobileBookingState.checkIn ? parseISO(mobileBookingState.checkIn) : null;
@@ -122,11 +124,23 @@ export function AIConciergePanel({
 
   // Proactive message after 8 seconds idle
   useEffect(() => {
-    if (messages.length === 0 && !isLoading && isExpanded) {
-      proactiveTimeoutRef.current = setTimeout(() => {
-        setShowProactivePrompt(true);
-      }, 8000);
-    }
+    const resetProactiveTimer = () => {
+      lastActivityRef.current = new Date();
+      setShowProactivePrompt(false);
+      if (proactiveTimeoutRef.current) {
+        clearTimeout(proactiveTimeoutRef.current);
+      }
+      
+      if (messages.length === 0 && !isLoading && isExpanded) {
+        proactiveTimeoutRef.current = setTimeout(() => {
+          setShowProactivePrompt(true);
+        }, 8000);
+      }
+    };
+
+    // Reset timer on any interaction
+    resetProactiveTimer();
+
     return () => {
       if (proactiveTimeoutRef.current) {
         clearTimeout(proactiveTimeoutRef.current);
@@ -179,6 +193,7 @@ export function AIConciergePanel({
             name: rt.name,
             max_guests: rt.maxPeople || rt.maxAdults || 2,
           })),
+          session_id: sessionIdRef.current,
         },
       });
 
@@ -202,6 +217,16 @@ export function AIConciergePanel({
           icon: '🎁',
           duration: 5000,
         });
+      }
+
+      // Show proactive tip
+      if (data?.proactive_tip) {
+        setTimeout(() => {
+          toast.info(data.proactive_tip, {
+            icon: '💡',
+            duration: 4000,
+          });
+        }, 1500);
       }
 
     } catch (err) {
