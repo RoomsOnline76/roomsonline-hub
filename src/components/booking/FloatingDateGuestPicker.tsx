@@ -21,6 +21,8 @@ interface FloatingDateGuestPickerProps {
   ctaLabel?: string;
   showCta?: boolean;
   className?: string;
+  /** Availability map for calendar - shows blocked dates and rates */
+  availabilityMap?: Map<string, { available: boolean; rate?: number }>;
 }
 
 export function FloatingDateGuestPicker({
@@ -28,6 +30,7 @@ export function FloatingDateGuestPicker({
   ctaLabel = "Check Rates",
   showCta = true,
   className,
+  availabilityMap,
 }: FloatingDateGuestPickerProps) {
   const { state, setDates, updateRoom, addRoom, nights, totalGuests } = useMobileBooking();
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -228,6 +231,7 @@ export function FloatingDateGuestPicker({
         checkIn={checkInDate}
         checkOut={checkOutDate}
         onDatesChange={handleDatesChange}
+        availabilityMap={availabilityMap}
       />
 
       {/* Guest Picker Bottom Sheet */}

@@ -24,6 +24,7 @@ import { GuestCountStepper } from "./GuestCountStepper";
 import { BottomSheetDatePicker } from "./BottomSheetDatePicker";
 import { supabase } from "@/integrations/supabase/client";
 import { useItinerary } from "@/contexts/ItineraryContext";
+import { useMobileBooking } from "@/contexts/MobileBookingContext";
 
 interface RoomType {
   id: string;
@@ -73,10 +74,17 @@ export function QuickBookDrawer({
   const navigate = useNavigate();
   const { addStay } = useItinerary();
   
+  // Import MobileBookingContext to read dates selected on PropertyShowcase
+  const { state: mobileBookingState } = useMobileBooking();
+  
+  // Initialize dates from MobileBookingContext if available
+  const initialCheckIn = mobileBookingState.checkIn ? new Date(mobileBookingState.checkIn) : null;
+  const initialCheckOut = mobileBookingState.checkOut ? new Date(mobileBookingState.checkOut) : null;
+  
   // State
   const [selectedRoomId, setSelectedRoomId] = useState<string>(defaultRoomId || "");
-  const [checkIn, setCheckIn] = useState<Date | null>(null);
-  const [checkOut, setCheckOut] = useState<Date | null>(null);
+  const [checkIn, setCheckIn] = useState<Date | null>(initialCheckIn);
+  const [checkOut, setCheckOut] = useState<Date | null>(initialCheckOut);
   const [guests, setGuests] = useState<GuestCounts>({ adults: 2, children: 0, infants: 0 });
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [guestPickerExpanded, setGuestPickerExpanded] = useState(false);
