@@ -1,164 +1,228 @@
 
-# Plan: Enable Calendar Booking for Non-PMS Properties
+# Plan: Enable Calendar to Load Manual Rates for Non-PMS Properties
 
 ## Problem Summary
 
-For properties without a PMS connection (like "Latter Days"), the calendar on the `/property/:slug/room/:roomSlug/availability` page shows all dates as unavailable (red). This is because:
+For properties without a PMS (like "Latter Days"), the CalendarAccommodation page shows:
+- Empty dashes (—) for rates
+- Empty dashes for availability
+- No room type or rate type data in the filters
 
-1. The calendar fetches availability from `pms_availability_cache` or PMS APIs
-2. Non-PMS properties have no data in either source
-3. The `isDateAvailable()` check returns false when no data exists
-4. All future dates appear locked/unavailable
+This happens because:
+1. When `external_system` is null, `pmsData` is cleared (line 647)
+2. The `getRate()` and `getAvailability()` helpers only check `pmsData`
+3. No synthetic data is generated from wizard configuration (room_types, seasons, season_rates, pms_rate_types)
 
 ## Solution
 
-Modify `RoomAvailabilityCalendar.tsx` to detect when there's no PMS (`externalSystem` is null/undefined/'none') and generate synthetic availability using wizard rates from the property's `amenities.room_types`.
+Generate synthetic PMS-like data for non-PMS properties from the property's wizard configuration, so the existing calendar rendering logic works seamlessly.
 
-## Technical Changes
+## Technical Implementation
 
-### 1. RoomAvailabilityCalendar.tsx - Generate Synthetic Availability
+### 1. Generate Synthetic PMS Data for Manual Properties
 
-**Location**: `src/components/RoomAvailabilityCalendar.tsx`
+**Location**: `src/pages/CalendarAccommodation.tsx`
 
-**Add property data fetch to get wizard rates:**
+Modify the `useEffect` that handles property changes (around line 631-650) to generate synthetic `pmsData` instead of clearing it:
+
 ```typescript
-// Add state for property amenities
-const [propertyAmenities, setPropertyAmenities] = useState<any>(null);
-
-// In fetchRoomTypeData, also store amenities
-const fetchRoomTypeData = async () => {
-  // ... existing code to get propertyData
-  if (propertyData?.amenities) {
-    setPropertyAmenities(propertyData.amenities);
+useEffect(() => {
+  if (!selectedProperty || properties.length === 0) return;
+  
+  const propertyData = properties.find(p => p.id === selectedProperty);
+  if (!propertyData) return;
+  
+  const isPms = !!propertyData.external_system && propertyData.external_system !== 'none';
+  
+  if (isPms) {
+    fetchPmsAvailability(false);
+  } else {
+    // Generate synthetic PMS data from wizard configuration
+    generateManualPropertyData(propertyData);
   }
-};
+}, [selectedProperty, properties, currentDate, viewMode]);
 ```
 
-**Modify fetchAvailability to handle non-PMS properties:**
-```typescript
-const fetchAvailability = async () => {
-  setLoading(true);
-  try {
-    const monthStart = format(startOfMonth(displayedMonth), "yyyy-MM-dd");
-    const monthEnd = format(endOfMonth(addMonths(displayedMonth, 2)), "yyyy-MM-dd");
+### 2. Create generateManualPropertyData Function
 
-    // NEW: For properties without external system, generate synthetic availability
-    if (!externalSystem || externalSystem === 'none') {
-      const wizardRooms = propertyAmenities?.room_types || [];
-      const matchedRoom = wizardRooms.find((r: any) => 
-        String(r.id) === String(roomId) || 
-        String(r.pmsRoomId) === String(roomId) ||
-        r.name === roomName
-      );
+Add a new function to generate PMS-compatible data structure from wizard data:
+
+```typescript
+const generateManualPropertyData = useCallback(async (property: Property) => {
+  setPmsSyncStatus("loading");
+  
+  const amenities = property.amenities;
+  const roomTypes = amenities?.room_types || [];
+  const seasons = amenities?.seasons || [];
+  const seasonRates = amenities?.season_rates || {}; // Object keyed by roomId
+  const pmsRateTypes = amenities?.pms_rate_types || [];
+  
+  // Generate date range based on current view
+  const startDate = new Date(currentDate);
+  if (viewMode === "month") {
+    startDate.setDate(1);
+  }
+  const endDate = new Date(startDate);
+  if (viewMode === "month") {
+    endDate.setMonth(endDate.getMonth() + 1);
+    endDate.setDate(0);
+  } else {
+    endDate.setDate(endDate.getDate() + 8);
+  }
+  
+  // Fetch manual overrides from property_availability table
+  const { data: manualOverrides } = await supabase
+    .from("property_availability")
+    .select("*")
+    .eq("property_id", property.id)
+    .gte("date", format(startDate, "yyyy-MM-dd"))
+    .lte("date", format(endDate, "yyyy-MM-dd"));
+  
+  const overridesMap = new Map(
+    (manualOverrides || []).map(o => [`${o.room_type}-${o.date}`, o])
+  );
+  
+  // Transform each wizard room type into PMS-compatible format
+  const transformedRooms: PMSRoomTypeData[] = roomTypes.map((room: any) => {
+    const roomId = room.id?.toString() || room.name;
+    const linkedRateTypes = room.linkedRateTypes || [];
+    const roomSeasonRates = seasonRates[roomId] || {};
+    
+    const availabilityByDate: { [date: string]: number } = {};
+    const ratesByDate: { [date: string]: any[] } = {};
+    const restrictionsByDate: { [date: string]: any } = {};
+    
+    // Generate data for each date in range
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = format(d, "yyyy-MM-dd");
+      const override = overridesMap.get(`${room.name}-${dateStr}`);
       
-      const baseRate = matchedRoom?.base_rate || matchedRoom?.baseRate || matchedRoom?.daily_rate;
-      const rateUnit = matchedRoom?.rate_unit || matchedRoom?.rateUnit || 'per_night';
-      const seasons = propertyAmenities?.seasons || [];
+      // Availability: default 99 (unlimited), respect overrides
+      if (override?.is_stop_sell) {
+        availabilityByDate[dateStr] = 0;
+      } else {
+        availabilityByDate[dateStr] = override?.available_units ?? 99;
+      }
       
-      const availMap = new Map<string, AvailabilityData>();
-      const startDate = new Date(monthStart);
-      const endDate = new Date(monthEnd);
+      // Restrictions from overrides
+      if (override) {
+        restrictionsByDate[dateStr] = {
+          stopSell: override.is_stop_sell,
+          minStay: override.minimum_stay,
+          maxStay: override.maximum_stay,
+          leadDaysAdvance: override.lead_days_advance,
+          leadDaysPost: override.lead_days_post,
+        };
+      }
       
-      // Generate availability for each day in range
-      for (let d = startDate; d <= endDate; d.setDate(d.getDate() + 1)) {
-        const dateStr = format(d, "yyyy-MM-dd");
-        const seasonRate = findSeasonRate(dateStr, seasons, propertyAmenities?.season_rates);
-        const rateForDay = seasonRate?.roomAmount || baseRate;
+      // Rates: find applicable season, then look up season rate
+      ratesByDate[dateStr] = [];
+      
+      for (const rateTypeId of linkedRateTypes) {
+        const rateType = pmsRateTypes.find((rt: any) => rt.id === rateTypeId);
+        const baseRate = rateType?.baseRate || 0;
         
-        availMap.set(dateStr, {
-          date: dateStr,
-          available_units: 99, // Unlimited availability for manual properties
-          rates: rateForDay ? [{
-            rate_type_id: 'wizard-rate',
-            rate_type_name: 'Standard Rate',
-            room_amount: rateForDay,
-            price_type: rateUnit === 'per_stay' ? 'PerStay' : 'UnitRate',
-          }] : undefined,
+        // Find applicable season for this date
+        let rateAmount = baseRate;
+        for (const season of seasons) {
+          const seasonStart = new Date(season.from || season.startDate);
+          const seasonEnd = new Date(season.to || season.endDate);
+          if (d >= seasonStart && d <= seasonEnd) {
+            // Look up season rate: format is "{roomId}-{rateTypeId}"
+            const seasonRateKey = `${roomId}-${rateTypeId}`;
+            const seasonRate = roomSeasonRates[seasonRateKey];
+            if (seasonRate?.roomAmount) {
+              rateAmount = seasonRate.roomAmount;
+            }
+            break;
+          }
+        }
+        
+        ratesByDate[dateStr].push({
+          rateTypeId: rateTypeId,
+          rateTypeName: rateType?.name || 'Standard Rate',
+          priceType: rateType?.priceType || 'UnitRate',
+          roomAmount: rateAmount,
         });
       }
-      
-      setAvailability(availMap);
-      setLoading(false);
-      return;
     }
-
-    // ... existing PMS fetch code
-  }
-};
-```
-
-**Add helper function for seasonal rates:**
-```typescript
-// Find applicable season rate for a given date
-const findSeasonRate = (dateStr: string, seasons: any[], seasonRates: any[]) => {
-  if (!seasons?.length || !seasonRates?.length) return null;
+    
+    return {
+      roomTypeId: roomId,
+      roomTypeName: room.name || `Room ${roomId}`,
+      availabilityByDate,
+      ratesByDate,
+      restrictionsByDate,
+    };
+  });
   
-  const date = new Date(dateStr);
-  for (const season of seasons) {
-    const start = new Date(season.startDate || season.start_date);
-    const end = new Date(season.endDate || season.end_date);
-    if (date >= start && date <= end) {
-      // Find rate for this season
-      const rate = seasonRates?.find((sr: any) => 
-        sr.seasonId === season.id || sr.season_id === season.id
-      );
-      if (rate?.roomAmount || rate?.room_amount) {
-        return { roomAmount: rate.roomAmount || rate.room_amount };
-      }
-    }
-  }
-  return null;
-};
+  setPmsData({
+    roomTypes: transformedRooms,
+    lastSynced: new Date(),
+    systemType: 'manual',
+  });
+  setPmsSyncStatus("success");
+  setLastSyncTime(new Date());
+}, [currentDate, viewMode]);
 ```
 
-### 2. Update Modifiers for Non-PMS Properties
+### 3. Update rateTypeOptions for Manual Properties
 
-When synthetic availability is generated, all dates should show as "available" (green), not "no data" (red):
+The `rateTypeOptions` memo already checks `pms_rate_types` from amenities (line 887), but it also checks if rates exist in `pmsData`. With synthetic data now populated, this will work correctly.
+
+### 4. Refresh on View/Date Change for Manual Properties
+
+The synthetic data generation needs to re-run when the date range changes:
 
 ```typescript
-modifiers={{
-  available: (date) => !isBefore(date, startOfDay(new Date())) && isDateAvailable(date),
-  unavailable: (date) => !isBefore(date, startOfDay(new Date())) && availability.has(format(date, "yyyy-MM-dd")) && !isDateAvailable(date),
-  // nodata only applies when we actually DON'T have synthetic availability
-  nodata: (date) => !isBefore(date, startOfDay(new Date())) && !availability.has(format(date, "yyyy-MM-dd")),
-}}
+// Add currentDate and viewMode as dependencies
+useEffect(() => {
+  if (!selectedProperty || properties.length === 0) return;
+  // ... existing logic
+}, [selectedProperty, properties, fetchPmsAvailability, currentDate, viewMode]);
 ```
 
-Since synthetic availability populates the map for all dates in range, `nodata` will never apply for non-PMS properties - all future dates will show as `available` (green).
+## Data Flow After Implementation
 
-### 3. Update isDateAvailable Logic
-
-The existing logic already works correctly - once synthetic data is in the map with `available_units: 99`, dates will be considered available.
-
-## Visual Result
-
-| Before | After |
-|--------|-------|
-| All dates show red/locked | All dates show green/bookable |
-| "No availability data" tooltip | Shows wizard rate in tooltip |
-| Cannot select dates | Full date selection enabled |
+```text
+User opens CalendarAccommodation for "Latter Days"
+         ↓
+Page detects external_system = null
+         ↓
+generateManualPropertyData() called:
+  1. Reads room_types, seasons, season_rates, pms_rate_types from amenities
+  2. Fetches manual overrides from property_availability
+  3. For each room, for each date:
+     - Sets availability (99 default, 0 if stop-sell)
+     - Finds applicable season → looks up season rate
+     - Applies restrictions from overrides
+  4. Populates pmsData with synthetic PMSRoomTypeData[]
+         ↓
+Calendar renders normally using existing getRate() / getAvailability() helpers
+         ↓
+Shows rates: R2,650 per night
+Shows availability: 99 (or overridden values)
+Shows restrictions: from manual overrides
+```
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/components/RoomAvailabilityCalendar.tsx` | Add synthetic availability generation for non-PMS properties using wizard rates |
+| `src/pages/CalendarAccommodation.tsx` | Add `generateManualPropertyData()` function; modify property change effect to call it for non-PMS properties; add date/view dependencies |
 
-## Flow After Implementation
+## Visual Result
 
-```text
-User visits /property/latter-days/room/[room]/availability
-         ↓
-RoomAvailabilityCalendar detects externalSystem = null
-         ↓
-Fetches propertyAmenities with room_types + seasons
-         ↓
-Generates synthetic availability for next 3 months:
-  • available_units: 99 (always available)
-  • rates: from wizard base_rate + seasonal adjustments
-         ↓
-Calendar displays all dates as green/bookable
-         ↓
-Guest selects dates → proceeds to checkout
-         ↓
-Booking.tsx uses same wizard rates for cost calculation
+| Current | After |
+|---------|-------|
+| All cells show "—" | Cells show R2,650 (from season_rates) |
+| Availability shows "—" | Shows 99 (default) or blocked dates |
+| Room/Rate filters empty | Populated from wizard config |
+| "Idle" sync status | "RoomsOnline PMS (Manual Mode)" badge |
+
+## Edge Cases
+
+1. **No seasons defined**: Fall back to `baseRate` from `pms_rate_types`
+2. **No linked rate types**: Show "Standard Rate" with base rate from room
+3. **Manual overrides exist**: Merge stop-sell and restrictions into synthetic data
+4. **Date range change**: Re-generate synthetic data for new range
