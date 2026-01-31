@@ -70,6 +70,15 @@ interface SeasonRates {
   };
 }
 
+interface Issue {
+  message: string;
+  severity: 'warning' | 'error';
+  action?: {
+    tab: string;
+    roomId?: string;
+  };
+}
+
 interface RatesOverviewPanelProps {
   roomTypes: RoomType[];
   rateTypes: RateType[];
@@ -78,6 +87,7 @@ interface RatesOverviewPanelProps {
   currency?: string;
   hasPMS?: boolean;
   pmsName?: string;
+  onNavigate?: (tab: string, roomId?: string) => void;
 }
 
 export function RatesOverviewPanel({
@@ -87,7 +97,8 @@ export function RatesOverviewPanel({
   seasonRates,
   currency = "ZAR",
   hasPMS = false,
-  pmsName
+  pmsName,
+  onNavigate
 }: RatesOverviewPanelProps) {
   const [expandedRooms, setExpandedRooms] = useState<Set<string>>(new Set([roomTypes[0]?.id]));
   
@@ -147,22 +158,22 @@ export function RatesOverviewPanel({
     };
   };
   
-  // Check completeness
+  // Check completeness with navigation actions
   const hasRooms = roomTypes.length > 0;
   const hasRates = rateTypes.length > 0 || roomTypes.some(r => r.baseRate || r.dailyRate);
   const hasSeasons = seasons.length > 0;
   
-  const issues: string[] = [];
-  if (!hasRooms) issues.push("No room types configured");
-  if (!hasRates) issues.push("No rate information available");
-  if (!hasSeasons && !hasPMS) issues.push("No seasons defined");
+  const issues: Issue[] = [];
+  if (!hasRooms) issues.push({ message: "No room types configured", severity: 'error', action: { tab: 'rooms' } });
+  if (!hasRates) issues.push({ message: "No rate information available", severity: 'error', action: { tab: 'rates' } });
+  if (!hasSeasons && !hasPMS) issues.push({ message: "No seasons defined", severity: 'warning', action: { tab: 'rates' } });
   
   roomTypes.forEach(room => {
     if (!room.maxPeople && !room.maxAdults) {
-      issues.push(`${room.name}: Missing max guests`);
+      issues.push({ message: `${room.name}: Missing max guests`, severity: 'warning', action: { tab: 'rooms', roomId: room.id } });
     }
     if (!room.baseRate && !room.dailyRate && !getRoomRateTypes(room).some(rt => rt.baseRate)) {
-      issues.push(`${room.name}: No base rate set`);
+      issues.push({ message: `${room.name}: No base rate set`, severity: 'error', action: { tab: 'rooms', roomId: room.id } });
     }
   });
 
@@ -208,9 +219,24 @@ export function RatesOverviewPanel({
               <p className="text-sm font-medium text-muted-foreground mb-2">Missing Information:</p>
               <div className="flex flex-wrap gap-2">
                 {issues.slice(0, 5).map((issue, i) => (
-                  <Badge key={i} variant="outline" className="text-xs bg-background">
-                    <AlertCircle className="h-3 w-3 mr-1 text-yellow-600" />
-                    {issue}
+                  <Badge 
+                    key={i} 
+                    variant="outline" 
+                    className={cn(
+                      "text-xs bg-background",
+                      issue.action && onNavigate && "cursor-pointer hover:bg-muted transition-colors"
+                    )}
+                    onClick={() => {
+                      if (issue.action && onNavigate) {
+                        onNavigate(issue.action.tab, issue.action.roomId);
+                      }
+                    }}
+                  >
+                    <AlertCircle className={cn(
+                      "h-3 w-3 mr-1",
+                      issue.severity === 'error' ? "text-destructive" : "text-yellow-600"
+                    )} />
+                    {issue.message}
                   </Badge>
                 ))}
                 {issues.length > 5 && (
@@ -318,8 +344,13 @@ export function RatesOverviewPanel({
                           <div>
                             <p className="text-muted-foreground text-xs">Stay Limits</p>
                             <p className="font-medium">
-                              {room.minStay || 1} min
-                              {room.maxStay && room.maxStay > 0 ? `, ${room.maxStay} max` : ""}
+                              {(room.minStay && room.minStay > 1) || (room.maxStay && room.maxStay > 0) ? (
+                                <>
+                                  {room.minStay && room.minStay > 1 ? `${room.minStay} min` : ""}
+                                  {room.minStay && room.minStay > 1 && room.maxStay && room.maxStay > 0 ? ", " : ""}
+                                  {room.maxStay && room.maxStay > 0 ? `${room.maxStay} max` : ""}
+                                </>
+                              ) : "No limits"}
                             </p>
                           </div>
                         </div>
