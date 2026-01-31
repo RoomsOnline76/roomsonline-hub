@@ -136,14 +136,64 @@ Deno.serve(async (req) => {
     const property = booking.property;
     const externalSystem = property.external_system;
 
-    if (!externalSystem) {
-      console.log('No external system configured for property - sending owner notification');
+    if (!externalSystem || externalSystem === 'none') {
+      console.log('No external system configured for property - blocking dates and sending owner notification');
       
       // Mark as confirmed (no PMS to sync to)
       await supabaseClient
         .from('bookings')
         .update({ status: 'confirmed' })
         .eq('id', booking_id);
+      
+      // Block the booked dates in property_availability table
+      // This prevents double-bookings for manual properties
+      try {
+        const checkInDate = new Date(booking.check_in_date);
+        const checkOutDate = new Date(booking.check_out_date);
+        const availabilityRecords = [];
+        
+        // Get room type from booking for targeting specific room
+        const bookingRooms = booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0
+          ? booking.rooms
+          : [{ roomTypeId: booking.room_type_id || null }];
+        
+        // Create a record for each date in the booking range
+        for (let d = new Date(checkInDate); d < checkOutDate; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          
+          // For each room in the booking, create or update availability
+          for (const room of bookingRooms) {
+            availabilityRecords.push({
+              property_id: property.id,
+              date: dateStr,
+              available_units: 0, // Block this date
+              is_stop_sell: true, // Mark as stop-sell
+              room_type: room.roomTypeId || room.roomTypeName || null,
+              notes: `Blocked by booking ${booking_id.substring(0, 8)}`,
+            });
+          }
+        }
+        
+        console.log(`Blocking ${availabilityRecords.length} date slots for booking`);
+        
+        // Upsert availability records (update if exists, insert if not)
+        const { error: availError } = await supabaseClient
+          .from('property_availability')
+          .upsert(availabilityRecords, {
+            onConflict: 'property_id,date,room_type',
+            ignoreDuplicates: false,
+          });
+        
+        if (availError) {
+          console.error('Failed to block dates:', availError);
+          // Continue with booking even if blocking fails - owner notification will cover this
+        } else {
+          console.log(`Successfully blocked ${availabilityRecords.length} dates for booking`);
+        }
+      } catch (blockError) {
+        console.error('Error blocking dates:', blockError);
+        // Don't fail the booking if date blocking fails
+      }
       
       // Send property owner notification email
       const ownerEmail = property.owner_email;
@@ -200,7 +250,7 @@ Deno.serve(async (req) => {
       }
       
       return new Response(
-        JSON.stringify({ success: true, message: 'Booking confirmed, owner notified' }),
+        JSON.stringify({ success: true, message: 'Booking confirmed, dates blocked, owner notified' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
