@@ -1,8 +1,9 @@
 # RoomsOnline Booking Flow — Complete Developer Reference
 
 > **Last Updated:** January 2026  
+> **Version:** 1.1  
 > **Audience:** Developers, Technical Architects  
-> **Scope:** End-to-end booking journey from property discovery to confirmation
+> **Status:** Production
 
 ---
 
@@ -10,194 +11,601 @@
 
 1. [Architecture Overview](#architecture-overview)
 2. [User Journey Flowchart](#user-journey-flowchart)
-3. [Entry Points](#entry-points)
-4. [State Management](#state-management)
-5. [Room Selection & Pricing](#room-selection--pricing)
-6. [The Journey System](#the-journey-system)
-7. [Checkout Process](#checkout-process)
-8. [Payment Flow (PayFast Onsite)](#payment-flow-payfast-onsite)
-9. [Booking Creation & PMS Sync](#booking-creation--pms-sync)
-10. [Confirmation & Post-Booking](#confirmation--post-booking)
-11. [Error Handling](#error-handling)
-12. [Database Schema](#database-schema)
-13. [Edge Functions Reference](#edge-functions-reference)
-14. [Feature Flags](#feature-flags)
+3. [Component Reference](#component-reference)
+4. [AI Concierge Panel](#ai-concierge-panel)
+5. [Smart Cart](#smart-cart)
+6. [Inline Checkout](#inline-checkout)
+7. [State Management](#state-management)
+8. [Payment Flow](#payment-flow)
+9. [Enchanting PDF System](#enchanting-pdf-system)
+10. [Delight & Surprise Layer](#delight--surprise-layer)
+11. [Database Schema](#database-schema)
+12. [Edge Functions Reference](#edge-functions-reference)
+13. [Feature Flags](#feature-flags)
+14. [Error Handling](#error-handling)
+15. [Deprecated Components](#deprecated-components)
+16. [Changelog](#changelog)
 
 ---
 
 ## Architecture Overview
 
-RoomsOnline uses a **PMS-agnostic booking engine** with four core principles:
+### Design Philosophy
 
-| Principle | Description |
-|-----------|-------------|
-| **Isolation Layers** | Each PMS (Benson, Hostfully, HotelBeds, NightsBridge) has its own edge function |
-| **Unified Data Model** | All bookings map to common `bookings` table regardless of source |
-| **Agnostic UI** | Components use generic functions that route based on property config |
-| **Payment-First** | PayFast payment must succeed before PMS sync is attempted |
+RoomsOnline implements an **AI-First, Frictionless Booking Experience** that transforms the traditional multi-page hotel booking process into a single-page conversational journey. The system prioritizes:
 
-### Supported PMS Integrations
+1. **Natural Language Interaction** — Guests describe their ideal stay in plain English
+2. **Voice-Powered Input** — Web Speech API enables hands-free booking
+3. **Zero Page Navigation** — Entire flow contained within PropertyShowcase page
+4. **Proactive Delight** — AI surprises guests with upgrades, tips, and personalized gifts
+5. **Enchanting Artifacts** — PDF brochures with poems, maps, and vouchers
 
-| PMS | Edge Function | Booking Method |
-|-----|---------------|----------------|
-| Benson | `benson-api` | Direct API push |
-| Hostfully | `hostfully-api` | OAuth v3 API |
-| HotelBeds | `hotelbeds-api` | REST API |
-| NightsBridge | External iframe | Redirect flow |
-| Manual (ROL) | `push-booking` | Internal only |
+### Core Principles
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        AI-FIRST BOOKING ENGINE                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                │
+│   │   Benson    │    │  Hostfully  │    │  HotelBeds  │   PMS Layer   │
+│   │   Adapter   │    │   Adapter   │    │   Adapter   │                │
+│   └──────┬──────┘    └──────┬──────┘    └──────┬──────┘                │
+│          │                  │                  │                        │
+│          └──────────────────┼──────────────────┘                        │
+│                             ▼                                           │
+│                  ┌─────────────────────┐                               │
+│                  │  Unified Booking    │                               │
+│                  │      Engine         │                               │
+│                  └──────────┬──────────┘                               │
+│                             │                                           │
+│          ┌──────────────────┼──────────────────┐                       │
+│          ▼                  ▼                  ▼                        │
+│   ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                │
+│   │  AI Parser  │    │   PayFast   │    │  PDF Gen    │                │
+│   │  (Lovable)  │    │   Gateway   │    │  (Enchant)  │                │
+│   └─────────────┘    └─────────────┘    └─────────────┘                │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Architectural Rules
+
+| Rule | Description |
+|------|-------------|
+| **PMS-Agnostic** | All bookings flow through unified `bookings` table regardless of source PMS |
+| **Payment-First** | PayFast success is REQUIRED before any PMS reservation is created |
+| **Live Availability** | AI Concierge always performs live PMS calls (never cached data) |
+| **Inline Experience** | No separate checkout pages; accordion expands from Smart Cart |
+| **Graceful Fallback** | Legacy flow available if AI components fail |
 
 ---
 
 ## User Journey Flowchart
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           ROOMSONLINE BOOKING FLOW                          │
-└─────────────────────────────────────────────────────────────────────────────┘
+### Primary Path (AI Concierge Flow)
 
-     ┌──────────┐
-     │   HOME   │  Browse properties, search, filter
-     │    /     │
-     └────┬─────┘
-          │
-          ▼
-┌──────────────────┐
-│ PROPERTY SHOWCASE│  /property/:slug
-│                  │  
-│  ┌────────────┐  │
-│  │ AI Concierge │◄── If AI_CONCIERGE_ENABLED flag is true
-│  │   Panel    │  │   Natural language: "4 nights for 2 adults in March"
-│  └─────┬──────┘  │
-│        │ OR      │
-│  ┌─────▼──────┐  │
-│  │ Floating   │  │◄── Legacy: Date/Guest picker pill
-│  │ DatePicker │  │
-│  └─────┬──────┘  │
-└────────┼─────────┘
-         │
-         ▼
-┌──────────────────┐
-│  QUICKBOOK       │  Slide-up drawer (embedded in PropertyShowcase)
-│  DRAWER          │  
-│                  │  • Room selection with live pricing
-│  • Select Room   │  • Guest count steppers
-│  • View Rates    │  • "Add to Journey" button
-│  • Add to Cart   │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│  JOURNEY REVIEW  │  /journey/review
-│                  │  
-│  • Timeline view │  Cinematic brochure-style review
-│  • All stays     │  Multi-property support
-│  • Total price   │
-│  • [Checkout] ───┼──────────────────────────────┐
-└──────────────────┘                              │
-                                                  ▼
-                                    ┌──────────────────────┐
-                                    │   JOURNEY CHECKOUT   │  /journey/checkout
-                                    │                      │
-                                    │  ┌────────────────┐  │
-                                    │  │ Guest Details  │  │  Name, Email, Phone
-                                    │  │ Form           │  │
-                                    │  └───────┬────────┘  │
-                                    │          │           │
-                                    │  ┌───────▼────────┐  │
-                                    │  │ Special        │  │  Dietary, accessibility
-                                    │  │ Requests       │  │
-                                    │  └───────┬────────┘  │
-                                    │          │           │
-                                    │  ┌───────▼────────┐  │
-                                    │  │ [Pay with      │  │  Triggers PayFast
-                                    │  │  PayFast]      │  │
-                                    │  └───────┬────────┘  │
-                                    └──────────┼───────────┘
-                                               │
-                                               ▼
-                              ┌─────────────────────────────────┐
-                              │        PAYFAST ONSITE           │
-                              │        (Modal Overlay)          │
-                              │                                 │
-                              │  • Card details entry           │
-                              │  • 3D Secure verification       │
-                              │  • Payment processing           │
-                              └────────────────┬────────────────┘
-                                               │
-                         ┌─────────────────────┼─────────────────────┐
-                         │                     │                     │
-                         ▼                     ▼                     ▼
-                    ┌─────────┐          ┌──────────┐          ┌──────────┐
-                    │ SUCCESS │          │ CANCELLED│          │  FAILED  │
-                    └────┬────┘          └────┬─────┘          └────┬─────┘
-                         │                    │                     │
-                         │                    ▼                     ▼
-                         │              Return to             Show error,
-                         │              checkout              retry option
-                         ▼
-              ┌───────────────────────┐
-              │    ITN CALLBACK       │  PayFast → payfast-api edge function
-              │    (Server-side)      │
-              │                       │
-              │  1. Validate payment  │
-              │  2. Update booking    │
-              │  3. Push to PMS ──────┼──► push-booking / multi-push-booking
-              │  4. Send emails       │
-              └───────────┬───────────┘
-                          │
-                          ▼
-              ┌───────────────────────┐
-              │   CONFIRMATION PAGE   │  /journey/confirmation/:itineraryId
-              │                       │
-              │  • Success message    │
-              │  • Timeline summary   │
-              │  • Download brochure  │  AI poem, weather, voucher
-              │  • Share journey      │
-              └───────────────────────┘
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              HOME PAGE                                   │
+│                          (roomsonline.co.za)                            │
+└─────────────────────────────────┬───────────────────────────────────────┘
+                                  │
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     PROPERTY SHOWCASE PAGE                               │
+│                       (/property/:slug)                                  │
+│                                                                         │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │                                                                    │ │
+│  │  ┌─────────────────────────────────────────────────────────────┐  │ │
+│  │  │                   PROPERTY CONTENT                          │  │ │
+│  │  │  • Hero images, description, amenities                      │  │ │
+│  │  │  • Room gallery, reviews, location map                      │  │ │
+│  │  └─────────────────────────────────────────────────────────────┘  │ │
+│  │                                                                    │ │
+│  │  ┌─────────────────────────────────────────────────────────────┐  │ │
+│  │  │              AI CONCIERGE PANEL (Right Side)                │  │ │
+│  │  │                                                             │  │ │
+│  │  │  COLLAPSED STATE:                                           │  │ │
+│  │  │  ┌─────────────────────────────────────────────────────┐   │  │ │
+│  │  │  │  ✨ AI Travel Concierge                    [Expand] │   │  │ │
+│  │  │  └─────────────────────────────────────────────────────┘   │  │ │
+│  │  │                                                             │  │ │
+│  │  │  EXPANDED STATE:                                            │  │ │
+│  │  │  ┌─────────────────────────────────────────────────────┐   │  │ │
+│  │  │  │  Chat Messages                                      │   │  │ │
+│  │  │  │  ┌───────────────────────────────────────────────┐  │   │  │ │
+│  │  │  │  │ "I'd like 3 nights for 2 adults next week"    │  │   │  │ │
+│  │  │  │  └───────────────────────────────────────────────┘  │   │  │ │
+│  │  │  │                                                     │   │  │ │
+│  │  │  │  Suggestion Cards                                   │   │  │ │
+│  │  │  │  ┌───────────────┐ ┌───────────────┐               │   │  │ │
+│  │  │  │  │ Deluxe Suite  │ │ Ocean View    │               │   │  │ │
+│  │  │  │  │ R2,450/night  │ │ R1,890/night  │               │   │  │ │
+│  │  │  │  │ [Add to Cart] │ │ [Add to Cart] │               │   │  │ │
+│  │  │  │  └───────────────┘ └───────────────┘               │   │  │ │
+│  │  │  │                                                     │   │  │ │
+│  │  │  │  ┌───────────────────────────────────────────────┐  │   │  │ │
+│  │  │  │  │ Type your request...              [🎤] [Send] │  │   │  │ │
+│  │  │  │  └───────────────────────────────────────────────┘  │   │  │ │
+│  │  │  └─────────────────────────────────────────────────────┘   │  │ │
+│  │  └─────────────────────────────────────────────────────────────┘  │ │
+│  │                                                                    │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │                    SMART CART (Sticky Bottom)                      │ │
+│  │  ┌──────────────────────────────────────────────────────────────┐  │ │
+│  │  │ 🛒 Deluxe Suite × 3 nights │ 2 guests │ R7,350 │ [Checkout] │  │ │
+│  │  └──────────────────────────────────────────────────────────────┘  │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  │ [Checkout] clicked
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    INLINE CHECKOUT ACCORDION                             │
+│              (Expands from Smart Cart, same page)                        │
+│                                                                         │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │  ORDER SUMMARY                                            [−]     │ │
+│  │  ├─ Deluxe Suite: 15-18 March 2026                                │ │
+│  │  ├─ 3 nights × R2,450 = R7,350                                    │ │
+│  │  └─ Total: R7,350                                                 │ │
+│  ├────────────────────────────────────────────────────────────────────┤ │
+│  │  GUEST DETAILS                                            [−]     │ │
+│  │  ├─ Name: [________________]                                      │ │
+│  │  ├─ Email: [________________]                                     │ │
+│  │  └─ Phone: [________________]                                     │ │
+│  ├────────────────────────────────────────────────────────────────────┤ │
+│  │  SPECIAL REQUESTS                                         [−]     │ │
+│  │  └─ [________________]                                            │ │
+│  ├────────────────────────────────────────────────────────────────────┤ │
+│  │                                                                    │ │
+│  │            ┌─────────────────────────────────────┐                │ │
+│  │            │     PAY R7,350 SECURELY             │                │ │
+│  │            └─────────────────────────────────────┘                │ │
+│  │                                                                    │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  │ [Pay] clicked
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       PAYFAST MODAL OVERLAY                              │
+│                                                                         │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │                                                                    │ │
+│  │                    SECURE PAYMENT                                  │ │
+│  │                                                                    │ │
+│  │              Amount Due: R7,350.00                                 │ │
+│  │                                                                    │ │
+│  │  ┌──────────────────────────────────────────────────────────────┐  │ │
+│  │  │                   [PayFast Engine]                           │  │ │
+│  │  │              Card / EFT / SnapScan                           │  │ │
+│  │  └──────────────────────────────────────────────────────────────┘  │ │
+│  │                                                                    │ │
+│  │              Secured by PayFast · SSL Encrypted                   │ │
+│  │                                                                    │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  │ Payment successful
+                                  ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      JOURNEY CONFIRMATION PAGE                           │
+│                   (/journey/confirmation/:id)                            │
+│                                                                         │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │                                                                    │ │
+│  │   Your Journey is Confirmed!                                      │ │
+│  │                                                                    │ │
+│  │   ┌────────────────────────────────────────────────────────────┐  │ │
+│  │   │                  AI SUMMARY                                │  │ │
+│  │   │  "Your romantic escape to The Silo awaits! We've          │  │ │
+│  │   │   prepared a special surprise for your arrival..."        │  │ │
+│  │   └────────────────────────────────────────────────────────────┘  │ │
+│  │                                                                    │ │
+│  │   Booking Reference: ROL-2026-7X9K                                │ │
+│  │   Check-in: Saturday, 15 March 2026 at 14:00                      │ │
+│  │   Check-out: Tuesday, 18 March 2026 at 10:00                      │ │
+│  │                                                                    │ │
+│  │   ┌─────────────────────────────────────────────────────────┐     │ │
+│  │   │  Download Your Enchanting Journey Brochure (PDF)        │     │ │
+│  │   └─────────────────────────────────────────────────────────┘     │ │
+│  │                                                                    │ │
+│  │   A confirmation email with your personalized brochure            │ │
+│  │   has been sent to guest@example.com                              │ │
+│  │                                                                    │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Journey Summary
+
+| Step | Component | User Action | System Response |
+|------|-----------|-------------|-----------------|
+| 1 | PropertyShowcase | Views property | Displays AI Concierge orb |
+| 2 | AIConciergePanel | Types/speaks request | AI parses, shows room suggestions |
+| 3 | SuggestionCard | Clicks "Add to Cart" | Item added to Smart Cart |
+| 4 | SmartCart | Clicks "Checkout" | Inline accordion expands |
+| 5 | InlineCheckout | Enters guest details | Form validates |
+| 6 | InlineCheckout | Clicks "Pay" | PayFast modal opens |
+| 7 | PayFastModal | Completes payment | ITN callback triggers |
+| 8 | System | — | PMS reservation created |
+| 9 | JourneyConfirmation | — | PDF generated, email sent |
+
+---
+
+## Component Reference
+
+### Active Components (Production)
+
+| File | Purpose | Lines |
+|------|---------|-------|
+| `src/components/booking/AIConciergePanel.tsx` | Main conversational interface with voice input | ~750 |
+| `src/components/booking/SmartCart.tsx` | Sticky bottom cart bar with real-time totals | ~150 |
+| `src/components/booking/InlineCheckout.tsx` | Accordion checkout overlay | ~320 |
+| `src/components/booking/VoiceInputButton.tsx` | Web Speech API voice input button | ~80 |
+| `src/components/booking/PayFastOnsiteModal.tsx` | PayFast payment modal | ~275 |
+| `src/components/booking/LuxuryRoomCard.tsx` | Rich room selection cards | ~200 |
+| `src/components/booking/PersonalizedSuggestion.tsx` | AI suggestion display cards | ~150 |
+| `src/components/booking/ValueHintBadge.tsx` | Upsell/value indicators | ~50 |
+| `src/components/booking/ConciergeErrorBoundary.tsx` | Error boundary for AI components | ~60 |
+| `src/components/booking/ConciergeSkeleton.tsx` | Loading state for AI panel | ~40 |
+
+### Supporting Components
+
+| File | Purpose |
+|------|---------|
+| `src/components/booking/GuestCountStepper.tsx` | Adult/child/infant counter |
+| `src/components/booking/BottomSheetDatePicker.tsx` | Mobile-optimized date selection |
+| `src/components/booking/ShareBrochureButtons.tsx` | Social sharing for PDF brochures |
+| `src/components/booking/PropertyRecommendations.tsx` | AI-powered similar property suggestions |
+
+---
+
+## AI Concierge Panel
+
+### Overview
+
+The AI Concierge Panel is the heart of the booking experience. It provides a conversational interface that understands natural language requests and returns structured booking suggestions.
+
+### Visual States
+
+```
+COLLAPSED STATE (Default on page load)
+┌─────────────────────────────────────────────────────────────────┐
+│  ✨ AI Travel Concierge                                [▼]     │
+│  "Tell me about your ideal stay..."                            │
+└─────────────────────────────────────────────────────────────────┘
+
+EXPANDED STATE (After click or 8-second inactivity prompt)
+┌─────────────────────────────────────────────────────────────────┐
+│  ✨ AI Travel Concierge                                [▲]     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │ Welcome! I'm here to help you plan your perfect stay.     │ │
+│  │    Try saying something like:                             │ │
+│  │    • "3 nights for 2 adults in March"                     │ │
+│  │    • "Romantic weekend getaway"                           │ │
+│  │    • "Family trip with 2 kids next month"                 │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │ "I'd like 4 nights for 2 adults starting March 15th"      │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │ Perfect! I found some great options for you:              │ │
+│  │                                                           │ │
+│  │  ┌─────────────────────┐  ┌─────────────────────┐        │ │
+│  │  │ Deluxe Suite        │  │ Ocean View Room     │        │ │
+│  │  │ R2,450/night        │  │ R1,890/night        │        │ │
+│  │  │ ════════════════    │  │ ════════════════    │        │ │
+│  │  │ Total: R9,800       │  │ Total: R7,560       │        │ │
+│  │  │ ✨ Best Value       │  │                     │        │ │
+│  │  │ [Add to Cart]       │  │ [Add to Cart]       │        │ │
+│  │  └─────────────────────┘  └─────────────────────┘        │ │
+│  │                                                           │ │
+│  │  I also found a complimentary upgrade available!          │ │
+│  │     Want to see it?                                       │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ Type your request...                         [🎤] [➤]   │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Voice Input
+
+The voice input feature uses the Web Speech API for hands-free booking:
+
+```typescript
+// src/hooks/useSpeechRecognition.ts
+export function useSpeechRecognition() {
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [interimTranscript, setInterimTranscript] = useState("");
+  const [isSupported, setIsSupported] = useState(false);
+  
+  // ... implementation
+}
+```
+
+**Voice Input States:**
+
+| State | Icon | Visual Feedback |
+|-------|------|-----------------|
+| Idle | Mic (outline) | Static microphone icon |
+| Listening | Mic (filled, red) | Pulsing animation, "Listening..." text |
+| Processing | Loading | Loading spinner |
+| Error | Warning | Error toast notification |
+
+**Browser Support:**
+- Chrome, Edge, Safari (full support)
+- Firefox (limited, speech recognition API not fully implemented)
+- Fallback: Button hidden on unsupported browsers
+
+### Natural Language Examples
+
+The AI Concierge understands various booking request formats:
+
+| User Input | Parsed Intent |
+|------------|---------------|
+| "4 nights for 2 adults in March" | `{ nights: 4, adults: 2, month: "March" }` |
+| "Weekend getaway for a family with 2 kids" | `{ nights: 2, adults: 2, children: 2, type: "weekend" }` |
+| "Romantic week in April" | `{ nights: 7, adults: 2, month: "April", vibe: "romantic" }` |
+| "Next weekend, 3 people" | `{ nights: 2, adults: 3, dates: "next weekend" }` |
+| "Cheapest room for tonight" | `{ nights: 1, adults: 1, sort: "price_asc", start: "today" }` |
+
+### Proactive Surprise Injection
+
+The AI Concierge delivers 1-2 "delights" per session to enhance the booking experience:
+
+```typescript
+// Surprise injection logic
+const SURPRISE_TRIGGERS = [
+  {
+    condition: "booking_total > 5000",
+    message: "I've found a complimentary upgrade to our Sunset Suite — want to see it?",
+    type: "upgrade"
+  },
+  {
+    condition: "nights >= 3",
+    message: "As a thank you for your extended stay, I can add a free breakfast for one morning!",
+    type: "addon"
+  },
+  {
+    condition: "vibe === 'romantic'",
+    message: "I've arranged a special welcome: chilled champagne and roses in your room!",
+    type: "gift"
+  }
+];
+```
+
+### Inactivity Prompt
+
+After 8 seconds of inactivity on the property page, the AI Concierge proactively offers help:
+
+```
+┌───────────────────────────────────────────────────────────────┐
+│ Need help planning your stay? I can find the perfect room    │
+│    for your dates and group size. Just ask!                  │
+│                                        [Ask AI] [Dismiss]    │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Entry Points
+## Smart Cart
 
-### 1. Standard Flow (Legacy)
+### Overview
 
-**Components:** `FloatingDateGuestPicker` → `QuickBookDrawer`
+The Smart Cart is a sticky bottom bar that provides real-time visibility into the booking selection. It serves as both a summary display and the gateway to checkout.
 
-```tsx
-// PropertyShowcase.tsx
-<FloatingDateGuestPicker
-  onContinue={() => setQuickBookDrawerOpen(true)}
-  ctaLabel="Check Rates"
-  availabilityMap={calendarAvailability}
-/>
+### Visual Structure
+
+```
+EMPTY STATE (No items)
+[Cart is hidden - no visual element]
+
+WITH ITEMS
+┌─────────────────────────────────────────────────────────────────┐
+│ 🛒 1  │ Deluxe Suite              │ 🌙 3 │ 👤 2 │ R7,350 │ [▲] │ [ Checkout ]│
+└─────────────────────────────────────────────────────────────────┘
+  ^        ^                            ^     ^      ^        ^
+  |        |                            |     |      |        |
+ Badge   Room name                    Nights Guests Total   Expand
+
+EXPANDED STATE (After clicking expand)
+┌─────────────────────────────────────────────────────────────────┐
+│ 🛒 1  │ Deluxe Suite              │ 🌙 3 │ 👤 2 │ R7,350 │ [▼] │ [ Checkout ]│
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ [Image] │ Deluxe Suite                                  │   │
+│  │         │ 15 Mar - 18 Mar 2026 · 3 nights               │   │
+│  │         │ R7,350                             [Remove]   │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ─────────────────────────────────────────────────────────────  │
+│  Total (1 stay)                                      R7,350    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. AI Concierge Flow (New)
+### Multi-Property Journey
 
-**Components:** `AIConciergePanel` → `SmartCart` → `InlineCheckout`
+When booking across multiple properties:
 
-Enabled via `AI_CONCIERGE_ENABLED` feature flag.
-
-```tsx
-// PropertyShowcase.tsx
-{aiConciergeEnabled ? (
-  <AIConciergePanel
-    propertyId={property.id}
-    propertyName={property.name}
-    roomTypes={roomTypes}
-    onSuggestionSelected={handleSuggestionSelected}
-  />
-) : (
-  <FloatingDateGuestPicker ... />
-)}
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 🛒 2  │ The Silo, Benson...       │ 🌙 7 │ 👤 2 │ R45,200│ [▲] │ [ Checkout ]│
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ [Image] │ The Silo Hotel                                │   │
+│  │         │ Presidential Suite                            │   │
+│  │         │ 15 Mar - 18 Mar 2026 · 3 nights               │   │
+│  │         │ R28,500                            [Remove]   │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ [Image] │ Benson House                                  │   │
+│  │         │ Garden Suite                                  │   │
+│  │         │ 18 Mar - 22 Mar 2026 · 4 nights               │   │
+│  │         │ R16,700                            [Remove]   │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ─────────────────────────────────────────────────────────────  │
+│  Total (2 stays)                                     R45,200   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### 3. Direct Room Access
+---
 
-Users can navigate directly to a room:
-- `/property/:slug/room/:roomSlug` → `RoomShowcase`
-- `/property/:slug/room/:roomSlug/availability` → `RoomAvailabilityCalendar`
+## Inline Checkout
+
+### Overview
+
+The Inline Checkout replaces separate checkout pages with an accordion that expands from the Smart Cart. The entire checkout process happens without leaving the property page.
+
+### Accordion Sections
+
+```typescript
+interface CheckoutSection {
+  id: "summary" | "guest" | "requests" | "payment";
+  title: string;
+  icon: LucideIcon;
+  isExpanded: boolean;
+  isComplete: boolean;
+}
+```
+
+### Visual Flow
+
+```
+STEP 1: Order Summary (Auto-expanded on checkout click)
+┌─────────────────────────────────────────────────────────────────┐
+│ Order Summary                                            [−]   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  The Silo Hotel · Presidential Suite                           │
+│  ├─ Check-in: Saturday, 15 March 2026 at 14:00                 │
+│  ├─ Check-out: Tuesday, 18 March 2026 at 10:00                 │
+│  ├─ 3 nights × R9,500 = R28,500                                │
+│  └─ Guests: 2 adults                                           │
+│                                                                 │
+│  ─────────────────────────────────────────────────────────────  │
+│  Subtotal                                            R28,500   │
+│  VAT (15%)                                            R4,275   │
+│  ─────────────────────────────────────────────────────────────  │
+│  Total                                               R32,775   │
+│                                                                 │
+│                                              [Continue →]       │
+└─────────────────────────────────────────────────────────────────┘
+
+STEP 2: Guest Details
+┌─────────────────────────────────────────────────────────────────┐
+│ ✓ Order Summary                                          [+]   │
+├─────────────────────────────────────────────────────────────────┤
+│ Guest Details                                            [−]   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Full Name *                                                    │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ Sarah Johnson                                           │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  Email Address *                                                │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ sarah@example.com                                       │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  Phone Number *                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ +27 82 123 4567                                         │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│                                              [Continue →]       │
+└─────────────────────────────────────────────────────────────────┘
+
+STEP 3: Special Requests (Optional)
+┌─────────────────────────────────────────────────────────────────┐
+│ ✓ Order Summary                                          [+]   │
+│ ✓ Guest Details                                          [+]   │
+├─────────────────────────────────────────────────────────────────┤
+│ Special Requests                                         [−]   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Any special requests or requirements?                          │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ We're celebrating our anniversary. Could we have        │   │
+│  │ a room with a view if possible?                         │   │
+│  │                                                         │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  Voucher Code (Optional)                                       │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ SUNSET25                                                │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│                                    [Continue to Payment →]      │
+└─────────────────────────────────────────────────────────────────┘
+
+STEP 4: Payment
+┌─────────────────────────────────────────────────────────────────┐
+│ ✓ Order Summary                                          [+]   │
+│ ✓ Guest Details                                          [+]   │
+│ ✓ Special Requests                                       [+]   │
+├─────────────────────────────────────────────────────────────────┤
+│ Payment                                                  [−]   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│                 ┌─────────────────────────────┐                │
+│                 │                             │                │
+│                 │   PAY R32,775 SECURELY      │                │
+│                 │                             │                │
+│                 └─────────────────────────────┘                │
+│                                                                 │
+│              Secured by PayFast · SSL Encrypted                │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Guest Details Persistence
+
+Guest information is automatically saved to localStorage for return visitors:
+
+```typescript
+// localStorage key: rol_guest_details
+interface StickyGuestDetails {
+  name: string;
+  email: string;
+  phone: string;
+  lastUpdated: string; // ISO timestamp
+}
+
+// Auto-sync on input blur
+const handleBlur = () => {
+  localStorage.setItem('rol_guest_details', JSON.stringify({
+    name: guestName,
+    email: guestEmail,
+    phone: guestPhone,
+    lastUpdated: new Date().toISOString()
+  }));
+};
+```
 
 ---
 
@@ -206,529 +614,528 @@ Users can navigate directly to a room:
 ### Context Hierarchy
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    ItineraryContext                         │
-│  • Multi-property journey state                             │
-│  • stays[] array with all bookings                          │
-│  • Guest details (sticky via localStorage)                  │
-│  • Total price calculation                                  │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-          ┌────────────────┼────────────────┐
-          ▼                ▼                ▼
-┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│ MobileBooking   │ │ CurrencyContext │ │ SearchContext   │
-│ Context         │ │                 │ │                 │
-│                 │ │ • Selected      │ │ • Search dates  │
-│ • checkIn       │ │   currency      │ │ • Guest counts  │
-│ • checkOut      │ │ • Exchange      │ │ • Filters       │
-│ • guests        │ │   rates         │ │                 │
-│ • selectedRoom  │ │                 │ │                 │
-└─────────────────┘ └─────────────────┘ └─────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                        App.tsx                                   │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                   ItineraryProvider                       │ │
+│  │  • stays: ItineraryStay[]                                 │ │
+│  │  • totalPrice, totalNights                                │ │
+│  │  • addStay(), removeStay(), clearItinerary()              │ │
+│  │                                                           │ │
+│  │  ┌─────────────────────────────────────────────────────┐ │ │
+│  │  │              MobileBookingProvider                  │ │ │
+│  │  │  • checkIn, checkOut                                │ │ │
+│  │  │  • rooms: BookingRoom[]                             │ │ │
+│  │  │  • guestDetails                                     │ │ │
+│  │  │  • totalCost                                        │ │ │
+│  │  │                                                     │ │ │
+│  │  │  ┌───────────────────────────────────────────────┐ │ │ │
+│  │  │  │            CurrencyProvider                   │ │ │ │
+│  │  │  │  • currency: "ZAR" | "USD" | "EUR" | "GBP"    │ │ │ │
+│  │  │  │  • formatPrice()                              │ │ │ │
+│  │  │  │                                               │ │ │ │
+│  │  │  │  ┌─────────────────────────────────────────┐ │ │ │ │
+│  │  │  │  │        PropertyShowcase                 │ │ │ │ │
+│  │  │  │  │  • AIConciergePanel                     │ │ │ │ │
+│  │  │  │  │  • SmartCart                            │ │ │ │ │
+│  │  │  │  │  • InlineCheckout                       │ │ │ │ │
+│  │  │  │  └─────────────────────────────────────────┘ │ │ │ │
+│  │  │  └───────────────────────────────────────────────┘ │ │ │
+│  │  └─────────────────────────────────────────────────────┘ │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Key State Objects
-
-#### ItineraryStay (single booking)
+### ItineraryContext Data Structure
 
 ```typescript
 interface ItineraryStay {
-  id: string;
+  id: string;                    // UUID
   property_id: string;
   property_name: string;
   property_slug: string;
   property_image?: string;
-  room_id?: string;
-  room_name: string;
-  room_slug?: string;
+  rooms: Array<{
+    room_type_id: string;
+    room_type_name: string;
+    rate_per_night: number;
+    quantity: number;
+  }>;
   dates: {
-    check_in: string;  // YYYY-MM-DD
-    check_out: string;
+    check_in: string;           // YYYY-MM-DD
+    check_out: string;          // YYYY-MM-DD
   };
   nights: number;
   guests: {
     adults: number;
     children: number;
     infants: number;
-    pets?: number;
   };
   price_breakdown: {
-    per_night: number;
-    subtotal: number;
-    fees: { name: string; amount: number }[];
+    room_total: number;
+    taxes: number;
+    fees: number;
     total: number;
   };
-  pms_config?: {
-    external_system: string;
-    rate_type_id?: string;
+  ai_metadata?: {
+    suggestion_source: "ai" | "manual";
+    prompt_text?: string;
+    surprise_applied?: string;
   };
 }
 ```
 
-### localStorage Persistence
+### localStorage Keys
 
-| Key | Purpose |
-|-----|---------|
-| `rol_guest_details` | Sticky guest name, email, phone |
-| `rol_itinerary` | Current journey state backup |
-| `rol_currency` | Selected display currency |
+| Key | Purpose | TTL |
+|-----|---------|-----|
+| `rol_guest_details` | Sticky guest name, email, phone | Permanent |
+| `rol_itinerary` | Multi-property journey state | 24 hours |
+| `rol_currency` | User's preferred currency | Permanent |
+| `mobile_booking_state` | MobileBookingContext snapshot | Session |
 
 ---
 
-## Room Selection & Pricing
+## Payment Flow
 
-### Price Calculation Strategy
+### PayFast Onsite Integration
 
-The system uses a multi-stage fallback for accurate pricing:
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     PAYMENT FLOW SEQUENCE                        │
+└─────────────────────────────────────────────────────────────────┘
 
-```typescript
-// Priority order for price calculation:
-1. Live PMS API fetch (HotelBeds, Hostfully)
-2. pms_availability_cache table
-3. hostfully_room_types.daily_rate
-4. property_rate_types table
-5. Fallback: room_types.base_price
+     Frontend                    Edge Function               PayFast
+        │                            │                          │
+        │  1. Click "Pay"            │                          │
+        │──────────────────────────► │                          │
+        │                            │  2. Request UUID         │
+        │                            │─────────────────────────►│
+        │                            │                          │
+        │                            │  3. Return UUID          │
+        │                            │◄─────────────────────────│
+        │  4. UUID received          │                          │
+        │◄──────────────────────────│                          │
+        │                            │                          │
+        │  5. Open PayFast Modal     │                          │
+        │────────────────────────────────────────────────────►│
+        │                            │                          │
+        │                            │  6. ITN Callback         │
+        │                            │◄─────────────────────────│
+        │                            │                          │
+        │                            │  7. Update booking       │
+        │                            │  8. Push to PMS          │
+        │                            │  9. Generate PDF         │
+        │                            │  10. Send email          │
+        │                            │                          │
+        │  11. Redirect to confirm   │                          │
+        │◄─────────────────────────────────────────────────────│
+        │                            │                          │
 ```
 
-### Rate Type Mapping
-
-| PMS | Rate Type Field | Example Value |
-|-----|-----------------|---------------|
-| Benson | `rate_type` | `standard`, `flexible` |
-| Hostfully | `rate_type_id` | UUID from PMS |
-| HotelBeds | `rateKey` | Encoded rate string |
-| Manual | `rate_type_id` | `per-unit`, `per-night` |
-
-### Availability Verification (RULE #1)
-
-> **Critical:** All bookings MUST verify live availability with PMS before creation.
+### PayFast Modal States
 
 ```typescript
-// push-booking/index.ts
-async function verifyAvailability(property, dates, roomId) {
-  switch (property.external_system) {
-    case 'benson':
-      return await checkBensonAvailability(...)
-    case 'hostfully':
-      return await checkHostfullyAvailability(...)
-    case 'hotelbeds':
-      return await checkHotelbedsAvailability(...)
-    default:
-      return await checkManualAvailability(...)
-  }
+// PayFastOnsiteModal.tsx state machine
+type PayFastState = 
+  | "loading"         // Fetching UUID from edge function
+  | "ready"           // UUID received, waiting for user
+  | "active"          // PayFast popup is open
+  | "success"         // Payment completed
+  | "cancelled"       // User closed modal
+  | "error";          // API or network error
+```
+
+### ITN (Instant Transaction Notification) Callback
+
+The `payfast-api` edge function handles ITN callbacks:
+
+```typescript
+// POST /payfast-api { action: "itn_callback" }
+async function handleITN(payload: PayFastITN) {
+  // 1. Validate signature
+  const isValid = await validatePayFastSignature(payload);
+  
+  // 2. Update booking payment status
+  await supabase.from("bookings").update({
+    payment_status: payload.payment_status,
+    payment_reference: payload.pf_payment_id,
+    paid_at: new Date().toISOString()
+  }).eq("id", payload.m_payment_id);
+  
+  // 3. Trigger PMS push (async)
+  await supabase.functions.invoke("push-booking", {
+    body: { booking_id: payload.m_payment_id }
+  });
+  
+  // 4. Generate enchanting PDF
+  await supabase.functions.invoke("generate-itinerary-pdf", {
+    body: { booking_id: payload.m_payment_id }
+  });
+  
+  // 5. Send confirmation email
+  await supabase.functions.invoke("send-booking-email", {
+    body: { booking_id: payload.m_payment_id }
+  });
 }
 ```
 
 ---
 
-## The Journey System
+## Enchanting PDF System
 
-### Multi-Property Support
+### Overview
 
-RoomsOnline treats every booking as a "journey" that can contain multiple stays:
+The `generate-itinerary-pdf` edge function creates a personalized, visually stunning PDF brochure that transforms a booking confirmation into a treasured keepsake.
 
-```typescript
-// Example: 3-property Cape Town trip
-const journey = {
-  stays: [
-    { property: "Camps Bay Villa", dates: "Mar 1-3", nights: 2 },
-    { property: "Winelands Estate", dates: "Mar 3-5", nights: 2 },
-    { property: "Hermanus Beach", dates: "Mar 5-7", nights: 2 }
-  ],
-  total_nights: 6,
-  total_price: 45000
-};
+### PDF Document Structure
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         PAGE 1: COVER                            │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                                                           │ │
+│  │                    [HERO IMAGE]                           │ │
+│  │               Property at Golden Hour                     │ │
+│  │                                                           │ │
+│  │  ═══════════════════════════════════════════════════════ │ │
+│  │                                                           │ │
+│  │              Welcome, Sarah & Michael                     │ │
+│  │                                                           │ │
+│  │         "Your romantic escape to The Silo awaits.         │ │
+│  │          Cape Town's sunset has been preparing            │ │
+│  │          for your arrival."                               │ │
+│  │                                                           │ │
+│  │                    — Your AI Concierge                    │ │
+│  │                                                           │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                    PAGE 2: PERSONALIZED POEM                     │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                                                           │ │
+│  │                    ✨ For You ✨                          │ │
+│  │                                                           │ │
+│  │         Where Table Mountain meets the sea,               │ │
+│  │         Two hearts find sanctuary.                        │ │
+│  │         In Silo's embrace, love takes flight—             │ │
+│  │         Cape Town dreams on a summer night.               │ │
+│  │                                                           │ │
+│  │                                                           │ │
+│  │  ─────────────────────────────────────────────────────── │ │
+│  │                                                           │ │
+│  │  This poem was crafted by AI just for your journey,       │ │
+│  │  inspired by your destination and travel dates.           │ │
+│  │                                                           │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                   PAGE 3: ITINERARY TIMELINE                     │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                                                           │ │
+│  │  Your Journey                                             │ │
+│  │                                                           │ │
+│  │  ────●──────────────────────────────────────────●────── │ │
+│  │      │                                          │        │ │
+│  │  SAT 15 MAR                               TUE 18 MAR     │ │
+│  │  Check-in 14:00                          Check-out 10:00 │ │
+│  │                                                           │ │
+│  │  ┌─────────────────────────────────────────────────────┐ │ │
+│  │  │                                                     │ │ │
+│  │  │  The Silo Hotel                                     │ │ │
+│  │  │     Presidential Suite                              │ │ │
+│  │  │     3 nights · 2 guests                             │ │ │
+│  │  │                                                     │ │ │
+│  │  │  Silo District, V&A Waterfront                      │ │ │
+│  │  │  +27 21 670 0500                                    │ │ │
+│  │  │                                                     │ │ │
+│  │  └─────────────────────────────────────────────────────┘ │ │
+│  │                                                           │ │
+│  │  Booking Reference: ROL-2026-7X9K                        │ │
+│  │                                                           │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                   PAGE 4: WEATHER FORECAST                       │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                                                           │ │
+│  │  Cape Town Weather Forecast                               │ │
+│  │                                                           │ │
+│  │  ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐                │ │
+│  │  │ SAT │ │ SUN │ │ MON │ │ TUE │ │ WED │                │ │
+│  │  │ ☀️  │ │ 🌤️  │ │ ☀️  │ │ ☀️  │ │ 🌤️  │                │ │
+│  │  │ 28° │ │ 26° │ │ 29° │ │ 27° │ │ 25° │                │ │
+│  │  └─────┘ └─────┘ └─────┘ └─────┘ └─────┘                │ │
+│  │                                                           │ │
+│  │  Perfect weather for sundowners at the rooftop bar!       │ │
+│  │                                                           │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                   PAGE 5: LOCAL DISCOVERIES                      │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                                                           │ │
+│  │  Local Discoveries                                        │ │
+│  │                                                           │ │
+│  │  ┌─────────────────────────────────────────────────────┐ │ │
+│  │  │                                                     │ │ │
+│  │  │              [STATIC MAP IMAGE]                     │ │ │
+│  │  │                                                     │ │ │
+│  │  │     The Silo Hotel                                  │ │ │
+│  │  │     Gigi Rooftop (0.5 km)                           │ │ │
+│  │  │     Camps Bay Beach (8 km)                          │ │ │
+│  │  │     Table Mountain Cableway (6 km)                  │ │ │
+│  │  │                                                     │ │ │
+│  │  └─────────────────────────────────────────────────────┘ │ │
+│  │                                                           │ │
+│  │  Curated by your AI Concierge:                           │ │
+│  │  • Secret sunset spot at Signal Hill                     │ │
+│  │  • Best braai at Mzoli's (locals only!)                  │ │
+│  │  • Morning coffee at Truth Coffee Roasting               │ │
+│  │                                                           │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                   PAGE 6: SURPRISE VOUCHER                       │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                                                           │ │
+│  │  ╔═══════════════════════════════════════════════════╗   │ │
+│  │  ║                                                   ║   │ │
+│  │  ║   A SPECIAL GIFT FOR YOU                          ║   │ │
+│  │  ║                                                   ║   │ │
+│  │  ║   ───────────────────────────────────────────     ║   │ │
+│  │  ║                                                   ║   │ │
+│  │  ║         25% OFF                                   ║   │ │
+│  │  ║   Table Mountain Cable Car Tickets                ║   │ │
+│  │  ║                                                   ║   │ │
+│  │  ║   ┌─────────────┐                                 ║   │ │
+│  │  ║   │   [QR CODE] │  Code: SILO-SUNSET-2026        ║   │ │
+│  │  ║   └─────────────┘                                 ║   │ │
+│  │  ║                                                   ║   │ │
+│  │  ║   Valid: 15 Mar - 30 Apr 2026                     ║   │ │
+│  │  ║   Show this voucher at the ticket office          ║   │ │
+│  │  ║                                                   ║   │ │
+│  │  ╚═══════════════════════════════════════════════════╝   │ │
+│  │                                                           │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                     PAGE 7: THANK YOU                            │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                                                           │ │
+│  │                                                           │ │
+│  │                    Thank You                              │ │
+│  │                                                           │ │
+│  │         for choosing RoomsOnline for your journey.        │ │
+│  │                                                           │ │
+│  │         We can't wait to host you in Cape Town.           │ │
+│  │         May your stay be filled with wonder.              │ │
+│  │                                                           │ │
+│  │                                                           │ │
+│  │                    [ROL LOGO]                             │ │
+│  │                                                           │ │
+│  │              www.roomsonline.co.za                        │ │
+│  │              hello@roomsonline.co.za                      │ │
+│  │              +27 21 555 1234                              │ │
+│  │                                                           │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Adding Stays
+### PDF Generation Flow
 
 ```typescript
-// ItineraryContext
-const addStay = (stay: ItineraryStay) => {
-  setStays(prev => {
-    // Check for duplicate property+dates
-    const exists = prev.find(s => 
-      s.property_id === stay.property_id && 
-      s.dates.check_in === stay.dates.check_in
-    );
-    if (exists) {
-      return prev.map(s => s.id === exists.id ? stay : s);
-    }
-    return [...prev, stay];
+// generate-itinerary-pdf edge function
+async function generateEnchantingPDF(bookingId: string) {
+  // 1. Fetch booking + property data
+  const booking = await fetchBookingWithProperty(bookingId);
+  
+  // 2. Generate personalized poem via Lovable AI
+  const poem = await generatePoem({
+    guestName: booking.guest_name,
+    propertyName: booking.property.name,
+    location: booking.property.city,
+    vibe: booking.ai_metadata?.vibe || "romantic"
   });
-};
-```
-
-### Journey Validation
-
-Before checkout, the system validates:
-1. No date overlaps between stays
-2. All stays have valid pricing
-3. Guest counts within room limits
-4. PMS availability confirmed
-
----
-
-## Checkout Process
-
-### JourneyCheckout Component
-
-**Route:** `/journey/checkout`
-
-```tsx
-// Key sections:
-1. Order Summary (all stays with pricing)
-2. Guest Details Form
-   - Full name (required)
-   - Email (required, validated)
-   - Phone (required)
-   - Country (for Hostfully)
-3. Special Requests (optional textarea)
-4. Pay Button → triggers PayFast
-```
-
-### Guest Detail Persistence
-
-Guest info is "sticky" across sessions:
-
-```typescript
-// On blur, save to localStorage
-const handleGuestBlur = () => {
-  localStorage.setItem('rol_guest_details', JSON.stringify({
-    name: guestName,
-    email: guestEmail,
-    phone: guestPhone
-  }));
-};
-```
-
-### Validation Before Payment
-
-```typescript
-const canProceed = useMemo(() => {
-  return (
-    guestName.trim().length > 0 &&
-    isValidEmail(guestEmail) &&
-    guestPhone.trim().length > 0 &&
-    stays.length > 0 &&
-    totalPrice > 0
+  
+  // 3. Fetch 5-day weather forecast
+  const weather = await fetchWeatherForecast(
+    booking.property.latitude,
+    booking.property.longitude,
+    booking.check_in_date
   );
-}, [guestName, guestEmail, guestPhone, stays, totalPrice]);
-```
-
----
-
-## Payment Flow (PayFast Onsite)
-
-### Architecture
-
-```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   Frontend   │────▶│  payfast-api │────▶│   PayFast    │
-│  (Checkout)  │     │ (Edge Func)  │     │   Servers    │
-└──────────────┘     └──────────────┘     └──────────────┘
-       │                                         │
-       │                                         │
-       ▼                                         ▼
-┌──────────────┐                          ┌──────────────┐
-│  PayFast     │◀─────────────────────────│  ITN Notify  │
-│  Modal       │                          │  (Webhook)   │
-└──────────────┘                          └──────────────┘
-```
-
-### Step-by-Step Flow
-
-#### 1. Initiate Payment
-
-```typescript
-// JourneyCheckout.tsx
-const handlePayment = async () => {
-  // Create pending booking in database
-  const booking = await createPendingBooking(stays, guestDetails);
   
-  // Get PayFast UUID from edge function
-  const { uuid } = await supabase.functions.invoke('payfast-api', {
-    body: {
-      action: 'create_onsite_payment',
-      booking_id: booking.id,
-      amount: totalPrice,
-      item_name: `Journey: ${stays.map(s => s.property_name).join(', ')}`,
-      email: guestEmail,
-      name: guestName
+  // 4. Generate static map with POIs
+  const mapUrl = generateStaticMapUrl({
+    center: [booking.property.latitude, booking.property.longitude],
+    markers: [
+      { lat: booking.property.latitude, lng: booking.property.longitude, label: "P" },
+      ...nearbyPOIs.map((poi, i) => ({ ...poi, label: String(i + 1) }))
+    ]
+  });
+  
+  // 5. Create surprise voucher
+  const voucher = await createExperienceVoucher({
+    bookingId,
+    discountPercent: 25,
+    description: "Table Mountain Cable Car Tickets",
+    validUntil: addDays(parseISO(booking.check_out_date), 45)
+  });
+  
+  // 6. Render HTML template
+  const html = renderPDFTemplate({
+    booking,
+    poem,
+    weather,
+    mapUrl,
+    voucher,
+    localTips: await fetchLocalExperiences(booking.property_id)
+  });
+  
+  // 7. Convert to PDF
+  const pdfBuffer = await htmlToPdf(html);
+  
+  // 8. Upload to storage
+  const pdfUrl = await uploadToStorage(pdfBuffer, `brochures/${bookingId}.pdf`);
+  
+  // 9. Update booking with surprise elements
+  await supabase.from("bookings").update({
+    surprise_elements: {
+      poem: poem,
+      voucher_code: voucher.code,
+      map_url: mapUrl,
+      image_urls: [heroImageUrl, localGemImageUrl]
     }
-  });
+  }).eq("id", bookingId);
   
-  // Open PayFast modal
-  setPayFastUUID(uuid);
-  setShowPayFastModal(true);
-};
-```
-
-#### 2. PayFast Modal
-
-```tsx
-// PayFastOnsiteModal.tsx
-<Script src="https://www.payfast.co.za/onsite/engine.js" />
-
-useEffect(() => {
-  if (uuid) {
-    window.payfast_do_onsite_payment({
-      uuid: uuid,
-      return_url: `${window.location.origin}/journey/confirmation/${itineraryId}`,
-      cancel_url: window.location.href
-    }, (result) => {
-      if (result === true) {
-        onSuccess();
-      } else {
-        onCancel();
-      }
-    });
-  }
-}, [uuid]);
-```
-
-#### 3. ITN Callback (Server-side)
-
-```typescript
-// payfast-api/index.ts (ITN handler)
-if (action === 'itn_notify') {
-  // Validate signature
-  const isValid = validatePayFastSignature(body, passphrase);
-  
-  if (isValid && body.payment_status === 'COMPLETE') {
-    // Update booking status
-    await supabase
-      .from('bookings')
-      .update({ payment_status: 'paid', paid_at: new Date() })
-      .eq('id', body.m_payment_id);
-    
-    // Push to PMS
-    await pushBookingToPMS(bookingId);
-    
-    // Send confirmation email
-    await sendConfirmationEmail(bookingId);
-  }
+  return pdfUrl;
 }
 ```
 
-### Payment Status Values
-
-| Status | Meaning |
-|--------|---------|
-| `pending` | Payment initiated, awaiting completion |
-| `paid` | Payment successful |
-| `failed` | Payment declined or errored |
-| `cancelled` | User cancelled payment |
-| `refunded` | Payment refunded post-booking |
-
----
-
-## Booking Creation & PMS Sync
-
-### The push-booking Edge Function
-
-**Purpose:** Creates booking in PMS after successful payment
+### AI Poem Generation
 
 ```typescript
-// push-booking/index.ts - Simplified flow
-export async function pushBooking(bookingId: string) {
-  // 1. Load booking data
-  const booking = await loadBooking(bookingId);
-  const property = await loadProperty(booking.property_id);
+// Using Lovable AI (Gemini 2.5 Flash)
+async function generatePoem(context: PoemContext): Promise<string> {
+  const prompt = `
+    Write a 4-line rhyming poem for a guest named ${context.guestName} 
+    who is visiting ${context.propertyName} in ${context.location}.
+    The vibe is ${context.vibe}. Make it warm, memorable, and Cape Town-flavored.
+    Do not use generic phrases. Be specific and evocative.
+  `;
   
-  // 2. RULE #1: Verify live availability
-  const isAvailable = await verifyAvailability(property, booking);
-  if (!isAvailable) {
-    return { error: 'AVAILABILITY_CHANGED' };
-  }
-  
-  // 3. Route to appropriate PMS
-  let result;
-  switch (property.external_system) {
-    case 'benson':
-      result = await pushToBenson(booking, property);
-      break;
-    case 'hostfully':
-      result = await pushToHostfully(booking, property);
-      break;
-    case 'hotelbeds':
-      result = await pushToHotelbeds(booking, property);
-      break;
-    default:
-      result = await createManualBooking(booking, property);
-  }
-  
-  // 4. Update booking with external reference
-  if (result.success) {
-    await supabase
-      .from('bookings')
-      .update({
-        external_reservation_id: result.reservation_id,
-        status: 'confirmed'
-      })
-      .eq('id', bookingId);
-  }
-  
-  return result;
-}
-```
-
-### PMS-Specific Payloads
-
-#### Hostfully v3
-
-```typescript
-const hostfullyPayload = {
-  propertyUid: property.hostfully_property_uid,
-  checkInLocalDateTime: `${checkIn}T${checkInTime}:00`,
-  checkOutLocalDateTime: `${checkOut}T${checkOutTime}:00`,
-  status: 'NEW',
-  source: 'HOSTFULLY_API',
-  agencyUid: agencyUid,
-  guestInformation: {
-    firstName: guestFirstName,
-    lastName: guestLastName,
-    email: guestEmail,
-    phoneNumber: guestPhone,
-    countryCode: countryCode,
-    adultCount: adults,
-    childrenCount: children,
-    infantCount: infants,
-    petCount: pets
-  }
-};
-```
-
-#### Benson
-
-```typescript
-const bensonPayload = {
-  room_type_id: roomTypeId,
-  arrival: checkIn,
-  departure: checkOut,
-  guest_name: guestName,
-  guest_email: guestEmail,
-  guest_phone: guestPhone,
-  adults: adults,
-  children: children,
-  rate_type: rateType,
-  total_amount: totalPrice
-};
-```
-
-### Manual Properties (No PMS)
-
-For properties with `external_system: 'none'`:
-
-1. Booking created directly in `bookings` table
-2. Dates auto-blocked in `property_availability` table
-3. No external sync required
-
-```typescript
-// Auto-block dates for manual properties
-await supabase
-  .from('property_availability')
-  .upsert({
-    property_id: propertyId,
-    room_type_id: roomTypeId,
-    date: dateRange,
-    available_units: 0,
-    is_stop_sell: true,
-    reason: `Booking #${bookingId}`
+  const response = await fetch("https://api.lovable.dev/v1/ai/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 150
+    })
   });
+  
+  const data = await response.json();
+  return data.choices[0].message.content.trim();
+}
 ```
 
 ---
 
-## Confirmation & Post-Booking
+## Delight & Surprise Layer
 
-### JourneyConfirmation Page
+### Philosophy
 
-**Route:** `/journey/confirmation/:itineraryId`
+Every booking should feel like receiving a gift, not completing a transaction. The Delight & Surprise Layer injects moments of joy throughout the journey.
 
-Displays:
-- Success message with checkmark
-- Timeline visualization of all stays
-- Booking summary with pricing
-- Guest details recap
-- Download PDF brochure button
-- Share journey button
+### Surprise Injection Points
 
-### PDF Brochure Generation
+| Point | Trigger | Example Surprise |
+|-------|---------|------------------|
+| AI Concierge | Booking total > R5,000 | "I've found a complimentary upgrade to our Sunset Suite!" |
+| AI Concierge | Stay >= 3 nights | "As a thank you, I can add a free breakfast for one morning!" |
+| AI Concierge | Romantic vibe detected | "I've arranged chilled champagne and roses for your arrival!" |
+| PDF Generation | All bookings | Personalized poem + surprise voucher |
+| Confirmation Email | All bookings | "A special surprise awaits in your room..." |
 
-The `generate-itinerary-pdf` edge function creates an enchanting PDF with:
-
-1. **Personalized Cover** - Guest name, journey dates
-2. **AI-Generated Poem** - 4-line personalized verse (Gemini AI)
-3. **Weather Forecast** - 5-day forecast from Open-Meteo API
-4. **Property Details** - Photos, descriptions, amenities
-5. **Surprise Voucher** - 25% off local experience gift card
+### Cape Town-Flavored Examples
 
 ```typescript
-// generate-itinerary-pdf/index.ts
-const poem = await generatePoem(guestName, propertyNames, journeyTone);
-const weather = await fetchWeather(latitude, longitude, checkIn, checkOut);
-const voucher = await createVoucher(itineraryId);
-
-const html = renderBrochureHTML({ poem, weather, voucher, stays });
+const CAPE_TOWN_SURPRISES = [
+  {
+    type: "voucher",
+    title: "Sunset Sundowner Experience",
+    description: "Complimentary cocktail at Signal Hill sunset spot",
+    validDays: 30
+  },
+  {
+    type: "voucher",
+    title: "Table Mountain Adventure",
+    description: "25% off cable car tickets",
+    discountPercent: 25,
+    validDays: 45
+  },
+  {
+    type: "experience",
+    title: "Private Braai Experience",
+    description: "Traditional South African barbecue for two at Mzoli's",
+    value: "R500 credit"
+  },
+  {
+    type: "tip",
+    title: "Secret Local Spot",
+    description: "Ask the concierge about the hidden coffee shop at Woodstock..."
+  }
+];
 ```
 
-### Confirmation Emails
+### Experience Vouchers Table
 
-Sent via `send-itinerary-email` edge function:
-- Guest confirmation with PDF attachment
-- Property owner notification
-- ROL internal notification (admin)
+```sql
+CREATE TABLE experience_vouchers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  itinerary_id UUID REFERENCES itineraries(id),
+  code VARCHAR(50) UNIQUE NOT NULL,
+  description TEXT,
+  discount_percent INTEGER,
+  valid_until TIMESTAMPTZ,
+  redeemed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
 
----
-
-## Error Handling
-
-### Error Codes
-
-| Code | Meaning | User Action |
-|------|---------|-------------|
-| `AVAILABILITY_CHANGED` | Room no longer available | Select new dates |
-| `PMS_CONNECTION_ERROR` | Cannot reach PMS | Retry or contact support |
-| `PAYMENT_FAILED` | PayFast declined | Retry with different card |
-| `VALIDATION_ERROR` | Missing required fields | Complete form |
-| `RATE_EXPIRED` | Quoted price no longer valid | Refresh and retry |
-
-### DateReselectDialog
-
-When `AVAILABILITY_CHANGED` occurs after payment:
-
-```tsx
-<DateReselectDialog
-  open={showDateReselect}
-  propertyName={property.name}
-  originalDates={{ checkIn, checkOut }}
-  onNewDatesSelected={(newDates) => {
-    // Re-attempt booking with new dates
-    retryBooking(newDates);
-  }}
-  onCancel={() => {
-    // Process refund
-    initiateRefund(bookingId);
-  }}
-/>
-```
-
-### Graceful Degradation
-
-```typescript
-// If payment succeeds but PMS sync fails
-if (paymentSuccess && !pmsSuccess) {
-  // Still show success to guest (they paid!)
-  await updateBooking(bookingId, {
-    status: 'confirmed',
-    sync_warning: pmsError.message,
-    requires_intervention: true
-  });
-  
-  // Alert admin for manual intervention
-  await notifyAdmin('PMS_SYNC_FAILED', bookingId);
-}
+-- Example voucher
+INSERT INTO experience_vouchers (itinerary_id, code, description, discount_percent, valid_until)
+VALUES (
+  'abc-123',
+  'SILO-SUNSET-2026',
+  '25% off Table Mountain Cable Car Tickets',
+  25,
+  '2026-04-30'
+);
 ```
 
 ---
@@ -737,171 +1144,338 @@ if (paymentSuccess && !pmsSuccess) {
 
 ### Core Tables
 
+#### `bookings`
+
 ```sql
--- Main bookings table
-bookings (
-  id UUID PRIMARY KEY,
-  property_id UUID REFERENCES properties,
+CREATE TABLE bookings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  property_id UUID REFERENCES properties(id) NOT NULL,
+  user_id UUID REFERENCES auth.users(id),
+  
+  -- Guest Information
+  guest_name VARCHAR(255) NOT NULL,
+  guest_email VARCHAR(255) NOT NULL,
+  guest_phone VARCHAR(50),
+  
+  -- Booking Details
+  check_in_date DATE NOT NULL,
+  check_out_date DATE NOT NULL,
+  adults INTEGER DEFAULT 1,
+  children INTEGER DEFAULT 0,
+  teens INTEGER DEFAULT 0,
+  infants INTEGER DEFAULT 0,
+  
+  -- Room Selection
   room_type_id UUID,
-  
-  -- Dates
-  check_in_date DATE,
-  check_out_date DATE,
-  
-  -- Guests
-  guest_name TEXT,
-  guest_email TEXT,
-  guest_phone TEXT,
-  adults INTEGER,
-  children INTEGER,
-  infants INTEGER,
-  pets INTEGER,
+  rooms JSONB,  -- Array of room selections for multi-room bookings
+  rate_type_id UUID,
   
   -- Pricing
-  total_price NUMERIC,
+  total_price DECIMAL(10,2) NOT NULL,
   charges_breakdown JSONB,
   
-  -- Status
-  status TEXT, -- pending, confirmed, cancelled, completed
-  payment_status TEXT,
-  payment_reference TEXT,
+  -- Payment
+  payment_status VARCHAR(50) DEFAULT 'pending',
+  payment_method VARCHAR(50),
+  payment_reference VARCHAR(255),
+  payment_intent_id VARCHAR(255),
+  paid_at TIMESTAMPTZ,
   
-  -- PMS
-  external_reservation_id TEXT,
-  booking_channel TEXT,
+  -- PMS Integration
+  external_reservation_id VARCHAR(255),
+  booking_channel VARCHAR(50) DEFAULT 'direct',
+  requires_intervention BOOLEAN DEFAULT false,
   
-  -- Metadata
+  -- AI & Personalization
+  ai_metadata JSONB,           -- { suggestion_source, prompt_text, model_used }
+  surprise_elements JSONB,     -- { poem, voucher_code, map_url, image_urls[] }
   special_requests TEXT,
-  ai_metadata JSONB,
-  created_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ
-)
-
--- Journey/Itinerary tracking
-itineraries (
-  id UUID PRIMARY KEY,
-  user_id UUID,
-  session_id TEXT,
+  special_requests_parsed JSONB,
+  voucher VARCHAR(100),
   
-  -- Guest info
-  guest_name TEXT,
-  guest_email TEXT,
-  guest_phone TEXT,
-  
-  -- Journey data
-  stays JSONB, -- Array of ItineraryStay objects
-  total_nights INTEGER,
-  total_price NUMERIC,
-  currency TEXT DEFAULT 'ZAR',
-  
-  -- Status
-  status TEXT, -- draft, pending, confirmed, expired
-  
-  -- Timestamps
-  created_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ,
-  expires_at TIMESTAMPTZ
-)
-
--- Links bookings to itineraries
-itinerary_bookings (
-  id UUID PRIMARY KEY,
-  itinerary_id UUID REFERENCES itineraries,
-  booking_id UUID REFERENCES bookings,
-  stay_index INTEGER,
-  status TEXT,
-  external_reservation_id TEXT,
-  error_message TEXT
-)
+  -- Status & Audit
+  status VARCHAR(50) DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
 ```
 
-### Availability Tables
+#### `itineraries`
 
 ```sql
--- PMS availability cache
-pms_availability_cache (
-  id UUID PRIMARY KEY,
-  property_id UUID,
-  room_type_id UUID,
-  date DATE,
-  available_units INTEGER,
-  rate NUMERIC,
-  rate_type TEXT,
-  min_stay INTEGER,
-  max_stay INTEGER,
-  is_stop_sell BOOLEAN,
-  fetched_at TIMESTAMPTZ,
-  source TEXT -- 'hostfully', 'benson', 'hotelbeds'
-)
+CREATE TABLE itineraries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id),
+  session_id VARCHAR(255),
+  
+  -- Journey Details
+  title VARCHAR(255),
+  stays JSONB NOT NULL DEFAULT '[]',  -- Array of ItineraryStay objects
+  total_nights INTEGER DEFAULT 0,
+  total_price DECIMAL(10,2) DEFAULT 0,
+  currency VARCHAR(3) DEFAULT 'ZAR',
+  
+  -- Guest Information
+  guest_name VARCHAR(255),
+  guest_email VARCHAR(255),
+  guest_phone VARCHAR(50),
+  special_requests TEXT,
+  
+  -- Brochure
+  brochure_pdf_url TEXT,
+  brochure_generated_at TIMESTAMPTZ,
+  
+  -- Status
+  status VARCHAR(50) DEFAULT 'draft',  -- draft, confirmed, cancelled
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+```
 
--- Manual availability (for properties without PMS)
-property_availability (
-  id UUID PRIMARY KEY,
-  property_id UUID,
-  room_type_id UUID,
-  date DATE,
-  available_units INTEGER,
-  is_stop_sell BOOLEAN,
-  reason TEXT,
-  created_at TIMESTAMPTZ
-)
+#### `itinerary_bookings`
+
+```sql
+CREATE TABLE itinerary_bookings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  itinerary_id UUID REFERENCES itineraries(id) NOT NULL,
+  booking_id UUID REFERENCES bookings(id) NOT NULL,
+  property_id UUID REFERENCES properties(id),
+  stay_index INTEGER NOT NULL,
+  
+  -- Sync Status
+  status VARCHAR(50) DEFAULT 'pending',  -- pending, confirmed, failed
+  external_reservation_id VARCHAR(255),
+  error_message TEXT,
+  
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+### AI Metadata Structure
+
+```typescript
+// bookings.ai_metadata JSONB
+interface BookingAIMetadata {
+  suggestion_source: "ai" | "manual" | "upsell";
+  prompt_text?: string;           // Original user request
+  model_used?: string;            // e.g., "google/gemini-2.5-flash"
+  confidence_score?: number;      // 0-1 score from AI parsing
+  alternatives_shown?: string[];  // IDs of alternative suggestions shown
+  surprise_applied?: {
+    type: string;
+    description: string;
+    value?: number;
+  };
+  poem_seed?: string;             // Vibe used for poem generation
+}
+```
+
+### Surprise Elements Structure
+
+```typescript
+// bookings.surprise_elements JSONB
+interface SurpriseElements {
+  poem: string;                   // 4-line personalized poem
+  voucher_code: string;           // e.g., "SILO-SUNSET-2026"
+  voucher_description: string;    // e.g., "25% off Table Mountain..."
+  voucher_valid_until: string;    // ISO date
+  map_url: string;                // Static Google Maps URL
+  image_urls: string[];           // Array of curated images
+  local_tips: string[];           // AI-generated local recommendations
+}
 ```
 
 ---
 
 ## Edge Functions Reference
 
-| Function | Purpose | Trigger |
-|----------|---------|---------|
-| `payfast-api` | Payment initiation & ITN handling | Checkout, PayFast webhook |
-| `push-booking` | Single booking PMS sync | Post-payment |
-| `multi-push-booking` | Multi-property journey sync | Journey checkout |
-| `validate-itinerary-availability` | Pre-checkout availability check | Before payment |
-| `generate-itinerary-pdf` | PDF brochure creation | Confirmation page |
-| `send-itinerary-email` | Confirmation emails | Post-booking |
-| `ai-booking-concierge` | Natural language booking | AI Concierge panel |
-| `hostfully-api` | Hostfully PMS operations | Various |
-| `benson-api` | Benson PMS operations | Various |
-| `hotelbeds-api` | HotelBeds operations | Various |
+| Function | Method | Description |
+|----------|--------|-------------|
+| `ai-booking-concierge` | POST | Parses natural language via Lovable AI, always performs live PMS adapter calls (never cache), returns structured suggestions + date alternatives + upsells |
+| `generate-itinerary-pdf` | POST | Enhanced PDF generation with AI personalization: poem, weather forecast, map, voucher, local tips |
+| `push-booking` | POST | Verifies live availability + creates PMS reservation (Benson, Hostfully, HotelBeds) |
+| `multi-push-booking` | POST | Atomic sequential booking creation with rollback on failure |
+| `payfast-api` | POST | Payment initiation (get UUID) and ITN callback handling |
+| `send-itinerary-email` | POST | Confirmation email with enchanting PDF attachment |
+| `validate-itinerary-availability` | POST | Pre-checkout availability check across all stays |
+| `hostfully-api` | POST | Hostfully PMS integration (buildings, rooms, availability, bookings) |
+| `benson-api` | POST | Benson Property system integration |
+| `hotelbeds-api` | POST | HotelBeds integration |
+| `parse-special-requests` | POST | AI parsing of special requests into structured format |
+| `calculate-commission` | POST | Commission calculation for property owners |
+
+### AI Booking Concierge Details
+
+```typescript
+// POST /ai-booking-concierge
+interface ConciergeRequest {
+  message: string;              // Natural language input
+  property_id: string;          // Current property context
+  property_slug: string;
+  context?: {
+    previous_messages?: Message[];
+    selected_dates?: { check_in: string; check_out: string };
+    guest_counts?: { adults: number; children: number; infants: number };
+  };
+}
+
+interface ConciergeResponse {
+  success: boolean;
+  response: {
+    message: string;            // AI response text
+    suggestions: RoomSuggestion[];
+    alternatives?: DateAlternative[];
+    upsells?: Upsell[];
+    surprise?: {
+      type: "upgrade" | "addon" | "gift";
+      message: string;
+      value?: number;
+    };
+  };
+  parsed_intent: {
+    nights: number;
+    adults: number;
+    children: number;
+    infants: number;
+    check_in?: string;
+    check_out?: string;
+    vibe?: string;
+  };
+}
+```
 
 ---
 
 ## Feature Flags
 
-| Flag | Purpose | Default |
-|------|---------|---------|
-| `AI_CONCIERGE_ENABLED` | Enable AI booking concierge | `false` |
-| `ROOMSONLINE_ACTIVE` | Master platform switch | `true` |
-| `PAYFAST_SANDBOX` | Use PayFast sandbox mode | `false` |
+| Flag | Default | Description |
+|------|---------|-------------|
+| `AI_CONCIERGE_ENABLED` | `true` | Enables AI Concierge panel on PropertyShowcase |
+| `VOICE_INPUT_ENABLED` | `true` | Enables Web Speech API voice input button |
+| `ENHANCED_PDF_ENABLED` | `true` | Enables AI-enhanced PDF brochures with poem, map, voucher |
+| `PROACTIVE_SURPRISES_ENABLED` | `true` | Enables AI surprise injection during booking |
+| `WEATHER_FORECAST_ENABLED` | `true` | Includes weather forecast in PDF |
+| `EXPERIENCE_VOUCHERS_ENABLED` | `true` | Generates surprise vouchers in PDF |
 
-Access via:
+### Accessing Feature Flags
+
 ```typescript
-const { data: flags } = useFeatureFlags();
-const isAIEnabled = flags?.ai_concierge_enabled ?? false;
+// src/hooks/useFeatureFlags.tsx
+export function useFeatureFlags() {
+  const [flags, setFlags] = useState<FeatureFlags>({
+    AI_CONCIERGE_ENABLED: true,
+    VOICE_INPUT_ENABLED: true,
+    ENHANCED_PDF_ENABLED: true,
+    // ... defaults
+  });
+
+  useEffect(() => {
+    supabase.functions.invoke("get-feature-flags")
+      .then(({ data }) => setFlags(prev => ({ ...prev, ...data })))
+      .catch(() => {
+        // Fail silently, use defaults
+      });
+  }, []);
+
+  return flags;
+}
 ```
 
 ---
 
-## Quick Reference: File Locations
+## Error Handling
 
-| Component/Function | Path |
-|--------------------|------|
-| PropertyShowcase | `src/pages/PropertyShowcase.tsx` |
-| FloatingDateGuestPicker | `src/components/booking/FloatingDateGuestPicker.tsx` |
-| QuickBookDrawer | `src/components/booking/QuickBookDrawer.tsx` |
-| AIConciergePanel | `src/components/booking/AIConciergePanel.tsx` |
-| SmartCart | `src/components/booking/SmartCart.tsx` |
-| InlineCheckout | `src/components/booking/InlineCheckout.tsx` |
-| JourneyCheckout | `src/pages/JourneyCheckout.tsx` |
-| JourneyConfirmation | `src/pages/JourneyConfirmation.tsx` |
-| PayFastOnsiteModal | `src/components/booking/PayFastOnsiteModal.tsx` |
-| ItineraryContext | `src/contexts/ItineraryContext.tsx` |
-| MobileBookingContext | `src/contexts/MobileBookingContext.tsx` |
-| push-booking | `supabase/functions/push-booking/index.ts` |
-| multi-push-booking | `supabase/functions/multi-push-booking/index.ts` |
-| payfast-api | `supabase/functions/payfast-api/index.ts` |
-| ai-booking-concierge | `supabase/functions/ai-booking-concierge/index.ts` |
-| generate-itinerary-pdf | `supabase/functions/generate-itinerary-pdf/index.ts` |
+### Component Error Boundary
+
+```typescript
+// ConciergeErrorBoundary.tsx
+export class ConciergeErrorBoundary extends Component<Props, State> {
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      // Fallback to legacy booking flow
+      return <LegacyBookingFallback propertyId={this.props.propertyId} />;
+    }
+    return this.props.children;
+  }
+}
+```
+
+### Error Scenarios
+
+| Error | Handling | User Experience |
+|-------|----------|-----------------|
+| AI parse failure | Retry with simplified prompt | "I didn't catch that. Could you try something like '2 nights for 2 adults'?" |
+| PMS unavailable | Show cached rates (if available) | "Live rates unavailable. Showing estimated pricing." |
+| Payment failure | Display PayFast error | Error toast + retry button |
+| `AVAILABILITY_CHANGED` | DateReselectDialog | "These dates are no longer available. Please select new dates." |
+| PMS push failure | Mark booking as 'failed' | Error details + contact support prompt |
+| PDF generation failure | Send confirmation without PDF | Email sent without attachment + async retry |
+
+### Availability Change Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    DateReselectDialog                            │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │                                                           │ │
+│  │   Dates No Longer Available                               │ │
+│  │                                                           │ │
+│  │   The room you selected is no longer available for        │ │
+│  │   15-18 March 2026.                                       │ │
+│  │                                                           │ │
+│  │   Available alternatives:                                 │ │
+│  │   • 16-19 March 2026 (same price)                        │ │
+│  │   • 22-25 March 2026 (R200 less)                         │ │
+│  │                                                           │ │
+│  │   [Select New Dates]              [Cancel Booking]        │ │
+│  │                                                           │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Deprecated Components
+
+The following components are retained for backward compatibility but are **NOT part of the primary booking flow**:
+
+| Component | Status | Fallback Trigger |
+|-----------|--------|------------------|
+| `QuickBookDrawer.tsx` | Deprecated | `AI_CONCIERGE_ENABLED=false` |
+| `FloatingDateGuestPicker.tsx` | Deprecated | `AI_CONCIERGE_ENABLED=false` |
+| `/journey/review` route | Bypassed | Never used in AI flow |
+| `/journey/checkout` route | Bypassed | Never used in AI flow |
+
+### Legacy Flow Activation
+
+```typescript
+// PropertyShowcase.tsx
+const { AI_CONCIERGE_ENABLED } = useFeatureFlags();
+
+return (
+  <ConciergeErrorBoundary
+    propertyId={property.id}
+    fallback={<LegacyBookingFlow property={property} />}
+  >
+    {AI_CONCIERGE_ENABLED ? (
+      <>
+        <AIConciergePanel property={property} />
+        <SmartCart onCheckout={handleInlineCheckout} />
+      </>
+    ) : (
+      <LegacyBookingFlow property={property} />
+    )}
+  </ConciergeErrorBoundary>
+);
+```
 
 ---
 
@@ -909,10 +1483,57 @@ const isAIEnabled = flags?.ai_concierge_enabled ?? false;
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 1.0 | Jan 2026 | Initial complete documentation |
-| - | - | Added AI Concierge flow |
-| - | - | Added enchanting PDF brochure system |
+| 1.0 | January 2026 | Initial complete documentation |
+| 1.1 | January 2026 | Full inline AI Concierge + Smart Cart flow, voice input via Web Speech API, deprecated QuickBookDrawer & separate checkout pages, enchanting personalized PDF with poem, weather, visuals, map + QR voucher, proactive surprise injection, Cape Town-flavored delight layer |
 
 ---
 
-*For questions or updates, contact the ROL development team.*
+## Quick Reference
+
+### File Locations
+
+```
+src/
+├── components/
+│   └── booking/
+│       ├── AIConciergePanel.tsx      # Main AI interface
+│       ├── SmartCart.tsx             # Sticky cart bar
+│       ├── InlineCheckout.tsx        # Accordion checkout
+│       ├── VoiceInputButton.tsx      # Web Speech API
+│       ├── PayFastOnsiteModal.tsx    # Payment modal
+│       ├── LuxuryRoomCard.tsx        # Room selection
+│       ├── PersonalizedSuggestion.tsx# AI suggestions
+│       ├── ConciergeErrorBoundary.tsx# Error handling
+│       └── ConciergeSkeleton.tsx     # Loading state
+├── contexts/
+│   ├── ItineraryContext.tsx          # Journey state
+│   ├── MobileBookingContext.tsx      # Booking state
+│   └── CurrencyContext.tsx           # Currency formatting
+├── hooks/
+│   ├── useSpeechRecognition.ts       # Voice input hook
+│   └── useFeatureFlags.tsx           # Feature flag access
+└── pages/
+    ├── PropertyShowcase.tsx          # Main booking page
+    └── JourneyConfirmation.tsx       # Confirmation page
+
+supabase/functions/
+├── ai-booking-concierge/             # Natural language parsing
+├── generate-itinerary-pdf/           # Enchanting PDF generation
+├── push-booking/                     # PMS reservation sync
+├── multi-push-booking/               # Multi-property atomic booking
+├── payfast-api/                      # Payment handling
+├── send-itinerary-email/             # Confirmation emails
+└── validate-itinerary-availability/  # Pre-checkout validation
+```
+
+### Key URLs
+
+| Route | Purpose |
+|-------|---------|
+| `/property/:slug` | Property showcase + AI booking |
+| `/journey/confirmation/:id` | Booking confirmation |
+| `/book` | Property listing (browse) |
+
+---
+
+*This document is the authoritative reference for the RoomsOnline booking system. For questions or updates, contact the development team.*
