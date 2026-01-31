@@ -572,6 +572,7 @@ const Booking = () => {
             availability = transformCacheToAvailability(cacheData, roomAliases);
           } else if (!externalSystem || externalSystem === 'none') {
             // No PMS and no cache - build synthetic availability from wizard rates
+            // Also check for manual availability blocks
             console.log('[Booking] No PMS - building synthetic availability from wizard rates');
             const wizardRooms = amenities?.room_types || [];
             const seasons = amenities?.seasons || [];
@@ -583,6 +584,28 @@ const Booking = () => {
               return;
             }
             
+            // Fetch manual availability overrides for this date range
+            const { data: manualOverrides } = await supabase
+              .from("property_availability")
+              .select("*")
+              .eq("property_id", property.id)
+              .gte("date", checkIn)
+              .lt("date", checkOut);
+            
+            // Create a map of blocked dates per room
+            const blockedDatesMap = new Map<string, Set<string>>();
+            if (manualOverrides && manualOverrides.length > 0) {
+              for (const override of manualOverrides) {
+                if (override.is_stop_sell || override.available_units === 0) {
+                  const roomKey = override.room_type;
+                  if (!blockedDatesMap.has(roomKey)) {
+                    blockedDatesMap.set(roomKey, new Set());
+                  }
+                  blockedDatesMap.get(roomKey)!.add(override.date);
+                }
+              }
+            }
+            
             // Generate synthetic room types with daily rates
             const syntheticRoomTypes = wizardRooms.map((room: any) => {
               const roomId = room.id || room.room_type_id || `wizard-room-${room.name}`;
@@ -591,6 +614,21 @@ const Booking = () => {
               
               // Generate daily rates with season adjustments
               const dailyRates = generateDailyRates(checkIn!, checkOut!, baseRate, seasons, seasonRates, roomId);
+              
+              // Generate availability, but respect manual blocks
+              const blockedDates = blockedDatesMap.get(room.name) || new Set();
+              const availabilityArray = [];
+              const currentDate = new Date(checkIn!);
+              const end = new Date(checkOut!);
+              
+              while (currentDate < end) {
+                const dateStr = currentDate.toISOString().split('T')[0];
+                availabilityArray.push({
+                  date: dateStr,
+                  available_units: blockedDates.has(dateStr) ? 0 : 99,
+                });
+                currentDate.setDate(currentDate.getDate() + 1);
+              }
               
               return {
                 room_type_id: roomId,
@@ -601,12 +639,12 @@ const Booking = () => {
                   price_type: rateUnit === 'per_stay' ? 'PerStay' : 'PER_NIGHT',
                   rates: dailyRates,
                 }],
-                rooms_available_per_night: generateAvailabilityArray(checkIn!, checkOut!, 99),
+                rooms_available_per_night: availabilityArray,
               };
             });
             
             availability = { room_types: syntheticRoomTypes };
-            console.log('[Booking] Synthetic availability:', availability);
+            console.log('[Booking] Synthetic availability with manual blocks:', availability);
           } else {
             console.warn("No cached availability data found for this property");
             setCalculatingCost(false);

@@ -1,20 +1,38 @@
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { format, eachDayOfInterval, getDay } from "date-fns";
 
 interface BulkStopSellDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  propertyId?: string;
+  propertyName?: string;
+  roomTypes?: { name: string; id?: string }[];
+  onRuleCreated?: () => void;
 }
 
-export function BulkStopSellDialog({ open, onOpenChange }: BulkStopSellDialogProps) {
+export function BulkStopSellDialog({ 
+  open, 
+  onOpenChange, 
+  propertyId, 
+  propertyName,
+  roomTypes = [],
+  onRuleCreated 
+}: BulkStopSellDialogProps) {
   const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
-  const [fromDate, setFromDate] = useState("2025-11-19");
-  const [toDate, setToDate] = useState("2025-11-26");
+  const [fromDate, setFromDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  const [toDate, setToDate] = useState(() => format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"));
+  const [isStopSell, setIsStopSell] = useState(true); // true = block, false = unblock
+  const [saving, setSaving] = useState(false);
   const [selectedDays, setSelectedDays] = useState({
     allDays: true,
     sunday: true,
@@ -25,6 +43,14 @@ export function BulkStopSellDialog({ open, onOpenChange }: BulkStopSellDialogPro
     friday: true,
     saturday: true,
   });
+
+  // Reset selection when dialog opens
+  useEffect(() => {
+    if (open) {
+      setSelectedRoomTypes([]);
+      setIsStopSell(true);
+    }
+  }, [open]);
 
   const toggleDay = (day: keyof typeof selectedDays) => {
     if (day === "allDays") {
@@ -48,150 +74,216 @@ export function BulkStopSellDialog({ open, onOpenChange }: BulkStopSellDialogPro
     }
   };
 
-  const rooms = [
-    { id: "loftRoom5", name: "Loft Room 5" },
-    { id: "loftRoom6", name: "Loft Room 6" },
-    { id: "room1", name: "Room 1" },
-    { id: "room2", name: "Room 2" },
-    { id: "room3", name: "Room 3" },
-    { id: "room4", name: "Room 4" },
-    { id: "room7", name: "Room 7" },
-  ];
+  const dayOfWeekMap: { [key: string]: number } = {
+    sunday: 0,
+    monday: 1,
+    tuesday: 2,
+    wednesday: 3,
+    thursday: 4,
+    friday: 5,
+    saturday: 6,
+  };
+
+  const handleCreateRule = async () => {
+    if (!propertyId) {
+      toast.error("No property selected");
+      return;
+    }
+    
+    if (selectedRoomTypes.length === 0) {
+      toast.error("Please select at least one room type");
+      return;
+    }
+    
+    if (!fromDate || !toDate) {
+      toast.error("Please select date range");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Generate dates for the range, filtered by selected days of week
+      const allDates = eachDayOfInterval({
+        start: new Date(fromDate),
+        end: new Date(toDate),
+      });
+
+      // Filter dates by selected days of week
+      const selectedDaysOfWeek = Object.entries(selectedDays)
+        .filter(([key, value]) => key !== 'allDays' && value)
+        .map(([key]) => dayOfWeekMap[key]);
+
+      const filteredDates = allDates.filter(date => 
+        selectedDaysOfWeek.includes(getDay(date))
+      );
+
+      if (filteredDates.length === 0) {
+        toast.error("No dates match the selected days of week");
+        setSaving(false);
+        return;
+      }
+
+      // Create records for each room type and date
+      const records = [];
+      for (const roomType of selectedRoomTypes) {
+        for (const date of filteredDates) {
+          records.push({
+            property_id: propertyId,
+            room_type: roomType,
+            date: format(date, "yyyy-MM-dd"),
+            is_stop_sell: isStopSell,
+            available_units: isStopSell ? 0 : 99, // 0 if blocking, 99 if unblocking
+            external_system: 'manual',
+          });
+        }
+      }
+
+      // Upsert records (update if exists, insert if not)
+      const { error } = await supabase
+        .from("property_availability")
+        .upsert(records, { 
+          onConflict: 'property_id,room_type,date',
+          ignoreDuplicates: false 
+        });
+
+      if (error) throw error;
+
+      toast.success(
+        isStopSell 
+          ? `Blocked ${filteredDates.length} dates for ${selectedRoomTypes.length} room(s)`
+          : `Unblocked ${filteredDates.length} dates for ${selectedRoomTypes.length} room(s)`
+      );
+      
+      onRuleCreated?.();
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error("Error creating stop sell rule:", error);
+      toast.error(error.message || "Failed to create rule");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Calendar</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            Stop Sell / Block Dates
+            <Badge variant="outline" className="ml-2">Manual Mode</Badge>
+          </DialogTitle>
+          <DialogDescription>
+            {propertyName ? `Manage availability for ${propertyName}` : 'Block or unblock dates for selected rooms'}
+          </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="roomTypes" className="w-full">
-          <TabsList className="bg-primary">
-            <TabsTrigger value="roomTypes" className="data-[state=active]:bg-primary/80 data-[state=active]:text-primary-foreground">
-              Room Types
-            </TabsTrigger>
-            <TabsTrigger value="special" className="data-[state=active]:bg-primary/80 data-[state=active]:text-primary-foreground">
-              Special
-            </TabsTrigger>
-            <TabsTrigger value="package" className="data-[state=active]:bg-primary/80 data-[state=active]:text-primary-foreground">
-              Package
-            </TabsTrigger>
-            <TabsTrigger value="addons" className="data-[state=active]:bg-primary/80 data-[state=active]:text-primary-foreground">
-              Addons
-            </TabsTrigger>
-            <TabsTrigger value="admin" className="data-[state=active]:bg-primary/80 data-[state=active]:text-primary-foreground">
-              Admin
-            </TabsTrigger>
-          </TabsList>
+        <div className="grid grid-cols-12 gap-4 mt-4">
+          {/* Left Sidebar - Rooms */}
+          <div className="col-span-4 border rounded-lg p-4 space-y-2 max-h-[400px] overflow-y-auto">
+            <p className="text-sm font-medium mb-2">Select Rooms</p>
+            {roomTypes.length > 0 ? (
+              roomTypes.map((room) => (
+                <div key={room.id || room.name} className="flex items-center p-2 hover:bg-muted rounded">
+                  <Checkbox
+                    id={room.id || room.name}
+                    checked={selectedRoomTypes.includes(room.name)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedRoomTypes([...selectedRoomTypes, room.name]);
+                      } else {
+                        setSelectedRoomTypes(selectedRoomTypes.filter(name => name !== room.name));
+                      }
+                    }}
+                  />
+                  <label htmlFor={room.id || room.name} className="text-sm cursor-pointer ml-2">
+                    {room.name}
+                  </label>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No room types available</p>
+            )}
+          </div>
 
-          <TabsContent value="roomTypes" className="mt-4">
-            <div className="grid grid-cols-12 gap-4">
-              {/* Left Sidebar - Rooms */}
-              <div className="col-span-3 border rounded-lg p-4 space-y-2 max-h-[600px] overflow-y-auto">
-                {rooms.map((room) => (
-                  <div key={room.id} className="flex items-center p-2 hover:bg-muted rounded">
-                    <Checkbox
-                      id={room.id}
-                      checked={selectedRoomTypes.includes(room.id)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedRoomTypes([...selectedRoomTypes, room.id]);
-                        } else {
-                          setSelectedRoomTypes(selectedRoomTypes.filter(id => id !== room.id));
-                        }
-                      }}
-                    />
-                    <label htmlFor={room.id} className="text-sm cursor-pointer ml-2">
-                      {room.name}
-                    </label>
-                  </div>
-                ))}
+          {/* Right Content - Form */}
+          <div className="col-span-8 space-y-6">
+            <div className="border rounded-lg p-6 space-y-4">
+              {/* Block/Unblock Toggle */}
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <div>
+                  <p className="font-medium">{isStopSell ? 'Block Dates' : 'Unblock Dates'}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {isStopSell ? 'Prevent new bookings' : 'Allow bookings again'}
+                  </p>
+                </div>
+                <Switch 
+                  checked={isStopSell} 
+                  onCheckedChange={setIsStopSell}
+                />
               </div>
 
-              {/* Right Content - Form */}
-              <div className="col-span-9 space-y-6">
-                <div className="border rounded-lg p-6 space-y-4">
-                  <div className="space-y-2">
-                    <Label>From - To</Label>
-                    <div className="flex gap-4 items-center">
-                      <Input
-                        type="date"
-                        value={fromDate}
-                        onChange={(e) => setFromDate(e.target.value)}
-                        className="flex-1"
-                      />
-                      <Input
-                        type="date"
-                        value={toDate}
-                        onChange={(e) => setToDate(e.target.value)}
-                        className="flex-1"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Days*</Label>
-                    <div className="flex flex-wrap gap-4">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="allDays"
-                          checked={selectedDays.allDays}
-                          onCheckedChange={() => toggleDay("allDays")}
-                          className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                        />
-                        <label htmlFor="allDays" className="text-sm cursor-pointer">All days</label>
-                      </div>
-                      {["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].map((day) => (
-                        <div key={day} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={day}
-                            checked={selectedDays[day as keyof typeof selectedDays]}
-                            onCheckedChange={() => toggleDay(day as keyof typeof selectedDays)}
-                            className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                          />
-                          <label htmlFor={day} className="text-sm cursor-pointer capitalize">{day}</label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-4">
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>
-                      Cancel
-                    </Button>
-                    <Button className="bg-primary hover:bg-primary/90">
-                      Create Rule
-                    </Button>
-                  </div>
+              {/* Date Range */}
+              <div className="space-y-2">
+                <Label>Date Range</Label>
+                <div className="flex gap-4 items-center">
+                  <Input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="flex-1"
+                  />
+                  <span className="text-muted-foreground">to</span>
+                  <Input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="flex-1"
+                  />
                 </div>
               </div>
-            </div>
-          </TabsContent>
 
-          <TabsContent value="special">
-            <div className="text-center py-12 text-muted-foreground">
-              <p>Special configuration coming soon</p>
-            </div>
-          </TabsContent>
+              {/* Days of Week */}
+              <div className="space-y-2">
+                <Label>Apply to Days</Label>
+                <div className="flex flex-wrap gap-3">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="allDays"
+                      checked={selectedDays.allDays}
+                      onCheckedChange={() => toggleDay("allDays")}
+                    />
+                    <label htmlFor="allDays" className="text-sm cursor-pointer font-medium">All days</label>
+                  </div>
+                  {["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].map((day) => (
+                    <div key={day} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={day}
+                        checked={selectedDays[day as keyof typeof selectedDays]}
+                        onCheckedChange={() => toggleDay(day as keyof typeof selectedDays)}
+                      />
+                      <label htmlFor={day} className="text-sm cursor-pointer capitalize">{day.slice(0, 3)}</label>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-          <TabsContent value="package">
-            <div className="text-center py-12 text-muted-foreground">
-              <p>Package configuration coming soon</p>
+              {/* Actions */}
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleCreateRule} 
+                  disabled={saving || selectedRoomTypes.length === 0}
+                  variant={isStopSell ? "destructive" : "default"}
+                >
+                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {isStopSell ? 'Block Dates' : 'Unblock Dates'}
+                </Button>
+              </div>
             </div>
-          </TabsContent>
-
-          <TabsContent value="addons">
-            <div className="text-center py-12 text-muted-foreground">
-              <p>Addons configuration coming soon</p>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="admin">
-            <div className="text-center py-12 text-muted-foreground">
-              <p>Admin settings coming soon</p>
-            </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
