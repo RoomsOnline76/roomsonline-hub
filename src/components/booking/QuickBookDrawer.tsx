@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, differenceInDays } from "date-fns";
 import { Calendar, Users, Home, ArrowRight, Check, Loader2 } from "lucide-react";
@@ -85,6 +85,7 @@ export function QuickBookDrawer({
   const [availability, setAvailability] = useState<Map<string, AvailabilityData>>(new Map());
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [estimatedPrice, setEstimatedPrice] = useState<number | null>(null);
+  const [propertyAmenities, setPropertyAmenities] = useState<any>(null);
 
   // Auto-select room if only one
   useEffect(() => {
@@ -102,12 +103,31 @@ export function QuickBookDrawer({
 
   // Calculate estimated price when dates change
   useEffect(() => {
-    if (checkIn && checkOut && availability.size > 0) {
+    if (checkIn && checkOut && (availability.size > 0 || propertyAmenities)) {
       calculateEstimatedPrice();
     } else {
       setEstimatedPrice(null);
     }
-  }, [checkIn, checkOut, availability, selectedRoomId]);
+  }, [checkIn, checkOut, availability, selectedRoomId, propertyAmenities]);
+
+  // Fetch property amenities for rate calculation
+  useEffect(() => {
+    if (open && (!externalSystem || externalSystem === 'none')) {
+      fetchPropertyAmenities();
+    }
+  }, [open, propertyId, externalSystem]);
+
+  const fetchPropertyAmenities = async () => {
+    const { data } = await supabase
+      .from("properties")
+      .select("amenities")
+      .eq("id", propertyId)
+      .maybeSingle();
+    
+    if (data?.amenities) {
+      setPropertyAmenities(data.amenities);
+    }
+  };
 
   const fetchAvailability = async () => {
     if (!selectedRoomId) return;
@@ -125,6 +145,36 @@ export function QuickBookDrawer({
       const slugifyRoomName = (name: string) => 
         name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
       const slugifiedName = selectedRoom?.name ? slugifyRoomName(selectedRoom.name) : null;
+
+      // For manual properties (no PMS), fetch from property_availability
+      if (!externalSystem || externalSystem === 'none') {
+        const { data } = await supabase
+          .from("property_availability")
+          .select("date, available_units, is_stop_sell, room_type")
+          .eq("property_id", propertyId)
+          .gte("date", format(today, "yyyy-MM-dd"))
+          .lte("date", format(endDate, "yyyy-MM-dd"));
+        
+        if (data) {
+          const availMap = new Map<string, AvailabilityData>();
+          const roomName = selectedRoom?.name || "";
+          
+          data.forEach((item) => {
+            // Match by room name
+            if (!item.room_type || item.room_type === roomName) {
+              // If stop sell or no units, mark as unavailable
+              const isAvailable = !item.is_stop_sell && item.available_units > 0;
+              availMap.set(item.date, {
+                date: item.date,
+                available_units: isAvailable ? item.available_units : 0,
+                rates: undefined, // Rates come from property amenities
+              });
+            }
+          });
+          setAvailability(availMap);
+        }
+        return;
+      }
 
       // Fetch from appropriate source based on PMS
       if (externalSystem === 'hostfully') {
@@ -205,7 +255,53 @@ export function QuickBookDrawer({
     
     let total = 0;
     let currentDate = new Date(checkIn);
+    const selectedRoom = roomTypes.find(r => r.id === selectedRoomId);
     
+    // For manual properties, use rates from property amenities
+    if ((!externalSystem || externalSystem === 'none') && propertyAmenities) {
+      const roomData = propertyAmenities.room_types?.find((rt: any) => 
+        String(rt.id) === String(selectedRoomId) || rt.name === selectedRoom?.name
+      );
+      const linkedRateTypeId = roomData?.linkedRateTypes?.[0];
+      const rateType = propertyAmenities.pms_rate_types?.find((rt: any) => rt.id === linkedRateTypeId);
+      const baseRate = rateType?.baseRate || roomData?.baseRate || 0;
+      
+      // Check season rates
+      const seasonRates = propertyAmenities.season_rates || {};
+      
+      while (currentDate < checkOut) {
+        const dateStr = format(currentDate, "yyyy-MM-dd");
+        const availData = availability.get(dateStr);
+        
+        // Check if date is blocked
+        if (!availData || availData.available_units === 0) {
+          setEstimatedPrice(null);
+          return; // Date is blocked
+        }
+        
+        // Try to find season rate for this date
+        let nightRate = baseRate;
+        const seasons = propertyAmenities.seasons || [];
+        for (const season of seasons) {
+          if (dateStr >= season.from && dateStr <= season.to) {
+            const seasonRateKey = `${roomData?.id || selectedRoomId}-${linkedRateTypeId}`;
+            const seasonRateData = seasonRates[season.id]?.[seasonRateKey];
+            if (seasonRateData?.roomAmount) {
+              nightRate = seasonRateData.roomAmount;
+            }
+            break;
+          }
+        }
+        
+        total += nightRate;
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      setEstimatedPrice(total > 0 ? total : null);
+      return;
+    }
+    
+    // For PMS properties, use rates from availability data
     while (currentDate < checkOut) {
       const dateStr = format(currentDate, "yyyy-MM-dd");
       const availData = availability.get(dateStr);
@@ -285,15 +381,32 @@ export function QuickBookDrawer({
   const isValid = checkIn && checkOut && selectedRoomId && nights > 0;
 
   // Build availability map for date picker
-  const datePickerAvailability = new Map<string, { available: boolean; rate?: number }>();
-  availability.forEach((data, date) => {
-    const ratesArray = Array.isArray(data.rates) ? data.rates : data.rates ? [data.rates] : [];
-    const rate = ratesArray[0]?.room_amount || ratesArray[0]?.adult_amounts?.adultAmount1;
-    datePickerAvailability.set(date, {
-      available: data.available_units > 0,
-      rate,
+  const datePickerAvailability = useMemo(() => {
+    const map = new Map<string, { available: boolean; rate?: number }>();
+    
+    // For manual properties, get base rate from amenities
+    let baseRate: number | undefined;
+    if ((!externalSystem || externalSystem === 'none') && propertyAmenities) {
+      const roomData = propertyAmenities.room_types?.find((rt: any) => 
+        String(rt.id) === String(selectedRoomId) || rt.name === selectedRoom?.name
+      );
+      const linkedRateTypeId = roomData?.linkedRateTypes?.[0];
+      const rateType = propertyAmenities.pms_rate_types?.find((rt: any) => rt.id === linkedRateTypeId);
+      baseRate = rateType?.baseRate || roomData?.baseRate;
+    }
+    
+    availability.forEach((data, date) => {
+      const ratesArray = Array.isArray(data.rates) ? data.rates : data.rates ? [data.rates] : [];
+      const pmsRate = ratesArray[0]?.room_amount || ratesArray[0]?.adult_amounts?.adultAmount1;
+      
+      map.set(date, {
+        available: data.available_units > 0,
+        rate: pmsRate || baseRate,
+      });
     });
-  });
+    
+    return map;
+  }, [availability, propertyAmenities, externalSystem, selectedRoomId, selectedRoom]);
 
   return (
     <>
