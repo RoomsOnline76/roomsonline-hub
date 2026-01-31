@@ -380,7 +380,7 @@ export function AIConciergePanel({
             <h2 className="font-serif text-lg font-semibold">Your Travel Concierge</h2>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Tell me about your ideal stay
+            Sleep in Africa like never before
           </p>
         </div>
 

@@ -141,6 +141,9 @@ export function SmartCart({ onCheckout, onClear, className }: SmartCartProps) {
               Checkout
             </Button>
           </div>
+          <p className="text-center text-[10px] text-muted-foreground mt-2 font-serif italic">
+            Sleep in Africa like never before
+          </p>
         </div>
       </div>
     </div>
