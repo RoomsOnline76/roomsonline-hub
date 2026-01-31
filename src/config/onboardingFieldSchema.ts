@@ -48,6 +48,7 @@ export interface OnboardingOfferings {
 }
 
 export interface OnboardingRoomType {
+  id?: string;  // Stable ID for linking between wizard and property form
   name: string;
   units?: number;
   max_guests: number;
