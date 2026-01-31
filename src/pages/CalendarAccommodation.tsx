@@ -1407,22 +1407,35 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         );
       }
       
-      if (pmsRoom && pmsRoom.restrictionsByDate[dateStr]) {
-        const r = pmsRoom.restrictionsByDate[dateStr];
+      if (pmsRoom) {
+        // Check if we have restrictions for this date
+        const restrictions = pmsRoom.restrictionsByDate[dateStr];
+        if (restrictions) {
+          return {
+            stopSell: restrictions.stopSell ?? false,
+            minStay: restrictions.minStay ?? null,
+            maxStay: restrictions.maxStay ?? null,
+            leadDaysAdvance: restrictions.leadDaysAdvance ?? null,
+            leadDaysPost: restrictions.leadDaysPost ?? null,
+            fromPms: true,
+          };
+        }
+        
+        // Room exists but no restrictions for this specific date - return defaults from room data
         return {
-          stopSell: r.stopSell ?? null,
-          minStay: r.minStay ?? null,
-          maxStay: r.maxStay ?? null,
-          leadDaysAdvance: r.leadDaysAdvance ?? null,
-          leadDaysPost: r.leadDaysPost ?? null,
-          fromPms: true,
+          stopSell: false,
+          minStay: null,
+          maxStay: null,
+          leadDaysAdvance: null,
+          leadDaysPost: null,
+          fromPms: false,
         };
       }
     }
     
-    // No restrictions available
+    // No matching room found
     return {
-      stopSell: null,
+      stopSell: false,
       minStay: null,
       maxStay: null,
       leadDaysAdvance: null,
@@ -1948,7 +1961,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   const nextRestrictions = nextDate ? getRestrictions(room.name, nextDate) : null;
                                   
                                   // Determine which restriction indicators to show
-                                  const showStopSell = selectedDisplayOptions.includes("stop_sell") && restrictions.stopSell;
+                                  const showStopSell = selectedDisplayOptions.includes("stop_sell") && restrictions.stopSell === true;
                                   const showMinStay = selectedDisplayOptions.includes("min_stay") && restrictions.minStay !== null && restrictions.minStay > 0;
                                   const showMaxStay = selectedDisplayOptions.includes("max_stay") && restrictions.maxStay !== null && restrictions.maxStay > 0;
                                   const showLeadAdv = selectedDisplayOptions.includes("lead_days_advance") && restrictions.leadDaysAdvance !== null && restrictions.leadDaysAdvance > 0;
@@ -1991,11 +2004,11 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                       <div className="flex flex-col items-center">
                                         <span className="font-semibold text-xs">{renderCellValue(avail.value, avail.fromPms)}</span>
                                         {hasRestrictions && (
-                                          <div className="flex flex-col gap-0.5 w-full px-0">
+                                          <div className="flex flex-col gap-0.5 w-full px-0.5 mt-0.5">
                                             {showStopSell && (
                                               <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                  <div className={getLineClass(stopSellPrev, stopSellNext, "bg-red-500")} />
+                                                  <div className={`${getLineClass(stopSellPrev, stopSellNext, "bg-red-500")} min-h-[4px]`} />
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                   <p className="text-xs font-medium">Stop Sell Active</p>
@@ -2297,7 +2310,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   const nextRestrictions = nextDate ? getRestrictions(room.name, nextDate) : null;
                                   
                                   // Determine which restriction indicators to show
-                                  const showStopSell = selectedDisplayOptions.includes("stop_sell") && restrictions.stopSell;
+                                  const showStopSell = selectedDisplayOptions.includes("stop_sell") && restrictions.stopSell === true;
                                   const showMinStay = selectedDisplayOptions.includes("min_stay") && restrictions.minStay !== null && restrictions.minStay > 0;
                                   const showMaxStay = selectedDisplayOptions.includes("max_stay") && restrictions.maxStay !== null && restrictions.maxStay > 0;
                                   const showLeadAdv = selectedDisplayOptions.includes("lead_days_advance") && restrictions.leadDaysAdvance !== null && restrictions.leadDaysAdvance > 0;
@@ -2340,11 +2353,11 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                       <div className="flex flex-col items-center">
                                         <span className="font-semibold text-xs">{renderCellValue(avail.value, avail.fromPms)}</span>
                                         {hasRestrictions && (
-                                          <div className="flex flex-col gap-0.5 w-full px-0">
+                                          <div className="flex flex-col gap-0.5 w-full px-0.5 mt-0.5">
                                             {showStopSell && (
                                               <Tooltip>
                                                 <TooltipTrigger asChild>
-                                                  <div className={getLineClass(stopSellPrev, stopSellNext, "bg-red-500")} />
+                                                  <div className={`${getLineClass(stopSellPrev, stopSellNext, "bg-red-500")} min-h-[4px]`} />
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                   <p className="text-xs font-medium">Stop Sell Active</p>
