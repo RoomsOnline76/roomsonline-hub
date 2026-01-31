@@ -1934,7 +1934,7 @@ export default function PropertyForm() {
   };
 
   // Toggle rate type link for a room
-  const toggleRoomRateTypeLink = (roomId: string, rateTypeId: number) => {
+  const toggleRoomRateTypeLink = (roomId: string, rateTypeId: number | string) => {
     setRoomTypes(
       roomTypes.map((room) => {
         if (room.id === roomId) {
@@ -1942,7 +1942,7 @@ export default function PropertyForm() {
           const isLinked = linked.includes(rateTypeId);
           return {
             ...room,
-            linkedRateTypes: isLinked ? linked.filter((id: number) => id !== rateTypeId) : [...linked, rateTypeId],
+            linkedRateTypes: isLinked ? linked.filter((id: number | string) => id !== rateTypeId) : [...linked, rateTypeId],
           };
         }
         return room;
@@ -1952,7 +1952,7 @@ export default function PropertyForm() {
   };
 
   // Get linked rate types for a room
-  const getRoomLinkedRateTypes = (roomId: string): number[] => {
+  const getRoomLinkedRateTypes = (roomId: string): (number | string)[] => {
     const room = roomTypes.find((r) => r.id === roomId);
     return room?.linkedRateTypes || [];
   };
@@ -2161,10 +2161,10 @@ export default function PropertyForm() {
     >
   >({});
 
-  // PMS Rate Types state (imported from Benson/other PMS) - full Benson API spec
+  // PMS Rate Types state (imported from Benson/other PMS or generated from wizard) - full Benson API spec
   const [pmsRateTypes, setPmsRateTypes] = useState<
     {
-      id: number;
+      id: number | string;
       name: string;
       description?: string | null;
       priceType?: string | null;
@@ -2178,6 +2178,8 @@ export default function PropertyForm() {
       stayPayStayNights?: number | null;
       stayPayDiscountNights?: number | null;
       stayPayDiscountPercentage?: number | null;
+      // Base rate from wizard
+      baseRate?: number | null;
       pms_synced?: boolean;
     }[]
   >([]);
@@ -3157,6 +3159,7 @@ export default function PropertyForm() {
               minAdvanceDays: rt.minAdvanceDays || rt.min_advance_days || 0,
               maxAdvanceDays: rt.maxAdvanceDays || rt.max_advance_days || 0,
               description: rt.description || "",
+              baseRate: rt.baseRate || rt.base_rate || null,
               pms_synced: true,
             }));
             setPmsRateTypes(transformedRateTypes);
@@ -3181,6 +3184,31 @@ export default function PropertyForm() {
                 pms_synced: true,
               }));
               setPmsRateTypes(transformedRateTypes);
+            }
+          } else if (amenities?.room_types && Array.isArray(amenities.room_types)) {
+            // Auto-generate rate types from wizard room data if no PMS rate types exist
+            const roomsWithRates = amenities.room_types.filter((room: any) => 
+              room.base_rate || room.baseRate
+            );
+            
+            if (roomsWithRates.length > 0) {
+              const generatedRateTypes = roomsWithRates.map((room: any, idx: number) => {
+                const rateUnit = room.rate_unit || room.rateUnit || 'per_night';
+                const priceType = rateUnit === 'per_stay' ? 'PerStay' : 'UnitRate';
+                return {
+                  id: `wizard-rate-${idx + 1}`,
+                  name: room.name ? `${room.name} Rate` : `Room Rate ${idx + 1}`,
+                  priceType,
+                  minStayDays: 1,
+                  maxStayDays: 0,
+                  minAdvanceDays: 0,
+                  maxAdvanceDays: 0,
+                  description: `Base rate from onboarding: R${room.base_rate || room.baseRate}`,
+                  baseRate: room.base_rate || room.baseRate,
+                  pms_synced: false,
+                };
+              });
+              setPmsRateTypes(generatedRateTypes);
             }
           }
 
@@ -7323,8 +7351,8 @@ export default function PropertyForm() {
                       {pmsRateTypes.length === 0 ? (
                         <div className="border rounded-lg p-8 text-center text-muted-foreground">
                           <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                          <p>No rate types imported yet.</p>
-                          <p className="text-sm">Connect to your PMS and sync to import rate types.</p>
+                          <p>No rate types configured yet.</p>
+                          <p className="text-sm">Add base rates in the onboarding wizard or connect to your PMS to import rate types.</p>
                         </div>
                       ) : (
                         <div className="space-y-4">
@@ -7337,11 +7365,20 @@ export default function PropertyForm() {
                                     <Badge variant="outline" className="font-mono text-xs">
                                       ID: {rateType.id}
                                     </Badge>
+                                    {rateType.baseRate && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        R{rateType.baseRate}
+                                      </Badge>
+                                    )}
                                   </div>
-                                  {rateType.pms_synced && (
+                                  {rateType.pms_synced ? (
                                     <Badge variant="outline" className="text-xs bg-primary/10">
                                       <Cloud className="h-3 w-3 mr-1" />
                                       PMS
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700">
+                                      Manual
                                     </Badge>
                                   )}
                                 </div>
