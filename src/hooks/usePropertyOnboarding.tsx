@@ -333,6 +333,27 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
     if (!data) return { completionPercent: 0, score: 0 };
 
     const amenities = (data.amenities || {}) as Record<string, unknown>;
+    
+    // Helper to get nested values from amenities
+    const getNestedValue = (...paths: string[]): unknown => {
+      for (const path of paths) {
+        const parts = path.split('.');
+        let current: unknown = amenities;
+        for (const part of parts) {
+          if (current && typeof current === 'object' && part in (current as Record<string, unknown>)) {
+            current = (current as Record<string, unknown>)[part];
+          } else {
+            current = undefined;
+            break;
+          }
+        }
+        if (current !== undefined && current !== null && current !== '') {
+          return current;
+        }
+      }
+      return undefined;
+    };
+    
     let earnedScore = 0;
     let totalWeight = 0;
 
@@ -352,7 +373,10 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
     // Contact Details (5%)
     if (stepIds.includes('contact_details')) {
       totalWeight += SCORE_WEIGHTS.contact_details;
-      const contactFields = [amenities.telephone, amenities.contact_email].filter(Boolean).length;
+      // Check both flat and nested paths for contact info
+      const hasPhone = !!(getNestedValue('contact.telephone', 'telephone') || getNestedValue('contact.mobile', 'mobile'));
+      const hasEmail = !!(getNestedValue('contact.email', 'contact_email'));
+      const contactFields = [hasPhone, hasEmail].filter(Boolean).length;
       earnedScore += (contactFields / 2) * SCORE_WEIGHTS.contact_details;
     }
 
@@ -366,24 +390,31 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
     // Policies & Pricing (15%)
     if (stepIds.includes('policies_pricing')) {
       totalWeight += SCORE_WEIGHTS.policies_pricing;
-      const policyFields = [
-        amenities.check_in_from || amenities.check_in_time,
-        amenities.bank_name || amenities.bank_confirmation_letter_url,
-        amenities.payment_policy,
-        amenities.cancellation_policy,
-        amenities.key_collection_procedure
-      ].filter(Boolean).length;
+      // Check nested house_rules paths for check-in/out times
+      const hasCheckIn = !!(getNestedValue('house_rules.check_in_from', 'check_in_from', 'check_in_time'));
+      const hasCheckOut = !!(getNestedValue('house_rules.check_out_to', 'check_out_to', 'check_out_from'));
+      // Check nested banking paths
+      const hasBanking = !!(getNestedValue('banking.bank_name', 'bank_name', 'banking.bank_confirmation_letter_url', 'bank_confirmation_letter_url'));
+      // Check both cancellation_policies array and flat field
+      const cancellationPolicies = getNestedValue('cancellation_policies') as unknown[] | undefined;
+      const hasCancellation = !!(cancellationPolicies && cancellationPolicies.length > 0) || !!getNestedValue('cancellation_policy');
+      const hasPaymentPolicy = !!getNestedValue('payment_policy');
+      const hasKeyCollection = !!getNestedValue('key_collection_procedure');
+      
+      const policyFields = [hasCheckIn, hasCheckOut, hasBanking, hasCancellation, hasPaymentPolicy || hasKeyCollection].filter(Boolean).length;
       earnedScore += (policyFields / 5) * SCORE_WEIGHTS.policies_pricing;
     }
 
     // Guest Experience (10%)
     if (stepIds.includes('guest_experience')) {
       totalWeight += SCORE_WEIGHTS.guest_experience;
+      // Check both flat and nested meal_plan paths
+      const hasMealPlan = !!(getNestedValue('meal_plan') || (getNestedValue('breakfast_options') as unknown[] | undefined)?.length);
       const descFields = [
         data.description, 
         data.short_description,
-        amenities.unique_selling_points,
-        amenities.meal_plan
+        getNestedValue('unique_selling_points'),
+        hasMealPlan
       ].filter(Boolean).length;
       earnedScore += (descFields / 4) * SCORE_WEIGHTS.guest_experience;
     }
@@ -419,7 +450,7 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
     // Venue Capacity (for venue/hybrid)
     if (stepIds.includes('capacity') && SCORE_WEIGHTS.capacity) {
       totalWeight += SCORE_WEIGHTS.capacity;
-      const hasCapacity = amenities.venue_capacity || amenities.max_event_capacity;
+      const hasCapacity = getNestedValue('venue_capacity', 'max_event_capacity');
       earnedScore += (hasCapacity ? 1 : 0) * SCORE_WEIGHTS.capacity;
     }
 
