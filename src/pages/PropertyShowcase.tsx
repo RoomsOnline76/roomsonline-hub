@@ -15,6 +15,11 @@ import { PublicLayout } from "@/components/layout/PublicLayout";
 import { FloatingDateGuestPicker } from "@/components/booking/FloatingDateGuestPicker";
 import { QuickBookDrawer } from "@/components/booking/QuickBookDrawer";
 import { PropertyRecommendations } from "@/components/booking/PropertyRecommendations";
+import { AIConciergePanel } from "@/components/booking/AIConciergePanel";
+import { SmartCart } from "@/components/booking/SmartCart";
+import { InlineCheckout } from "@/components/booking/InlineCheckout";
+import { useAIConciergeEnabled } from "@/hooks/useFeatureFlags";
+import { useItinerary } from "@/contexts/ItineraryContext";
 import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
 import { ChevronLeft, ChevronRight, ExternalLink, Info } from "lucide-react";
 
