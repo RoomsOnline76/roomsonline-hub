@@ -3039,37 +3039,45 @@ export default function PropertyForm() {
           if (amenities?.room_types && Array.isArray(amenities.room_types) && amenities.room_types.length > 0) {
             // Transform PMS format (snake_case, room_type_id) to UI format (camelCase, id)
             // Also handle wizard format fields (base_rate, rate_unit, units)
-            const transformedRooms = amenities.room_types.map((room: any, idx: number) => ({
-              id: room.id || room.room_type_id || `room-${idx}`,
-              name: room.name || "Unnamed Room",
-              url: room.url || "",
-              selected: room.selected || false,
-              // Map units from wizard OR numRooms from PMS
-              numRooms: room.numRooms || room.num_rooms || room.units || 1,
-              pmsRoomType: room.pmsRoomType || room.pms_room_type || room.name || "",
-              pmsRoomId: room.pmsRoomId || room.pms_room_id || room.room_type_id || "",
-              description: room.description || "",
-              extraPersonPolicy: room.extraPersonPolicy || room.extra_person_policy || "",
-              bedConfiguration: room.bedConfiguration || room.bed_configuration || [],
-              roomSize: room.roomSize || room.room_size || 0,
-              bathrooms: room.bathrooms || 1,
-              maxPeople: room.maxPeople || room.max_guests || room.max_people || 2,
-              maxAdults: room.maxAdults || room.max_adults || room.max_guests || 2,
-              minGuests: room.minGuests || room.min_guests || 1,
-              maxChildren: room.maxChildren || room.max_children || 0,
-              minStay: room.minStay || room.min_stay || 1,
-              maxStay: room.maxStay || room.max_stay || 0,
-              // Map rate_unit from wizard to rateType, also handle rate_type from PMS
-              rateType: room.rateType || room.rate_type || (room.rate_unit === 'per_stay' ? 'per-stay' : room.rate_unit === 'per_night' ? 'per-unit' : 'per-unit'),
-              // Map base_rate from wizard
-              baseRate: room.baseRate || room.base_rate || null,
-              splitPercent: room.splitPercent || room.split_percent || 0,
-              images: room.images || [],
-              facilities: room.facilities || [],
-              amenities: room.amenities || [],
-              linkedRateTypes: room.linkedRateTypes || room.linked_rate_type_ids || [],
-              pms_synced: room.pms_synced !== undefined ? room.pms_synced : false,
-            }));
+            const transformedRooms = amenities.room_types.map((room: any, idx: number) => {
+              const roomId = room.id || room.room_type_id || `room-${idx}`;
+              // Auto-link to wizard-generated rate type if no existing links
+              const existingLinks = room.linkedRateTypes || room.linked_rate_type_ids || [];
+              const autoLinkedRateTypeId = `wizard-rate-${roomId}`;
+              
+              return {
+                id: roomId,
+                name: room.name || "Unnamed Room",
+                url: room.url || "",
+                selected: room.selected || false,
+                // Map units from wizard OR numRooms from PMS
+                numRooms: room.numRooms || room.num_rooms || room.units || 1,
+                pmsRoomType: room.pmsRoomType || room.pms_room_type || room.name || "",
+                pmsRoomId: room.pmsRoomId || room.pms_room_id || room.room_type_id || "",
+                description: room.description || "",
+                extraPersonPolicy: room.extraPersonPolicy || room.extra_person_policy || "",
+                bedConfiguration: room.bedConfiguration || room.bed_configuration || [],
+                roomSize: room.roomSize || room.room_size || 0,
+                bathrooms: room.bathrooms || 1,
+                maxPeople: room.maxPeople || room.max_guests || room.max_people || 2,
+                maxAdults: room.maxAdults || room.max_adults || room.max_guests || 2,
+                minGuests: room.minGuests || room.min_guests || 1,
+                maxChildren: room.maxChildren || room.max_children || 0,
+                minStay: room.minStay || room.min_stay || 1,
+                maxStay: room.maxStay || room.max_stay || 0,
+                // Map rate_unit from wizard to rateType, also handle rate_type from PMS
+                rateType: room.rateType || room.rate_type || (room.rate_unit === 'per_stay' ? 'per-stay' : room.rate_unit === 'per_night' ? 'per-unit' : 'per-unit'),
+                // Map base_rate from wizard
+                baseRate: room.baseRate || room.base_rate || null,
+                splitPercent: room.splitPercent || room.split_percent || 0,
+                images: room.images || [],
+                facilities: room.facilities || [],
+                amenities: room.amenities || [],
+                // Auto-link wizard rooms to their generated rate types if no existing links
+                linkedRateTypes: existingLinks.length > 0 ? existingLinks : [autoLinkedRateTypeId],
+                pms_synced: room.pms_synced !== undefined ? room.pms_synced : false,
+              };
+            });
             setRoomTypes(transformedRooms);
             // Auto-select first room on initial load
             if (transformedRooms.length > 0 && !selectedRoomType) {
@@ -3185,31 +3193,32 @@ export default function PropertyForm() {
               }));
               setPmsRateTypes(transformedRateTypes);
             }
-          } else if (amenities?.room_types && Array.isArray(amenities.room_types)) {
-            // Auto-generate rate types from wizard room data if no PMS rate types exist
-            const roomsWithRates = amenities.room_types.filter((room: any) => 
-              room.base_rate || room.baseRate
-            );
-            
-            if (roomsWithRates.length > 0) {
-              const generatedRateTypes = roomsWithRates.map((room: any, idx: number) => {
-                const rateUnit = room.rate_unit || room.rateUnit || 'per_night';
-                const priceType = rateUnit === 'per_stay' ? 'PerStay' : 'UnitRate';
-                return {
-                  id: `wizard-rate-${idx + 1}`,
-                  name: room.name ? `${room.name} Rate` : `Room Rate ${idx + 1}`,
-                  priceType,
-                  minStayDays: 1,
-                  maxStayDays: 0,
-                  minAdvanceDays: 0,
-                  maxAdvanceDays: 0,
-                  description: `Base rate from onboarding: R${room.base_rate || room.baseRate}`,
-                  baseRate: room.base_rate || room.baseRate,
-                  pms_synced: false,
-                };
-              });
-              setPmsRateTypes(generatedRateTypes);
-            }
+          } else if (amenities?.room_types && Array.isArray(amenities.room_types) && amenities.room_types.length > 0) {
+            // Auto-generate rate types from ALL wizard rooms (not just those with rates)
+            // This ensures every room has a linkable rate type entry
+            const generatedRateTypes = amenities.room_types.map((room: any, idx: number) => {
+              const rateUnit = room.rate_unit || room.rateUnit || 'per_night';
+              const priceType = rateUnit === 'per_stay' ? 'PerStay' : 'UnitRate';
+              const baseRate = room.base_rate || room.baseRate || null;
+              const roomName = room.name || `Room ${idx + 1}`;
+              
+              return {
+                id: `wizard-rate-${room.id || idx + 1}`,
+                name: `${roomName} Rate`,
+                priceType,
+                minStayDays: room.min_stay || room.minStay || 1,
+                maxStayDays: room.max_stay || room.maxStay || 0,
+                minAdvanceDays: 0,
+                maxAdvanceDays: 0,
+                description: baseRate 
+                  ? `Base rate from onboarding: R${baseRate}` 
+                  : `Rate for ${roomName} - configure rate amount`,
+                baseRate,
+                pms_synced: false,
+                linkedRoomId: room.id || `room-${idx}`, // Track which room this rate is for
+              };
+            });
+            setPmsRateTypes(generatedRateTypes);
           }
 
           // Load other saved data
