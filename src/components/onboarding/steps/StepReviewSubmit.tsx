@@ -63,10 +63,15 @@ export function StepReviewSubmit({
     });
 
     // Policies & Pricing (enhanced with new fields)
+    // Check-in/out times are complete if either the window fields OR legacy fields exist
+    const hasCheckInTime = !!(amenities.check_in_from || amenities.check_in_time);
+    const hasCheckOutTime = !!(amenities.check_out_from || amenities.check_out_to);
+    const hasBanking = !!(amenities.bank_name || amenities.bank_confirmation_letter_url || amenities.account_number);
+    
     const policyFields = [
-      amenities.check_in_from || amenities.check_in_time,
-      amenities.bank_name || amenities.bank_confirmation_letter_url,
-      amenities.account_number,
+      hasCheckInTime,
+      hasCheckOutTime,
+      hasBanking,
       amenities.cancellation_policy,
       amenities.payment_policy
     ].filter(Boolean).length;
@@ -75,7 +80,7 @@ export function StepReviewSubmit({
       title: "Policies & Pricing",
       score: Math.round((policyFields / 5) * SCORE_WEIGHTS.policies_pricing),
       maxScore: SCORE_WEIGHTS.policies_pricing,
-      isComplete: policyFields >= 2
+      isComplete: hasCheckInTime && hasCheckOutTime
     });
 
     // Guest Experience (enhanced with new fields)
