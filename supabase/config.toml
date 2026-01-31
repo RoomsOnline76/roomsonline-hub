@@ -1,5 +1,8 @@
 project_id = "qmprswbgkpzcvexmmcbf"
 
+[functions.ai-booking-concierge]
+verify_jwt = false
+
 [functions.roomsonline-pms-api]
 verify_jwt = true
 
