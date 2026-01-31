@@ -77,7 +77,7 @@ const Booking = () => {
   const navigate = useNavigate();
   
   // Get sticky guest details from context
-  const { guestDetails, setGuestDetails } = useItinerary();
+  const { guestDetails, setGuestDetails, stays, totalPrice: itineraryTotalPrice } = useItinerary();
   
   const urlCheckIn = searchParams.get("checkIn");
   const urlCheckOut = searchParams.get("checkOut");
@@ -334,6 +334,55 @@ const Booking = () => {
       setSelectedRateType(betterRateTypeId);
     }
   }, [cachedRateTypes, selectedRateType]);
+
+  // Initialize rooms and cost from ItineraryContext when available (for non-PMS properties)
+  // This ensures the pre-calculated price from QuickBookDrawer carries through to checkout
+  useEffect(() => {
+    if (property && stays.length > 0 && rooms.length === 0) {
+      // Find the stay for this property
+      const currentStay = stays.find(s => 
+        s.property_id === property.id || s.property_slug === property.slug
+      );
+      
+      if (currentStay) {
+        console.log('[Booking] Initializing from ItineraryContext stay:', currentStay);
+        
+        // Initialize rooms from itinerary context
+        const mappedRooms: RoomBooking[] = currentStay.rooms.map(r => ({
+          roomTypeId: r.room_type_id,
+          roomTypeName: r.room_type_name,
+          numberOfAdults: currentStay.guests.adults,
+          numberOfTeens: 0,
+          numberOfChildren: currentStay.guests.children,
+          numberOfInfants: currentStay.guests.infants,
+          numberOfPets: 0,
+          checkIn: currentStay.dates.check_in,
+          checkOut: currentStay.dates.check_out,
+        }));
+        setRooms(mappedRooms);
+        setCheckIn(currentStay.dates.check_in);
+        setCheckOut(currentStay.dates.check_out);
+        
+        // Use the pre-calculated price from context
+        if (currentStay.price_breakdown.total > 0) {
+          setTotalCost(currentStay.price_breakdown.total);
+          // Build cost breakdown from rooms
+          setCostBreakdown(currentStay.rooms.map(r => ({
+            description: `${r.room_type_name} (${currentStay.guests.adults + currentStay.guests.children} guest${(currentStay.guests.adults + currentStay.guests.children) !== 1 ? 's' : ''})`,
+            nights: currentStay.nights,
+            quantity: r.quantity,
+            unitPrice: r.rate_per_night,
+            total: r.total_price,
+          })));
+        }
+        
+        // Set rate type if available
+        if (currentStay.rate_type_id) {
+          setSelectedRateType(currentStay.rate_type_id);
+        }
+      }
+    }
+  }, [property, stays, rooms.length]);
 
   // Calculate totals
   const totalGuests = rooms.reduce((sum, room) => 
@@ -1258,7 +1307,7 @@ const Booking = () => {
   return (
     <PublicLayout 
       backLabel="Back to Property" 
-      backTo={`${getPropertyUrl(property.slug || property.id)}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
+      backTo={`/property/${property.slug || property.id}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
     >
       <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-10">
         {/* Page Header */}
@@ -1790,6 +1839,8 @@ const Booking = () => {
                       <span className="text-xl font-bold">
                         {preSelectedTotalCost !== null 
                           ? <FormattedPrice amount={preSelectedTotalCost} />
+                          : totalCost > 0
+                          ? <FormattedPrice amount={totalCost} />
                           : 'On request'}
                       </span>
                     </div>
