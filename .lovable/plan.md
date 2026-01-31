@@ -1,143 +1,327 @@
 
+# Plan: Fix Calendar Restrictions, Unblock Logic, and Bulk Dialogs
 
-# Plan: Fix Availability Display for Manual Properties
+## Problems Identified
 
-## Problem Summary
+### 1. Visual Color Coding Not Showing for Stop Sell (and other restrictions)
+**Root Cause**: The `getRestrictions()` helper function only finds restrictions if the PMS room name matches. For manual properties, the room matching logic may fail because `restrictionsByDate` is populated in `generateManualPropertyData()` but `getRestrictions()` uses fuzzy name matching that doesn't find the room correctly.
 
-The calendar for "Latter Days" still shows **99 availability** instead of the correct value. The issue is a **field name mismatch**:
+**Current code (lines 1384-1400)**:
+```typescript
+const getRestrictions = (roomName: string, date: Date) => {
+  if (pmsData.roomTypes.length > 0) {
+    const pmsRoom = pmsData.roomTypes.find(rt => 
+      rt.roomTypeName.toLowerCase().includes(roomName.toLowerCase()) ||
+      roomName.toLowerCase().includes(rt.roomTypeName.toLowerCase())
+    );
+    
+    if (pmsRoom && pmsRoom.restrictionsByDate[dateStr]) {
+      // Returns restrictions...
+    }
+  }
+  
+  // Returns null if no match - restrictions don't show!
+  return { stopSell: null, minStay: null, ... };
+}
+```
 
-| Source | Field Name | Latter Days Value |
-|--------|------------|-------------------|
-| Onboarding Wizard | `units` | Not set |
-| Property Form | `numRooms` | 3 |
-| CalendarAccommodation | Checks only `units` | Falls back to 1 |
+**Issue**: If the room name passed to `getRestrictions()` doesn't fuzzy-match, restrictions return as `null` and no color bars appear.
 
-But the rendered value shows **99** because the code change isn't being applied correctly to the actual data path.
+### 2. Unblocking Blocked Dates Corrupts Availability and Rates
+**Root Cause**: In `BulkStopSellDialog.tsx` (line 135), when unblocking:
+```typescript
+available_units: isStopSell ? 0 : 99, // 0 if blocking, 99 if unblocking
+```
 
-Looking at the database query result, "Latter Days" has:
-- `numRooms: 3` (this is labelled "# Rooms" in PropertyForm, but represents bedrooms/rooms inside the unit)
-- No `units` field at all
-- The property is a single holiday house (1 bookable unit)
+This hardcodes availability to `99` when unblocking, which:
+- Overwrites the correct room unit count (should be 1 for holiday houses)
+- Doesn't preserve any rate information that was set
 
-For a self-catering holiday house like "Latter Days", the entire house is 1 bookable unit (with 3 bedrooms inside). So availability should be **1**.
+### 3. Bulk Availability Dialog Shows Wrong Room Types
+**Root Cause**: All bulk dialogs (except `BulkStopSellDialog`) have **hardcoded room types** instead of receiving them as props from the parent:
 
-## Root Cause Analysis
+```typescript
+// BulkAvailabilityRuleDialog.tsx (lines 65-86)
+const roomTypes = [
+  { id: "holidayHouse", name: "Holiday House", count: 9 },
+  { id: "oneBedroom", name: "One Bedroom Suite", count: 14 },
+  { id: "petiteHotel", name: "Petite Hotel Room", count: 14 },
+  { id: "twoBedroom", name: "Two Bedroom Suite", count: 6 },
+];
+```
 
-1. **Field naming inconsistency**: 
-   - Wizard uses `units` for bookable unit count
-   - PropertyForm uses `numRooms` for both bedroom count AND unit count (confusing)
-   - For "Latter Days", `numRooms: 3` represents 3 bedrooms, not 3 bookable units
+These are placeholder/demo values, not the actual property's room types.
 
-2. **Missing "units" field**: 
-   - The property was created before `units` field was standardized
-   - Code falls back to `1` but still shows 99
+### 4. Bulk Restriction Dialogs Don't Honor Property Setup
+**Root Cause**: Same as issue 3 - `BulkMinimumStayDialog`, `BulkMaximumStayDialog`, `BulkLeadDaysAdvanceDialog`, `BulkLeadDaysPostDialog`, and `BulkRateRuleDialog` all have hardcoded room types instead of receiving property-specific data.
 
-3. **Potential caching issue**:
-   - The code change may not be taking effect
-   - The synthetic data generation might not be triggering
-
-## Solution
-
-Update `generateManualPropertyData` to:
-1. Check for `units` first (wizard standard)
-2. If not found, check if property type suggests single-unit booking (holiday house, villa, cottage)
-3. For self-catering/villa/cottage types, default to 1 (entire property)
-4. For hotels/B&Bs with `numRooms`, use that as unit count
-5. Add console logging to debug why 99 is still appearing
+---
 
 ## Technical Implementation
 
-### CalendarAccommodation.tsx - Smarter Unit Detection
+### Fix 1: Calendar Restrictions - Improve Room Matching in `getRestrictions()`
 
-**Location**: `generateManualPropertyData` function (around line 685)
+**File**: `src/pages/CalendarAccommodation.tsx`
 
-**Current code:**
+**Changes**:
+- Make the room matching more robust by using exact match first, then fuzzy match
+- Add fallback to check by room ID as well as name
+
 ```typescript
-const roomUnits = room.units || 1;
+const getRestrictions = (roomName: string, date: Date) => {
+  const dateStr = format(date, "yyyy-MM-dd");
+  
+  if (pmsData.roomTypes.length > 0) {
+    // Try exact match first
+    let pmsRoom = pmsData.roomTypes.find(rt => rt.roomTypeName === roomName);
+    
+    // Fallback to fuzzy match
+    if (!pmsRoom) {
+      pmsRoom = pmsData.roomTypes.find(rt => 
+        rt.roomTypeName.toLowerCase().includes(roomName.toLowerCase()) ||
+        roomName.toLowerCase().includes(rt.roomTypeName.toLowerCase())
+      );
+    }
+    
+    if (pmsRoom && pmsRoom.restrictionsByDate[dateStr]) {
+      const r = pmsRoom.restrictionsByDate[dateStr];
+      return {
+        stopSell: r.stopSell ?? null,
+        minStay: r.minStay ?? null,
+        maxStay: r.maxStay ?? null,
+        leadDaysAdvance: r.leadDaysAdvance ?? null,
+        leadDaysPost: r.leadDaysPost ?? null,
+        fromPms: true,
+      };
+    }
+  }
+  
+  return {
+    stopSell: null,
+    minStay: null,
+    maxStay: null,
+    leadDaysAdvance: null,
+    leadDaysPost: null,
+    fromPms: false,
+  };
+};
 ```
 
-**Updated code:**
-```typescript
-// Check multiple possible field names for unit count
-// Wizard uses 'units', PropertyForm uses 'numRooms' for some properties
-// For holiday houses/villas/cottages, the entire property is 1 bookable unit
-const isWholePropertyType = ['self_catering', 'villa', 'cottage', 'holiday_house', 'house'].some(
-  type => (room.pmsRoomType || room.name || '').toLowerCase().includes(type) ||
-          (property.property_type || '').toLowerCase().includes(type)
-);
+### Fix 2: Unblocking Logic - Use Actual Room Units
 
-// Priority: explicit units > infer from property type > fallback
-let roomUnits = 1; // Default for single-unit properties
-if (room.units !== undefined && room.units !== null) {
-  roomUnits = room.units;
-} else if (!isWholePropertyType && room.numRooms) {
-  // For hotels/B&Bs, numRooms can represent bookable units
-  roomUnits = room.numRooms;
+**File**: `src/components/BulkStopSellDialog.tsx`
+
+**Changes**:
+1. Update interface to include `units` in room types
+2. When unblocking, use the room's actual `units` value instead of hardcoded `99`
+3. Optionally delete the override record instead of setting `available_units: 99` (cleaner approach)
+
+**Updated Interface**:
+```typescript
+interface BulkStopSellDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  propertyId?: string;
+  propertyName?: string;
+  roomTypes?: { name: string; id?: string; units?: number }[]; // Add units
+  onRuleCreated?: () => void;
 }
-// For whole-property types (holiday house, villa), always use 1
-
-console.log('[Manual Calendar] Room units calculation:', {
-  roomName: room.name,
-  units: room.units,
-  numRooms: room.numRooms,
-  isWholePropertyType,
-  calculatedUnits: roomUnits
-});
 ```
 
-This ensures:
-- "3 Bedroomed Holiday House" → detected as whole-property type → 1 unit
-- Hotels with 10 "Deluxe Rooms" → uses numRooms → 10 units
-- Wizard-created rooms with explicit `units: 5` → uses that value
-
-### Alternative Simpler Approach
-
-If the property type detection is too complex, we could:
-
-1. Check `units` field first
-2. Then check for a new field `bookable_units` or `inventory_count`
-3. Default to 1 for non-PMS properties (safer assumption)
-
-**Simpler code:**
+**Updated Logic**:
 ```typescript
-// For manual properties, prefer explicit units field, default to 1 (single unit)
-// numRooms represents bedrooms, not bookable units for holiday houses
-const roomUnits = room.units ?? 1;
+// Create records for each room type and date
+const records = [];
+for (const roomType of selectedRoomTypes) {
+  // Find the room's actual units
+  const roomConfig = roomTypes.find(r => r.name === roomType);
+  const roomUnits = roomConfig?.units || 1;
+  
+  for (const date of filteredDates) {
+    if (isStopSell) {
+      // Blocking: set available_units to 0
+      records.push({
+        property_id: propertyId,
+        room_type: roomType,
+        date: format(date, "yyyy-MM-dd"),
+        is_stop_sell: true,
+        available_units: 0,
+        external_system: 'manual',
+      });
+    } else {
+      // Unblocking: DELETE the override instead of setting to 99
+      // This allows the default room units to be used
+    }
+  }
+}
+
+// For unblocking, delete the records instead
+if (!isStopSell) {
+  const { error } = await supabase
+    .from("property_availability")
+    .delete()
+    .eq("property_id", propertyId)
+    .in("room_type", selectedRoomTypes)
+    .gte("date", fromDate)
+    .lte("date", toDate);
+  
+  if (error) throw error;
+} else {
+  // For blocking, upsert as before
+  const { error } = await supabase
+    .from("property_availability")
+    .upsert(records, { 
+      onConflict: 'property_id,room_type,date',
+      ignoreDuplicates: false 
+    });
+  
+  if (error) throw error;
+}
 ```
 
-This is already what the code does, but the issue is that 99 is still showing, suggesting the `generateManualPropertyData` function might not be getting called.
+### Fix 3: Update CalendarAccommodation to Pass Room Units
 
-### Debug: Verify Function Execution
+**File**: `src/pages/CalendarAccommodation.tsx`
 
-Add logging at the start of `generateManualPropertyData`:
+**Changes**: Update the `roomTypes` prop passed to `BulkStopSellDialog` to include `units`:
 
 ```typescript
-const generateManualPropertyData = useCallback(async (property: any) => {
-  console.log('[Manual Calendar] Generating synthetic data for:', property.name);
-  console.log('[Manual Calendar] Room types:', property.amenities?.room_types);
-  // ... rest of function
-}, [currentDate, viewMode]);
+<BulkStopSellDialog 
+  open={stopSellOpen} 
+  onOpenChange={setStopSellOpen}
+  propertyId={selectedProperty}
+  propertyName={selectedPropertyData?.name}
+  roomTypes={calendarRoomData.map(r => ({ 
+    name: r.name, 
+    id: r.pmsRoomTypeId,
+    units: r.units || 1  // Include units
+  }))}
+  onRuleCreated={() => {
+    if (!isPmsProperty) {
+      fetchRoomTypes(selectedProperty);
+    }
+  }}
+/>
 ```
 
-This will help identify if:
-- The function is being called at all
-- What room data is being processed
-- Why availability ends up as 99
+Also need to ensure `calendarRoomData` includes `units` - check the mapping logic.
+
+### Fix 4: Update All Bulk Dialogs to Accept Property-Specific Room Types
+
+**Files to update**:
+- `src/components/BulkAvailabilityRuleDialog.tsx`
+- `src/components/BulkMinimumStayDialog.tsx`
+- `src/components/BulkMaximumStayDialog.tsx`
+- `src/components/BulkLeadDaysAdvanceDialog.tsx`
+- `src/components/BulkLeadDaysPostDialog.tsx`
+- `src/components/BulkRateRuleDialog.tsx`
+
+**For each dialog**:
+1. Add props interface to accept room types from parent
+2. Remove hardcoded `roomTypes` array
+3. Use the passed-in room types for display and operations
+
+**Example for BulkAvailabilityRuleDialog**:
+```typescript
+interface BulkAvailabilityRuleDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  propertyId?: string;
+  propertyName?: string;
+  roomTypes?: { name: string; id?: string; units?: number }[];
+  onRuleCreated?: () => void;
+}
+
+export function BulkAvailabilityRuleDialog({ 
+  open, 
+  onOpenChange,
+  propertyId,
+  propertyName,
+  roomTypes = [],
+  onRuleCreated
+}: BulkAvailabilityRuleDialogProps) {
+  // Remove hardcoded roomTypes const
+  // Use props roomTypes instead
+}
+```
+
+### Fix 5: Update CalendarAccommodation to Pass Props to All Dialogs
+
+**File**: `src/pages/CalendarAccommodation.tsx`
+
+Update all dialog invocations to pass the required props:
+
+```typescript
+<BulkAvailabilityRuleDialog 
+  open={bulkAvailabilityOpen} 
+  onOpenChange={setBulkAvailabilityOpen}
+  propertyId={selectedProperty}
+  propertyName={selectedPropertyData?.name}
+  roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+  onRuleCreated={() => fetchRoomTypes(selectedProperty)}
+/>
+
+<BulkMinimumStayDialog 
+  open={minStayOpen} 
+  onOpenChange={setMinStayOpen}
+  propertyId={selectedProperty}
+  propertyName={selectedPropertyData?.name}
+  roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId }))}
+  onRuleCreated={() => fetchRoomTypes(selectedProperty)}
+/>
+
+// Same pattern for MaxStay, LeadDaysAdvance, LeadDaysPost, RateRule dialogs
+```
+
+---
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/pages/CalendarAccommodation.tsx` | Add debug logging, use `room.units ?? 1` for unit count (not `||` which treats 0 as falsy) |
+| `src/pages/CalendarAccommodation.tsx` | Improve `getRestrictions()` matching; pass room types to all bulk dialogs |
+| `src/components/BulkStopSellDialog.tsx` | Fix unblock logic to delete overrides; add `units` to interface |
+| `src/components/BulkAvailabilityRuleDialog.tsx` | Accept room types as props; remove hardcoded data |
+| `src/components/BulkMinimumStayDialog.tsx` | Accept room types as props; implement database save |
+| `src/components/BulkMaximumStayDialog.tsx` | Accept room types as props; implement database save |
+| `src/components/BulkLeadDaysAdvanceDialog.tsx` | Accept room types as props; implement database save |
+| `src/components/BulkLeadDaysPostDialog.tsx` | Accept room types as props; implement database save |
+| `src/components/BulkRateRuleDialog.tsx` | Accept room types as props; remove hardcoded data |
 
-## Expected Result
+---
 
-| Before | After |
-|--------|-------|
-| Shows "99" available | Shows "1" available |
-| All dates show unlimited inventory | Single-unit properties show 1 |
+## Expected Results
 
-## Note on Data Migration
+| Issue | Before | After |
+|-------|--------|-------|
+| Stop sell color indicator | Not showing on calendar | Red bar appears for blocked dates |
+| Min stay indicator | Not showing | Blue bar with number appears |
+| Unblocking dates | Sets availability to 99, corrupts data | Deletes override, restores room's default units |
+| Bulk Availability room types | Shows "Holiday House, One Bedroom Suite..." (hardcoded) | Shows actual property room types (e.g., "3 Bedroomed Holiday House") |
+| Other bulk dialogs | All show hardcoded room types | All show actual property room types |
 
-For existing properties like "Latter Days", the owner can update the `units` field in the Property Form or Onboarding Wizard to explicitly set the bookable unit count. This provides a proper long-term fix rather than relying on heuristics.
+---
 
+## Data Flow After Fix
+
+```text
+Owner opens Bulk Stop Sell for "Latter Days"
+         ↓
+Dialog receives roomTypes=[{ name: "3 Bedroomed Holiday House", units: 1 }]
+         ↓
+Owner selects room, date range, clicks "Block"
+         ↓
+Saves: available_units=0, is_stop_sell=true
+         ↓
+Calendar refreshes → getRestrictions() finds exact room match
+         ↓
+Red stop sell bar appears on blocked dates
+
+Owner later clicks "Unblock"
+         ↓
+DELETE FROM property_availability WHERE room_type=... AND date BETWEEN ...
+         ↓
+Override removed → generateManualPropertyData() uses default units (1)
+         ↓
+Calendar shows "1" available, no corruption
+```
