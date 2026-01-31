@@ -309,12 +309,55 @@ Deno.serve(async (req) => {
     // Property names for subject
     const propertyNames = enrichedStays.map(s => s.propertyName).join(" → ");
 
-    // Send email to guest
+    // Generate journey brochure attachment
+    let attachments: Array<{ filename: string; content: string; content_type: string }> = [];
+    
+    try {
+      console.log(`[Itinerary Email] Generating brochure attachment for itinerary ${itinerary_id}`);
+      
+      const brochureResponse = await fetch(
+        `${supabaseUrl}/functions/v1/generate-itinerary-pdf`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({ itinerary_id }),
+        }
+      );
+      
+      if (brochureResponse.ok) {
+        const brochureData = await brochureResponse.json();
+        if (brochureData.html) {
+          // Convert HTML to base64 for attachment
+          const encoder = new TextEncoder();
+          const htmlBytes = encoder.encode(brochureData.html);
+          const base64Content = btoa(String.fromCharCode(...htmlBytes));
+          
+          attachments.push({
+            filename: `Journey-Brochure-${itinerary.id.substring(0, 8).toUpperCase()}.html`,
+            content: base64Content,
+            content_type: "text/html",
+          });
+          
+          console.log(`[Itinerary Email] Journey brochure attached (${htmlBytes.length} bytes)`);
+        }
+      } else {
+        console.warn(`[Itinerary Email] Failed to generate brochure: ${brochureResponse.status}`);
+      }
+    } catch (brochureError) {
+      console.error("[Itinerary Email] Failed to generate brochure attachment:", brochureError);
+      // Continue without attachment - email is still valuable
+    }
+
+    // Send email to guest with brochure attachment
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: "RoomsOnline <hello@notify.roomsonline.co.za>",
       to: [itinerary.guest_email],
       subject: `Your Journey is Confirmed! | ${propertyNames}`,
       html: emailHtml,
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
 
     if (emailError) {
