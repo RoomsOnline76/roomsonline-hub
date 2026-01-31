@@ -1574,6 +1574,7 @@ export type Database = {
           created_at: string | null
           id: string
           is_new_owner: boolean | null
+          metadata: Json | null
           override_at: string | null
           override_by: string | null
           override_reason: string | null
@@ -1604,6 +1605,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_new_owner?: boolean | null
+          metadata?: Json | null
           override_at?: string | null
           override_by?: string | null
           override_reason?: string | null
@@ -1634,6 +1636,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_new_owner?: boolean | null
+          metadata?: Json | null
           override_at?: string | null
           override_by?: string | null
           override_reason?: string | null
