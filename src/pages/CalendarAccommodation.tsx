@@ -1006,6 +1006,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           allowChildren: matchingRoom?.allowChildren ?? true,
           allowInfants: matchingRoom?.allowInfants ?? true,
           minGuests: matchingRoom?.minGuests ?? 1,
+          units: matchingRoom?.units ?? 1,
         };
       });
     }
@@ -1059,6 +1060,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         allowChildren: room.allowChildren ?? true,
         allowInfants: room.allowInfants ?? true,
         minGuests: room.minGuests ?? 1,
+        units: room.units ?? 1,
       };
     });
   }, [selectedPropertyData, pmsData]);
@@ -1382,10 +1384,16 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     const dateStr = format(date, "yyyy-MM-dd");
     
     if (pmsData.roomTypes.length > 0) {
-      const pmsRoom = pmsData.roomTypes.find(rt => 
-        rt.roomTypeName.toLowerCase().includes(roomName.toLowerCase()) ||
-        roomName.toLowerCase().includes(rt.roomTypeName.toLowerCase())
-      );
+      // Try exact match first
+      let pmsRoom = pmsData.roomTypes.find(rt => rt.roomTypeName === roomName);
+      
+      // Fallback to fuzzy match if exact match not found
+      if (!pmsRoom) {
+        pmsRoom = pmsData.roomTypes.find(rt => 
+          rt.roomTypeName.toLowerCase().includes(roomName.toLowerCase()) ||
+          roomName.toLowerCase().includes(rt.roomTypeName.toLowerCase())
+        );
+      }
       
       if (pmsRoom && pmsRoom.restrictionsByDate[dateStr]) {
         const r = pmsRoom.restrictionsByDate[dateStr];
@@ -2526,14 +2534,28 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           </CardContent>
       </Card>
 
-      <BulkRateRuleDialog open={bulkRateOpen} onOpenChange={setBulkRateOpen} />
-      <BulkAvailabilityRuleDialog open={bulkAvailabilityOpen} onOpenChange={setBulkAvailabilityOpen} />
+      <BulkRateRuleDialog 
+        open={bulkRateOpen} 
+        onOpenChange={setBulkRateOpen}
+        propertyId={selectedProperty}
+        propertyName={selectedPropertyData?.name}
+        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        onRuleCreated={() => fetchRoomTypes(selectedProperty)}
+      />
+      <BulkAvailabilityRuleDialog 
+        open={bulkAvailabilityOpen} 
+        onOpenChange={setBulkAvailabilityOpen}
+        propertyId={selectedProperty}
+        propertyName={selectedPropertyData?.name}
+        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        onRuleCreated={() => fetchRoomTypes(selectedProperty)}
+      />
       <BulkStopSellDialog 
         open={stopSellOpen} 
         onOpenChange={setStopSellOpen}
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
-        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId }))}
+        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
         onRuleCreated={() => {
           // Refresh calendar data after rule created
           if (!isPmsProperty) {
@@ -2542,10 +2564,38 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           }
         }}
       />
-      <BulkMinimumStayDialog open={minStayOpen} onOpenChange={setMinStayOpen} />
-      <BulkMaximumStayDialog open={maxStayOpen} onOpenChange={setMaxStayOpen} />
-      <BulkLeadDaysAdvanceDialog open={leadDaysAdvanceOpen} onOpenChange={setLeadDaysAdvanceOpen} />
-      <BulkLeadDaysPostDialog open={leadDaysPostOpen} onOpenChange={setLeadDaysPostOpen} />
+      <BulkMinimumStayDialog 
+        open={minStayOpen} 
+        onOpenChange={setMinStayOpen}
+        propertyId={selectedProperty}
+        propertyName={selectedPropertyData?.name}
+        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        onRuleCreated={() => fetchRoomTypes(selectedProperty)}
+      />
+      <BulkMaximumStayDialog 
+        open={maxStayOpen} 
+        onOpenChange={setMaxStayOpen}
+        propertyId={selectedProperty}
+        propertyName={selectedPropertyData?.name}
+        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        onRuleCreated={() => fetchRoomTypes(selectedProperty)}
+      />
+      <BulkLeadDaysAdvanceDialog 
+        open={leadDaysAdvanceOpen} 
+        onOpenChange={setLeadDaysAdvanceOpen}
+        propertyId={selectedProperty}
+        propertyName={selectedPropertyData?.name}
+        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        onRuleCreated={() => fetchRoomTypes(selectedProperty)}
+      />
+      <BulkLeadDaysPostDialog 
+        open={leadDaysPostOpen} 
+        onOpenChange={setLeadDaysPostOpen}
+        propertyId={selectedProperty}
+        propertyName={selectedPropertyData?.name}
+        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        onRuleCreated={() => fetchRoomTypes(selectedProperty)}
+      />
     </AppLayout>
   );
 };
