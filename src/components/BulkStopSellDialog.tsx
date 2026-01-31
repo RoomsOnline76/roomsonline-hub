@@ -16,7 +16,7 @@ interface BulkStopSellDialogProps {
   onOpenChange: (open: boolean) => void;
   propertyId?: string;
   propertyName?: string;
-  roomTypes?: { name: string; id?: string }[];
+  roomTypes?: { name: string; id?: string; units?: number }[];
   onRuleCreated?: () => void;
 }
 
@@ -123,36 +123,49 @@ export function BulkStopSellDialog({
         return;
       }
 
-      // Create records for each room type and date
-      const records = [];
-      for (const roomType of selectedRoomTypes) {
-        for (const date of filteredDates) {
-          records.push({
-            property_id: propertyId,
-            room_type: roomType,
-            date: format(date, "yyyy-MM-dd"),
-            is_stop_sell: isStopSell,
-            available_units: isStopSell ? 0 : 99, // 0 if blocking, 99 if unblocking
-            external_system: 'manual',
-          });
+      if (isStopSell) {
+        // BLOCKING: Create records with available_units = 0
+        const records = [];
+        for (const roomType of selectedRoomTypes) {
+          for (const date of filteredDates) {
+            records.push({
+              property_id: propertyId,
+              room_type: roomType,
+              date: format(date, "yyyy-MM-dd"),
+              is_stop_sell: true,
+              available_units: 0,
+              external_system: 'manual',
+            });
+          }
         }
+
+        // Upsert records (update if exists, insert if not)
+        const { error } = await supabase
+          .from("property_availability")
+          .upsert(records, { 
+            onConflict: 'property_id,room_type,date',
+            ignoreDuplicates: false 
+          });
+
+        if (error) throw error;
+
+        toast.success(`Blocked ${filteredDates.length} dates for ${selectedRoomTypes.length} room(s)`);
+      } else {
+        // UNBLOCKING: Delete the override records to restore default availability
+        // Build date strings for the filtered dates
+        const dateStrings = filteredDates.map(date => format(date, "yyyy-MM-dd"));
+        
+        const { error } = await supabase
+          .from("property_availability")
+          .delete()
+          .eq("property_id", propertyId)
+          .in("room_type", selectedRoomTypes)
+          .in("date", dateStrings);
+
+        if (error) throw error;
+
+        toast.success(`Unblocked ${filteredDates.length} dates for ${selectedRoomTypes.length} room(s)`);
       }
-
-      // Upsert records (update if exists, insert if not)
-      const { error } = await supabase
-        .from("property_availability")
-        .upsert(records, { 
-          onConflict: 'property_id,room_type,date',
-          ignoreDuplicates: false 
-        });
-
-      if (error) throw error;
-
-      toast.success(
-        isStopSell 
-          ? `Blocked ${filteredDates.length} dates for ${selectedRoomTypes.length} room(s)`
-          : `Unblocked ${filteredDates.length} dates for ${selectedRoomTypes.length} room(s)`
-      );
       
       onRuleCreated?.();
       onOpenChange(false);
@@ -183,21 +196,26 @@ export function BulkStopSellDialog({
             <p className="text-sm font-medium mb-2">Select Rooms</p>
             {roomTypes.length > 0 ? (
               roomTypes.map((room) => (
-                <div key={room.id || room.name} className="flex items-center p-2 hover:bg-muted rounded">
-                  <Checkbox
-                    id={room.id || room.name}
-                    checked={selectedRoomTypes.includes(room.name)}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSelectedRoomTypes([...selectedRoomTypes, room.name]);
-                      } else {
-                        setSelectedRoomTypes(selectedRoomTypes.filter(name => name !== room.name));
-                      }
-                    }}
-                  />
-                  <label htmlFor={room.id || room.name} className="text-sm cursor-pointer ml-2">
-                    {room.name}
-                  </label>
+                <div key={room.id || room.name} className="flex items-center justify-between p-2 hover:bg-muted rounded">
+                  <div className="flex items-center">
+                    <Checkbox
+                      id={room.id || room.name}
+                      checked={selectedRoomTypes.includes(room.name)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedRoomTypes([...selectedRoomTypes, room.name]);
+                        } else {
+                          setSelectedRoomTypes(selectedRoomTypes.filter(name => name !== room.name));
+                        }
+                      }}
+                    />
+                    <label htmlFor={room.id || room.name} className="text-sm cursor-pointer ml-2">
+                      {room.name}
+                    </label>
+                  </div>
+                  {room.units && (
+                    <span className="text-xs text-muted-foreground">{room.units} unit{room.units > 1 ? 's' : ''}</span>
+                  )}
                 </div>
               ))
             ) : (
@@ -213,7 +231,7 @@ export function BulkStopSellDialog({
                 <div>
                   <p className="font-medium">{isStopSell ? 'Block Dates' : 'Unblock Dates'}</p>
                   <p className="text-sm text-muted-foreground">
-                    {isStopSell ? 'Prevent new bookings' : 'Allow bookings again'}
+                    {isStopSell ? 'Prevent new bookings' : 'Remove blocks and restore default availability'}
                   </p>
                 </div>
                 <Switch 
