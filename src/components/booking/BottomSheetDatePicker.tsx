@@ -44,7 +44,15 @@ export function BottomSheetDatePicker({
   const isMobile = useIsMobile();
   const [tempCheckIn, setTempCheckIn] = useState<Date | null>(checkIn);
   const [tempCheckOut, setTempCheckOut] = useState<Date | null>(checkOut);
-  const [currentMonth, setCurrentMonth] = useState(() => checkIn || new Date());
+  // Smart month initialization - start on next month if we're past the 25th
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    if (checkIn) return checkIn;
+    const now = new Date();
+    if (now.getDate() > 25) {
+      return new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    }
+    return now;
+  });
   const [selectingCheckOut, setSelectingCheckOut] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -56,6 +64,14 @@ export function BottomSheetDatePicker({
       setSelectingCheckOut(false);
       if (checkIn) {
         setCurrentMonth(checkIn);
+      } else {
+        // No checkIn selected - start from a sensible month
+        const now = new Date();
+        if (now.getDate() > 25) {
+          setCurrentMonth(new Date(now.getFullYear(), now.getMonth() + 1, 1));
+        } else {
+          setCurrentMonth(now);
+        }
       }
     }
   }, [open, checkIn, checkOut]);

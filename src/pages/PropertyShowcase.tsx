@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
+import { format, addDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { getNightsBridgeBookingUrl } from "@/lib/config";
 import { Button } from "@/components/ui/button";
@@ -190,6 +191,8 @@ export default function PropertyShowcase() {
   const [showLeavingModal, setShowLeavingModal] = useState(false);
   const [externalBookingUrl, setExternalBookingUrl] = useState<string>("");
   const [quickBookDrawerOpen, setQuickBookDrawerOpen] = useState(false);
+  // Calendar availability for 90-day range (for FloatingDateGuestPicker)
+  const [calendarAvailability, setCalendarAvailability] = useState<Map<string, { available: boolean; rate?: number }>>(new Map());
 
   // Track property view in behavioral memory
   useEffect(() => {
@@ -394,6 +397,83 @@ export default function PropertyShowcase() {
       console.error(`Failed to fetch ${apiName} availability:`, error);
     }
   };
+
+  // Fetch calendar availability for the floating picker (90-day range)
+  useEffect(() => {
+    const fetchCalendarAvailability = async () => {
+      if (!property?.id) return;
+      
+      const isManual = !property.external_system;
+      const amenitiesData = property.amenities as Record<string, any> | null;
+      
+      // For manual properties, synthesize availability from property_availability table
+      if (isManual && amenitiesData) {
+        const today = new Date();
+        const endDate = addDays(today, 90);
+        const todayStr = format(today, "yyyy-MM-dd");
+        const endStr = format(endDate, "yyyy-MM-dd");
+        
+        // Get base rate from wizard data
+        const wizardRooms = amenitiesData.room_types || [];
+        const firstRoom = wizardRooms[0];
+        const linkedRateTypeId = firstRoom?.linkedRateTypes?.[0];
+        const pmsRateTypes = amenitiesData.pms_rate_types || [];
+        const rateType = pmsRateTypes.find((rt: any) => rt.id === linkedRateTypeId);
+        const baseRate = rateType?.baseRate || firstRoom?.baseRate || firstRoom?.base_rate || property.price_per_night;
+        
+        // Fetch blocked dates from property_availability
+        const { data: blockedData } = await supabase
+          .from("property_availability")
+          .select("date, available_units, is_stop_sell")
+          .eq("property_id", property.id)
+          .gte("date", todayStr)
+          .lte("date", endStr);
+        
+        // Build availability map - all dates available by default except explicit blocks
+        const blockedDates = new Set<string>();
+        if (blockedData) {
+          blockedData.forEach((item) => {
+            if (item.is_stop_sell || item.available_units === 0) {
+              blockedDates.add(item.date);
+            }
+          });
+        }
+        
+        // Generate 90 days of availability
+        const calendarMap = new Map<string, { available: boolean; rate?: number }>();
+        for (let i = 0; i < 90; i++) {
+          const date = addDays(today, i);
+          const dateStr = format(date, "yyyy-MM-dd");
+          const isBlocked = blockedDates.has(dateStr);
+          
+          // Check season rates for this date
+          let dayRate = baseRate;
+          const seasons = amenitiesData.seasons || [];
+          const seasonRates = amenitiesData.season_rates || {};
+          for (const season of seasons) {
+            if (dateStr >= season.from && dateStr <= season.to) {
+              const seasonRateKey = `${firstRoom?.id || 'default'}-${linkedRateTypeId}`;
+              const seasonRateData = seasonRates[season.id]?.[seasonRateKey];
+              if (seasonRateData?.roomAmount) {
+                dayRate = seasonRateData.roomAmount;
+              }
+              break;
+            }
+          }
+          
+          calendarMap.set(dateStr, {
+            available: !isBlocked,
+            rate: dayRate,
+          });
+        }
+        
+        setCalendarAvailability(calendarMap);
+        console.log('[PropertyShowcase] Calendar availability built:', calendarMap.size, 'days, blocked:', blockedDates.size);
+      }
+    };
+    
+    fetchCalendarAvailability();
+  }, [property?.id, property?.external_system, property?.amenities]);
 
   const scrollToRooms = () => {
     document.getElementById("rooms-section")?.scrollIntoView({ behavior: "smooth" });
@@ -716,7 +796,8 @@ export default function PropertyShowcase() {
       {(isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && (
         <FloatingDateGuestPicker
           onContinue={() => setQuickBookDrawerOpen(true)} 
-          ctaLabel="Book Now" 
+          ctaLabel="Book Now"
+          availabilityMap={calendarAvailability}
         />
       )}
     </PublicLayout>
