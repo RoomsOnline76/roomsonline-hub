@@ -1324,9 +1324,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 </div>
               )}
               {!isPmsProperty && (
-                <Badge variant="outline" className="flex items-center gap-1">
+                <Badge variant="secondary" className="flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
                   <CloudOff className="h-3 w-3" />
-                  No PMS Connected
+                  RoomsOnline PMS (Manual Mode)
                 </Badge>
               )}
               <Badge variant="default">Accommodation</Badge>
@@ -1481,32 +1481,36 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 <Button variant="default" disabled className="opacity-50 cursor-not-allowed h-8 text-xs px-2">Save</Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="default" disabled className="gap-1 opacity-50 cursor-not-allowed h-8 text-xs px-2">
+                    <Button 
+                      variant="default" 
+                      className={`gap-1 h-8 text-xs px-2 ${!selectedProperty ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      disabled={!selectedProperty}
+                    >
                       Rules/Bulk
                       <ChevronDown className="h-3 w-3" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48 bg-popover">
-                    <DropdownMenuItem onClick={() => setBulkRateOpen(true)} disabled>
-                      Bulk Rate
+                    <DropdownMenuItem onClick={() => setBulkRateOpen(true)} disabled={isPmsProperty}>
+                      Bulk Rate {isPmsProperty && <span className="text-xs text-muted-foreground ml-1">(PMS)</span>}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setBulkAvailabilityOpen(true)} disabled>
-                      Bulk Availability
+                    <DropdownMenuItem onClick={() => setBulkAvailabilityOpen(true)} disabled={isPmsProperty}>
+                      Bulk Availability {isPmsProperty && <span className="text-xs text-muted-foreground ml-1">(PMS)</span>}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setStopSellOpen(true)} disabled>
-                      Stop Sell
+                    <DropdownMenuItem onClick={() => setStopSellOpen(true)} disabled={isPmsProperty}>
+                      Stop Sell {isPmsProperty && <span className="text-xs text-muted-foreground ml-1">(PMS)</span>}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setMinStayOpen(true)} disabled>
-                      Minimum Stay
+                    <DropdownMenuItem onClick={() => setMinStayOpen(true)} disabled={isPmsProperty}>
+                      Minimum Stay {isPmsProperty && <span className="text-xs text-muted-foreground ml-1">(PMS)</span>}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setMaxStayOpen(true)} disabled>
-                      Maximum Stay
+                    <DropdownMenuItem onClick={() => setMaxStayOpen(true)} disabled={isPmsProperty}>
+                      Maximum Stay {isPmsProperty && <span className="text-xs text-muted-foreground ml-1">(PMS)</span>}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setLeadDaysAdvanceOpen(true)} disabled>
-                      Lead Days Advance
+                    <DropdownMenuItem onClick={() => setLeadDaysAdvanceOpen(true)} disabled={isPmsProperty}>
+                      Lead Days Advance {isPmsProperty && <span className="text-xs text-muted-foreground ml-1">(PMS)</span>}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setLeadDaysPostOpen(true)} disabled>
-                      Lead Days Post
+                    <DropdownMenuItem onClick={() => setLeadDaysPostOpen(true)} disabled={isPmsProperty}>
+                      Lead Days Post {isPmsProperty && <span className="text-xs text-muted-foreground ml-1">(PMS)</span>}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -2321,7 +2325,20 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
 
       <BulkRateRuleDialog open={bulkRateOpen} onOpenChange={setBulkRateOpen} />
       <BulkAvailabilityRuleDialog open={bulkAvailabilityOpen} onOpenChange={setBulkAvailabilityOpen} />
-      <BulkStopSellDialog open={stopSellOpen} onOpenChange={setStopSellOpen} />
+      <BulkStopSellDialog 
+        open={stopSellOpen} 
+        onOpenChange={setStopSellOpen}
+        propertyId={selectedProperty}
+        propertyName={selectedPropertyData?.name}
+        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId }))}
+        onRuleCreated={() => {
+          // Refresh calendar data after rule created
+          if (!isPmsProperty) {
+            // For manual properties, just refresh the page data
+            fetchRoomTypes(selectedProperty);
+          }
+        }}
+      />
       <BulkMinimumStayDialog open={minStayOpen} onOpenChange={setMinStayOpen} />
       <BulkMaximumStayDialog open={maxStayOpen} onOpenChange={setMaxStayOpen} />
       <BulkLeadDaysAdvanceDialog open={leadDaysAdvanceOpen} onOpenChange={setLeadDaysAdvanceOpen} />

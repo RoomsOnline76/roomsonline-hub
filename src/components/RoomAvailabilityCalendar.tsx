@@ -216,7 +216,8 @@ export default function RoomAvailabilityCalendar({
       const monthStart = format(startOfMonth(displayedMonth), "yyyy-MM-dd");
       const monthEnd = format(endOfMonth(addMonths(displayedMonth, 2)), "yyyy-MM-dd");
 
-      // For properties without external system, generate synthetic availability from wizard data
+      // For properties without external system (RoomsOnline PMS), generate synthetic availability from wizard data
+      // Then merge with manual overrides from property_availability table
       if (!externalSystem || externalSystem === 'none') {
         const wizardRooms = propertyAmenities?.room_types || [];
         const matchedRoom = wizardRooms.find((r: any) => 
@@ -234,7 +235,7 @@ export default function RoomAvailabilityCalendar({
         const startDate = new Date(monthStart);
         const endDate = new Date(monthEnd);
         
-        // Generate availability for each day in range
+        // Generate base availability for each day in range (all dates available by default)
         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
           const dateStr = format(d, "yyyy-MM-dd");
           const seasonRate = findSeasonRate(dateStr, seasons, seasonRates);
@@ -250,6 +251,37 @@ export default function RoomAvailabilityCalendar({
               price_type: rateUnit === 'per_stay' ? 'PerStay' : 'UnitRate',
             }] : undefined,
           });
+        }
+        
+        // Fetch manual availability overrides from property_availability table
+        // These are owner-defined blocks and restrictions
+        const { data: manualOverrides, error: overridesError } = await supabase
+          .from("property_availability")
+          .select("*")
+          .eq("property_id", propertyId)
+          .eq("room_type", roomName)
+          .gte("date", monthStart)
+          .lte("date", monthEnd);
+        
+        if (!overridesError && manualOverrides && manualOverrides.length > 0) {
+          // Merge manual overrides into the synthetic availability
+          for (const override of manualOverrides) {
+            const existing = availMap.get(override.date);
+            if (existing) {
+              availMap.set(override.date, {
+                ...existing,
+                // If stop_sell or available_units = 0, mark as unavailable
+                available_units: override.is_stop_sell ? 0 : (override.available_units ?? existing.available_units),
+                restrictions: {
+                  minimum_stay: override.minimum_stay,
+                  maximum_stay: override.maximum_stay,
+                  lead_days_advance: override.lead_days_advance,
+                  lead_days_post: override.lead_days_post,
+                  stop_sell: override.is_stop_sell,
+                },
+              });
+            }
+          }
         }
         
         setAvailability(availMap);
