@@ -1,177 +1,187 @@
 
-# Plan: Fix Map Markers, Property Pin, and Bottom Navigation Actions
+# Plan: Fix "Book Now" Button, Room Details Booking, and Travel Concierge Flow
 
-## Issues to Fix
+## Issues Identified
 
-1. **Map attraction pins stacking/overlapping** - Labels are unreadable when attractions are near each other
-2. **Property pin missing** - Need to restore the pink ROL-branded property marker
-3. **Bottom CTA buttons do nothing** - "Explore Rooms", "Select Dates", and "Book Now" clicks have no effect
-4. **Bottom nav bar hiding content** - Sticky elements overlap and hide the "You might also love" section
+### Issue 1: "Book Now" Button Below Map Not Working
+**Root Cause:** The `InvitationMap` component's `onBookNow` prop calls `handleBookProperty()` in PropertyShowcase. However, for properties where AI Concierge is enabled (which hides `StickyBookingCTA`), the `handleBookProperty()` function tries to open `quickBookDrawerOpen` for single-room properties, but this drawer may not be visible or functioning correctly when AI Concierge is the active booking interface.
 
----
+**Solution:** Update `handleBookProperty()` to integrate with the AI Concierge flow:
+- If AI Concierge is active, open the date picker via the MobileBookingContext or trigger the booking strip
+- For single-room properties with dates selected, directly add to cart using `addStay`
 
-## Root Cause Analysis
+### Issue 2: Room Details Page Shows No Price & Can't Book
+**Root Cause:** In `RoomShowcase.tsx`, the `handleCheckAvailability()` function only handles:
+1. NightsBridge (external booking)
+2. Benson/HotelBeds/Hostfully (navigates to availability calendar)
+3. Non-PMS properties (just goes back to property page)
 
-### 1. Map Label Stacking
-The current implementation places text labels directly on markers. When attractions are geographically close, these labels overlap and become unreadable. The screenshot shows "Skulpies", "Ancient Fish Traps", "Bosbokduin Private N..." all stacking near Still Bay.
+For **manual rates properties** (external_system: 'none'), there's no booking path - the button just shows "View Property" and navigates back.
 
-**Solution:** Remove permanent labels from markers; show names only in the legend below the map. Keep markers as colored circles with InfoWindow on click for details.
+Additionally, the `getLowestRate()` function in RoomShowcase needs to check `linkedRateTypes` from the property's `pms_rate_types` the same way `getLowestRateForRoom()` in PropertyShowcase does.
 
-### 2. Missing Property Pin
-Line 111 in `InvitationMap.tsx` shows: `// NOTE: Property marker removed per UX feedback - attractions are the focus`
+**Solution:**
+- Add manual rates property handling to `handleCheckAvailability()`
+- Fix rate retrieval to check linked rate types
+- Add a direct booking option for manual properties
 
-The property marker was intentionally removed, but the user wants it back as a distinctive pink ROL-branded pin.
+### Issue 3: Travel Concierge - Can't Just Click "Book Now" Without Asking a Question
+**Root Cause:** The `handleBookNowClick()` function in AIConciergePanel correctly:
+1. Opens date picker if no dates selected
+2. Auto-adds room for single-room properties when dates are selected
+3. Scrolls to rooms section for multi-room properties
 
-**Solution:** Re-add the property marker with ROL's pink brand color (#E91E8C).
+However, the issue is that after selecting dates, users expect the room to be automatically added and then navigate to checkout. Currently:
+- For single-room properties: It adds to cart but doesn't navigate to checkout
+- Users need to tap "Book Now" again or find the checkout button
 
-### 3. Bottom CTA Buttons Not Working
-There are **two overlapping fixed elements** at the bottom:
-- `StickyBookingCTA` at z-index 50 (shows price + "Explore Rooms"/"Select Dates" button)
-- `AIConciergePanel` collapsed strip at z-index 40 (shows dates/guests + AI icon)
-
-When AI Concierge is enabled, both elements appear. The `StickyBookingCTA.onBook` calls `handleBookProperty()` which should work, but the AIConciergePanel's strip is blocking clicks or causing confusion.
-
-**Solution:** 
-- When AI Concierge mode is active, hide `StickyBookingCTA` entirely (concierge panel handles booking)
-- Add a "Book Now" button to the AIConciergePanel's collapsed strip
-- Ensure the button triggers the correct action (open checkout if items in cart, or add room for single-room properties)
-
-### 4. Content Hidden by Bottom Nav
-The fixed positioning with `padding-bottom: env(safe-area-inset-bottom)` doesn't account for the full height of the sticky elements. The "You might also love" section's pricing is cut off.
-
-**Solution:** Add a spacer element at the bottom of the page content when AI Concierge or sticky CTA is visible (approximately 80-100px).
+**Solution:** After successfully adding a single-room property to the cart, automatically navigate to the booking page.
 
 ---
 
 ## Technical Implementation
 
-### Phase 1: Fix Map Markers
-
-**File: `src/components/showcase/InvitationMap.tsx`**
-
-1. **Restore property marker with pink pin** (after line 109):
-
-```typescript
-// Property marker - distinctive pink ROL pin
-new window.google.maps.Marker({
-  position,
-  map: mapInstanceRef.current,
-  title: propertyName,
-  icon: {
-    path: google.maps.SymbolPath.CIRCLE,
-    fillColor: '#E91E8C', // ROL pink
-    fillOpacity: 1,
-    strokeColor: '#ffffff',
-    strokeWeight: 3,
-    scale: 12,
-  },
-  zIndex: 200, // Above attractions
-});
-```
-
-2. **Remove text labels from attraction markers** (lines 201-221):
-
-```typescript
-// Remove the label property entirely - causes stacking
-const marker = new google.maps.Marker({
-  position: place.geometry.location,
-  map: mapInstanceRef.current,
-  title: place.name,
-  // NO label property - just colored circles
-  icon: {
-    path: google.maps.SymbolPath.CIRCLE,
-    fillColor: ATTRACTION_COLORS[index],
-    fillOpacity: 0.9,
-    strokeColor: '#ffffff',
-    strokeWeight: 2,
-    scale: 8,
-  },
-  zIndex: 100 + index,
-});
-```
-
-3. **Keep the legend below map** - The legend already shows names with colored dots, which provides identification without map clutter.
-
----
-
-### Phase 2: Fix Bottom Navigation Actions
+### Phase 1: Fix "Book Now" Button Below Map
 
 **File: `src/pages/PropertyShowcase.tsx`**
 
-1. **Hide StickyBookingCTA when AI Concierge is active** (lines 808-819):
+Update `handleBookProperty()` to work seamlessly with AI Concierge mode:
 
 ```typescript
-{/* Sticky Booking CTA - Only show when AI Concierge is NOT active */}
-{!(aiConciergeEnabled && !aiFailed && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty)) && (
-  <StickyBookingCTA
-    onBook={handleBookProperty}
-    lowestRate={lowestRate}
-    isExternal={isNightsBridgeProperty}
-    bookedRoomsCount={bookedRooms.length}
-    propertyName={property.name}
-    propertyId={property.id}
-    propertySlug={property.slug || property.id}
-    propertyImage={property.images?.[0]}
-    roomCount={getRoomTypes().length}
-  />
-)}
+const handleBookProperty = () => {
+  if (isNightsBridgeProperty) {
+    const bbid = getNightsBridgeBBID();
+    if (bbid && nightsBridgeAgentCode) {
+      setExternalBookingUrl(getNightsBridgeBookingUrl(bbid, nightsBridgeAgentCode));
+      setShowLeavingModal(true);
+      return;
+    }
+  }
+  
+  // If there are already booked rooms, go to checkout
+  if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && bookedRooms.length > 0) {
+    navigate(`/booking/${property?.slug || property?.id}`);
+    return;
+  }
+  
+  // For single-room properties, scroll to rooms section where AI Concierge handles booking
+  // The AI Concierge strip at the bottom will be visible for date selection
+  const rooms = getRoomTypes();
+  if (rooms.length === 1) {
+    // Scroll to ensure room is visible, then the bottom booking strip handles the rest
+    scrollToRooms();
+    return;
+  }
+  
+  // For multi-room properties, scroll to rooms section
+  scrollToRooms();
+};
 ```
+
+The key insight is that when AI Concierge is active, the "Book Now" button should scroll to the rooms section where users can see the room details while the floating booking strip at the bottom lets them select dates and book.
+
+### Phase 2: Fix Room Details Page Booking
+
+**File: `src/pages/RoomShowcase.tsx`**
+
+1. **Add manual rates property detection:**
+
+```typescript
+// After line 295 (after isHostfullyProperty)
+const isManualRatesProperty = property?.external_system === 'none' || (!property?.external_system && room);
+```
+
+2. **Update `getLowestRate()` to check linked rate types (lines 437-493):**
+
+```typescript
+const getLowestRate = (): number | null => {
+  // Check linked rate types first (wizard-configured rates)
+  const roomAny = room as any;
+  if (roomAny?.linkedRateTypes?.length > 0) {
+    const pmsRateTypes = property?.amenities?.pms_rate_types || [];
+    for (const rateTypeId of roomAny.linkedRateTypes) {
+      const rateType = pmsRateTypes.find((rt: any) => rt.id === rateTypeId);
+      if (rateType?.baseRate) {
+        return rateType.baseRate;
+      }
+    }
+  }
+  
+  // Check direct room rates
+  if (roomAny?.baseRate || roomAny?.base_rate || roomAny?.daily_rate) {
+    return roomAny.baseRate || roomAny.base_rate || roomAny.daily_rate;
+  }
+  
+  // ... rest of existing rate checks (liveRates, cachedRate, pms_rates, property_rates)
+};
+```
+
+3. **Update `handleCheckAvailability()` to handle manual rates (lines 370-395):**
+
+```typescript
+const handleCheckAvailability = () => {
+  // NightsBridge handling (unchanged)
+  if (isNightsBridgeProperty) {
+    // ... existing code
+  }
+  
+  // For Benson, HotelBeds, Hostfully, OR manual rates: navigate to availability or booking
+  if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && property && room) {
+    const roomSlugName = slugifyRoomName(room.name);
+    const params = new URLSearchParams(window.location.search);
+    const queryString = params.toString();
+    
+    // For manual rates, navigate back to property with room selected
+    // The AI Concierge panel on the property page handles booking
+    if (isManualRatesProperty) {
+      navigate(`/property/${property.slug || property.id}#rooms-section${queryString ? `?${queryString}` : ''}`);
+      return;
+    }
+    
+    navigate(`/property/${property.slug || property.id}/room/${roomSlugName}/availability${queryString ? `?${queryString}` : ''}`);
+    return;
+  }
+  
+  // Fallback: go back to property page
+  if (property) {
+    navigate(`/property/${property.slug || property.id}`);
+  }
+};
+```
+
+4. **Update button text for manual rates (lines 905-922):**
+
+```typescript
+<Button className="w-full" size="lg" onClick={handleCheckAvailability}>
+  {isNightsBridgeProperty ? (
+    <>
+      <ExternalLink className="mr-2 h-4 w-4" />
+      Book Now
+    </>
+  ) : (isBensonProperty || isHotelBedsProperty || isHostfullyProperty) ? (
+    <>
+      <Calendar className="mr-2 h-4 w-4" />
+      Check Availability
+    </>
+  ) : isManualRatesProperty ? (
+    <>
+      <Calendar className="mr-2 h-4 w-4" />
+      Select Dates & Book
+    </>
+  ) : (
+    <>
+      <ArrowLeft className="mr-2 h-4 w-4" />
+      View Property
+    </>
+  )}
+</Button>
+```
+
+### Phase 3: Fix Travel Concierge "Book Now" Flow
 
 **File: `src/components/booking/AIConciergePanel.tsx`**
 
-2. **Add "Book Now" button to collapsed mobile strip** (lines 617-639):
-
-```typescript
-<motion.div
-  key="collapsed"
-  initial={{ opacity: 0, y: 20 }}
-  animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: 20 }}
-  className="flex items-center justify-center gap-2"
->
-  {/* Compact booking controls */}
-  <div className="flex items-center gap-2 px-3 py-2 bg-background/95 backdrop-blur-sm rounded-full border shadow-lg">
-    <button 
-      onClick={() => setDatePickerOpen(true)} 
-      className="flex items-center gap-1.5 text-sm"
-    >
-      <Calendar className="h-4 w-4 text-primary" />
-      <span className="font-medium">
-        {checkInDate && checkOutDate
-          ? `${format(checkInDate, 'MMM d')} – ${format(checkOutDate, 'MMM d')}`
-          : 'Dates'}
-      </span>
-    </button>
-    <span className="text-muted-foreground/50">|</span>
-    <button 
-      onClick={() => setGuestPickerOpen(true)} 
-      className="flex items-center gap-1 text-sm"
-    >
-      <Users className="h-4 w-4 text-primary" />
-      <span>{firstRoom.numberOfAdults + firstRoom.numberOfChildren}</span>
-    </button>
-    
-    {/* NEW: Book Now button */}
-    <Button 
-      size="sm" 
-      onClick={handleBookNowClick}
-      className="ml-1"
-    >
-      Book Now
-    </Button>
-  </div>
-  
-  {/* Floating AI icon */}
-  <motion.button
-    onClick={() => setIsExpanded(true)}
-    className="h-10 w-10 rounded-full bg-primary/10 text-primary shadow-md flex items-center justify-center"
-  >
-    <Sparkles className="h-4 w-4" />
-  </motion.button>
-</motion.div>
-```
-
-3. **Add `handleBookNowClick` function** in AIConciergePanel:
+Update `handleBookNowClick()` to navigate to checkout after adding a single-room property:
 
 ```typescript
 const handleBookNowClick = () => {
@@ -181,7 +191,7 @@ const handleBookNowClick = () => {
     return;
   }
   
-  // For single-room properties, auto-add to cart
+  // For single-room properties, auto-add to cart AND navigate to checkout
   if (roomTypes.length === 1) {
     const room = roomTypes[0];
     const nights = Math.ceil(
@@ -227,27 +237,21 @@ const handleBookNowClick = () => {
     });
     
     toast.success(`Added ${room.name} to your journey!`);
-  } else {
-    // Multiple rooms - scroll to room section
-    document.getElementById('rooms-section')?.scrollIntoView({ behavior: 'smooth' });
+    
+    // NEW: Navigate to checkout after adding
+    // Use a short delay to allow state to update
+    setTimeout(() => {
+      window.location.href = `/booking/${propertySlug}`;
+    }, 500);
+    return;
   }
+  
+  // Multiple rooms - scroll to room section
+  document.getElementById('rooms-section')?.scrollIntoView({ behavior: 'smooth' });
 };
 ```
 
----
-
-### Phase 3: Add Bottom Content Spacer
-
-**File: `src/pages/PropertyShowcase.tsx`**
-
-Add a spacer div before the closing of PublicLayout (line 884):
-
-```typescript
-{/* Spacer for fixed bottom elements */}
-<div className="h-24 sm:h-20" aria-hidden="true" />
-```
-
-This ensures the "You might also love" cards and their pricing are fully visible above the fixed bottom nav.
+Also need to import `useNavigate` (or use window.location since navigate may not be available in this component).
 
 ---
 
@@ -255,45 +259,54 @@ This ensures the "You might also love" cards and their pricing are fully visible
 
 | File | Changes |
 |------|---------|
-| `src/components/showcase/InvitationMap.tsx` | Restore property pin with pink color; Remove text labels from attraction markers |
-| `src/components/booking/AIConciergePanel.tsx` | Add "Book Now" button to collapsed strip; Add `handleBookNowClick` function |
-| `src/pages/PropertyShowcase.tsx` | Hide StickyBookingCTA when AI Concierge active; Add bottom spacer |
+| `src/pages/PropertyShowcase.tsx` | Update `handleBookProperty()` to scroll to rooms for AI Concierge mode |
+| `src/pages/RoomShowcase.tsx` | Add `isManualRatesProperty` detection; Fix `getLowestRate()` to check linked rate types; Update `handleCheckAvailability()` for manual rates; Update button text |
+| `src/components/booking/AIConciergePanel.tsx` | Update `handleBookNowClick()` to navigate to checkout after adding single-room property |
 
 ---
 
 ## Expected Outcomes
 
-1. **Map**: Property shown as prominent pink pin; attractions as colored circles (no overlapping labels); legend provides names
-2. **Bottom nav**: Single, unified booking strip with Dates | Guests | Book Now + small AI icon
-3. **Button actions**: "Book Now" opens date picker (if no dates) or adds room to cart (single-room) or scrolls to rooms (multi-room)
-4. **Content visibility**: "You might also love" cards fully visible with pricing
+1. **"Book Now" below map**: Scrolls to rooms section where users can see the property and use the floating booking strip to select dates
+2. **Room details page**: Shows correct rate (e.g., R2,650) from linked rate types; "Select Dates & Book" button navigates back to property with booking flow
+3. **Travel Concierge**: After selecting dates and clicking "Book Now", single-room properties are added to cart and user is navigated to checkout automatically
 
 ---
 
-## Visual Behavior After Fix
+## User Flow After Fix
 
 ```
-┌─────────────────────────────────────────┐
-│                                         │
-│  [Map with pink property pin center]    │
-│  [Colored circles for 5 attractions]    │
-│  [No overlapping text labels]           │
-│                                         │
-├─────────────────────────────────────────┤
-│ Legend: 🟡 Skulpiesbaai  ⚫ Ancient...  │
-└─────────────────────────────────────────┘
-
-...scrolls...
-
-┌─────────────────────────────────────────┐
-│  You might also love                    │
-│  ┌──────┐ ┌──────┐ ┌──────┐            │
-│  │Card 1│ │Card 2│ │Card 3│            │
-│  │R2,650│ │R1,800│ │R3,200│            │
-│  └──────┘ └──────┘ └──────┘            │
-│                                         │
-│  [Spacer 24px]                         │
-├─────────────────────────────────────────┤
-│ [Feb 2-7] | [3 guests] [Book Now] (✨)  │  ← Single unified bar
-└─────────────────────────────────────────┘
+[Property Showcase Page]
+         │
+         ├── Click "Book Now" (below map)
+         │         │
+         │         └── Scrolls to rooms section
+         │                   │
+         │                   └── Floating booking strip visible
+         │                             │
+         │                             ├── Tap "Dates" → Calendar opens
+         │                             │
+         │                             └── Tap "Book Now" → 
+         │                                   ├── Single room: Add to cart → Navigate to checkout
+         │                                   └── Multiple rooms: Scroll to room cards
+         │
+         └── Click room card
+                   │
+                   └── [Room Details Page]
+                             │
+                             ├── Shows price (R2,650/night)
+                             │
+                             └── Click "Select Dates & Book"
+                                       │
+                                       └── Navigates back to property → Booking strip
 ```
+
+---
+
+## Testing Checklist
+
+- [ ] Visit `/property/latter-days`
+- [ ] Scroll to bottom, click "Book Now" below map → Should scroll to rooms
+- [ ] Use floating booking strip: Select dates → Click "Book Now" → Should add to cart and go to checkout
+- [ ] Click room card → Go to room details → Verify price shows (R2,650)
+- [ ] Click "Select Dates & Book" → Returns to property with booking flow
