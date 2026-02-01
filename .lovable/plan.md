@@ -1,187 +1,56 @@
 
-# Plan: Fix "Book Now" Button, Room Details Booking, and Travel Concierge Flow
+# Plan: Fix Booking Flow - SmartCart, Concierge Navigation, Map Legend, and Room Page
 
 ## Issues Identified
 
-### Issue 1: "Book Now" Button Below Map Not Working
-**Root Cause:** The `InvitationMap` component's `onBookNow` prop calls `handleBookProperty()` in PropertyShowcase. However, for properties where AI Concierge is enabled (which hides `StickyBookingCTA`), the `handleBookProperty()` function tries to open `quickBookDrawerOpen` for single-room properties, but this drawer may not be visible or functioning correctly when AI Concierge is the active booking interface.
+### Issue 1: SmartCart Never Appears
+**Root Cause:** The `SmartCart` component only shows when `hasStays` is true (line 21 of SmartCart.tsx: `if (!hasStays) return null`). The `AIConciergePanel.handleBookNowClick()` correctly adds a stay using `addStay()`, but there are TWO problems:
+1. Both `SmartCart` (z-40) and `AIConciergePanel` collapsed strip (z-40) render at the same fixed bottom position, overlapping each other
+2. After adding a stay, the code immediately navigates away with `window.location.href = /booking/${propertySlug}` (line 381), so the user never sees the SmartCart
 
-**Solution:** Update `handleBookProperty()` to integrate with the AI Concierge flow:
-- If AI Concierge is active, open the date picker via the MobileBookingContext or trigger the booking strip
-- For single-room properties with dates selected, directly add to cart using `addStay`
+**Solution:** 
+- After adding a stay, show the SmartCart instead of immediately navigating
+- Add a "Checkout" button to SmartCart that navigates to checkout
+- Hide the AIConciergePanel collapsed strip when SmartCart has items
 
-### Issue 2: Room Details Page Shows No Price & Can't Book
-**Root Cause:** In `RoomShowcase.tsx`, the `handleCheckAvailability()` function only handles:
-1. NightsBridge (external booking)
-2. Benson/HotelBeds/Hostfully (navigates to availability calendar)
-3. Non-PMS properties (just goes back to property page)
+### Issue 2: "Book Now" Below Map Just Scrolls to Room Card
+**Root Cause:** The `InvitationMap.onBookNow` calls `handleBookProperty()` which, for AI Concierge mode, just calls `scrollToRooms()` (line 666). This only scrolls to the room section - it doesn't open the date picker or progress the booking.
 
-For **manual rates properties** (external_system: 'none'), there's no booking path - the button just shows "View Property" and navigates back.
+**Solution:** 
+- Update `handleBookProperty()` to open the date picker when AI Concierge is active, not just scroll
 
-Additionally, the `getLowestRate()` function in RoomShowcase needs to check `linkedRateTypes` from the property's `pms_rate_types` the same way `getLowestRateForRoom()` in PropertyShowcase does.
+### Issue 3: Travel Concierge - No Way to Proceed After Date Selection
+**Root Cause:** The `handleBookNowClick()` adds the stay and then immediately redirects to `/booking/${propertySlug}`. But this is the old Booking.tsx page, not the new InlineCheckout. The InlineCheckout is triggered by `setCheckoutOpen(true)` which is only called when SmartCart's `onCheckout` is fired.
 
 **Solution:**
-- Add manual rates property handling to `handleCheckAvailability()`
-- Fix rate retrieval to check linked rate types
-- Add a direct booking option for manual properties
+- After adding a stay, DON'T navigate away
+- Let SmartCart appear (it will now show because hasStays is true)
+- User clicks "Checkout" on SmartCart, which opens InlineCheckout
 
-### Issue 3: Travel Concierge - Can't Just Click "Book Now" Without Asking a Question
-**Root Cause:** The `handleBookNowClick()` function in AIConciergePanel correctly:
-1. Opens date picker if no dates selected
-2. Auto-adds room for single-room properties when dates are selected
-3. Scrolls to rooms section for multi-room properties
+### Issue 4: Map Legend Truncates Attraction Names
+**Root Cause:** Line 366 of InvitationMap.tsx truncates names to 18 characters: `{(a.name || '').substring(0, 18)}{(a.name?.length || 0) > 18 ? '...' : ''}`
 
-However, the issue is that after selecting dates, users expect the room to be automatically added and then navigate to checkout. Currently:
-- For single-room properties: It adds to cart but doesn't navigate to checkout
-- Users need to tap "Book Now" again or find the checkout button
+**Solution:**
+- Show all 5 attractions (currently limited to 3 via `.slice(0, 3)`)
+- Remove character truncation or increase limit
+- Make legend scrollable/wrap on mobile
 
-**Solution:** After successfully adding a single-room property to the cart, automatically navigate to the booking page.
+### Issue 5: Room Page Date Picker Just Returns to Property
+**Root Cause:** In RoomShowcase.tsx line 396-400, for manual rates properties, `handleCheckAvailability()` just navigates back to property page with `#rooms-section` anchor. There's no integration with the AI Concierge date selection.
+
+**Solution:**
+- Pass selected dates as URL params when navigating back
+- Or integrate with MobileBookingContext to preserve dates
 
 ---
 
 ## Technical Implementation
 
-### Phase 1: Fix "Book Now" Button Below Map
-
-**File: `src/pages/PropertyShowcase.tsx`**
-
-Update `handleBookProperty()` to work seamlessly with AI Concierge mode:
-
-```typescript
-const handleBookProperty = () => {
-  if (isNightsBridgeProperty) {
-    const bbid = getNightsBridgeBBID();
-    if (bbid && nightsBridgeAgentCode) {
-      setExternalBookingUrl(getNightsBridgeBookingUrl(bbid, nightsBridgeAgentCode));
-      setShowLeavingModal(true);
-      return;
-    }
-  }
-  
-  // If there are already booked rooms, go to checkout
-  if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && bookedRooms.length > 0) {
-    navigate(`/booking/${property?.slug || property?.id}`);
-    return;
-  }
-  
-  // For single-room properties, scroll to rooms section where AI Concierge handles booking
-  // The AI Concierge strip at the bottom will be visible for date selection
-  const rooms = getRoomTypes();
-  if (rooms.length === 1) {
-    // Scroll to ensure room is visible, then the bottom booking strip handles the rest
-    scrollToRooms();
-    return;
-  }
-  
-  // For multi-room properties, scroll to rooms section
-  scrollToRooms();
-};
-```
-
-The key insight is that when AI Concierge is active, the "Book Now" button should scroll to the rooms section where users can see the room details while the floating booking strip at the bottom lets them select dates and book.
-
-### Phase 2: Fix Room Details Page Booking
-
-**File: `src/pages/RoomShowcase.tsx`**
-
-1. **Add manual rates property detection:**
-
-```typescript
-// After line 295 (after isHostfullyProperty)
-const isManualRatesProperty = property?.external_system === 'none' || (!property?.external_system && room);
-```
-
-2. **Update `getLowestRate()` to check linked rate types (lines 437-493):**
-
-```typescript
-const getLowestRate = (): number | null => {
-  // Check linked rate types first (wizard-configured rates)
-  const roomAny = room as any;
-  if (roomAny?.linkedRateTypes?.length > 0) {
-    const pmsRateTypes = property?.amenities?.pms_rate_types || [];
-    for (const rateTypeId of roomAny.linkedRateTypes) {
-      const rateType = pmsRateTypes.find((rt: any) => rt.id === rateTypeId);
-      if (rateType?.baseRate) {
-        return rateType.baseRate;
-      }
-    }
-  }
-  
-  // Check direct room rates
-  if (roomAny?.baseRate || roomAny?.base_rate || roomAny?.daily_rate) {
-    return roomAny.baseRate || roomAny.base_rate || roomAny.daily_rate;
-  }
-  
-  // ... rest of existing rate checks (liveRates, cachedRate, pms_rates, property_rates)
-};
-```
-
-3. **Update `handleCheckAvailability()` to handle manual rates (lines 370-395):**
-
-```typescript
-const handleCheckAvailability = () => {
-  // NightsBridge handling (unchanged)
-  if (isNightsBridgeProperty) {
-    // ... existing code
-  }
-  
-  // For Benson, HotelBeds, Hostfully, OR manual rates: navigate to availability or booking
-  if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && property && room) {
-    const roomSlugName = slugifyRoomName(room.name);
-    const params = new URLSearchParams(window.location.search);
-    const queryString = params.toString();
-    
-    // For manual rates, navigate back to property with room selected
-    // The AI Concierge panel on the property page handles booking
-    if (isManualRatesProperty) {
-      navigate(`/property/${property.slug || property.id}#rooms-section${queryString ? `?${queryString}` : ''}`);
-      return;
-    }
-    
-    navigate(`/property/${property.slug || property.id}/room/${roomSlugName}/availability${queryString ? `?${queryString}` : ''}`);
-    return;
-  }
-  
-  // Fallback: go back to property page
-  if (property) {
-    navigate(`/property/${property.slug || property.id}`);
-  }
-};
-```
-
-4. **Update button text for manual rates (lines 905-922):**
-
-```typescript
-<Button className="w-full" size="lg" onClick={handleCheckAvailability}>
-  {isNightsBridgeProperty ? (
-    <>
-      <ExternalLink className="mr-2 h-4 w-4" />
-      Book Now
-    </>
-  ) : (isBensonProperty || isHotelBedsProperty || isHostfullyProperty) ? (
-    <>
-      <Calendar className="mr-2 h-4 w-4" />
-      Check Availability
-    </>
-  ) : isManualRatesProperty ? (
-    <>
-      <Calendar className="mr-2 h-4 w-4" />
-      Select Dates & Book
-    </>
-  ) : (
-    <>
-      <ArrowLeft className="mr-2 h-4 w-4" />
-      View Property
-    </>
-  )}
-</Button>
-```
-
-### Phase 3: Fix Travel Concierge "Book Now" Flow
+### Phase 1: Fix SmartCart Visibility and Navigation
 
 **File: `src/components/booking/AIConciergePanel.tsx`**
 
-Update `handleBookNowClick()` to navigate to checkout after adding a single-room property:
+Update `handleBookNowClick()` to NOT navigate away after adding stay:
 
 ```typescript
 const handleBookNowClick = () => {
@@ -191,7 +60,7 @@ const handleBookNowClick = () => {
     return;
   }
   
-  // For single-room properties, auto-add to cart AND navigate to checkout
+  // For single-room properties, auto-add to cart
   if (roomTypes.length === 1) {
     const room = roomTypes[0];
     const nights = Math.ceil(
@@ -238,11 +107,8 @@ const handleBookNowClick = () => {
     
     toast.success(`Added ${room.name} to your journey!`);
     
-    // NEW: Navigate to checkout after adding
-    // Use a short delay to allow state to update
-    setTimeout(() => {
-      window.location.href = `/booking/${propertySlug}`;
-    }, 500);
+    // REMOVED: Don't navigate away - let SmartCart appear instead
+    // The SmartCart will show with a "Checkout" button
     return;
   }
   
@@ -251,7 +117,179 @@ const handleBookNowClick = () => {
 };
 ```
 
-Also need to import `useNavigate` (or use window.location since navigate may not be available in this component).
+### Phase 2: Hide AIConciergePanel When SmartCart Has Items
+
+**File: `src/components/booking/AIConciergePanel.tsx`**
+
+Import `hasStays` from ItineraryContext and conditionally hide the collapsed strip:
+
+```typescript
+const { addStay, totalPrice, hasStays } = useItinerary();
+
+// In mobile render (line 668):
+// Don't show the collapsed booking strip if SmartCart has items
+// SmartCart will take over the bottom position
+if (hasStays) {
+  // Only render the date/guest picker modals, not the fixed bottom bar
+  return (
+    <>
+      <BottomSheetDatePicker
+        open={datePickerOpen}
+        onOpenChange={setDatePickerOpen}
+        checkIn={checkInDate}
+        checkOut={checkOutDate}
+        onDatesChange={handleDatesChange}
+        availabilityMap={availabilityMap}
+      />
+      <Drawer open={guestPickerOpen} onOpenChange={setGuestPickerOpen}>
+        {/* ... guest picker content ... */}
+      </Drawer>
+    </>
+  );
+}
+```
+
+### Phase 3: Update SmartCart to Navigate to InlineCheckout
+
+**File: `src/pages/PropertyShowcase.tsx`**
+
+The SmartCart already has the correct `onCheckout` prop (line 867):
+```typescript
+<SmartCart 
+  onCheckout={() => setCheckoutOpen(true)}
+/>
+```
+
+This correctly opens `InlineCheckout`. No changes needed here - just need to ensure SmartCart shows.
+
+### Phase 4: Fix "Book Now" Below Map to Open Date Picker
+
+**File: `src/pages/PropertyShowcase.tsx`**
+
+Update `handleBookProperty()` to trigger date picker when AI Concierge is active:
+
+```typescript
+const handleBookProperty = () => {
+  if (isNightsBridgeProperty) {
+    const bbid = getNightsBridgeBBID();
+    if (bbid && nightsBridgeAgentCode) {
+      setExternalBookingUrl(getNightsBridgeBookingUrl(bbid, nightsBridgeAgentCode));
+      setShowLeavingModal(true);
+      return;
+    }
+  }
+  
+  // For PMS or manual rates properties with booked rooms, go to checkout
+  if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && bookedRooms.length > 0) {
+    navigate(`/booking/${property?.slug || property?.id}`);
+    return;
+  }
+  
+  // NEW: If SmartCart has items, open checkout
+  if (hasStays) {
+    setCheckoutOpen(true);
+    return;
+  }
+  
+  // When AI Concierge is active, scroll to rooms AND trigger date picker focus
+  const aiConciergeIsActive = aiConciergeEnabled && !aiFailed && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty);
+  if (aiConciergeIsActive) {
+    scrollToRooms();
+    // Dispatch a custom event to open date picker (AIConciergePanel listens)
+    window.dispatchEvent(new CustomEvent('openConciergeDatePicker'));
+    return;
+  }
+  
+  // ... rest of existing code
+};
+```
+
+**File: `src/components/booking/AIConciergePanel.tsx`**
+
+Listen for the custom event to open date picker:
+
+```typescript
+useEffect(() => {
+  const handleOpenDatePicker = () => {
+    setDatePickerOpen(true);
+  };
+  
+  window.addEventListener('openConciergeDatePicker', handleOpenDatePicker);
+  return () => {
+    window.removeEventListener('openConciergeDatePicker', handleOpenDatePicker);
+  };
+}, []);
+```
+
+### Phase 5: Fix Map Legend Truncation
+
+**File: `src/components/showcase/InvitationMap.tsx`**
+
+Update the legend section (lines 360-370):
+
+```typescript
+{/* Attractions Legend - below map, show all 5 */}
+{attractions.length > 0 && (
+  <div className="mt-4 px-4">
+    <p className="text-xs font-medium text-muted-foreground mb-2">Nearby:</p>
+    <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+      {attractions.slice(0, 5).map((a, i) => (
+        <span key={a.place_id} className="flex items-center gap-1.5 whitespace-nowrap">
+          <span 
+            className="w-2.5 h-2.5 rounded-full shrink-0" 
+            style={{ backgroundColor: ATTRACTION_COLORS[i] }} 
+          />
+          <span className="max-w-[180px] truncate" title={a.name}>
+            {a.name}
+          </span>
+        </span>
+      ))}
+    </div>
+  </div>
+)}
+```
+
+Key changes:
+- Show all 5 attractions (was sliced to 3)
+- Use `max-w-[180px] truncate` instead of hard substring truncation
+- Add `title` attribute for full name on hover
+- Use `flex-wrap` for proper wrapping on mobile
+- Add `whitespace-nowrap` to prevent breaking within a single attraction name
+
+### Phase 6: Fix Room Page - Preserve Dates When Returning
+
+**File: `src/pages/RoomShowcase.tsx`**
+
+Update `handleCheckAvailability()` to pass current dates back to property page:
+
+```typescript
+// For manual rates properties, navigate back to property page with dates preserved
+if (isManualRatesProperty && property) {
+  const params = new URLSearchParams(window.location.search);
+  
+  // Get dates from MobileBookingContext or URL
+  // Import useMobileBooking at top of file
+  const { state: mobileBookingState } = useMobileBooking();
+  
+  if (mobileBookingState.checkIn) {
+    params.set('checkIn', mobileBookingState.checkIn);
+  }
+  if (mobileBookingState.checkOut) {
+    params.set('checkOut', mobileBookingState.checkOut);
+  }
+  
+  const queryString = params.toString();
+  navigate(`/property/${property.slug || property.id}${queryString ? `?${queryString}` : ''}#rooms-section`);
+  
+  // Trigger date picker to open after navigation
+  setTimeout(() => {
+    window.dispatchEvent(new CustomEvent('openConciergeDatePicker'));
+  }, 500);
+  return;
+}
+```
+
+Also need to import `useMobileBooking` at the top.
 
 ---
 
@@ -259,46 +297,38 @@ Also need to import `useNavigate` (or use window.location since navigate may not
 
 | File | Changes |
 |------|---------|
-| `src/pages/PropertyShowcase.tsx` | Update `handleBookProperty()` to scroll to rooms for AI Concierge mode |
-| `src/pages/RoomShowcase.tsx` | Add `isManualRatesProperty` detection; Fix `getLowestRate()` to check linked rate types; Update `handleCheckAvailability()` for manual rates; Update button text |
-| `src/components/booking/AIConciergePanel.tsx` | Update `handleBookNowClick()` to navigate to checkout after adding single-room property |
+| `src/components/booking/AIConciergePanel.tsx` | Remove navigation after addStay; Hide collapsed strip when SmartCart has items; Add event listener for date picker trigger |
+| `src/pages/PropertyShowcase.tsx` | Update handleBookProperty to trigger date picker event; Add hasStays check for checkout |
+| `src/components/showcase/InvitationMap.tsx` | Show all 5 attractions; Remove hard truncation; Use CSS truncation with title |
+| `src/pages/RoomShowcase.tsx` | Preserve dates in URL when navigating back; Import useMobileBooking |
 
 ---
 
-## Expected Outcomes
-
-1. **"Book Now" below map**: Scrolls to rooms section where users can see the property and use the floating booking strip to select dates
-2. **Room details page**: Shows correct rate (e.g., R2,650) from linked rate types; "Select Dates & Book" button navigates back to property with booking flow
-3. **Travel Concierge**: After selecting dates and clicking "Book Now", single-room properties are added to cart and user is navigated to checkout automatically
-
----
-
-## User Flow After Fix
+## Expected User Flow After Fix
 
 ```
-[Property Showcase Page]
-         │
-         ├── Click "Book Now" (below map)
-         │         │
-         │         └── Scrolls to rooms section
-         │                   │
-         │                   └── Floating booking strip visible
-         │                             │
-         │                             ├── Tap "Dates" → Calendar opens
-         │                             │
-         │                             └── Tap "Book Now" → 
-         │                                   ├── Single room: Add to cart → Navigate to checkout
-         │                                   └── Multiple rooms: Scroll to room cards
-         │
-         └── Click room card
-                   │
-                   └── [Room Details Page]
-                             │
-                             ├── Shows price (R2,650/night)
-                             │
-                             └── Click "Select Dates & Book"
-                                       │
-                                       └── Navigates back to property → Booking strip
+1. User visits /property/latter-days
+   ↓
+2. Sees room card with "From R2,650/night"
+   ↓
+3. Scrolls to map, clicks "Book Your Escape"
+   ↓
+4. Page scrolls to rooms section + Date picker opens automatically
+   ↓
+5. User selects Feb 2-7 in calendar
+   ↓
+6. User clicks "Book Now" in the booking strip
+   ↓
+7. Room auto-added to cart → Toast shows "Added to your journey!"
+   ↓
+8. SmartCart appears at bottom showing:
+   [🛍️ 1] 3 Bedroomed Holiday House | 5 nights | 3 guests | R13,250 [Checkout]
+   ↓
+9. User clicks "Checkout" on SmartCart
+   ↓
+10. InlineCheckout overlay opens with guest details form
+    ↓
+11. User fills form, proceeds to PayFast payment
 ```
 
 ---
@@ -306,7 +336,11 @@ Also need to import `useNavigate` (or use window.location since navigate may not
 ## Testing Checklist
 
 - [ ] Visit `/property/latter-days`
-- [ ] Scroll to bottom, click "Book Now" below map → Should scroll to rooms
-- [ ] Use floating booking strip: Select dates → Click "Book Now" → Should add to cart and go to checkout
-- [ ] Click room card → Go to room details → Verify price shows (R2,650)
-- [ ] Click "Select Dates & Book" → Returns to property with booking flow
+- [ ] Scroll to map, click "Book Your Escape" → Date picker should open
+- [ ] Select dates Feb 2-7 → Calendar closes
+- [ ] Click "Book Now" → Toast shows, SmartCart appears at bottom
+- [ ] Verify SmartCart shows correct room, dates, price
+- [ ] Click "Checkout" on SmartCart → InlineCheckout overlay opens
+- [ ] Fill guest details → PayFast modal opens
+- [ ] Map legend shows all 5 attractions without hard truncation
+- [ ] Click room card → Go to room page → Click "Select Dates & Book" → Returns to property with date picker open
