@@ -40,16 +40,47 @@ export function PropertyRecommendations({
     fetchRecommendations();
   }, [currentPropertyId]);
 
+  // Helper to extract actual rate from amenities (since price_per_night is often 0)
+  const getPropertyRate = (property: any): number => {
+    // Priority 1: Direct price_per_night if non-zero
+    if (property.price_per_night && property.price_per_night > 0) {
+      return property.price_per_night;
+    }
+    
+    // Priority 2: pms_rate_types baseRate
+    const rateTypes = property.amenities?.pms_rate_types || [];
+    if (rateTypes.length > 0 && rateTypes[0].baseRate) {
+      return rateTypes[0].baseRate;
+    }
+    
+    // Priority 3: First room_type baseRate
+    const roomTypes = property.amenities?.room_types || [];
+    if (roomTypes.length > 0) {
+      const room = roomTypes[0];
+      if (room.baseRate || room.base_rate) {
+        return room.baseRate || room.base_rate;
+      }
+      // Check linked rate type
+      const linkedRateId = room.linkedRateTypes?.[0];
+      if (linkedRateId && rateTypes.length > 0) {
+        const linkedRate = rateTypes.find((rt: any) => rt.id === linkedRateId);
+        if (linkedRate?.baseRate) return linkedRate.baseRate;
+      }
+    }
+    
+    return 0; // No rate found
+  };
+
   const fetchRecommendations = async () => {
     setLoading(true);
     try {
       const preferences = getInferredPreferences();
       const viewedPropertyIds = state.viewedProperties.map(v => v.propertyId);
 
-      // Build query based on behavioral memory
+      // Build query based on behavioral memory - include amenities for rate extraction
       let query = supabase
         .from('public_properties')
-        .select('id, name, slug, city, country, price_per_night, images')
+        .select('id, name, slug, city, country, price_per_night, images, amenities')
         .eq('is_active', true)
         .limit(maxItems + 5); // Fetch extra for filtering
 
@@ -76,7 +107,7 @@ export function PropertyRecommendations({
         // Fallback: fetch any active properties
         const { data: fallbackProperties } = await supabase
           .from('public_properties')
-          .select('id, name, slug, city, country, price_per_night, images')
+          .select('id, name, slug, city, country, price_per_night, images, amenities')
           .eq('is_active', true)
           .neq('id', currentPropertyId || '')
           .limit(maxItems);
@@ -89,7 +120,7 @@ export function PropertyRecommendations({
               slug: p.slug,
               city: p.city,
               country: p.country,
-              price_per_night: p.price_per_night,
+              price_per_night: getPropertyRate(p),
               images: Array.isArray(p.images) ? p.images as string[] : [],
               matchReason: 'Featured property'
             }))
@@ -137,7 +168,7 @@ export function PropertyRecommendations({
           slug: p.slug,
           city: p.city,
           country: p.country,
-          price_per_night: p.price_per_night,
+          price_per_night: getPropertyRate(p),
           images: Array.isArray(p.images) ? p.images as string[] : [],
           score,
           matchReason: reason || 'You might also like'
@@ -210,8 +241,14 @@ export function PropertyRecommendations({
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-medium">{formatPrice(property.price_per_night)}</p>
-                        <p className="text-xs text-muted-foreground">per night</p>
+                        {property.price_per_night > 0 ? (
+                          <>
+                            <p className="text-sm font-medium">{formatPrice(property.price_per_night)}</p>
+                            <p className="text-xs text-muted-foreground">per night</p>
+                          </>
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic">Inquire for rates</p>
+                        )}
                       </div>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </CardContent>
@@ -270,9 +307,13 @@ export function PropertyRecommendations({
                         <span className="text-sm italic text-muted-foreground">
                           {property.matchReason}
                         </span>
-                        <span className="font-medium">
-                          {formatPrice(property.price_per_night)}
-                        </span>
+                        {property.price_per_night > 0 ? (
+                          <span className="font-medium">
+                            {formatPrice(property.price_per_night)}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground italic">Inquire</span>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

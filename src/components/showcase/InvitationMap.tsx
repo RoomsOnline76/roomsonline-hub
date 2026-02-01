@@ -108,20 +108,7 @@ export function InvitationMap({
         styles: mapStyles,
       });
 
-      // Create styled marker with ROL Pink
-      new window.google.maps.Marker({
-        position,
-        map: mapInstanceRef.current,
-        icon: {
-          path: window.google.maps.SymbolPath.CIRCLE,
-          fillColor: '#e91e8c', // ROL Pink
-          fillOpacity: 0.9,
-          strokeColor: '#ffffff',
-          strokeWeight: 2,
-          scale: 10,
-        },
-        title: propertyName,
-      });
+      // NOTE: Property marker removed per UX feedback - attractions are the focus
     } catch (error) {
       console.error("Failed to initialize map:", error);
       setMapError(true);
@@ -206,48 +193,50 @@ export function InvitationMap({
 
       // Check if this is an eatery (last item if we have 5)
       const isEatery = index === attractions.length - 1 && attractions.length === 5;
+      
+      // Create display name (truncated for label)
+      const displayName = (place.name || '').substring(0, 20) + ((place.name?.length || 0) > 20 ? '…' : '');
+      const labelPrefix = isEatery ? '🍽️ ' : '';
 
       const marker = new google.maps.Marker({
         position: place.geometry.location,
         map: mapInstanceRef.current,
         title: place.name,
+        label: {
+          text: labelPrefix + displayName,
+          color: '#333333',
+          fontSize: '11px',
+          fontWeight: '600',
+          className: 'map-attraction-label',
+        },
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
           fillColor: ATTRACTION_COLORS[index],
-          fillOpacity: 0.85,
+          fillOpacity: 0.9,
           strokeColor: '#ffffff',
-          strokeWeight: 1.5,
-          scale: 7,
+          strokeWeight: 2,
+          scale: 8,
         },
         zIndex: 100 + index,
       });
 
-      // Create InfoWindow content with rating and type indicator
+      // Create InfoWindow content with rating - show on click only
       const ratingStars = place.rating ? '★'.repeat(Math.round(place.rating)) : '';
-      const displayName = (place.name || '').substring(0, 25) + ((place.name?.length || 0) > 25 ? '...' : '');
+      const fullName = place.name || 'Attraction';
       const typeLabel = isEatery ? '<span style="font-size: 10px; color: #888;">🍽️ Eatery</span>' : '';
 
-      // Show InfoWindow on hover
-      marker.addListener('mouseover', () => {
+      // Show InfoWindow on click for more details
+      marker.addListener('click', () => {
         attractionInfoWindowRef.current?.setContent(`
-          <div style="font-family: system-ui, sans-serif; padding: 6px 10px; max-width: 180px;">
-            <p style="font-weight: 600; font-size: 12px; margin: 0 0 2px 0; color: #111;">${displayName}</p>
-            <p style="font-size: 11px; color: ${ATTRACTION_COLORS[index]}; margin: 0;">${ratingStars} ${place.rating?.toFixed(1) || ''}</p>
+          <div style="font-family: system-ui, sans-serif; padding: 8px 12px; max-width: 200px;">
+            <p style="font-weight: 600; font-size: 13px; margin: 0 0 4px 0; color: #111;">${fullName}</p>
+            <p style="font-size: 12px; color: ${ATTRACTION_COLORS[index]}; margin: 0 0 4px 0;">${ratingStars} ${place.rating?.toFixed(1) || ''}</p>
             ${typeLabel}
+            <a href="https://www.google.com/maps/place/?q=place_id:${place.place_id}" target="_blank" 
+               style="font-size: 11px; color: #0066cc; text-decoration: none;">View on Maps →</a>
           </div>
         `);
         attractionInfoWindowRef.current?.open(mapInstanceRef.current, marker);
-      });
-
-      marker.addListener('mouseout', () => {
-        attractionInfoWindowRef.current?.close();
-      });
-
-      // Click to open in Google Maps
-      marker.addListener('click', () => {
-        if (place.place_id) {
-          window.open(`https://www.google.com/maps/place/?q=place_id:${place.place_id}`, '_blank');
-        }
       });
 
       attractionMarkersRef.current.push(marker);

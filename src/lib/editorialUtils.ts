@@ -199,46 +199,77 @@ export function getEditorialBlurb(property: PropertyData): {
 }
 
 /**
- * Compose amenities as flowing prose
+ * Compose amenities as flowing, intelligent prose
+ * Creates natural sentences that properly describe the experience
  */
 export function composeAmenitiesProse(facilities: string[]): string | null {
   if (!facilities || facilities.length === 0) return null;
 
-  // Group amenities by category for prose composition
-  const morningAmenities = facilities.filter(f => 
-    /pool|spa|gym|fitness|breakfast|coffee/i.test(f)
-  );
-  const eveningAmenities = facilities.filter(f => 
-    /restaurant|bar|fireplace|lounge|library/i.test(f)
-  );
-  const luxuryAmenities = facilities.filter(f => 
-    /wifi|parking|concierge|butler|room service/i.test(f)
-  );
+  // Define categories with keywords and contextual verbs
+  const categories = {
+    wellness: {
+      keywords: ['pool', 'spa', 'gym', 'fitness', 'sauna', 'jacuzzi', 'yoga', 'massage'],
+      found: [] as string[],
+    },
+    dining: {
+      keywords: ['restaurant', 'bar', 'breakfast', 'dining', 'kitchen', 'chef'],
+      found: [] as string[],
+    },
+    comfort: {
+      keywords: ['fireplace', 'lounge', 'library', 'garden', 'terrace', 'view', 'patio'],
+      found: [] as string[],
+    },
+    convenience: {
+      keywords: ['wifi', 'parking', 'concierge', 'room service', 'laundry', 'shuttle'],
+      found: [] as string[],
+    },
+  };
 
-  const parts: string[] = [];
-
-  if (morningAmenities.length > 0) {
-    const morning = morningAmenities.slice(0, 2).map(a => a.toLowerCase()).join(' and ');
-    parts.push(`Awaken to ${morning}`);
+  // Categorize facilities
+  for (const facility of facilities) {
+    const lower = facility.toLowerCase();
+    for (const [catName, catData] of Object.entries(categories)) {
+      if (catData.keywords.some(kw => lower.includes(kw)) && catData.found.length < 2) {
+        catData.found.push(facility);
+        break; // Only add to one category
+      }
+    }
   }
 
-  if (eveningAmenities.length > 0) {
-    const evening = eveningAmenities.slice(0, 2).map(a => a.toLowerCase()).join(' and ');
-    parts.push(`retire to ${evening}`);
+  const sentences: string[] = [];
+  
+  // Build natural sentences based on what's available
+  const { wellness, dining, comfort, convenience } = categories;
+
+  if (wellness.found.length > 0) {
+    const items = wellness.found.map(f => f.toLowerCase()).join(' and the ');
+    sentences.push(`Revive with the ${items}`);
   }
 
-  if (luxuryAmenities.length > 0 && parts.length < 2) {
-    const luxury = luxuryAmenities.slice(0, 2).map(a => a.toLowerCase()).join(' and ');
-    parts.push(`enjoy ${luxury}`);
+  if (dining.found.length > 0) {
+    const items = dining.found.map(f => f.toLowerCase()).join(' or ');
+    const verb = sentences.length > 0 ? 'then savor' : 'Savor';
+    sentences.push(`${verb} ${items}`);
   }
 
-  if (parts.length === 0) {
-    // Fallback: list first few amenities
+  if (comfort.found.length > 0 && sentences.length < 2) {
+    const items = comfort.found.map(f => f.toLowerCase()).join(' and ');
+    const verb = sentences.length > 0 ? 'retreat to' : 'Retreat to';
+    sentences.push(`${verb} the ${items}`);
+  }
+
+  if (sentences.length === 0) {
+    if (convenience.found.length > 0) {
+      const items = convenience.found.slice(0, 2).map(f => f.toLowerCase()).join(' and ');
+      return `Enjoy complimentary ${items}.`;
+    }
+    // Final fallback: simple listing
     const listed = facilities.slice(0, 3).map(a => a.toLowerCase()).join(', ');
     return `Featuring ${listed}.`;
   }
 
-  return parts.join(', ') + '.';
+  // Join with proper punctuation
+  return sentences.join(', ') + '.';
 }
 
 /**
