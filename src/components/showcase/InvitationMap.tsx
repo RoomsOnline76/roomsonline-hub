@@ -108,7 +108,21 @@ export function InvitationMap({
         styles: mapStyles,
       });
 
-      // NOTE: Property marker removed per UX feedback - attractions are the focus
+      // Property marker - distinctive pink ROL pin
+      new window.google.maps.Marker({
+        position,
+        map: mapInstanceRef.current,
+        title: propertyName,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          fillColor: '#E91E8C', // ROL pink
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 3,
+          scale: 12,
+        },
+        zIndex: 200, // Above attractions
+      });
     } catch (error) {
       console.error("Failed to initialize map:", error);
       setMapError(true);
@@ -198,17 +212,11 @@ export function InvitationMap({
       const displayName = (place.name || '').substring(0, 20) + ((place.name?.length || 0) > 20 ? '…' : '');
       const labelPrefix = isEatery ? '🍽️ ' : '';
 
+      // Colored circles only - no labels to prevent stacking/overlap
       const marker = new google.maps.Marker({
         position: place.geometry.location,
         map: mapInstanceRef.current,
         title: place.name,
-        label: {
-          text: labelPrefix + displayName,
-          color: '#333333',
-          fontSize: '11px',
-          fontWeight: '600',
-          className: 'map-attraction-label',
-        },
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
           fillColor: ATTRACTION_COLORS[index],

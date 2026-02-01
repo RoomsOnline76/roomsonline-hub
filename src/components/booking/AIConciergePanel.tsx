@@ -320,6 +320,66 @@ export function AIConciergePanel({
     setDates(format(checkIn, 'yyyy-MM-dd'), format(checkOut, 'yyyy-MM-dd'));
   };
 
+  // Handle Book Now click from collapsed strip
+  const handleBookNowClick = () => {
+    // If no dates selected, open date picker
+    if (!checkInDate || !checkOutDate) {
+      setDatePickerOpen(true);
+      return;
+    }
+    
+    // For single-room properties, auto-add to cart
+    if (roomTypes.length === 1) {
+      const room = roomTypes[0];
+      const nights = Math.ceil(
+        (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      
+      // Get rate from availability map or room data
+      const dateKey = format(checkInDate, 'yyyy-MM-dd');
+      const dayData = availabilityMap?.get(dateKey);
+      const roomRate = dayData?.rate || (room as any).baseRate || (room as any).base_rate || 0;
+      const totalPrice = roomRate * nights;
+      
+      addStay({
+        property_id: propertyId,
+        property_name: propertyName,
+        property_slug: propertySlug,
+        property_image: propertyImage || '',
+        external_system: externalSystem || 'none',
+        dates: {
+          check_in: format(checkInDate, 'yyyy-MM-dd'),
+          check_out: format(checkOutDate, 'yyyy-MM-dd'),
+        },
+        rooms: [{
+          room_type_id: room.id,
+          room_type_name: room.name,
+          quantity: 1,
+          rate_per_night: roomRate,
+          total_price: totalPrice,
+        }],
+        guests: {
+          adults: firstRoom.numberOfAdults,
+          children: firstRoom.numberOfChildren,
+          infants: firstRoom.numberOfInfants,
+        },
+        price_breakdown: {
+          subtotal: totalPrice,
+          fees: [],
+          taxes: [],
+          total: totalPrice,
+        },
+        availability_status: 'available',
+        nights,
+      });
+      
+      toast.success(`Added ${room.name} to your journey!`);
+    } else {
+      // Multiple rooms - scroll to room section
+      document.getElementById('rooms-section')?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   // Handle manual guest change
   const handleGuestChange = (field: string, value: number) => {
     if (mobileBookingState.rooms.length === 0) {
@@ -616,7 +676,7 @@ export function AIConciergePanel({
               className="flex items-center justify-center gap-2"
             >
               {/* Compact booking controls - always visible */}
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-background/95 backdrop-blur-sm rounded-full border shadow-lg">
+              <div className="flex items-center gap-2 px-3 py-2 bg-background/95 backdrop-blur-sm rounded-full border shadow-lg">
                 <button 
                   onClick={() => setDatePickerOpen(true)} 
                   className="flex items-center gap-1.5 text-sm"
@@ -625,7 +685,7 @@ export function AIConciergePanel({
                   <span className="font-medium">
                     {checkInDate && checkOutDate
                       ? `${format(checkInDate, 'MMM d')} – ${format(checkOutDate, 'MMM d')}`
-                      : 'Select Dates'}
+                      : 'Dates'}
                   </span>
                 </button>
                 <span className="text-muted-foreground/50">|</span>
@@ -636,6 +696,15 @@ export function AIConciergePanel({
                   <Users className="h-4 w-4 text-primary" />
                   <span>{firstRoom.numberOfAdults + firstRoom.numberOfChildren}</span>
                 </button>
+                
+                {/* Book Now button */}
+                <Button 
+                  size="sm" 
+                  onClick={handleBookNowClick}
+                  className="ml-1"
+                >
+                  Book Now
+                </Button>
               </div>
               
               {/* Floating AI icon - minimized concierge */}
