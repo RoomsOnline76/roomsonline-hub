@@ -652,22 +652,34 @@ export default function PropertyShowcase() {
         return;
       }
     }
+    
     // For PMS or manual rates properties with booked rooms, go to checkout
     if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && bookedRooms.length > 0) {
       navigate(`/booking/${property?.slug || property?.id}`);
       return;
     }
+    
+    // When AI Concierge is active, scroll to rooms section
+    // The floating booking strip at the bottom handles date selection and booking
+    const aiConciergeIsActive = aiConciergeEnabled && !aiFailed && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty);
+    if (aiConciergeIsActive) {
+      scrollToRooms();
+      return;
+    }
+    
     // For single-room properties (including manual rates), open quick book drawer directly
     const rooms = getRoomTypes();
     if (rooms.length === 1 && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty)) {
       setQuickBookDrawerOpen(true);
       return;
     }
+    
     // For manual rates properties with multiple rooms, go to rooms section
     if (isManualRatesProperty) {
       scrollToRooms();
       return;
     }
+    
     // Otherwise scroll to rooms section
     scrollToRooms();
   };
