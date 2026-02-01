@@ -659,11 +659,21 @@ export default function PropertyShowcase() {
       return;
     }
     
-    // When AI Concierge is active, scroll to rooms section
+    // If SmartCart has items, open checkout directly
+    if (hasStays) {
+      setCheckoutOpen(true);
+      return;
+    }
+    
+    // When AI Concierge is active, scroll to rooms AND open date picker
     // The floating booking strip at the bottom handles date selection and booking
     const aiConciergeIsActive = aiConciergeEnabled && !aiFailed && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty);
     if (aiConciergeIsActive) {
       scrollToRooms();
+      // Dispatch event to open date picker in AIConciergePanel
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('openConciergeDatePicker'));
+      }, 300);
       return;
     }
     

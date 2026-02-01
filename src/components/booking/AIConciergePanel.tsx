@@ -91,7 +91,7 @@ export function AIConciergePanel({
   const isMobile = useIsMobile();
   const { formatPrice } = useCurrency();
   const { state: mobileBookingState, setDates, updateRoom, addRoom } = useMobileBooking();
-  const { addStay, totalPrice } = useItinerary();
+  const { addStay, totalPrice, hasStays } = useItinerary();
 
   const [isExpanded, setIsExpanded] = useState(!isMobile);
   const [isMinimized, setIsMinimized] = useState(false); // NEW: Desktop minimize state
@@ -142,7 +142,14 @@ export function AIConciergePanel({
     // Reset timer on any interaction
     resetProactiveTimer();
 
+    // Listen for external date picker trigger (from "Book Now" button on map)
+    const handleOpenDatePicker = () => {
+      setDatePickerOpen(true);
+    };
+    window.addEventListener('openConciergeDatePicker', handleOpenDatePicker);
+
     return () => {
+      window.removeEventListener('openConciergeDatePicker', handleOpenDatePicker);
       if (proactiveTimeoutRef.current) {
         clearTimeout(proactiveTimeoutRef.current);
       }
@@ -375,11 +382,8 @@ export function AIConciergePanel({
       
       toast.success(`Added ${room.name} to your journey!`);
       
-      // Navigate to checkout after adding to cart
-      // Use a short delay to allow state to update
-      setTimeout(() => {
-        window.location.href = `/booking/${propertySlug}`;
-      }, 500);
+      // Let SmartCart appear - it will handle checkout navigation
+      // Don't navigate away here
       return;
     }
     
@@ -665,6 +669,63 @@ export function AIConciergePanel({
   }
 
   // Mobile: Collapsible bottom sheet with compact booking strip
+  // If SmartCart has items, hide the collapsed strip - SmartCart will take over
+  if (hasStays) {
+    return (
+      <>
+        {/* Date Picker - still accessible when SmartCart is showing */}
+        <BottomSheetDatePicker
+          open={datePickerOpen}
+          onOpenChange={setDatePickerOpen}
+          checkIn={checkInDate}
+          checkOut={checkOutDate}
+          onDatesChange={handleDatesChange}
+          availabilityMap={availabilityMap}
+        />
+
+        {/* Guest Picker - still accessible */}
+        <Drawer open={guestPickerOpen} onOpenChange={setGuestPickerOpen}>
+          <DrawerContent>
+            <DrawerHeader>
+              <DrawerTitle>Guests</DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 py-2 space-y-1">
+              <GuestCountStepper
+                label="Adults"
+                sublabel="Ages 13+"
+                value={firstRoom.numberOfAdults}
+                min={1}
+                max={10}
+                onChange={(v) => handleGuestChange("numberOfAdults", v)}
+              />
+              <GuestCountStepper
+                label="Children"
+                sublabel="Ages 2-12"
+                value={firstRoom.numberOfChildren}
+                min={0}
+                max={6}
+                onChange={(v) => handleGuestChange("numberOfChildren", v)}
+              />
+              <GuestCountStepper
+                label="Infants"
+                sublabel="Under 2"
+                value={firstRoom.numberOfInfants}
+                min={0}
+                max={4}
+                onChange={(v) => handleGuestChange("numberOfInfants", v)}
+              />
+            </div>
+            <DrawerFooter>
+              <DrawerClose asChild>
+                <Button className="w-full">Done</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+      </>
+    );
+  }
+
   return (
     <>
       {/* Collapsed: Compact booking strip + floating AI icon */}
