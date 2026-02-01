@@ -554,6 +554,27 @@ export default function PropertyShowcase() {
   };
 
   const getLowestRateForRoom = (room: RoomType): number | null => {
+    // Priority 1: Check linked rate types FIRST (wizard-configured rates for manual properties)
+    const roomData = property?.amenities?.room_types?.find((rt: any) => 
+      (rt.id || rt.room_type_id) === room.id
+    );
+    
+    if (roomData?.linkedRateTypes?.length > 0) {
+      const pmsRateTypes = property?.amenities?.pms_rate_types || [];
+      for (const rateTypeId of roomData.linkedRateTypes) {
+        const rateType = pmsRateTypes.find((rt: any) => rt.id === rateTypeId);
+        if (rateType?.baseRate) {
+          return rateType.baseRate;
+        }
+      }
+    }
+    
+    // Priority 2: Direct room rate (wizard data)
+    if (roomData?.baseRate || roomData?.base_rate || roomData?.daily_rate) {
+      return roomData.baseRate || roomData.base_rate || roomData.daily_rate;
+    }
+    
+    // Priority 3: Check availability cache
     const availData = getAvailabilityForRoom(room);
     if (availData?.rates) {
       const rateTypes = Array.isArray(availData.rates) ? availData.rates : [availData.rates];
@@ -589,25 +610,15 @@ export default function PropertyShowcase() {
       
       if (lowest !== null) return lowest;
     }
-    // Fallback to pms_rates
-    const roomData = property?.amenities?.room_types?.find((rt: any) => 
-      (rt.id || rt.room_type_id) === room.id
-    );
+    
+    // Priority 4: Fallback to pms_rates
     if (roomData?.pms_rates) {
       let lowest: number | null = null;
       roomData.pms_rates.forEach((rate: any) => {
         if (rate.roomAmount && (lowest === null || rate.roomAmount < lowest)) lowest = rate.roomAmount;
         if (rate.adultAmount1 && (lowest === null || rate.adultAmount1 < lowest)) lowest = rate.adultAmount1;
       });
-      return lowest;
-    }
-    
-    // Final fallback: Check wizard base_rate directly (for non-PMS properties)
-    const wizardRoom = property?.amenities?.room_types?.find((rt: any) => 
-      (rt.id || rt.room_type_id) === room.id
-    );
-    if (wizardRoom?.base_rate || wizardRoom?.baseRate || wizardRoom?.daily_rate) {
-      return wizardRoom.base_rate || wizardRoom.baseRate || wizardRoom.daily_rate;
+      if (lowest !== null) return lowest;
     }
     
     return null;
@@ -804,6 +815,7 @@ export default function PropertyShowcase() {
         propertyId={property.id}
         propertySlug={property.slug || property.id}
         propertyImage={property.images?.[0]}
+        roomCount={getRoomTypes().length}
       />
 
       {/* NightsBridge Leaving Modal */}

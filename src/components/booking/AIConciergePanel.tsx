@@ -94,6 +94,7 @@ export function AIConciergePanel({
   const { addStay, totalPrice } = useItinerary();
 
   const [isExpanded, setIsExpanded] = useState(!isMobile);
+  const [isMinimized, setIsMinimized] = useState(false); // NEW: Desktop minimize state
   const [isLoading, setIsLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<ConciergeMessage[]>([]);
@@ -378,6 +379,40 @@ export function AIConciergePanel({
 
   // Desktop sidebar
   if (!isMobile) {
+    // Minimized state - floating button only
+    if (isMinimized) {
+      return (
+        <>
+          <motion.button
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            onClick={() => setIsMinimized(false)}
+            className={cn(
+              "fixed right-6 bottom-6 z-40 h-14 w-14 rounded-full",
+              "bg-primary text-primary-foreground shadow-xl",
+              "flex items-center justify-center",
+              "hover:scale-105 transition-transform",
+              className
+            )}
+          >
+            <Sparkles className="h-6 w-6" />
+          </motion.button>
+          
+          {/* Date Picker still accessible */}
+          <BottomSheetDatePicker
+            open={datePickerOpen}
+            onOpenChange={setDatePickerOpen}
+            checkIn={checkInDate}
+            checkOut={checkOutDate}
+            onDatesChange={handleDatesChange}
+            availabilityMap={availabilityMap}
+          />
+        </>
+      );
+    }
+    
+    // Full sidebar
     return (
       <div className={cn(
         "fixed right-0 top-0 h-screen w-80 xl:w-96 z-30",
@@ -385,11 +420,20 @@ export function AIConciergePanel({
         "flex flex-col",
         className
       )}>
-        {/* Header */}
+        {/* Header with minimize button */}
         <div className="p-4 border-b border-border bg-gradient-to-r from-primary/5 to-transparent">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            <h2 className="font-serif text-lg font-semibold">Your Travel Concierge</h2>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <h2 className="font-serif text-lg font-semibold">Your Travel Concierge</h2>
+            </div>
+            <button
+              onClick={() => setIsMinimized(true)}
+              className="p-1.5 rounded-full hover:bg-muted transition-colors"
+              title="Minimize"
+            >
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
             Sleep in Africa like never before
@@ -553,10 +597,10 @@ export function AIConciergePanel({
     );
   }
 
-  // Mobile: Collapsible bottom sheet
+  // Mobile: Collapsible bottom sheet with compact booking strip
   return (
     <>
-      {/* Collapsed pill */}
+      {/* Collapsed: Compact booking strip + floating AI icon */}
       <div className={cn(
         "fixed bottom-0 left-0 right-0 z-40",
         "pb-[env(safe-area-inset-bottom,16px)] px-4",
@@ -571,25 +615,42 @@ export function AIConciergePanel({
               exit={{ opacity: 0, y: 20 }}
               className="flex items-center justify-center gap-2"
             >
-              <button
+              {/* Compact booking controls - always visible */}
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-background/95 backdrop-blur-sm rounded-full border shadow-lg">
+                <button 
+                  onClick={() => setDatePickerOpen(true)} 
+                  className="flex items-center gap-1.5 text-sm"
+                >
+                  <Calendar className="h-4 w-4 text-primary" />
+                  <span className="font-medium">
+                    {checkInDate && checkOutDate
+                      ? `${format(checkInDate, 'MMM d')} – ${format(checkOutDate, 'MMM d')}`
+                      : 'Select Dates'}
+                  </span>
+                </button>
+                <span className="text-muted-foreground/50">|</span>
+                <button 
+                  onClick={() => setGuestPickerOpen(true)} 
+                  className="flex items-center gap-1 text-sm"
+                >
+                  <Users className="h-4 w-4 text-primary" />
+                  <span>{firstRoom.numberOfAdults + firstRoom.numberOfChildren}</span>
+                </button>
+              </div>
+              
+              {/* Floating AI icon - minimized concierge */}
+              <motion.button
                 onClick={() => setIsExpanded(true)}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2.5 rounded-full",
-                  "bg-primary text-primary-foreground shadow-lg",
-                  "hover:shadow-xl transition-all"
+                  "h-12 w-12 rounded-full bg-primary text-primary-foreground shadow-lg",
+                  "flex items-center justify-center",
+                  "hover:scale-105 active:scale-95 transition-transform"
                 )}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                <Sparkles className="h-4 w-4" />
-                <span className="font-medium text-sm">Ask Concierge</span>
-              </button>
-              
-              <button
-                onClick={() => setDatePickerOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-background border shadow-lg text-sm"
-              >
-                <Calendar className="h-4 w-4 text-primary" />
-                {checkInDate ? format(checkInDate, 'MMM d') : 'Dates'}
-              </button>
+                <Sparkles className="h-5 w-5" />
+              </motion.button>
             </motion.div>
           ) : (
             <motion.div

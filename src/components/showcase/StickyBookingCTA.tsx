@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { stickyCtaReveal } from '@/lib/motion';
 import { Button } from '@/components/ui/button';
 import { FormattedPrice } from '@/components/FormattedPrice';
-import { ArrowRight, ExternalLink, Check, MapPin, Compass } from 'lucide-react';
+import { ArrowRight, ExternalLink, Check, MapPin, Compass, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useItinerary } from '@/contexts/ItineraryContext';
 
@@ -18,6 +18,7 @@ interface StickyBookingCTAProps {
   propertySlug?: string;
   propertyImage?: string;
   externalSystem?: string;
+  roomCount?: number; // NEW: For single-room property detection
 }
 
 /**
@@ -34,6 +35,7 @@ export function StickyBookingCTA({
   propertySlug,
   propertyImage,
   externalSystem,
+  roomCount = 0,
 }: StickyBookingCTAProps) {
   const navigate = useNavigate();
   const { hasStays, stayCount } = useItinerary();
@@ -92,6 +94,15 @@ export function StickyBookingCTA({
     // Journey-based CTAs
     switch (scrollContext) {
       case 'rooms':
+        // For single-room properties, show "Select Dates" instead of "Add to Journey"
+        if (roomCount === 1) {
+          return (
+            <>
+              <Calendar className="mr-2 h-4 w-4" />
+              Select Dates
+            </>
+          );
+        }
         return (
           <>
             <Compass className="mr-2 h-4 w-4" />

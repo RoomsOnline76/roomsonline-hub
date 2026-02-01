@@ -108,6 +108,10 @@ export function BottomSheetDatePicker({
 
   const handleDateClick = (date: Date) => {
     if (isBefore(date, startOfDay(minDate))) return;
+    
+    // Prevent selecting unavailable/blocked dates
+    const status = getDateStatus(date);
+    if (status && !status.available) return;
 
     if (!selectingCheckOut || !tempCheckIn) {
       // Selecting check-in date
@@ -293,14 +297,15 @@ export function BottomSheetDatePicker({
 
               const status = getDateStatus(date);
               const disabled = isDisabled(date);
+              const unavailable = status && !status.available;
               const selected = isCheckIn(date) || isCheckOut(date);
               const inRange = isInRange(date);
 
               return (
                 <button
                   key={date.toISOString()}
-                  onClick={() => !disabled && handleDateClick(date)}
-                  disabled={disabled}
+                  onClick={() => !disabled && !unavailable && handleDateClick(date)}
+                  disabled={disabled || unavailable}
                   className={cn(
                     "h-11 rounded-xl text-sm font-medium transition-all duration-200",
                     "flex flex-col items-center justify-center gap-0.5",
@@ -309,33 +314,37 @@ export function BottomSheetDatePicker({
                       ? "bg-primary text-primary-foreground"
                       : inRange
                       ? "bg-primary/10"
+                      : unavailable
+                      ? "bg-muted/60 text-muted-foreground/50 line-through cursor-not-allowed"
                       : "hover:bg-muted",
-                    disabled && "opacity-30 cursor-not-allowed",
+                    disabled && "bg-muted/40 text-muted-foreground/30 cursor-not-allowed",
                     isCheckIn(date) && "rounded-r-none",
                     isCheckOut(date) && "rounded-l-none",
                     inRange && "rounded-none"
                   )}
                 >
                   <span>{format(date, "d")}</span>
-                  {/* Show rate on larger screens, availability dot on mobile */}
+                  {/* Show rate on larger screens for available dates only */}
                   {!isMobile && status?.rate && status.available && !selected ? (
                     <span className="text-[9px] text-muted-foreground leading-none">
                       {formatRate(status.rate)}
                     </span>
-                  ) : isMobile && status && !selected ? (
-                    <span className={cn(
-                      "w-1 h-1 rounded-full",
-                      status.available ? "bg-green-500" : "bg-red-400"
-                    )} />
-                  ) : !isMobile && status && !selected ? (
-                    <span className={cn(
-                      "w-1.5 h-1.5 rounded-full",
-                      status.available ? "bg-green-500" : "bg-red-400"
-                    )} />
                   ) : null}
                 </button>
               );
             })}
+          </div>
+          
+          {/* Availability Legend */}
+          <div className="flex justify-center gap-4 mt-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-background border border-border" />
+              Available
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-muted/60 flex items-center justify-center text-[8px] line-through">X</span>
+              Unavailable
+            </span>
           </div>
           </div>
 
