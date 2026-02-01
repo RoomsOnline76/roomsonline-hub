@@ -356,16 +356,23 @@ export function InvitationMap({
                 </div>
               </div>
 
-              {/* Attractions Legend - below map, subtle */}
+              {/* Attractions Legend - below map, show all 5 */}
               {attractions.length > 0 && (
-                <div className="flex flex-wrap justify-center gap-3 mt-4 text-xs text-muted-foreground">
-                  <span className="font-medium">Nearby:</span>
-                  {attractions.slice(0, 3).map((a, i) => (
-                    <span key={a.place_id} className="flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: ATTRACTION_COLORS[i] }} />
-                      {(a.name || '').substring(0, 18)}{(a.name?.length || 0) > 18 ? '...' : ''}
-                    </span>
-                  ))}
+                <div className="mt-4 px-2">
+                  <p className="text-xs font-medium text-muted-foreground mb-2 text-center">Nearby:</p>
+                  <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+                    {attractions.slice(0, 5).map((a, i) => (
+                      <span key={a.place_id} className="flex items-center gap-1.5 whitespace-nowrap">
+                        <span 
+                          className="w-2.5 h-2.5 rounded-full shrink-0" 
+                          style={{ backgroundColor: ATTRACTION_COLORS[i] }} 
+                        />
+                        <span className="max-w-[160px] sm:max-w-[200px] truncate" title={a.name || ''}>
+                          {a.name}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
             </>

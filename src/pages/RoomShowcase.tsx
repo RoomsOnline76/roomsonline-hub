@@ -397,6 +397,11 @@ export default function RoomShowcase() {
       const params = new URLSearchParams(window.location.search);
       const queryString = params.toString();
       navigate(`/property/${property.slug || property.id}${queryString ? `?${queryString}` : ''}#rooms-section`);
+      
+      // Trigger date picker to open after navigation (short delay for page to load)
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('openConciergeDatePicker'));
+      }, 600);
       return;
     }
     
