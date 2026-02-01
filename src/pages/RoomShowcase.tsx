@@ -367,6 +367,9 @@ export default function RoomShowcase() {
     return property.amenities?.external_ids?.nightsbridge_bb_id || null;
   };
 
+  // Check if this is a manual rates property (no external PMS)
+  const isManualRatesProperty = property?.external_system === 'none' || (!property?.external_system && room);
+  
   const handleCheckAvailability = () => {
     // For NightsBridge properties, show modal then redirect to NightsBridge booking
     if (isNightsBridgeProperty) {
@@ -388,7 +391,16 @@ export default function RoomShowcase() {
       return;
     }
     
-    // For non-PMS properties: just go back to property page
+    // For manual rates properties, navigate back to property page with rooms section anchor
+    // The AI Concierge panel on the property page handles booking
+    if (isManualRatesProperty && property) {
+      const params = new URLSearchParams(window.location.search);
+      const queryString = params.toString();
+      navigate(`/property/${property.slug || property.id}${queryString ? `?${queryString}` : ''}#rooms-section`);
+      return;
+    }
+    
+    // Fallback: go back to property page
     if (property) {
       navigate(`/property/${property.slug || property.id}`);
     }
@@ -433,9 +445,30 @@ export default function RoomShowcase() {
   // Use liveAvailability if available, fallback to cached
   const displayedAvailability = liveAvailability ?? availableUnits;
   
-  // Calculate lowest rate from live rates first, then cachedRate, then dailyRate, then pms_rates, then property_rates
+  // Calculate lowest rate from linked rate types first, then live rates, cachedRate, dailyRate, pms_rates, property_rates
   const getLowestRate = (): number | null => {
-    // First check live rates (real-time from API for HotelBeds, Hostfully, etc.)
+    const roomAny = room as any;
+    
+    // First check linked rate types (wizard-configured rates for manual properties)
+    if (roomAny?.linkedRateTypes?.length > 0) {
+      const pmsRateTypes = property?.amenities?.pms_rate_types || [];
+      for (const rateTypeId of roomAny.linkedRateTypes) {
+        const rateType = pmsRateTypes.find((rt: any) => rt.id === rateTypeId);
+        if (rateType?.baseRate && typeof rateType.baseRate === 'number' && rateType.baseRate > 0) {
+          return rateType.baseRate;
+        }
+      }
+    }
+    
+    // Check direct room rates (baseRate, base_rate, daily_rate)
+    if (roomAny?.baseRate && typeof roomAny.baseRate === 'number' && roomAny.baseRate > 0) {
+      return roomAny.baseRate;
+    }
+    if (roomAny?.base_rate && typeof roomAny.base_rate === 'number' && roomAny.base_rate > 0) {
+      return roomAny.base_rate;
+    }
+    
+    // Then check live rates (real-time from API for HotelBeds, Hostfully, etc.)
     if (liveRates.length > 0) {
       let lowest: number | null = null;
       liveRates.forEach((rateType: any) => {
@@ -469,7 +502,6 @@ export default function RoomShowcase() {
     }
     
     // Check room.dailyRate (Hostfully cached rate from sync)
-    const roomAny = room as any;
     if (roomAny?.dailyRate && typeof roomAny.dailyRate === 'number' && roomAny.dailyRate > 0) {
       return roomAny.dailyRate;
     }
@@ -912,6 +944,11 @@ export default function RoomShowcase() {
                     <>
                       <Calendar className="mr-2 h-4 w-4" />
                       Check Availability
+                    </>
+                  ) : isManualRatesProperty ? (
+                    <>
+                      <Calendar className="mr-2 h-4 w-4" />
+                      Select Dates & Book
                     </>
                   ) : (
                     <>

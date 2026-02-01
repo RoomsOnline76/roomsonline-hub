@@ -328,7 +328,7 @@ export function AIConciergePanel({
       return;
     }
     
-    // For single-room properties, auto-add to cart
+    // For single-room properties, auto-add to cart AND navigate to checkout
     if (roomTypes.length === 1) {
       const room = roomTypes[0];
       const nights = Math.ceil(
@@ -374,10 +374,17 @@ export function AIConciergePanel({
       });
       
       toast.success(`Added ${room.name} to your journey!`);
-    } else {
-      // Multiple rooms - scroll to room section
-      document.getElementById('rooms-section')?.scrollIntoView({ behavior: 'smooth' });
+      
+      // Navigate to checkout after adding to cart
+      // Use a short delay to allow state to update
+      setTimeout(() => {
+        window.location.href = `/booking/${propertySlug}`;
+      }, 500);
+      return;
     }
+    
+    // Multiple rooms - scroll to room section
+    document.getElementById('rooms-section')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   // Handle manual guest change
