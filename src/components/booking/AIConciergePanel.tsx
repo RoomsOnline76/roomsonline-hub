@@ -95,6 +95,7 @@ export function AIConciergePanel({
 
   const [isExpanded, setIsExpanded] = useState(!isMobile);
   const [isMinimized, setIsMinimized] = useState(false); // NEW: Desktop minimize state
+  const [isInitiated, setIsInitiated] = useState(false); // Start hidden until user initiates
   const [isLoading, setIsLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<ConciergeMessage[]>([]);
@@ -144,6 +145,7 @@ export function AIConciergePanel({
 
     // Listen for external date picker trigger (from "Book Now" button on map)
     const handleOpenDatePicker = () => {
+      setIsInitiated(true); // Mark as initiated when triggered externally
       setDatePickerOpen(true);
     };
     window.addEventListener('openConciergeDatePicker', handleOpenDatePicker);
@@ -322,9 +324,57 @@ export function AIConciergePanel({
     }
   };
 
-  // Handle manual date change
+  // Handle manual date change - auto-add to cart for single-room properties
   const handleDatesChange = (checkIn: Date, checkOut: Date) => {
     setDates(format(checkIn, 'yyyy-MM-dd'), format(checkOut, 'yyyy-MM-dd'));
+    
+    // For single-room properties, auto-add to cart after date selection
+    if (roomTypes.length === 1) {
+      const room = roomTypes[0];
+      const nights = Math.ceil(
+        (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      
+      // Get rate from availability map or room data
+      const dateKey = format(checkIn, 'yyyy-MM-dd');
+      const dayData = availabilityMap?.get(dateKey);
+      const roomRate = dayData?.rate || (room as any).baseRate || (room as any).base_rate || 0;
+      const totalPriceCalc = roomRate * nights;
+      
+      addStay({
+        property_id: propertyId,
+        property_name: propertyName,
+        property_slug: propertySlug,
+        property_image: propertyImage || '',
+        external_system: externalSystem || 'none',
+        dates: {
+          check_in: format(checkIn, 'yyyy-MM-dd'),
+          check_out: format(checkOut, 'yyyy-MM-dd'),
+        },
+        rooms: [{
+          room_type_id: room.id,
+          room_type_name: room.name,
+          quantity: 1,
+          rate_per_night: roomRate,
+          total_price: totalPriceCalc,
+        }],
+        guests: {
+          adults: firstRoom.numberOfAdults,
+          children: firstRoom.numberOfChildren,
+          infants: firstRoom.numberOfInfants,
+        },
+        price_breakdown: {
+          subtotal: totalPriceCalc,
+          fees: [],
+          taxes: [],
+          total: totalPriceCalc,
+        },
+        availability_status: 'available',
+        nights,
+      });
+      
+      toast.success(`Added ${room.name} to your journey! Click Checkout to complete.`);
+    }
   };
 
   // Handle Book Now click from collapsed strip
@@ -722,6 +772,37 @@ export function AIConciergePanel({
             </DrawerFooter>
           </DrawerContent>
         </Drawer>
+      </>
+    );
+  }
+
+  // If not initiated and no stays, show only a minimal trigger button
+  if (!isInitiated && !hasStays) {
+    return (
+      <>
+        {/* Minimal floating button to initiate booking */}
+        <div className="fixed bottom-4 right-4 z-40 pb-[env(safe-area-inset-bottom,0px)]">
+          <Button
+            onClick={() => {
+              setIsInitiated(true);
+              setDatePickerOpen(true);
+            }}
+            className="rounded-full h-12 px-6 shadow-lg bg-primary text-primary-foreground"
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            Select Dates
+          </Button>
+        </div>
+        
+        {/* Date picker still needs to be available */}
+        <BottomSheetDatePicker
+          open={datePickerOpen}
+          onOpenChange={setDatePickerOpen}
+          checkIn={checkInDate}
+          checkOut={checkOutDate}
+          onDatesChange={handleDatesChange}
+          availabilityMap={availabilityMap}
+        />
       </>
     );
   }

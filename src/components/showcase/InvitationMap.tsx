@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { MapPin, Share2, Mail, ArrowRight, Loader2 } from 'lucide-react';
 import { useGoogleMapsApiKey } from '@/hooks/useFeatureFlags';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Muted attraction pin colors to complement grayscale map
 const ATTRACTION_COLORS = ['#D4AF37', '#A0A0A0', '#CD7F32', '#4DB6AC', '#7986CB'];
@@ -356,23 +357,50 @@ export function InvitationMap({
                 </div>
               </div>
 
-              {/* Attractions Legend - below map, show all 5 */}
+              {/* Attractions Legend - below map, show all 5 with tooltips */}
               {attractions.length > 0 && (
                 <div className="mt-4 px-2">
                   <p className="text-xs font-medium text-muted-foreground mb-2 text-center">Nearby:</p>
-                  <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-                    {attractions.slice(0, 5).map((a, i) => (
-                      <span key={a.place_id} className="flex items-center gap-1.5 whitespace-nowrap">
-                        <span 
-                          className="w-2.5 h-2.5 rounded-full shrink-0" 
-                          style={{ backgroundColor: ATTRACTION_COLORS[i] }} 
-                        />
-                        <span className="max-w-[160px] sm:max-w-[200px] truncate" title={a.name || ''}>
-                          {a.name}
-                        </span>
-                      </span>
-                    ))}
-                  </div>
+                  <TooltipProvider>
+                    <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+                      {attractions.slice(0, 5).map((a, i) => (
+                        <Tooltip key={a.place_id}>
+                          <TooltipTrigger asChild>
+                            <button className="flex items-center gap-1.5 whitespace-nowrap hover:text-foreground transition-colors cursor-pointer">
+                              <span 
+                                className="w-2.5 h-2.5 rounded-full shrink-0" 
+                                style={{ backgroundColor: ATTRACTION_COLORS[i] }} 
+                              />
+                              <span className="max-w-[140px] sm:max-w-[180px] truncate">
+                                {a.name}
+                              </span>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[280px] p-3">
+                            <div className="space-y-1">
+                              <p className="font-medium text-sm">{a.name}</p>
+                              {a.rating && (
+                                <p className="text-xs text-amber-500">
+                                  {'★'.repeat(Math.round(a.rating))}{'☆'.repeat(5 - Math.round(a.rating))} {a.rating.toFixed(1)}
+                                </p>
+                              )}
+                              {a.vicinity && (
+                                <p className="text-xs text-muted-foreground">{a.vicinity}</p>
+                              )}
+                              <a 
+                                href={`https://www.google.com/maps/place/?q=place_id:${a.place_id}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline inline-block mt-1"
+                              >
+                                View on Maps →
+                              </a>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      ))}
+                    </div>
+                  </TooltipProvider>
                 </div>
               )}
             </>
