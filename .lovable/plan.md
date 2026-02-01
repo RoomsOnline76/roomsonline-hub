@@ -1,403 +1,256 @@
 
-# Plan: Quantified Delight & Surprise Layer
+# Plan: Fix Latter Days Booking Flow - Rate Display, Calendar UX, and Streamlined Checkout
 
-## ✅ IMPLEMENTED - January 2026
+## Problem Summary
 
-## Objective
+Testing the "Latter Days" property reveals several UX and functional issues:
 
-Transform the current random-based "1-2 delights per session" system into a **quantified, value-driven, destination-aware** delight engine that:
-
-1. ✅ **Triggers delights based on booking value > R5,000**
-2. ✅ **Scales delight intensity with booking value** (tiered system)
-3. ✅ **Enriches delights with destination-specific content** from `local_experiences` and property data
-4. ✅ **Tracks delight delivery** to ensure exactly 1-2 per session (no more, no less for qualifying bookings)
-
----
-
-## Delight Triggering Logic
-
-### Value-Based Tiers
-
-```text
-┌────────────────────────────────────────────────────────────────────────────┐
-│                        DELIGHT TIER SYSTEM                                 │
-├────────────────┬───────────────────┬───────────────────────────────────────┤
-│ Tier           │ Booking Value     │ Delight Strategy                      │
-├────────────────┼───────────────────┼───────────────────────────────────────┤
-│ NONE           │ < R5,000          │ No AI delights (standard flow)        │
-│ BRONZE         │ R5,000 – R9,999   │ 1 delight: destination tip OR amenity │
-│ SILVER         │ R10,000 – R24,999 │ 1-2 delights: tip + small upgrade     │
-│ GOLD           │ R25,000 – R49,999 │ 2 delights: upgrade + local voucher   │
-│ PLATINUM       │ R50,000+          │ 2 delights: premium surprise package  │
-└────────────────┴───────────────────┴───────────────────────────────────────┘
-```
-
-### When Delights Trigger
-
-- **During Booking (Concierge Panel):** After a room is added to cart, check `totalPrice` in `ItineraryContext`
-- **At PDF Generation:** Final delight layer with poem, voucher, and destination elaboration
-- **Session Tracking:** Use `sessionStorage` to track delights delivered per session (max 2)
+1. **Room cards show "Contact for rates"** instead of R2,650/night (the actual rate)
+2. **Calendar appears cluttered** with duplicate date selection UI (quick dates bar + full calendar grid)
+3. **Blocked/unavailable dates not clearly distinguished** - small dots instead of greyed-out cells
+4. **"Add to Journey" and "Book Now" buttons don't work** when clicked
+5. **Flow requires excessive scrolling** before actions become available
 
 ---
 
-## Technical Implementation
+## Root Cause Analysis
 
-### 1. Delight Engine Module
+### 1. Rate Display Failure
 
-**New file:** `supabase/functions/_shared/delight-engine.ts`
+The `getLowestRateForRoom()` function in `PropertyShowcase.tsx` fails to find rates because of ID mismatches:
+
+- **Room data**: `{ id: "1", name: "3 Bedroomed Holiday House" }`
+- **pms_availability_cache**: Uses `external_room_type_id: "holiday-house"` (old slug)
+- **Synthetic availability map**: Built with key `"wizard-room-3 Bedroomed Holiday House"` instead of using room's actual `id`
+
+The base rate (R2,650) is stored in `amenities.pms_rate_types[0].baseRate` but the room lookup fails before reaching the fallback logic.
+
+### 2. Button Click Failures
+
+For AI Concierge-enabled manual properties:
+- `StickyBookingCTA` shows "Add to Journey" but `handleBookProperty()` expects booked rooms OR scrolls to rooms section
+- `AIConciergePanel` requires a query before showing suggestions - clicking the collapsed orb opens chat, not a direct date picker
+- No direct path from date selection to room addition without scrolling or chatting
+
+### 3. Calendar UX Issues
+
+- `BottomSheetDatePicker` shows quick-date row (21 days) AND full calendar grid
+- Past/disabled dates only show `opacity-30`, not clearly greyed out
+- Blocked dates (`is_stop_sell: true`) show a tiny red dot but cell isn't visually blocked
+
+---
+
+## Technical Fix Plan
+
+### Phase 1: Fix Rate Retrieval for Manual Properties
+
+**File: `src/pages/PropertyShowcase.tsx`**
+
+Update the synthetic availability map building (lines 313-336):
 
 ```typescript
-interface DelightConfig {
-  bookingValue: number;      // Total in ZAR
-  destinationCity: string;
-  destinationCountry: string;
-  propertyId: string;
-  guestName: string;
-  sessionId: string;
-  delightsDelivered: number; // Current count for session
-}
+// BEFORE: Uses "wizard-room-{name}" as key
+const roomId = room.id || room.room_type_id || `wizard-room-${room.name}`;
 
-interface Delight {
-  type: 'tip' | 'upgrade' | 'amenity' | 'voucher' | 'experience';
-  message: string;
-  code?: string;
-  destinationContext?: string;
-  icon: string;
-}
+// AFTER: Use the actual room ID from amenities data
+const roomId = room.id || room.room_type_id;
+// Also add an alias by slugified name for lookup flexibility
+```
 
-function calculateDelightTier(bookingValue: number): 'none' | 'bronze' | 'silver' | 'gold' | 'platinum' {
-  if (bookingValue < 5000) return 'none';
-  if (bookingValue < 10000) return 'bronze';
-  if (bookingValue < 25000) return 'silver';
-  if (bookingValue < 50000) return 'gold';
-  return 'platinum';
-}
+Update `getLowestRateForRoom()` (lines 556-614) to:
+1. First check direct room `base_rate`/`baseRate` from wizard data
+2. Look up linked rate type in `pms_rate_types` for actual configured rate
+3. Fall back to availability cache only if above fails
 
-function getMaxDelightsForTier(tier: string): number {
-  switch (tier) {
-    case 'none': return 0;
-    case 'bronze': return 1;
-    case 'silver': return 2;
-    case 'gold': return 2;
-    case 'platinum': return 2;
-    default: return 0;
+```typescript
+const getLowestRateForRoom = (room: RoomType): number | null => {
+  // 1. Direct wizard rate from room_types
+  const roomAny = room as any;
+  if (roomAny.baseRate || roomAny.base_rate || roomAny.daily_rate) {
+    return roomAny.baseRate || roomAny.base_rate || roomAny.daily_rate;
   }
-}
-```
-
-### 2. Destination-Aware Delight Generation
-
-The system will fetch `local_experiences` for the property's city/region and incorporate them into delights:
-
-```typescript
-async function generateDestinationDelight(
-  supabase: any,
-  propertyId: string,
-  city: string,
-  tier: string
-): Promise<Delight | null> {
-  // Fetch local experiences for this destination
-  const { data: experiences } = await supabase
-    .from('local_experiences')
-    .select('*')
-    .eq('property_id', propertyId)
-    .eq('is_active', true)
-    .limit(5);
   
-  // Fetch property highlights
-  const { data: property } = await supabase
-    .from('properties')
-    .select('city, country, highlights, tagline')
-    .eq('id', propertyId)
-    .single();
-
-  // Generate contextual delight based on tier + destination
-  if (tier === 'bronze') {
-    // Simple destination tip from local_experiences
-    const nature = experiences?.find(e => e.category === 'nature');
-    if (nature) {
-      return {
-        type: 'tip',
-        icon: '🌿',
-        message: `Local tip: Don't miss ${nature.title}!`,
-        destinationContext: nature.why_locals_love_it
-      };
+  // 2. Linked rate type lookup
+  const linkedRateTypes = roomAny.linkedRateTypes || [];
+  const pmsRateTypes = property?.amenities?.pms_rate_types || [];
+  for (const rateTypeId of linkedRateTypes) {
+    const rateType = pmsRateTypes.find((rt: any) => rt.id === rateTypeId);
+    if (rateType?.baseRate) {
+      return rateType.baseRate;
     }
   }
   
-  if (tier === 'silver' || tier === 'gold') {
-    // Upgrade + experience voucher
-    const adventure = experiences?.find(e => e.category === 'adventure');
-    return {
-      type: 'experience',
-      icon: '🎁',
-      message: `I've arranged something special – 15% off ${adventure?.title || 'a local adventure'}!`,
-      code: `EXPLORE-${city.substring(0,3).toUpperCase()}-${Date.now().toString(36).slice(-4).toUpperCase()}`,
-      destinationContext: `${property?.city || city} is famous for its ${adventure?.category || 'natural beauty'}.`
-    };
-  }
-  
-  if (tier === 'platinum') {
-    // Premium package with dining
-    const dining = experiences?.find(e => e.category === 'dining');
-    return {
-      type: 'voucher',
-      icon: '✨',
-      message: `VIP treatment awaits – complimentary dinner for two at ${dining?.title || 'our partner restaurant'}!`,
-      code: `VIP-${Date.now().toString(36).toUpperCase()}`,
-      destinationContext: dining?.why_locals_love_it || `A signature ${city} dining experience.`
-    };
-  }
-  
-  return null;
-}
+  // 3. Existing availability cache lookup (keep as fallback)
+  // ... existing code ...
+};
 ```
 
-### 3. Update ai-booking-concierge Edge Function
+### Phase 2: Fix Button Actions
 
-**File:** `supabase/functions/ai-booking-concierge/index.ts`
+**File: `src/pages/PropertyShowcase.tsx`**
 
-Changes:
-- Replace the simple 10% random `generateSurpriseGift` function
-- Implement value-based triggering using `ItineraryContext.totalPrice` passed from frontend
-- Track session delights via `session_id`
-- Enrich with destination data
+Update `handleBookProperty()` to work for AI Concierge mode:
 
 ```typescript
-// NEW: Value-based delight generation
-async function generateValueBasedDelight(
-  supabase: any,
-  propertyId: string,
-  bookingValue: number,
-  sessionId: string,
-  sessionDelightCount: number
-): Promise<ConciergeResponse['surprise_gift'] | undefined> {
-  const tier = calculateDelightTier(bookingValue);
-  const maxDelights = getMaxDelightsForTier(tier);
-  
-  // Check if we've hit the limit for this session
-  if (sessionDelightCount >= maxDelights) {
-    console.log(`[Concierge] Session ${sessionId} has reached max delights (${maxDelights})`);
-    return undefined;
+const handleBookProperty = () => {
+  // If AI Concierge is enabled, open the date picker directly for streamlined booking
+  if (aiConciergeEnabled && !aiFailed && isManualRatesProperty) {
+    // Scroll to rooms section AND expand the concierge panel
+    scrollToRooms();
+    return;
   }
-  
-  // Get property destination info
-  const { data: property } = await supabase
-    .from('properties')
-    .select('city, country')
-    .eq('id', propertyId)
-    .single();
-  
-  const delight = await generateDestinationDelight(
-    supabase, 
-    propertyId, 
-    property?.city || 'Africa',
-    tier
+  // ... existing logic ...
+};
+```
+
+**File: `src/components/showcase/StickyBookingCTA.tsx`**
+
+For single-room properties, the CTA should open a quick booking flow:
+
+```typescript
+// When property has only 1 room type, bypass "Explore Rooms" and go directly to selection
+if (scrollContext === 'rooms' && roomCount === 1) {
+  return (
+    <>
+      <Calendar className="mr-2 h-4 w-4" />
+      Select Dates
+    </>
   );
-  
-  if (delight) {
-    return {
-      type: delight.type as 'voucher' | 'upgrade' | 'amenity',
-      code: delight.code,
-      description: `${delight.icon} ${delight.message}${delight.destinationContext ? `\n\n${delight.destinationContext}` : ''}`
-    };
-  }
-  
-  return undefined;
 }
 ```
 
-### 4. Update Frontend to Pass Booking Value
+### Phase 3: Improve Calendar Clarity
 
-**File:** `src/components/booking/AIConciergePanel.tsx`
+**File: `src/components/booking/BottomSheetDatePicker.tsx`**
+
+1. **Make blocked dates obviously disabled**:
 
 ```typescript
-// Add to the concierge request payload
-const { data, error } = await supabase.functions.invoke('ai-booking-concierge', {
-  body: {
-    property_id: propertyId,
-    user_query: queryText,
-    // NEW: Pass current cart value for delight calculation
-    current_booking_value: totalPrice, // from useItinerary()
-    session_delight_count: getSessionDelightCount(), // from sessionStorage
-    // ... existing params
-  },
-});
-
-// Track delights in session
-if (data?.surprise_gift) {
-  incrementSessionDelightCount();
-}
+// Lines 300-336: Update cell styling
+className={cn(
+  "h-11 rounded-xl text-sm font-medium transition-all duration-200",
+  // Blocked/unavailable dates - clearly greyed out
+  status && !status.available && "bg-muted/70 text-muted-foreground/50 cursor-not-allowed line-through",
+  // Past dates - also clearly disabled
+  disabled && "bg-muted/50 text-muted-foreground/30 cursor-not-allowed",
+  // ... rest of styles
+)}
 ```
 
-### 5. Enhanced PDF Delight Layer
-
-**File:** `supabase/functions/generate-itinerary-pdf/index.ts`
-
-The PDF already has voucher/poem generation. Enhance with:
+2. **Add clear visual legend** below the calendar:
 
 ```typescript
-// Elaborate destination coverage based on tier
-async function generateDestinationElaboration(
-  supabase: any,
-  stays: EnrichedStay[],
-  bookingValue: number
-): Promise<string> {
-  const tier = calculateDelightTier(bookingValue);
+// After the calendar grid, before the summary
+<div className="px-4 py-2 text-xs flex items-center justify-center gap-4 text-muted-foreground">
+  <span className="flex items-center gap-1">
+    <span className="w-2 h-2 rounded-full bg-green-500" />
+    Available
+  </span>
+  <span className="flex items-center gap-1">
+    <span className="w-2 h-2 rounded-full bg-red-400" />
+    Unavailable
+  </span>
+</div>
+```
+
+3. **Prevent selecting blocked date ranges**:
+
+```typescript
+const handleDateClick = (date: Date) => {
+  if (isBefore(date, startOfDay(minDate))) return;
   
-  if (tier === 'none' || tier === 'bronze') {
-    return ''; // No elaborate section
+  // NEW: Prevent selecting blocked dates
+  const status = getDateStatus(date);
+  if (status && !status.available) return;
+  
+  // ... rest of logic
+};
+```
+
+### Phase 4: Streamline Mobile Booking Flow
+
+**File: `src/components/booking/AIConciergePanel.tsx`**
+
+Add a "Quick Book" mode that shows date picker immediately:
+
+```typescript
+// On mobile, show the date selection buttons prominently
+// Update collapsed pill (lines 567-593)
+<motion.div className="flex flex-col items-center gap-2">
+  {/* Primary action: Select Dates */}
+  <button
+    onClick={() => setDatePickerOpen(true)}
+    className="flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-primary-foreground shadow-lg"
+  >
+    <Calendar className="h-5 w-5" />
+    <span className="font-medium">Select Dates to Book</span>
+  </button>
+  
+  {/* Secondary: AI Chat */}
+  <button
+    onClick={() => setIsExpanded(true)}
+    className="text-xs text-muted-foreground"
+  >
+    or ask the concierge
+  </button>
+</motion.div>
+```
+
+### Phase 5: Auto-Add Room for Single-Room Properties
+
+**File: `src/components/booking/AIConciergePanel.tsx`**
+
+When dates are confirmed for a single-room property, automatically add to cart:
+
+```typescript
+const handleDatesChange = (checkIn: Date, checkOut: Date) => {
+  setDates(format(checkIn, 'yyyy-MM-dd'), format(checkOut, 'yyyy-MM-dd'));
+  
+  // For single-room properties, auto-add to journey after date selection
+  if (roomTypes.length === 1) {
+    const room = roomTypes[0];
+    const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Get rate from room data
+    const roomRate = room.baseRate || room.base_rate || room.daily_rate || 0;
+    const totalPrice = roomRate * nights;
+    
+    addStay({
+      property_id: propertyId,
+      property_name: propertyName,
+      property_slug: propertySlug,
+      property_image: propertyImage || '',
+      external_system: externalSystem || 'none',
+      dates: {
+        check_in: format(checkIn, 'yyyy-MM-dd'),
+        check_out: format(checkOut, 'yyyy-MM-dd'),
+      },
+      rooms: [{
+        room_type_id: room.id,
+        room_type_name: room.name,
+        quantity: 1,
+        rate_per_night: roomRate,
+        total_price: totalPrice,
+      }],
+      guests: {
+        adults: firstRoom.numberOfAdults || 2,
+        children: firstRoom.numberOfChildren || 0,
+        infants: firstRoom.numberOfInfants || 0,
+      },
+      price_breakdown: {
+        subtotal: totalPrice,
+        fees: [],
+        taxes: [],
+        total: totalPrice,
+      },
+      availability_status: 'available',
+      nights,
+    });
+    
+    toast.success(`Added ${room.name} to your journey!`);
   }
-  
-  // Fetch all experiences across all stay properties
-  const allExperiences: LocalExperience[] = stays.flatMap(s => s.experiences || []);
-  
-  const sections: string[] = [];
-  
-  // Silver: Add "Hidden Gems" section
-  if (tier === 'silver') {
-    const gems = allExperiences.filter(e => e.category === 'nature' || e.category === 'culture');
-    if (gems.length > 0) {
-      sections.push(generateHiddenGemsHTML(gems.slice(0, 3)));
-    }
-  }
-  
-  // Gold: Add "Insider Tips" section
-  if (tier === 'gold') {
-    const tips = allExperiences.filter(e => e.why_locals_love_it);
-    sections.push(generateInsiderTipsHTML(tips.slice(0, 4)));
-  }
-  
-  // Platinum: Add full "Curated Journey Guide" section
-  if (tier === 'platinum') {
-    sections.push(generateCuratedGuideHTML(allExperiences, stays));
-  }
-  
-  return sections.join('\n');
-}
-
-function generateHiddenGemsHTML(experiences: LocalExperience[]): string {
-  return `
-    <div class="hidden-gems-section">
-      <h2>💎 Hidden Gems Near Your Stay</h2>
-      <p class="section-intro">These are the spots locals don't share with just anyone...</p>
-      ${experiences.map(e => `
-        <div class="gem-item">
-          <h4>${e.title}</h4>
-          <p>${e.why_locals_love_it || e.description}</p>
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
-
-function generateInsiderTipsHTML(experiences: LocalExperience[]): string {
-  return `
-    <div class="insider-tips-section">
-      <h2>🗝️ Insider Knowledge</h2>
-      <p class="section-intro">What the locals know that guidebooks don't...</p>
-      ${experiences.map(e => `
-        <div class="tip-item">
-          <span class="tip-icon">${categoryIcons[e.category] || '✨'}</span>
-          <div class="tip-content">
-            <strong>${e.title}</strong>
-            <p class="tip-secret">"${e.why_locals_love_it}"</p>
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
+};
 ```
-
----
-
-## Database Changes
-
-### Session Delight Tracking Table (Optional)
-
-```sql
-CREATE TABLE session_delights (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id TEXT NOT NULL,
-  property_id UUID REFERENCES properties(id),
-  delight_type TEXT,
-  booking_value DECIMAL(10,2),
-  tier TEXT,
-  destination_context TEXT,
-  delivered_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Index for quick session lookup
-CREATE INDEX idx_session_delights_session ON session_delights(session_id);
-```
-
-### Update bookings.ai_metadata Schema
-
-```json
-{
-  "suggestion_source": "ai",
-  "model_used": "gemini-2.5-flash",
-  "session_id": "uuid",
-  "delights": [
-    {
-      "tier": "gold",
-      "type": "experience",
-      "code": "EXPLORE-CPT-X7K2",
-      "destination": "Cape Town",
-      "delivered_at": "2026-01-31T10:00:00Z"
-    }
-  ],
-  "poem_seed": "romantic getaway",
-  "booking_value_at_delight": 32500
-}
-```
-
----
-
-## Example Delights by Destination
-
-### Cape Town (R25,000+ booking)
-
-```text
-✨ "VIP treatment awaits – I've arranged a complimentary sundowner 
-   at The Silo Rooftop Bar with Table Mountain views!"
-
-   🏔️ Cape Town is world-renowned for its dramatic mountain-meets-ocean 
-   scenery. Your hosts at the property can arrange a private cable car 
-   ride at golden hour.
-
-   🎁 Your Code: VIP-CAPE-2026
-```
-
-### Plettenberg Bay (R15,000 booking)
-
-```text
-🌿 "Local tip: Don't miss the Robberg Nature Reserve Peninsula Loop!"
-
-   It's arguably the most beautiful coastline in SA; locals go for 
-   the secret swimming spot at 'The Island' tombolo.
-
-   🎁 15% off your adventure: EXPLORE-PLT-A7K2
-```
-
-### Franschhoek (R8,000 booking)
-
-```text
-🍷 "I've flagged a special request for a wine pairing 
-   with your dinner on arrival night!"
-   
-   The Franschhoek wine route features over 40 award-winning estates.
-```
-
----
-
-## Feature Flag
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `DELIGHT_ENGINE_V2_ENABLED` | `true` | Uses new value-based + destination-aware system |
-| `DELIGHT_MIN_VALUE_ZAR` | `5000` | Minimum booking value to trigger delights |
 
 ---
 
@@ -405,31 +258,33 @@ CREATE INDEX idx_session_delights_session ON session_delights(session_id);
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/_shared/delight-engine.ts` | **NEW** - Shared delight calculation logic |
-| `supabase/functions/ai-booking-concierge/index.ts` | Replace random delight with value-based + destination-aware |
-| `supabase/functions/generate-itinerary-pdf/index.ts` | Add tiered destination elaboration sections |
-| `src/components/booking/AIConciergePanel.tsx` | Pass `totalPrice` and track session delight count |
-| `src/contexts/ItineraryContext.tsx` | Add helper for delight tracking in sessionStorage |
-| `docs/booking-flow-complete.md` | Document the quantified Delight & Surprise Layer |
+| `src/pages/PropertyShowcase.tsx` | Fix `getLowestRateForRoom()` to check wizard rates first; Update synthetic availability map keys |
+| `src/components/booking/BottomSheetDatePicker.tsx` | Grey out blocked dates clearly; Add legend; Prevent blocked date selection |
+| `src/components/booking/AIConciergePanel.tsx` | Prioritize date picker in collapsed state; Auto-add single-room properties |
+| `src/components/showcase/StickyBookingCTA.tsx` | Pass room count; Update CTA text for single-room properties |
+| `src/components/showcase/RoomCollection.tsx` | No changes needed (receives rates from parent) |
 
 ---
 
-## Success Metrics
+## Expected Outcome
 
-| Metric | Target |
-|--------|--------|
-| Delight trigger rate for R5k+ bookings | 100% (1+ delight) |
-| Max delights per session | 2 |
-| Destination context inclusion rate | >90% |
-| Guest voucher redemption rate | >15% |
-| PDF "Hidden Gems" section open rate | >70% |
+After implementation:
+
+1. **Room card shows "From R2,650/night"** correctly
+2. **Calendar clearly shows**: available (normal), unavailable (greyed out + line-through), past (faded)
+3. **Date selection flow**: Tap dates -> Calendar opens -> Select range -> Auto-adds room for single-room property -> SmartCart appears
+4. **Book Now button works**: Opens checkout when cart has items
+5. **No excessive scrolling**: Key actions available from the first screen
 
 ---
 
-## Summary
+## Testing Checklist
 
-This plan transforms the delight system from:
-
-**BEFORE:** Random 10% chance, generic surprises, no value consideration
-
-**AFTER:** Quantified tiered system (R5k/R10k/R25k/R50k thresholds), destination-aware content from `local_experiences`, guaranteed 1-2 delights for qualifying bookings, tracked per session
+- Visit `/property/latter-days`
+- Verify room card shows rate (R2,650)
+- Open date picker from floating button
+- Verify blocked dates (Feb 9-13) appear greyed out
+- Select available dates (Feb 2-7)
+- Verify room auto-added to cart (single-room property)
+- Click Checkout on SmartCart
+- Complete payment flow
