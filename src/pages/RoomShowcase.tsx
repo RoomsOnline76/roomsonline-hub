@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getPropertyUrl, getNightsBridgeBookingUrl } from "@/lib/config";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { formatBedConfiguration, hasBedConfiguration } from "@/lib/bedConfig";
+import { useItinerary } from "@/contexts/ItineraryContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { toast } from "sonner";
 import { 
   Bed, 
   Bath, 
@@ -126,7 +128,9 @@ const facilityIcons: Record<string, any> = {
 export default function RoomShowcase() {
   const navigate = useNavigate();
   const { propertySlug, roomSlug } = useParams<{ propertySlug: string; roomSlug: string }>();
+  const [searchParams] = useSearchParams();
   const { currency } = useCurrency();
+  const { addStay } = useItinerary();
   const [property, setProperty] = useState<Property | null>(null);
   const [room, setRoom] = useState<RoomType | null>(null);
   const [rates, setRates] = useState<RateData[]>([]);
@@ -391,14 +395,53 @@ export default function RoomShowcase() {
       return;
     }
     
-    // For manual rates properties, navigate back to property page with rooms section anchor
-    // The AI Concierge panel on the property page handles booking
-    if (isManualRatesProperty && property) {
-      const params = new URLSearchParams(window.location.search);
-      const queryString = params.toString();
-      navigate(`/property/${property.slug || property.id}${queryString ? `?${queryString}` : ''}#rooms-section`);
+    // For manual rates properties, check if we have dates in URL params
+    if (isManualRatesProperty && property && room) {
+      const checkInParam = searchParams.get('checkIn');
+      const checkOutParam = searchParams.get('checkOut');
       
-      // Trigger date picker to open after navigation (short delay for page to load)
+      // If we have dates in URL, auto-add to cart and navigate to checkout
+      if (checkInParam && checkOutParam) {
+        const checkIn = new Date(checkInParam);
+        const checkOut = new Date(checkOutParam);
+        const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+        const roomRate = getLowestRate() || 0;
+        
+        addStay({
+          property_id: property.id,
+          property_name: property.name,
+          property_slug: property.slug || property.id,
+          property_image: (property.amenities as any)?.images?.[0] || '',
+          external_system: property.external_system || 'none',
+          dates: {
+            check_in: checkInParam,
+            check_out: checkOutParam,
+          },
+          rooms: [{
+            room_type_id: room.id,
+            room_type_name: room.name,
+            quantity: 1,
+            rate_per_night: roomRate,
+            total_price: roomRate * nights,
+          }],
+          guests: { adults: 2, children: 0, infants: 0 },
+          price_breakdown: {
+            subtotal: roomRate * nights,
+            fees: [],
+            taxes: [],
+            total: roomRate * nights,
+          },
+          availability_status: 'available',
+          nights,
+        });
+        
+        toast.success(`Added ${room.name} to your journey!`);
+        navigate(`/property/${property.slug || property.id}#checkout`);
+        return;
+      }
+      
+      // No dates - navigate back to property page and trigger date picker
+      navigate(`/property/${property.slug || property.id}#rooms-section`);
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('openConciergeDatePicker'));
       }, 600);

@@ -853,38 +853,40 @@ export default function PropertyShowcase() {
         propertyName={property?.name}
       />
       
+      {/* SmartCart - ALWAYS shows when items are added (outside AI conditional for precedence) */}
+      {hasStays && (
+        <SmartCart 
+          onCheckout={() => setCheckoutOpen(true)}
+        />
+      )}
+
       {/* AI Concierge Mode: Show AI-powered booking UI when enabled and not failed */}
-      {aiConciergeEnabled && !aiFailed && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && (
-        <>
-          <ConciergeErrorBoundary 
-            onFallback={handleFallbackToLegacy}
-            fallbackMessage="The booking assistant is having trouble"
-          >
-            <AIConciergePanel
-              propertyId={property.id}
-              propertyName={property.name}
-              propertySlug={property.slug || property.id}
-              propertyImage={property.images?.[0]}
-              externalSystem={property.external_system || undefined}
-              roomTypes={roomTypes}
-              availabilityMap={calendarAvailability}
-              onError={handleAIError}
-            />
-          </ConciergeErrorBoundary>
-          
-          {/* SmartCart - shows when items are added */}
-          <SmartCart 
-            onCheckout={() => setCheckoutOpen(true)}
+      {aiConciergeEnabled && !aiFailed && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && !hasStays && (
+        <ConciergeErrorBoundary 
+          onFallback={handleFallbackToLegacy}
+          fallbackMessage="The booking assistant is having trouble"
+        >
+          <AIConciergePanel
+            propertyId={property.id}
+            propertyName={property.name}
+            propertySlug={property.slug || property.id}
+            propertyImage={property.images?.[0]}
+            externalSystem={property.external_system || undefined}
+            roomTypes={roomTypes}
+            availabilityMap={calendarAvailability}
+            onError={handleAIError}
           />
-          
-          {/* InlineCheckout - full-screen overlay */}
-          <InlineCheckout
-            open={checkoutOpen}
-            onClose={() => setCheckoutOpen(false)}
-            onPaymentSuccess={handlePaymentSuccess}
-            onPaymentCancelled={handlePaymentCancelled}
-          />
-        </>
+        </ConciergeErrorBoundary>
+      )}
+      
+      {/* InlineCheckout - full-screen overlay (accessible when SmartCart has items) */}
+      {hasStays && (
+        <InlineCheckout
+          open={checkoutOpen}
+          onClose={() => setCheckoutOpen(false)}
+          onPaymentSuccess={handlePaymentSuccess}
+          onPaymentCancelled={handlePaymentCancelled}
+        />
       )}
       
       {/* Legacy Flow: Quick Book Drawer for streamlined booking */}
