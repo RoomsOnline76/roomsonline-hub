@@ -804,19 +804,24 @@ export default function PropertyShowcase() {
         variant="full"
         className="runway-section-spacing"
       />
+      
+      {/* Spacer for fixed bottom elements */}
+      <div className="h-28 sm:h-24" aria-hidden="true" />
 
-      {/* Sticky Booking CTA */}
-      <StickyBookingCTA
-        onBook={handleBookProperty}
-        lowestRate={lowestRate}
-        isExternal={isNightsBridgeProperty}
-        bookedRoomsCount={bookedRooms.length}
-        propertyName={property.name}
-        propertyId={property.id}
-        propertySlug={property.slug || property.id}
-        propertyImage={property.images?.[0]}
-        roomCount={getRoomTypes().length}
-      />
+      {/* Sticky Booking CTA - Only show when AI Concierge is NOT active */}
+      {!(aiConciergeEnabled && !aiFailed && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty)) && (
+        <StickyBookingCTA
+          onBook={handleBookProperty}
+          lowestRate={lowestRate}
+          isExternal={isNightsBridgeProperty}
+          bookedRoomsCount={bookedRooms.length}
+          propertyName={property.name}
+          propertyId={property.id}
+          propertySlug={property.slug || property.id}
+          propertyImage={property.images?.[0]}
+          roomCount={getRoomTypes().length}
+        />
+      )}
 
       {/* NightsBridge Leaving Modal */}
       <LeavingRoomsOnlineModal
