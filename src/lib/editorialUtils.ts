@@ -205,71 +205,140 @@ export function getEditorialBlurb(property: PropertyData): {
 export function composeAmenitiesProse(facilities: string[]): string | null {
   if (!facilities || facilities.length === 0) return null;
 
-  // Define categories with keywords and contextual verbs
-  const categories = {
-    wellness: {
-      keywords: ['pool', 'spa', 'gym', 'fitness', 'sauna', 'jacuzzi', 'yoga', 'massage'],
-      found: [] as string[],
-    },
-    dining: {
-      keywords: ['restaurant', 'bar', 'breakfast', 'dining', 'kitchen', 'chef'],
-      found: [] as string[],
-    },
-    comfort: {
-      keywords: ['fireplace', 'lounge', 'library', 'garden', 'terrace', 'view', 'patio'],
-      found: [] as string[],
-    },
-    convenience: {
-      keywords: ['wifi', 'parking', 'concierge', 'room service', 'laundry', 'shuttle'],
-      found: [] as string[],
-    },
+  // Normalize and deduplicate amenities - treat synonyms as same concept
+  const synonymGroups: Record<string, string[]> = {
+    'gym': ['gym', 'fitness', 'fitness centre', 'fitness center', 'exercise room', 'workout'],
+    'pool': ['pool', 'swimming pool', 'heated pool', 'outdoor pool', 'indoor pool'],
+    'spa': ['spa', 'wellness centre', 'wellness center', 'treatments'],
+    'restaurant': ['restaurant', 'dining room', 'on-site dining'],
+    'bar': ['bar', 'lounge bar', 'cocktail bar', 'wine bar'],
+    'breakfast': ['breakfast', 'breakfast included', 'complimentary breakfast', 'morning meal'],
+    'garden': ['garden', 'gardens', 'landscaped grounds'],
+    'terrace': ['terrace', 'patio', 'deck', 'outdoor seating'],
+    'fireplace': ['fireplace', 'fire pit', 'wood fire'],
+    'wifi': ['wifi', 'wi-fi', 'internet', 'free wifi'],
+    'parking': ['parking', 'free parking', 'secure parking', 'garage'],
   };
 
-  // Categorize facilities
+  // Map facilities to canonical names and deduplicate
+  const canonicalFacilities = new Set<string>();
+  const unmapped: string[] = [];
+
   for (const facility of facilities) {
-    const lower = facility.toLowerCase();
-    for (const [catName, catData] of Object.entries(categories)) {
-      if (catData.keywords.some(kw => lower.includes(kw)) && catData.found.length < 2) {
-        catData.found.push(facility);
-        break; // Only add to one category
+    const lower = facility.toLowerCase().trim();
+    let found = false;
+    
+    for (const [canonical, synonyms] of Object.entries(synonymGroups)) {
+      if (synonyms.some(syn => lower.includes(syn) || syn.includes(lower))) {
+        canonicalFacilities.add(canonical);
+        found = true;
+        break;
       }
     }
+    
+    if (!found && facility.length > 2) {
+      unmapped.push(facility);
+    }
   }
+
+  // Define how to describe each canonical amenity in prose
+  const amenityPhrases: Record<string, string> = {
+    'gym': 'the gym',
+    'pool': 'the pool',
+    'spa': 'the spa',
+    'restaurant': 'on-site dining',
+    'bar': 'the bar',
+    'breakfast': 'included breakfast',
+    'garden': 'tranquil gardens',
+    'terrace': 'the terrace',
+    'fireplace': 'a cosy fireplace',
+    'wifi': 'complimentary WiFi',
+    'parking': 'secure parking',
+  };
+
+  // Categorize canonical facilities
+  const categories = {
+    wellness: ['pool', 'spa', 'gym'].filter(a => canonicalFacilities.has(a)),
+    dining: ['restaurant', 'bar', 'breakfast'].filter(a => canonicalFacilities.has(a)),
+    comfort: ['garden', 'terrace', 'fireplace'].filter(a => canonicalFacilities.has(a)),
+    convenience: ['wifi', 'parking'].filter(a => canonicalFacilities.has(a)),
+  };
 
   const sentences: string[] = [];
-  
-  // Build natural sentences based on what's available
-  const { wellness, dining, comfort, convenience } = categories;
 
-  if (wellness.found.length > 0) {
-    const items = wellness.found.map(f => f.toLowerCase()).join(' and the ');
-    sentences.push(`Revive with the ${items}`);
-  }
-
-  if (dining.found.length > 0) {
-    const items = dining.found.map(f => f.toLowerCase()).join(' or ');
-    const verb = sentences.length > 0 ? 'then savor' : 'Savor';
-    sentences.push(`${verb} ${items}`);
-  }
-
-  if (comfort.found.length > 0 && sentences.length < 2) {
-    const items = comfort.found.map(f => f.toLowerCase()).join(' and ');
-    const verb = sentences.length > 0 ? 'retreat to' : 'Retreat to';
-    sentences.push(`${verb} the ${items}`);
-  }
-
-  if (sentences.length === 0) {
-    if (convenience.found.length > 0) {
-      const items = convenience.found.slice(0, 2).map(f => f.toLowerCase()).join(' and ');
-      return `Enjoy complimentary ${items}.`;
+  // Wellness sentence
+  if (categories.wellness.length > 0) {
+    const items = categories.wellness.map(a => amenityPhrases[a]);
+    if (items.length === 1) {
+      sentences.push(`Revive at ${items[0]}`);
+    } else {
+      const last = items.pop();
+      sentences.push(`Revive at ${items.join(', ')} and ${last}`);
     }
-    // Final fallback: simple listing
-    const listed = facilities.slice(0, 3).map(a => a.toLowerCase()).join(', ');
-    return `Featuring ${listed}.`;
   }
 
-  // Join with proper punctuation
-  return sentences.join(', ') + '.';
+  // Dining sentence
+  if (categories.dining.length > 0) {
+    const items = categories.dining.map(a => amenityPhrases[a]);
+    const hasBreakfast = categories.dining.includes('breakfast');
+    const hasRestaurant = categories.dining.includes('restaurant');
+    const hasBar = categories.dining.includes('bar');
+
+    let diningPhrase = '';
+    if (hasBreakfast && hasRestaurant && hasBar) {
+      diningPhrase = 'breakfast, on-site dining, and evening drinks at the bar';
+    } else if (hasBreakfast && hasRestaurant) {
+      diningPhrase = 'breakfast and on-site dining';
+    } else if (hasBreakfast && hasBar) {
+      diningPhrase = 'breakfast and evening drinks at the bar';
+    } else if (hasRestaurant && hasBar) {
+      diningPhrase = 'on-site dining and drinks at the bar';
+    } else if (hasBreakfast) {
+      diningPhrase = 'a leisurely breakfast';
+    } else if (hasRestaurant) {
+      diningPhrase = 'on-site dining';
+    } else if (hasBar) {
+      diningPhrase = 'drinks at the bar';
+    }
+
+    if (diningPhrase) {
+      const verb = sentences.length > 0 ? 'savour' : 'Savour';
+      sentences.push(`${verb} ${diningPhrase}`);
+    }
+  }
+
+  // Comfort sentence (only if we have room)
+  if (categories.comfort.length > 0 && sentences.length < 2) {
+    const items = categories.comfort.map(a => amenityPhrases[a]);
+    if (items.length === 1) {
+      sentences.push(`unwind by ${items[0]}`);
+    } else {
+      const last = items.pop();
+      sentences.push(`unwind amid ${items.join(', ')} and ${last}`);
+    }
+  }
+
+  // If nothing substantial, try convenience or unmapped
+  if (sentences.length === 0) {
+    if (categories.convenience.length > 0) {
+      const items = categories.convenience.map(a => amenityPhrases[a]);
+      return `Enjoy ${items.join(' and ')}.`;
+    }
+    if (unmapped.length > 0) {
+      const listed = unmapped.slice(0, 3).map(a => a.toLowerCase()).join(', ');
+      return `Featuring ${listed}.`;
+    }
+    return null;
+  }
+
+  // Join sentences naturally
+  if (sentences.length === 1) {
+    return sentences[0] + '.';
+  }
+  
+  // Capitalize first, lowercase rest, join with commas
+  const [first, ...rest] = sentences;
+  return first + ', ' + rest.join(', ') + '.';
 }
 
 /**
