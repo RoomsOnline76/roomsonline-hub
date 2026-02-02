@@ -210,7 +210,8 @@ function generateItineraryEmail(itinerary: any, stays: Stay[]): string {
           <!-- CTA -->
           <tr>
             <td style="padding: 0 40px 30px; text-align: center;">
-              <a href="https://sleepinafrica.roomsonline.co.za/journey/confirmation/${itinerary.id}" style="display: inline-block; background: linear-gradient(135deg, #e91e8c 0%, #c91a76 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 14px;">View Your Journey</a>
+              <a href="https://sleepinafrica.roomsonline.co.za/journey/confirmation/${itinerary.id}" style="display: inline-block; background: linear-gradient(135deg, #e91e8c 0%, #c91a76 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 14px;">View & Download Your Journey Brochure</a>
+              <p style="margin: 12px 0 0; color: #666; font-size: 12px;">Your personalized PDF brochure is ready for download</p>
             </td>
           </tr>
 
@@ -220,7 +221,7 @@ function generateItineraryEmail(itinerary: any, stays: Stay[]): string {
               <p style="margin: 0 0 8px; font-family: Georgia, serif; font-style: italic; color: #666; font-size: 14px;">Sleep in Africa like never before</p>
               <p style="margin: 0 0 16px; color: #666; font-size: 13px;">We hope you have an unforgettable journey!</p>
               <p style="margin: 0 0 8px; color: #999; font-size: 12px;">
-                Questions? Contact us at <a href="mailto:sleepinafrica@roomsonline.co.za" style="color: #e91e8c;">sleepinafrica@roomsonline.co.za</a>
+                Questions? Contact us at <a href="mailto:info@roomsonline.co.za" style="color: #e91e8c;">info@roomsonline.co.za</a>
               </p>
               <p style="margin: 16px 0 0; color: #999; font-size: 11px;">
                 Sleep in Africa by RoomsOnline

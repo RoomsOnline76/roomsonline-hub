@@ -68,6 +68,7 @@ interface Booking {
   external_reservation_id: string | null;
   created_at: string | null;
   source?: "internal" | "pms";
+  ai_metadata?: any;
 }
 
 const Bookings = () => {
@@ -416,6 +417,8 @@ const Bookings = () => {
         const rateType = booking.rate_type_name?.toLowerCase() || "";
         const totalGuests = String(booking.adults + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0));
         const totalPrice = String(booking.total_price);
+        // Journey/Itinerary reference from ai_metadata
+        const itineraryRef = (booking.ai_metadata as any)?.itinerary_id?.substring(0, 8)?.toLowerCase() || "";
         
         return (
           booking.guest_name.toLowerCase().includes(term) ||
@@ -423,6 +426,7 @@ const Bookings = () => {
           booking.property_name?.toLowerCase().includes(term) ||
           booking.external_reservation_id?.toLowerCase().includes(term) ||
           internalRef.startsWith(term) ||
+          itineraryRef.startsWith(term) ||
           checkInDate.includes(term) ||
           checkOutDate.includes(term) ||
           bookedDate.includes(term) ||
@@ -822,8 +826,15 @@ const Bookings = () => {
                                 ? format(parseISO(booking.created_at), "dd MMM HH:mm")
                                 : "—"}
                             </TableCell>
-                            <TableCell className="py-1.5 px-2 text-muted-foreground truncate max-w-[70px]">
-                              {booking.external_reservation_id || booking.id.slice(0, 8).toUpperCase()}
+                            <TableCell className="py-1.5 px-2 text-muted-foreground truncate max-w-[90px]">
+                              {(booking.ai_metadata as any)?.itinerary_id ? (
+                                <span className="flex items-center gap-1">
+                                  <Badge variant="outline" className="text-[10px] px-1 py-0 bg-primary/10 text-primary border-primary/30">J</Badge>
+                                  {(booking.ai_metadata as any).itinerary_id.substring(0, 8).toUpperCase()}
+                                </span>
+                              ) : (
+                                booking.external_reservation_id || booking.id.slice(0, 8).toUpperCase()
+                              )}
                             </TableCell>
                           </TableRow>
                           {/* Expanded room details */}
