@@ -143,15 +143,22 @@ export default function JourneyCheckout() {
     setIsSubmitting(true);
     try {
       // Step 0: Ensure user is signed in (at least anonymously) for RLS policies
-      const { data: { session } } = await supabase.auth.getSession();
+      let { data: { session } } = await supabase.auth.getSession();
+      console.log('[JourneyCheckout] Current session:', session ? `user: ${session.user.id}, anon: ${session.user.is_anonymous}` : 'none');
+      
       if (!session) {
         console.log('[JourneyCheckout] No session, signing in anonymously...');
-        const { error: anonError } = await supabase.auth.signInAnonymously();
+        const { data: anonData, error: anonError } = await supabase.auth.signInAnonymously();
         if (anonError) {
           console.error('[JourneyCheckout] Anonymous sign-in failed:', anonError);
           throw new Error("Failed to initialize booking session");
         }
-        console.log('[JourneyCheckout] Anonymous sign-in successful');
+        session = anonData.session;
+        console.log('[JourneyCheckout] Anonymous sign-in successful, user:', session?.user?.id);
+      }
+      
+      if (!session) {
+        throw new Error("Failed to establish session for booking");
       }
 
       // Step 1: Validate availability
