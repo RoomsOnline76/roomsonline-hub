@@ -1,150 +1,89 @@
 
-# Fix Brochure Download: Direct Link & Print Styling
+# Fix Calendar Date Blocking - Part 2: External System Mismatch
 
-## Problems Identified
+## Problem Identified
 
-1. **Double-click problem**: The email CTA says "View & Download Your Journey Brochure" but links to the confirmation page, requiring a second click to actually get the brochure
-2. **Print backgrounds missing**: The PDF/print output looks dull because browsers don't print background colors/gradients by default - the CSS needs explicit print-color-adjust rules
-3. **Inconsistent expectation**: Email promises direct brochure access but delivers a landing page
+After investigating the database, I found the root cause of why confirmed bookings are not blocking calendar dates:
 
----
+**Unique Constraint Mismatch:**
+- The `property_availability` table has a unique constraint on `(property_id, room_type, date, external_system)` 
+- Existing availability records have `external_system: 'manual'`
+- The `push-booking` function creates records WITHOUT setting `external_system` (leaving it NULL)
+- When upserting, the records don't match because `NULL != 'manual'`
 
-## Solution Overview
+## Evidence
 
-### Part 1: Direct Brochure Link in Email
+| Field | Existing Record | push-booking Record |
+|-------|-----------------|---------------------|
+| property_id | ea9a019d-... | ea9a019d-... |
+| date | 2026-02-03 | 2026-02-03 |
+| room_type | "3 Bedroomed Holiday House" | "3 Bedroomed Holiday House" |
+| external_system | **'manual'** | **NULL** |
 
-Create a dedicated route/endpoint that automatically triggers the brochure generation and display when accessed. This gives users a one-click experience from email.
+This causes the upsert to either:
+1. Try to INSERT a new record (which may conflict with the 3-column index)
+2. Fail silently without updating the existing record
 
-**Option A (Recommended)**: Add a `?action=download` parameter to the confirmation page that auto-triggers brochure generation on load.
+## Solution
 
-**Option B**: Create a new edge function that returns the brochure HTML directly when accessed via URL.
+Update `push-booking` to include `external_system: 'manual'` when creating availability blocking records for manual properties.
 
-I recommend **Option A** because:
-- No new edge function needed
-- Leverages existing infrastructure
-- The confirmation page can show a loading state while generating
-- If brochure fails, user is already on a useful fallback page
+### File: `supabase/functions/push-booking/index.ts`
 
-### Part 2: Fix Print Backgrounds
-
-Add CSS rules to force browsers to print all backgrounds and colors:
-
-```css
-@media print {
-  * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    color-adjust: exact !important;
-  }
-  
-  body {
-    padding: 20px;
-    background: #fff !important;
-  }
-  
-  /* Preserve gradient backgrounds */
-  .welcome-hero,
-  .poem-section,
-  .weather-section,
-  .voucher-card,
-  .hidden-gems-section,
-  .insider-tips-section,
-  .stay-header,
-  .tone-intro {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-}
+**Current Code (lines 189-196):**
+```typescript
+availabilityRecords.push({
+  property_id: property.id,
+  date: dateStr,
+  available_units: 0,
+  is_stop_sell: true,
+  room_type: String(roomType),
+  // external_system left null for manual properties  <-- THIS IS WRONG
+});
 ```
 
----
+**Fixed Code:**
+```typescript
+availabilityRecords.push({
+  property_id: property.id,
+  date: dateStr,
+  available_units: 0,
+  is_stop_sell: true,
+  room_type: String(roomType),
+  external_system: 'manual',  // Match existing records for manual properties
+});
+```
+
+Also update the conflict columns to include `external_system` for exact matching:
+
+**Current (line 206):**
+```typescript
+onConflict: 'property_id,date,room_type',
+```
+
+**Fixed:**
+```typescript
+onConflict: 'property_id,room_type,date,external_system',
+```
 
 ## Implementation Steps
 
-### Step 1: Update JourneyConfirmation.tsx
+1. Update `push-booking` function at line ~195 to add `external_system: 'manual'`
+2. Update the `onConflict` parameter at line ~206 to use the 4-column unique constraint
+3. Deploy the updated edge function
+4. Test by re-triggering a booking confirmation
 
-Add auto-download functionality when `?action=download` is present in URL:
+## Why This Fixes It
 
-```typescript
-// In JourneyConfirmation component
-const [searchParams] = useSearchParams();
-const autoDownload = searchParams.get('action') === 'download';
-
-useEffect(() => {
-  // Auto-trigger brochure download if action=download is in URL
-  if (autoDownload && itinerary && isConfirmed && !isGeneratingPdf) {
-    handleDownloadPdf();
-  }
-}, [autoDownload, itinerary, isConfirmed]);
-```
-
-### Step 2: Update Email CTA Link
-
-Change the email button URL from:
-```
-https://sleepinafrica.roomsonline.co.za/journey/confirmation/${itinerary.id}
-```
-
-To:
-```
-https://sleepinafrica.roomsonline.co.za/journey/confirmation/${itinerary.id}?action=download
-```
-
-Also update the button text and add a secondary link to just view the confirmation:
-
-```html
-<a href="...?action=download">Download Your Journey Brochure</a>
-<p>Or <a href="...">view your confirmation online</a></p>
-```
-
-### Step 3: Update PDF Print Styles
-
-Add comprehensive print color preservation rules to the `@media print` section in `generate-itinerary-pdf/index.ts`.
-
----
-
-## Files to Modify
-
-| File | Change |
-|------|--------|
-| `src/pages/JourneyConfirmation.tsx` | Add auto-download logic when `?action=download` is in URL |
-| `supabase/functions/send-itinerary-email/index.ts` | Update CTA link to include `?action=download` |
-| `supabase/functions/generate-itinerary-pdf/index.ts` | Add print-color-adjust rules for all colored elements |
-
----
-
-## Technical Details
-
-### Print Color Preservation
-
-Browsers by default don't print:
-- Background colors
-- Background images/gradients
-- Box shadows
-
-The `print-color-adjust: exact` CSS property forces browsers to print these. For maximum compatibility:
-- `-webkit-print-color-adjust: exact` (Safari/Chrome)
-- `print-color-adjust: exact` (modern standard)
-- `color-adjust: exact` (Firefox legacy)
-
-### Auto-Download UX
-
-When user clicks from email with `?action=download`:
-1. Page loads with loading spinner
-2. Query fetches itinerary data
-3. Once data is ready, `handleDownloadPdf` is called automatically
-4. Brochure opens in new tab with print dialog
-5. User can save as PDF or print
-
-If they prefer, they can still navigate to the confirmation page without the parameter to manually download.
-
----
+When both the existing record AND the new record have `external_system: 'manual'`:
+- The 4-column unique constraint finds an exact match
+- The upsert correctly UPDATES the existing record
+- `is_stop_sell` becomes `true` and `available_units` becomes `0`
+- The calendar shows the dates as blocked
 
 ## Verification
 
-After implementation:
-1. Send a test confirmation email
-2. Click the "Download Brochure" button in email
-3. Verify brochure opens directly without needing second click
-4. Print/save as PDF and verify all backgrounds and gradients appear
-5. Also verify the confirmation page still works normally without the action parameter
+After fix:
+1. Run push-booking for booking `e8dadecf-e2a0-42d5-836d-839d6635ca4d`
+2. Query `property_availability` for dates 2026-02-03 through 2026-02-05
+3. Confirm `is_stop_sell = true` and `available_units = 0`
