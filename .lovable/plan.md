@@ -1,128 +1,121 @@
 
-# Fix Calendar Date Blocking for Manual Property Bookings
 
-## Problem Identified
+# Fix Dining Section: Add Google Maps Link + Address Inaccurate Restaurant Data
 
-The edge function logs reveal a clear error:
+## Problem Summary
 
-```
-null value in column "room_type" of relation "property_availability" 
-violates not-null constraint
-```
-
-### Root Cause
-
-**Property Format Mismatch**: The booking stores room data with snake_case keys (`room_type_id`, `room_type_name`), but the push-booking function looks for camelCase keys (`roomTypeId`, `roomTypeName`):
-
-| Source | Format | Example |
-|--------|--------|---------|
-| Booking data | `room_type_name` | "3 Bedroomed Holiday House" |
-| push-booking logic | `roomTypeName` | undefined → falls back to null |
-| property_availability | `room_type` | "3 Bedroomed Holiday House" (required) |
-
-When the upsert runs with `room_type: null`, it violates the database constraint and silently fails, leaving dates unblocked.
+1. **Missing Google Maps Link**: The dining recommendation in the confirmation email/PDF doesn't have a clickable link to find the restaurant
+2. **Incorrect Dining Data**: The "Pili Pili Beach Bar & Restaurant" is recorded as being 2.5km from Still Bay, but it's actually located in **Witsand** (~100km away). This is a data error from before the coordinate constraint fix was deployed.
 
 ---
 
 ## Solution
 
-### File: `supabase/functions/push-booking/index.ts`
+### Part 1: Add Google Maps Link to Dining Section
 
-Update the manual property date-blocking logic (lines 165-174) to:
+**Files to Modify:**
+- `supabase/functions/generate-itinerary-pdf/index.ts` - PDF dining section
+- `supabase/functions/send-itinerary-email/index.ts` - (if dining is shown in email)
 
-1. **Handle both naming conventions**: Support both `room_type_name` and `roomTypeName` formats
-2. **Prioritize room name over ID**: The `property_availability` table uses room names, so match that format
-3. **Add fallback logic**: If no room name is found, attempt to look up the room name from property config
+**Implementation:**
 
-### Current Code (line 165-174):
-
-```typescript
-for (const room of bookingRooms) {
-  availabilityRecords.push({
-    property_id: property.id,
-    date: dateStr,
-    available_units: 0,
-    is_stop_sell: true,
-    room_type: room.roomTypeId || room.roomTypeName || null,  // BUG: wrong field names
-  });
-}
-```
-
-### Updated Code:
+Generate a Google Maps search URL using the restaurant name and location:
 
 ```typescript
-for (const room of bookingRooms) {
-  // Support both camelCase and snake_case field names
-  const roomTypeName = room.roomTypeName || room.room_type_name || 
-                       room.roomTypeId || room.room_type_id || null;
-  
-  if (!roomTypeName) {
-    console.warn('Room has no identifiable type - skipping availability block for this room');
-    continue;
-  }
-  
-  availabilityRecords.push({
-    property_id: property.id,
-    date: dateStr,
-    available_units: 0,
-    is_stop_sell: true,
-    room_type: String(roomTypeName),  // Ensure string format
-  });
-}
+// In generateDiningHTML()
+const diningTitle = encodeURIComponent(dining.title);
+const searchQuery = property?.city 
+  ? encodeURIComponent(`${dining.title}, ${property.city}`)
+  : diningTitle;
+const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${searchQuery}`;
 ```
 
-### Additional Improvement
+Update the HTML:
 
-If the room only has an ID (not a name), look up the room name from the property's wizard configuration:
-
-```typescript
-// Before the loop, build a map of room IDs to names from property config
-const roomTypeMap = new Map<string, string>();
-const amenities = property.amenities as { room_types?: Array<{id: string | number; name: string}> } | null;
-if (amenities?.room_types) {
-  for (const rt of amenities.room_types) {
-    roomTypeMap.set(String(rt.id), rt.name);
-  }
-}
-
-// In the loop, resolve ID to name if needed
-const roomId = room.roomTypeId || room.room_type_id;
-const roomName = room.roomTypeName || room.room_type_name || 
-                 (roomId ? roomTypeMap.get(String(roomId)) : null);
+```html
+<h5 class="dining-name">
+  <a href="${mapsUrl}" target="_blank" style="color: inherit; text-decoration: none;">
+    ${dining.title} 📍
+  </a>
+</h5>
 ```
+
+### Part 2: Fix the Incorrect Dining Record
+
+**Action**: Delete the hallucinated dining record for this property. The next time experiences are regenerated, the new coordinate-aware logic will generate accurate recommendations.
+
+**Database Fix (manual or via SQL):**
+```sql
+DELETE FROM local_experiences 
+WHERE property_id = 'ea9a019d-1299-46eb-b371-a0b25eb60350' 
+  AND category = 'dining';
+```
+
+**Alternative**: Add a `booking_link` or `maps_url` column to `local_experiences` table to store the Google Maps link directly (for future curated venues).
 
 ---
 
 ## Implementation Steps
 
-1. **Update push-booking edge function**
-   - Fix field name handling for both conventions
-   - Add room ID to name resolution via property config
-   - Add logging for better debugging
-   - Ensure room_type is never null
+1. **Update `generateDiningHTML()` in generate-itinerary-pdf/index.ts**
+   - Accept property context as parameter (for city/location data)
+   - Construct Google Maps search URL from dining title + property city
+   - Make restaurant name clickable with maps link
+   - Add small map pin emoji indicator
 
-2. **Deploy the updated function**
+2. **Update PDF function call site**
+   - Pass property details to `generateDiningHTML()`
 
-3. **Verify the fix works**
-   - Test a new booking on the manual property
-   - Confirm availability records are created with proper room_type
-   - Confirm calendar shows dates as blocked
+3. **Delete the incorrect dining record**
+   - Run SQL to remove the Pili Pili record for the Still Bay property
+
+4. **Deploy the updated function**
 
 ---
 
 ## Technical Details
 
-### Files to Modify
+### generateDiningHTML() Updated Signature
 
-- `supabase/functions/push-booking/index.ts` - Lines 148-196 (manual property date blocking section)
+```typescript
+// Before
+function generateDiningHTML(dining: LocalExperience | undefined): string
 
-### Database Constraint
+// After  
+function generateDiningHTML(
+  dining: LocalExperience | undefined, 
+  propertyCity?: string
+): string
+```
 
-The `property_availability` table has a NOT NULL constraint on `room_type`, which is correct behavior. The fix ensures we always provide a valid room type name.
+### Google Maps URL Format
 
-### Edge Cases Handled
+Using the Universal Links format for maximum compatibility:
+```
+https://www.google.com/maps/search/?api=1&query=Restaurant+Name,+City+Name
+```
 
-1. Booking uses camelCase (`roomTypeName`) - handled
-2. Booking uses snake_case (`room_type_name`) - handled
-3. Booking only has room ID - resolved via property config lookup
-4. No room info at all - log warning and skip (better than failing entire booking)
+This opens in the Google Maps app on mobile or the web on desktop.
+
+### Database Schema Note
+
+The `local_experiences` table doesn't have a `maps_url` column currently. For now, we'll dynamically generate the URL. A future enhancement could add this column for manually curated venues with exact addresses.
+
+---
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `supabase/functions/generate-itinerary-pdf/index.ts` | Update `generateDiningHTML()` to include Maps link |
+| `local_experiences` table | Delete incorrect "Pili Pili" record for Still Bay property |
+
+---
+
+## Verification
+
+After implementation:
+1. Regenerate experiences for the Still Bay property
+2. Generate new PDF/email - dining should have clickable Maps link
+3. Verify the new dining recommendation is actually in Still Bay (not Witsand)
+
