@@ -17,6 +17,8 @@ interface PropertyContext {
   city: string | null;
   country: string | null;
   description: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 interface Experience {
@@ -68,26 +70,35 @@ function determineDiningTier(property: PropertyContext): DiningTier {
 function getDiningPrompt(property: PropertyContext, diningTier: DiningTier): string {
   const location = `${property.city || 'the area'}${property.country ? `, ${property.country}` : ''}`;
   
+  // Add coordinate constraint if available to prevent AI hallucinating distant locations
+  const coordinateConstraint = property.latitude && property.longitude
+    ? `\n\nCRITICAL LOCATION CONSTRAINT: The property is located at coordinates ${property.latitude}, ${property.longitude} in ${property.city || 'the area'}.
+       ONLY recommend restaurants that are WITHIN 15km of these coordinates.
+       Do NOT recommend establishments from other towns or cities.
+       If ${property.city} is a small town, stick to venues actually IN or very near ${property.city}.
+       The distance_km you provide MUST be accurate and less than 20km.`
+    : '';
+  
   const tierPrompts: Record<DiningTier, string> = {
     fine_dining: `Find the highest-rated fine dining restaurant near ${location}. 
       Look for: tasting menus, wine pairing, award recognition, chef's table experiences.
       The clientele at ${property.name} (a ${property.property_type || 'luxury property'}) expects world-class cuisine.
-      Include the ACTUAL restaurant name - be specific, not generic.`,
+      Include the ACTUAL restaurant name - be specific, not generic.${coordinateConstraint}`,
       
     casual_elegant: `Find an upscale but relaxed restaurant near ${location}.
       Look for: farm-to-table, contemporary cuisine, good wine list, stylish atmosphere.
       Perfect for guests at ${property.name} who appreciate quality without excessive formality.
-      Include the ACTUAL restaurant name - be specific, not generic.`,
+      Include the ACTUAL restaurant name - be specific, not generic.${coordinateConstraint}`,
       
     rustic_local: `Find an authentic local dining spot near ${location}.
       Look for: regional cuisine, family-run establishments, wine farms with restaurants, historic pubs, farmhouse cooking.
       Guests at ${property.name} (a ${property.property_type || 'countryside property'}) seek genuine local experiences.
-      Include the ACTUAL restaurant name - be specific, not generic.`,
+      Include the ACTUAL restaurant name - be specific, not generic.${coordinateConstraint}`,
       
     relaxed_casual: `Find a cozy local eatery, cafe, or takeaway near ${location}.
       Look for: comfort food, friendly service, local favorites, hidden gems, good value.
       Perfect for ${property.property_type || 'guest house'} guests wanting easy, quality meals.
-      Include the ACTUAL restaurant name - be specific, not generic.`
+      Include the ACTUAL restaurant name - be specific, not generic.${coordinateConstraint}`
   };
   
   return tierPrompts[diningTier];
@@ -220,6 +231,13 @@ async function generateExperiencesWithLovableAI(
 
   const location = `${property.city || 'the area'}${property.country ? `, ${property.country}` : ''}`;
   
+  // Add coordinate constraint if available
+  const coordinateInfo = property.latitude && property.longitude
+    ? `\n\nIMPORTANT: The property is at coordinates ${property.latitude}, ${property.longitude}.
+Only recommend experiences WITHIN 30km of this location. Provide accurate distance_km values.
+Do NOT recommend attractions in other towns unless they are genuinely nearby.`
+    : '';
+  
   const prompt = `Generate ${count} compelling local experiences near ${property.name} in ${location}.
 Property type: ${property.property_type || 'hotel'}
 Property vibe: ${property.description?.slice(0, 200) || 'comfortable accommodation'}
@@ -231,7 +249,7 @@ Create a diverse mix:
 - 1 relaxation/wellness option
 
 For each experience, provide specific, real recommendations (not generic descriptions).
-Include actual place names when possible.`;
+Include actual place names when possible.${coordinateInfo}`;
 
   try {
     console.log("Calling Lovable AI for general experiences...");
@@ -447,10 +465,10 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch property details
+    // Fetch property details including coordinates for location-aware recommendations
     const { data: property, error: propertyError } = await supabase
       .from("properties")
-      .select("id, name, property_type, editorial_rating, city, country, description")
+      .select("id, name, property_type, editorial_rating, city, country, description, latitude, longitude")
       .eq("id", property_id)
       .single();
 
@@ -466,8 +484,16 @@ serve(async (req) => {
       editorial_rating: property?.editorial_rating || null,
       city: property?.city || city || null,
       country: property?.country || country || "South Africa",
-      description: property?.description || null
+      description: property?.description || null,
+      latitude: property?.latitude || null,
+      longitude: property?.longitude || null
     };
+    
+    if (propertyContext.latitude && propertyContext.longitude) {
+      console.log(`Property coordinates: ${propertyContext.latitude}, ${propertyContext.longitude}`);
+    } else {
+      console.log("Warning: Property has no coordinates - dining recommendations may be less accurate");
+    }
 
     console.log(`Enriching experiences for: ${propertyContext.name} (${propertyContext.city})`);
 
@@ -485,6 +511,12 @@ serve(async (req) => {
     let diningExperience = diningFromXAI;
     if (!diningExperience) {
       diningExperience = await generateDiningWithLovableAI(propertyContext, diningTier);
+    }
+    
+    // Validate dining distance - reject if too far (likely AI hallucination)
+    if (diningExperience && diningExperience.distance_km && diningExperience.distance_km > 25) {
+      console.warn(`Dining recommendation "${diningExperience.title}" rejected: distance ${diningExperience.distance_km}km exceeds 25km limit`);
+      diningExperience = null; // Skip this dining recommendation
     }
 
     // Combine all experiences
