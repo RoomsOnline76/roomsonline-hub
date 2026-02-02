@@ -393,15 +393,27 @@ function generateExperiencesHTML(experiences: LocalExperience[]): string {
   
   if (otherExperiences.length === 0) return '';
   
-  const experienceItems = otherExperiences.map(exp => `
-    <div class="experience-item">
-      <span class="experience-icon">${categoryIcons[exp.category] || '✨'}</span>
-      <div class="experience-content">
-        <span class="experience-title">${exp.title}</span>
-        ${exp.duration_hours ? `<span class="experience-duration">${exp.duration_hours}h</span>` : ''}
+  const experienceItems = otherExperiences.map(exp => {
+    // Build meta info: prefer distance (how far), then duration (how long the activity takes)
+    const metaParts: string[] = [];
+    if (exp.distance_km) {
+      metaParts.push(`${exp.distance_km}km away`);
+    }
+    if (exp.duration_hours) {
+      metaParts.push(`${exp.duration_hours}h activity`);
+    }
+    const metaText = metaParts.join(' · ');
+    
+    return `
+      <div class="experience-item">
+        <span class="experience-icon">${categoryIcons[exp.category] || '✨'}</span>
+        <div class="experience-content">
+          <span class="experience-title">${exp.title}</span>
+          ${metaText ? `<span class="experience-meta">${metaText}</span>` : ''}
+        </div>
       </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
   
   return `
     <div class="experiences-section">
