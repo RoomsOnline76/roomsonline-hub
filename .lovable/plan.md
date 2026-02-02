@@ -1,139 +1,165 @@
 
-# Unify Checkout Flow: Single Journey-Based Checkout
+
+# Fix Journey PDF: Experience Travel Times and Dining Location Accuracy
 
 ## Problem Summary
 
-Currently there are **three separate checkout paths** in the application:
+Based on analysis of the screenshot and database:
 
-1. **InlineCheckout** (PropertyShowcase SmartCart → bottom sheet checkout)
-   - Missing `user_id` on booking insert
-   - Missing anonymous authentication
-   - Causes 403 RLS errors on payment
+1. **Travel Time Display Issue**: The PDF shows `duration_hours` (how long the activity takes, e.g., "4h" for a hiking trail) but the layout implies these are travel times from the property. Users expect to see "time to get there."
 
-2. **JourneyCheckout** (`/journey/checkout` page)
-   - Has proper anonymous authentication
-   - Sets `user_id` correctly
-   - Works correctly after recent fix
-
-3. **Legacy Booking** (`/booking/:slug` page)
-   - Old flow with complex state management
-   - Still referenced from several places
-
-## Solution
-
-Consolidate all checkout flows to use the **Journey Checkout page** (`/journey/checkout`). This involves:
-
-1. **Replace InlineCheckout with redirect to Journey Checkout**
-2. **Update StickyBookingCTA to route to Journey Checkout**
-3. **Ensure SmartCart leads to Journey Checkout**
+2. **Dining Recommendation is Incorrect Location**: The AI recommended "Pili Pili Beach Bar & Restaurant" for a Still Bay property. Investigation reveals this restaurant is actually located in **Sedgefield (approximately 100km away)**, not Still Bay. The AI hallucinated proximity.
 
 ---
 
-## Implementation Details
+## Root Cause Analysis
 
-### Step 1: Update PropertyShowcase to redirect to JourneyCheckout
+### Issue 1: Duration vs Travel Time
+- **Current behaviour**: `generateExperiencesHTML()` displays `exp.duration_hours` as "Xh"
+- **Problem**: This represents activity duration, not travel time
+- **Data available**: `distance_km` field exists but isn't displayed
 
-**File**: `src/pages/PropertyShowcase.tsx`
+### Issue 2: AI Dining Hallucination
+- **Current behaviour**: AI prompts pass only city/country names, no coordinates
+- **Problem**: xAI/Lovable AI generates plausible-sounding but geographically incorrect recommendations
+- **Evidence**: "Pili Pili" is a real restaurant but in Sedgefield, not Still Bay
 
-Change the checkout flow:
-- When `SmartCart.onCheckout` is triggered, navigate to `/journey/checkout` instead of opening `InlineCheckout`
-- Remove the `InlineCheckout` component from PropertyShowcase
+---
+
+## Solution
+
+### Part 1: Fix Experience Display in PDF
+
+**File**: `supabase/functions/generate-itinerary-pdf/index.ts`
+
+Update `generateExperiencesHTML()` to show **both** travel distance and activity duration:
 
 ```typescript
-// Before (line 859):
-<SmartCart 
-  onCheckout={() => setCheckoutOpen(true)}
-/>
+// Current (line ~396-411):
+${exp.duration_hours ? `<span class="experience-duration">${exp.duration_hours}h</span>` : ''}
 
-// After:
-<SmartCart 
-  onCheckout={() => navigate('/journey/checkout')}
-/>
+// Updated:
+<div class="experience-meta">
+  ${exp.distance_km ? `<span class="experience-distance">${exp.distance_km}km away</span>` : ''}
+  ${exp.duration_hours ? `<span class="experience-duration">${exp.duration_hours}h activity</span>` : ''}
+</div>
 ```
 
-Remove the `InlineCheckout` component usage and `checkoutOpen` state.
+Also update CSS to style these clearly.
 
-### Step 2: Update StickyBookingCTA checkout action
+### Part 2: Improve AI Dining Prompts with Coordinates
 
-**File**: `src/pages/PropertyShowcase.tsx`
+**File**: `supabase/functions/enrich-property-experiences/index.ts`
 
-In `handleBookProperty()` function (around line 657-659), change:
+1. **Pass coordinates to AI prompt** - Fetch property latitude/longitude and include in the prompt
+2. **Add distance constraint** - Explicitly tell AI to recommend within X km radius
+3. **Request coordinate validation** - Ask AI to include approximate lat/long in response for verification
+
+Updated prompt structure:
 ```typescript
-// Before:
-if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && bookedRooms.length > 0) {
-  navigate(`/booking/${property?.slug || property?.id}`);
-  return;
-}
-
-// After:
-if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && bookedRooms.length > 0) {
-  navigate('/journey/checkout');
-  return;
-}
+const prompt = getDiningPrompt(property, diningTier);
+// Add coordinate context:
+const coordinateContext = property.latitude && property.longitude
+  ? `\n\nIMPORTANT: The property is located at coordinates ${property.latitude}, ${property.longitude}. 
+     Only recommend restaurants WITHIN 15km of these coordinates. 
+     Do not recommend establishments in other towns.`
+  : '';
 ```
 
-And for the SmartCart checkout (around line 663-665):
-```typescript
-// Before:
-if (hasStays) {
-  setCheckoutOpen(true);
-  return;
-}
+### Part 3: Add Post-Generation Validation
 
-// After:
-if (hasStays) {
-  navigate('/journey/checkout');
-  return;
-}
-```
-
-### Step 3: Remove InlineCheckout component reference
-
-**File**: `src/pages/PropertyShowcase.tsx`
-
-- Remove import: `import { InlineCheckout } from "@/components/booking/InlineCheckout";`
-- Remove state: `const [checkoutOpen, setCheckoutOpen] = useState(false);`
-- Remove callback: `handlePaymentSuccess` and `handlePaymentCancelled`
-- Remove JSX: The `<InlineCheckout>` component rendering
-
-### Step 4: Update other references to `/booking/` route
-
-**Files to check and update**:
-- `src/components/SearchForm.tsx` - Line 236
-- `src/pages/StagingBook.tsx` - Line 216  
-- `src/components/RoomAvailabilityCalendar.tsx` - Line 632
-
-For these, the logic depends on context - if they're adding to itinerary flow, redirect to `/journey/checkout`. If they're legacy flows, leave as-is for now but ensure they add to ItineraryContext first.
+Create a simple validation step that checks if the generated dining recommendation's `distance_km` is reasonable (< 25km). If not, flag or regenerate.
 
 ---
 
 ## Files to Modify
 
-1. **`src/pages/PropertyShowcase.tsx`**
-   - Remove `InlineCheckout` import
-   - Remove `checkoutOpen` state
-   - Remove `handlePaymentSuccess` and `handlePaymentCancelled` callbacks
-   - Update `SmartCart.onCheckout` to navigate to `/journey/checkout`
-   - Update `handleBookProperty` to navigate to `/journey/checkout` instead of `/booking/`
-   - Remove `<InlineCheckout>` JSX
+1. **`supabase/functions/generate-itinerary-pdf/index.ts`**
+   - Update `generateExperiencesHTML()` to display distance (km) instead of/alongside duration
+   - Add CSS for `.experience-distance` class
+   - Clarify duration label as "activity duration"
+
+2. **`supabase/functions/enrich-property-experiences/index.ts`**
+   - Fetch property coordinates (latitude, longitude)
+   - Add coordinate context to dining prompts for xAI and Lovable AI
+   - Add distance constraint (15-20km radius)
+   - Add post-generation distance validation
+   - Regenerate or skip dining if validation fails
 
 ---
 
-## Benefits
+## Implementation Details
 
-1. **Single checkout flow** - All bookings go through JourneyCheckout
-2. **Proper authentication** - Anonymous sign-in ensures RLS policies work
-3. **Consistent user experience** - Same checkout UI and process everywhere
-4. **Easier maintenance** - One checkout implementation to maintain
+### PDF Display Changes
+
+Current HTML (line ~396-411):
+```html
+<div class="experience-item">
+  <span class="experience-icon">${categoryIcons[exp.category] || '✨'}</span>
+  <div class="experience-content">
+    <span class="experience-title">${exp.title}</span>
+    ${exp.duration_hours ? `<span class="experience-duration">${exp.duration_hours}h</span>` : ''}
+  </div>
+</div>
+```
+
+New HTML:
+```html
+<div class="experience-item">
+  <span class="experience-icon">${categoryIcons[exp.category] || '✨'}</span>
+  <div class="experience-content">
+    <span class="experience-title">${exp.title}</span>
+    <span class="experience-meta">
+      ${exp.distance_km ? `${exp.distance_km}km` : ''}
+      ${exp.distance_km && exp.duration_hours ? ' · ' : ''}
+      ${exp.duration_hours ? `${exp.duration_hours}h` : ''}
+    </span>
+  </div>
+</div>
+```
+
+### AI Prompt Enhancement
+
+Add to property context fetch (around line 451):
+```typescript
+const { data: property, error: propertyError } = await supabase
+  .from("properties")
+  .select("id, name, property_type, editorial_rating, city, country, description, latitude, longitude")
+  //                                                                              ^^^^^^^^^^^^^^^^
+  .eq("id", property_id)
+  .single();
+```
+
+Enhance dining prompt:
+```typescript
+function getDiningPrompt(property: PropertyContext, diningTier: DiningTier): string {
+  const location = `${property.city || 'the area'}${property.country ? `, ${property.country}` : ''}`;
+  const coordinateGuidance = property.latitude && property.longitude
+    ? `\n\nCRITICAL: Only recommend restaurants within 15km of ${property.city}. 
+       The property coordinates are: ${property.latitude}, ${property.longitude}.
+       Do NOT suggest restaurants from other towns like Sedgefield, Knysna, or Plettenberg Bay if the property is in Still Bay.`
+    : '';
+  
+  // ... existing tier prompts + coordinateGuidance
+}
+```
 
 ---
 
-## Verification Steps
+## Verification After Implementation
 
-After implementation:
-1. Navigate to a property showcase page
-2. Add a room to the cart via AI Concierge or date picker
-3. Click "Checkout" on SmartCart
-4. Verify you're redirected to `/journey/checkout` page
-5. Complete the checkout and verify payment works
-6. Verify confirmation email is sent
+1. Regenerate experiences for the Still Bay property
+2. Verify dining recommendation is actually in Still Bay
+3. Generate new PDF and confirm:
+   - Experiences show distance (km) clearly
+   - Duration is labeled as activity time
+   - Dining venue is genuinely nearby
+
+---
+
+## Technical Notes
+
+- The xAI Grok model has real-time knowledge and should correctly identify local restaurants if given proper coordinate context
+- Lovable AI (Gemini) may have outdated data but coordinate constraints will help
+- Consider adding a "source verification" flag for dining that was AI-generated vs manually curated
+
