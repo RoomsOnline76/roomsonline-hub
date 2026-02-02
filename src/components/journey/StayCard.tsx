@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ItineraryStay } from '@/contexts/ItineraryContext';
 import { cn } from '@/lib/utils';
-
+import { JourneyDestinationMap } from './JourneyDestinationMap';
 interface StayCardProps {
   stay: ItineraryStay;
   index: number;
@@ -179,6 +179,14 @@ export function StayCard({
               </div>
             </div>
 
+            {/* Destination Discovery Map */}
+            {stay.property_id && (
+              <JourneyDestinationMap
+                propertyId={stay.property_id}
+                propertyName={stay.property_name}
+                compact={true}
+              />
+            )}
             {/* Actions */}
             <div className="flex flex-wrap gap-2 pt-2">
               {onEditDates && (
