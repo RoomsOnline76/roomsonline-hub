@@ -225,28 +225,33 @@ Deno.serve(async (req) => {
         console.warn('No owner_email configured for property:', property.id);
       }
       
-      // Also send guest confirmation email
-      try {
-        const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-        
-        await fetch(
-          `${supabaseUrl}/functions/v1/send-booking-email`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${serviceKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              booking_id,
-              status: 'success',
-            }),
-          }
-        );
-        console.log('Guest confirmation email sent');
-      } catch (error) {
-        console.error('Failed to send guest confirmation:', error);
+      // Send guest confirmation email ONLY if NOT part of an itinerary
+      // (Itinerary bookings get a single journey email instead of individual booking emails)
+      if (booking.booking_channel !== 'rol_itinerary') {
+        try {
+          const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+          const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+          
+          await fetch(
+            `${supabaseUrl}/functions/v1/send-booking-email`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${serviceKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                booking_id,
+                status: 'success',
+              }),
+            }
+          );
+          console.log('Guest confirmation email sent');
+        } catch (error) {
+          console.error('Failed to send guest confirmation:', error);
+        }
+      } else {
+        console.log('Skipping individual booking email - this is part of an itinerary (will receive journey email instead)');
       }
       
       return new Response(
@@ -1680,37 +1685,43 @@ Deno.serve(async (req) => {
       }
     }
     
-    try {
-      console.log(`Triggering booking ${emailStatus} email (payment: ${paymentSucceeded ? 'paid' : 'unpaid'}, PMS: ${anySuccess ? 'synced' : 'failed'})...`);
-      
-      // Use internal fetch to call the send-booking-email function
-      const emailResponse = await fetch(
-        `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-booking-email`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            booking_id,
-            status: emailStatus,
-            error_message: emailStatus === 'failed' ? (firstError?.error || undefined) : undefined,
-            sync_warning: syncWarning,
-            external_reservation_ids: allExternalIds,
-          }),
-        }
-      );
+    // Send guest email ONLY if NOT part of an itinerary
+    // (Itinerary bookings get a single journey email from multi-push-booking instead)
+    if (booking.booking_channel !== 'rol_itinerary') {
+      try {
+        console.log(`Triggering booking ${emailStatus} email (payment: ${paymentSucceeded ? 'paid' : 'unpaid'}, PMS: ${anySuccess ? 'synced' : 'failed'})...`);
+        
+        // Use internal fetch to call the send-booking-email function
+        const emailResponse = await fetch(
+          `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-booking-email`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              booking_id,
+              status: emailStatus,
+              error_message: emailStatus === 'failed' ? (firstError?.error || undefined) : undefined,
+              sync_warning: syncWarning,
+              external_reservation_ids: allExternalIds,
+            }),
+          }
+        );
 
-      if (!emailResponse.ok) {
-        const emailError = await emailResponse.text();
-        console.error('Failed to send booking email:', emailError);
-      } else {
-        console.log('Booking email sent successfully');
+        if (!emailResponse.ok) {
+          const emailError = await emailResponse.text();
+          console.error('Failed to send booking email:', emailError);
+        } else {
+          console.log('Booking email sent successfully');
+        }
+      } catch (emailError) {
+        // Don't fail the whole response if email fails
+        console.error('Error sending booking email:', emailError);
       }
-    } catch (emailError) {
-      // Don't fail the whole response if email fails
-      console.error('Error sending booking email:', emailError);
+    } else {
+      console.log('Skipping individual booking email - this is part of an itinerary (will receive journey email instead)');
     }
 
     return new Response(

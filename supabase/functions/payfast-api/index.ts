@@ -526,15 +526,37 @@ Deno.serve(async (req) => {
       // If payment successful, trigger push-booking and send email
       if (newStatus === "paid") {
         try {
-          console.log("[PayFast] Triggering push-booking for:", transaction.booking_id);
+          // Check if this is an itinerary booking
+          const { data: bookingData } = await supabase
+            .from("bookings")
+            .select("booking_channel, ai_metadata")
+            .eq("id", transaction.booking_id)
+            .single();
           
-          const pushResponse = await supabase.functions.invoke("push-booking", {
-            body: { booking_id: transaction.booking_id },
-          });
+          const isItineraryBooking = bookingData?.booking_channel === 'rol_itinerary';
+          const itineraryId = (bookingData?.ai_metadata as any)?.itinerary_id;
           
-          console.log("[PayFast] Push-booking response:", JSON.stringify(pushResponse.data));
+          if (isItineraryBooking && itineraryId) {
+            // For itinerary bookings, trigger multi-push-booking instead
+            console.log("[PayFast] Triggering multi-push-booking for itinerary:", itineraryId);
+            
+            const pushResponse = await supabase.functions.invoke("multi-push-booking", {
+              body: { itinerary_id: itineraryId },
+            });
+            
+            console.log("[PayFast] Multi-push-booking response:", JSON.stringify(pushResponse.data));
+          } else {
+            // Standard single booking flow
+            console.log("[PayFast] Triggering push-booking for:", transaction.booking_id);
+            
+            const pushResponse = await supabase.functions.invoke("push-booking", {
+              body: { booking_id: transaction.booking_id },
+            });
+            
+            console.log("[PayFast] Push-booking response:", JSON.stringify(pushResponse.data));
+          }
         } catch (pushError) {
-          console.error("[PayFast] Push-booking failed:", pushError);
+          console.error("[PayFast] Push/multi-push-booking failed:", pushError);
           // Don't fail ITN - booking payment is still recorded
         }
       }

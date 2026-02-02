@@ -284,13 +284,30 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Parse stays
-    const stays: Stay[] = typeof itinerary.stays === 'string' 
+    // Parse stays - handle both snake_case and camelCase field names
+    const rawStays = typeof itinerary.stays === 'string' 
       ? JSON.parse(itinerary.stays) 
       : itinerary.stays || [];
 
+    // Normalize stay data to handle snake_case from DB and camelCase from frontend
+    const normalizeStay = (s: any): Stay => ({
+      propertyId: s.propertyId || s.property_id,
+      propertyName: s.propertyName || s.property_name || 'Property',
+      roomTypeName: s.roomTypeName || s.rooms?.[0]?.room_type_name,
+      rateTypeName: s.rateTypeName,
+      checkIn: s.checkIn || s.dates?.check_in,
+      checkOut: s.checkOut || s.dates?.check_out,
+      guests: s.guests || { adults: 2, children: 0, infants: 0 },
+      price: s.price || s.price_breakdown?.total || 0,
+      nights: s.nights || (s.dates ? Math.ceil((new Date(s.dates.check_out).getTime() - new Date(s.dates.check_in).getTime()) / (1000 * 60 * 60 * 24)) : 1),
+      city: s.city,
+      country: s.country,
+    });
+
+    const stays: Stay[] = rawStays.map(normalizeStay);
+
     // Enrich stays with property data
-    const propertyIds = [...new Set(stays.map(s => s.propertyId))];
+    const propertyIds = [...new Set(stays.map(s => s.propertyId).filter(Boolean))];
     const { data: properties } = await supabase
       .from("properties")
       .select("id, name, city, country")
@@ -300,6 +317,7 @@ Deno.serve(async (req) => {
     
     const enrichedStays = stays.map(stay => ({
       ...stay,
+      propertyName: stay.propertyName || propertyMap.get(stay.propertyId)?.name || 'Property',
       city: stay.city || propertyMap.get(stay.propertyId)?.city,
       country: stay.country || propertyMap.get(stay.propertyId)?.country,
     }));
@@ -310,55 +328,16 @@ Deno.serve(async (req) => {
     // Property names for subject
     const propertyNames = enrichedStays.map(s => s.propertyName).join(" → ");
 
-    // Generate journey brochure attachment
-    let attachments: Array<{ filename: string; content: string; content_type: string }> = [];
-    
-    try {
-      console.log(`[Itinerary Email] Generating brochure attachment for itinerary ${itinerary_id}`);
-      
-      const brochureResponse = await fetch(
-        `${supabaseUrl}/functions/v1/generate-itinerary-pdf`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${supabaseKey}`,
-          },
-          body: JSON.stringify({ itinerary_id }),
-        }
-      );
-      
-      if (brochureResponse.ok) {
-        const brochureData = await brochureResponse.json();
-        if (brochureData.html) {
-          // Convert HTML to base64 for attachment
-          const encoder = new TextEncoder();
-          const htmlBytes = encoder.encode(brochureData.html);
-          const base64Content = btoa(String.fromCharCode(...htmlBytes));
-          
-          attachments.push({
-            filename: `Journey-Brochure-${itinerary.id.substring(0, 8).toUpperCase()}.html`,
-            content: base64Content,
-            content_type: "text/html",
-          });
-          
-          console.log(`[Itinerary Email] Journey brochure attached (${htmlBytes.length} bytes)`);
-        }
-      } else {
-        console.warn(`[Itinerary Email] Failed to generate brochure: ${brochureResponse.status}`);
-      }
-    } catch (brochureError) {
-      console.error("[Itinerary Email] Failed to generate brochure attachment:", brochureError);
-      // Continue without attachment - email is still valuable
-    }
+    // NOTE: Brochure is now available as a download link in the email, not as an attachment
+    // This provides a better user experience and avoids large email attachments
+    console.log(`[Itinerary Email] Brochure will be available via download link for itinerary ${itinerary_id}`);
 
-    // Send email to guest with brochure attachment
+    // Send email to guest (no attachment - brochure available via download link)
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: "RoomsOnline <hello@notify.roomsonline.co.za>",
       to: [itinerary.guest_email],
       subject: `Your Journey is Confirmed! | ${propertyNames}`,
       html: emailHtml,
-      attachments: attachments.length > 0 ? attachments : undefined,
     });
 
     if (emailError) {
