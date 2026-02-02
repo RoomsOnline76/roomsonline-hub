@@ -91,7 +91,7 @@ export function JourneyBuilder() {
                 <Map className="h-5 w-5 text-primary" />
               </div>
               <div className="text-left">
-                <p className="font-medium text-sm">Your Journey</p>
+                <p className="font-medium text-sm">Add to your Journey?</p>
                 <p className="text-xs text-muted-foreground">
                   {stayCount} {stayCount === 1 ? 'stay' : 'stays'} · {totalNights} nights
                 </p>
