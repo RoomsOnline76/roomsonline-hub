@@ -144,7 +144,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${supabaseKey}`
           },
-          body: JSON.stringify({ bookingId: booking.id })
+          body: JSON.stringify({ booking_id: booking.id })
         });
 
         const pushResult = await pushResponse.json();
