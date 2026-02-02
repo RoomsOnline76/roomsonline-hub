@@ -8,6 +8,24 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
+const RADIUS_KM = 350;
+
+// Haversine formula to calculate distance between two points in km
+const calculateDistanceKm = (
+  lat1: number, lon1: number,
+  lat2: number, lon2: number
+): number => {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
 interface RecommendedProperty {
   id: string;
   name: string;
@@ -77,22 +95,42 @@ export function PropertyRecommendations({
       const preferences = getInferredPreferences();
       const viewedPropertyIds = state.viewedProperties.map(v => v.propertyId);
 
-      // Build query based on behavioral memory - include amenities for rate extraction
+      // First, get current property's coordinates
+      let currentLat: number | null = null;
+      let currentLng: number | null = null;
+
+      if (currentPropertyId) {
+        const { data: currentProperty } = await supabase
+          .from('public_properties')
+          .select('latitude, longitude')
+          .eq('id', currentPropertyId)
+          .single();
+
+        if (currentProperty) {
+          currentLat = currentProperty.latitude;
+          currentLng = currentProperty.longitude;
+        }
+      }
+
+      // If current property has no coordinates, hide recommendations
+      if (!currentLat || !currentLng) {
+        setRecommendations([]);
+        return;
+      }
+
+      // Build query - include coordinates for distance filtering
       let query = supabase
         .from('public_properties')
-        .select('id, name, slug, city, country, price_per_night, images, amenities')
+        .select('id, name, slug, city, country, price_per_night, images, amenities, latitude, longitude')
         .eq('is_active', true)
-        .limit(maxItems + 5); // Fetch extra for filtering
+        .not('latitude', 'is', null)
+        .not('longitude', 'is', null)
+        .limit(50); // Fetch more for distance filtering
 
       // Exclude current and already viewed properties
       const excludeIds = [currentPropertyId, ...viewedPropertyIds].filter(Boolean);
       if (excludeIds.length > 0) {
         query = query.not('id', 'in', `(${excludeIds.join(',')})`);
-      }
-
-      // Apply preference-based filters
-      if (preferences.preferredLocations.length > 0) {
-        query = query.in('city', preferences.preferredLocations);
       }
 
       const { data: properties, error } = await query;
@@ -104,63 +142,57 @@ export function PropertyRecommendations({
       }
 
       if (!properties || properties.length === 0) {
-        // Fallback: fetch any active properties
-        const { data: fallbackProperties } = await supabase
-          .from('public_properties')
-          .select('id, name, slug, city, country, price_per_night, images, amenities')
-          .eq('is_active', true)
-          .neq('id', currentPropertyId || '')
-          .limit(maxItems);
-
-        if (fallbackProperties) {
-          setRecommendations(
-            fallbackProperties.map(p => ({
-              id: p.id,
-              name: p.name,
-              slug: p.slug,
-              city: p.city,
-              country: p.country,
-              price_per_night: getPropertyRate(p),
-              images: Array.isArray(p.images) ? p.images as string[] : [],
-              matchReason: 'Featured property'
-            }))
-          );
-        }
+        setRecommendations([]);
         return;
       }
 
-      // Score and rank properties based on preferences
-      const scored = properties.map(p => {
+      // Filter by distance - only show properties within 350km radius
+      const nearbyProperties = properties.filter(p => {
+        if (!p.latitude || !p.longitude) return false;
+        const distance = calculateDistanceKm(currentLat, currentLng, p.latitude, p.longitude);
+        return distance <= RADIUS_KM;
+      });
+
+      // If no nearby properties, hide the section entirely
+      if (nearbyProperties.length === 0) {
+        setRecommendations([]);
+        return;
+      }
+
+      // Score and rank properties based on preferences + distance
+      const scored = nearbyProperties.map(p => {
         let score = 0;
-        let reason = '';
+        const distance = calculateDistanceKm(currentLat!, currentLng!, p.latitude!, p.longitude!);
+        
+        // Distance bonus - closer properties score higher
+        if (distance < 50) score += 40;
+        else if (distance < 100) score += 30;
+        else if (distance < 200) score += 20;
+        else score += 10;
 
         // Location match
         if (preferences.preferredLocations.includes(p.city)) {
           score += 30;
-          reason = `Popular in ${p.city}`;
         }
 
-        // Price match - use budgetRange from preferences if available
+        // Price match
         if (preferences.preferredPriceRange) {
           const priceMax = parseInt(preferences.preferredPriceRange) || 5000;
           const priceRatio = p.price_per_night / priceMax;
           if (priceRatio >= 0.7 && priceRatio <= 1.3) {
             score += 25;
-            reason = reason || 'Within your budget range';
           }
         }
 
         // Amenity preferences
         if (preferences.preferredAmenities.length > 0) {
           score += 15;
-          reason = reason || 'Matches your preferences';
         }
 
-        // Flexible dates bonus
-        if (preferences.flexibleDates) {
-          score += 10;
-          reason = reason || 'Great for flexible travel';
-        }
+        // Generate distance-based reason
+        const distanceReason = distance < 50
+          ? `${Math.round(distance)}km away`
+          : `About ${Math.round(distance / 10) * 10}km away`;
 
         return {
           id: p.id,
@@ -171,7 +203,7 @@ export function PropertyRecommendations({
           price_per_night: getPropertyRate(p),
           images: Array.isArray(p.images) ? p.images as string[] : [],
           score,
-          matchReason: reason || 'You might also like'
+          matchReason: distanceReason
         };
       });
 
