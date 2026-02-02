@@ -163,7 +163,7 @@ export default function JourneyCheckout() {
           guest_email: guestEmail,
           guest_phone: guestPhone,
           special_requests: specialRequests,
-          status: 'pending_payment'
+          status: 'pending'
         })
         .eq('id', itineraryId);
 
