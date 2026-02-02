@@ -1,151 +1,154 @@
 
-# Fix Double Reservations in Admin Dashboard & Revenue Pulse
+# Add Restaurant Fallback for Dining Selection
 
-## Problem Summary
+## Problem
+When a property has no experiences with `category === 'dining'`, the PDF and delight features fail to show any dining recommendation. The user wants a fallback: if no "dining" category is found, look for experiences with `venue_type === 'restaurant'` and pick the highest-rated one.
 
-The booking flow for journeys is creating **duplicate reservations** for the same transaction:
+## Current State
+- **4 locations** use `find(e => e.category === 'dining')` with no fallback:
+  1. `generate-itinerary-pdf/index.ts` (line 1014)
+  2. `_shared/delight-engine.ts` (lines 187, 206)
+  3. `ai-booking-concierge/index.ts` (lines 577, 595)
 
-| Booking | Created At | Payment Status | Role | Linked to Itinerary |
-|---------|------------|----------------|------|---------------------|
-| `afbfc5dc` | 06:18:34 | **paid** | Placeholder for PayFast | ❌ Only via `ai_metadata` |
-| `2f86eda8` | 06:18:50 | unpaid | Created by `multi-push-booking` | ✅ Via `itinerary_bookings` |
+- **Database categories:** adventure, culture, dining, nature, wellness
+- **No explicit rating field** in `local_experiences`, but can use:
+  - `display_order` (lower = higher priority)
+  - Presence of `why_locals_love_it` (quality indicator)
 
-**The root cause:** `JourneyCheckout.tsx` creates a placeholder booking for PayFast. Then, when payment succeeds, `multi-push-booking` creates a **second** booking per stay instead of using the existing one.
-
----
-
-## Flow Analysis
-
-```text
-┌───────────────────────────────────────────────────────────────────────────┐
-│                         CURRENT (BROKEN) FLOW                              │
-├───────────────────────────────────────────────────────────────────────────┤
-│                                                                            │
-│  JourneyCheckout.tsx                                                       │
-│  ├─ saveToDatabase() → Creates itinerary                                   │
-│  └─ INSERT booking A (placeholder)                                         │
-│       └─ booking_channel: 'rol_itinerary'                                  │
-│       └─ ai_metadata.itinerary_id: xxx                                     │
-│       └─ status: 'pending_payment'                                         │
-│                     ↓                                                      │
-│  PayFast ITN (on payment success)                                          │
-│  ├─ UPDATE booking A → payment_status: 'paid', status: 'confirmed'         │
-│  └─ INVOKE multi-push-booking(itinerary_id)                                │
-│                     ↓                                                      │
-│  multi-push-booking                                                        │
-│  └─ INSERT booking B (NEW booking for each stay) ← DUPLICATE!              │
-│       └─ Links B to itinerary_bookings                                     │
-│                                                                            │
-│  RESULT: 2 bookings for 1 transaction (A=paid, B=unpaid)                   │
-└───────────────────────────────────────────────────────────────────────────┘
-```
+## Solution
+Create a reusable `findDiningExperience()` helper function that:
+1. First looks for `category === 'dining'`
+2. If not found, falls back to `venue_type === 'restaurant'`
+3. When multiple restaurants exist, pick the one with lowest `display_order` (best positioned)
 
 ---
 
-## Solution Options
+## Implementation Details
 
-### Option A: Modify `multi-push-booking` to REUSE Existing Booking (Recommended)
+### 1. Add Helper to `_shared/delight-engine.ts`
 
-For single-stay itineraries, the placeholder booking already has all the data. `multi-push-booking` should:
-1. Check if a placeholder booking already exists for the itinerary
-2. For single-stay journeys: update the existing booking instead of creating a new one
-3. For multi-stay journeys: create additional bookings only for stays 2, 3, etc.
-
-### Option B: Delete Placeholder After Payment
-
-When `multi-push-booking` creates the "real" bookings, delete the placeholder booking. This is cleaner but loses the payment linkage.
-
-### Option C: Skip Placeholder Creation Entirely
-
-Don't create a booking in `JourneyCheckout`. Instead, pass itinerary_id to PayFast and let `multi-push-booking` create all bookings. This requires significant PayFast integration changes.
-
-**Recommendation: Option A** - cleanest solution, preserves payment linkage
-
----
-
-## Implementation Plan
-
-### 1. Modify `multi-push-booking` to Detect & Reuse Placeholder
-
-**File:** `supabase/functions/multi-push-booking/index.ts`
+Add a new utility function that can be imported by other edge functions:
 
 ```typescript
-// Before processing stays, find if there's an existing placeholder booking
-const { data: existingPlaceholder } = await supabase
-  .from("bookings")
-  .select("id, property_id, payment_status")
-  .eq("booking_channel", "rol_itinerary")
-  .eq("status", "confirmed")
-  .contains("ai_metadata", { itinerary_id })
-  .single();
-
-// For first stay, reuse placeholder if it matches
-if (existingPlaceholder && existingPlaceholder.property_id === stays[0].property_id) {
-  // Don't create new booking, just link existing one to itinerary_bookings
-  // ...
+/**
+ * Find dining experience with restaurant fallback
+ * Priority: dining category > restaurant venue_type (sorted by display_order)
+ */
+export function findDiningExperience(
+  experiences: LocalExperience[] | undefined
+): LocalExperience | undefined {
+  if (!experiences || experiences.length === 0) return undefined;
+  
+  // First: look for explicit dining category
+  const diningCategory = experiences.find(e => e.category === 'dining');
+  if (diningCategory) return diningCategory;
+  
+  // Fallback: look for restaurant venue_type, pick highest rated (lowest display_order)
+  const restaurants = experiences
+    .filter(e => e.venue_type === 'restaurant')
+    .sort((a, b) => (a.display_order ?? 999) - (b.display_order ?? 999));
+  
+  return restaurants[0] || undefined;
 }
 ```
 
-### 2. Update Bookings Dashboard Deduplication
+### 2. Update `generate-itinerary-pdf/index.ts`
 
-**File:** `src/pages/Bookings.tsx`
-
-Add logic to identify and dedupe itinerary bookings:
-- If two bookings share the same `ai_metadata.itinerary_id`, show only the one with `payment_status: 'paid'`
-- Or mark the placeholder with a flag to exclude it from display
-
-### 3. Fix Revenue Pulse to Not Double-Count
-
-**File:** `supabase/functions/revenue-pulse-api/index.ts`
-
-The current query already filters by `payment_status === 'paid'`, but if both get marked as paid (bug), they'd both count. Add deduplication:
+**Line ~1014** - Replace direct find with helper:
 
 ```typescript
-// Only count unique itinerary bookings once
-// Group by ai_metadata->itinerary_id if present, take one with paid status
+// BEFORE:
+const diningExp = stay.experiences?.find(e => e.category === 'dining');
+
+// AFTER:
+const diningExp = findDiningExperience(stay.experiences);
 ```
 
-### 4. Add Display Logic for Journey vs Booking Reference
+Import the helper at the top:
+```typescript
+import { ..., findDiningExperience } from "../_shared/delight-engine.ts";
+```
 
-**File:** `src/pages/Bookings.tsx`
+### 3. Update `_shared/delight-engine.ts`
 
-Currently shows both booking ref and journey ref in the "Ref" column. Should:
-- For itinerary bookings: show ONLY the journey ref (J) badge
-- Hide the booking ref to avoid confusion
+**Lines 187, 206** - Use the new helper internally:
+
+```typescript
+// BEFORE (line 187):
+const dining = experiences?.find((e: LocalExperience) => e.category === 'dining');
+
+// AFTER:
+const dining = findDiningExperience(experiences);
+```
+
+```typescript
+// BEFORE (line 206):
+const dining = experiences?.find((e: LocalExperience) => e.category === 'dining');
+
+// AFTER:
+const dining = findDiningExperience(experiences);
+```
+
+### 4. Update `ai-booking-concierge/index.ts`
+
+**Lines 577, 595** - Use the helper:
+
+```typescript
+// BEFORE (line 577):
+const dining = experiences?.find((e: any) => e.category === 'dining');
+
+// AFTER:
+const dining = findDiningExperience(experiences);
+```
+
+```typescript
+// BEFORE (line 595):
+const dining = experiences?.find((e: any) => e.category === 'dining');
+
+// AFTER:
+const dining = findDiningExperience(experiences);
+```
+
+Import the helper at the top:
+```typescript
+import { ..., findDiningExperience } from "../_shared/delight-engine.ts";
+```
 
 ---
 
-## Technical Changes Summary
+## Files to Modify
 
 | File | Change |
 |------|--------|
-| `supabase/functions/multi-push-booking/index.ts` | Check for existing placeholder, reuse instead of creating duplicate |
-| `src/pages/Bookings.tsx` | Dedupe bookings by itinerary_id, prefer `paid` booking |
-| `supabase/functions/revenue-pulse-api/index.ts` | Ensure unique counting for itinerary bookings |
+| `supabase/functions/_shared/delight-engine.ts` | Add `findDiningExperience()` helper, update internal usages (lines 187, 206) |
+| `supabase/functions/generate-itinerary-pdf/index.ts` | Import and use helper (line 1014) |
+| `supabase/functions/ai-booking-concierge/index.ts` | Import and use helper (lines 577, 595) |
 
 ---
 
-## Data Cleanup
+## Selection Logic Summary
 
-After deploying fixes, run a cleanup query to mark duplicate placeholder bookings:
+```text
+experiences = [nature, culture, adventure, wellness, restaurant(venue_type)]
 
-```sql
--- Mark duplicate placeholders as 'superseded' or delete them
-UPDATE bookings 
-SET status = 'superseded'
-WHERE booking_channel = 'rol_itinerary'
-  AND ai_metadata->>'itinerary_id' IS NOT NULL
-  AND id NOT IN (
-    SELECT booking_id FROM itinerary_bookings
-  );
+Step 1: Look for category === 'dining'
+        ├─ Found? → Return it
+        └─ Not found? → Continue to Step 2
+
+Step 2: Look for venue_type === 'restaurant'
+        ├─ Found multiple? → Sort by display_order, return lowest
+        ├─ Found one? → Return it
+        └─ None found? → Return undefined (no dining shown)
 ```
 
 ---
 
-## Verification
+## Edge Cases
 
-After fix:
-1. Complete a journey checkout
-2. Confirm only ONE booking appears in Admin Reservations
-3. Confirm Revenue Pulse counts only once
-4. Journey ref (J) badge links to the single unified booking
+| Scenario | Behavior |
+|----------|----------|
+| Has `dining` category | Uses dining category (no change) |
+| No `dining`, has `restaurant` venue_type | Falls back to restaurant |
+| Multiple restaurants | Picks one with lowest `display_order` |
+| No `dining` and no `restaurant` | Returns undefined (dining section hidden) |
+| Empty experiences array | Returns undefined |
