@@ -155,24 +155,47 @@ Deno.serve(async (req) => {
         // Get room type from booking for targeting specific room
         const bookingRooms = booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0
           ? booking.rooms
-          : [{ roomTypeId: booking.room_type_id || null }];
+          : [{ room_type_id: booking.room_type_id || null, room_type_name: null }];
+        
+        // Build a map of room IDs to names from property config for fallback resolution
+        const roomTypeMap = new Map<string, string>();
+        const amenities = property.amenities as { room_types?: Array<{id: string | number; name: string}> } | null;
+        if (amenities?.room_types) {
+          for (const rt of amenities.room_types) {
+            roomTypeMap.set(String(rt.id), rt.name);
+          }
+        }
+        console.log(`Room type map built with ${roomTypeMap.size} entries:`, Array.from(roomTypeMap.entries()));
         
         // Create a record for each date in the booking range
         for (let d = new Date(checkInDate); d < checkOutDate; d.setDate(d.getDate() + 1)) {
           const dateStr = d.toISOString().split('T')[0];
           
-        // For each room in the booking, create or update availability
-        for (const room of bookingRooms) {
-          availabilityRecords.push({
-            property_id: property.id,
-            date: dateStr,
-            available_units: 0, // Block this date
-            is_stop_sell: true, // Mark as stop-sell
-            room_type: room.roomTypeId || room.roomTypeName || null,
-            // external_system left null for manual properties
-          });
+          // For each room in the booking, create or update availability
+          for (const room of bookingRooms) {
+            // Support both camelCase and snake_case field names
+            const roomId = room.roomTypeId || room.room_type_id;
+            const roomName = room.roomTypeName || room.room_type_name || 
+                            (roomId ? roomTypeMap.get(String(roomId)) : null);
+            
+            // Determine final room_type value - prioritize name, fallback to ID as string
+            const roomType = roomName || (roomId ? String(roomId) : null);
+            
+            if (!roomType) {
+              console.warn('Room has no identifiable type - skipping availability block:', JSON.stringify(room));
+              continue;
+            }
+            
+            availabilityRecords.push({
+              property_id: property.id,
+              date: dateStr,
+              available_units: 0, // Block this date
+              is_stop_sell: true, // Mark as stop-sell
+              room_type: String(roomType), // Ensure string format
+              // external_system left null for manual properties
+            });
+          }
         }
-      }
         
         console.log(`Blocking ${availabilityRecords.length} date slots for booking`);
         
