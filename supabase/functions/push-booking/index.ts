@@ -161,18 +161,18 @@ Deno.serve(async (req) => {
         for (let d = new Date(checkInDate); d < checkOutDate; d.setDate(d.getDate() + 1)) {
           const dateStr = d.toISOString().split('T')[0];
           
-          // For each room in the booking, create or update availability
-          for (const room of bookingRooms) {
-            availabilityRecords.push({
-              property_id: property.id,
-              date: dateStr,
-              available_units: 0, // Block this date
-              is_stop_sell: true, // Mark as stop-sell
-              room_type: room.roomTypeId || room.roomTypeName || null,
-              notes: `Blocked by booking ${booking_id.substring(0, 8)}`,
-            });
-          }
+        // For each room in the booking, create or update availability
+        for (const room of bookingRooms) {
+          availabilityRecords.push({
+            property_id: property.id,
+            date: dateStr,
+            available_units: 0, // Block this date
+            is_stop_sell: true, // Mark as stop-sell
+            room_type: room.roomTypeId || room.roomTypeName || null,
+            // external_system left null for manual properties
+          });
         }
+      }
         
         console.log(`Blocking ${availabilityRecords.length} date slots for booking`);
         
