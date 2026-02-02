@@ -235,13 +235,9 @@ export default function JourneyConfirmation() {
                   <span className="text-amber-700 dark:text-amber-300 font-medium">Your Magical Itinerary</span>
                 </div>
                 
-                <h3 className="text-xl font-serif font-semibold mb-2">
-                  We've created a beautiful travel document just for you
+                <h3 className="text-xl font-serif font-semibold mb-4">
+                  Download Your Journey Brochure
                 </h3>
-                
-                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                  Complete with a personalized poem, weather forecast, and a surprise gift waiting inside!
-                </p>
                 
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <Button

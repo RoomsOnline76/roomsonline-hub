@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { FormattedPrice } from "@/components/FormattedPrice";
+import { PayFastOnsiteModal } from "@/components/booking/PayFastOnsiteModal";
 import { toast } from "sonner";
 import { 
   ArrowLeft, 
@@ -42,6 +43,12 @@ export default function JourneyCheckout() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  
+  // PayFast modal state
+  const [showPayFastModal, setShowPayFastModal] = useState(false);
+  const [paymentBookingId, setPaymentBookingId] = useState<string | null>(null);
+  const [paymentUuid, setPaymentUuid] = useState<string | null>(null);
+  const [pendingItineraryId, setPendingItineraryId] = useState<string | null>(null);
 
   // Guest form state
   const [guestName, setGuestName] = useState(guestDetails.name || "");
@@ -156,34 +163,82 @@ export default function JourneyCheckout() {
           guest_email: guestEmail,
           guest_phone: guestPhone,
           special_requests: specialRequests,
-          status: 'pending'
+          status: 'pending_payment'
         })
         .eq('id', itineraryId);
 
       if (updateError) throw updateError;
 
-      // Step 4: Call multi-push-booking
-      const { data: bookingResult, error: bookingError } = await supabase.functions.invoke('multi-push-booking', {
-        body: { itinerary_id: itineraryId }
+      // Step 4: Create a placeholder booking for PayFast
+      // We need a booking_id for PayFast to work
+      const firstStay = stays[0];
+      const { data: tempBooking, error: bookingError } = await supabase
+        .from('bookings')
+        .insert({
+          property_id: firstStay.property_id,
+          guest_name: guestName,
+          guest_email: guestEmail,
+          guest_phone: guestPhone,
+          check_in_date: firstStay.dates.check_in,
+          check_out_date: stays[stays.length - 1].dates.check_out,
+          adults: firstStay.guests.adults,
+          children: firstStay.guests.children || 0,
+          total_price: totalPrice,
+          status: 'pending_payment',
+          booking_channel: 'rol_itinerary',
+          special_requests: `Itinerary: ${itineraryId}`,
+          ai_metadata: { itinerary_id: itineraryId, is_itinerary_booking: true }
+        })
+        .select('id')
+        .single();
+
+      if (bookingError || !tempBooking) {
+        throw new Error("Failed to create booking record");
+      }
+
+      // Step 5: Initiate PayFast payment
+      const { data: paymentData, error: paymentError } = await supabase.functions.invoke('payfast-api', {
+        body: {
+          action: 'initiate_onsite_payment',
+          booking_id: tempBooking.id,
+        },
       });
 
-      if (bookingError) throw bookingError;
-
-      if (bookingResult?.success) {
-        toast.success("Your journey has been booked!");
-        navigate(`/journey/confirmation/${itineraryId}`);
-      } else if (bookingResult?.partial_success) {
-        toast.warning("Some bookings could not be completed. Please check your confirmation.");
-        navigate(`/journey/confirmation/${itineraryId}`);
-      } else {
-        throw new Error(bookingResult?.error || "Booking failed");
+      if (paymentError || !paymentData?.success) {
+        throw new Error(paymentData?.error || "Failed to initiate payment");
       }
+
+      // Store pending data and show PayFast modal
+      setPendingItineraryId(itineraryId);
+      setPaymentBookingId(tempBooking.id);
+      setPaymentUuid(paymentData.uuid);
+      setShowPayFastModal(true);
+      setIsSubmitting(false);
+
     } catch (error) {
       console.error('Booking error:', error);
-      toast.error("Failed to complete booking. Please try again.");
-    } finally {
+      toast.error("Failed to initiate payment. Please try again.");
       setIsSubmitting(false);
     }
+  };
+
+  const handlePaymentSuccess = async () => {
+    setShowPayFastModal(false);
+    
+    if (!pendingItineraryId) {
+      toast.error("Missing itinerary reference");
+      return;
+    }
+
+    toast.success("Payment successful! Processing your journey...");
+    
+    // Navigate to confirmation - the ITN callback will handle the rest
+    navigate(`/journey/confirmation/${pendingItineraryId}`);
+  };
+
+  const handlePaymentCancelled = () => {
+    setShowPayFastModal(false);
+    toast.info("Payment cancelled. Your journey has been saved as a draft.");
   };
 
   return (
@@ -351,12 +406,12 @@ export default function JourneyCheckout() {
                       {isSubmitting || isValidating ? (
                         <>
                           <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                          {isValidating ? "Checking Availability..." : "Booking..."}
+                          {isValidating ? "Checking Availability..." : "Preparing Payment..."}
                         </>
                       ) : (
                         <>
                           <CheckCircle2 className="h-5 w-5 mr-2" />
-                          Confirm Booking
+                          Pay & Confirm Booking
                         </>
                       )}
                     </Button>
@@ -364,7 +419,7 @@ export default function JourneyCheckout() {
                     {/* Trust badges */}
                     <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-2">
                       <Shield className="h-4 w-4" />
-                      <span>Secure booking · Instant confirmation</span>
+                      <span>Secure payment via PayFast</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -391,6 +446,21 @@ export default function JourneyCheckout() {
           </div>
         </div>
       </div>
+
+      {/* PayFast Modal */}
+      {paymentBookingId && (
+        <PayFastOnsiteModal
+          isOpen={showPayFastModal}
+          onClose={() => setShowPayFastModal(false)}
+          onPaymentSuccess={handlePaymentSuccess}
+          onPaymentCancelled={handlePaymentCancelled}
+          bookingId={paymentBookingId}
+          amount={totalPrice}
+          propertyName={`Journey: ${stays.length} destinations`}
+          isSandbox={true}
+          uuid={paymentUuid || undefined}
+        />
+      )}
     </PublicLayout>
   );
 }

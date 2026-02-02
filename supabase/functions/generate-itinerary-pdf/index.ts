@@ -1689,13 +1689,33 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Parse stays
-    const stays: Stay[] = typeof itinerary.stays === 'string' 
+    // Parse stays - handle both snake_case and camelCase field names
+    const rawStays = typeof itinerary.stays === 'string' 
       ? JSON.parse(itinerary.stays) 
       : itinerary.stays || [];
 
-    // Get unique property IDs
-    const propertyIds = [...new Set(stays.map(s => s.propertyId))];
+    // Normalize stay data to handle snake_case from DB and camelCase from frontend
+    const normalizeStay = (s: any): Stay => ({
+      propertyId: s.propertyId || s.property_id,
+      propertyName: s.propertyName || s.property_name || 'Property',
+      propertyImage: s.propertyImage || s.property_image,
+      roomTypeId: s.roomTypeId || s.room_type_id,
+      roomTypeName: s.roomTypeName || s.rooms?.[0]?.room_type_name,
+      rateTypeId: s.rateTypeId || s.rate_type_id,
+      rateTypeName: s.rateTypeName,
+      checkIn: s.checkIn || s.dates?.check_in,
+      checkOut: s.checkOut || s.dates?.check_out,
+      guests: s.guests || { adults: 2, children: 0, infants: 0 },
+      price: s.price || s.price_breakdown?.total || 0,
+      nights: s.nights || (s.dates ? Math.ceil((new Date(s.dates.check_out).getTime() - new Date(s.dates.check_in).getTime()) / (1000 * 60 * 60 * 24)) : 1),
+      city: s.city,
+      country: s.country,
+    });
+
+    const stays: Stay[] = rawStays.map(normalizeStay);
+
+    // Get unique property IDs (filter out undefined)
+    const propertyIds = [...new Set(stays.map(s => s.propertyId).filter(Boolean))];
     
     // Fetch property details including practical info and coordinates
     const { data: properties } = await supabase
