@@ -84,8 +84,23 @@ serve(async (req) => {
 
       if (bookingsError) throw bookingsError;
 
+      // Deduplicate itinerary bookings - for same itinerary_id + property_id, count only once
+      const seenItineraryPropertyPairs = new Set<string>();
+      const deduplicatedBookings = (bookings || []).filter(b => {
+        const itineraryId = (b as any).ai_metadata?.itinerary_id;
+        if (itineraryId && b.booking_channel === 'rol_itinerary') {
+          const pairKey = `${itineraryId}:${b.property_id}`;
+          if (seenItineraryPropertyPairs.has(pairKey)) {
+            // Duplicate - skip it
+            return false;
+          }
+          seenItineraryPropertyPairs.add(pairKey);
+        }
+        return true;
+      });
+
       // Calculate Tier 1 KPIs
-      const paidBookings = (bookings || []).filter(b => b.payment_status === "paid");
+      const paidBookings = deduplicatedBookings.filter(b => b.payment_status === "paid");
       const gbv = paidBookings.reduce((sum, b) => sum + (b.total_price || 0), 0);
       const rolRevenue = paidBookings.reduce((sum, b) => sum + (b.calculated_commission || 0), 0);
       const avgCommissionRate = gbv > 0 ? (rolRevenue / gbv) * 100 : 10;

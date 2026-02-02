@@ -79,6 +79,25 @@ serve(async (req) => {
     const successfulBookings: { booking_id: string; property_id: string; external_system: string }[] = [];
     let hasFailure = false;
 
+    // Check for existing placeholder booking (created by JourneyCheckout for PayFast)
+    // This prevents duplicate bookings for the same itinerary
+    const { data: existingPlaceholders } = await supabase
+      .from("bookings")
+      .select("id, property_id, payment_status, status")
+      .eq("booking_channel", "rol_itinerary")
+      .filter("ai_metadata->>itinerary_id", "eq", itinerary_id);
+
+    // Create a map of property_id -> existing placeholder booking
+    const placeholderMap = new Map<string, { id: string; payment_status: string; status: string }>();
+    (existingPlaceholders || []).forEach(p => {
+      // Only reuse paid/confirmed placeholders - these are the real bookings
+      if (p.payment_status === 'paid' || p.status === 'confirmed') {
+        placeholderMap.set(p.property_id, { id: p.id, payment_status: p.payment_status, status: p.status });
+      }
+    });
+
+    console.log(`Found ${placeholderMap.size} existing placeholder booking(s) for itinerary ${itinerary_id}`);
+
     // Process each stay sequentially
     for (let i = 0; i < stays.length; i++) {
       const stay = stays[i];
@@ -97,34 +116,51 @@ serve(async (req) => {
       try {
         console.log(`Processing stay ${i + 1}/${stays.length}: ${stay.property_name}`);
 
-        // Create booking record first
-        const bookingData = {
-          property_id: stay.property_id,
-          guest_name: itinerary.guest_name || 'Guest',
-          guest_email: itinerary.guest_email || '',
-          guest_phone: itinerary.guest_phone || null,
-          check_in_date: stay.dates.check_in,
-          check_out_date: stay.dates.check_out,
-          adults: stay.guests.adults,
-          children: stay.guests.children || 0,
-          infants: stay.guests.infants || 0,
-          total_price: stay.price_breakdown.total,
-          rooms: stay.rooms,
-          rate_type_id: stay.rate_type_id || null,
-          special_requests: itinerary.special_requests || null,
-          status: 'pending',
-          booking_channel: 'rol_itinerary'
-        };
+        // Check if we already have a placeholder booking for this property
+        const existingPlaceholder = placeholderMap.get(stay.property_id);
+        let bookingId: string;
 
-        const { data: booking, error: bookingError } = await supabase
-          .from("bookings")
-          .insert(bookingData)
-          .select("id")
-          .single();
+        if (existingPlaceholder) {
+          // REUSE existing placeholder - don't create a new booking
+          console.log(`Reusing existing placeholder booking ${existingPlaceholder.id} for ${stay.property_name}`);
+          bookingId = existingPlaceholder.id;
+          
+          // Remove from map so we don't reuse it for another stay
+          placeholderMap.delete(stay.property_id);
+        } else {
+          // Create new booking record (for multi-stay journeys where no placeholder exists)
+          const bookingData = {
+            property_id: stay.property_id,
+            guest_name: itinerary.guest_name || 'Guest',
+            guest_email: itinerary.guest_email || '',
+            guest_phone: itinerary.guest_phone || null,
+            check_in_date: stay.dates.check_in,
+            check_out_date: stay.dates.check_out,
+            adults: stay.guests.adults,
+            children: stay.guests.children || 0,
+            infants: stay.guests.infants || 0,
+            total_price: stay.price_breakdown.total,
+            rooms: stay.rooms,
+            rate_type_id: stay.rate_type_id || null,
+            special_requests: itinerary.special_requests || null,
+            status: 'pending',
+            booking_channel: 'rol_itinerary',
+            ai_metadata: { itinerary_id }
+          };
 
-        if (bookingError || !booking) {
-          throw new Error(`Failed to create booking record: ${bookingError?.message}`);
+          const { data: booking, error: bookingError } = await supabase
+            .from("bookings")
+            .insert(bookingData)
+            .select("id")
+            .single();
+
+          if (bookingError || !booking) {
+            throw new Error(`Failed to create booking record: ${bookingError?.message}`);
+          }
+          bookingId = booking.id;
         }
+        
+        const booking = { id: bookingId };
 
         // Link booking to itinerary
         await supabase

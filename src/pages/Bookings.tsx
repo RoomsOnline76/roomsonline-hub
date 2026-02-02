@@ -69,6 +69,7 @@ interface Booking {
   created_at: string | null;
   source?: "internal" | "pms";
   ai_metadata?: any;
+  booking_channel?: string | null;
 }
 
 const Bookings = () => {
@@ -352,8 +353,9 @@ const Bookings = () => {
           };
         });
 
-        // Combine and deduplicate by external_reservation_id
+        // Combine and deduplicate by external_reservation_id AND itinerary_id
         const seenExternalIds = new Set<string>();
+        const seenItineraryPropertyPairs = new Set<string>();
         const allBookings: Booking[] = [];
         
         // Add PMS bookings first (they're the source of truth for external systems)
@@ -365,10 +367,25 @@ const Bookings = () => {
         });
         
         // Add internal bookings that don't have a matching PMS reservation
+        // Also deduplicate itinerary bookings - for same itinerary_id + property_id, keep only the paid one
         internalBookings.forEach(booking => {
-          if (!booking.external_reservation_id || !seenExternalIds.has(booking.external_reservation_id)) {
-            allBookings.push(booking);
+          // Skip if already seen via external_reservation_id
+          if (booking.external_reservation_id && seenExternalIds.has(booking.external_reservation_id)) {
+            return;
           }
+          
+          // Check for duplicate itinerary bookings (same itinerary + property)
+          const itineraryId = (booking.ai_metadata as any)?.itinerary_id;
+          if (itineraryId && booking.booking_channel === 'rol_itinerary') {
+            const pairKey = `${itineraryId}:${booking.property_id}`;
+            if (seenItineraryPropertyPairs.has(pairKey)) {
+              // Already have a booking for this itinerary+property, skip duplicate
+              return;
+            }
+            seenItineraryPropertyPairs.add(pairKey);
+          }
+          
+          allBookings.push(booking);
         });
 
         // Sort by booking creation date descending (newest first)
