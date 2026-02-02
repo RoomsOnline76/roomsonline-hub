@@ -871,6 +871,132 @@ function getDelightSectionStyles(): string {
       padding-top: 16px;
       border-top: 1px solid #f9a8d4;
     }
+    
+    /* Per-Stay Highlights (Multi-Stay Journeys) */
+    .per-stay-highlights {
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      border-radius: 10px;
+      padding: 16px;
+      margin-top: 16px;
+      border: 1px solid #7dd3fc;
+    }
+    
+    .per-stay-highlights h4 {
+      font-size: 11pt;
+      font-weight: 600;
+      color: #0369a1;
+      margin-bottom: 12px;
+    }
+    
+    .highlight-item {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding: 10px;
+      background: white;
+      border-radius: 6px;
+    }
+    
+    .highlight-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .highlight-icon {
+      font-size: 16pt;
+      line-height: 1;
+    }
+    
+    .highlight-content strong {
+      display: block;
+      font-size: 10pt;
+      margin-bottom: 2px;
+    }
+    
+    .highlight-content p {
+      font-size: 9pt;
+      color: #666;
+      margin: 0;
+      font-style: italic;
+    }
+    
+    /* Journey Transition (Between Stays) */
+    .journey-transition {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin: 24px 0;
+      padding: 16px 24px;
+      background: linear-gradient(90deg, transparent, #f1f5f9, transparent);
+      border-radius: 8px;
+    }
+    
+    .journey-icon {
+      font-size: 20pt;
+    }
+    
+    .journey-transition p {
+      font-size: 11pt;
+      color: #475569;
+      font-style: italic;
+      margin: 0;
+    }
+    
+    .journey-transition strong {
+      color: #1e293b;
+    }
+  `;
+}
+
+// Generate per-stay highlights for multi-stay journeys
+function generatePerStayHighlights(
+  experiences: LocalExperience[],
+  city: string | undefined,
+  stayNumber: number
+): string {
+  if (!experiences || experiences.length < 2) return '';
+  
+  const highlights = experiences
+    .filter(e => e.why_locals_love_it && e.category !== 'dining')
+    .slice(0, 2);
+  
+  if (highlights.length === 0) return '';
+  
+  return `
+    <div class="per-stay-highlights">
+      <h4>🌟 ${city || 'Destination'} Highlights</h4>
+      ${highlights.map(e => `
+        <div class="highlight-item">
+          <span class="highlight-icon">${categoryIcons[e.category] || '✨'}</span>
+          <div class="highlight-content">
+            <strong>${e.title}</strong>
+            <p>${e.why_locals_love_it}</p>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// Generate journey transition narrative between stays
+function generateJourneyTransition(
+  nextStay: EnrichedStay,
+  stayIndex: number
+): string {
+  const transitionPhrases = [
+    `Continue your adventure to`,
+    `Your journey leads you to`,
+    `Next, discover the magic of`,
+    `The road awaits – onwards to`,
+  ];
+  const phrase = transitionPhrases[stayIndex % transitionPhrases.length];
+  const destination = nextStay.city || nextStay.propertyName;
+  
+  return `
+    <div class="journey-transition">
+      <span class="journey-icon">🚗</span>
+      <p>${phrase} <strong>${destination}</strong>...</p>
+    </div>
   `;
 }
 
@@ -882,10 +1008,21 @@ function generateBrochureHTML(
 ): string {
   const toneIntro = TONE_INTROS[tone];
   const guestFirstName = (itinerary.guest_name || 'Guest').split(' ')[0];
+  const isMultiStay = stays.length > 1;
   
   const staysHTML = stays.map((stay, index) => {
     const diningExp = stay.experiences?.find(e => e.category === 'dining');
     const stayIntro = getTonePhrase(tone);
+    
+    // Per-stay curated content (for multi-stay journeys)
+    const perStayHighlights = isMultiStay 
+      ? generatePerStayHighlights(stay.experiences, stay.city || stay.propertyDetails?.city || undefined, index + 1)
+      : '';
+    
+    // Journey transition to next stay (not for the last stay)
+    const journeyTransition = (isMultiStay && index < stays.length - 1)
+      ? generateJourneyTransition(stays[index + 1], index)
+      : '';
     
     return `
     <div class="stay-card">
@@ -921,9 +1058,11 @@ function generateBrochureHTML(
         
         ${generateExperiencesHTML(stay.experiences)}
         ${generateDiningHTML(diningExp, stay.city || stay.propertyDetails?.city || undefined)}
+        ${perStayHighlights}
         ${stay.propertyDetails ? generatePracticalHTML(stay.propertyDetails) : ''}
       </div>
     </div>
+    ${journeyTransition}
   `}).join('');
   
   // Add tone-specific intro to subtitle
@@ -1661,7 +1800,7 @@ function generateBrochureHTML(
   </div>
   
   <!-- Tiered Destination Elaboration (Silver+) -->
-  \${destinationElaborationHTML}
+  ${enhancements.destinationElaboration || ''}
   
   <!-- Summary -->
   <div class="summary-box">
@@ -1862,13 +2001,26 @@ Deno.serve(async (req) => {
       voucherPromise,
     ]);
 
+    // Collect all experiences from all properties for tiered content
+    const allPropertyExperiences = enrichedStays.flatMap(s => s.experiences);
+    const cities = enrichedStays.map(s => s.city || s.propertyDetails?.city).filter(Boolean) as string[];
+
+    // Generate tiered destination content based on booking value (Silver+ bookings R10,000+)
+    const destinationElaborationHTML = generateDestinationElaborationHTML(
+      allPropertyExperiences,
+      itinerary.total_price || 0,
+      enrichedStays.length,
+      cities
+    );
+
     const enhancements: BrochureEnhancements = {
       poem,
       weather,
       voucher,
+      destinationElaboration: destinationElaborationHTML,
     };
 
-    console.log(`[PDF] Enhancements: poem=${!!poem}, weather=${weather.length}d, voucher=${voucher?.code || 'none'}`);
+    console.log(`[PDF] Enhancements: poem=${!!poem}, weather=${weather.length}d, voucher=${voucher?.code || 'none'}, destinationTier=${calculateDelightTier(itinerary.total_price || 0)}`);
 
     // Generate HTML brochure with tone-adaptive content and enhancements
     const html = generateBrochureHTML(itinerary, enrichedStays, tone, enhancements);
