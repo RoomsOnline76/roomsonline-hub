@@ -37,6 +37,7 @@ export default function JourneyCheckout() {
     specialRequests, 
     setSpecialRequests,
     saveToDatabase,
+    clearItinerary,
     hasStays
   } = useItinerary();
 
@@ -280,6 +281,9 @@ export default function JourneyCheckout() {
     }
 
     toast.success("Payment successful! Processing your journey...");
+    
+    // Clear the itinerary/cart after successful payment
+    clearItinerary();
     
     // Navigate to confirmation - the ITN callback will handle the rest
     navigate(`/journey/confirmation/${pendingItineraryId}`);
