@@ -7,8 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { useItinerary, ItineraryStay } from '@/contexts/ItineraryContext';
-import { StayCard, TimelineVisualizer, EditStayDatesDialog } from '@/components/journey';
+import { useItinerary, ItineraryStay, RoomSelection } from '@/contexts/ItineraryContext';
+import { StayCard, TimelineVisualizer, EditStayDatesDialog, EditStayRoomsDialog } from '@/components/journey';
 import { PropertyRecommendations } from '@/components/booking/PropertyRecommendations';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -35,6 +35,7 @@ export default function JourneyReview() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [editingStay, setEditingStay] = useState<ItineraryStay | null>(null);
+  const [editingRoomsStay, setEditingRoomsStay] = useState<ItineraryStay | null>(null);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -119,9 +120,7 @@ export default function JourneyReview() {
                     stay={stay}
                     index={index}
                     onEditDates={() => setEditingStay(stay)}
-                    onEditRooms={() => {
-                      toast({ title: 'Room editing coming soon' });
-                    }}
+                    onEditRooms={() => setEditingRoomsStay(stay)}
                     onRemove={() => removeStay(stay.id)}
                   />
                 ))}
@@ -266,6 +265,26 @@ export default function JourneyReview() {
                 },
               });
               setEditingStay(null);
+            }}
+          />
+        )}
+
+        {/* Edit Stay Rooms Dialog */}
+        {editingRoomsStay && (
+          <EditStayRoomsDialog
+            open={!!editingRoomsStay}
+            onOpenChange={(open) => !open && setEditingRoomsStay(null)}
+            stay={editingRoomsStay}
+            onConfirm={(rooms: RoomSelection[], newTotal: number) => {
+              updateStay(editingRoomsStay.id, {
+                rooms,
+                price_breakdown: {
+                  ...editingRoomsStay.price_breakdown,
+                  subtotal: newTotal,
+                  total: newTotal,
+                },
+              });
+              setEditingRoomsStay(null);
             }}
           />
         )}
