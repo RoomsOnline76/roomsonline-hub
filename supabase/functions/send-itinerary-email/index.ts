@@ -210,8 +210,9 @@ function generateItineraryEmail(itinerary: any, stays: Stay[]): string {
           <!-- CTA -->
           <tr>
             <td style="padding: 0 40px 30px; text-align: center;">
-              <a href="https://sleepinafrica.roomsonline.co.za/journey/confirmation/${itinerary.id}" style="display: inline-block; background: linear-gradient(135deg, #e91e8c 0%, #c91a76 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 14px;">View & Download Your Journey Brochure</a>
-              <p style="margin: 12px 0 0; color: #666; font-size: 12px;">Your personalized PDF brochure is ready for download</p>
+              <a href="https://sleepinafrica.roomsonline.co.za/journey/confirmation/${itinerary.id}?action=download" style="display: inline-block; background: linear-gradient(135deg, #e91e8c 0%, #c91a76 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 14px;">Download Your Journey Brochure</a>
+              <p style="margin: 12px 0 0; color: #666; font-size: 12px;">Your personalized PDF brochure will open automatically</p>
+              <p style="margin: 8px 0 0;"><a href="https://sleepinafrica.roomsonline.co.za/journey/confirmation/${itinerary.id}" style="color: #e91e8c; font-size: 12px;">Or view your confirmation details online</a></p>
             </td>
           </tr>
 
