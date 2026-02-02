@@ -172,6 +172,17 @@ export default function JourneyCheckout() {
       // Step 4: Create a placeholder booking for PayFast
       // We need a booking_id for PayFast to work
       const firstStay = stays[0];
+      
+      // Build ai_metadata as proper JSON (stringify to ensure DB accepts it)
+      const aiMetadata = {
+        itinerary_id: itineraryId,
+        is_itinerary_booking: true,
+        stays_count: stays.length,
+        total_nights: totalNights
+      };
+      
+      console.log('[JourneyCheckout] Creating booking with metadata:', aiMetadata);
+      
       const { data: tempBooking, error: bookingError } = await supabase
         .from('bookings')
         .insert({
@@ -186,17 +197,22 @@ export default function JourneyCheckout() {
           total_price: totalPrice,
           status: 'pending_payment',
           booking_channel: 'rol_itinerary',
-          special_requests: `Itinerary: ${itineraryId}`,
-          ai_metadata: { itinerary_id: itineraryId, is_itinerary_booking: true }
+          special_requests: specialRequests ? `Itinerary ${itineraryId}: ${specialRequests}` : `Itinerary: ${itineraryId}`,
+          ai_metadata: aiMetadata
         })
         .select('id')
         .single();
 
       if (bookingError || !tempBooking) {
-        throw new Error("Failed to create booking record");
+        console.error('[JourneyCheckout] Booking creation failed:', bookingError);
+        throw new Error(`Failed to create booking record: ${bookingError?.message || 'Unknown error'}`);
       }
+      
+      console.log('[JourneyCheckout] Booking created:', tempBooking.id);
 
       // Step 5: Initiate PayFast payment
+      console.log('[JourneyCheckout] Initiating PayFast payment for booking:', tempBooking.id);
+      
       const { data: paymentData, error: paymentError } = await supabase.functions.invoke('payfast-api', {
         body: {
           action: 'initiate_onsite_payment',
@@ -204,8 +220,21 @@ export default function JourneyCheckout() {
         },
       });
 
-      if (paymentError || !paymentData?.success) {
-        throw new Error(paymentData?.error || "Failed to initiate payment");
+      console.log('[JourneyCheckout] PayFast response:', { data: paymentData, error: paymentError });
+
+      if (paymentError) {
+        console.error('[JourneyCheckout] PayFast API error:', paymentError);
+        throw new Error(`Payment service error: ${paymentError.message || 'Unknown error'}`);
+      }
+      
+      if (!paymentData?.success) {
+        console.error('[JourneyCheckout] PayFast returned failure:', paymentData);
+        throw new Error(paymentData?.details || paymentData?.error || "Failed to initiate payment");
+      }
+      
+      if (!paymentData.uuid) {
+        console.error('[JourneyCheckout] No UUID received from PayFast');
+        throw new Error("Payment system did not return a valid session");
       }
 
       // Store pending data and show PayFast modal
