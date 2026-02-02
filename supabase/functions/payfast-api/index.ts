@@ -510,7 +510,7 @@ Deno.serve(async (req) => {
         })
         .eq("id", transaction.id);
       
-      // Update booking
+      // Update booking - also set status to 'confirmed' when payment is successful
       await supabase
         .from("bookings")
         .update({
@@ -518,6 +518,7 @@ Deno.serve(async (req) => {
           payment_reference: pfPaymentId,
           payment_method: "payfast",
           paid_at: newStatus === "paid" ? new Date().toISOString() : null,
+          status: newStatus === "paid" ? "confirmed" : undefined,
         })
         .eq("id", transaction.booking_id);
       
