@@ -23,6 +23,7 @@ interface PayFastOnsiteModalProps {
   amount: number;
   propertyName: string;
   isSandbox?: boolean;
+  uuid?: string; // Optional pre-fetched UUID to skip double API call
 }
 
 export const PayFastOnsiteModal = ({
@@ -34,6 +35,7 @@ export const PayFastOnsiteModal = ({
   amount,
   propertyName,
   isSandbox = true,
+  uuid: preProvidedUuid,
 }: PayFastOnsiteModalProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [paymentUuid, setPaymentUuid] = useState<string | null>(null);
@@ -119,6 +121,14 @@ export const PayFastOnsiteModal = ({
   useEffect(() => {
     if (!isOpen || !scriptLoaded || paymentUuid) return;
 
+    // If UUID was pre-provided, use it directly (skip API call)
+    if (preProvidedUuid) {
+      console.log("[PayFast Onsite] Using pre-provided UUID:", preProvidedUuid);
+      setPaymentUuid(preProvidedUuid);
+      triggerOnsitePayment(preProvidedUuid);
+      return;
+    }
+
     const initiatePayment = async () => {
       setIsLoading(true);
       setError(null);
@@ -159,7 +169,7 @@ export const PayFastOnsiteModal = ({
     };
 
     initiatePayment();
-  }, [isOpen, scriptLoaded, paymentUuid, bookingId, triggerOnsitePayment]);
+  }, [isOpen, scriptLoaded, paymentUuid, preProvidedUuid, bookingId, triggerOnsitePayment]);
 
   // Reset state on close
   useEffect(() => {
