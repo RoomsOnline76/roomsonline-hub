@@ -1,224 +1,204 @@
 
-# Journey Review: Destination Map with Nearby Attractions
 
-## Overview
+# Fix Critical Journey Booking Issues
 
-Enhance the Journey Review page to display an interactive map with nearby attractions and eateries for each property in the itinerary. This creates the start of the "travel brochure" experience, giving guests a preview of what awaits them at each destination.
+## Summary of Issues Found
 
-## Current State
+Based on investigation, there are **6 critical issues** with the Journey booking flow:
 
-The Journey Review page currently shows:
-- A simple timeline visualization with property names and dates
-- StayCards with property images, dates, and pricing
-- Guest details form
-- Price summary
+| Issue | Root Cause | Impact |
+|-------|------------|--------|
+| 1. PayFast payment skipped | `JourneyCheckout.tsx` bypasses PayFast entirely - calls `multi-push-booking` directly | Bookings confirmed without payment |
+| 2. PDF downloads as blank | HTML generated but `html2pdf.js` produces blank PDF (known library issue) | Guest receives unusable brochure |
+| 3. Brochure attached as HTML | `send-itinerary-email` attaches `.html` file instead of PDF | Confusing file format for guests |
+| 4. Email shows "undefined" property | Stays data uses `property_id` but email expects `propertyId` | Broken email content |
+| 5. "Invalid Date" in email | Stays use `dates.check_in` but email expects `checkIn` | Broken date display |
+| 6. Duplicate reservation email | `push-booking` sends guest email; `multi-push-booking` sends itinerary email | Guest gets 2 emails |
+| 7. Promotional text to remove | "We've created a beautiful travel document..." text | Per user request |
 
-It lacks any visual representation of what guests will experience at each destination.
+## Technical Root Causes
 
-## Proposed Enhancement
-
-Add a **"Destination Discovery"** map section below each StayCard that displays:
-1. Interactive Google Map showing the property location
-2. Nearby attractions from the `local_experiences` table (nature, culture, adventure, wellness)
-3. Restaurant/dining recommendations
-4. A legend with clickable items for details
-
-This transforms the journey review from a transactional checkout into an aspirational travel brochure preview.
-
-## Architecture
-
-```text
-┌─────────────────────────────────────────────────────┐
-│                 JourneyReview.tsx                   │
-│                                                     │
-│  ┌───────────────────────────────────────────────┐  │
-│  │            TimelineVisualizer                 │  │
-│  └───────────────────────────────────────────────┘  │
-│                                                     │
-│  ┌───────────────────────────────────────────────┐  │
-│  │                 StayCard                      │  │
-│  │  ┌─────────────────────────────────────────┐  │  │
-│  │  │      NEW: JourneyDestinationMap         │  │  │
-│  │  │  - Property pin (pink)                  │  │  │
-│  │  │  - Attractions (colored dots)           │  │  │
-│  │  │  - Legend with categories               │  │  │
-│  │  └─────────────────────────────────────────┘  │  │
-│  └───────────────────────────────────────────────┘  │
-│                                                     │
-│  ┌─────────────────────────────────────┐            │
-│  │        Guest Details / Checkout     │            │
-│  └─────────────────────────────────────┘            │
-└─────────────────────────────────────────────────────┘
+### Issue 1: PayFast Skipped
+`JourneyCheckout.tsx` line 166-170:
+```typescript
+// Step 4: Call multi-push-booking  ← WRONG: No payment first!
+const { data: bookingResult, error: bookingError } = await supabase.functions.invoke('multi-push-booking', {
+  body: { itinerary_id: itineraryId }
+});
 ```
 
-## Data Flow
+The flow should be: `JourneyCheckout → PayFast → ITN callback → multi-push-booking`
 
-1. **JourneyReview** iterates over `stays` from `ItineraryContext`
-2. For each stay, we need to fetch:
-   - Property coordinates (latitude, longitude, city, country)
-   - Local experiences from `local_experiences` table
-3. Display map with property marker and experience markers
-
-## Implementation Plan
-
-### 1. Create New Component: `JourneyDestinationMap.tsx`
-
-**Location:** `src/components/journey/JourneyDestinationMap.tsx`
-
-A compact, travel-brochure-style map component that:
-- Displays property location with pink ROL pin
-- Shows up to 5 curated experiences from `local_experiences`
-- Uses grayscale map styling (matching InvitationMap)
-- Has a collapsible legend showing experience details
-- Includes "Why locals love it" tooltip on hover
-
-**Key Features:**
-- Fetches property coordinates and local_experiences via React Query
-- Graceful loading/error states
-- Category-based icons (nature, dining, culture, adventure, wellness)
-- Compact design suitable for inline display within StayCard
-
-### 2. Extend ItineraryStay Interface
-
-Add optional fields to track property location:
-
+### Issue 2-3: PDF/HTML Generation
+`send-itinerary-email` lines 337-343:
 ```typescript
-export interface ItineraryStay {
-  // ... existing fields
-  property_latitude?: number | null;
-  property_longitude?: number | null;
-  property_city?: string;
-  property_country?: string;
+attachments.push({
+  filename: `Journey-Brochure-${...}.html`,  // ← Not a PDF!
+  content: base64Content,
+  content_type: "text/html",  // ← HTML attachment!
+});
+```
+
+And `JourneyConfirmation.tsx` uses `html2pdf.js` which requires DOM rendering and is unreliable.
+
+### Issue 4-5: Data Field Mismatch
+Itinerary `stays` array stores snake_case fields:
+```json
+{
+  "property_id": "ea9a019d-...",
+  "property_name": "[SANDBOX] xxxLatter Days",
+  "dates": { "check_in": "2026-02-24", "check_out": "2026-02-26" }
 }
 ```
 
-### 3. Modify StayCard Component
-
-Add the `JourneyDestinationMap` below the room breakdown:
-
+But `send-itinerary-email` expects camelCase:
 ```typescript
-// After room breakdown, before actions
-{stay.property_id && (
-  <JourneyDestinationMap
-    propertyId={stay.property_id}
-    propertyName={stay.property_name}
-    compact={true}
-  />
-)}
+stays.map(s => s.propertyId)  // ← undefined!
+stay.checkIn                   // ← undefined!
 ```
 
-### 4. Update Journey Export Index
+### Issue 6: Duplicate Emails
+- `push-booking` (line 229-250): Sends `send-booking-email` with `status: 'success'` for each booking
+- `multi-push-booking` (line 261): Sends `send-itinerary-email` for the whole journey
 
-```typescript
-export { JourneyDestinationMap } from './JourneyDestinationMap';
-```
+For itinerary bookings, only the journey email should be sent.
 
-## Component Design: JourneyDestinationMap
+## Solution Architecture
 
 ```text
-┌──────────────────────────────────────────────────────┐
-│  ┌──────────────────────────────────────────────┐   │
-│  │           [Google Map - Grayscale]            │   │
-│  │                                               │   │
-│  │     [●] Property (pink)                       │   │
-│  │     [●] Nature attraction (green)             │   │
-│  │     [●] Restaurant (orange)                   │   │
-│  │     [●] Culture (purple)                      │   │
-│  │                                               │   │
-│  └──────────────────────────────────────────────┘   │
-│                                                      │
-│  Nearby Experiences                                  │
-│  ┌─────────────────────────────────────────────┐    │
-│  │ 🌿 Robberg Nature Reserve     [8.5km]        │    │
-│  │    "Locals love the secret swimming spot"    │    │
-│  ├─────────────────────────────────────────────┤    │
-│  │ 🍷 The Fat Fish Restaurant    [5km]          │    │
-│  │    "Farm-to-table with ocean views"          │    │
-│  └─────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────┘
+CURRENT FLOW (Broken):
+JourneyCheckout → multi-push-booking → push-booking → (email per booking)
+                                                     ↓
+                                      send-itinerary-email (HTML attachment)
+
+FIXED FLOW:
+JourneyCheckout → payfast-api (get UUID) → PayFast Modal
+                                               ↓ (user pays)
+                                          ITN callback
+                                               ↓
+                                    multi-push-booking
+                                               ↓ (booking_channel = 'rol_itinerary')
+                                          push-booking (skips guest email)
+                                               ↓
+                                    send-itinerary-email (single journey email, no attachment)
 ```
 
-## Files to Create/Modify
+## Implementation Plan
 
-| File | Action | Purpose |
-|------|--------|---------|
-| `src/components/journey/JourneyDestinationMap.tsx` | Create | New map component with experiences |
-| `src/components/journey/index.ts` | Modify | Export new component |
-| `src/components/journey/StayCard.tsx` | Modify | Integrate map below room details |
-| `src/contexts/ItineraryContext.tsx` | Modify | Add location fields to ItineraryStay |
+### 1. Add PayFast Integration to JourneyCheckout
 
-## Technical Details
+**File:** `src/pages/JourneyCheckout.tsx`
 
-### Data Fetching (React Query)
+Changes:
+1. Add PayFast modal import and state
+2. Modify `handleCompleteBooking` to:
+   - Save itinerary first
+   - Call `payfast-api` with itinerary context
+   - Open PayFast modal
+   - Handle success → navigate to confirmation
+3. Add `PayFastOnsiteModal` component
 
+### 2. Fix Data Field Mapping in Email Functions
+
+**File:** `supabase/functions/send-itinerary-email/index.ts`
+
+Lines 288-305: Fix stay parsing to handle both snake_case and camelCase:
 ```typescript
-const { data: propertyData } = useQuery({
-  queryKey: ['journey-property-location', propertyId],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from('public_properties')
-      .select('latitude, longitude, city, country')
-      .eq('id', propertyId)
-      .single();
-    if (error) throw error;
-    return data;
-  },
-  enabled: !!propertyId,
-});
-
-const { data: experiences } = useQuery({
-  queryKey: ['journey-experiences', propertyId],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from('local_experiences')
-      .select('*')
-      .eq('property_id', propertyId)
-      .eq('is_active', true)
-      .order('display_order')
-      .limit(5);
-    if (error) throw error;
-    return data;
-  },
-  enabled: !!propertyId,
-});
+const enrichedStays = stays.map(stay => ({
+  propertyId: stay.propertyId || stay.property_id,
+  propertyName: stay.propertyName || stay.property_name,
+  checkIn: stay.checkIn || stay.dates?.check_in,
+  checkOut: stay.checkOut || stay.dates?.check_out,
+  nights: stay.nights || calculateNights(stay.dates?.check_in, stay.dates?.check_out),
+  price: stay.price || stay.price_breakdown?.total || 0,
+  guests: stay.guests || { adults: 2, children: 0, infants: 0 },
+  roomTypeName: stay.roomTypeName || stay.rooms?.[0]?.room_type_name,
+  city: stay.city || propertyMap.get(stay.propertyId || stay.property_id)?.city,
+  country: stay.country || propertyMap.get(stay.propertyId || stay.property_id)?.country,
+}));
 ```
 
-### Category Styling
+### 3. Fix Same in PDF Generation
 
+**File:** `supabase/functions/generate-itinerary-pdf/index.ts`
+
+Lines 1692-1698: Apply same snake_case fallback:
 ```typescript
-const categoryConfig = {
-  nature: { icon: TreePine, color: '#22c55e', label: 'Nature' },
-  culture: { icon: Palette, color: '#8b5cf6', label: 'Culture' },
-  dining: { icon: Utensils, color: '#f97316', label: 'Dining' },
-  adventure: { icon: Mountain, color: '#3b82f6', label: 'Adventure' },
-  wellness: { icon: Heart, color: '#ec4899', label: 'Wellness' },
-};
+const stays: Stay[] = rawStays.map(s => ({
+  propertyId: s.propertyId || s.property_id,
+  propertyName: s.propertyName || s.property_name,
+  checkIn: s.checkIn || s.dates?.check_in,
+  checkOut: s.checkOut || s.dates?.check_out,
+  // ... etc
+}));
 ```
 
-### Map Styling
+### 4. Stop Duplicate Guest Emails
 
-Reuse the grayscale editorial map styling from `InvitationMap.tsx` for consistency.
+**File:** `supabase/functions/push-booking/index.ts`
 
-## User Experience
+Lines 229-250: Skip guest email for itinerary bookings:
+```typescript
+// Only send guest email if NOT part of an itinerary
+if (booking.booking_channel !== 'rol_itinerary') {
+  // Send guest confirmation email...
+}
+```
 
-1. User adds stays to journey and navigates to `/journey/review`
-2. Each StayCard shows the property image and booking details
-3. Below the price breakdown, an expandable "Discover" section shows:
-   - A compact map with the property and nearby attractions
-   - A list of curated experiences with distances and local tips
-4. This creates anticipation and validates the booking choice
-5. Serves as a preview of the full PDF brochure they'll receive after booking
+### 5. Remove HTML Attachment from Itinerary Email
 
-## Edge Cases
+**File:** `supabase/functions/send-itinerary-email/index.ts`
 
-- **No coordinates**: Show a fallback "Explore {city}" message without map
-- **No local experiences**: Hide the experiences list, show map only
-- **Loading state**: Show skeleton while fetching
-- **Multiple stays**: Each StayCard has its own independent map and experiences
+Lines 314-353: Remove or simplify the attachment logic - keep brochure download as a CTA link instead of attachment.
 
-## Future Enhancements (Not in Scope)
+### 6. Remove Promotional Text from Confirmation
 
-- Click-to-add experience to special requests
-- Expandable details modal for each experience
-- Route visualization between stays (for multi-property journeys)
-- Print/share journey preview as mini-brochure
+**File:** `src/pages/JourneyConfirmation.tsx`
+
+Lines 238-244: Remove the promotional paragraph:
+```tsx
+// DELETE these lines:
+<h3 className="text-xl font-serif font-semibold mb-2">
+  We've created a beautiful travel document just for you
+</h3>
+<p className="text-muted-foreground mb-6 max-w-md mx-auto">
+  Complete with a personalized poem, weather forecast, and a surprise gift waiting inside!
+</p>
+```
+
+### 7. Fix PayFast API for Itinerary Context
+
+**File:** `supabase/functions/payfast-api/index.ts`
+
+Add support for `itinerary_id` parameter so it can be passed through to the ITN callback, enabling the ITN to trigger `multi-push-booking` instead of `push-booking`.
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/pages/JourneyCheckout.tsx` | Add PayFast integration |
+| `src/pages/JourneyConfirmation.tsx` | Remove promotional text |
+| `supabase/functions/send-itinerary-email/index.ts` | Fix field mapping, remove HTML attachment |
+| `supabase/functions/generate-itinerary-pdf/index.ts` | Fix field mapping |
+| `supabase/functions/push-booking/index.ts` | Skip guest email for itinerary bookings |
+| `supabase/functions/payfast-api/index.ts` | Support itinerary context in ITN flow |
+
+## Expected Outcome
+
+After implementation:
+1. PayFast payment required before journey confirmation
+2. Email shows correct property name and dates
+3. Only one email sent to guest (journey confirmation)
+4. Brochure available as download link, not HTML attachment
+5. Promotional text removed from confirmation page
+
+## Testing Checklist
+
+- [ ] Add a property to journey, proceed to checkout
+- [ ] Verify PayFast modal opens when clicking "Confirm Booking"
+- [ ] Complete test payment (card: 4000000000000002)
+- [ ] Verify single journey email received (not booking email)
+- [ ] Verify email shows correct property name and dates
+- [ ] Download brochure from confirmation page
+- [ ] Verify promotional text is removed
+
