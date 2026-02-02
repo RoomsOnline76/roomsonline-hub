@@ -1,84 +1,43 @@
 
+# Fix Plan: Payment Flow & Desktop Concierge Visibility
 
-# Plan: Complete Booking Flow Fix - SmartCart Visibility, Concierge UX, and Map Popover
+## Problems Identified
 
-## Issues Summary
+### Problem 1: Payment Flow Broken
+The `InlineCheckout` component calls `payfast-api` with `action: 'create_payment'` which **does not exist** in the edge function. The valid actions are:
+- `initiate_payment` (redirect-based)
+- `initiate_onsite_payment` (modal-based, requires a booking UUID)
+- `verify_itn` 
+- `verify_payment`
 
-1. **SmartCart never appears** - Cart is correctly added but concierge strip still shows, blocking visibility
-2. **Concierge strip shows by default** - Should only appear after user initiates booking
-3. **Date selection does nothing** - After confirming dates, nothing progresses the booking
-4. **Map legend truncated** - Need popover for full attraction details
-5. **Room page return flow broken** - Returns to property but doesn't continue booking
+Additionally, the flow is incorrect:
+1. `InlineCheckout` saves an **itinerary** to `itineraries` table
+2. Calls PayFast with itinerary ID expecting a UUID back
+3. Passes that to `PayFastOnsiteModal` which then calls `initiate_onsite_payment` expecting a **booking** UUID from the `bookings` table
 
----
+**The fix**: Create an actual booking record from the itinerary before initiating payment, then use the booking ID for PayFast.
 
-## Root Cause Analysis
+### Problem 2: Desktop Concierge Not Minimized on First Load
+The `isInitiated` state (line 98) controls visibility for **mobile only** (line 779-813). The desktop path (line 501-718) has no such check - it shows the full sidebar immediately regardless of `isInitiated`.
 
-### Issue 1: SmartCart Blocked by Concierge Strip
-Both `SmartCart` (z-40) and `AIConciergePanel` collapsed strip (z-40) render at the same position. The `hasStays` check in AIConciergePanel (line 673) should hide the strip, but both still appear because they're in separate components with independent renders.
-
-### Issue 2: Concierge Strip Always Visible
-The concierge strip renders by default (line 729-898) on every property page. Users see booking controls before expressing intent to book.
-
-### Issue 3: Date Selection Doesn't Progress
-When dates are confirmed in `BottomSheetDatePicker`, it calls `onDatesChange` which only updates the context. There's no automatic "add to cart" action - users must manually click "Book Now" button afterward.
-
-### Issue 4: Map Legend Truncation
-The legend uses CSS truncation but no interactive element to reveal full names.
-
-### Issue 5: Room Page Return Doesn't Continue
-`RoomShowcase.handleCheckAvailability()` navigates back with `#rooms-section` and fires a `setTimeout` to trigger the date picker. But if user already selected dates on room page, they just need to add to cart, not re-select dates.
+**The fix**: Apply the same `isInitiated` check to the desktop render path, showing only a minimal floating button until the user initiates booking.
 
 ---
 
 ## Technical Implementation
 
-### Phase 1: Hide Concierge Strip By Default - Show Only When Initiated
+### Phase 1: Fix Desktop Concierge Visibility
 
 **File: `src/components/booking/AIConciergePanel.tsx`**
 
-Add a new state to track if user has initiated booking:
+At line 501 (beginning of desktop render), add an early return for uninitiated state before the minimized check:
 
 ```typescript
-// Add new prop to control visibility
-interface AIconciergePanelProps {
-  // ... existing props
-  initiallyHidden?: boolean; // Start hidden until user triggers
-}
-
-// Inside component, add state
-const [isInitiated, setIsInitiated] = useState(false);
-
-// Listen for trigger events
-useEffect(() => {
-  const handleInitiateBooking = () => {
-    setIsInitiated(true);
-    setDatePickerOpen(true);
-  };
-  
-  window.addEventListener('openConciergeDatePicker', handleInitiateBooking);
-  return () => {
-    window.removeEventListener('openConciergeDatePicker', handleInitiateBooking);
-  };
-}, []);
-
-// In mobile render section (line 729), add condition:
-// If not initiated and no stays, show only a minimal trigger button
-if (!isInitiated && !hasStays) {
-  return (
-    <>
-      {/* Minimal floating button to initiate booking */}
-      <div className="fixed bottom-4 right-4 z-40">
-        <Button
-          onClick={() => setIsInitiated(true)}
-          className="rounded-full h-12 px-6 shadow-lg"
-        >
-          <Calendar className="h-4 w-4 mr-2" />
-          Select Dates
-        </Button>
-      </div>
-      
-      {/* Date picker still needs to be available */}
+// Desktop sidebar
+if (!isMobile) {
+  // Hide completely if SmartCart has items
+  if (hasStays) {
+    return (
       <BottomSheetDatePicker
         open={datePickerOpen}
         onOpenChange={setDatePickerOpen}
@@ -87,222 +46,218 @@ if (!isInitiated && !hasStays) {
         onDatesChange={handleDatesChange}
         availabilityMap={availabilityMap}
       />
-    </>
-  );
+    );
+  }
+  
+  // NEW: If not initiated, show only minimal floating button (same as mobile)
+  if (!isInitiated) {
+    return (
+      <>
+        <motion.button
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          onClick={() => {
+            setIsInitiated(true);
+            setDatePickerOpen(true);
+          }}
+          className={cn(
+            "fixed right-6 bottom-6 z-40 h-14 px-6 rounded-full gap-2",
+            "bg-primary text-primary-foreground shadow-xl",
+            "flex items-center justify-center",
+            "hover:scale-105 transition-transform",
+            className
+          )}
+        >
+          <Calendar className="h-5 w-5" />
+          <span className="font-medium">Select Dates</span>
+        </motion.button>
+        
+        <BottomSheetDatePicker
+          open={datePickerOpen}
+          onOpenChange={setDatePickerOpen}
+          checkIn={checkInDate}
+          checkOut={checkOutDate}
+          onDatesChange={handleDatesChange}
+          availabilityMap={availabilityMap}
+        />
+      </>
+    );
+  }
+  
+  // Existing minimized state and full sidebar...
+```
+
+### Phase 2: Fix Payment Flow in InlineCheckout
+
+**File: `src/components/booking/InlineCheckout.tsx`**
+
+The payment flow needs to:
+1. Save itinerary to database (already done)
+2. **Create a booking record** from the first stay in the itinerary
+3. Call `payfast-api` with `action: 'initiate_onsite_payment'` and the booking ID
+4. Use the returned UUID to open PayFast modal
+
+Update `handlePayment` function (~line 65-112):
+
+```typescript
+const handlePayment = async () => {
+  if (!validateForm()) {
+    toast.error("Please fill in all required fields");
+    return;
+  }
+
+  if (stays.length === 0) {
+    toast.error("No items in cart");
+    return;
+  }
+
+  setIsSubmitting(true);
+  
+  try {
+    // Save itinerary first
+    const itineraryId = await saveToDatabase();
+    if (!itineraryId) {
+      throw new Error("Failed to save itinerary");
+    }
+
+    // Create booking record from first stay (multi-property would need loop)
+    const firstStay = stays[0];
+    
+    const { data: booking, error: bookingError } = await supabase
+      .from('bookings')
+      .insert({
+        property_id: firstStay.property_id,
+        itinerary_id: itineraryId,
+        room_type_id: firstStay.rooms[0]?.room_type_id || null,
+        check_in_date: firstStay.dates.check_in,
+        check_out_date: firstStay.dates.check_out,
+        nights: firstStay.nights,
+        guests: firstStay.guests.adults + firstStay.guests.children,
+        adults: firstStay.guests.adults,
+        children: firstStay.guests.children,
+        infants: firstStay.guests.infants,
+        guest_name: guestDetails.name,
+        guest_email: guestDetails.email,
+        guest_phone: guestDetails.phone,
+        total_price: totalPrice,
+        status: 'pending',
+        payment_status: 'pending',
+        source: 'rol-website',
+        special_requests: specialRequests || null,
+      })
+      .select('id')
+      .single();
+
+    if (bookingError || !booking) {
+      console.error('Booking creation error:', bookingError);
+      throw new Error("Failed to create booking");
+    }
+
+    // Get PayFast UUID using the BOOKING ID
+    const { data, error } = await supabase.functions.invoke('payfast-api', {
+      body: {
+        action: 'initiate_onsite_payment',  // FIXED: correct action
+        booking_id: booking.id,              // FIXED: use booking UUID
+      }
+    });
+
+    if (error || !data?.success) {
+      throw new Error(data?.error || data?.details || "Failed to initiate payment");
+    }
+
+    // Store booking ID for success handler
+    setBookingId(booking.id);
+    setPayFastUuid(data.uuid);
+    setShowPayFastModal(true);
+  } catch (err) {
+    console.error('Payment initiation error:', err);
+    toast.error(err instanceof Error ? err.message : "Failed to start payment");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+```
+
+Also need to add state for `bookingId`:
+
+```typescript
+const [bookingId, setBookingId] = useState<string | null>(null);
+```
+
+And update the PayFastOnsiteModal props to pass amount properly (since it's already passed):
+
+```tsx
+{payFastUuid && bookingId && (
+  <PayFastOnsiteModal
+    isOpen={showPayFastModal}
+    onClose={() => {
+      setShowPayFastModal(false);
+      setPayFastUuid(null);
+    }}
+    onPaymentSuccess={handlePayFastSuccess}
+    onPaymentCancelled={handlePayFastCancelled}
+    bookingId={bookingId}  // Pass actual booking ID for reference
+    amount={totalPrice}
+    propertyName={stays.map(s => s.property_name).join(', ')}
+    isSandbox={true}
+  />
+)}
+```
+
+### Phase 3: Update PayFastOnsiteModal to Skip Double-Init
+
+The `PayFastOnsiteModal` currently calls `payfast-api` again with `initiate_onsite_payment`. Since we already have the UUID from `InlineCheckout`, we should pass the UUID directly and skip the re-call.
+
+**File: `src/components/booking/PayFastOnsiteModal.tsx`**
+
+Update props to accept an optional `uuid` directly:
+
+```typescript
+interface PayFastOnsiteModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onPaymentSuccess: () => void;
+  onPaymentCancelled: () => void;
+  bookingId: string;
+  amount: number;
+  propertyName: string;
+  isSandbox?: boolean;
+  uuid?: string;  // NEW: Optional pre-fetched UUID
 }
 ```
 
-### Phase 2: Auto-Add to Cart After Date Selection
-
-**File: `src/components/booking/AIConciergePanel.tsx`**
-
-Update `handleDatesChange` to auto-add for single-room properties:
+Update the initiate payment effect to skip API call if UUID is provided:
 
 ```typescript
-const handleDatesChange = (checkIn: Date, checkOut: Date) => {
-  setDates(format(checkIn, 'yyyy-MM-dd'), format(checkOut, 'yyyy-MM-dd'));
+// Get payment UUID and trigger modal
+useEffect(() => {
+  if (!isOpen || !scriptLoaded || paymentUuid) return;
   
-  // For single-room properties, auto-add to cart after date selection
-  if (roomTypes.length === 1) {
-    const room = roomTypes[0];
-    const nights = Math.ceil(
-      (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)
-    );
-    
-    // Get rate from availability map or room data
-    const dateKey = format(checkIn, 'yyyy-MM-dd');
-    const dayData = availabilityMap?.get(dateKey);
-    const roomRate = dayData?.rate || (room as any).baseRate || (room as any).base_rate || 0;
-    const totalPrice = roomRate * nights;
-    
-    addStay({
-      property_id: propertyId,
-      property_name: propertyName,
-      property_slug: propertySlug,
-      property_image: propertyImage || '',
-      external_system: externalSystem || 'none',
-      dates: {
-        check_in: format(checkIn, 'yyyy-MM-dd'),
-        check_out: format(checkOut, 'yyyy-MM-dd'),
-      },
-      rooms: [{
-        room_type_id: room.id,
-        room_type_name: room.name,
-        quantity: 1,
-        rate_per_night: roomRate,
-        total_price: totalPrice,
-      }],
-      guests: {
-        adults: firstRoom.numberOfAdults,
-        children: firstRoom.numberOfChildren,
-        infants: firstRoom.numberOfInfants,
-      },
-      price_breakdown: {
-        subtotal: totalPrice,
-        fees: [],
-        taxes: [],
-        total: totalPrice,
-      },
-      availability_status: 'available',
-      nights,
-    });
-    
-    toast.success(`Added ${room.name} to your journey! Click Checkout to complete.`);
-  }
-};
-```
-
-### Phase 3: Ensure SmartCart Takes Precedence
-
-The existing `if (hasStays)` check (line 673) should work, but we need to make sure it renders NOTHING so SmartCart can be visible. This is already correct but let's verify the SmartCart component renders properly in PropertyShowcase.
-
-**File: `src/pages/PropertyShowcase.tsx`**
-
-Move SmartCart OUTSIDE the AI Concierge conditional block so it always renders when there are stays:
-
-```typescript
-{/* SmartCart - ALWAYS shows when items are added, regardless of AI mode */}
-{hasStays && (
-  <SmartCart 
-    onCheckout={() => setCheckoutOpen(true)}
-  />
-)}
-
-{/* AI Concierge Mode */}
-{aiConciergeEnabled && !aiFailed && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && !hasStays && (
-  <ConciergeErrorBoundary onFallback={handleFallbackToLegacy}>
-    <AIConciergePanel
-      // ... props
-    />
-  </ConciergeErrorBoundary>
-)}
-
-{/* InlineCheckout - full-screen overlay */}
-<InlineCheckout
-  open={checkoutOpen}
-  onClose={() => setCheckoutOpen(false)}
-  onPaymentSuccess={handlePaymentSuccess}
-  onPaymentCancelled={handlePaymentCancelled}
-/>
-```
-
-### Phase 4: Add Popover to Map Legend Attractions
-
-**File: `src/components/showcase/InvitationMap.tsx`**
-
-Add Tooltip component for full attraction details:
-
-```typescript
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-// In the legend section (line 359-377):
-{attractions.length > 0 && (
-  <div className="mt-4 px-2">
-    <p className="text-xs font-medium text-muted-foreground mb-2 text-center">Nearby:</p>
-    <TooltipProvider>
-      <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-        {attractions.slice(0, 5).map((a, i) => (
-          <Tooltip key={a.place_id}>
-            <TooltipTrigger asChild>
-              <button className="flex items-center gap-1.5 whitespace-nowrap hover:text-foreground transition-colors">
-                <span 
-                  className="w-2.5 h-2.5 rounded-full shrink-0" 
-                  style={{ backgroundColor: ATTRACTION_COLORS[i] }} 
-                />
-                <span className="max-w-[140px] sm:max-w-[180px] truncate">
-                  {a.name}
-                </span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[250px]">
-              <div className="space-y-1">
-                <p className="font-medium">{a.name}</p>
-                {a.rating && (
-                  <p className="text-xs text-muted-foreground">
-                    {'★'.repeat(Math.round(a.rating))} {a.rating.toFixed(1)}
-                  </p>
-                )}
-                {a.vicinity && (
-                  <p className="text-xs text-muted-foreground">{a.vicinity}</p>
-                )}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        ))}
-      </div>
-    </TooltipProvider>
-  </div>
-)}
-```
-
-### Phase 5: Fix Room Page Return Flow
-
-**File: `src/pages/RoomShowcase.tsx`**
-
-When returning from room page with dates already selected, auto-add the room:
-
-```typescript
-const handleCheckAvailability = () => {
-  // ... existing NightsBridge and PMS handling
-  
-  // For manual rates properties, check if we have dates and should auto-add
-  if (isManualRatesProperty && property && room) {
-    // Get dates from URL or context
-    const params = new URLSearchParams(window.location.search);
-    const checkInParam = params.get('checkIn');
-    const checkOutParam = params.get('checkOut');
-    
-    // If we have dates from URL/context, auto-add the room to cart here
-    if (checkInParam && checkOutParam) {
-      const checkIn = new Date(checkInParam);
-      const checkOut = new Date(checkOutParam);
-      const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-      const roomRate = getLowestRate() || 0;
-      
-      addStay({
-        property_id: property.id,
-        property_name: property.name,
-        property_slug: property.slug || property.id,
-        property_image: property.images?.[0] || '',
-        external_system: property.external_system || 'none',
-        dates: {
-          check_in: checkInParam,
-          check_out: checkOutParam,
-        },
-        rooms: [{
-          room_type_id: room.id,
-          room_type_name: room.name,
-          quantity: 1,
-          rate_per_night: roomRate,
-          total_price: roomRate * nights,
-        }],
-        guests: { adults: 2, children: 0, infants: 0 },
-        price_breakdown: {
-          subtotal: roomRate * nights,
-          fees: [],
-          taxes: [],
-          total: roomRate * nights,
-        },
-        availability_status: 'available',
-        nights,
-      });
-      
-      toast.success(`Added ${room.name} to your journey!`);
-      navigate(`/property/${property.slug || property.id}#checkout`);
-      return;
-    }
-    
-    // No dates - navigate back to property page and trigger date picker
-    navigate(`/property/${property.slug || property.id}#rooms-section`);
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('openConciergeDatePicker'));
-    }, 600);
+  // If UUID was pre-provided, use it directly
+  if (props.uuid) {
+    setPaymentUuid(props.uuid);
+    triggerOnsitePayment(props.uuid);
     return;
   }
-};
+
+  // Otherwise fetch from API (existing logic)
+  const initiatePayment = async () => {
+    // ... existing code
+  };
+
+  initiatePayment();
+}, [isOpen, scriptLoaded, paymentUuid, props.uuid, bookingId, triggerOnsitePayment]);
 ```
 
-Also need to import `useItinerary` and use `addStay` in RoomShowcase.
+And update InlineCheckout to pass the UUID:
+
+```tsx
+<PayFastOnsiteModal
+  isOpen={showPayFastModal}
+  // ...
+  uuid={payFastUuid}  // Pass pre-fetched UUID
+/>
+```
 
 ---
 
@@ -310,46 +265,36 @@ Also need to import `useItinerary` and use `addStay` in RoomShowcase.
 
 | File | Changes |
 |------|---------|
-| `src/components/booking/AIConciergePanel.tsx` | Add `isInitiated` state; Hide strip by default; Auto-add to cart after date selection |
-| `src/pages/PropertyShowcase.tsx` | Move SmartCart outside AI conditional; Hide concierge when hasStays |
-| `src/components/showcase/InvitationMap.tsx` | Add Tooltip popover for full attraction names with ratings |
-| `src/pages/RoomShowcase.tsx` | Import useItinerary; Auto-add room if dates in URL; Navigate to checkout |
+| `src/components/booking/AIConciergePanel.tsx` | Add `isInitiated` check to desktop render path (~line 501) |
+| `src/components/booking/InlineCheckout.tsx` | Fix payment flow: create booking record, use correct API action |
+| `src/components/booking/PayFastOnsiteModal.tsx` | Accept optional `uuid` prop to skip double API call |
 
 ---
 
-## Expected User Flow After Fix
+## Expected Behavior After Fix
 
-```
-[Property Showcase]
-     │
-     ├── User sees: Room card + "Select Dates" floating button (minimal UI)
-     │
-     ├── Click "Select Dates" OR "Book Now" below map
-     │         │
-     │         └── Date picker opens
-     │                   │
-     │                   └── Select Feb 2-7, click "Confirm Dates"
-     │                             │
-     │                             └── Auto-adds room to cart (single-room property)
-     │                                       │
-     │                                       └── Toast: "Added to your journey!"
-     │                                                 │
-     │                                                 └── SmartCart appears at bottom
-     │
-     └── SmartCart shows: [🛍️ 1] 3 Bedroomed House | 5 nights | R13,250 [Checkout]
-               │
-               └── Click "Checkout" → InlineCheckout overlay opens
-```
+### Desktop Concierge:
+- Page load: Only "Select Dates" floating button visible (bottom-right)
+- User clicks button: Full concierge sidebar appears
+- User clicks X on sidebar: Minimizes to sparkle icon
+
+### Payment Flow:
+1. User fills checkout form, clicks "Pay R13,250"
+2. System creates booking record in database
+3. Calls PayFast API with booking ID, gets UUID
+4. Opens PayFast modal with test card form
+5. User enters card (4000000000000002), submits
+6. PayFast callback fires, redirects to confirmation
 
 ---
 
 ## Testing Checklist
 
-- [ ] Visit `/property/latter-days` - should see minimal "Select Dates" button, NOT full concierge strip
-- [ ] Click "Select Dates" - date picker opens
-- [ ] Select dates Feb 2-7 - toast appears, SmartCart appears at bottom
-- [ ] SmartCart shows property name, nights, total price, "Checkout" button
-- [ ] Click "Checkout" on SmartCart - InlineCheckout overlay opens
-- [ ] Click attraction in map legend - tooltip shows full name and rating
-- [ ] Go to room page, select dates, confirm - adds to cart and navigates back
-
+- [ ] Desktop: Visit `/property/latter-days` - should see ONLY "Select Dates" button, NOT full sidebar
+- [ ] Desktop: Click "Select Dates" - full sidebar appears
+- [ ] Mobile: Same behavior - only button until initiated
+- [ ] Add room to cart, click Checkout
+- [ ] Fill guest details (name, email, phone)
+- [ ] Click "Pay" button - should see PayFast sandbox modal
+- [ ] Enter test card 4000000000000002, CVV 123, any future date
+- [ ] Complete payment - should redirect to confirmation page
