@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { findDiningExperience } from "../_shared/delight-engine.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -170,6 +171,7 @@ interface LocalExperience {
   cuisine_type: string | null;
   reservation_required: boolean | null;
   dress_code: string | null;
+  display_order?: number | null;
 }
 
 interface PropertyDetails {
@@ -1011,7 +1013,7 @@ function generateBrochureHTML(
   const isMultiStay = stays.length > 1;
   
   const staysHTML = stays.map((stay, index) => {
-    const diningExp = stay.experiences?.find(e => e.category === 'dining');
+    const diningExp = findDiningExperience(stay.experiences) as LocalExperience | undefined;
     const stayIntro = getTonePhrase(tone);
     
     // Per-stay curated content (for multi-stay journeys)

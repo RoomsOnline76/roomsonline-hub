@@ -36,6 +36,37 @@ export interface LocalExperience {
   venue_type: string | null;
   cuisine_type: string | null;
   price_indicator: string | null;
+  display_order?: number | null;
+  // Extended fields used by PDF generation
+  distance_km?: number | null;
+  duration_hours?: number | null;
+  reservation_required?: boolean | null;
+  dress_code?: string | null;
+}
+
+// ============================================================================
+// DINING EXPERIENCE HELPER
+// ============================================================================
+
+/**
+ * Find dining experience with restaurant fallback
+ * Priority: dining category > restaurant venue_type (sorted by display_order)
+ */
+export function findDiningExperience(
+  experiences: LocalExperience[] | undefined
+): LocalExperience | undefined {
+  if (!experiences || experiences.length === 0) return undefined;
+  
+  // First: look for explicit dining category
+  const diningCategory = experiences.find(e => e.category === 'dining');
+  if (diningCategory) return diningCategory;
+  
+  // Fallback: look for restaurant venue_type, pick highest rated (lowest display_order)
+  const restaurants = experiences
+    .filter(e => e.venue_type === 'restaurant')
+    .sort((a, b) => (a.display_order ?? 999) - (b.display_order ?? 999));
+  
+  return restaurants[0] || undefined;
 }
 
 // ============================================================================
@@ -184,7 +215,7 @@ export async function generateDestinationDelight(
 
     // GOLD: Premium experience with upgrade
     if (tier === 'gold') {
-      const dining = experiences?.find((e: LocalExperience) => e.category === 'dining');
+      const dining = findDiningExperience(experiences);
       const wellness = experiences?.find((e: LocalExperience) => e.category === 'wellness');
       const premium = dining || wellness;
 
@@ -203,7 +234,7 @@ export async function generateDestinationDelight(
 
     // PLATINUM: Premium package with dining
     if (tier === 'platinum') {
-      const dining = experiences?.find((e: LocalExperience) => e.category === 'dining');
+      const dining = findDiningExperience(experiences);
       
       return {
         type: 'voucher',
