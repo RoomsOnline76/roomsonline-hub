@@ -17,7 +17,7 @@ import { QuickBookDrawer } from "@/components/booking/QuickBookDrawer";
 import { PropertyRecommendations } from "@/components/booking/PropertyRecommendations";
 import { AIConciergePanel } from "@/components/booking/AIConciergePanel";
 import { SmartCart } from "@/components/booking/SmartCart";
-import { InlineCheckout } from "@/components/booking/InlineCheckout";
+// InlineCheckout removed - unified checkout now uses /journey/checkout
 import { ConciergeErrorBoundary } from "@/components/booking/ConciergeErrorBoundary";
 import { useAIConciergeEnabled } from "@/hooks/useFeatureFlags";
 import { useItinerary } from "@/contexts/ItineraryContext";
@@ -204,8 +204,8 @@ export default function PropertyShowcase() {
   // AI Concierge state
   const { enabled: aiConciergeEnabled, isLoading: aiConciergeLoading } = useAIConciergeEnabled();
   const [aiFailed, setAiFailed] = useState(false);
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const { hasStays, clearItinerary } = useItinerary();
+  // checkoutOpen state removed - unified checkout now uses /journey/checkout
+  const { hasStays } = useItinerary();
 
   // Handle AI concierge error - gracefully fall back to legacy flow
   const handleAIError = useCallback(() => {
@@ -218,18 +218,7 @@ export default function PropertyShowcase() {
     setAiFailed(true);
   }, []);
 
-  // Handle successful payment
-  const handlePaymentSuccess = useCallback((bookingId: string) => {
-    setCheckoutOpen(false);
-    clearItinerary();
-    navigate(`/booking-confirmation/${bookingId}?payment=success`);
-  }, [navigate, clearItinerary]);
-
-  // Handle cancelled payment  
-  const handlePaymentCancelled = useCallback(() => {
-    setCheckoutOpen(false);
-    toast.info("Payment cancelled. Your selection is still saved.");
-  }, []);
+  // Payment callbacks removed - unified checkout at /journey/checkout handles these
 
   // Track property view in behavioral memory
   useEffect(() => {
@@ -653,15 +642,15 @@ export default function PropertyShowcase() {
       }
     }
     
-    // For PMS or manual rates properties with booked rooms, go to checkout
+    // For PMS or manual rates properties with booked rooms, go to unified journey checkout
     if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && bookedRooms.length > 0) {
-      navigate(`/booking/${property?.slug || property?.id}`);
+      navigate('/journey/checkout');
       return;
     }
     
-    // If SmartCart has items, open checkout directly
+    // If SmartCart has items, go to unified journey checkout
     if (hasStays) {
-      setCheckoutOpen(true);
+      navigate('/journey/checkout');
       return;
     }
     
@@ -856,7 +845,7 @@ export default function PropertyShowcase() {
       {/* SmartCart - ALWAYS shows when items are added (outside AI conditional for precedence) */}
       {hasStays && (
         <SmartCart 
-          onCheckout={() => setCheckoutOpen(true)}
+          onCheckout={() => navigate('/journey/checkout')}
         />
       )}
 
@@ -879,15 +868,7 @@ export default function PropertyShowcase() {
         </ConciergeErrorBoundary>
       )}
       
-      {/* InlineCheckout - full-screen overlay (accessible when SmartCart has items) */}
-      {hasStays && (
-        <InlineCheckout
-          open={checkoutOpen}
-          onClose={() => setCheckoutOpen(false)}
-          onPaymentSuccess={handlePaymentSuccess}
-          onPaymentCancelled={handlePaymentCancelled}
-        />
-      )}
+      {/* InlineCheckout removed - unified checkout now uses /journey/checkout */}
       
       {/* Legacy Flow: Quick Book Drawer for streamlined booking */}
       {(!aiConciergeEnabled || aiFailed) && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && (
