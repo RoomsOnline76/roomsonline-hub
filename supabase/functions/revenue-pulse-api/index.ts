@@ -56,7 +56,7 @@ serve(async (req) => {
     const endDate = dateRange?.end || new Date().toISOString().split('T')[0];
 
     if (action === "get_rol_pulse") {
-      // Fetch all confirmed/paid bookings in date range
+      // Fetch all confirmed/paid bookings in date range (exclude failed, cancelled, pending)
       const { data: bookings, error: bookingsError } = await supabase
         .from("bookings")
         .select(`
@@ -78,7 +78,9 @@ serve(async (req) => {
         `)
         .gte("check_in_date", startDate)
         .lte("check_in_date", endDate)
-        .in("status", ["confirmed", "completed"]);
+        .in("status", ["confirmed", "completed"])
+        .not("status", "eq", "failed")
+        .not("payment_status", "eq", "failed");
 
       if (bookingsError) throw bookingsError;
 
