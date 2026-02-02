@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
               available_units: 0, // Block this date
               is_stop_sell: true, // Mark as stop-sell
               room_type: String(roomType), // Ensure string format
-              // external_system left null for manual properties
+              external_system: 'manual', // Match existing records for manual properties
             });
           }
         }
@@ -203,7 +203,7 @@ Deno.serve(async (req) => {
         const { error: availError } = await supabaseClient
           .from('property_availability')
           .upsert(availabilityRecords, {
-            onConflict: 'property_id,date,room_type',
+            onConflict: 'property_id,room_type,date,external_system',
             ignoreDuplicates: false,
           });
         
