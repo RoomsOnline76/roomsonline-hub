@@ -1,165 +1,128 @@
 
+# Fix Calendar Date Blocking for Manual Property Bookings
 
-# Fix Journey PDF: Experience Travel Times and Dining Location Accuracy
+## Problem Identified
 
-## Problem Summary
+The edge function logs reveal a clear error:
 
-Based on analysis of the screenshot and database:
+```
+null value in column "room_type" of relation "property_availability" 
+violates not-null constraint
+```
 
-1. **Travel Time Display Issue**: The PDF shows `duration_hours` (how long the activity takes, e.g., "4h" for a hiking trail) but the layout implies these are travel times from the property. Users expect to see "time to get there."
+### Root Cause
 
-2. **Dining Recommendation is Incorrect Location**: The AI recommended "Pili Pili Beach Bar & Restaurant" for a Still Bay property. Investigation reveals this restaurant is actually located in **Sedgefield (approximately 100km away)**, not Still Bay. The AI hallucinated proximity.
+**Property Format Mismatch**: The booking stores room data with snake_case keys (`room_type_id`, `room_type_name`), but the push-booking function looks for camelCase keys (`roomTypeId`, `roomTypeName`):
 
----
+| Source | Format | Example |
+|--------|--------|---------|
+| Booking data | `room_type_name` | "3 Bedroomed Holiday House" |
+| push-booking logic | `roomTypeName` | undefined → falls back to null |
+| property_availability | `room_type` | "3 Bedroomed Holiday House" (required) |
 
-## Root Cause Analysis
-
-### Issue 1: Duration vs Travel Time
-- **Current behaviour**: `generateExperiencesHTML()` displays `exp.duration_hours` as "Xh"
-- **Problem**: This represents activity duration, not travel time
-- **Data available**: `distance_km` field exists but isn't displayed
-
-### Issue 2: AI Dining Hallucination
-- **Current behaviour**: AI prompts pass only city/country names, no coordinates
-- **Problem**: xAI/Lovable AI generates plausible-sounding but geographically incorrect recommendations
-- **Evidence**: "Pili Pili" is a real restaurant but in Sedgefield, not Still Bay
+When the upsert runs with `room_type: null`, it violates the database constraint and silently fails, leaving dates unblocked.
 
 ---
 
 ## Solution
 
-### Part 1: Fix Experience Display in PDF
+### File: `supabase/functions/push-booking/index.ts`
 
-**File**: `supabase/functions/generate-itinerary-pdf/index.ts`
+Update the manual property date-blocking logic (lines 165-174) to:
 
-Update `generateExperiencesHTML()` to show **both** travel distance and activity duration:
+1. **Handle both naming conventions**: Support both `room_type_name` and `roomTypeName` formats
+2. **Prioritize room name over ID**: The `property_availability` table uses room names, so match that format
+3. **Add fallback logic**: If no room name is found, attempt to look up the room name from property config
+
+### Current Code (line 165-174):
 
 ```typescript
-// Current (line ~396-411):
-${exp.duration_hours ? `<span class="experience-duration">${exp.duration_hours}h</span>` : ''}
-
-// Updated:
-<div class="experience-meta">
-  ${exp.distance_km ? `<span class="experience-distance">${exp.distance_km}km away</span>` : ''}
-  ${exp.duration_hours ? `<span class="experience-duration">${exp.duration_hours}h activity</span>` : ''}
-</div>
-```
-
-Also update CSS to style these clearly.
-
-### Part 2: Improve AI Dining Prompts with Coordinates
-
-**File**: `supabase/functions/enrich-property-experiences/index.ts`
-
-1. **Pass coordinates to AI prompt** - Fetch property latitude/longitude and include in the prompt
-2. **Add distance constraint** - Explicitly tell AI to recommend within X km radius
-3. **Request coordinate validation** - Ask AI to include approximate lat/long in response for verification
-
-Updated prompt structure:
-```typescript
-const prompt = getDiningPrompt(property, diningTier);
-// Add coordinate context:
-const coordinateContext = property.latitude && property.longitude
-  ? `\n\nIMPORTANT: The property is located at coordinates ${property.latitude}, ${property.longitude}. 
-     Only recommend restaurants WITHIN 15km of these coordinates. 
-     Do not recommend establishments in other towns.`
-  : '';
-```
-
-### Part 3: Add Post-Generation Validation
-
-Create a simple validation step that checks if the generated dining recommendation's `distance_km` is reasonable (< 25km). If not, flag or regenerate.
-
----
-
-## Files to Modify
-
-1. **`supabase/functions/generate-itinerary-pdf/index.ts`**
-   - Update `generateExperiencesHTML()` to display distance (km) instead of/alongside duration
-   - Add CSS for `.experience-distance` class
-   - Clarify duration label as "activity duration"
-
-2. **`supabase/functions/enrich-property-experiences/index.ts`**
-   - Fetch property coordinates (latitude, longitude)
-   - Add coordinate context to dining prompts for xAI and Lovable AI
-   - Add distance constraint (15-20km radius)
-   - Add post-generation distance validation
-   - Regenerate or skip dining if validation fails
-
----
-
-## Implementation Details
-
-### PDF Display Changes
-
-Current HTML (line ~396-411):
-```html
-<div class="experience-item">
-  <span class="experience-icon">${categoryIcons[exp.category] || '✨'}</span>
-  <div class="experience-content">
-    <span class="experience-title">${exp.title}</span>
-    ${exp.duration_hours ? `<span class="experience-duration">${exp.duration_hours}h</span>` : ''}
-  </div>
-</div>
-```
-
-New HTML:
-```html
-<div class="experience-item">
-  <span class="experience-icon">${categoryIcons[exp.category] || '✨'}</span>
-  <div class="experience-content">
-    <span class="experience-title">${exp.title}</span>
-    <span class="experience-meta">
-      ${exp.distance_km ? `${exp.distance_km}km` : ''}
-      ${exp.distance_km && exp.duration_hours ? ' · ' : ''}
-      ${exp.duration_hours ? `${exp.duration_hours}h` : ''}
-    </span>
-  </div>
-</div>
-```
-
-### AI Prompt Enhancement
-
-Add to property context fetch (around line 451):
-```typescript
-const { data: property, error: propertyError } = await supabase
-  .from("properties")
-  .select("id, name, property_type, editorial_rating, city, country, description, latitude, longitude")
-  //                                                                              ^^^^^^^^^^^^^^^^
-  .eq("id", property_id)
-  .single();
-```
-
-Enhance dining prompt:
-```typescript
-function getDiningPrompt(property: PropertyContext, diningTier: DiningTier): string {
-  const location = `${property.city || 'the area'}${property.country ? `, ${property.country}` : ''}`;
-  const coordinateGuidance = property.latitude && property.longitude
-    ? `\n\nCRITICAL: Only recommend restaurants within 15km of ${property.city}. 
-       The property coordinates are: ${property.latitude}, ${property.longitude}.
-       Do NOT suggest restaurants from other towns like Sedgefield, Knysna, or Plettenberg Bay if the property is in Still Bay.`
-    : '';
-  
-  // ... existing tier prompts + coordinateGuidance
+for (const room of bookingRooms) {
+  availabilityRecords.push({
+    property_id: property.id,
+    date: dateStr,
+    available_units: 0,
+    is_stop_sell: true,
+    room_type: room.roomTypeId || room.roomTypeName || null,  // BUG: wrong field names
+  });
 }
 ```
 
+### Updated Code:
+
+```typescript
+for (const room of bookingRooms) {
+  // Support both camelCase and snake_case field names
+  const roomTypeName = room.roomTypeName || room.room_type_name || 
+                       room.roomTypeId || room.room_type_id || null;
+  
+  if (!roomTypeName) {
+    console.warn('Room has no identifiable type - skipping availability block for this room');
+    continue;
+  }
+  
+  availabilityRecords.push({
+    property_id: property.id,
+    date: dateStr,
+    available_units: 0,
+    is_stop_sell: true,
+    room_type: String(roomTypeName),  // Ensure string format
+  });
+}
+```
+
+### Additional Improvement
+
+If the room only has an ID (not a name), look up the room name from the property's wizard configuration:
+
+```typescript
+// Before the loop, build a map of room IDs to names from property config
+const roomTypeMap = new Map<string, string>();
+const amenities = property.amenities as { room_types?: Array<{id: string | number; name: string}> } | null;
+if (amenities?.room_types) {
+  for (const rt of amenities.room_types) {
+    roomTypeMap.set(String(rt.id), rt.name);
+  }
+}
+
+// In the loop, resolve ID to name if needed
+const roomId = room.roomTypeId || room.room_type_id;
+const roomName = room.roomTypeName || room.room_type_name || 
+                 (roomId ? roomTypeMap.get(String(roomId)) : null);
+```
+
 ---
 
-## Verification After Implementation
+## Implementation Steps
 
-1. Regenerate experiences for the Still Bay property
-2. Verify dining recommendation is actually in Still Bay
-3. Generate new PDF and confirm:
-   - Experiences show distance (km) clearly
-   - Duration is labeled as activity time
-   - Dining venue is genuinely nearby
+1. **Update push-booking edge function**
+   - Fix field name handling for both conventions
+   - Add room ID to name resolution via property config
+   - Add logging for better debugging
+   - Ensure room_type is never null
+
+2. **Deploy the updated function**
+
+3. **Verify the fix works**
+   - Test a new booking on the manual property
+   - Confirm availability records are created with proper room_type
+   - Confirm calendar shows dates as blocked
 
 ---
 
-## Technical Notes
+## Technical Details
 
-- The xAI Grok model has real-time knowledge and should correctly identify local restaurants if given proper coordinate context
-- Lovable AI (Gemini) may have outdated data but coordinate constraints will help
-- Consider adding a "source verification" flag for dining that was AI-generated vs manually curated
+### Files to Modify
 
+- `supabase/functions/push-booking/index.ts` - Lines 148-196 (manual property date blocking section)
+
+### Database Constraint
+
+The `property_availability` table has a NOT NULL constraint on `room_type`, which is correct behavior. The fix ensures we always provide a valid room type name.
+
+### Edge Cases Handled
+
+1. Booking uses camelCase (`roomTypeName`) - handled
+2. Booking uses snake_case (`room_type_name`) - handled
+3. Booking only has room ID - resolved via property config lookup
+4. No room info at all - log warning and skip (better than failing entire booking)
