@@ -1648,7 +1648,7 @@ function generateBrochureHTML(
     <p class="brochure-id">Itinerary ID: ${itinerary.id}</p>
     <p style="margin-top: 16px;">
       Thank you for booking with <strong>Sleep in Africa by RoomsOnline</strong><br />
-      <a href="https://sleepinafrica.roomsonline.co.za" style="color: #e91e8c;">sleepinafrica.roomsonline.co.za</a>
+      <a href="https://book.sleepinafrica.roomsonline.co.za" style="color: #e91e8c;">book.sleepinafrica.roomsonline.co.za</a>
     </p>
   </div>
 </body>
