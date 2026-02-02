@@ -206,6 +206,7 @@ export default function JourneyCheckout() {
         .from('bookings')
         .insert({
           property_id: firstStay.property_id,
+          user_id: session.user.id,
           guest_name: guestName,
           guest_email: guestEmail,
           guest_phone: guestPhone,
