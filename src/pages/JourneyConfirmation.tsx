@@ -48,7 +48,7 @@ export default function JourneyConfirmation() {
     setIsGeneratingPdf(true);
     
     try {
-      // Fetch HTML brochure from edge function
+      console.log('[PDF] Fetching brochure HTML...');
       const { data, error } = await supabase.functions.invoke('generate-itinerary-pdf', {
         body: { itinerary_id: itineraryId }
       });
@@ -56,20 +56,44 @@ export default function JourneyConfirmation() {
       if (error) throw error;
       if (!data?.html) throw new Error('No brochure content received');
       
-      // Create temporary container for HTML
+      console.log('[PDF] HTML received, length:', data.html.length);
+      
+      // Parse the HTML document to extract body content and styles
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(data.html, 'text/html');
+      
+      // Extract styles from head
+      const styleContent = doc.querySelector('style')?.innerHTML || '';
+      
+      // Create container with proper structure
       const container = document.createElement('div');
-      container.innerHTML = data.html;
-      container.style.position = 'absolute';
-      container.style.left = '-9999px';
-      container.style.top = '0';
+      container.id = 'pdf-render-container';
+      container.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 800px;';
+      
+      // Inject styles and body content (not the full HTML document)
+      container.innerHTML = `
+        <style>${styleContent}</style>
+        ${doc.body.innerHTML}
+      `;
+      
       document.body.appendChild(container);
       
-      // Generate PDF using html2pdf.js (client-side, bypasses browser print headers)
+      // Allow fonts to load (Google Fonts needs time)
+      console.log('[PDF] Waiting for fonts to load...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Generate PDF
+      console.log('[PDF] Generating PDF...');
       const opt = {
-        margin: 0,
+        margin: 10,
         filename: `journey-brochure-${itineraryId.substring(0, 8)}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true,
+          logging: false,
+          letterRendering: true 
+        },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
       
@@ -77,10 +101,11 @@ export default function JourneyConfirmation() {
       
       // Cleanup
       document.body.removeChild(container);
+      console.log('[PDF] Download complete!');
       toast.success('Brochure downloaded!');
       
     } catch (e) {
-      console.error('PDF generation failed:', e);
+      console.error('[PDF] Generation failed:', e);
       toast.error('Failed to generate brochure. Please try again.');
     } finally {
       setIsGeneratingPdf(false);
