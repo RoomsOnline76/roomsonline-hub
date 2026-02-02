@@ -7,11 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { useItinerary } from '@/contexts/ItineraryContext';
-import { StayCard, TimelineVisualizer } from '@/components/journey';
+import { useItinerary, ItineraryStay } from '@/contexts/ItineraryContext';
+import { StayCard, TimelineVisualizer, EditStayDatesDialog } from '@/components/journey';
 import { PropertyRecommendations } from '@/components/booking/PropertyRecommendations';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { differenceInDays, parseISO } from 'date-fns';
 
 export default function JourneyReview() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export default function JourneyReview() {
     hasStays,
     stayCount,
     removeStay,
+    updateStay,
     setGuestDetails,
     setSpecialRequests,
     saveToDatabase,
@@ -32,6 +34,7 @@ export default function JourneyReview() {
   } = useItinerary();
 
   const [isSaving, setIsSaving] = useState(false);
+  const [editingStay, setEditingStay] = useState<ItineraryStay | null>(null);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -115,9 +118,7 @@ export default function JourneyReview() {
                     key={stay.id}
                     stay={stay}
                     index={index}
-                    onEditDates={() => {
-                      toast({ title: 'Date editing coming soon' });
-                    }}
+                    onEditDates={() => setEditingStay(stay)}
                     onEditRooms={() => {
                       toast({ title: 'Room editing coming soon' });
                     }}
@@ -246,6 +247,28 @@ export default function JourneyReview() {
             </div>
           </div>
         </main>
+
+        {/* Edit Stay Dates Dialog */}
+        {editingStay && (
+          <EditStayDatesDialog
+            open={!!editingStay}
+            onOpenChange={(open) => !open && setEditingStay(null)}
+            stay={editingStay}
+            onConfirm={(checkIn, checkOut, newPrice) => {
+              const nights = differenceInDays(parseISO(checkOut), parseISO(checkIn));
+              updateStay(editingStay.id, {
+                dates: { check_in: checkIn, check_out: checkOut },
+                nights,
+                price_breakdown: {
+                  ...editingStay.price_breakdown,
+                  subtotal: newPrice,
+                  total: newPrice,
+                },
+              });
+              setEditingStay(null);
+            }}
+          />
+        )}
       </div>
   );
 }
