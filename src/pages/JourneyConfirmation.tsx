@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Loader2, CheckCircle, AlertCircle, Download, Home, Calendar, Sparkles, Share2, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,7 +15,12 @@ import { toast } from 'sonner';
 export default function JourneyConfirmation() {
   const navigate = useNavigate();
   const { itineraryId } = useParams<{ itineraryId: string }>();
+  const [searchParams] = useSearchParams();
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const autoDownloadTriggered = useRef(false);
+  
+  // Check if auto-download was requested via URL param
+  const autoDownload = searchParams.get('action') === 'download';
 
   const { data: itinerary, isLoading, error } = useQuery({
     queryKey: ['itinerary-confirmation', itineraryId],
@@ -33,6 +38,22 @@ export default function JourneyConfirmation() {
     },
     enabled: !!itineraryId
   });
+
+  // Check if itinerary is confirmed
+  const stays = (itinerary?.stays || []) as unknown as ItineraryStay[];
+  const isConfirmed = itinerary?.status === 'confirmed';
+
+  // Auto-trigger brochure download if action=download is in URL
+  useEffect(() => {
+    if (autoDownload && itinerary && isConfirmed && !isGeneratingPdf && !autoDownloadTriggered.current) {
+      autoDownloadTriggered.current = true;
+      // Small delay to ensure UI is ready
+      const timer = setTimeout(() => {
+        handleDownloadPdf();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [autoDownload, itinerary, isConfirmed, isGeneratingPdf]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -121,8 +142,7 @@ export default function JourneyConfirmation() {
     );
   }
 
-  const stays = (itinerary.stays || []) as unknown as ItineraryStay[];
-  const isConfirmed = itinerary.status === 'confirmed';
+  // stays and isConfirmed are defined above, after the query
 
   return (
     <div className="min-h-screen bg-background">

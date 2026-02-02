@@ -1572,8 +1572,15 @@ function generateBrochureHTML(
     }
     
     @media print {
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+      }
+      
       body {
         padding: 20px;
+        background: #fff !important;
       }
       
       .stay-card {
@@ -1582,6 +1589,22 @@ function generateBrochureHTML(
       
       .share-section {
         page-break-inside: avoid;
+      }
+      
+      /* Preserve gradient backgrounds */
+      .welcome-hero,
+      .poem-section,
+      .weather-section,
+      .voucher-card,
+      .hidden-gems-section,
+      .insider-tips-section,
+      .curated-guide-section,
+      .stay-header,
+      .tone-intro,
+      .dining-section,
+      .summary-box {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }
     }
   </style>
