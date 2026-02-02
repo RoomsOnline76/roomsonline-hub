@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { findDiningExperience } from "../_shared/delight-engine.ts";
 
 // ============================================================================
 // AI BOOKING CONCIERGE
@@ -574,7 +575,7 @@ async function generateValueBasedDelight(
 
     // GOLD: Premium upgrade
     if (tier === 'gold') {
-      const dining = experiences?.find((e: any) => e.category === 'dining');
+      const dining = findDiningExperience(experiences);
       const wellness = experiences?.find((e: any) => e.category === 'wellness');
       const premium = dining || wellness;
 
@@ -592,7 +593,7 @@ async function generateValueBasedDelight(
 
     // PLATINUM: Premium package with dining
     if (tier === 'platinum') {
-      const dining = experiences?.find((e: any) => e.category === 'dining');
+      const dining = findDiningExperience(experiences);
       
       delight = {
         type: 'voucher',
