@@ -39,6 +39,7 @@ export function InlineCheckout({
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [payFastUuid, setPayFastUuid] = useState<string | null>(null);
+  const [bookingId, setBookingId] = useState<string | null>(null);
   const [showPayFastModal, setShowPayFastModal] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -83,24 +84,49 @@ export function InlineCheckout({
         throw new Error("Failed to save itinerary");
       }
 
-      // Get PayFast UUID
+      // Create booking record from first stay
+      const firstStay = stays[0];
+      
+      const { data: booking, error: bookingError } = await supabase
+        .from('bookings')
+        .insert({
+          property_id: firstStay.property_id,
+          room_type_id: firstStay.rooms[0]?.room_type_id || null,
+          check_in_date: firstStay.dates.check_in,
+          check_out_date: firstStay.dates.check_out,
+          adults: firstStay.guests.adults,
+          children: firstStay.guests.children,
+          infants: firstStay.guests.infants,
+          guest_name: guestDetails.name,
+          guest_email: guestDetails.email,
+          guest_phone: guestDetails.phone,
+          total_price: totalPrice,
+          status: 'pending',
+          payment_status: 'pending',
+          booking_channel: 'rol-website',
+          special_requests: specialRequests || null,
+        })
+        .select('id')
+        .single();
+
+      if (bookingError || !booking) {
+        console.error('Booking creation error:', bookingError);
+        throw new Error("Failed to create booking");
+      }
+
+      // Get PayFast UUID using the booking ID
       const { data, error } = await supabase.functions.invoke('payfast-api', {
         body: {
-          action: 'create_payment',
-          amount: totalPrice,
-          item_name: `RoomsOnline Booking - ${stays.map(s => s.property_name).join(', ')}`,
-          item_description: `${stays.length} stay(s), ${stays.reduce((n, s) => n + s.nights, 0)} nights`,
-          email_address: guestDetails.email,
-          cell_number: guestDetails.phone,
-          custom_str1: itineraryId,
-          currency: currency,
+          action: 'initiate_onsite_payment',
+          booking_id: booking.id,
         }
       });
 
       if (error || !data?.success) {
-        throw new Error(data?.error || "Failed to initiate payment");
+        throw new Error(data?.error || data?.details || "Failed to initiate payment");
       }
 
+      setBookingId(booking.id);
       setPayFastUuid(data.uuid);
       setShowPayFastModal(true);
     } catch (err) {
@@ -298,19 +324,21 @@ export function InlineCheckout({
       </AnimatePresence>
 
       {/* PayFast Modal */}
-      {payFastUuid && (
+      {payFastUuid && bookingId && (
         <PayFastOnsiteModal
           isOpen={showPayFastModal}
           onClose={() => {
             setShowPayFastModal(false);
             setPayFastUuid(null);
+            setBookingId(null);
           }}
           onPaymentSuccess={handlePayFastSuccess}
           onPaymentCancelled={handlePayFastCancelled}
-          bookingId={payFastUuid}
+          bookingId={bookingId}
           amount={totalPrice}
           propertyName={stays.map(s => s.property_name).join(', ')}
           isSandbox={true}
+          uuid={payFastUuid}
         />
       )}
     </>

@@ -500,6 +500,55 @@ export function AIConciergePanel({
 
   // Desktop sidebar
   if (!isMobile) {
+    // Hide completely if SmartCart has items
+    if (hasStays) {
+      return (
+        <BottomSheetDatePicker
+          open={datePickerOpen}
+          onOpenChange={setDatePickerOpen}
+          checkIn={checkInDate}
+          checkOut={checkOutDate}
+          onDatesChange={handleDatesChange}
+          availabilityMap={availabilityMap}
+        />
+      );
+    }
+
+    // If not initiated, show only minimal floating button
+    if (!isInitiated) {
+      return (
+        <>
+          <motion.button
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            onClick={() => {
+              setIsInitiated(true);
+              setDatePickerOpen(true);
+            }}
+            className={cn(
+              "fixed right-6 bottom-6 z-40 h-14 px-6 rounded-full gap-2",
+              "bg-primary text-primary-foreground shadow-xl",
+              "flex items-center justify-center",
+              "hover:scale-105 transition-transform",
+              className
+            )}
+          >
+            <Calendar className="h-5 w-5" />
+            <span className="font-medium">Select Dates</span>
+          </motion.button>
+          
+          <BottomSheetDatePicker
+            open={datePickerOpen}
+            onOpenChange={setDatePickerOpen}
+            checkIn={checkInDate}
+            checkOut={checkOutDate}
+            onDatesChange={handleDatesChange}
+            availabilityMap={availabilityMap}
+          />
+        </>
+      );
+    }
+
     // Minimized state - floating button only
     if (isMinimized) {
       return (
