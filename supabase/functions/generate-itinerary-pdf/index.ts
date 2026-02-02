@@ -423,14 +423,24 @@ function generateExperiencesHTML(experiences: LocalExperience[]): string {
   `;
 }
 
-function generateDiningHTML(dining: LocalExperience | undefined): string {
+function generateDiningHTML(dining: LocalExperience | undefined, propertyCity?: string): string {
   if (!dining) return '';
+  
+  // Build Google Maps search URL with restaurant name and city context
+  const searchQuery = propertyCity 
+    ? encodeURIComponent(`${dining.title}, ${propertyCity}`)
+    : encodeURIComponent(dining.title);
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${searchQuery}`;
   
   return `
     <div class="dining-section">
       <h4>🍷 Where to Dine</h4>
       <div class="dining-card">
-        <h5 class="dining-name">${dining.title}</h5>
+        <h5 class="dining-name">
+          <a href="${mapsUrl}" target="_blank" style="color: inherit; text-decoration: none;">
+            ${dining.title} 📍
+          </a>
+        </h5>
         <p class="dining-cuisine">${dining.cuisine_type || dining.description || ''}</p>
         ${dining.why_locals_love_it ? `<p class="dining-tip">"${dining.why_locals_love_it}"</p>` : ''}
         <div class="dining-meta">
@@ -910,7 +920,7 @@ function generateBrochureHTML(
         </div>
         
         ${generateExperiencesHTML(stay.experiences)}
-        ${generateDiningHTML(diningExp)}
+        ${generateDiningHTML(diningExp, stay.city || stay.propertyDetails?.city || undefined)}
         ${stay.propertyDetails ? generatePracticalHTML(stay.propertyDetails) : ''}
       </div>
     </div>
