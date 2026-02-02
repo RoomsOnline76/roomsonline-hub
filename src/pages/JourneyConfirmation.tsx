@@ -10,7 +10,7 @@ import { TimelineVisualizer } from '@/components/journey';
 import { ItineraryStay } from '@/contexts/ItineraryContext';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import html2pdf from 'html2pdf.js';
+// PDF generation uses browser print dialog for better compatibility
 
 export default function JourneyConfirmation() {
   const navigate = useNavigate();
@@ -58,51 +58,36 @@ export default function JourneyConfirmation() {
       
       console.log('[PDF] HTML received, length:', data.html.length);
       
-      // Parse the HTML document to extract body content and styles
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(data.html, 'text/html');
+      // Open HTML in new window for printing/saving as PDF
+      // This is more reliable than html2pdf which has issues with fonts and off-screen rendering
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        toast.error('Please allow popups to download your brochure.');
+        return;
+      }
       
-      // Extract styles from head
-      const styleContent = doc.querySelector('style')?.innerHTML || '';
+      // Write the full HTML document (includes all styles and fonts)
+      printWindow.document.write(data.html);
+      printWindow.document.close();
       
-      // Create container with proper structure
-      const container = document.createElement('div');
-      container.id = 'pdf-render-container';
-      container.style.cssText = 'position: absolute; left: -9999px; top: 0; width: 800px;';
-      
-      // Inject styles and body content (not the full HTML document)
-      container.innerHTML = `
-        <style>${styleContent}</style>
-        ${doc.body.innerHTML}
-      `;
-      
-      document.body.appendChild(container);
-      
-      // Allow fonts to load (Google Fonts needs time)
-      console.log('[PDF] Waiting for fonts to load...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Generate PDF
-      console.log('[PDF] Generating PDF...');
-      const opt = {
-        margin: 10,
-        filename: `journey-brochure-${itineraryId.substring(0, 8)}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2, 
-          useCORS: true,
-          logging: false,
-          letterRendering: true 
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      // Wait for content to load, then trigger print dialog
+      printWindow.onload = () => {
+        console.log('[PDF] Triggering print dialog...');
+        setTimeout(() => {
+          printWindow.print();
+        }, 500);
       };
       
-      await html2pdf().set(opt).from(container).save();
+      // Fallback: trigger print after a delay if onload doesn't fire
+      setTimeout(() => {
+        try {
+          printWindow.print();
+        } catch (e) {
+          console.log('[PDF] Print already triggered or window closed');
+        }
+      }, 2000);
       
-      // Cleanup
-      document.body.removeChild(container);
-      console.log('[PDF] Download complete!');
-      toast.success('Brochure downloaded!');
+      toast.success('Brochure ready! Use "Save as PDF" in the print dialog.');
       
     } catch (e) {
       console.error('[PDF] Generation failed:', e);
