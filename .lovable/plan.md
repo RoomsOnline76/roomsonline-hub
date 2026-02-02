@@ -1,167 +1,191 @@
 
+# Fix Journey PDF: Destination Elaboration, Eateries & Multi-Stay Flow
 
-# Add 350km Radius Filter to Property Recommendations
+## Issues Identified
 
-## Problem
-The "You Might Also Love" section currently shows properties from anywhere in the portfolio, regardless of distance. This creates poor UX - recommending a property in Knysna when someone is booking in Cape Town is unhelpful (550km+ away). Users want to see nearby alternatives.
+### Issue 1: `${destinationElaborationHTML}` Rendered as Literal Text
+**Root Cause:** On line 1664 of `generate-itinerary-pdf/index.ts`, the variable is escaped with a backslash:
+```html
+\${destinationElaborationHTML}
+```
+This prevents template literal interpolation. Additionally, the `enhancements.destinationElaboration` field is declared in the interface (line 557) but **never computed or set** in the code (lines 1865-1869).
 
-## Solution
-Add geographical distance filtering to only show properties within a 350km radius of the currently viewed property. If no properties exist within that radius, hide the entire section.
+**Fix:**
+1. Remove the backslash escape so the variable interpolates correctly
+2. Actually call `generateDestinationElaborationHTML()` with the enriched experiences data and set it in the `enhancements` object
 
 ---
 
-## Implementation Details
+### Issue 2: Selected Eatery Missing from PDF
+**Root Cause:** The current code only looks for experiences with `category === 'dining'`, but for the Stilbaai property (ea9a019d), there are NO dining experiences in the database - only nature, culture, adventure, and wellness categories.
 
-### File to Modify
-`src/components/booking/PropertyRecommendations.tsx`
+**Current state:**
+| Property | Dining Experiences |
+|----------|-------------------|
+| Plettenberg Bay (550e38eb) | ✅ "The Fat Fish" |
+| Stilbaai (ea9a019d) | ❌ None |
 
-### Changes Required
+**Fix:**
+1. For properties without dining experiences, use the `enrich-property-experiences` edge function to auto-generate dining recommendations
+2. In the short term, handle the case gracefully - if no dining for current property, the section just doesn't show (which is fine)
 
-#### 1. Add Haversine Distance Calculation Function
-Add a utility function to calculate distance between two coordinate pairs:
+However, the **real issue** may be that the user has manually selected/curated an eatery that isn't being passed through. Let me verify that the enrichment system is triggering for properties missing dining data, and ensure the dining section uses available data.
+
+---
+
+### Issue 3: Multi-Stay Journey Needs Per-Destination Flow
+**Current behavior:** Each stay card shows its own experiences/dining, but the "tiered destination elaboration" (Hidden Gems, Insider Tips, Curated Guide) is:
+1. Generated globally, not per-property
+2. Uses experiences from all properties merged together
+3. Only appears once after all stays
+
+**Requested behavior:** For multi-property journeys, build an "exciting flow of events/destinations/eateries along the way for each part of the stay."
+
+**Fix Architecture:**
+1. Generate per-stay destination content instead of one global section
+2. For multi-stay journeys, add transitional narrative elements between stays (e.g., "Day 4: Journey to Plettenberg Bay – 2.5 hours of scenic coastline awaits...")
+3. Include dining recommendations inline with each stay rather than in a global section
+
+---
+
+## Implementation Plan
+
+### File: `supabase/functions/generate-itinerary-pdf/index.ts`
+
+#### Fix 1: Destination Elaboration Variable (Critical Bug)
+
+**Line 1664** - Remove backslash and use proper interpolation:
+```typescript
+// BEFORE (broken):
+\${destinationElaborationHTML}
+
+// AFTER (fixed):
+${enhancements.destinationElaboration || ''}
+```
+
+**Lines 1855-1869** - Compute destination elaboration before building enhancements:
 
 ```typescript
-// Haversine formula to calculate distance between two points in km
-const calculateDistanceKm = (
-  lat1: number, lon1: number, 
-  lat2: number, lon2: number
-): number => {
-  const R = 6371; // Earth's radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+// Collect all experiences from all properties for tiered content
+const allPropertyExperiences = enrichedStays.flatMap(s => s.experiences);
+const cities = enrichedStays.map(s => s.city).filter(Boolean) as string[];
+
+// Generate tiered destination content based on booking value
+const destinationElaborationHTML = generateDestinationElaborationHTML(
+  allPropertyExperiences,
+  itinerary.total_price || 0,
+  enrichedStays.length,
+  cities
+);
+
+const enhancements: BrochureEnhancements = {
+  poem,
+  weather,
+  voucher,
+  destinationElaboration: destinationElaborationHTML, // NOW SET
 };
 ```
 
-#### 2. Fetch Current Property Coordinates
-Before fetching recommendations, get the current property's latitude/longitude:
+#### Fix 2: Ensure Dining Appears When Available
+
+The dining logic at line 887 is correct - it just requires dining data to exist. The per-stay dining section at line 923 will render when available.
+
+For properties without dining, we should ensure the `enrich-property-experiences` function is properly generating dining recommendations via xAI. This is already triggered at lines 1790-1798 but is fire-and-forget. For immediate needs, this is acceptable behavior.
+
+#### Fix 3: Per-Stay Tiered Content for Multi-Stay Journeys
+
+Update the `staysHTML` generation (lines 886-927) to include per-stay Hidden Gems/Tips for multi-property journeys:
 
 ```typescript
-// First, get current property's coordinates
-let currentLat: number | null = null;
-let currentLng: number | null = null;
-
-if (currentPropertyId) {
-  const { data: currentProperty } = await supabase
-    .from('public_properties')
-    .select('latitude, longitude')
-    .eq('id', currentPropertyId)
-    .single();
+const staysHTML = stays.map((stay, index) => {
+  const diningExp = stay.experiences?.find(e => e.category === 'dining');
+  const stayIntro = getTonePhrase(tone);
+  const isMultiStay = stays.length > 1;
   
-  if (currentProperty) {
-    currentLat = currentProperty.latitude;
-    currentLng = currentProperty.longitude;
-  }
+  // Per-stay curated content (for multi-stay journeys)
+  const perStayElaboration = isMultiStay 
+    ? generatePerStayElaboration(stay.experiences, stay.city, index + 1)
+    : '';
+  
+  return `
+    <div class="stay-card">
+      ...existing content...
+      ${perStayElaboration}
+    </div>
+  `;
+}).join('');
+```
+
+Add new function `generatePerStayElaboration()`:
+
+```typescript
+function generatePerStayElaboration(
+  experiences: LocalExperience[],
+  city: string | undefined,
+  stayNumber: number
+): string {
+  if (!experiences || experiences.length < 2) return '';
+  
+  const highlights = experiences
+    .filter(e => e.why_locals_love_it)
+    .slice(0, 2);
+  
+  if (highlights.length === 0) return '';
+  
+  return `
+    <div class="per-stay-highlights">
+      <h4>🌟 ${city || 'Destination'} Highlights</h4>
+      ${highlights.map(e => `
+        <div class="highlight-item">
+          <span>${categoryIcons[e.category] || '✨'}</span>
+          <div>
+            <strong>${e.title}</strong>
+            <p>${e.why_locals_love_it}</p>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 ```
 
-#### 3. Include Coordinates in Candidate Query
-Update the query to include `latitude, longitude` in the SELECT:
+Add CSS for `.per-stay-highlights` in the styles section.
+
+#### Fix 4: Add Journey Narrative for Multi-Stay
+
+For multi-stay journeys, add transitional text between stays suggesting travel flow:
 
 ```typescript
-let query = supabase
-  .from('public_properties')
-  .select('id, name, slug, city, country, price_per_night, images, amenities, latitude, longitude')
-  .eq('is_active', true)
-  .not('latitude', 'is', null)  // Only properties with coordinates
-  .not('longitude', 'is', null)
-  .limit(50); // Fetch more for distance filtering
-```
-
-#### 4. Filter by Distance
-After fetching, filter properties to only those within 350km:
-
-```typescript
-const RADIUS_KM = 350;
-
-// Filter by distance if current property has coordinates
-let nearbyProperties = properties;
-if (currentLat && currentLng) {
-  nearbyProperties = properties.filter(p => {
-    if (!p.latitude || !p.longitude) return false;
-    const distance = calculateDistanceKm(currentLat, currentLng, p.latitude, p.longitude);
-    return distance <= RADIUS_KM;
-  });
+// Between stay cards, add journey narrative
+if (index < stays.length - 1 && stays.length > 1) {
+  const nextStay = stays[index + 1];
+  const journeyText = `
+    <div class="journey-transition">
+      <span class="journey-icon">🚗</span>
+      <p>Continue your adventure to ${nextStay.propertyName} in ${nextStay.city || 'your next destination'}...</p>
+    </div>
+  `;
 }
-
-// If no nearby properties, return empty (section will be hidden)
-if (nearbyProperties.length === 0) {
-  setRecommendations([]);
-  return;
-}
-```
-
-#### 5. Update Fallback Logic
-Remove the fallback that shows ANY active properties - if nothing is nearby, show nothing:
-
-```typescript
-// REMOVE this fallback - we don't want to show distant properties
-// if (!properties || properties.length === 0) {
-//   const { data: fallbackProperties } = await supabase...
-// }
-
-// NEW: Just set empty and return
-if (!nearbyProperties || nearbyProperties.length === 0) {
-  setRecommendations([]);
-  return;
-}
-```
-
-#### 6. Add Distance to Match Reason
-Optionally show approximate distance in the recommendation reason:
-
-```typescript
-// In scoring logic
-const distance = calculateDistanceKm(currentLat, currentLng, p.latitude, p.longitude);
-let reason = distance < 50 
-  ? `${Math.round(distance)}km away` 
-  : `About ${Math.round(distance / 10) * 10}km away`;
 ```
 
 ---
 
-## Flow Summary
+## Summary of Changes
 
-```text
-User views property in Still Bay
-         ↓
-Fetch Still Bay property coordinates (-34.38, 21.40)
-         ↓
-Fetch all active properties with coordinates
-         ↓
-Calculate distance to each property
-         ↓
-Filter: keep only properties ≤ 350km
-         ↓
-If 0 nearby properties → Hide section entirely
-         ↓
-If 1+ nearby properties → Show "You Might Also Love"
-```
+| Change | Location | Type |
+|--------|----------|------|
+| Fix escaped variable `\${destinationElaborationHTML}` | Line 1664 | Bug fix |
+| Actually compute and set `destinationElaboration` | Lines ~1855-1869 | Bug fix |
+| Add per-stay curated content for multi-stay | Lines ~886-927 | Enhancement |
+| Add journey transition narrative | New function | Enhancement |
+| Add CSS for new elements | Styles section | Enhancement |
 
 ---
 
-## Edge Cases
+## Verification Steps
 
-| Scenario | Behavior |
-|----------|----------|
-| Current property has no coordinates | Show no recommendations (section hidden) |
-| Candidate property has no coordinates | Exclude from recommendations |
-| No properties within 350km | Section hidden entirely |
-| Only 1 property within 350km | Show just that one |
-| Property viewing itself | Already excluded via `currentPropertyId` filter |
-
----
-
-## Technical Notes
-
-- The Haversine formula provides accurate "as the crow flies" distance
-- 350km is approximately 3-4 hours driving - a reasonable "nearby destination" radius
-- Properties without coordinates are excluded to ensure accuracy
-- The distance calculation is done client-side to avoid complex PostGIS queries
-- Fetching 50 candidates and filtering locally is efficient for the expected portfolio size
-
+1. Generate PDF for the confirmed Stilbaai booking (id: 79aa6ef8)
+2. Verify `${destinationElaborationHTML}` no longer appears as literal text
+3. Verify tiered content (Hidden Gems/Insider Tips) renders for R5,000+ bookings
+4. Manually add a dining experience to Stilbaai property, then regenerate to confirm dining section appears
+5. Create a test multi-stay itinerary and verify per-destination flow renders correctly
