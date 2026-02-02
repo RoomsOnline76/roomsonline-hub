@@ -102,10 +102,10 @@ function generateItineraryEmail(itinerary: any, stays: Stay[]): string {
           
           <!-- Header -->
           <tr>
-            <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, #1a1a1a 0%, #333 100%); border-radius: 8px 8px 0 0;">
+            <td style="padding: 40px 40px 20px; text-align: center; border-radius: 8px 8px 0 0;">
               <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 160px; height: auto; margin-bottom: 16px;" />
-              <h1 style="margin: 0; font-size: 28px; color: #fff; font-weight: 600; font-family: Georgia, serif;">Your Journey Awaits</h1>
-              <p style="margin: 12px 0 0; color: rgba(255,255,255,0.8); font-size: 14px;">${itinerary.total_nights} nights across ${stays.length} destination${stays.length > 1 ? 's' : ''}</p>
+              <h1 style="margin: 0; font-size: 28px; color: #333; font-weight: 600; font-family: Georgia, serif;">Your Journey Awaits</h1>
+              <p style="margin: 12px 0 0; color: #666; font-size: 14px;">${itinerary.total_nights} nights across ${stays.length} destination${stays.length > 1 ? 's' : ''}</p>
             </td>
           </tr>
 
@@ -164,21 +164,21 @@ function generateItineraryEmail(itinerary: any, stays: Stay[]): string {
           <!-- Total -->
           <tr>
             <td style="padding: 0 40px 20px;">
-              <div style="background: linear-gradient(135deg, #1a1a1a 0%, #333 100%); border-radius: 8px; padding: 24px;">
+              <div style="background-color: #f8f9fa; border: 1px solid #eee; border-radius: 8px; padding: 24px;">
                 <table role="presentation" style="width: 100%; border-collapse: collapse;">
                   <tr>
-                    <td style="color: rgba(255,255,255,0.8); font-size: 14px;">Total Nights</td>
-                    <td style="color: #fff; font-size: 14px; text-align: right; font-weight: 500;">${itinerary.total_nights}</td>
+                    <td style="color: #666; font-size: 14px;">Total Nights</td>
+                    <td style="color: #333; font-size: 14px; text-align: right; font-weight: 500;">${itinerary.total_nights}</td>
                   </tr>
                   <tr>
-                    <td style="color: rgba(255,255,255,0.8); font-size: 14px; padding-top: 8px;">Properties</td>
-                    <td style="color: #fff; font-size: 14px; text-align: right; font-weight: 500; padding-top: 8px;">${stays.length}</td>
+                    <td style="color: #666; font-size: 14px; padding-top: 8px;">Properties</td>
+                    <td style="color: #333; font-size: 14px; text-align: right; font-weight: 500; padding-top: 8px;">${stays.length}</td>
                   </tr>
                   <tr>
-                    <td colspan="2" style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 16px; margin-top: 12px;"></td>
+                    <td colspan="2" style="border-top: 1px solid #ddd; padding-top: 16px; margin-top: 12px;"></td>
                   </tr>
                   <tr>
-                    <td style="color: #fff; font-size: 18px; font-weight: 600; font-family: Georgia, serif;">Total Amount</td>
+                    <td style="color: #333; font-size: 18px; font-weight: 600; font-family: Georgia, serif;">Total Amount</td>
                     <td style="color: #e91e8c; font-size: 26px; font-weight: 700; text-align: right;">${formatCurrency(itinerary.total_price, itinerary.currency || 'ZAR')}</td>
                   </tr>
                 </table>
