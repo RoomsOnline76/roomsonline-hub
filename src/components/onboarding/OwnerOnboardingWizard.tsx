@@ -27,6 +27,15 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { parseHostfullyProperties, ParsedBuilding } from "@/lib/hostfullyBuildingParser";
 
+const PMS_DISPLAY_NAMES: Record<string, string> = {
+  hostfully: "Hostfully",
+  nightsbridge: "NightsBridge",
+  benson: "Benson",
+  hotelbeds: "HotelBeds",
+  checkfront: "Checkfront",
+  cloudbeds: "Cloudbeds",
+};
+
 interface PendingCredential {
   id: string;
   system_type: string;
@@ -270,6 +279,26 @@ export function OwnerOnboardingWizard({
     }
   };
 
+  const handleActivateNonHostfully = async (credentialId: string) => {
+    setImporting(true);
+    try {
+      const { error } = await supabase
+        .from("owner_pms_credentials")
+        .update({ sync_status: "active" })
+        .eq("id", credentialId);
+
+      if (error) throw error;
+
+      toast.success("PMS connection acknowledged!");
+      onComplete();
+    } catch (err: any) {
+      console.error("Failed to activate credential:", err);
+      toast.error(err.message || "Failed to update connection");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const ownerName = profile?.full_name?.split(" ")[0] || "there";
 
   return (
@@ -438,12 +467,64 @@ export function OwnerOnboardingWizard({
             </div>
           )}
 
-          {!hostfullyCredential && pendingCredentials.length > 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>You have {pendingCredentials.length} pending PMS connection(s).</p>
-              <p className="text-sm">Support for additional systems coming soon.</p>
-            </div>
-          )}
+          {/* Non-Hostfully PMS credentials */}
+          {pendingCredentials
+            .filter(c => c.system_type !== "hostfully")
+            .map((cred) => {
+              const systemName = PMS_DISPLAY_NAMES[cred.system_type] || cred.system_type;
+              const isWidgetOnly = cred.system_type === "nightsbridge";
+              const needsAdminSetup = ["benson", "hotelbeds"].includes(cred.system_type);
+
+              return (
+                <div key={cred.id} className="space-y-3 border rounded-lg p-4 bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-primary" />
+                    <Label className="font-medium">{systemName} Connection</Label>
+                    <Badge variant="outline" className="ml-auto">Pending Setup</Badge>
+                  </div>
+
+                  {isWidgetOnly ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        NightsBridge uses a widget integration — no API key is required from you.
+                        Your admin has set this up for your property.
+                      </p>
+                      <Button
+                        size="sm"
+                        className="w-full gap-1.5"
+                        onClick={() => handleActivateNonHostfully(cred.id)}
+                        disabled={importing}
+                      >
+                        {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                        Acknowledge & Continue
+                      </Button>
+                    </div>
+                  ) : needsAdminSetup ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        {systemName} credentials are managed by your RoomsOnline admin. 
+                        No action is needed from you — your admin will complete this setup.
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="w-full gap-1.5"
+                        onClick={() => handleActivateNonHostfully(cred.id)}
+                        disabled={importing}
+                      >
+                        {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                        Acknowledge & Continue
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Setup for {systemName} will be completed by your admin.
+                    </p>
+                  )}
+                </div>
+              );
+            })
+          }
         </div>
 
         <div className="flex gap-2 justify-between pt-4 border-t">
@@ -455,19 +536,25 @@ export function OwnerOnboardingWizard({
           >
             Skip for now
           </Button>
-          <Button
-            onClick={handleCompleteSetup}
-            disabled={!keyValidated || selectedBuildings.size === 0 || importing}
-          >
-            {importing ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Importing...
-              </>
-            ) : (
-              <>Complete Setup</>
-            )}
-          </Button>
+          {hostfullyCredential ? (
+            <Button
+              onClick={handleCompleteSetup}
+              disabled={!keyValidated || selectedBuildings.size === 0 || importing}
+            >
+              {importing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Importing...
+                </>
+              ) : (
+                <>Complete Setup</>
+              )}
+            </Button>
+          ) : (
+            <Button onClick={onSkip}>
+              Done
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
