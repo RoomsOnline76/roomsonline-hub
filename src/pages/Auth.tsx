@@ -34,7 +34,8 @@ function AuthContent() {
   // Use ref to track synchronously (prevents race condition with SIGNED_IN event)
   const initialRecoveryCheck = () => {
     const hash = window.location.hash;
-    return hash.includes('type=recovery') || hash.includes('type=signup');
+    const params = new URLSearchParams(window.location.search);
+    return hash.includes('type=recovery') || hash.includes('type=signup') || params.get('mode') === 'recovery';
   };
   const isRecoveryModeRef = useRef<boolean>(initialRecoveryCheck());
   const [isRecoveryMode, setIsRecoveryMode] = useState(isRecoveryModeRef.current);
@@ -61,7 +62,7 @@ function AuthContent() {
         new Date(session.user.recovery_sent_at).getTime() > Date.now() - 1000 * 60 * 60; // Within last hour
       
       // Also check URL hash for recovery indicators
-      const hashIndicatesRecovery = window.location.hash.includes('type=recovery');
+      const hashIndicatesRecovery = window.location.hash.includes('type=recovery') || new URLSearchParams(window.location.search).get('mode') === 'recovery';
       
       if (event === 'PASSWORD_RECOVERY') {
         // User clicked the password reset link - show password reset form

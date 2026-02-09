@@ -190,7 +190,7 @@ serve(async (req) => {
     // Send welcome email with password setup link for all new owner accounts
     try {
       // Generate password setup link
-      const redirectUrl = 'https://sleepinafrica.roomsonline.co.za/auth';
+      const redirectUrl = 'https://sleepinafrica.roomsonline.co.za/auth?mode=recovery';
       
       console.log('Generating password setup link for:', email);
       

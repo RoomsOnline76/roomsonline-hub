@@ -63,7 +63,7 @@ serve(async (req) => {
     const userName = profile?.full_name || 'User';
 
     // Generate password recovery link
-    const redirectUrl = 'https://sleepinafrica.roomsonline.co.za/auth';
+    const redirectUrl = 'https://sleepinafrica.roomsonline.co.za/auth?mode=recovery';
     
     const { data: recoveryData, error: recoveryError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
