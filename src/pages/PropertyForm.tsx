@@ -1706,32 +1706,37 @@ export default function PropertyForm() {
     }
   };
 
-  // Load available PMS systems - only show ones that are "ON" (is_active=true)
-  useEffect(() => {
-    const fetchActivePMSSystems = async () => {
-      // Get active PMS credentials
-      const { data: activeCredentials } = await supabase
-        .from("pms_credentials")
-        .select("system_type")
-        .eq("is_active", true);
+   // Load available PMS systems - only show ones that are "ON" (is_active=true)
+   useEffect(() => {
+     const fetchActivePMSSystems = async () => {
+       // Get active PMS credentials
+       const { data: activeCredentials } = await supabase
+         .from("pms_credentials")
+         .select("system_type")
+         .eq("is_active", true);
 
-      const activeSystemTypes = new Set(activeCredentials?.map((c) => c.system_type) || []);
+       const activeSystemTypes = new Set(activeCredentials?.map((c) => c.system_type) || []);
 
-      // Add roomsonline if active (from feature flags)
-      if (roomsonlineActive) {
-        activeSystemTypes.add("roomsonline");
-      }
+       // Add roomsonline if active (from feature flags)
+       if (roomsonlineActive) {
+         activeSystemTypes.add("roomsonline");
+       }
 
-      // Import and filter PMS systems
-      const { getPropertyFormPMSSystems } = await import("@/lib/pmsSystemsConfig");
-      const allSystems = getPropertyFormPMSSystems();
-      const filteredSystems = allSystems.filter((s) => activeSystemTypes.has(s.system_type));
+       // Also ensure the currently selected PMS is always included so the Select doesn't break
+       if (selectedPMS) {
+         activeSystemTypes.add(selectedPMS);
+       }
 
-      setAvailablePMSSystems(filteredSystems);
-    };
+       // Import and filter PMS systems
+       const { getPropertyFormPMSSystems } = await import("@/lib/pmsSystemsConfig");
+       const allSystems = getPropertyFormPMSSystems();
+       const filteredSystems = allSystems.filter((s) => activeSystemTypes.has(s.system_type));
 
-    fetchActivePMSSystems();
-  }, [roomsonlineActive]);
+       setAvailablePMSSystems(filteredSystems);
+     };
+
+     fetchActivePMSSystems();
+   }, [roomsonlineActive, selectedPMS]);
 
   // Location state
   const [latitude, setLatitude] = useState<number | null>(null);
