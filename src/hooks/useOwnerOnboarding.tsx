@@ -44,7 +44,7 @@ export function useOwnerOnboarding(): UseOwnerOnboardingReturn {
         .from("owner_pms_credentials")
         .select("id, system_type, sync_status, api_key, environment, external_account_name, available_listings")
         .eq("owner_id", user.id)
-        .eq("sync_status", "pending")
+        .in("sync_status", ["pending", "pending_key"])
         .eq("is_active", true);
 
       if (error) throw error;
