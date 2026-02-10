@@ -202,8 +202,11 @@ type StatusFilter = "all" | OnboardingStatus;
 const getOnboardingStatus = (row: PropertyOnboardingRow): OnboardingStatus => {
   if (row.show_on_website) return "live";
   
-  // NightsBridge properties are considered "completed" by default (data from PMS)
-  if (row.isNightsBridge && !row.token) return "completed";
+  // NightsBridge properties: only "completed" if ROL Spec content is substantially filled (>=80%)
+  // Otherwise they're still "in_progress" even though PMS data is synced
+  if (row.isNightsBridge && !row.token) {
+    return row.effectiveProgress >= 80 ? "completed" : "in_progress";
+  }
   
   if (!row.token) return "not_started";
   if (row.token.used_at) return "completed";
