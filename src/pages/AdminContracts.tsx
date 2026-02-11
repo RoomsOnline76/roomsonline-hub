@@ -298,7 +298,7 @@ export default function AdminContracts() {
         version: overrideContract.version + 1,
         template_version: overrideContract.template_version,
         override_at: new Date().toISOString(),
-        override_by: user?.email || "admin",
+        override_by: user?.id || null,
         override_reason: reason,
       });
 
