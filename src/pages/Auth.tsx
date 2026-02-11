@@ -52,12 +52,19 @@ function AuthContent() {
   const requestRecaptcha = useRecaptcha("request_access");
 
   useEffect(() => {
+    // On mount, try to detect recovery tokens in URL hash and exchange them
+    // This handles the case where generateLink's action_link redirects with tokens
+    const hash = window.location.hash;
+    if (hash && (hash.includes('access_token') || hash.includes('type=recovery'))) {
+      // Supabase client should auto-detect these, but ensure it processes them
+      console.log('Recovery hash detected, letting Supabase process tokens');
+    }
+    
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth event:', event, 'isRecoveryModeRef:', isRecoveryModeRef.current);
+      console.log('Auth event:', event, 'isRecoveryModeRef:', isRecoveryModeRef.current, 'hasSession:', !!session);
       
-      // Check if this session is from a recovery flow (aal1 with recovery type)
-      // Supabase sets session.user.aal to 'aal1' during recovery
+      // Check if this session is from a recovery flow
       const isRecoverySession = session?.user?.recovery_sent_at && 
         new Date(session.user.recovery_sent_at).getTime() > Date.now() - 1000 * 60 * 60; // Within last hour
       
@@ -66,7 +73,6 @@ function AuthContent() {
       
       if (event === 'PASSWORD_RECOVERY') {
         // User clicked the password reset link - show password reset form
-        // Update ref synchronously to prevent race condition with SIGNED_IN event
         isRecoveryModeRef.current = true;
         setIsRecoveryMode(true);
         toast({
@@ -74,8 +80,7 @@ function AuthContent() {
           description: "Please enter a new password below",
         });
       } else if (event === 'INITIAL_SESSION' && session && (hashIndicatesRecovery || isRecoveryModeRef.current)) {
-        // This is the recovery flow - Supabase processed the token and created a session
-        // but we need to show the password reset form, not redirect
+        // Recovery flow - show password form, don't redirect
         console.log('INITIAL_SESSION in recovery flow - showing password form');
         isRecoveryModeRef.current = true;
         setIsRecoveryMode(true);
@@ -85,7 +90,6 @@ function AuthContent() {
         });
       } else if (event === 'SIGNED_IN' && session && !isRecoveryModeRef.current && !hashIndicatesRecovery) {
         // Normal sign in (not during password recovery)
-        // Use ref for synchronous check - state may not have updated yet
         toast({
           title: "Welcome back!",
           description: "Successfully logged in",
@@ -94,6 +98,9 @@ function AuthContent() {
       } else if (event === 'INITIAL_SESSION' && session && !isRecoveryModeRef.current && !hashIndicatesRecovery) {
         // Existing session on page load - redirect to home
         navigate("/");
+      } else if (event === 'TOKEN_REFRESHED' && isRecoveryModeRef.current) {
+        // Session refreshed during recovery - stay on recovery form
+        console.log('Token refreshed during recovery flow - staying on form');
       }
     });
 
@@ -187,11 +194,47 @@ function AuthContent() {
     setLoading(true);
 
     try {
+      // Check for active session first
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        // Try refreshing the session
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshData.session) {
+          toast({
+            title: "Session expired",
+            description: "Your password reset link has expired. Please request a new one.",
+            variant: "destructive",
+          });
+          // Reset to show login/forgot password
+          isRecoveryModeRef.current = false;
+          setIsRecoveryMode(false);
+          setShowForgotPassword(true);
+          setLoading(false);
+          return;
+        }
+      }
+
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
-      if (error) throw error;
+      if (error) {
+        // If session error, provide helpful message
+        if (error.message?.toLowerCase().includes('session') || error.message?.toLowerCase().includes('auth')) {
+          toast({
+            title: "Session expired",
+            description: "Your password reset link has expired. Please request a new one.",
+            variant: "destructive",
+          });
+          isRecoveryModeRef.current = false;
+          setIsRecoveryMode(false);
+          setShowForgotPassword(true);
+          setLoading(false);
+          return;
+        }
+        throw error;
+      }
 
       toast({
         title: "Password updated",
