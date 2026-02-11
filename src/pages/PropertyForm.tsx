@@ -2010,10 +2010,11 @@ export default function PropertyForm() {
     return "";
   };
 
+  const SUPPORTED_ROOM_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/svg+xml', 'image/avif'];
+
   const handleRoomImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     
-    // Need property ID for the storage path
     if (!propertyId) {
       toast({
         title: "Upload failed",
@@ -2023,18 +2024,37 @@ export default function PropertyForm() {
       return;
     }
 
+    const supportedFiles: File[] = [];
+    const unsupportedNames: string[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (SUPPORTED_ROOM_IMAGE_TYPES.includes(file.type) || (file.type.startsWith("image/") && file.type !== "image/heic" && file.type !== "image/heif")) {
+        supportedFiles.push(file);
+      } else {
+        unsupportedNames.push(file.name);
+      }
+    }
+
+    if (unsupportedNames.length > 0) {
+      toast({
+        title: `${unsupportedNames.length} file(s) skipped`,
+        description: `Unsupported format: ${unsupportedNames.join(", ")}. Use JPG, PNG, WebP, or GIF.`,
+        variant: "destructive",
+      });
+    }
+
+    if (supportedFiles.length === 0) return;
+
     setIsRoomImageUploading(true);
     const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
     const existingImages = [...(currentRoom?.images || [])];
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (!file.type.startsWith("image/")) continue;
-
+    for (let i = 0; i < supportedFiles.length; i++) {
+      const file = supportedFiles[i];
       try {
         const fileExt = file.name.split(".").pop();
         const fileName = `room-${selectedRoomType}-${Date.now()}-${i}.${fileExt}`;
-        // Use property ID as folder path for RLS policy compatibility
         const filePath = `${propertyId}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage.from("property-images").upload(filePath, file);
@@ -2050,7 +2070,7 @@ export default function PropertyForm() {
         console.error("Room image upload error:", error);
         toast({
           title: "Upload failed",
-          description: error?.message || "Failed to upload room image",
+          description: error?.message || `Failed to upload ${file.name}`,
           variant: "destructive",
         });
       }
@@ -2059,6 +2079,13 @@ export default function PropertyForm() {
     setRoomTypes(roomTypes.map((r) => (r.id === selectedRoomType ? { ...r, images: existingImages } : r)));
     setIsDirty(true);
     setIsRoomImageUploading(false);
+
+    if (supportedFiles.length > 0 && unsupportedNames.length > 0) {
+      toast({
+        title: "Upload complete",
+        description: `${supportedFiles.length} image(s) uploaded successfully.`,
+      });
+    }
   };
 
   const removeRoomImage = (imageUrl: string) => {
@@ -3427,13 +3454,34 @@ export default function PropertyForm() {
     setIsDirty(true);
   };
 
+  const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/svg+xml', 'image/avif'];
+
   const handleImageUpload = async (files: FileList | null) => {
-    if (!files) return;
+    if (!files || files.length === 0) return;
+
+    const supportedFiles: File[] = [];
+    const unsupportedNames: string[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      if (!file.type.startsWith("image/")) continue;
+      if (SUPPORTED_IMAGE_TYPES.includes(file.type) || (file.type.startsWith("image/") && file.type !== "image/heic" && file.type !== "image/heif")) {
+        supportedFiles.push(file);
+      } else {
+        unsupportedNames.push(file.name);
+      }
+    }
 
+    if (unsupportedNames.length > 0) {
+      toast({
+        title: `${unsupportedNames.length} file(s) skipped`,
+        description: `Unsupported format: ${unsupportedNames.join(", ")}. Use JPG, PNG, WebP, or GIF.`,
+        variant: "destructive",
+      });
+    }
+
+    if (supportedFiles.length === 0) return;
+
+    for (const file of supportedFiles) {
       try {
         const fileExt = file.name.split(".").pop();
         const fileName = `${Math.random()}.${fileExt}`;
@@ -3452,10 +3500,17 @@ export default function PropertyForm() {
       } catch (error) {
         toast({
           title: "Upload failed",
-          description: "Failed to upload image",
+          description: `Failed to upload ${file.name}`,
           variant: "destructive",
         });
       }
+    }
+
+    if (supportedFiles.length > 0 && unsupportedNames.length > 0) {
+      toast({
+        title: "Upload complete",
+        description: `${supportedFiles.length} image(s) uploaded successfully.`,
+      });
     }
   };
 
