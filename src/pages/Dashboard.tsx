@@ -305,6 +305,8 @@ const Dashboard = () => {
       return [...internalBookings, ...normalizedPmsBookings];
     },
     enabled: propertyIds.length > 0 && !!dateRange?.from,
+    refetchOnMount: 'always',
+    staleTime: 0,
   });
 
   // Fetch previous year bookings (from both internal bookings and PMS reservations)
