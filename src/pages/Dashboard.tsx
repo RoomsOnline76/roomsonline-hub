@@ -359,11 +359,11 @@ const Dashboard = () => {
 
   // Calculate stats with KPIs
   const stats = useMemo(() => {
-    const totalBookings = filteredBookings.length;
     const confirmedBookings = filteredBookings.filter(b => b.status === "confirmed").length;
     const pendingBookings = filteredBookings.filter(b => b.status === "pending").length;
     const cancelledBookings = filteredBookings.filter(b => b.status === "cancelled").length;
-    const activeBookings = filteredBookings.filter(b => b.status !== "cancelled");
+    const activeBookings = filteredBookings.filter(b => b.status !== "cancelled" && b.status !== "failed");
+    const totalBookings = activeBookings.length;
     const totalRevenue = activeBookings.reduce((sum, b) => sum + Number(b.total_price || 0), 0);
     
     // Calculate days in period
