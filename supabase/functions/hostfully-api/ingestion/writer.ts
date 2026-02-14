@@ -167,6 +167,8 @@ export async function writeIngestion(
     if (data.rooms.length > 0) {
       console.log(`[Writer] Upserting ${data.rooms.length} rooms...`);
       
+      const successfulRooms: TransformedRoomData[] = [];
+      
       for (const room of data.rooms) {
         const roomData = {
           property_id: rolPropertyId,
@@ -213,6 +215,63 @@ export async function writeIngestion(
           // Continue with other rooms
         } else {
           result.roomsUpserted++;
+          successfulRooms.push(room);
+        }
+      }
+      
+      // 5b. Sync rooms to properties.amenities.room_types for calendar/form visibility
+      if (successfulRooms.length > 0) {
+        console.log(`[Writer] Syncing ${successfulRooms.length} rooms to amenities.room_types...`);
+        
+        const roomTypesForAmenities = successfulRooms.map(room => ({
+          id: room.hostfully_room_id,
+          pmsRoomId: room.hostfully_room_id,
+          pmsRoomType: room.property_type || room.name,
+          name: room.name,
+          description: room.description || '',
+          maxPeople: room.max_guests || 2,
+          maxAdults: room.max_guests || 2,
+          minGuests: room.min_guests || 1,
+          numRooms: 1,
+          bedrooms: room.bedrooms || 1,
+          bathrooms: room.bathrooms || 1,
+          beds: room.beds || 1,
+          roomSize: room.room_size || 0,
+          checkInTime: room.check_in_time || '',
+          checkOutTime: room.check_out_time || '',
+          dailyRate: 0,
+          currency: 'ZAR',
+          cleaningFee: room.cleaning_fee || 0,
+          securityDeposit: room.security_deposit || 0,
+          extraGuestFee: room.extra_guest_fee || 0,
+          rateType: room.rate_type || 'per-unit',
+          linkedRateTypeIds: room.linked_rate_type_ids || ['per-unit'],
+          propertyType: room.property_type || '',
+          images: [],
+          amenities: [],
+          facilities: [],
+          facilitiesRaw: room.facilities_raw || [],
+          selected: false,
+          splitPercent: 0,
+          pms_synced_fields: room.pms_synced_fields || [],
+          lastSyncedAt: room.last_synced_at,
+        }));
+        
+        // Update amenities with room_types
+        const updatedAmenities = {
+          ...((await supabase.from("properties").select("amenities").eq("id", rolPropertyId).single()).data?.amenities || {}),
+          room_types: roomTypesForAmenities,
+        };
+        
+        const { error: amenityError } = await supabase
+          .from("properties")
+          .update({ amenities: updatedAmenities })
+          .eq("id", rolPropertyId);
+        
+        if (amenityError) {
+          console.error("[Writer] Failed to sync room_types to amenities:", amenityError);
+        } else {
+          console.log(`[Writer] Successfully synced ${roomTypesForAmenities.length} room types to amenities`);
         }
       }
     }
