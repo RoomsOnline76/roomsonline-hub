@@ -1104,7 +1104,9 @@ export default function PropertyForm() {
             maxStay: hr.max_stay || 0,
             rateType: roomRateType,
             splitPercent: 0,
-            images: hr.images || [],
+            images: Array.isArray(hr.images) 
+              ? hr.images.map((img: any) => typeof img === 'string' ? img : img?.url).filter(Boolean)
+              : [],
             facilities: facilitiesRaw,
             facilitiesRaw: facilitiesRaw,
             amenities: hr.amenities || [],
