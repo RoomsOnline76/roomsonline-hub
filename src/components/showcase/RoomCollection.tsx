@@ -24,6 +24,8 @@ interface RoomCollectionProps {
   getAvailability: (room: RoomData) => number | undefined;
   onRoomClick: (room: RoomData) => void;
   propertyImages?: string[];
+  unitLabel?: string;
+  unitLabelPlural?: string;
 }
 
 /**
@@ -36,6 +38,8 @@ export function RoomCollection({
   getAvailability,
   onRoomClick,
   propertyImages = [],
+  unitLabel = 'room',
+  unitLabelPlural = 'rooms',
 }: RoomCollectionProps) {
   const { ref, isVisible } = useScrollReveal({ threshold: 0.1 });
 
@@ -44,9 +48,9 @@ export function RoomCollection({
       <section className="runway-section-spacing px-6 sm:px-10 md:px-16 lg:px-20">
         <div className="max-w-4xl mx-auto text-center">
           <span className="runway-section">Accommodations</span>
-          <h2 className="runway-room-name mt-4 mb-6">Bespoke Stays Await</h2>
+          <h2 className="runway-room-name mt-4 mb-6">Bespoke {unitLabelPlural.charAt(0).toUpperCase() + unitLabelPlural.slice(1)} Await</h2>
           <p className="runway-facts">
-            Contact us to discover the perfect accommodation for your journey.
+            Contact us to discover the perfect {unitLabel} for your journey.
           </p>
         </div>
       </section>
@@ -64,7 +68,9 @@ export function RoomCollection({
         <div className="text-center mb-10 sm:mb-14">
           <span className="runway-section">The Collection</span>
           <h2 className="runway-room-name mt-3">
-            {rooms.length === 1 ? 'Your Room' : `${rooms.length} Distinct Spaces`}
+            {rooms.length === 1 
+              ? `Your ${unitLabel.charAt(0).toUpperCase() + unitLabel.slice(1)}` 
+              : `${rooms.length} Distinct ${unitLabelPlural.charAt(0).toUpperCase() + unitLabelPlural.slice(1)}`}
           </h2>
         </div>
 
@@ -118,7 +124,7 @@ export function RoomCollection({
                   {availability !== undefined && availability > 0 && availability <= 3 && (
                     <div className="absolute top-3 right-3">
                       <span className="px-2 py-1 text-xs font-medium bg-background/90 backdrop-blur-sm rounded-full">
-                        {availability} left
+                        {availability} {availability === 1 ? unitLabel : unitLabelPlural} left
                       </span>
                     </div>
                   )}

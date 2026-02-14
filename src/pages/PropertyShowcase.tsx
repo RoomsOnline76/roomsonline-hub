@@ -336,6 +336,10 @@ export default function PropertyShowcase() {
   const isNightsBridgeProperty = property?.external_system === "nightsbridge";
   const isHostfullyProperty = property?.external_system === "hostfully";
   
+  // Dynamic terminology for Hostfully (units/apartments) vs traditional (rooms)
+  const unitLabel = isHostfullyProperty ? 'unit' : 'room';
+  const unitLabelPlural = isHostfullyProperty ? 'units' : 'rooms';
+  
   // NightsBridge tracking: create session when property loads
   useEffect(() => {
     if (isNightsBridgeProperty && property?.id && nightsBridgeAgentCode && !nbTrackingRef) {
@@ -513,6 +517,10 @@ export default function PropertyShowcase() {
       id: rt.id || rt.room_type_id,
       pmsRoomId: rt.pmsRoomId || rt.room_type_id,
       maxPeople: rt.maxPeople || rt.max_guests,
+      // Normalize images: convert {url, alt} objects to string URLs
+      images: Array.isArray(rt.images) 
+        ? rt.images.map((img: any) => typeof img === 'string' ? img : img?.url).filter(Boolean)
+        : [],
     }));
   };
   
@@ -783,6 +791,8 @@ export default function PropertyShowcase() {
         getAvailability={getRemainingAvailability}
         onRoomClick={handleRoomClick}
         propertyImages={property.images}
+        unitLabel={unitLabel}
+        unitLabelPlural={unitLabelPlural}
       />
 
       {/* Amenities as Prose */}
@@ -806,7 +816,7 @@ export default function PropertyShowcase() {
         latitude={property.latitude}
         longitude={property.longitude}
         onBookNow={handleBookProperty}
-        bookingLabel={isNightsBridgeProperty ? "Book Now" : bookedRooms.length > 0 ? "Checkout" : roomTypes.length === 1 ? "Book Now" : "Select a Room"}
+        bookingLabel={isNightsBridgeProperty ? "Book Now" : bookedRooms.length > 0 ? "Checkout" : roomTypes.length === 1 ? "Book Now" : `Select a ${unitLabel.charAt(0).toUpperCase() + unitLabel.slice(1)}`}
       />
 
       {/* Personalized Recommendations */}
