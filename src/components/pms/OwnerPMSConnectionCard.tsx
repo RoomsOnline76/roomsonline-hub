@@ -319,7 +319,9 @@ export function OwnerPMSConnectionCard({
                   <span className="text-xs text-muted-foreground">Buildings</span>
                   <span className="text-xs font-medium">
                     {buildingsData.imported > 0
-                      ? `${buildingsData.imported}/${buildingsData.total} imported`
+                      ? buildingsData.total > 0
+                        ? `${buildingsData.imported}/${buildingsData.total} imported`
+                        : `${buildingsData.imported} imported`
                       : buildingsData.total > 0
                         ? `${buildingsData.total} available`
                         : 'Sync to fetch'}
