@@ -247,7 +247,7 @@ export async function writeIngestion(
           rateType: room.rate_type || 'per-unit',
           linkedRateTypeIds: room.linked_rate_type_ids || ['per-unit'],
           propertyType: room.property_type || '',
-          images: Array.isArray(room.images) ? room.images : [],
+          images: Array.isArray(room.images) ? room.images.map((img: any) => typeof img === 'string' ? img : img?.url).filter(Boolean) : [],
           amenities: [],
           facilities: [],
           facilitiesRaw: room.facilities_raw || [],
