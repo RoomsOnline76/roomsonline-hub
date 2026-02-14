@@ -368,8 +368,8 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           for (const rates of ratesArray) {
             if (rates && typeof rates === 'object') {
               roomData.ratesByDate[dateStr].push({
-                rateTypeId: rates.rate_type_id?.toString() || "",
-                rateTypeName: rates.rate_type_name || "Standard",
+                rateTypeId: rates.rate_type_id?.toString() || "per-unit",
+                rateTypeName: rates.rate_type_name || "Per Unit Rate",
                 priceType: rates.price_type || "UnitRate",
                 roomAmount: rates.room_amount || 0,
                 adultAmounts: rates.adult_amounts,
