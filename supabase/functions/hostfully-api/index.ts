@@ -901,8 +901,115 @@ async function handleFetchAvailability(
   propertyId?: string // Optional ROL property ID for caching
 ) {
   const baseUrl = HOSTFULLY_URLS[creds.environment];
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
+    // Check if this property has child units in hostfully_room_types
+    let unitRows: { hostfully_room_id: string; name: string }[] = [];
+    if (propertyId) {
+      const { data: units } = await supabase
+        .from('hostfully_room_types')
+        .select('hostfully_room_id, name')
+        .eq('property_id', propertyId)
+        .eq('is_active', true);
+      
+      if (units && units.length > 0) {
+        // Filter to units with a valid hostfully_room_id (these are the actual bookable units)
+        unitRows = units.filter(u => u.hostfully_room_id && u.hostfully_room_id !== propertyUid);
+      }
+    }
+
+    // If we have child units, fetch availability for each unit in parallel
+    if (unitRows.length > 0) {
+      console.log(`[Hostfully] Multi-unit property detected: fetching availability for ${unitRows.length} units`);
+      
+      // Batch fetch in groups of 10 to avoid rate limits
+      const BATCH_SIZE = 10;
+      const allRoomTypes: any[] = [];
+      
+      for (let i = 0; i < unitRows.length; i += BATCH_SIZE) {
+        const batch = unitRows.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+          batch.map(async (unit) => {
+            try {
+              const endpoint = `/property-calendar/${unit.hostfully_room_id}?from=${startDate}&to=${endDate}`;
+              const response = await hostfullyRequest(endpoint, creds.api_key, baseUrl);
+              
+              if (!response.ok) {
+                console.warn(`[Hostfully] Calendar fetch failed for unit ${unit.name} (${unit.hostfully_room_id}): ${response.status}`);
+                return null;
+              }
+              
+              const responseData = await response.json();
+              const calendarArray = responseData?.calendar?.entries || 
+                                    responseData?.calendar || 
+                                    responseData?.days || 
+                                    responseData;
+              
+              if (!Array.isArray(calendarArray)) {
+                console.warn(`[Hostfully] Invalid calendar data for unit ${unit.name}`);
+                return null;
+              }
+              
+              const mapped = mapHostfullyCalendarToAvailability(calendarArray, unit.hostfully_room_id, unit.name);
+              return mapped.room_types[0] || null;
+            } catch (err) {
+              console.warn(`[Hostfully] Error fetching calendar for unit ${unit.name}:`, err);
+              return null;
+            }
+          })
+        );
+        
+        for (const rt of batchResults) {
+          if (rt) allRoomTypes.push(rt);
+        }
+      }
+      
+      console.log(`[Hostfully] Successfully fetched availability for ${allRoomTypes.length}/${unitRows.length} units`);
+      
+      const availability = { room_types: allRoomTypes };
+      
+      // Cache all unit availability
+      if (propertyId && allRoomTypes.length > 0) {
+        (async () => {
+          try {
+            for (const roomType of allRoomTypes) {
+              const availPerNight = roomType.availability_per_night || [];
+              const rateTypes = roomType.rate_types || [];
+              
+              for (const availDay of availPerNight) {
+                const ratesForDate = rateTypes.flatMap((rt: any) => 
+                  (rt.rates || []).filter((r: any) => r.date === availDay.date)
+                );
+                
+                await supabase.from("pms_availability_cache").upsert({
+                  property_id: propertyId,
+                  system_type: "hostfully",
+                  external_room_type_id: roomType.room_type_id,
+                  date: availDay.date,
+                  available_units: availDay.available_units,
+                  restrictions: availDay.restrictions,
+                  rates: ratesForDate.length > 0 ? ratesForDate : null,
+                  raw_data: { roomTypeName: roomType.name },
+                  fetched_at: new Date().toISOString(),
+                }, {
+                  onConflict: 'property_id,external_room_type_id,date,system_type',
+                });
+              }
+            }
+            console.log(`[Hostfully] Cached availability for ${allRoomTypes.length} units`);
+          } catch (cacheErr) {
+            console.warn("[Hostfully] Failed to cache multi-unit availability:", cacheErr);
+          }
+        })();
+      }
+      
+      return createSuccessResponse(availability, "fetch_availability");
+    }
+
+    // Single-unit fallback: fetch calendar for the building/property UID directly
     const endpoint = `/property-calendar/${propertyUid}?from=${startDate}&to=${endDate}`;
     const response = await hostfullyRequest(endpoint, creds.api_key, baseUrl);
 
@@ -913,16 +1020,13 @@ async function handleFetchAvailability(
 
     const responseData = await response.json();
     
-    // Log the response structure for debugging
     console.log("[Hostfully] Calendar response structure:", JSON.stringify(responseData).substring(0, 200));
     
-    // Extract calendar array - handle v3 nested format (calendar.entries) and fallbacks
     const calendarArray = responseData?.calendar?.entries || 
                           responseData?.calendar || 
                           responseData?.days || 
                           responseData;
     
-    // Validate we have an array
     if (!Array.isArray(calendarArray)) {
       console.error("[Hostfully] Calendar data is not an array:", typeof calendarArray, JSON.stringify(responseData).substring(0, 300));
       return createErrorResponse(
@@ -932,12 +1036,7 @@ async function handleFetchAvailability(
       );
     }
     
-    // Query hostfully_room_types to get actual room name to match frontend filtering
     let roomName = 'Property';
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-    
     try {
       const { data: roomData } = await supabase
         .from('hostfully_room_types')
@@ -955,7 +1054,7 @@ async function handleFetchAvailability(
     
     const availability = mapHostfullyCalendarToAvailability(calendarArray, propertyUid, roomName);
 
-    // Cache availability to pms_availability_cache for future use (async, don't block response)
+    // Cache availability
     if (propertyId && availability.room_types?.length > 0) {
       (async () => {
         try {
@@ -964,7 +1063,6 @@ async function handleFetchAvailability(
             const rateTypes = roomType.rate_types || [];
             
             for (const availDay of availPerNight) {
-              // Find matching rates for this date
               const ratesForDate = rateTypes.flatMap((rt: any) => 
                 (rt.rates || []).filter((r: any) => r.date === availDay.date)
               );
