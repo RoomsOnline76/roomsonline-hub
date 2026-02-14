@@ -2224,14 +2224,14 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                 // Calculate sum for header row based on checked rows (or single row if only one)
                                 const getHeaderSum = (date: Date) => {
                                   if (!isPerPerson) return null;
+                                  const avail = getAvailability(room.name, date);
+                                  if (avail.value === null || avail.value <= 0) return null;
                                   
                                   if (occupancyRows.length === 1) {
-                                    // Only one row - show its rate directly
                                     const rateData = getRate(room.name, rateTypeId, rate.priceType || "PER PERSON", date, occupancyRows[0].key as any);
                                     return rateData.value;
                                   }
                                   
-                                  // Sum checked rows
                                   let sum = 0;
                                   let hasChecked = false;
                                   occupancyRows.forEach(occ => {
@@ -2256,7 +2256,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                       {!isPerPerson && calendarDates.map((date, index) => {
                                         const weekend = isWeekend(date);
                                         const isHoliday = !!getHolidayName(date);
-                                        const rateData = getRate(room.name, rate.rateTypeId || rate.rateType, rate.priceType || "PER ROOM", date, "room");
+                                        const avail = getAvailability(room.name, date);
+                                        const hasAvailability = avail.value !== null && avail.value > 0;
+                                        const rateData = hasAvailability ? getRate(room.name, rate.rateTypeId || rate.rateType, rate.priceType || "PER ROOM", date, "room") : { value: null, fromPms: false };
                                         return (
                                           <td
                                             key={index}
@@ -2310,13 +2312,15 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                         {calendarDates.map((date, index) => {
                                           const weekend = isWeekend(date);
                                           const isHoliday = !!getHolidayName(date);
-                                          const rateData = getRate(
+                                          const avail = getAvailability(room.name, date);
+                                          const hasAvailability = avail.value !== null && avail.value > 0;
+                                          const rateData = hasAvailability ? getRate(
                                             room.name, 
                                             rate.rateTypeId || rate.rateType, 
                                             rate.priceType || "PER PERSON", 
                                             date, 
                                             occ.key as "1adult" | "2adults" | "teen" | "child" | "infant"
-                                          );
+                                          ) : { value: null, fromPms: false };
                                           const isChecked = isOccupancyRowChecked(room.name, rateTypeId, occ.key);
                                           return (
                                             <td
@@ -2610,14 +2614,14 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                 // Calculate sum for header row based on checked rows (or single row if only one)
                                 const getHeaderSum = (date: Date) => {
                                   if (!isPerPerson) return null;
+                                  const avail = getAvailability(room.name, date);
+                                  if (avail.value === null || avail.value <= 0) return null;
                                   
                                   if (occupancyRows.length === 1) {
-                                    // Only one row - show its rate directly
                                     const rateData = getRate(room.name, rateTypeId, rate.priceType || "PER PERSON", date, occupancyRows[0].key as any);
                                     return rateData.value;
                                   }
                                   
-                                  // Sum checked rows
                                   let sum = 0;
                                   let hasChecked = false;
                                   occupancyRows.forEach(occ => {
@@ -2642,7 +2646,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                       {!isPerPerson && calendarDates.map((date, index) => {
                                         const weekend = isWeekend(date);
                                         const isHoliday = !!getHolidayName(date);
-                                        const rateData = getRate(room.name, rate.rateTypeId || rate.rateType, rate.priceType || "PER ROOM", date, "room");
+                                        const avail = getAvailability(room.name, date);
+                                        const hasAvailability = avail.value !== null && avail.value > 0;
+                                        const rateData = hasAvailability ? getRate(room.name, rate.rateTypeId || rate.rateType, rate.priceType || "PER ROOM", date, "room") : { value: null, fromPms: false };
                                         return (
                                           <td
                                             key={index}
@@ -2696,13 +2702,15 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                         {calendarDates.map((date, index) => {
                                           const weekend = isWeekend(date);
                                           const isHoliday = !!getHolidayName(date);
-                                          const rateData = getRate(
+                                          const avail = getAvailability(room.name, date);
+                                          const hasAvailability = avail.value !== null && avail.value > 0;
+                                          const rateData = hasAvailability ? getRate(
                                             room.name, 
                                             rate.rateTypeId || rate.rateType, 
                                             rate.priceType || "PER PERSON", 
                                             date, 
                                             occ.key as "1adult" | "2adults" | "teen" | "child" | "infant"
-                                          );
+                                          ) : { value: null, fromPms: false };
                                           const isChecked = isOccupancyRowChecked(room.name, rateTypeId, occ.key);
                                           return (
                                             <td
