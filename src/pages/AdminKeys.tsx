@@ -1514,6 +1514,7 @@ export default function AdminKeys() {
   };
 
   // Unified environment handler - saves to pms_tracker_status.active_environment
+  // For Hostfully, also syncs matching owner_pms_credentials into pms_credentials
   const handleUnifiedEnvironmentChange = async (systemType: string, newEnv: 'sandbox' | 'production') => {
     const { error } = await supabase
       .from("pms_tracker_status")
@@ -1526,13 +1527,48 @@ export default function AdminKeys() {
         description: error.message,
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Environment updated",
-        description: `${systemType} now using ${newEnv} endpoint`,
-      });
-      fetchTrackerData();
+      return;
     }
+
+    // For Hostfully, sync the matching owner_pms_credentials into pms_credentials
+    if (systemType === 'hostfully') {
+      const ownerEnv = newEnv === 'sandbox' ? 'sandbox' : 'production';
+      const { data: ownerCred } = await supabase
+        .from('owner_pms_credentials')
+        .select('*')
+        .eq('system_type', 'hostfully')
+        .eq('environment', ownerEnv)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (ownerCred) {
+        // Update pms_credentials with the matching owner credential data
+        const updateData: Record<string, any> = {
+          environment: ownerEnv,
+          api_key: ownerCred.api_key,
+          agent_code: ownerCred.external_account_id,
+          sync_status: ownerCred.sync_status,
+          last_sync_at: ownerCred.last_sync_at,
+          available_listings: ownerCred.available_listings,
+        };
+
+        if (hostfullyCredentials?.id) {
+          await supabase
+            .from('pms_credentials')
+            .update(updateData)
+            .eq('id', hostfullyCredentials.id);
+        }
+      }
+
+      // Re-fetch to update UI
+      fetchHostfullyCredentials();
+    }
+
+    toast({
+      title: "Environment updated",
+      description: `${systemType} now using ${newEnv} endpoint`,
+    });
+    fetchTrackerData();
   };
 
   const handleToggleLittlehotelier = async (enabled: boolean) => {
