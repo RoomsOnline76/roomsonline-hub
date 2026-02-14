@@ -82,7 +82,10 @@ function detectMultiUnit(property: HostfullyPropertyPayload): boolean {
   return type.includes('multi') || 
          type.includes('hotel') || 
          type.includes('hostel') ||
-         type.includes('building');
+         type.includes('building') ||
+         type.includes('apart') ||   // apartment, apart-hotel
+         type.includes('condo') ||
+         type.includes('resort');
 }
 
 // ============================================================================
@@ -220,12 +223,21 @@ export async function executeFullIngestion(
       ctx.warnings.push(`Photos: ${photosResult.error}`);
     }
     
-    // 5. Phase 3: Fetch rooms (based on multi-unit detection)
-    console.log(`[Orchestrator] Phase 3: Fetching rooms (multi-unit: ${ctx.isMultiUnit})...`);
+    // 5. Phase 3: Fetch bookable units
+    // ALWAYS try multi-unit endpoint first (returns actual bookable units like "101 Studio")
+    // The /rooms endpoint returns physical areas (KITCHEN, BATHROOM) which are NOT bookable
+    console.log(`[Orchestrator] Phase 3: Trying multi-unit endpoint first...`);
     
-    const roomsResult = ctx.isMultiUnit
-      ? await fetchMultiUnits(propertyUid, creds)
-      : await fetchRooms(propertyUid, creds);
+    let roomsResult = await fetchMultiUnits(propertyUid, creds);
+    
+    if (roomsResult.success && roomsResult.data && roomsResult.data.length > 0) {
+      ctx.isMultiUnit = true;
+      console.log(`[Orchestrator] Multi-unit: ${roomsResult.data.length} bookable units found`);
+    } else {
+      // Fallback to synthetic room from property data (standalone property)
+      console.log("[Orchestrator] No multi-unit types found, will use synthetic room");
+      roomsResult = { success: true, data: [], error: null };
+    }
     
     if (roomsResult.success) {
       ctx.rooms = roomsResult.data;

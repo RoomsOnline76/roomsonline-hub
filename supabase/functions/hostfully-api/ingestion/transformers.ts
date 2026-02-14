@@ -338,14 +338,17 @@ function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
   const fees = ctx.fees || [];
   const syncedAt = new Date().toISOString();
   
-  return ctx.rooms.map(room => {
+  return ctx.rooms.map((room, index) => {
     const lockedFields: string[] = [];
     
     // Core fields (HOSTFULLY_AT_INGEST)
     lockedFields.push('hostfully_room_id', 'name', 'max_guests', 'bedrooms', 'bathrooms', 'beds');
     
+    // Resolve room name with fallbacks (Hostfully v3 /rooms may not include name)
+    const resolvedName = room.name || (room as any).roomName || (room as any).roomType || (room as any).type || `Room ${index + 1}`;
+    
     // Extract room category from unit name (e.g., "101 Studio" -> "Studio")
-    const roomCategory = room.name ? room.name.replace(/^\d+\s*/, '').trim() || room.name : undefined;
+    const roomCategory = resolvedName ? resolvedName.replace(/^\d+\s*/, '').trim() || resolvedName : undefined;
     
     // Determine rate type from room data
     const rateType = room.rateType || 'per-unit';
@@ -358,7 +361,7 @@ function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
     
     const transformed: TransformedRoomData = {
       hostfully_room_id: room.uid,
-      name: room.name,
+      name: resolvedName,
       description: room.description,
       max_guests: room.maxGuests,
       min_guests: 1,
