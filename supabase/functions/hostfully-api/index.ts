@@ -122,7 +122,8 @@ const baseRequestSchema = z.object({
     "modify_reservation",
     "cancel_reservation",
     "fetch_property_data",
-    "full_ingest_property",    // NEW: One-time property data ingestion
+    "full_ingest_property",    // One-time property data ingestion
+    "ingest_building_units",   // Unit-level ingestion for building properties
   ]),
   // Owner-level credentials (NEW)
   api_key: z.string().optional(),
@@ -1569,6 +1570,26 @@ serve(async (req) => {
           );
         }
         response = await executeFullIngestion(body.propertyUid, body.rol_property_id, creds.owner_credential_id || '', supabase);
+        break;
+      }
+
+      case "ingest_building_units": {
+        // Unit-level ingestion: iterates over child unit UIDs and fetches full details
+        const { ingestBuildingUnits } = await import("./ingestion/unit-ingestion.ts");
+        if (!body.rol_property_id) {
+          return new Response(
+            JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "rol_property_id is required", action)),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+          );
+        }
+        const ingestionResult = await ingestBuildingUnits(
+          body.rol_property_id,
+          creds.owner_credential_id || '',
+          supabase
+        );
+        response = ingestionResult.errors.length > 0 && ingestionResult.units_succeeded === 0
+          ? createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, ingestionResult.errors.join('; '), action, ingestionResult)
+          : createSuccessResponse(ingestionResult, action);
         break;
       }
 
