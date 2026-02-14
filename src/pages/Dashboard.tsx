@@ -1468,9 +1468,9 @@ const Dashboard = () => {
             </div>
             <div>
               {(() => {
-                let displayBookings = filteredBookings;
+                let displayBookings = filteredBookings.filter(b => b.status !== "cancelled" && b.status !== "failed");
                 if (drillDownDate) {
-                  displayBookings = filteredBookings.filter(b => {
+                  displayBookings = displayBookings.filter(b => {
                     const bookingDate = new Date(b.created_at || '');
                     const matchDate = shouldAggregateByMonth
                       ? format(bookingDate, "MMM yyyy") === drillDownDate
