@@ -881,8 +881,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     try {
       let query = supabase
         .from("properties")
-        .select("id, name, amenities, owner_email, external_system, external_id, benson_property_code, checkfront_property_code, siteminder_property_code, hotelbeds_hotel_code, hostfully_property_uid")
-        .eq("is_active", true);
+        .select("id, name, amenities, owner_email, external_system, external_id, benson_property_code, checkfront_property_code, siteminder_property_code, hotelbeds_hotel_code, hostfully_property_uid, listing_status")
+        .eq("is_active", true)
+        .neq("listing_status", "inactive");
 
       if (!adminStatus && email) {
         query = query.eq("owner_email", email);
