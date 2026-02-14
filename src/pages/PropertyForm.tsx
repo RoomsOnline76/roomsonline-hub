@@ -3108,7 +3108,9 @@ export default function PropertyForm() {
                 // Map base_rate from wizard - SOURCE OF TRUTH until PMS data arrives
                 baseRate: room.baseRate || room.base_rate || null,
                 splitPercent: room.splitPercent || room.split_percent || 0,
-                images: room.images || [],
+                images: Array.isArray(room.images) 
+                  ? room.images.map((img: any) => typeof img === 'string' ? img : img?.url).filter(Boolean)
+                  : [],
                 facilities: room.facilities || [],
                 amenities: room.amenities || [],
                 // Auto-link wizard rooms to their generated rate types if no existing links
