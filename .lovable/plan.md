@@ -1,154 +1,98 @@
 
-# Add Restaurant Fallback for Dining Selection
 
-## Problem
-When a property has no experiences with `category === 'dining'`, the PDF and delight features fail to show any dining recommendation. The user wants a fallback: if no "dining" category is found, look for experiences with `venue_type === 'restaurant'` and pick the highest-rated one.
+## Hostfully Room Type Categorization and Calendar Grouping
 
-## Current State
-- **4 locations** use `find(e => e.category === 'dining')` with no fallback:
-  1. `generate-itinerary-pdf/index.ts` (line 1014)
-  2. `_shared/delight-engine.ts` (lines 187, 206)
-  3. `ai-booking-concierge/index.ts` (lines 577, 595)
+### Problem
+Hostfully units like "101 Studio", "103 Studio", "104 Compact Studio", "105 Urban Pod" are individual listings. Currently they appear as flat rows in the calendar. The user wants:
+1. The room type category ("Studio", "Compact Studio", "Urban Pod") to be extracted and stored during import
+2. The calendar to show collapsible group rows for each category
+3. Collapsed view shows aggregated availability (total units of that type)
+4. Expanded view shows individual units
 
-- **Database categories:** adventure, culture, dining, nature, wellness
-- **No explicit rating field** in `local_experiences`, but can use:
-  - `display_order` (lower = higher priority)
-  - Presence of `why_locals_love_it` (quality indicator)
+### Data Analysis
+Current `hostfully_room_types` data shows the pattern clearly:
+- "101 Studio", "103 Studio", "109 Studio" -> category: **Studio**
+- "104 Compact Studio", "204 Compact Studio" -> category: **Compact Studio**
+- "105 Urban Pod", "106 Urban Pod" -> category: **Urban Pod**
+- "202 Compact One bedroom" -> category: **Compact One bedroom**
 
-## Solution
-Create a reusable `findDiningExperience()` helper function that:
-1. First looks for `category === 'dining'`
-2. If not found, falls back to `venue_type === 'restaurant'`
-3. When multiple restaurants exist, pick the one with lowest `display_order` (best positioned)
+The `hostfully_room_types` table already has a `property_type` column (currently null for all rows) which is perfect for storing this category.
 
 ---
 
-## Implementation Details
+### Implementation Plan
 
-### 1. Add Helper to `_shared/delight-engine.ts`
+#### 1. Database Migration: Populate `property_type` on `hostfully_room_types`
+- No new columns needed -- `property_type` already exists
+- Create a one-time migration to backfill existing rows by extracting the category from the name (strip leading digits/unit number)
 
-Add a new utility function that can be imported by other edge functions:
+```text
+"101 Studio"           -> property_type = "Studio"
+"104 Compact Studio"   -> property_type = "Compact Studio"  
+"214 Mini"             -> property_type = "Mini"
+```
 
+**Extraction logic**: Strip leading digits and whitespace from the name to derive the category.
+
+#### 2. Ingestion Pipeline Update (`transformers.ts`)
+- In `transformRooms()`, extract the room category from the unit name using the same pattern (strip leading unit number)
+- Store it as `property_type` on `TransformedRoomData`
+
+#### 3. Writer Update (`writer.ts`)
+- Include `property_type` in the room upsert data so it persists on every sync
+
+#### 4. Types Update (`types.ts`)
+- Add `property_type?: string` to `TransformedRoomData`
+
+#### 5. Calendar Grouping (`CalendarAccommodation.tsx`)
+
+This is the main UI change. For Hostfully properties:
+
+- **Group PMS room data by `property_type`** (fetched from `hostfully_room_types` when building calendar data)
+- **Collapsible group header row**: Shows the category name (e.g., "Studio") with a chevron toggle and aggregated availability (sum of all units of that type per date)
+- **Expanded child rows**: Individual unit rows (e.g., "101 Studio", "103 Studio") with their own availability
+- **State management**: Add `expandedGroups` state (Set of group names) to track which categories are expanded
+- **Availability aggregation**: When collapsed, sum availability across all units in the group per date
+
+The grouping will:
+- Fetch `hostfully_room_types` with their `property_type` when loading a Hostfully property
+- Build a `Map<string, PMSRoomTypeData[]>` grouping rooms by `property_type`
+- Render a group header row (styled differently, with chevron) showing aggregated totals
+- On expand, render individual unit rows beneath
+
+#### 6. Fetch Room Categories
+- When a Hostfully property is selected in the calendar, query `hostfully_room_types` for that property to get the `property_type` groupings
+- Store this mapping alongside the PMS data for use in rendering
+
+---
+
+### Technical Details
+
+**Category extraction regex:**
 ```typescript
-/**
- * Find dining experience with restaurant fallback
- * Priority: dining category > restaurant venue_type (sorted by display_order)
- */
-export function findDiningExperience(
-  experiences: LocalExperience[] | undefined
-): LocalExperience | undefined {
-  if (!experiences || experiences.length === 0) return undefined;
-  
-  // First: look for explicit dining category
-  const diningCategory = experiences.find(e => e.category === 'dining');
-  if (diningCategory) return diningCategory;
-  
-  // Fallback: look for restaurant venue_type, pick highest rated (lowest display_order)
-  const restaurants = experiences
-    .filter(e => e.venue_type === 'restaurant')
-    .sort((a, b) => (a.display_order ?? 999) - (b.display_order ?? 999));
-  
-  return restaurants[0] || undefined;
+function extractRoomCategory(name: string): string {
+  // Strip leading unit number (e.g., "101 Studio" -> "Studio")
+  return name.replace(/^\d+\s*/, '').trim() || name;
 }
 ```
 
-### 2. Update `generate-itinerary-pdf/index.ts`
-
-**Line ~1014** - Replace direct find with helper:
-
-```typescript
-// BEFORE:
-const diningExp = stay.experiences?.find(e => e.category === 'dining');
-
-// AFTER:
-const diningExp = findDiningExperience(stay.experiences);
-```
-
-Import the helper at the top:
-```typescript
-import { ..., findDiningExperience } from "../_shared/delight-engine.ts";
-```
-
-### 3. Update `_shared/delight-engine.ts`
-
-**Lines 187, 206** - Use the new helper internally:
-
-```typescript
-// BEFORE (line 187):
-const dining = experiences?.find((e: LocalExperience) => e.category === 'dining');
-
-// AFTER:
-const dining = findDiningExperience(experiences);
-```
-
-```typescript
-// BEFORE (line 206):
-const dining = experiences?.find((e: LocalExperience) => e.category === 'dining');
-
-// AFTER:
-const dining = findDiningExperience(experiences);
-```
-
-### 4. Update `ai-booking-concierge/index.ts`
-
-**Lines 577, 595** - Use the helper:
-
-```typescript
-// BEFORE (line 577):
-const dining = experiences?.find((e: any) => e.category === 'dining');
-
-// AFTER:
-const dining = findDiningExperience(experiences);
-```
-
-```typescript
-// BEFORE (line 595):
-const dining = experiences?.find((e: any) => e.category === 'dining');
-
-// AFTER:
-const dining = findDiningExperience(experiences);
-```
-
-Import the helper at the top:
-```typescript
-import { ..., findDiningExperience } from "../_shared/delight-engine.ts";
-```
-
----
-
-## Files to Modify
-
-| File | Change |
-|------|--------|
-| `supabase/functions/_shared/delight-engine.ts` | Add `findDiningExperience()` helper, update internal usages (lines 187, 206) |
-| `supabase/functions/generate-itinerary-pdf/index.ts` | Import and use helper (line 1014) |
-| `supabase/functions/ai-booking-concierge/index.ts` | Import and use helper (lines 577, 595) |
-
----
-
-## Selection Logic Summary
-
+**Calendar group rendering structure:**
 ```text
-experiences = [nature, culture, adventure, wellness, restaurant(venue_type)]
-
-Step 1: Look for category === 'dining'
-        ├─ Found? → Return it
-        └─ Not found? → Continue to Step 2
-
-Step 2: Look for venue_type === 'restaurant'
-        ├─ Found multiple? → Sort by display_order, return lowest
-        ├─ Found one? → Return it
-        └─ None found? → Return undefined (no dining shown)
+[v] Studio (3 units)          | 3 | 2 | 3 | ...  <- aggregated availability
+    101 Studio                | 1 | 0 | 1 | ...
+    103 Studio                | 1 | 1 | 1 | ...
+    109 Studio                | 1 | 1 | 1 | ...
+[>] Compact Studio (2 units)  | 2 | 1 | 2 | ...  <- collapsed, aggregated
+[v] Urban Pod (3 units)       | 3 | 3 | 2 | ...
+    105 Urban Pod             | 1 | 1 | 0 | ...
+    106 Urban Pod             | 1 | 1 | 1 | ...
+    107 Urban Pod             | 1 | 1 | 1 | ...
 ```
 
----
+**Files to modify:**
+- `supabase/functions/hostfully-api/ingestion/types.ts` -- add `property_type` to `TransformedRoomData`
+- `supabase/functions/hostfully-api/ingestion/transformers.ts` -- extract category in `transformRooms()`
+- `supabase/functions/hostfully-api/ingestion/writer.ts` -- include `property_type` in upsert
+- `src/pages/CalendarAccommodation.tsx` -- grouping logic, collapsible UI, aggregated availability
+- New database migration -- backfill existing `property_type` values
 
-## Edge Cases
-
-| Scenario | Behavior |
-|----------|----------|
-| Has `dining` category | Uses dining category (no change) |
-| No `dining`, has `restaurant` venue_type | Falls back to restaurant |
-| Multiple restaurants | Picks one with lowest `display_order` |
-| No `dining` and no `restaurant` | Returns undefined (dining section hidden) |
-| Empty experiences array | Returns undefined |
