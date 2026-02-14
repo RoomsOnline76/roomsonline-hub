@@ -222,6 +222,9 @@ export interface TransformedRoomData {
   facilities_raw?: string[];
   rate_type?: string;
   
+  // Room category (extracted from unit name, e.g., "101 Studio" -> "Studio")
+  property_type?: string;
+  
   // Rate type linkage
   linked_rate_type_ids?: string[];
   

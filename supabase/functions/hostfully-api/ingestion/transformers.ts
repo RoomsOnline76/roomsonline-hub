@@ -344,6 +344,9 @@ function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
     // Core fields (HOSTFULLY_AT_INGEST)
     lockedFields.push('hostfully_room_id', 'name', 'max_guests', 'bedrooms', 'bathrooms', 'beds');
     
+    // Extract room category from unit name (e.g., "101 Studio" -> "Studio")
+    const roomCategory = room.name ? room.name.replace(/^\d+\s*/, '').trim() || room.name : undefined;
+    
     // Determine rate type from room data
     const rateType = room.rateType || 'per-unit';
     
@@ -370,6 +373,8 @@ function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
       extra_guest_fee: getFeeByType(fees, 'EXTRA_GUEST'),
       security_deposit: getFeeByType(fees, 'SECURITY_DEPOSIT'),
       amenities: room.amenities ? { items: room.amenities } : undefined,
+      // Room category
+      property_type: roomCategory,
       // Extended fields
       extra_person_policy: room.extraPersonPolicy,
       bed_configuration: bedConfig,

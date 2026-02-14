@@ -186,6 +186,8 @@ export async function writeIngestion(
           extra_guest_fee: room.extra_guest_fee,
           security_deposit: room.security_deposit,
           amenities: room.amenities,
+          // Room category
+          property_type: room.property_type,
           // Extended room fields
           extra_person_policy: room.extra_person_policy,
           bed_configuration: room.bed_configuration || [],

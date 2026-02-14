@@ -23,7 +23,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ChevronLeft, ChevronRight, ChevronDown, RefreshCw, ChevronsLeft, ChevronsRight, Building2, AlertCircle, Loader2, Cloud, CloudOff } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, RefreshCw, ChevronsLeft, ChevronsRight, Building2, AlertCircle, Loader2, Cloud, CloudOff } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { BulkRateRuleDialog } from "@/components/BulkRateRuleDialog";
 import { BulkAvailabilityRuleDialog } from "@/components/BulkAvailabilityRuleDialog";
@@ -189,6 +189,10 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   // Track checked occupancy rows for per-person rates: key = "roomName-rateTypeId-occKey"
   const [checkedOccupancyRows, setCheckedOccupancyRows] = useState<Set<string>>(new Set());
   
+  // Room category grouping for Hostfully properties
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [roomCategoryMap, setRoomCategoryMap] = useState<Map<string, string>>(new Map());
+  
   const toggleOccupancyRow = (roomName: string, rateTypeId: string, occKey: string) => {
     const key = `${roomName}-${rateTypeId}-${occKey}`;
     setCheckedOccupancyRows(prev => {
@@ -262,6 +266,14 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       // Update URL without navigation using window.history
       const newUrl = `${window.location.pathname}?property=${selectedProperty}`;
       window.history.replaceState(null, '', newUrl);
+      
+      // Fetch room categories for Hostfully properties
+      const prop = properties.find(p => p.id === selectedProperty);
+      if (prop?.external_system === 'hostfully') {
+        fetchRoomCategories(selectedProperty);
+      } else {
+        setRoomCategoryMap(new Map());
+      }
     }
   }, [selectedProperty, properties]);
 
@@ -1149,6 +1161,42 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     }
   };
 
+  // Fetch room categories from hostfully_room_types for grouping
+  const fetchRoomCategories = async (propertyId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("hostfully_room_types")
+        .select("name, property_type")
+        .eq("property_id", propertyId)
+        .eq("is_active", true);
+      
+      if (error || !data) return;
+      
+      const catMap = new Map<string, string>();
+      for (const row of data) {
+        if (row.name && row.property_type) {
+          catMap.set(row.name, row.property_type);
+        }
+      }
+      setRoomCategoryMap(catMap);
+    } catch (err) {
+      console.error("Error fetching room categories:", err);
+    }
+  };
+
+  // Toggle group expansion
+  const toggleGroup = (groupName: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupName)) {
+        next.delete(groupName);
+      } else {
+        next.add(groupName);
+      }
+      return next;
+    });
+  };
+
   // Refresh calendar data after bulk updates (for manual properties, re-fetches from property_availability)
   const refreshCalendarData = useCallback(async () => {
     if (!selectedProperty) return;
@@ -1484,6 +1532,54 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const filteredRooms = calendarRoomData.filter(room => 
     selectedRoomTypes.includes(room.name)
   );
+
+  // Group filtered rooms by category for Hostfully properties
+  const groupedRooms = React.useMemo(() => {
+    if (roomCategoryMap.size === 0) return null; // No grouping needed
+    
+    const groups = new Map<string, typeof filteredRooms>();
+    const ungrouped: typeof filteredRooms = [];
+    
+    for (const room of filteredRooms) {
+      const category = roomCategoryMap.get(room.name);
+      if (category) {
+        if (!groups.has(category)) {
+          groups.set(category, []);
+        }
+        groups.get(category)!.push(room);
+      } else {
+        ungrouped.push(room);
+      }
+    }
+    
+    const result: { category: string; rooms: typeof filteredRooms }[] = [];
+    for (const [category, rooms] of groups) {
+      result.push({ category, rooms });
+    }
+    for (const room of ungrouped) {
+      result.push({ category: room.name, rooms: [room] });
+    }
+    
+    return result;
+  }, [filteredRooms, roomCategoryMap]);
+
+  // Get aggregated availability for a group across all rooms
+  const getGroupAvailability = (rooms: typeof filteredRooms, date: Date): { value: number | null; fromPms: boolean } => {
+    let total = 0;
+    let hasPms = false;
+    let hasAny = false;
+    
+    for (const room of rooms) {
+      const avail = getAvailability(room.name, date);
+      if (avail.value !== null) {
+        total += avail.value;
+        hasAny = true;
+        if (avail.fromPms) hasPms = true;
+      }
+    }
+    
+    return hasAny ? { value: total, fromPms: hasPms } : { value: null, fromPms: false };
+  };
 
   // Filter rates based on selected meal types (convert meal type string to ID format)
   const getMealTypeId = (mealType: string) => {
@@ -1936,8 +2032,46 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredRooms.map((room) => {
-        const filteredRates = room.rates.filter(rate =>
+                        {(groupedRooms ? groupedRooms : [{ category: '__all__', rooms: filteredRooms }]).map((group) => {
+                          const isGrouped = groupedRooms !== null && group.rooms.length > 1;
+                          const isExpanded = !isGrouped || expandedGroups.has(group.category);
+                          
+                          return (
+                            <React.Fragment key={`group-${group.category}`}>
+                              {/* Group Header Row (only for grouped Hostfully rooms) */}
+                              {isGrouped && (
+                                <tr 
+                                  className="bg-primary/10 dark:bg-primary/20 cursor-pointer hover:bg-primary/15"
+                                  onClick={() => toggleGroup(group.category)}
+                                >
+                                  <td className="border p-1 font-bold text-xs text-primary sticky left-0 bg-primary/10 dark:bg-primary/20 z-10">
+                                    <div className="flex items-center gap-1">
+                                      {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                      {group.category} ({group.rooms.length} units)
+                                    </div>
+                                  </td>
+                                  {calendarDates.map((date, index) => {
+                                    const weekend = isWeekend(date);
+                                    const isHoliday = !!getHolidayName(date);
+                                    const groupAvail = getGroupAvailability(group.rooms, date);
+                                    return (
+                                      <td
+                                        key={index}
+                                        className={`border p-1 text-center ${
+                                          isHoliday ? "bg-green-100 dark:bg-green-950/30" 
+                                            : weekend ? "bg-red-50 dark:bg-red-950/20" 
+                                            : "bg-primary/5"
+                                        }`}
+                                      >
+                                        <span className="font-bold text-xs text-primary">{renderCellValue(groupAvail.value, groupAvail.fromPms)}</span>
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              )}
+                              {/* Individual Room Rows (shown when expanded or ungrouped) */}
+                              {isExpanded && group.rooms.map((room) => {
+                          const filteredRates = room.rates.filter(rate =>
                             selectedRateTypes.includes(String(rate.rateTypeId))
                           );
 
@@ -1945,7 +2079,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                             <React.Fragment key={room.name}>
                               {/* Room Name Row with Availability - ALWAYS visible */}
                               <tr className="bg-slate-100 dark:bg-slate-800">
-                                <td className="border p-1 font-semibold text-xs text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
+                                <td className={`border p-1 font-semibold text-xs text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 ${isGrouped ? 'pl-4' : ''}`}>
                                   {room.name}
                                 </td>
                                 {calendarDates.map((date, index) => {
@@ -2199,8 +2333,11 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                       </tr>
                                     ))}
                                   </React.Fragment>
-                                );
-                              })}
+                                 );
+                               })}
+                             </React.Fragment>
+                           );
+                         })}
                             </React.Fragment>
                           );
                         })}
@@ -2285,7 +2422,45 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredRooms.map((room) => {
+                        {(groupedRooms ? groupedRooms : [{ category: '__all__', rooms: filteredRooms }]).map((group) => {
+                          const isGrouped = groupedRooms !== null && group.rooms.length > 1;
+                          const isExpanded = !isGrouped || expandedGroups.has(group.category);
+                          
+                          return (
+                            <React.Fragment key={`group-${group.category}`}>
+                              {/* Group Header Row (only for grouped Hostfully rooms) */}
+                              {isGrouped && (
+                                <tr 
+                                  className="bg-primary/10 dark:bg-primary/20 cursor-pointer hover:bg-primary/15"
+                                  onClick={() => toggleGroup(group.category)}
+                                >
+                                  <td className="border p-1 font-bold text-xs text-primary sticky left-0 bg-primary/10 dark:bg-primary/20 z-10">
+                                    <div className="flex items-center gap-1">
+                                      {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                      {group.category} ({group.rooms.length} units)
+                                    </div>
+                                  </td>
+                                  {calendarDates.map((date, index) => {
+                                    const weekend = isWeekend(date);
+                                    const isHoliday = !!getHolidayName(date);
+                                    const groupAvail = getGroupAvailability(group.rooms, date);
+                                    return (
+                                      <td
+                                        key={index}
+                                        className={`border p-1 text-center ${
+                                          isHoliday ? "bg-green-100 dark:bg-green-950/30" 
+                                            : weekend ? "bg-red-50 dark:bg-red-950/20" 
+                                            : "bg-primary/5"
+                                        }`}
+                                      >
+                                        <span className="font-bold text-xs text-primary">{renderCellValue(groupAvail.value, groupAvail.fromPms)}</span>
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              )}
+                              {/* Individual Room Rows */}
+                              {isExpanded && group.rooms.map((room) => {
                           const filteredRates = room.rates.filter(rate =>
                             selectedRateTypes.includes(String(rate.rateTypeId))
                           );
@@ -2294,7 +2469,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                             <React.Fragment key={room.name}>
                               {/* Room Name Row with Availability - ALWAYS visible */}
                               <tr className="bg-slate-100 dark:bg-slate-800">
-                                <td className="border p-1 font-semibold text-xs text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
+                                <td className={`border p-1 font-semibold text-xs text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 ${isGrouped ? 'pl-4' : ''}`}>
                                   {room.name}
                                 </td>
                                 {calendarDates.map((date, index) => {
@@ -2546,6 +2721,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                                   </React.Fragment>
                                 );
                               })}
+                            </React.Fragment>
+                          );
+                        })}
                             </React.Fragment>
                           );
                         })}
