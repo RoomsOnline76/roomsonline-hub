@@ -487,7 +487,9 @@ export default function RoomShowcase() {
     );
   }
 
-  const images = room.images || [];
+  const images = Array.isArray(room.images) 
+    ? room.images.map((img: any) => typeof img === 'string' ? img : img?.url).filter(Boolean)
+    : [];
   const facilities = room.facilities || [];
   const amenities = room.amenities || [];
   // Use liveAvailability if available, fallback to cached

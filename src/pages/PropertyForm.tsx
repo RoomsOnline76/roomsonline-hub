@@ -920,8 +920,8 @@ export default function PropertyForm() {
         description: `${sortedRooms.length} rooms (sorted): ${sortedRooms.slice(0, 3).map(r => r.name).join(', ')}...`,
       });
 
-      // TEST: Limit to 2 rooms for debugging - now from sorted list
-      const roomsToSync = sortedRooms.slice(0, 2);
+      // Sync ALL rooms - no limit
+      const roomsToSync = sortedRooms;
       setSyncProgress({ 
         phase: "Syncing room data...", 
         current: 0, 
@@ -1210,6 +1210,67 @@ export default function PropertyForm() {
             longitude: roomWithCoords.longitude,
             property_type: roomWithCoords.propertyType,
           });
+        }
+      }
+
+      // Sync normalized room_types back to amenities so showcase pages can read them
+      if (refreshedRooms && refreshedRooms.length > 0) {
+        const { data: currentPropData } = await supabase
+          .from("properties")
+          .select("amenities")
+          .eq("id", propertyId)
+          .single();
+        
+        const currentAmenities = (currentPropData?.amenities as Record<string, unknown>) || {};
+        const amenitiesRoomTypes = refreshedRooms.map(hr => ({
+          id: hr.id,
+          pmsRoomId: hr.hostfully_room_id,
+          pmsRoomType: hr.property_type || hr.name,
+          name: hr.name,
+          description: hr.description || '',
+          maxPeople: hr.max_guests || 2,
+          maxAdults: hr.max_guests || 2,
+          minGuests: hr.min_guests || 1,
+          numRooms: 1,
+          bedrooms: hr.bedrooms || 1,
+          bathrooms: hr.bathrooms || 1,
+          beds: hr.beds || 1,
+          roomSize: hr.room_size || 0,
+          checkInTime: hr.check_in_time || '',
+          checkOutTime: hr.check_out_time || '',
+          dailyRate: hr.daily_rate || 0,
+          currency: hr.currency || 'ZAR',
+          cleaningFee: hr.cleaning_fee || 0,
+          securityDeposit: hr.security_deposit || 0,
+          extraGuestFee: hr.extra_guest_fee || 0,
+          rateType: hr.rate_type || 'per-unit',
+          linkedRateTypeIds: hr.linked_rate_type_ids || ['per-unit'],
+          propertyType: hr.property_type || '',
+          images: Array.isArray(hr.images)
+            ? hr.images.map((img: any) => typeof img === 'string' ? img : (img as any)?.url).filter(Boolean)
+            : [],
+          thumbnailUrl: hr.thumbnail_url || (Array.isArray(hr.images) && (hr.images[0] as any)?.url) || '',
+          amenities: [],
+          facilities: [],
+          facilitiesRaw: hr.facilities_raw || [],
+          selected: false,
+          splitPercent: 0,
+          pms_synced_fields: hr.pms_synced_fields || [],
+          lastSyncedAt: hr.last_synced_at,
+        }));
+
+        const { error: amenitySyncError } = await supabase
+          .from("properties")
+          .update({
+            amenities: { ...currentAmenities, room_types: amenitiesRoomTypes },
+            last_pms_sync_at: new Date().toISOString(),
+          })
+          .eq("id", propertyId);
+
+        if (amenitySyncError) {
+          console.error("[Sync] Failed to update amenities.room_types:", amenitySyncError);
+        } else {
+          console.log(`[Sync] Synced ${amenitiesRoomTypes.length} rooms to amenities.room_types with normalized images`);
         }
       }
 
