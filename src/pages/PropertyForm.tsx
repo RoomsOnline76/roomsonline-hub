@@ -3154,7 +3154,9 @@ export default function PropertyForm() {
                 maxStay: hr.max_stay || 0,
                 rateType: "per-unit",
                 splitPercent: 0,
-                images: hr.images || [],
+                images: Array.isArray(hr.images) 
+                  ? hr.images.map((img: any) => typeof img === 'string' ? img : img?.url).filter(Boolean)
+                  : [],
                 facilities: [],
                 amenities: hr.amenities || [],
                 linkedRateTypeIds: hr.linked_rate_type_ids || ['per-unit'],
