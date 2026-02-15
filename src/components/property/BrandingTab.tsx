@@ -21,6 +21,7 @@ interface BrandingTabProps {
   onChange: (data: BrandingData) => void;
   propertyId: string | null;
   onDirty: () => void;
+  canToggleBrand?: boolean;
 }
 
 /** Calculate relative luminance (WCAG 2.0) */
@@ -185,7 +186,7 @@ function FontPreviewCard({
   );
 }
 
-export function BrandingTab({ data, onChange, propertyId, onDirty }: BrandingTabProps) {
+export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBrand = false }: BrandingTabProps) {
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
 
@@ -235,7 +236,11 @@ export function BrandingTab({ data, onChange, propertyId, onDirty }: BrandingTab
             <Switch
               checked={data.brand_override_enabled}
               onCheckedChange={(checked) => updateField("brand_override_enabled", checked)}
+              disabled={!canToggleBrand}
             />
+            {!canToggleBrand && (
+              <p className="text-xs text-muted-foreground italic mt-1">Only administrators can enable or disable this toggle.</p>
+            )}
             <div className="space-y-1">
               <Label className="text-sm font-medium">Enable Property Branding</Label>
               <p className="text-xs text-muted-foreground">

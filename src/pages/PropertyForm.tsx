@@ -5860,6 +5860,7 @@ export default function PropertyForm() {
                 onChange={setBrandingData}
                 propertyId={propertyId}
                 onDirty={() => setIsDirty(true)}
+                canToggleBrand={isAdmin || isDev}
               />
             </TabsContent>
 
