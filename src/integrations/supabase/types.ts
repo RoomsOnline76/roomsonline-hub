@@ -2497,6 +2497,7 @@ export type Database = {
           benson_property_code: string | null
           brand_font_color: string | null
           brand_logo_url: string | null
+          brand_override_enabled: boolean
           brand_primary_color: string | null
           brand_secondary_color: string | null
           checkfront_property_code: string | null
@@ -2564,6 +2565,7 @@ export type Database = {
           benson_property_code?: string | null
           brand_font_color?: string | null
           brand_logo_url?: string | null
+          brand_override_enabled?: boolean
           brand_primary_color?: string | null
           brand_secondary_color?: string | null
           checkfront_property_code?: string | null
@@ -2631,6 +2633,7 @@ export type Database = {
           benson_property_code?: string | null
           brand_font_color?: string | null
           brand_logo_url?: string | null
+          brand_override_enabled?: boolean
           brand_primary_color?: string | null
           brand_secondary_color?: string | null
           checkfront_property_code?: string | null
