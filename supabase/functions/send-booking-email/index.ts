@@ -144,6 +144,8 @@ function wrapCustomTemplate(customContent: string, property: any): string {
 function generateSuccessEmail(booking: any, property: any, syncWarning?: string): string {
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
   const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
+  // Use property brand color if override is enabled, fallback to ROL pink
+  const accentColor = (property.brand_override_enabled && property.brand_primary_color) ? property.brand_primary_color : "#e91e8c";
 
   // Build detailed rooms itinerary if multi-room with potential different dates
   let roomsItinerary = "";
@@ -167,7 +169,7 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
         return `
         <tr>
           <td colspan="2" style="padding: 12px 0; border-bottom: 1px solid #eee;">
-            <div style="background-color: #f8f9fa; border-radius: 6px; padding: 12px; border-left: 3px solid #e91e8c;">
+            <div style="background-color: #f8f9fa; border-radius: 6px; padding: 12px; border-left: 3px solid ${accentColor};">
               <p style="margin: 0 0 6px; font-weight: 600; color: #333;">Room ${index + 1}: ${room.roomTypeName || "Standard Room"}</p>
               <p style="margin: 0 0 4px; color: #666; font-size: 13px;">
                 <strong>Dates:</strong> ${formatDate(roomCheckIn)} – ${formatDate(roomCheckOut)} (${roomNights} night${roomNights > 1 ? "s" : ""})
@@ -242,7 +244,7 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
           <!-- Property Details -->
           <tr>
             <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">Property Details</h2>
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid ${accentColor}; padding-bottom: 10px;">Property Details</h2>
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
                 <tr>
                   <td style="padding: 8px 0; color: #666;">Property</td>
@@ -259,7 +261,7 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
           <!-- Stay Details / Itinerary -->
           <tr>
             <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">${hasRooms && booking.rooms.length > 1 ? "Itinerary" : "Stay Details"}</h2>
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid ${accentColor}; padding-bottom: 10px;">${hasRooms && booking.rooms.length > 1 ? "Itinerary" : "Stay Details"}</h2>
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
                 ${stayContent}
               </table>
@@ -269,7 +271,7 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
           <!-- Guest Details -->
           <tr>
             <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">Guest Information</h2>
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid ${accentColor}; padding-bottom: 10px;">Guest Information</h2>
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
                 <tr>
                   <td style="padding: 8px 0; color: #666;">Name</td>
@@ -300,7 +302,7 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
                 <table role="presentation" style="width: 100%; border-collapse: collapse;">
                   <tr>
                     <td style="color: #333; font-size: 18px; font-weight: 600;">Total Amount</td>
-                    <td style="color: #e91e8c; font-size: 24px; font-weight: 700; text-align: right;">${formatCurrency(booking.total_price)}</td>
+                    <td style="color: ${accentColor}; font-size: 24px; font-weight: 700; text-align: right;">${formatCurrency(booking.total_price)}</td>
                   </tr>
                 </table>
               </div>
@@ -354,7 +356,7 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
           <!-- Special Requests -->
           <tr>
             <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">Special Requests</h2>
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid ${accentColor}; padding-bottom: 10px;">Special Requests</h2>
               <p style="margin: 0; color: #666; font-style: italic;">"${booking.special_requests}"</p>
             </td>
           </tr>
@@ -402,6 +404,7 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
 
 // Generate failure email HTML
 function generateFailureEmail(booking: any, property: any, errorMessage?: string): string {
+  const accentColor = (property.brand_override_enabled && property.brand_primary_color) ? property.brand_primary_color : "#e91e8c";
   return `
 <!DOCTYPE html>
 <html>
@@ -448,7 +451,7 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
           <!-- Booking Details Summary -->
           <tr>
             <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">Your Attempted Booking</h2>
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid ${accentColor}; padding-bottom: 10px;">Your Attempted Booking</h2>
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
                 <tr>
                   <td style="padding: 8px 0; color: #666;">Property</td>
@@ -471,7 +474,7 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
             <td style="padding: 0 40px 30px;">
               <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; text-align: center;">
                 <p style="margin: 0 0 10px; color: #666; font-size: 14px;">Need help? Contact our support team</p>
-                <a href="mailto:sleepinafrica@roomsonline.co.za" style="color: #e91e8c; font-weight: 600; text-decoration: none;">sleepinafrica@roomsonline.co.za</a>
+                <a href="mailto:sleepinafrica@roomsonline.co.za" style="color: ${accentColor}; font-weight: 600; text-decoration: none;">sleepinafrica@roomsonline.co.za</a>
               </div>
             </td>
           </tr>
@@ -498,6 +501,7 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
 
 // Generate property owner notification email for non-PMS properties
 function generatePropertyNotificationEmail(booking: any, property: any): string {
+  const accentColor = (property.brand_override_enabled && property.brand_primary_color) ? property.brand_primary_color : "#e91e8c";
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
   const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
   const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
@@ -597,14 +601,14 @@ function generatePropertyNotificationEmail(booking: any, property: any): string 
                 <tr>
                   <td style="padding: 8px 0; color: #666;">Email</td>
                   <td style="padding: 8px 0; color: #333; text-align: right;">
-                    <a href="mailto:${booking.guest_email}" style="color: #e91e8c; text-decoration: none;">${booking.guest_email}</a>
+                    <a href="mailto:${booking.guest_email}" style="color: ${accentColor}; text-decoration: none;">${booking.guest_email}</a>
                   </td>
                 </tr>
                 ${booking.guest_phone ? `
                 <tr>
                   <td style="padding: 8px 0; color: #666;">Phone</td>
                   <td style="padding: 8px 0; color: #333; text-align: right;">
-                    <a href="tel:${booking.guest_phone}" style="color: #e91e8c; text-decoration: none;">${booking.guest_phone}</a>
+                    <a href="tel:${booking.guest_phone}" style="color: ${accentColor}; text-decoration: none;">${booking.guest_phone}</a>
                   </td>
                 </tr>
                 ` : ""}
@@ -642,7 +646,7 @@ function generatePropertyNotificationEmail(booking: any, property: any): string 
                 <table role="presentation" style="width: 100%; border-collapse: collapse;">
                   <tr>
                     <td style="color: #333; font-size: 18px; font-weight: 600;">Total Amount</td>
-                    <td style="color: #e91e8c; font-size: 24px; font-weight: 700; text-align: right;">${formatCurrency(booking.total_price)}</td>
+                    <td style="color: ${accentColor}; font-size: 24px; font-weight: 700; text-align: right;">${formatCurrency(booking.total_price)}</td>
                   </tr>
                 </table>
               </div>
@@ -749,7 +753,7 @@ function generateAdminAlertEmail(booking: any, property: any, errorMessage?: str
           <!-- Booking Details -->
           <tr>
             <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">Booking Details</h2>
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid ${accentColor}; padding-bottom: 10px;">Booking Details</h2>
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
                 <tr>
                   <td style="padding: 8px 0; color: #666;">Property</td>
@@ -782,7 +786,7 @@ function generateAdminAlertEmail(booking: any, property: any, errorMessage?: str
           <!-- Guest Details -->
           <tr>
             <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 10px;">Guest Information</h2>
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid ${accentColor}; padding-bottom: 10px;">Guest Information</h2>
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
                 <tr>
                   <td style="padding: 8px 0; color: #666;">Name</td>
@@ -847,7 +851,7 @@ function generateAdminAlertEmail(booking: any, property: any, errorMessage?: str
           <!-- Dashboard Link -->
           <tr>
             <td style="padding: 0 40px 30px; text-align: center;">
-              <a href="${dashboardUrl}" style="display: inline-block; background-color: #e91e8c; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">View Booking in Dashboard</a>
+              <a href="${dashboardUrl}" style="display: inline-block; background-color: ${accentColor}; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">View Booking in Dashboard</a>
             </td>
           </tr>
 
