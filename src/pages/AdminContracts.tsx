@@ -106,6 +106,15 @@ export default function AdminContracts() {
   const [sendName, setSendName] = useState("");
   const [sending, setSending] = useState(false);
   
+  // Property search states
+  const [propertySearch, setPropertySearch] = useState("");
+  const [propertyResults, setPropertyResults] = useState<{ id: string; name: string; slug: string | null; is_archived: boolean; owner_email: string | null }[]>([]);
+  const [searchingProperties, setSearchingProperties] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<{ id: string; name: string; is_archived: boolean } | null>(null);
+  const [showUnarchivePrompt, setShowUnarchivePrompt] = useState(false);
+  const [unarchiving, setUnarchiving] = useState(false);
+  const [propertyDropdownOpen, setPropertyDropdownOpen] = useState(false);
+  
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
   const [overrideContract, setOverrideContract] = useState<OwnerContract | null>(null);
   const [overriding, setOverriding] = useState(false);
@@ -252,7 +261,11 @@ export default function AdminContracts() {
     try {
       setSending(true);
       const { error } = await supabase.functions.invoke("send-owner-contract", {
-        body: { owner_email: sendEmail, owner_name: sendName || undefined },
+        body: { 
+          owner_email: sendEmail, 
+          owner_name: sendName || undefined,
+          property_id: selectedProperty?.id || undefined,
+        },
       });
 
       if (error) throw error;
@@ -355,6 +368,96 @@ export default function AdminContracts() {
     setSendName("");
     setLinkedProperties([]);
     setNoPropertiesWarning(false);
+    setPropertySearch("");
+    setPropertyResults([]);
+    setSelectedProperty(null);
+    setShowUnarchivePrompt(false);
+    setPropertyDropdownOpen(false);
+  };
+
+  const searchProperties = async (query: string) => {
+    if (!query || query.length < 2) {
+      setPropertyResults([]);
+      setPropertyDropdownOpen(false);
+      return;
+    }
+    setSearchingProperties(true);
+    try {
+      // Use ilike with wildcards for fuzzy matching
+      const pattern = `%${query.replace(/\s+/g, '%')}%`;
+      const { data, error } = await supabase
+        .from("properties")
+        .select("id, name, slug, owner_email, permanently_deleted_at")
+        .ilike("name", pattern)
+        .order("name")
+        .limit(15);
+
+      if (error) throw error;
+
+      const results = (data || []).map(p => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        is_archived: !!p.permanently_deleted_at,
+        owner_email: p.owner_email,
+      }));
+      setPropertyResults(results);
+      setPropertyDropdownOpen(results.length > 0);
+    } catch (err) {
+      console.error("Property search error:", err);
+      setPropertyResults([]);
+    } finally {
+      setSearchingProperties(false);
+    }
+  };
+
+  // Debounced property search
+  useEffect(() => {
+    if (!propertySearch || propertySearch.length < 2) {
+      setPropertyResults([]);
+      setPropertyDropdownOpen(false);
+      return;
+    }
+    const timer = setTimeout(() => searchProperties(propertySearch), 300);
+    return () => clearTimeout(timer);
+  }, [propertySearch]);
+
+  const handleSelectProperty = (property: typeof propertyResults[0]) => {
+    setSelectedProperty({ id: property.id, name: property.name, is_archived: property.is_archived });
+    setPropertySearch(property.name);
+    setPropertyDropdownOpen(false);
+
+    if (property.is_archived) {
+      setShowUnarchivePrompt(true);
+    } else {
+      setShowUnarchivePrompt(false);
+    }
+
+    // If property has an owner_email, auto-fill
+    if (property.owner_email && !sendEmail) {
+      setSendEmail(property.owner_email);
+      validateOwnerEmail(property.owner_email);
+    }
+  };
+
+  const handleUnarchiveProperty = async () => {
+    if (!selectedProperty) return;
+    setUnarchiving(true);
+    try {
+      const { error } = await supabase
+        .from("properties")
+        .update({ permanently_deleted_at: null })
+        .eq("id", selectedProperty.id);
+
+      if (error) throw error;
+      toast.success(`"${selectedProperty.name}" has been unarchived`);
+      setSelectedProperty({ ...selectedProperty, is_archived: false });
+      setShowUnarchivePrompt(false);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to unarchive property");
+    } finally {
+      setUnarchiving(false);
+    }
   };
 
   const handleViewHistory = async (email: string) => {
@@ -589,6 +692,82 @@ export default function AdminContracts() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Property Name Search */}
+            <div className="space-y-2">
+              <Label htmlFor="propertyName">Property Name</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="propertyName"
+                  placeholder="Search existing properties..."
+                  value={propertySearch}
+                  onChange={(e) => {
+                    setPropertySearch(e.target.value);
+                    if (selectedProperty) {
+                      setSelectedProperty(null);
+                      setShowUnarchivePrompt(false);
+                    }
+                  }}
+                  className="pl-9"
+                />
+                {searchingProperties && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                )}
+                {/* Search results dropdown */}
+                {propertyDropdownOpen && propertyResults.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg max-h-[200px] overflow-y-auto z-50">
+                    {propertyResults.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handleSelectProperty(p)}
+                        className="w-full flex items-center justify-between gap-2 px-3 py-2 hover:bg-muted transition-colors text-left border-b border-border/50 last:border-b-0"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{p.name}</p>
+                          {p.owner_email && (
+                            <p className="text-xs text-muted-foreground truncate">{p.owner_email}</p>
+                          )}
+                        </div>
+                        {p.is_archived && (
+                          <Badge variant="secondary" className="text-xs flex-shrink-0">Archived</Badge>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {selectedProperty && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Check className="h-3 w-3 text-green-600" />
+                  Selected: <span className="font-medium">{selectedProperty.name}</span>
+                </p>
+              )}
+            </div>
+
+            {/* Unarchive prompt */}
+            {showUnarchivePrompt && selectedProperty?.is_archived && (
+              <Alert className="border-amber-200 bg-amber-50">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-800">
+                  <p className="font-medium">This property is archived</p>
+                  <p className="text-sm mt-1">
+                    "{selectedProperty.name}" was previously archived. Would you like to restore it?
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-2"
+                    onClick={handleUnarchiveProperty}
+                    disabled={unarchiving}
+                  >
+                    {unarchiving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                    Unarchive Property
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="email">Owner Email *</Label>
               <div className="relative">
@@ -616,7 +795,7 @@ export default function AdminContracts() {
             </div>
 
             {/* New owner badge - shown when no properties exist */}
-            {noPropertiesWarning && !validatingEmail && sendEmail && (
+            {noPropertiesWarning && !validatingEmail && sendEmail && !selectedProperty && (
               <Alert className="bg-amber-50 border-amber-200">
                 <Building2 className="h-4 w-4 text-amber-600" />
                 <AlertDescription className="text-amber-800">
