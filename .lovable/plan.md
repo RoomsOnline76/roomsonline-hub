@@ -1,98 +1,62 @@
 
+# Reinstate Journey Brochure Generation
 
-## Hostfully Room Type Categorization and Calendar Grouping
+## Problem Summary
 
-### Problem
-Hostfully units like "101 Studio", "103 Studio", "104 Compact Studio", "105 Urban Pod" are individual listings. Currently they appear as flat rows in the calendar. The user wants:
-1. The room type category ("Studio", "Compact Studio", "Urban Pod") to be extracted and stored during import
-2. The calendar to show collapsible group rows for each category
-3. Collapsed view shows aggregated availability (total units of that type)
-4. Expanded view shows individual units
+The travel brochure (powered by AI -- Lovable AI for poems and xAI for dining recommendations via the enrichment pipeline) is not being generated or delivered. Investigation reveals **three root causes**:
 
-### Data Analysis
-Current `hostfully_room_types` data shows the pattern clearly:
-- "101 Studio", "103 Studio", "109 Studio" -> category: **Studio**
-- "104 Compact Studio", "204 Compact Studio" -> category: **Compact Studio**
-- "105 Urban Pod", "106 Urban Pod" -> category: **Urban Pod**
-- "202 Compact One bedroom" -> category: **Compact One bedroom**
+1. **Wrong AI Gateway URL**: The `generate-itinerary-pdf` function calls `https://api.lovable.dev/v1/chat/completions` (non-existent) instead of the correct `https://ai.gateway.lovable.dev/v1/chat/completions`. This silently fails all AI-powered content (poems, tone-adaptive copy).
 
-The `hostfully_room_types` table already has a `property_type` column (currently null for all rows) which is perfect for storing this category.
+2. **No proactive brochure generation**: The journey confirmation email (`send-itinerary-email`) only includes a "Download Your Journey Brochure" link pointing to the confirmation page. The brochure is generated lazily on-demand when the guest clicks. This means:
+   - The guest experience depends on them clicking a link
+   - The brochure is never pre-generated and attached to the email
+   - If the guest's browser blocks popups, they get nothing
 
----
+3. **xAI dining enrichment is separate**: The `enrich-property-experiences` function (which uses xAI/Grok for dining recommendations) runs independently and is not triggered as part of the booking confirmation flow. Properties without pre-enriched experiences get empty dining sections in brochures.
 
-### Implementation Plan
+## Plan
 
-#### 1. Database Migration: Populate `property_type` on `hostfully_room_types`
-- No new columns needed -- `property_type` already exists
-- Create a one-time migration to backfill existing rows by extracting the category from the name (strip leading digits/unit number)
+### Step 1: Fix the Lovable AI Gateway URL
+**File:** `supabase/functions/generate-itinerary-pdf/index.ts`
+- Change line 240 from `https://api.lovable.dev/v1/chat/completions` to `https://ai.gateway.lovable.dev/v1/chat/completions`
+- This restores AI poem generation for brochures
 
+### Step 2: Auto-generate brochure on journey confirmation
+**File:** `supabase/functions/send-itinerary-email/index.ts`
+- Before sending the email, call `generate-itinerary-pdf` to pre-generate the brochure
+- Attach the brochure HTML as an email attachment (already implemented in `send-booking-email` as a pattern)
+- This ensures the brochure is delivered proactively with the confirmation email, not just as a link
+
+### Step 3: Trigger experience enrichment before brochure generation
+**File:** `supabase/functions/send-itinerary-email/index.ts`
+- Before calling `generate-itinerary-pdf`, check if properties have local experiences
+- If sparse (fewer than 3), call `enrich-property-experiences` for each property and wait briefly
+- This ensures xAI dining recommendations and Lovable AI activity suggestions are available when the brochure renders
+
+### Step 4: Deploy and verify
+- Deploy all three modified edge functions
+- Trigger a test for an existing confirmed itinerary to verify:
+  - AI poem is generated (Lovable AI credits consumed)
+  - Dining recommendations are present (xAI or fallback)
+  - Brochure HTML is attached to the email
+  - Brochure is stored in the `documents` bucket
+
+## Technical Details
+
+### Files Modified
+- `supabase/functions/generate-itinerary-pdf/index.ts` -- Fix AI gateway URL
+- `supabase/functions/send-itinerary-email/index.ts` -- Add brochure generation + enrichment trigger + attachment
+
+### Key Architecture
 ```text
-"101 Studio"           -> property_type = "Studio"
-"104 Compact Studio"   -> property_type = "Compact Studio"  
-"214 Mini"             -> property_type = "Mini"
+multi-push-booking (on success)
+  --> send-itinerary-email
+        --> enrich-property-experiences (if needed, per property)
+        --> generate-itinerary-pdf (AI poem + weather + voucher + dining)
+        --> Attach brochure HTML to email
+        --> Send via Resend
 ```
 
-**Extraction logic**: Strip leading digits and whitespace from the name to derive the category.
-
-#### 2. Ingestion Pipeline Update (`transformers.ts`)
-- In `transformRooms()`, extract the room category from the unit name using the same pattern (strip leading unit number)
-- Store it as `property_type` on `TransformedRoomData`
-
-#### 3. Writer Update (`writer.ts`)
-- Include `property_type` in the room upsert data so it persists on every sync
-
-#### 4. Types Update (`types.ts`)
-- Add `property_type?: string` to `TransformedRoomData`
-
-#### 5. Calendar Grouping (`CalendarAccommodation.tsx`)
-
-This is the main UI change. For Hostfully properties:
-
-- **Group PMS room data by `property_type`** (fetched from `hostfully_room_types` when building calendar data)
-- **Collapsible group header row**: Shows the category name (e.g., "Studio") with a chevron toggle and aggregated availability (sum of all units of that type per date)
-- **Expanded child rows**: Individual unit rows (e.g., "101 Studio", "103 Studio") with their own availability
-- **State management**: Add `expandedGroups` state (Set of group names) to track which categories are expanded
-- **Availability aggregation**: When collapsed, sum availability across all units in the group per date
-
-The grouping will:
-- Fetch `hostfully_room_types` with their `property_type` when loading a Hostfully property
-- Build a `Map<string, PMSRoomTypeData[]>` grouping rooms by `property_type`
-- Render a group header row (styled differently, with chevron) showing aggregated totals
-- On expand, render individual unit rows beneath
-
-#### 6. Fetch Room Categories
-- When a Hostfully property is selected in the calendar, query `hostfully_room_types` for that property to get the `property_type` groupings
-- Store this mapping alongside the PMS data for use in rendering
-
----
-
-### Technical Details
-
-**Category extraction regex:**
-```typescript
-function extractRoomCategory(name: string): string {
-  // Strip leading unit number (e.g., "101 Studio" -> "Studio")
-  return name.replace(/^\d+\s*/, '').trim() || name;
-}
-```
-
-**Calendar group rendering structure:**
-```text
-[v] Studio (3 units)          | 3 | 2 | 3 | ...  <- aggregated availability
-    101 Studio                | 1 | 0 | 1 | ...
-    103 Studio                | 1 | 1 | 1 | ...
-    109 Studio                | 1 | 1 | 1 | ...
-[>] Compact Studio (2 units)  | 2 | 1 | 2 | ...  <- collapsed, aggregated
-[v] Urban Pod (3 units)       | 3 | 3 | 2 | ...
-    105 Urban Pod             | 1 | 1 | 0 | ...
-    106 Urban Pod             | 1 | 1 | 1 | ...
-    107 Urban Pod             | 1 | 1 | 1 | ...
-```
-
-**Files to modify:**
-- `supabase/functions/hostfully-api/ingestion/types.ts` -- add `property_type` to `TransformedRoomData`
-- `supabase/functions/hostfully-api/ingestion/transformers.ts` -- extract category in `transformRooms()`
-- `supabase/functions/hostfully-api/ingestion/writer.ts` -- include `property_type` in upsert
-- `src/pages/CalendarAccommodation.tsx` -- grouping logic, collapsible UI, aggregated availability
-- New database migration -- backfill existing `property_type` values
-
+### AI Credits Impact
+- Lovable AI: ~1 call per brochure (poem generation, ~200 tokens)
+- xAI: Only used by `enrich-property-experiences` when dining data is missing (called once per property, cached in `local_experiences` table thereafter)
