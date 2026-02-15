@@ -73,8 +73,8 @@ interface CostLineItem {
 }
 
 const Booking = () => {
-  useBrandOverride();
   const { id } = useParams<{ id: string }>();
+  useBrandOverride(id);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   

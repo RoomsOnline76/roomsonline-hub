@@ -23,8 +23,8 @@ interface Property {
 }
 
 export default function RoomAvailability() {
-  useBrandOverride();
   const { propertySlug, roomSlug } = useParams<{ propertySlug: string; roomSlug: string }>();
+  useBrandOverride(propertySlug);
   const [property, setProperty] = useState<Property | null>(null);
   const [room, setRoom] = useState<RoomType | null>(null);
   const [loading, setLoading] = useState(true);

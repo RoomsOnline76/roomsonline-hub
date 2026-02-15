@@ -127,9 +127,9 @@ const facilityIcons: Record<string, any> = {
 // Bed config labels are now handled by the bedConfig utility
 
 export default function RoomShowcase() {
-  useBrandOverride();
   const navigate = useNavigate();
   const { propertySlug, roomSlug } = useParams<{ propertySlug: string; roomSlug: string }>();
+  useBrandOverride(propertySlug);
   const [searchParams] = useSearchParams();
   const { currency } = useCurrency();
   const { addStay } = useItinerary();
