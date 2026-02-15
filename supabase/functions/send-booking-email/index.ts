@@ -105,9 +105,40 @@ function replaceTemplateVariables(template: string, booking: any, property: any)
   return result;
 }
 
-// Wrap custom template content in email wrapper
-// Note: Custom templates already include their own footer, so we don't add another one
+// Strip any hardcoded ROL footer/branding from custom template content
+function stripRolBrandingFromCustomContent(content: string): string {
+  // Remove the hardcoded ROL footer block that custom templates may include
+  // Pattern: a div with "Kind regards" + "RoomsOnline on behalf of" + ROL logo
+  const footerPatterns = [
+    // Full footer div block with ROL logo
+    /<div[^>]*style="[^"]*background-color:\s*#fafafa[^"]*"[^>]*>[\s\S]*?RoomsOnline[\s\S]*?<\/div>\s*$/i,
+    // Trailing div that contains "on behalf of" and ROL logo
+    /<div[^>]*>[\s\S]*?RoomsOnline on behalf of[\s\S]*?rol-logo[\s\S]*?<\/div>\s*$/i,
+    // Any trailing section with the ROL logo image
+    /<div[^>]*style="[^"]*padding:\s*30px[^"]*background-color:\s*#fafafa[^"]*"[^>]*>[\s\S]*?<img[^>]*rol-logo[^>]*>[\s\S]*?<\/div>\s*$/i,
+  ];
+  
+  let cleaned = content;
+  for (const pattern of footerPatterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+  
+  // Also replace hardcoded #e91e8c accent color with property brand color if needed
+  return cleaned;
+}
+
+// Wrap custom template content in email wrapper, applying property branding when enabled
 function wrapCustomTemplate(customContent: string, property: any): string {
+  const brand = resolveBranding(property);
+  
+  // If property has branding enabled, strip any hardcoded ROL elements from custom content
+  let processedContent = customContent;
+  if (brand.isBranded) {
+    processedContent = stripRolBrandingFromCustomContent(customContent);
+    // Replace hardcoded ROL pink with property brand color
+    processedContent = processedContent.replace(/#e91e8c/gi, brand.accentColor);
+  }
+  
   return `
 <!DOCTYPE html>
 <html>
@@ -122,15 +153,19 @@ function wrapCustomTemplate(customContent: string, property: any): string {
       <td align="center" style="padding: 40px 20px;">
         <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
           
-          <!-- Custom Content (includes its own header and footer) -->
+          ${generateEmailHeader(brand, property)}
+
+          <!-- Custom Content -->
           <tr>
-            <td>
+            <td style="padding: ${brand.isBranded ? '20px 40px' : '0'};">
               <div style="color: #333; line-height: 1.6;">
-                ${customContent}
+                ${processedContent}
               </div>
             </td>
           </tr>
           
+          ${generateEmailFooter(brand, property)}
+
         </table>
       </td>
     </tr>
