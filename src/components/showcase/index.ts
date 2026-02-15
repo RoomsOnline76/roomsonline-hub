@@ -2,6 +2,9 @@
 export { RunwayHero } from './RunwayHero';
 export { QuietFacts } from './QuietFacts';
 export { RoomCollection } from './RoomCollection';
+export { CategoryCollection } from './CategoryCollection';
+export { BuildingIntro } from './BuildingIntro';
+export { BuildingGallery } from './BuildingGallery';
 export { ProseFacilities } from './ProseFacilities';
 export { RunwayReviews } from './RunwayReviews';
 export { InvitationMap } from './InvitationMap';
