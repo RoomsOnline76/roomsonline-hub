@@ -4351,6 +4351,11 @@ export type Database = {
           amenities: Json | null
           bathrooms: number | null
           bedrooms: number | null
+          brand_font_color: string | null
+          brand_logo_url: string | null
+          brand_override_enabled: boolean | null
+          brand_primary_color: string | null
+          brand_secondary_color: string | null
           city: string | null
           country: string | null
           created_at: string | null
@@ -4377,6 +4382,11 @@ export type Database = {
           amenities?: Json | null
           bathrooms?: number | null
           bedrooms?: number | null
+          brand_font_color?: string | null
+          brand_logo_url?: string | null
+          brand_override_enabled?: boolean | null
+          brand_primary_color?: string | null
+          brand_secondary_color?: string | null
           city?: string | null
           country?: string | null
           created_at?: string | null
@@ -4403,6 +4413,11 @@ export type Database = {
           amenities?: Json | null
           bathrooms?: number | null
           bedrooms?: number | null
+          brand_font_color?: string | null
+          brand_logo_url?: string | null
+          brand_override_enabled?: boolean | null
+          brand_primary_color?: string | null
+          brand_secondary_color?: string | null
           city?: string | null
           country?: string | null
           created_at?: string | null
