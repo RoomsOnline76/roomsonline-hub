@@ -68,6 +68,7 @@ const getPMSIcon = (systemType: string | null): LucideIcon => {
     case "hotelbeds":
     case "roomkey":
     case "roomracoon":
+    case "profitroom":
       return BedDouble;
     case "google":
       return MapPin;
@@ -4084,6 +4085,11 @@ export default function AdminKeys() {
           {/* Little Hotelier hidden - no longer required */}
           {renderNightsbridgeCard()}
           {/* Rentals United hidden - no longer required */}
+          {renderPlaceholderPMSCard(
+            "ProfitRoom",
+            "profitroom",
+            "Hotel management platform with booking engine, channel manager, and CRS",
+          )}
           {renderPlaceholderPMSCard(
             "RoomKey",
             "roomkey",
