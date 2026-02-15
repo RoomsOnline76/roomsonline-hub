@@ -30,6 +30,9 @@ import {
   RunwayHero,
   QuietFacts,
   RoomCollection,
+  CategoryCollection,
+  BuildingIntro,
+  BuildingGallery,
   ProseFacilities,
   RunwayReviews,
   InvitationMap,
@@ -778,22 +781,56 @@ export default function PropertyShowcase() {
         onScrollDown={scrollToRooms}
       />
 
-      {/* Act II: The Quiet Facts */}
-      <QuietFacts
-        facts={proseFacts}
-        editorialBlurb={editorialBlurb?.content}
-      />
+      {/* Building Introduction (Hostfully multi-unit properties) */}
+      {isHostfullyProperty && (
+        <BuildingIntro
+          description={property.description}
+          address={property.address}
+          city={property.city}
+          checkInTime={property.amenities?.check_in_time}
+          checkOutTime={property.amenities?.check_out_time}
+          totalUnits={roomTypes.length}
+        />
+      )}
 
-      {/* Act III: The Collection */}
-      <RoomCollection
-        rooms={roomTypes}
-        getLowestRate={getLowestRateForRoom}
-        getAvailability={getRemainingAvailability}
-        onRoomClick={handleRoomClick}
-        propertyImages={property.images}
-        unitLabel={unitLabel}
-        unitLabelPlural={unitLabelPlural}
-      />
+      {/* Act II: The Quiet Facts (non-Hostfully or if no description) */}
+      {!isHostfullyProperty && (
+        <QuietFacts
+          facts={proseFacts}
+          editorialBlurb={editorialBlurb?.content}
+        />
+      )}
+
+      {/* Building Photo Gallery (Hostfully multi-unit) */}
+      {isHostfullyProperty && property.images && property.images.length > 1 && (
+        <BuildingGallery
+          images={property.images}
+          propertyName={property.name}
+        />
+      )}
+
+      {/* Act III: The Collection - Category view for Hostfully, individual for others */}
+      {isHostfullyProperty && roomTypes.length > 4 ? (
+        <CategoryCollection
+          rooms={roomTypes}
+          getLowestRate={getLowestRateForRoom}
+          getAvailability={getRemainingAvailability}
+          onRoomClick={handleRoomClick}
+          propertyImages={property.images}
+          unitLabel={unitLabel}
+          unitLabelPlural={unitLabelPlural}
+        />
+      ) : (
+        <RoomCollection
+          rooms={roomTypes}
+          getLowestRate={getLowestRateForRoom}
+          getAvailability={getRemainingAvailability}
+          onRoomClick={handleRoomClick}
+          propertyImages={property.images}
+          unitLabel={unitLabel}
+          unitLabelPlural={unitLabelPlural}
+        />
+      )}
 
       {/* Amenities as Prose */}
       <ProseFacilities facilities={facilities} />
