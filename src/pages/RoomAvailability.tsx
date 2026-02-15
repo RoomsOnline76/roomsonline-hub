@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useBrandOverride } from "@/hooks/useBrandOverride";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ interface Property {
 }
 
 export default function RoomAvailability() {
+  useBrandOverride();
   const { propertySlug, roomSlug } = useParams<{ propertySlug: string; roomSlug: string }>();
   const [property, setProperty] = useState<Property | null>(null);
   const [room, setRoom] = useState<RoomType | null>(null);

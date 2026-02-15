@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useBrandOverride } from "@/hooks/useBrandOverride";
 import { supabase } from "@/integrations/supabase/client";
 import { getPropertyUrl, getNightsBridgeBookingUrl } from "@/lib/config";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -126,6 +127,7 @@ const facilityIcons: Record<string, any> = {
 // Bed config labels are now handled by the bedConfig utility
 
 export default function RoomShowcase() {
+  useBrandOverride();
   const navigate = useNavigate();
   const { propertySlug, roomSlug } = useParams<{ propertySlug: string; roomSlug: string }>();
   const [searchParams] = useSearchParams();

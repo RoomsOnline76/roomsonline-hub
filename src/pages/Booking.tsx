@@ -1,4 +1,5 @@
 import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
+import { useBrandOverride } from "@/hooks/useBrandOverride";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PublicLayout } from "@/components/layout/PublicLayout";
@@ -72,6 +73,7 @@ interface CostLineItem {
 }
 
 const Booking = () => {
+  useBrandOverride();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
