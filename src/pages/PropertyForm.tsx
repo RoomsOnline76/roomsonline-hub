@@ -381,6 +381,10 @@ export default function PropertyForm() {
   const [websiteSyncSuggestions, setWebsiteSyncSuggestions] = useState<WebsiteSyncSuggestion[]>([]);
   const [websiteSyncUrl, setWebsiteSyncUrl] = useState("");
 
+  // Linked owners state
+  const [linkedOwners, setLinkedOwners] = useState<Array<{ id: string; user_id: string; owner_email: string; owner_name: string | null }>>([]);
+  const [linkedOwnerSearch, setLinkedOwnerSearch] = useState("");
+
   const [ownerHostfullyCredential, setOwnerHostfullyCredential] = useState<any>(null);
   const [loadingOwnerCredential, setLoadingOwnerCredential] = useState(false);
   const [connectingHostfullyOAuth, setConnectingHostfullyOAuth] = useState(false);
@@ -2996,6 +3000,17 @@ export default function PropertyForm() {
             setTripadvisorId(amenities.external_ids.tripadvisor_id);
           }
 
+          // Load linked owners
+          if (data.id) {
+            supabase
+              .from("property_owners")
+              .select("id, user_id, owner_email, owner_name")
+              .eq("property_id", data.id)
+              .then(({ data: linkedData }) => {
+                if (linkedData) setLinkedOwners(linkedData);
+              });
+          }
+
           // Set property slug for room URLs
           if (data.slug) {
             setPropertySlug(data.slug);
@@ -4782,6 +4797,99 @@ export default function PropertyForm() {
                               </SelectContent>
                             </Select>
                           </div>
+                          {/* Linked Additional Owners */}
+                          {propertyId && (isAdmin || isDev) && (
+                            <div className="flex flex-col gap-1 col-span-2">
+                              <Label className="text-xs">Additional Owners</Label>
+                              {linkedOwners.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mb-1">
+                                  {linkedOwners.map((lo) => (
+                                    <Badge key={lo.id} variant="secondary" className="text-xs gap-1 pr-1">
+                                      {lo.owner_name || lo.owner_email}
+                                      <button
+                                        type="button"
+                                        className="ml-0.5 hover:text-destructive"
+                                        onClick={async () => {
+                                          const { error } = await supabase
+                                            .from("property_owners")
+                                            .delete()
+                                            .eq("id", lo.id);
+                                          if (!error) {
+                                            setLinkedOwners((prev) => prev.filter((o) => o.id !== lo.id));
+                                            toast({ title: "Owner removed", description: `${lo.owner_email} unlinked from property` });
+                                          }
+                                        }}
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                              <div className="relative">
+                                <Input
+                                  placeholder="Search owners to add..."
+                                  value={linkedOwnerSearch}
+                                  onChange={(e) => setLinkedOwnerSearch(e.target.value)}
+                                  className="h-7 text-xs"
+                                />
+                                {linkedOwnerSearch.length >= 2 && (
+                                  <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-40 overflow-y-auto">
+                                    {owners
+                                      .filter((o) => {
+                                        // Exclude primary owner and already linked
+                                        if (o.email === formData.owner_email) return false;
+                                        if (linkedOwners.some((lo) => lo.user_id === o.id)) return false;
+                                        const q = linkedOwnerSearch.toLowerCase();
+                                        return (
+                                          o.email?.toLowerCase().includes(q) ||
+                                          o.full_name?.toLowerCase().includes(q)
+                                        );
+                                      })
+                                      .slice(0, 8)
+                                      .map((o) => (
+                                        <button
+                                          key={o.id}
+                                          type="button"
+                                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent flex justify-between items-center"
+                                          onClick={async () => {
+                                            const { data: inserted, error } = await supabase
+                                              .from("property_owners")
+                                              .insert({
+                                                property_id: propertyId,
+                                                user_id: o.id,
+                                                owner_email: o.email,
+                                                owner_name: o.full_name || null,
+                                                added_by: user?.id,
+                                              })
+                                              .select("id, user_id, owner_email, owner_name")
+                                              .single();
+                                            if (!error && inserted) {
+                                              setLinkedOwners((prev) => [...prev, inserted]);
+                                              setLinkedOwnerSearch("");
+                                              toast({ title: "Owner linked", description: `${o.full_name || o.email} added as additional owner` });
+                                            } else if (error) {
+                                              toast({ title: "Failed to link", description: error.message, variant: "destructive" });
+                                            }
+                                          }}
+                                        >
+                                          <span>{o.full_name || o.email}</span>
+                                          <span className="text-muted-foreground">{o.email}</span>
+                                        </button>
+                                      ))}
+                                    {owners.filter((o) => {
+                                      if (o.email === formData.owner_email) return false;
+                                      if (linkedOwners.some((lo) => lo.user_id === o.id)) return false;
+                                      const q = linkedOwnerSearch.toLowerCase();
+                                      return o.email?.toLowerCase().includes(q) || o.full_name?.toLowerCase().includes(q);
+                                    }).length === 0 && (
+                                      <div className="px-3 py-2 text-xs text-muted-foreground">No matching owners found</div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                           <div className="flex flex-col gap-1 col-span-2">
                             <Label htmlFor="property_url" className="text-xs">
                               Property Website
