@@ -19,15 +19,13 @@ export interface WebsiteSyncResponse {
 export async function syncFromWebsite(
   propertyId: string,
   propertyUrl: string,
-  existingData: Record<string, unknown>,
-  tripadvisorId?: string
+  existingData: Record<string, unknown>
 ): Promise<WebsiteSyncResponse> {
   const { data, error } = await supabase.functions.invoke("ai-website-sync", {
     body: {
       property_id: propertyId,
       property_url: propertyUrl,
       existing_data: existingData,
-      tripadvisor_id: tripadvisorId || undefined,
     },
   });
 
