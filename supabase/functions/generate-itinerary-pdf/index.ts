@@ -237,7 +237,7 @@ Make it warm, personal, and memorable.
 The poem should evoke the magic of African hospitality and the anticipation of their journey.
 Only return the poem, no explanations or titles.`;
 
-    const response = await fetch("https://api.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

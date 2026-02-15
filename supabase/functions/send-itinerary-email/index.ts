@@ -330,17 +330,75 @@ Deno.serve(async (req) => {
     // Property names for subject
     const propertyNames = enrichedStays.map(s => s.propertyName).join(" → ");
 
-    // NOTE: Brochure is now available as a download link in the email, not as an attachment
-    // This provides a better user experience and avoids large email attachments
-    console.log(`[Itinerary Email] Brochure will be available via download link for itinerary ${itinerary_id}`);
+    // --- Step 1: Trigger experience enrichment for properties with sparse data ---
+    console.log(`[Itinerary Email] Checking experience enrichment for ${propertyIds.length} properties`);
+    for (const propId of propertyIds) {
+      const { count } = await supabase
+        .from("local_experiences")
+        .select("id", { count: "exact", head: true })
+        .eq("property_id", propId)
+        .eq("is_active", true);
 
-    // Send email to guest (no attachment - brochure available via download link)
-    const { data: emailData, error: emailError } = await resend.emails.send({
+      if ((count || 0) < 3) {
+        console.log(`[Itinerary Email] Property ${propId} has ${count || 0} experiences, triggering enrichment`);
+        try {
+          await fetch(`${supabaseUrl}/functions/v1/enrich-property-experiences`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${supabaseKey}`,
+            },
+            body: JSON.stringify({ property_id: propId }),
+          });
+        } catch (enrichErr) {
+          console.warn(`[Itinerary Email] Enrichment failed for ${propId}:`, enrichErr);
+        }
+      }
+    }
+
+    // --- Step 2: Generate brochure via generate-itinerary-pdf ---
+    let brochureHtml: string | null = null;
+    try {
+      console.log(`[Itinerary Email] Generating brochure for itinerary ${itinerary_id}`);
+      const brochureResponse = await fetch(`${supabaseUrl}/functions/v1/generate-itinerary-pdf`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({ itinerary_id }),
+      });
+
+      if (brochureResponse.ok) {
+        const brochureData = await brochureResponse.json();
+        brochureHtml = brochureData.html || null;
+        console.log(`[Itinerary Email] Brochure generated successfully (${brochureHtml?.length || 0} chars)`);
+      } else {
+        console.warn(`[Itinerary Email] Brochure generation returned ${brochureResponse.status}`);
+      }
+    } catch (brochureErr) {
+      console.warn("[Itinerary Email] Brochure generation failed:", brochureErr);
+    }
+
+    // --- Step 3: Send email with brochure attachment if available ---
+    const emailPayload: any = {
       from: "RoomsOnline <hello@notify.roomsonline.co.za>",
       to: [itinerary.guest_email],
       subject: `Your Journey is Confirmed! | ${propertyNames}`,
       html: emailHtml,
-    });
+    };
+
+    if (brochureHtml) {
+      emailPayload.attachments = [
+        {
+          filename: `Journey-Brochure-${itinerary.id.substring(0, 8).toUpperCase()}.html`,
+          content: btoa(brochureHtml),
+          content_type: "text/html",
+        },
+      ];
+    }
+
+    const { data: emailData, error: emailError } = await resend.emails.send(emailPayload);
 
     if (emailError) {
       console.error("Error sending email:", emailError);
