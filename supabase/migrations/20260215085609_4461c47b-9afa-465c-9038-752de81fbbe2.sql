@@ -1,0 +1,1 @@
+ALTER TABLE public.properties ADD COLUMN brand_override_enabled boolean NOT NULL DEFAULT false;
