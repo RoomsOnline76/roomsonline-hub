@@ -3293,6 +3293,51 @@ export type Database = {
           },
         ]
       }
+      property_owners: {
+        Row: {
+          added_by: string | null
+          created_at: string
+          id: string
+          owner_email: string
+          owner_name: string | null
+          property_id: string
+          user_id: string
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          owner_email: string
+          owner_name?: string | null
+          property_id: string
+          user_id: string
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          owner_email?: string
+          owner_name?: string | null
+          property_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_owners_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_owners_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_rates: {
         Row: {
           amount: number
@@ -4409,6 +4454,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_linked_owner: {
+        Args: { _property_id: string; _user_id: string }
         Returns: boolean
       }
       is_property_active: { Args: { prop_id: string }; Returns: boolean }
