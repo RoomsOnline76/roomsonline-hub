@@ -1,4 +1,5 @@
 import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
+import { useBrandOverride } from "@/hooks/useBrandOverride";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PublicLayout } from "@/components/layout/PublicLayout";
@@ -28,6 +29,7 @@ interface RoomBooking {
 }
 
 const BookingConfirmation = () => {
+  useBrandOverride();
   const { bookingId } = useParams<{ bookingId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
