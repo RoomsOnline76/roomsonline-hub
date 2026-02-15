@@ -67,6 +67,21 @@ function ContrastBadge({ ratio }: { ratio: number }) {
   );
 }
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const clean = hex.replace("#", "");
+  if (clean.length !== 6) return null;
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return null;
+  return { r, g, b };
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+  return `#${clamp(r).toString(16).padStart(2, "0")}${clamp(g).toString(16).padStart(2, "0")}${clamp(b).toString(16).padStart(2, "0")}`;
+}
+
 function ColorField({
   label,
   description,
@@ -78,6 +93,18 @@ function ColorField({
   value: string;
   onChange: (val: string) => void;
 }) {
+  const rgb = hexToRgb(value || "");
+  const handleRgbChange = (channel: "r" | "g" | "b", raw: string) => {
+    const num = parseInt(raw, 10);
+    if (isNaN(num)) return;
+    const current = rgb || { r: 0, g: 0, b: 0 };
+    onChange(rgbToHex(
+      channel === "r" ? num : current.r,
+      channel === "g" ? num : current.g,
+      channel === "b" ? num : current.b,
+    ));
+  };
+
   return (
     <div className="space-y-2">
       <Label className="text-sm font-medium">{label}</Label>
@@ -94,14 +121,22 @@ function ColorField({
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder="#000000"
-          className="font-mono text-sm max-w-[160px]"
+          className="font-mono text-sm max-w-[120px]"
         />
         {value && (
           <div
-            className="h-10 flex-1 rounded-md border border-border"
+            className="h-10 w-10 shrink-0 rounded-md border border-border"
             style={{ backgroundColor: value }}
           />
         )}
+      </div>
+      <div className="flex items-center gap-2 mt-1">
+        <span className="text-xs text-muted-foreground w-6">R</span>
+        <Input type="number" min={0} max={255} value={rgb?.r ?? ""} onChange={(e) => handleRgbChange("r", e.target.value)} className="font-mono text-sm h-8 max-w-[72px]" placeholder="0" />
+        <span className="text-xs text-muted-foreground w-6">G</span>
+        <Input type="number" min={0} max={255} value={rgb?.g ?? ""} onChange={(e) => handleRgbChange("g", e.target.value)} className="font-mono text-sm h-8 max-w-[72px]" placeholder="0" />
+        <span className="text-xs text-muted-foreground w-6">B</span>
+        <Input type="number" min={0} max={255} value={rgb?.b ?? ""} onChange={(e) => handleRgbChange("b", e.target.value)} className="font-mono text-sm h-8 max-w-[72px]" placeholder="0" />
       </div>
     </div>
   );
