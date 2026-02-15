@@ -29,7 +29,7 @@ interface RoomBooking {
 }
 
 const BookingConfirmation = () => {
-  useBrandOverride();
+  useBrandOverride(); // Reads from sessionStorage (set during booking flow)
   const { bookingId } = useParams<{ bookingId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
