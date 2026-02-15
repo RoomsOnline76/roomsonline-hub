@@ -91,7 +91,7 @@ serve(async (req) => {
   }
 
   try {
-    const { property_id, property_url, existing_data } = await req.json();
+    const { property_id, property_url, existing_data, tripadvisor_id } = await req.json();
 
     if (!property_url) {
       return new Response(
@@ -172,7 +172,7 @@ serve(async (req) => {
       );
     }
 
-    const websiteContent = scrapeData.data?.markdown || scrapeData.markdown || "";
+    let websiteContent = scrapeData.data?.markdown || scrapeData.markdown || "";
     
     if (!websiteContent || websiteContent.length < 50) {
       return new Response(
@@ -185,6 +185,41 @@ serve(async (req) => {
     }
 
     console.log("Scraped content length:", websiteContent.length);
+
+    // Step 1b: If TripAdvisor ID is available, also scrape TripAdvisor for additional data
+    if (tripadvisor_id) {
+      const taUrl = `https://www.tripadvisor.com/Hotel_Review-d${tripadvisor_id}`;
+      console.log("Also scraping TripAdvisor:", taUrl);
+
+      try {
+        const taResponse = await fetch("https://api.firecrawl.dev/v1/scrape", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${firecrawlApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url: taUrl,
+            formats: ["markdown"],
+            onlyMainContent: true,
+          }),
+        });
+
+        const taData = await taResponse.json();
+        const taContent = taData.data?.markdown || taData.markdown || "";
+
+        if (taContent && taContent.length > 100) {
+          console.log("TripAdvisor content length:", taContent.length);
+          // Append TripAdvisor content as supplementary source
+          websiteContent += "\n\n--- TRIPADVISOR LISTING ---\n\n" + taContent.substring(0, 10000);
+        } else {
+          console.log("TripAdvisor scrape returned minimal content, skipping");
+        }
+      } catch (taErr) {
+        console.warn("TripAdvisor scrape failed (non-fatal):", taErr);
+        // Non-fatal: continue with just the property website content
+      }
+    }
 
     // Step 2: Use AI to extract structured data
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
