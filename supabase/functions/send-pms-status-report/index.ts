@@ -56,6 +56,7 @@ const getPMSDisplayName = (key: string): string => {
     siteminder: "SiteMinder",
     roomsonline: "RoomsOnline PMS",
     mews: "Mews",
+    profitroom: "ProfitRoom",
   };
   return names[key] || key.charAt(0).toUpperCase() + key.slice(1);
 };
