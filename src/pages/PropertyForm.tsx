@@ -78,8 +78,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import RichTextEditor from "@/components/RichTextEditor";
 import { pmsIntegrationStatus } from "@/components/ApiMilestones";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Sparkles, Globe } from "lucide-react";
+import { AlertTriangle, Sparkles, Globe, Palette } from "lucide-react";
 import { ROLSpecTab } from "@/components/property/ROLSpecTab";
+import { BrandingTab, BrandingData } from "@/components/property/BrandingTab";
 import { ContextualHelp, ImpactWarning } from "@/components/help";
 import { OwnerPMSConnectionCard } from "@/components/pms/OwnerPMSConnectionCard";
 import { parseHostfullyProperties } from "@/lib/hostfullyBuildingParser";
@@ -1887,6 +1888,14 @@ export default function PropertyForm() {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
+  // Branding state
+  const [brandingData, setBrandingData] = useState<BrandingData>({
+    brand_logo_url: "",
+    brand_primary_color: "",
+    brand_secondary_color: "",
+    brand_font_color: "",
+  });
+
   // ROL Spec state
   const [rolSpecData, setRolSpecData] = useState({
     hero_listing: false,
@@ -3070,6 +3079,14 @@ export default function PropertyForm() {
             navigation_tags: (data as any).navigation_tags || [],
           });
 
+          // Load branding fields
+          setBrandingData({
+            brand_logo_url: (data as any).brand_logo_url || "",
+            brand_primary_color: (data as any).brand_primary_color || "",
+            brand_secondary_color: (data as any).brand_secondary_color || "",
+            brand_font_color: (data as any).brand_font_color || "",
+          });
+
           // Load is_rol_property
           setIsRolProperty((data as any).is_rol_property ?? false);
 
@@ -3707,6 +3724,11 @@ export default function PropertyForm() {
         who_its_not_for: rolSpecData.who_its_not_for || null,
         owner_notes: rolSpecData.owner_notes || null,
         navigation_tags: rolSpecData.navigation_tags || [],
+        // Branding fields
+        brand_logo_url: brandingData.brand_logo_url || null,
+        brand_primary_color: brandingData.brand_primary_color || null,
+        brand_secondary_color: brandingData.brand_secondary_color || null,
+        brand_font_color: brandingData.brand_font_color || null,
         amenities: {
           offerings: {
             accommodation: isAccommodation,
@@ -4124,6 +4146,7 @@ export default function PropertyForm() {
                 { value: "onboarding", icon: Sparkles, label: "Onboarding", highlight: false, highlightBlue: true, onboardingOnly: true },
                 { value: "general", icon: Home, label: "General", highlight: false },
                 { value: "rol-spec", icon: Sparkles, label: "ROL Spec", highlight: true },
+                { value: "branding", icon: Palette, label: "Branding", highlight: false },
                 { value: "info-facilities", icon: Building2, label: "Info & Facilities", highlight: false },
                 { value: "house-rules", icon: FileText, label: "House Rules", highlight: false },
                 { value: "images", icon: Image, label: "Images", highlight: false },
@@ -4142,7 +4165,7 @@ export default function PropertyForm() {
                     // NightsBridge filtering
                     if (selectedPMS === "nightsbridge") {
                       return tab.value === "general" || tab.value === "rol-spec" || 
-                             tab.value === "images" || tab.value === "rooms" || tab.value === "onboarding";
+                             tab.value === "branding" || tab.value === "images" || tab.value === "rooms" || tab.value === "onboarding";
                     }
                     return true;
                   }
@@ -5824,6 +5847,15 @@ export default function PropertyForm() {
                       : undefined,
                   })),
                 }}
+                onDirty={() => setIsDirty(true)}
+              />
+            </TabsContent>
+
+            <TabsContent value="branding">
+              <BrandingTab
+                data={brandingData}
+                onChange={setBrandingData}
+                propertyId={propertyId}
                 onDirty={() => setIsDirty(true)}
               />
             </TabsContent>

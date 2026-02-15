@@ -2,3 +2,5 @@ export { QualityGateIndicator, useActivationReadiness } from './QualityGateIndic
 export { ReviewActionPanel } from './ReviewActionPanel';
 export { ProgressDashboard } from './ProgressDashboard';
 export { RatesOverviewPanel } from './RatesOverviewPanel';
+export { BrandingTab } from './BrandingTab';
+export type { BrandingData } from './BrandingTab';

@@ -2495,6 +2495,10 @@ export type Database = {
           bedrooms: number | null
           benson_environment: string | null
           benson_property_code: string | null
+          brand_font_color: string | null
+          brand_logo_url: string | null
+          brand_primary_color: string | null
+          brand_secondary_color: string | null
           checkfront_property_code: string | null
           city: string
           cloudbeds_property_id: string | null
@@ -2558,6 +2562,10 @@ export type Database = {
           bedrooms?: number | null
           benson_environment?: string | null
           benson_property_code?: string | null
+          brand_font_color?: string | null
+          brand_logo_url?: string | null
+          brand_primary_color?: string | null
+          brand_secondary_color?: string | null
           checkfront_property_code?: string | null
           city: string
           cloudbeds_property_id?: string | null
@@ -2621,6 +2629,10 @@ export type Database = {
           bedrooms?: number | null
           benson_environment?: string | null
           benson_property_code?: string | null
+          brand_font_color?: string | null
+          brand_logo_url?: string | null
+          brand_primary_color?: string | null
+          brand_secondary_color?: string | null
           checkfront_property_code?: string | null
           city?: string
           cloudbeds_property_id?: string | null
