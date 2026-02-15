@@ -140,12 +140,68 @@ function wrapCustomTemplate(customContent: string, property: any): string {
   `;
 }
 
+// Helper: resolve branding for a property
+function resolveBranding(property: any): { accentColor: string; logoUrl: string; senderName: string; isBranded: boolean; secondaryColor: string; fontColor: string } {
+  const isBranded = !!property.brand_override_enabled;
+  return {
+    isBranded,
+    accentColor: (isBranded && property.brand_primary_color) ? property.brand_primary_color : "#e91e8c",
+    secondaryColor: (isBranded && property.brand_secondary_color) ? property.brand_secondary_color : "#ffffff",
+    fontColor: (isBranded && property.brand_font_color) ? property.brand_font_color : "#333333",
+    logoUrl: (isBranded && property.brand_logo_url) ? property.brand_logo_url : "https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png",
+    senderName: isBranded ? property.name : "Sleep in Africa by RoomsOnline",
+  };
+}
+
+// Helper: generate the email header row with logo
+function generateEmailHeader(brand: ReturnType<typeof resolveBranding>, property: any): string {
+  if (brand.isBranded) {
+    return `
+      <tr>
+        <td style="padding: 30px 40px 15px; text-align: center; background-color: ${brand.accentColor}; border-radius: 8px 8px 0 0;">
+          <img src="${brand.logoUrl}" alt="${property.name}" style="max-width: 200px; max-height: 80px; height: auto;" />
+        </td>
+      </tr>
+    `;
+  }
+  return "";
+}
+
+// Helper: generate the email footer row
+function generateEmailFooter(brand: ReturnType<typeof resolveBranding>, property: any): string {
+  if (brand.isBranded) {
+    return `
+      <tr>
+        <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
+          <p style="margin: 0 0 8px; font-family: Georgia, serif; font-style: italic; color: #666; font-size: 14px;">Kind regards</p>
+          <p style="margin: 0 0 15px; color: #333; font-size: 14px; font-weight: 600;">${property.name}</p>
+          <div style="border-top: 1px solid #e5e5e5; padding-top: 15px; margin-top: 10px;">
+            <p style="margin: 0; color: #aaa; font-size: 11px;">Powered by <a href="https://roomsonline.co.za" style="color: #aaa; text-decoration: none;">RoomsOnline</a> · Rooms Done Right</p>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+  return `
+    <tr>
+      <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
+        <p style="margin: 0 0 8px; font-family: Georgia, serif; font-style: italic; color: #666; font-size: 14px;">Sleep in Africa like never before</p>
+        <p style="margin: 0 0 20px; color: #666; font-size: 14px;">Kind regards</p>
+        <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
+          Sleep in Africa by RoomsOnline on behalf of <strong>${property.name}</strong>
+        </p>
+        <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
+      </td>
+    </tr>
+  `;
+}
+
 // Generate success email HTML
 function generateSuccessEmail(booking: any, property: any, syncWarning?: string): string {
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
   const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
-  // Use property brand color if override is enabled, fallback to ROL pink
-  const accentColor = (property.brand_override_enabled && property.brand_primary_color) ? property.brand_primary_color : "#e91e8c";
+  const brand = resolveBranding(property);
+  const accentColor = brand.accentColor;
 
   // Build detailed rooms itinerary if multi-room with potential different dates
   let roomsItinerary = "";
@@ -222,9 +278,11 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
       <td align="center" style="padding: 40px 20px;">
         <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
           
-          <!-- Header -->
+          ${generateEmailHeader(brand, property)}
+
+          <!-- Confirmation Icon -->
           <tr>
-            <td style="padding: 40px 40px 20px; text-align: center; background-color: #ffffff; border-radius: 8px 8px 0 0;">
+            <td style="padding: ${brand.isBranded ? '25px' : '40px'} 40px 20px; text-align: center;">
               <div style="font-size: 32px; color: #22c55e; margin-bottom: 10px;">✓</div>
               <h1 style="margin: 0; font-size: 24px; color: #333; font-weight: 600;">Booking Confirmed!</h1>
               <p style="margin: 10px 0 0; color: #666; font-size: 14px;">Thank you for your booking</p>
@@ -381,17 +439,7 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
               : ""
           }
 
-          <!-- Footer -->
-          <tr>
-            <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
-              <p style="margin: 0 0 8px; font-family: Georgia, serif; font-style: italic; color: #666; font-size: 14px;">Sleep in Africa like never before</p>
-              <p style="margin: 0 0 20px; color: #666; font-size: 14px;">Kind regards</p>
-              <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
-                Sleep in Africa by RoomsOnline on behalf of <strong>${property.name}</strong>
-              </p>
-              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
-            </td>
-          </tr>
+          ${generateEmailFooter(brand, property)}
           
         </table>
       </td>
@@ -404,7 +452,8 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
 
 // Generate failure email HTML
 function generateFailureEmail(booking: any, property: any, errorMessage?: string): string {
-  const accentColor = (property.brand_override_enabled && property.brand_primary_color) ? property.brand_primary_color : "#e91e8c";
+  const brand = resolveBranding(property);
+  const accentColor = brand.accentColor;
   return `
 <!DOCTYPE html>
 <html>
@@ -419,9 +468,11 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
       <td align="center" style="padding: 40px 20px;">
         <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
           
-          <!-- Header -->
+          ${generateEmailHeader(brand, property)}
+
+          <!-- Issue Icon -->
           <tr>
-            <td style="padding: 40px 40px 20px; text-align: center; background-color: #ffffff; border-radius: 8px 8px 0 0;">
+            <td style="padding: ${brand.isBranded ? '25px' : '40px'} 40px 20px; text-align: center;">
               <div style="font-size: 32px; color: #ef4444; margin-bottom: 10px;">⚠</div>
               <h1 style="margin: 0; font-size: 24px; color: #333; font-weight: 600;">Booking Issue</h1>
               <p style="margin: 10px 0 0; color: #666; font-size: 14px;">We encountered a problem with your reservation</p>
@@ -479,16 +530,7 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
             </td>
           </tr>
 
-          <!-- Footer -->
-          <tr>
-            <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
-              <p style="margin: 0 0 20px; color: #666; font-size: 14px;">Kind regards</p>
-              <p style="margin: 0 0 15px; color: #333; font-size: 14px;">
-                RoomsOnline on behalf of <strong>${property.name}</strong>
-              </p>
-              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
-            </td>
-          </tr>
+          ${generateEmailFooter(brand, property)}
           
         </table>
       </td>
@@ -683,9 +725,11 @@ function generatePropertyNotificationEmail(booking: any, property: any): string 
           <tr>
             <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
               <p style="margin: 0 0 15px; color: #666; font-size: 14px;">
-                This notification was sent by RoomsOnline on behalf of your guests.
+                This notification was sent on behalf of your guests.
               </p>
-              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 180px; height: auto;" />
+              <div style="border-top: 1px solid #e5e5e5; padding-top: 15px; margin-top: 10px;">
+                <p style="margin: 0; color: #aaa; font-size: 11px;">Powered by <a href="https://roomsonline.co.za" style="color: #aaa; text-decoration: none;">RoomsOnline</a> · Rooms Done Right</p>
+              </div>
             </td>
           </tr>
           
@@ -1038,7 +1082,12 @@ Deno.serve(async (req) => {
       .eq("key_name", "RESEND_FROM_EMAIL")
       .maybeSingle();
 
-    const fromEmail = emailConfig?.key_value || "RoomsOnline <hello@notify.roomsonline.co.za>";
+    const defaultFromEmail = emailConfig?.key_value || "RoomsOnline <hello@notify.roomsonline.co.za>";
+    
+    // Use property name as sender when branding is enabled
+    const fromEmail = (property.brand_override_enabled && property.name)
+      ? `${property.name} <noreply@notify.roomsonline.co.za>`
+      : defaultFromEmail;
 
     // Check for custom template in property amenities
     const amenities = property.amenities || {};
