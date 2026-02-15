@@ -917,7 +917,9 @@ async function handleFetchAvailability(
       
       if (units && units.length > 0) {
         // Filter to units with a valid hostfully_room_id (these are the actual bookable units)
-        unitRows = units.filter(u => u.hostfully_room_id && u.hostfully_room_id !== propertyUid);
+        // Note: Do NOT exclude the resolved propertyUid — for Hostfully standalone properties,
+        // the resolved UID is itself a bookable unit and must be included.
+        unitRows = units.filter(u => !!u.hostfully_room_id);
       }
     }
 
