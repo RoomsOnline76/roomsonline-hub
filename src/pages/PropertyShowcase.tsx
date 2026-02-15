@@ -824,7 +824,7 @@ export default function PropertyShowcase() {
         <NightsBridgeBookingContent 
           iframeUrl={iframeUrl} 
           propertyName={property.name}
-          tripadvisorId={property.amenities?.tripadvisor_id}
+          tripadvisorId={property.amenities?.external_ids?.tripadvisor_id || property.amenities?.tripadvisor_id}
           currency={currency}
         />
       </div>
