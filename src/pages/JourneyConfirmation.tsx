@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useBrandOverride } from '@/hooks/useBrandOverride';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Loader2, CheckCircle, AlertCircle, Download, Home, Calendar, Sparkles, Share2, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import { toast } from 'sonner';
 // PDF generation uses browser print dialog for better compatibility
 
 export default function JourneyConfirmation() {
+  useBrandOverride();
   const navigate = useNavigate();
   const { itineraryId } = useParams<{ itineraryId: string }>();
   const [searchParams] = useSearchParams();

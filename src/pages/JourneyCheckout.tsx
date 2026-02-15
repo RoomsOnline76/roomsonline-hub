@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useBrandOverride } from "@/hooks/useBrandOverride";
 import { supabase } from "@/integrations/supabase/client";
 import { useItinerary } from "@/contexts/ItineraryContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -26,6 +27,7 @@ import {
 } from "lucide-react";
 
 export default function JourneyCheckout() {
+  useBrandOverride();
   const navigate = useNavigate();
   const { currency } = useCurrency();
   const { 

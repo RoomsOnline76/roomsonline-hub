@@ -1,0 +1,118 @@
+/**
+ * Property Brand Override Utilities
+ * Manages CSS custom property injection for property-specific branding
+ * across the entire booking flow (showcase, calendar, checkout, confirmation).
+ */
+
+const BRAND_STORAGE_KEY = 'rol_property_brand';
+
+export interface PropertyBrand {
+  enabled: boolean;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  fontColor?: string | null;
+  logoUrl?: string | null;
+  propertyId: string;
+}
+
+/** Convert hex (#rrggbb) to "H S% L%" for CSS custom properties */
+export function hexToHsl(hex: string): string | null {
+  const clean = hex.replace("#", "");
+  if (clean.length < 6) return null;
+  let r = parseInt(clean.substring(0, 2), 16) / 255;
+  let g = parseInt(clean.substring(2, 4), 16) / 255;
+  let b = parseInt(clean.substring(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0, l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+  }
+  return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+}
+
+/** Determine best foreground for a given bg (white or black) */
+export function autoForeground(bgHex: string): string {
+  const clean = bgHex.replace("#", "");
+  if (clean.length < 6) return "0 0% 100%";
+  const r = parseInt(clean.substring(0, 2), 16) / 255;
+  const g = parseInt(clean.substring(2, 4), 16) / 255;
+  const b = parseInt(clean.substring(4, 6), 16) / 255;
+  const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  const lum = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+  return lum > 0.4 ? "220 20% 12%" : "0 0% 100%";
+}
+
+/** Compute CSS variable map from brand config */
+export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> {
+  if (!brand.enabled) return {};
+  const vars: Record<string, string> = {};
+
+  if (brand.primaryColor) {
+    const hsl = hexToHsl(brand.primaryColor);
+    if (hsl) {
+      vars["--primary"] = hsl;
+      vars["--primary-foreground"] = autoForeground(brand.primaryColor);
+      vars["--ring"] = hsl;
+    }
+  }
+  if (brand.secondaryColor) {
+    const hsl = hexToHsl(brand.secondaryColor);
+    if (hsl) {
+      vars["--secondary"] = hsl;
+      vars["--secondary-foreground"] = autoForeground(brand.secondaryColor);
+      vars["--muted"] = hsl;
+      vars["--muted-foreground"] = autoForeground(brand.secondaryColor);
+    }
+  }
+  if (brand.fontColor) {
+    const hsl = hexToHsl(brand.fontColor);
+    if (hsl) {
+      vars["--foreground"] = hsl;
+      vars["--card-foreground"] = hsl;
+      vars["--popover-foreground"] = hsl;
+    }
+  }
+  return vars;
+}
+
+/**
+ * Apply brand CSS vars to document.documentElement so all portals
+ * (drawers, dialogs, modals) inherit the overridden colours.
+ * Returns a cleanup function that removes the vars.
+ */
+export function applyBrandToDocument(brand: PropertyBrand): () => void {
+  const vars = buildBrandVarsMap(brand);
+  const root = document.documentElement;
+  const keys = Object.keys(vars);
+
+  keys.forEach((key) => root.style.setProperty(key, vars[key]));
+
+  return () => {
+    keys.forEach((key) => root.style.removeProperty(key));
+  };
+}
+
+/** Persist brand info to sessionStorage so downstream pages can read it */
+export function saveBrandToSession(brand: PropertyBrand): void {
+  sessionStorage.setItem(BRAND_STORAGE_KEY, JSON.stringify(brand));
+}
+
+/** Read brand info from sessionStorage */
+export function loadBrandFromSession(): PropertyBrand | null {
+  try {
+    const raw = sessionStorage.getItem(BRAND_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as PropertyBrand;
+  } catch {
+    return null;
+  }
+}
+
+/** Clear persisted brand info */
+export function clearBrandFromSession(): void {
+  sessionStorage.removeItem(BRAND_STORAGE_KEY);
+}

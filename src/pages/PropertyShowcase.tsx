@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { format, addDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -47,6 +47,7 @@ import {
   composeProseFacts,
   getEditorialBlurb,
 } from "@/lib/editorialUtils";
+import { applyBrandToDocument, saveBrandToSession, clearBrandFromSession, type PropertyBrand } from "@/lib/brandOverride";
 
 interface Property {
   id: string;
@@ -81,71 +82,7 @@ interface Property {
   brand_logo_url?: string | null;
 }
 
-/** Convert hex (#rrggbb) to "H S% L%" for CSS custom properties */
-function hexToHsl(hex: string): string | null {
-  const clean = hex.replace("#", "");
-  if (clean.length < 6) return null;
-  let r = parseInt(clean.substring(0, 2), 16) / 255;
-  let g = parseInt(clean.substring(2, 4), 16) / 255;
-  let b = parseInt(clean.substring(4, 6), 16) / 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0, l = (max + min) / 2;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
-    else if (max === g) h = ((b - r) / d + 2) / 6;
-    else h = ((r - g) / d + 4) / 6;
-  }
-  return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
-}
-
-/** Determine best foreground for a given bg (white or black) */
-function autoForeground(bgHex: string): string {
-  const clean = bgHex.replace("#", "");
-  if (clean.length < 6) return "0 0% 100%";
-  const r = parseInt(clean.substring(0, 2), 16) / 255;
-  const g = parseInt(clean.substring(2, 4), 16) / 255;
-  const b = parseInt(clean.substring(4, 6), 16) / 255;
-  const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
-  const lum = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
-  return lum > 0.4 ? "220 20% 12%" : "0 0% 100%";
-}
-
-/** Build CSS variable overrides when brand_override_enabled is true */
-function buildBrandCssVars(property: Property): React.CSSProperties | undefined {
-  if (!property.brand_override_enabled) return undefined;
-  const vars: Record<string, string> = {};
-  if (property.brand_primary_color) {
-    const hsl = hexToHsl(property.brand_primary_color);
-    if (hsl) {
-      vars["--primary"] = hsl;
-      vars["--primary-foreground"] = autoForeground(property.brand_primary_color);
-      vars["--ring"] = hsl;
-      // Regenerate gradients
-      vars["--hero-gradient"] = `linear-gradient(135deg, hsl(${hsl}) 0%, hsl(${hsl} / 0.85) 100%)`;
-      vars["--shadow-glow"] = `0 0 20px hsl(${hsl} / 0.15)`;
-    }
-  }
-  if (property.brand_secondary_color) {
-    const hsl = hexToHsl(property.brand_secondary_color);
-    if (hsl) {
-      vars["--secondary"] = hsl;
-      vars["--secondary-foreground"] = autoForeground(property.brand_secondary_color);
-      vars["--muted"] = hsl;
-      vars["--muted-foreground"] = autoForeground(property.brand_secondary_color);
-    }
-  }
-  if (property.brand_font_color) {
-    const hsl = hexToHsl(property.brand_font_color);
-    if (hsl) {
-      vars["--foreground"] = hsl;
-      vars["--card-foreground"] = hsl;
-      vars["--popover-foreground"] = hsl;
-    }
-  }
-  return Object.keys(vars).length > 0 ? (vars as unknown as React.CSSProperties) : undefined;
-}
+// Brand CSS utilities moved to src/lib/brandOverride.ts
 
 interface RoomType {
   id: string;
@@ -579,6 +516,31 @@ export default function PropertyShowcase() {
     fetchCalendarAvailability();
   }, [property?.id, property?.external_system, property?.amenities]);
 
+  // Apply brand override to document root (affects ALL portals: calendar drawers, modals, etc.)
+  const brandCleanupRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    brandCleanupRef.current?.();
+    brandCleanupRef.current = null;
+    if (property?.brand_override_enabled && property?.brand_primary_color) {
+      const brand: PropertyBrand = {
+        enabled: true,
+        primaryColor: property.brand_primary_color,
+        secondaryColor: property.brand_secondary_color,
+        fontColor: property.brand_font_color,
+        logoUrl: property.brand_logo_url,
+        propertyId: property.id,
+      };
+      brandCleanupRef.current = applyBrandToDocument(brand);
+      saveBrandToSession(brand);
+    } else {
+      clearBrandFromSession();
+    }
+    return () => {
+      brandCleanupRef.current?.();
+      clearBrandFromSession();
+    };
+  }, [property?.id, property?.brand_override_enabled, property?.brand_primary_color, property?.brand_secondary_color, property?.brand_font_color]);
+
   const scrollToRooms = () => {
     document.getElementById("rooms-section")?.scrollIntoView({ behavior: "smooth" });
   };
@@ -840,11 +802,11 @@ export default function PropertyShowcase() {
   const facilities = getFacilities();
   const lowestRate = getOverallLowestRate();
 
-  const brandCssVars = buildBrandCssVars(property);
+
 
   return (
     <PublicLayout hideHeader hideFooter>
-      <div style={brandCssVars}>
+      <div>
       {/* Act I: The Reveal */}
       <RunwayHero
         name={property.name}
