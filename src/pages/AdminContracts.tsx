@@ -714,8 +714,8 @@ export default function AdminContracts() {
                   <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
                 )}
                 {/* Search results dropdown */}
-                {propertyDropdownOpen && propertyResults.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg max-h-[200px] overflow-y-auto z-50">
+                {propertyDropdownOpen && propertySearch.length >= 2 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg max-h-[200px] overflow-y-auto z-[100]">
                     {propertyResults.map((p) => (
                       <button
                         key={p.id}
@@ -734,13 +734,48 @@ export default function AdminContracts() {
                         )}
                       </button>
                     ))}
+                    {/* "New property" option at the bottom */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedProperty({ id: '', name: propertySearch, is_archived: false });
+                        setPropertyDropdownOpen(false);
+                        setShowUnarchivePrompt(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted transition-colors text-left border-t border-border bg-muted/30"
+                    >
+                      <Plus className="h-4 w-4 text-primary flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-primary">New property: "{propertySearch}"</p>
+                        <p className="text-xs text-muted-foreground">None of the above – create as new</p>
+                      </div>
+                    </button>
+                  </div>
+                )}
+                {/* Show "new property" option when search has no results */}
+                {!propertyDropdownOpen && !searchingProperties && propertySearch.length >= 2 && propertyResults.length === 0 && !selectedProperty && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-[100]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedProperty({ id: '', name: propertySearch, is_archived: false });
+                        setShowUnarchivePrompt(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted transition-colors text-left"
+                    >
+                      <Plus className="h-4 w-4 text-primary flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-primary">New property: "{propertySearch}"</p>
+                        <p className="text-xs text-muted-foreground">No matches found – will be created during onboarding</p>
+                      </div>
+                    </button>
                   </div>
                 )}
               </div>
               {selectedProperty && (
                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                   <Check className="h-3 w-3 text-green-600" />
-                  Selected: <span className="font-medium">{selectedProperty.name}</span>
+                  {selectedProperty.id ? 'Linked to existing' : 'New property'}: <span className="font-medium">{selectedProperty.name}</span>
                 </p>
               )}
             </div>
