@@ -113,7 +113,8 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     key: 'profitroom',
     name: 'ProfitRoom',
     description: 'Hotel management platform with booking engine, channel manager, and CRS',
-    deploymentStatus: 'planned',
+    hasCustomCard: true,
+    deploymentStatus: 'in_development',
   },
   // R
   {

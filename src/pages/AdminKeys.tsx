@@ -252,6 +252,14 @@ export default function AdminKeys() {
   const [roomsonlineActive, setRoomsonlineActive] = useState(false);
   const [togglingRoomsonline, setTogglingRoomsonline] = useState(false);
 
+  // ProfitRoom-specific state
+  const [profitroomCredentials, setProfitroomCredentials] = useState<PMSCredentials | null>(null);
+  const [profitroomApiKey, setProfitroomApiKey] = useState("");
+  const [profitroomEnvironment, setProfitroomEnvironment] = useState<"staging" | "production">("staging");
+  const [editingProfitroom, setEditingProfitroom] = useState(false);
+  const [savingProfitroom, setSavingProfitroom] = useState(false);
+  const [togglingProfitroom, setTogglingProfitroom] = useState(false);
+
   // PMS Tracker status state
   const [trackerData, setTrackerData] = useState<Record<string, PMSTrackerStatus>>({});
   const [sendingStatusReport, setSendingStatusReport] = useState(false);
@@ -266,6 +274,7 @@ export default function AdminKeys() {
     fetchCloudbedsCredentials();
     fetchLittlehotelierCredentials();
     fetchHotelbedsCredentials();
+    fetchProfitroomCredentials();
     fetchResendConfig();
     fetchTripadvisorConfig();
     fetchGlobalSettings();
@@ -1391,6 +1400,70 @@ export default function AdminKeys() {
     });
     fetchCloudbedsCredentials();
     setTogglingCloudbeds(false);
+  };
+
+  // ProfitRoom handlers
+  const fetchProfitroomCredentials = async () => {
+    const { data, error } = await supabase
+      .from("pms_credentials")
+      .select("*")
+      .eq("system_type", "profitroom")
+      .maybeSingle();
+
+    if (!error && data) {
+      setProfitroomCredentials(data);
+      setProfitroomEnvironment(data.environment as "staging" | "production");
+    }
+  };
+
+  const handleSaveProfitroomCredentials = async () => {
+    setSavingProfitroom(true);
+
+    const credData = {
+      system_type: "profitroom",
+      environment: profitroomEnvironment,
+      api_key: profitroomApiKey || profitroomCredentials?.api_key || null,
+      is_active: true,
+    };
+
+    let error;
+    if (profitroomCredentials) {
+      const result = await supabase.from("pms_credentials").update(credData).eq("id", profitroomCredentials.id);
+      error = result.error;
+    } else {
+      const result = await supabase.from("pms_credentials").insert(credData);
+      error = result.error;
+    }
+
+    if (error) {
+      toast({
+        title: "Error saving credentials",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Credentials saved",
+        description: "ProfitRoom credentials have been updated successfully",
+      });
+      setEditingProfitroom(false);
+      setProfitroomApiKey("");
+      fetchProfitroomCredentials();
+    }
+    setSavingProfitroom(false);
+  };
+
+  const handleToggleProfitroom = async (enabled: boolean) => {
+    setTogglingProfitroom(true);
+    if (profitroomCredentials) {
+      await supabase.from("pms_credentials").update({ is_active: enabled }).eq("id", profitroomCredentials.id);
+    }
+    toast({
+      title: enabled ? "ProfitRoom enabled" : "ProfitRoom disabled",
+      description: `ProfitRoom integration is now ${enabled ? "active" : "inactive"}`,
+    });
+    fetchProfitroomCredentials();
+    setTogglingProfitroom(false);
   };
 
   const handleCloudbedsEnvironmentChange = async (newEnv: "staging" | "production") => {
@@ -3652,6 +3725,157 @@ export default function AdminKeys() {
     </Dialog>
   );
 
+  // ProfitRoom card renderer
+  const renderProfitroomCard = () => {
+    const isConfigured = !!profitroomCredentials?.api_key;
+
+    return (
+      <AccordionItem
+        value="profitroom"
+        className={`border rounded-lg px-4 ${!profitroomCredentials?.is_active ? "opacity-60" : ""}`}
+      >
+        <AccordionTrigger className="hover:no-underline">
+          <div className="flex items-center justify-between w-full pr-4">
+            <div className="flex items-center gap-3">
+              <BedDouble className="h-5 w-5 text-primary" />
+              <span className="font-semibold">ProfitRoom</span>
+              <Badge variant="outline" className="text-xs">
+                API Key
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <div onClick={(e) => e.stopPropagation()}>
+                <IntegrationStatusDropdown
+                  systemType="profitroom"
+                  currentStatus={trackerData.profitroom?.integration_status || null}
+                  onStatusChange={() => fetchTrackerData()}
+                  compact
+                />
+              </div>
+              <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
+                <Switch
+                  checked={profitroomCredentials?.is_active ?? false}
+                  onCheckedChange={handleToggleProfitroom}
+                  disabled={togglingProfitroom || !isConfigured}
+                  className={!isConfigured ? "opacity-50" : ""}
+                />
+                <span className="text-xs text-muted-foreground">{profitroomCredentials?.is_active ? "On" : "Off"}</span>
+              </div>
+              {isConfigured ? (
+                <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Configured
+                </Badge>
+              ) : (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Not Configured
+                </Badge>
+              )}
+            </div>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="pt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Hotel management platform with booking engine, channel manager, and CRS
+            </p>
+
+            {/* Active Environment Toggle */}
+            <EnvironmentToggle
+              systemType="profitroom"
+              currentEnvironment={trackerData.profitroom?.active_environment || 'sandbox'}
+              onEnvironmentChange={(env) => handleUnifiedEnvironmentChange('profitroom', env)}
+            />
+
+            {editingProfitroom ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="profitroom-apikey">API Key</Label>
+                  <Input
+                    id="profitroom-apikey"
+                    type="password"
+                    value={profitroomApiKey}
+                    onChange={(e) => setProfitroomApiKey(e.target.value)}
+                    placeholder={profitroomCredentials?.api_key ? "••••••••" : "Enter API key"}
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveProfitroomCredentials} disabled={savingProfitroom}>
+                    {savingProfitroom ? "Saving..." : "Save"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingProfitroom(false);
+                      setProfitroomApiKey("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <Label className="text-muted-foreground">API Key</Label>
+                    <p className={`font-medium ${profitroomCredentials?.api_key ? "text-green-600" : ""}`}>
+                      {profitroomCredentials?.api_key ? "Configured" : "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Environment</Label>
+                    <p className="font-medium capitalize">{profitroomCredentials?.environment || "Sandbox"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Status</Label>
+                    <p className="font-medium">{profitroomCredentials?.is_active ? "Active" : "Inactive"}</p>
+                  </div>
+                </div>
+
+                <PMSProgressToggles
+                  systemType="profitroom"
+                  trackerData={trackerData.profitroom}
+                  onUpdated={fetchTrackerData}
+                />
+
+                {/* PMS IT Contact */}
+                <PMSContactDetails
+                  systemType="profitroom"
+                  initialData={{
+                    contact_name: trackerData["profitroom"]?.contact_name,
+                    contact_tel: trackerData["profitroom"]?.contact_tel,
+                    contact_email: trackerData["profitroom"]?.contact_email,
+                  }}
+                  onUpdated={() => fetchTrackerData()}
+                />
+
+                {/* Dev Notes */}
+                <PMSDevNotes systemType="profitroom" />
+
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setEditingProfitroom(true)}>
+                    {isConfigured ? "Update Credentials" : "Configure"}
+                  </Button>
+                  <Button
+                    variant="default"
+                    onClick={() => navigate("/admin/pms-config/profitroom")}
+                    disabled={!isConfigured}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Field Mappings
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    );
+  };
+
   // Placeholder card for upcoming PMS integrations
   const renderPlaceholderPMSCard = (name: string, systemType: string, description: string) => {
     const Icon = getPMSIcon(systemType);
@@ -4085,11 +4309,7 @@ export default function AdminKeys() {
           {/* Little Hotelier hidden - no longer required */}
           {renderNightsbridgeCard()}
           {/* Rentals United hidden - no longer required */}
-          {renderPlaceholderPMSCard(
-            "ProfitRoom",
-            "profitroom",
-            "Hotel management platform with booking engine, channel manager, and CRS",
-          )}
+          {renderProfitroomCard()}
           {renderPlaceholderPMSCard(
             "RoomKey",
             "roomkey",
