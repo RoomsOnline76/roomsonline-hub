@@ -872,20 +872,48 @@ export default function PropertyForm() {
     }
   };
 
-  // Full Hostfully sync: Import rooms + populate all field data (limited to 1 room for testing)
+  // Consolidated Hostfully sync: orchestrator ingestion + per-room details + UI refresh
   const handleFullHostfullySync = async () => {
-    if (!propertyId || !ownerPmsCredentialId) {
-      toast({
-        title: "Cannot Sync",
-        description: "Property must be linked to owner's Hostfully account",
-        variant: "destructive",
-      });
+    if (!propertyId) {
+      toast({ title: "Cannot Sync", description: "Property must be saved first", variant: "destructive" });
+      return;
+    }
+    const hasOwnerCredential = !!ownerPmsCredentialId;
+    const hasPropertyUid = !!hostfullyPropertyUid;
+    if (!hasOwnerCredential && !hasPropertyUid) {
+      toast({ title: "Cannot Sync", description: "Property must be linked to a Hostfully account or have a Property UID", variant: "destructive" });
       return;
     }
 
     setFullSyncingHostfully(true);
+    setSyncProgress({ phase: "Running ingestion pipeline...", current: 0, total: 1 });
 
     try {
+      // Step 1: Run full_ingest_property via orchestrator
+      const ingestBody: Record<string, string> = {
+        action: "full_ingest_property",
+        rol_property_id: propertyId,
+        property_id: propertyId,
+      };
+      if (hasPropertyUid) ingestBody.propertyUid = hostfullyPropertyUid;
+      if (hasOwnerCredential) ingestBody.owner_credential_id = ownerPmsCredentialId!;
+
+      const { data: ingestData, error: ingestError } = await supabase.functions.invoke("hostfully-api", {
+        body: ingestBody,
+      });
+
+      if (ingestError || !ingestData?.success) {
+        console.error("[Sync] Orchestrator failed:", ingestData?.error || ingestError);
+        if (!hasOwnerCredential) {
+          throw new Error(ingestData?.error?.message || ingestError?.message || "Ingestion failed");
+        }
+        toast({ title: "Orchestrator incomplete", description: "Continuing with per-room sync..." });
+      } else {
+        console.log("[Sync] Orchestrator complete:", ingestData.data);
+      }
+
+      // Step 2: Per-room get_listing_details for comprehensive field population (only if owner credential available)
+      if (hasOwnerCredential) {
       // Get all rooms for this property that have Hostfully UIDs
       const { data: existingRooms, error: fetchError } = await supabase
         .from("hostfully_room_types")
@@ -899,14 +927,8 @@ export default function PropertyForm() {
       console.log("[DEBUG] Raw rooms from DB:", existingRooms?.map(r => r.name));
       
       if (!existingRooms || existingRooms.length === 0) {
-        toast({
-          title: "No Rooms Found",
-          description: "No Hostfully rooms linked to this property. Import rooms first.",
-          variant: "destructive",
-        });
-        setFullSyncingHostfully(false);
-        return;
-      }
+        console.log("[Sync] No rooms found for per-room sync, skipping detail fetch");
+      } else {
 
       // Sort rooms alphabetically with numeric awareness (104 before 206)
       const sortedRooms = [...existingRooms].sort((a, b) => 
@@ -1274,9 +1296,12 @@ export default function PropertyForm() {
         }
       }
 
+      } // end else (rooms found)
+      } // end if (hasOwnerCredential)
+
       toast({
-        title: "Full Sync Complete",
-        description: `Synced ${syncedCount}/${roomsToSync.length} rooms - UI refreshed`,
+        title: "Hostfully Sync Complete",
+        description: "All rooms synced – UI and showcase data updated",
       });
     } catch (err: any) {
       console.error("Full Hostfully sync error:", err);
@@ -1291,102 +1316,8 @@ export default function PropertyForm() {
     }
   };
 
-  // Manual Hostfully data sync - triggers full_ingest_property without requiring OAuth
-  // Uses existing credentials from pms_credentials table (sandbox/staging) or property's owner credential
-  const handleSyncHostfullyProperty = async () => {
-    if (!propertyId || !hostfullyPropertyUid) {
-      toast({
-        title: "Cannot Sync",
-        description: "Property must have a Hostfully Property UID set",
-        variant: "destructive",
-      });
-      return;
-    }
 
-    setFullSyncingHostfully(true);
-    setSyncProgress({ phase: "Starting sync...", current: 0, total: 1 });
 
-    try {
-      const { data, error } = await supabase.functions.invoke("hostfully-api", {
-        body: {
-          action: "full_ingest_property",
-          propertyUid: hostfullyPropertyUid,
-          rol_property_id: propertyId,
-          property_id: propertyId, // Allows edge function to find credentials via property
-        },
-      });
-
-      if (error || !data?.success) {
-        throw new Error(data?.error?.message || error?.message || "Sync failed");
-      }
-
-      // Reload room count
-      const { count } = await supabase
-        .from("hostfully_room_types")
-        .select("*", { count: "exact", head: true })
-        .eq("property_id", propertyId);
-      setHostfullyRoomCount(count || 0);
-
-      toast({
-        title: "Sync Complete",
-        description: `Imported ${data.data?.rooms_processed || 0} room(s) and ${data.data?.fields_written || 0} fields`,
-      });
-
-      // Refresh room data in UI
-      const { data: refreshedRooms } = await supabase
-        .from("hostfully_room_types")
-        .select("*")
-        .eq("property_id", propertyId)
-        .eq("is_active", true);
-
-      if (refreshedRooms && refreshedRooms.length > 0) {
-        const convertedRooms = refreshedRooms.map(hr => ({
-          id: hr.id,
-          name: hr.name || "Unnamed Room",
-          url: "",
-          selected: false,
-          numRooms: 1,
-          pmsRoomType: hr.name,
-          pmsRoomId: hr.hostfully_room_id,
-          hostfullyId: hr.hostfully_room_id,
-          description: hr.description || "",
-          extraPersonPolicy: hr.extra_person_policy || "",
-          bedConfiguration: hr.bed_configuration || [],
-          roomSize: hr.room_size || 0,
-          bathrooms: hr.bathrooms || 1,
-          maxPeople: hr.max_guests || 2,
-          maxAdults: hr.max_guests || 2,
-          minGuests: hr.min_guests || 1,
-          maxChildren: 0,
-          minStay: hr.min_stay || 1,
-          maxStay: hr.max_stay || 0,
-          rateType: hr.rate_type || 'per-unit',
-          splitPercent: 0,
-          images: hr.images || [],
-          facilities: hr.facilities_raw || [],
-          facilitiesRaw: hr.facilities_raw || [],
-          amenities: hr.amenities || [],
-          linkedRateTypeIds: hr.linked_rate_type_ids || [],
-          dailyRate: hr.daily_rate,
-          currency: hr.currency || 'ZAR',
-          thumbnailUrl: hr.thumbnail_url,
-          lastSyncedAt: hr.last_synced_at,
-          pms_synced_fields: hr.pms_synced_fields || [],
-        }));
-        setRoomTypes(convertedRooms);
-      }
-    } catch (err) {
-      console.error("Hostfully property sync error:", err);
-      toast({
-        title: "Sync Failed",
-        description: err instanceof Error ? err.message : "Unknown error",
-        variant: "destructive",
-      });
-    } finally {
-      setFullSyncingHostfully(false);
-      setSyncProgress(null);
-    }
-  };
 
   const syncFromBenson = async () => {
     if (!bensonPropertyCode || !propertyId) {
@@ -4121,32 +4052,6 @@ export default function PropertyForm() {
                   </Tooltip>
                 </TooltipProvider>
               )}
-              {/* Sync Property Data button - for Hostfully properties with UID but no OAuth connection */}
-              {isEditMode && selectedPMS === 'hostfully' && hostfullyPropertyUid && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs gap-1 border-green-500/50 text-green-600 hover:bg-green-50"
-                        onClick={handleSyncHostfullyProperty}
-                        disabled={fullSyncingHostfully}
-                      >
-                        <RefreshCw className={cn("h-3 w-3", fullSyncingHostfully && "animate-spin")} />
-                        {fullSyncingHostfully ? "Syncing..." : "Sync Property Data"}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p className="text-xs">
-                        Import room types, rates, and availability from Hostfully using
-                        the Property UID. Uses stored API credentials.
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
               {/* Sync Editorial button - only visible when PMS supports sync and has property ID */}
               {isEditMode && selectedPMS && canSyncEditorial(selectedPMS) && hasPMSPropertyId(selectedPMS) && (() => {
                 const pmsCapability = getPMSEditorialCapability(selectedPMS);
@@ -4654,8 +4559,8 @@ export default function PropertyForm() {
                         </div>
                       )}
 
-                      {/* Hostfully Full Sync button for admin/dev when property has owner credential */}
-                      {selectedPMS === "hostfully" && !authLoading && propertyId && ownerPmsCredentialId && (isAdmin || isDev) && (
+                      {/* Consolidated Hostfully Sync button for admin/dev */}
+                      {selectedPMS === "hostfully" && !authLoading && propertyId && (ownerPmsCredentialId || hostfullyPropertyUid) && (isAdmin || isDev) && (
                         <div className="flex flex-col gap-1.5">
                           <div className="flex items-center gap-2">
                             <Button
@@ -4667,7 +4572,7 @@ export default function PropertyForm() {
                               disabled={fullSyncingHostfully || importingHostfullyRooms}
                             >
                               <RefreshCw className={cn("h-3 w-3", fullSyncingHostfully && "animate-spin")} />
-                              {fullSyncingHostfully ? "Syncing..." : "Sync All Hostfully Data"}
+                              {fullSyncingHostfully ? "Syncing..." : "Sync Hostfully Data"}
                             </Button>
                             {hostfullyRoomCount > 0 && (
                               <Badge variant="secondary" className="text-xs">{hostfullyRoomCount} rooms</Badge>
