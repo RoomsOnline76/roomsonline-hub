@@ -4820,7 +4820,8 @@ export default function PropertyForm() {
                                       const result = await syncFromWebsite(
                                         propertyId || "",
                                         formData.property_url || "",
-                                        existingData
+                                        existingData,
+                                        tripadvisorId || undefined
                                       );
                                       if (result.success && result.suggestions && result.suggestions.length > 0) {
                                         setWebsiteSyncSuggestions(result.suggestions);

@@ -91,7 +91,7 @@ serve(async (req) => {
   }
 
   try {
-    const { property_id, property_url, existing_data } = await req.json();
+    const { property_id, property_url, existing_data, tripadvisor_id } = await req.json();
 
     if (!property_url) {
       return new Response(
@@ -185,6 +185,39 @@ serve(async (req) => {
     }
 
     console.log("Scraped content length:", websiteContent.length);
+
+    // Step 1b: Scrape TripAdvisor page if ID is provided
+    let tripadvisorContent = "";
+    if (tripadvisor_id && tripadvisor_id.trim()) {
+      const taUrl = `https://www.tripadvisor.com/Hotel_Review-d${tripadvisor_id.trim()}`;
+      console.log("Scraping TripAdvisor:", taUrl);
+
+      try {
+        const taScrapeResponse = await fetch("https://api.firecrawl.dev/v1/scrape", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${firecrawlApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url: taUrl,
+            formats: ["markdown"],
+            onlyMainContent: true,
+          }),
+        });
+
+        const taScrapeData = await taScrapeResponse.json();
+
+        if (taScrapeResponse.ok && taScrapeData.success) {
+          tripadvisorContent = taScrapeData.data?.markdown || taScrapeData.markdown || "";
+          console.log("TripAdvisor content length:", tripadvisorContent.length);
+        } else {
+          console.warn("TripAdvisor scrape failed, continuing without it:", taScrapeData.error);
+        }
+      } catch (taErr) {
+        console.warn("TripAdvisor scrape error, continuing without it:", taErr);
+      }
+    }
 
     // Step 2: Use AI to extract structured data
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
@@ -303,7 +336,25 @@ serve(async (req) => {
               type: "array",
               items: { type: "string" },
               description: "URLs of property photos (only https URLs ending in .jpg, .jpeg, .png, .webp). Look for hero images, gallery images, room photos."
-            }
+            },
+            // TripAdvisor-sourced fields
+            tripadvisor_rating: {
+              type: "number",
+              description: "TripAdvisor overall rating (1-5 scale, e.g. 4.5). Only extract from TripAdvisor content."
+            },
+            tripadvisor_review_count: {
+              type: "integer",
+              description: "Total number of TripAdvisor reviews. Only extract from TripAdvisor content."
+            },
+            tripadvisor_ranking: {
+              type: "string",
+              description: "TripAdvisor ranking text (e.g. '#3 of 25 hotels in Cape Town'). Only extract from TripAdvisor content."
+            },
+            tripadvisor_highlights: {
+              type: "array",
+              items: { type: "string" },
+              description: "Key themes/highlights from TripAdvisor reviews (e.g. 'Excellent breakfast', 'Stunning views', 'Friendly staff'). Max 6 items. Only extract from TripAdvisor content."
+            },
           },
           additionalProperties: false,
         },
@@ -321,14 +372,26 @@ Guidelines:
 - Descriptions: create a clean summary without marketing fluff
 - Images: only extract absolute HTTPS URLs ending in .jpg, .jpeg, .png, .webp
 - Activities: match against common hospitality activities
+- TripAdvisor fields: only extract from the TripAdvisor section if provided
 
 DO NOT make up information. Return null for any field you cannot find.`;
 
-    const userPrompt = `Extract property information from this website content:
+    let userPrompt = `Extract property information from this website content:
 
-${websiteContent.substring(0, 15000)}
+${websiteContent.substring(0, 15000)}`;
 
-Extract: contact details, location, description, check-in/out times, star rating, property type, facilities, activities offered, and image URLs.`;
+    if (tripadvisorContent) {
+      userPrompt += `
+
+=== TRIPADVISOR PAGE CONTENT ===
+${tripadvisorContent.substring(0, 8000)}
+
+Also extract TripAdvisor-specific data: rating, review count, ranking, and review highlights/themes.`;
+    }
+
+    userPrompt += `
+
+Extract: contact details, location, description, check-in/out times, star rating, property type, facilities, activities offered, and image URLs.${tripadvisorContent ? ' Also extract TripAdvisor rating, review count, ranking, and review highlights.' : ''}`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -411,6 +474,10 @@ Extract: contact details, location, description, check-in/out times, star rating
       public_transport_distance: { stateVariable: "formData.public_transport_distance", label: "Public Transport Distance" },
       closest_airport: { stateVariable: "formData.closest_airport", label: "Closest Airport" },
       closest_airport_distance: { stateVariable: "formData.closest_airport_distance", label: "Airport Distance" },
+      // TripAdvisor fields
+      tripadvisor_rating: { stateVariable: "tripadvisor_rating", label: "TripAdvisor Rating" },
+      tripadvisor_review_count: { stateVariable: "tripadvisor_review_count", label: "TripAdvisor Review Count" },
+      tripadvisor_ranking: { stateVariable: "tripadvisor_ranking", label: "TripAdvisor Ranking" },
     };
 
     for (const [key, value] of Object.entries(extractedData)) {
@@ -425,6 +492,7 @@ Extract: contact details, location, description, check-in/out times, star rating
       
       // Calculate confidence based on whether it's filling empty or overwriting
       const isEmpty = !currentValue || (typeof currentValue === "string" && currentValue.trim() === "");
+      const isTripAdvisorField = key.startsWith("tripadvisor_");
       const confidence = isEmpty ? 0.95 : 0.75;
 
       suggestions.push({
@@ -433,7 +501,7 @@ Extract: contact details, location, description, check-in/out times, star rating
         current: currentValue,
         suggested: value,
         confidence,
-        source: "website",
+        source: isTripAdvisorField ? "tripadvisor" : "website",
       });
     }
 
@@ -477,6 +545,21 @@ Extract: contact details, location, description, check-in/out times, star rating
           suggested: normalizedActivities,
           confidence: isEmpty ? 0.85 : 0.65,
           source: "website",
+        });
+      }
+    }
+
+    // Handle TripAdvisor highlights as array
+    if (extractedData.tripadvisor_highlights && Array.isArray(extractedData.tripadvisor_highlights)) {
+      const highlights = (extractedData.tripadvisor_highlights as string[]).slice(0, 6);
+      if (highlights.length > 0) {
+        suggestions.push({
+          stateVariable: "tripadvisor_highlights",
+          fieldLabel: "TripAdvisor Review Highlights",
+          current: null,
+          suggested: highlights,
+          confidence: 0.85,
+          source: "tripadvisor",
         });
       }
     }
