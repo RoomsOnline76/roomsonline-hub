@@ -414,6 +414,20 @@ export default function AdminOnboarding() {
   const filteredProperties = useMemo(() => {
     let result = propertyRows;
 
+    // Only show properties where onboarding was actually initiated:
+    // - Has a token (onboarding email was sent)
+    // - Has onboarding_score > 0 (wizard was started from edit page)
+    // - Is already live (show_on_website)
+    // - Has an active listing status indicating progress
+    const activeStatuses = ["onboarding_active", "review_pending", "activation_ready", "live"];
+    result = result.filter((r) => {
+      if (r.show_on_website) return true;
+      if (r.token) return true;
+      if (r.onboarding_score > 0) return true;
+      if (r.listing_status && activeStatuses.includes(r.listing_status)) return true;
+      return false;
+    });
+
     // Hide completed/live unless toggle is on
     if (!showCompleted) {
       result = result.filter((r) => {
@@ -451,16 +465,27 @@ export default function AdminOnboarding() {
     return result;
   }, [propertyRows, showCompleted, statusFilter, searchQuery]);
 
-  // Stats calculated from all properties (not filtered)
+  // Stats calculated from properties with actual onboarding activity
+  const onboardingActiveRows = useMemo(() => {
+    const activeStatuses = ["onboarding_active", "review_pending", "activation_ready", "live"];
+    return propertyRows.filter((r) => {
+      if (r.show_on_website) return true;
+      if (r.token) return true;
+      if (r.onboarding_score > 0) return true;
+      if (r.listing_status && activeStatuses.includes(r.listing_status)) return true;
+      return false;
+    });
+  }, [propertyRows]);
+
   const stats = useMemo(() => ({
-    total: propertyRows.length,
-    notStarted: propertyRows.filter((r) => getOnboardingStatus(r) === "not_started").length,
-    inProgress: propertyRows.filter((r) => getOnboardingStatus(r) === "in_progress").length,
-    expired: propertyRows.filter((r) => getOnboardingStatus(r) === "token_expired").length,
-    completed: propertyRows.filter((r) => getOnboardingStatus(r) === "completed").length,
-    live: propertyRows.filter((r) => getOnboardingStatus(r) === "live").length,
-    nightsBridge: propertyRows.filter((r) => r.isNightsBridge).length,
-  }), [propertyRows]);
+    total: onboardingActiveRows.length,
+    notStarted: onboardingActiveRows.filter((r) => getOnboardingStatus(r) === "not_started").length,
+    inProgress: onboardingActiveRows.filter((r) => getOnboardingStatus(r) === "in_progress").length,
+    expired: onboardingActiveRows.filter((r) => getOnboardingStatus(r) === "token_expired").length,
+    completed: onboardingActiveRows.filter((r) => getOnboardingStatus(r) === "completed").length,
+    live: onboardingActiveRows.filter((r) => getOnboardingStatus(r) === "live").length,
+    nightsBridge: onboardingActiveRows.filter((r) => r.isNightsBridge).length,
+  }), [onboardingActiveRows]);
 
   const handleSendOnboarding = async () => {
     if (!selectedPropertyId || !sendEmail) {
