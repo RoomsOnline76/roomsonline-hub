@@ -24,6 +24,8 @@ import { z } from "zod";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import { useItinerary } from "@/contexts/ItineraryContext";
 import { PayFastOnsiteModal } from "@/components/booking/PayFastOnsiteModal";
+import { PayGateRedirect } from "@/components/booking/PayGateRedirect";
+import { useActivePaymentGateway } from "@/hooks/useActivePaymentGateway";
 
 // Booking form validation schema
 const bookingSchema = z.object({
@@ -75,6 +77,7 @@ interface CostLineItem {
 const Booking = () => {
   const { id } = useParams<{ id: string }>();
   useBrandOverride(id);
+  const { gateway: activeGateway } = useActivePaymentGateway();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
@@ -1987,28 +1990,45 @@ const Booking = () => {
         </DialogContent>
       </Dialog>
 
-      {/* PayFast Onsite Payment Modal */}
-      <PayFastOnsiteModal
-        isOpen={showPaymentModal}
-        onClose={() => {
-          setShowPaymentModal(false);
-          setPendingBookingId(null);
-        }}
-        onPaymentSuccess={() => {
-          setShowPaymentModal(false);
-          if (pendingBookingId) {
-            navigate(`/booking-confirmation/${pendingBookingId}?payment=success`);
-          }
-        }}
-        onPaymentCancelled={() => {
-          setShowPaymentModal(false);
-          toast.info("Payment cancelled. Your booking is saved - you can pay later.");
-        }}
-        bookingId={pendingBookingId || ""}
-        amount={pendingPaymentAmount}
-        propertyName={property?.name || ""}
-        isSandbox={true} // TODO: Configure based on environment
-      />
+      {/* Payment Gateway - routes based on active system */}
+      {activeGateway === "paygate" ? (
+        <PayGateRedirect
+          isOpen={showPaymentModal}
+          onClose={() => {
+            setShowPaymentModal(false);
+            setPendingBookingId(null);
+          }}
+          onPaymentInitiated={() => {
+            // PayGate redirects away - booking confirmation handled on return URL
+            setShowPaymentModal(false);
+          }}
+          bookingId={pendingBookingId || ""}
+          amount={pendingPaymentAmount}
+          propertyName={property?.name || ""}
+        />
+      ) : (
+        <PayFastOnsiteModal
+          isOpen={showPaymentModal}
+          onClose={() => {
+            setShowPaymentModal(false);
+            setPendingBookingId(null);
+          }}
+          onPaymentSuccess={() => {
+            setShowPaymentModal(false);
+            if (pendingBookingId) {
+              navigate(`/booking-confirmation/${pendingBookingId}?payment=success`);
+            }
+          }}
+          onPaymentCancelled={() => {
+            setShowPaymentModal(false);
+            toast.info("Payment cancelled. Your booking is saved - you can pay later.");
+          }}
+          bookingId={pendingBookingId || ""}
+          amount={pendingPaymentAmount}
+          propertyName={property?.name || ""}
+          isSandbox={true}
+        />
+      )}
     </PublicLayout>
   );
 };
