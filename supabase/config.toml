@@ -63,6 +63,9 @@ verify_jwt = false
 [functions.payfast-api]
 verify_jwt = false
 
+[functions.paygate-api]
+verify_jwt = false
+
 [functions.send-pms-status-report]
 verify_jwt = true
 
