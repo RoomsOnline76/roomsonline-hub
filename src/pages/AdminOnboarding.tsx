@@ -339,7 +339,11 @@ export default function AdminOnboarding() {
         }
       });
 
-      const enrichedProperties: PropertyOnboardingRow[] = (propData || []).map((prop) => {
+      // Exclude test/demo properties by name
+      const testPattern = /\b(test|demo|staging|dummy|sandbox)\b/i;
+      const realProperties = (propData || []).filter((prop) => !testPattern.test(prop.name));
+
+      const enrichedProperties: PropertyOnboardingRow[] = realProperties.map((prop) => {
         const amenities = prop.amenities as Record<string, unknown> | null;
         const onboardingScore = typeof amenities?.onboarding_score === "number" 
           ? amenities.onboarding_score 
