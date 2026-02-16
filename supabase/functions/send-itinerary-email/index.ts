@@ -392,7 +392,7 @@ Deno.serve(async (req) => {
       emailPayload.attachments = [
         {
           filename: `Journey-Brochure-${itinerary.id.substring(0, 8).toUpperCase()}.html`,
-          content: btoa(brochureHtml),
+          content: btoa(unescape(encodeURIComponent(brochureHtml))),
           content_type: "text/html",
         },
       ];
