@@ -223,7 +223,11 @@ export type Database = {
           external_booking_id: string | null
           external_system: string
           id: string
+          last_action: string | null
+          last_action_at: string | null
+          last_error_message: string | null
           last_sync_at: string | null
+          modification_attempts: number | null
           sync_attempts: number | null
           sync_status: string
           updated_at: string | null
@@ -235,7 +239,11 @@ export type Database = {
           external_booking_id?: string | null
           external_system: string
           id?: string
+          last_action?: string | null
+          last_action_at?: string | null
+          last_error_message?: string | null
           last_sync_at?: string | null
+          modification_attempts?: number | null
           sync_attempts?: number | null
           sync_status?: string
           updated_at?: string | null
@@ -247,7 +255,11 @@ export type Database = {
           external_booking_id?: string | null
           external_system?: string
           id?: string
+          last_action?: string | null
+          last_action_at?: string | null
+          last_error_message?: string | null
           last_sync_at?: string | null
+          modification_attempts?: number | null
           sync_attempts?: number | null
           sync_status?: string
           updated_at?: string | null
@@ -275,6 +287,7 @@ export type Database = {
           ai_metadata: Json | null
           booking_channel: string | null
           calculated_commission: number | null
+          cancellation_reason: string | null
           charges_breakdown: Json | null
           check_in_date: string
           check_out_date: string
@@ -291,6 +304,9 @@ export type Database = {
           guest_phone_encrypted: string | null
           id: string
           infants: number | null
+          last_modified_at: string | null
+          modification_notes: Json | null
+          modified_by: string | null
           paid_at: string | null
           payment_intent_id: string | null
           payment_method: string | null
@@ -316,6 +332,7 @@ export type Database = {
           ai_metadata?: Json | null
           booking_channel?: string | null
           calculated_commission?: number | null
+          cancellation_reason?: string | null
           charges_breakdown?: Json | null
           check_in_date: string
           check_out_date: string
@@ -332,6 +349,9 @@ export type Database = {
           guest_phone_encrypted?: string | null
           id?: string
           infants?: number | null
+          last_modified_at?: string | null
+          modification_notes?: Json | null
+          modified_by?: string | null
           paid_at?: string | null
           payment_intent_id?: string | null
           payment_method?: string | null
@@ -357,6 +377,7 @@ export type Database = {
           ai_metadata?: Json | null
           booking_channel?: string | null
           calculated_commission?: number | null
+          cancellation_reason?: string | null
           charges_breakdown?: Json | null
           check_in_date?: string
           check_out_date?: string
@@ -373,6 +394,9 @@ export type Database = {
           guest_phone_encrypted?: string | null
           id?: string
           infants?: number | null
+          last_modified_at?: string | null
+          modification_notes?: Json | null
+          modified_by?: string | null
           paid_at?: string | null
           payment_intent_id?: string | null
           payment_method?: string | null

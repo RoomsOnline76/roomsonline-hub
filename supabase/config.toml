@@ -159,3 +159,9 @@ verify_jwt = false
 
 [functions.execute-test-run]
 verify_jwt = false
+
+[functions.modify-booking]
+verify_jwt = true
+
+[functions.cancel-booking]
+verify_jwt = true

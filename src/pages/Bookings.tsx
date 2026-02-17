@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { Badge } from "@/components/ui/badge";
 import { BookingLifecycleVisualizer, type BookingState } from "@/components/BookingLifecycleVisualizer";
+import { ModifyBookingModal } from "@/components/booking/ModifyBookingModal";
+import { CancelBookingModal } from "@/components/booking/CancelBookingModal";
 import {
   Select,
   SelectContent,
@@ -23,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Calendar, Search, Filter, RefreshCw, Users, CalendarDays, Building2, CloudDownload, Loader2, ChevronDown, ChevronUp, Bed, Plus, XCircle } from "lucide-react";
+import { Calendar, Search, Filter, RefreshCw, Users, CalendarDays, Building2, CloudDownload, Loader2, ChevronDown, ChevronUp, Bed, Plus, XCircle, Pencil } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import {
   Collapsible,
@@ -86,6 +88,10 @@ const Bookings = () => {
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
   const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(null);
   const [showCancelled, setShowCancelled] = useState(false);
+  const [modifyModalBooking, setModifyModalBooking] = useState<Booking | null>(null);
+  const [cancelModalBooking, setCancelModalBooking] = useState<Booking | null>(null);
+  const [modifyLoading, setModifyLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const canViewAllProperties = isAdmin || isDev || isFearlessLeader;
 
@@ -191,6 +197,56 @@ const Bookings = () => {
       toast.error(`Failed to cancel room: ${error.message}`);
     } finally {
       setCancellingBookingId(null);
+    }
+  };
+
+  // Handle modify via edge function
+  const handleModifyBooking = async (modifications: Record<string, any>) => {
+    if (!modifyModalBooking) return;
+    setModifyLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("modify-booking", {
+        body: { booking_id: modifyModalBooking.id, modifications },
+      });
+
+      if (error) throw error;
+      if (data && !data.success && data.code) throw new Error(data.message || "Modification failed");
+
+      toast.success("Booking modified successfully");
+      setModifyModalBooking(null);
+      // Reload bookings
+      window.location.reload();
+    } catch (error: any) {
+      console.error("Error modifying booking:", error);
+      toast.error(`Failed to modify: ${error.message}`);
+    } finally {
+      setModifyLoading(false);
+    }
+  };
+
+  // Handle cancel via edge function
+  const handleCancelViaEdge = async (reason: string) => {
+    if (!cancelModalBooking) return;
+    setCancelLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("cancel-booking", {
+        body: { booking_id: cancelModalBooking.id, reason },
+      });
+
+      if (error) throw error;
+      if (data && !data.success && data.code) throw new Error(data.message || "Cancellation failed");
+
+      toast.success("Booking cancelled successfully");
+      setCancelModalBooking(null);
+      // Update local state
+      setBookings(prev => prev.map(b => 
+        b.id === cancelModalBooking.id ? { ...b, status: "cancelled" } : b
+      ));
+    } catch (error: any) {
+      console.error("Error cancelling booking:", error);
+      toast.error(`Failed to cancel: ${error.message}`);
+    } finally {
+      setCancelLoading(false);
     }
   };
 
@@ -870,23 +926,32 @@ const Bookings = () => {
                                       }}
                                     />
                                     {booking.status !== "cancelled" && (
-                                      <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        className="h-6 text-xs px-2"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleCancelReservation(booking);
-                                        }}
-                                        disabled={cancellingBookingId === booking.id}
-                                      >
-                                        {cancellingBookingId === booking.id ? (
-                                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                        ) : (
+                                      <div className="flex items-center gap-1">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-6 text-xs px-2"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setModifyModalBooking(booking);
+                                          }}
+                                        >
+                                          <Pencil className="h-3 w-3 mr-1" />
+                                          Modify
+                                        </Button>
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                          className="h-6 text-xs px-2"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setCancelModalBooking(booking);
+                                          }}
+                                        >
                                           <XCircle className="h-3 w-3 mr-1" />
-                                        )}
-                                        Cancel All
-                                      </Button>
+                                          Cancel All
+                                        </Button>
+                                      </div>
                                     )}
                                   </div>
                                   
@@ -972,6 +1037,27 @@ const Bookings = () => {
             )}
         </CardContent>
       </Card>
+      {/* Modify Booking Modal */}
+      {modifyModalBooking && (
+        <ModifyBookingModal
+          open={!!modifyModalBooking}
+          onOpenChange={(open) => !open && setModifyModalBooking(null)}
+          booking={modifyModalBooking}
+          onSubmit={handleModifyBooking}
+          loading={modifyLoading}
+        />
+      )}
+
+      {/* Cancel Booking Modal */}
+      {cancelModalBooking && (
+        <CancelBookingModal
+          open={!!cancelModalBooking}
+          onOpenChange={(open) => !open && setCancelModalBooking(null)}
+          booking={cancelModalBooking}
+          onSubmit={handleCancelViaEdge}
+          loading={cancelLoading}
+        />
+      )}
     </AppLayout>
   );
 };
