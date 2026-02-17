@@ -1,5 +1,5 @@
 import React from 'react';
-import { Key, FileText, Code, HeartPulse, Download, Upload, FlaskConical, BadgeCheck, Rocket } from 'lucide-react';
+import { Key, FileText, Code, HeartPulse, Download, Upload, Pencil, XCircle, FlaskConical, BadgeCheck, Rocket } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -24,6 +24,8 @@ const integrationFields: ProgressField[] = [
   { key: 'has_health', dbColumn: 'has_health', icon: HeartPulse, label: 'Health', description: 'Can connect and verify credentials' },
   { key: 'has_get', dbColumn: 'has_get', icon: Download, label: 'GET', description: 'Can pull availability/rates data' },
   { key: 'has_post', dbColumn: 'has_post', icon: Upload, label: 'POST', description: 'Can push bookings to PMS' },
+  { key: 'has_modify', dbColumn: 'has_modify', icon: Pencil, label: 'Modify', description: 'Can modify existing bookings in PMS' },
+  { key: 'has_cancel', dbColumn: 'has_cancel', icon: XCircle, label: 'Cancel', description: 'Can cancel bookings in PMS' },
   { key: 'has_soft_test', dbColumn: 'has_soft_test', icon: FlaskConical, label: 'Test', description: 'Tested with sandbox/test property' },
   { key: 'is_certified', dbColumn: 'is_certified', icon: BadgeCheck, label: 'Certify', description: 'Integration certified and approved for production' },
   { key: 'is_production', dbColumn: 'is_production', icon: Rocket, label: 'Live', description: 'Live with real properties' },
