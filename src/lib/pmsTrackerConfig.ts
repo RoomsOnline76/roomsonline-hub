@@ -23,6 +23,8 @@ export interface PMSTrackerStatus {
   has_health: boolean;
   has_get: boolean;
   has_post: boolean;
+  has_modify: boolean;
+  has_cancel: boolean;
   has_soft_test: boolean;
   is_certified: boolean;
   is_production: boolean;
@@ -81,6 +83,8 @@ export const getProgressCount = (tracker: PMSTrackerStatus): { current: number; 
     tracker.has_health,
     tracker.has_get,
     tracker.has_post,
+    tracker.has_modify,
+    tracker.has_cancel,
     tracker.has_soft_test,
     tracker.is_certified,
     tracker.is_production,
