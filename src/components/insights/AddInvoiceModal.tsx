@@ -125,7 +125,7 @@ export function AddInvoiceModal({
         billing_type: data.billing_type,
         category: data.category,
         vendor: data.vendor || null,
-        invoice_date: data.invoice_date,
+        invoice_date: data.invoice_date || new Date().toISOString().split("T")[0],
         due_date: data.due_date || null,
         is_paid: data.is_paid,
         notes: data.notes || null,
