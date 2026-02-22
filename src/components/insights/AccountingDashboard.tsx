@@ -10,7 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Plus, TrendingUp, Receipt } from "lucide-react";
 import { AddMetricModal } from "./AddMetricModal";
 
-export function AccountingDashboard() {
+interface AccountingDashboardProps {
+  dateRange?: { start: string; end: string };
+}
+
+export function AccountingDashboard({ dateRange }: AccountingDashboardProps) {
   const [isAddInvoiceOpen, setIsAddInvoiceOpen] = useState(false);
   const [isAddMetricOpen, setIsAddMetricOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<any>(null);
@@ -48,20 +52,24 @@ export function AccountingDashboard() {
     return invoice.cost_zar ?? (Number(invoice.cost_usd) * exchangeRate);
   };
 
-  // Calculate invoice stats in ZAR
-  const monthlyTotal = invoices
+  // Filter invoices by date range if provided
+  const filteredInvoices = invoices?.filter((inv) => {
+    if (!dateRange) return true;
+    const invDate = inv.invoice_date || inv.created_at;
+    if (!invDate) return true;
+    return invDate >= dateRange.start && invDate <= dateRange.end;
+  });
+
+  // Calculate invoice stats in ZAR using filtered invoices
+  const monthlyTotal = filteredInvoices
     ?.filter((inv) => inv.billing_type === "monthly" && !inv.is_paid)
     ?.reduce((sum, inv) => sum + getZarValue(inv), 0) || 0;
 
-  const unpaidTotal = invoices
+  const unpaidTotal = filteredInvoices
     ?.filter((inv) => !inv.is_paid)
     ?.reduce((sum, inv) => sum + getZarValue(inv), 0) || 0;
 
-  const ytdTotal = invoices
-    ?.filter((inv) => {
-      const date = new Date(inv.invoice_date);
-      return date.getFullYear() === new Date().getFullYear();
-    })
+  const periodTotal = filteredInvoices
     ?.reduce((sum, inv) => sum + getZarValue(inv), 0) || 0;
 
   // Calculate cash balance in ZAR
@@ -73,7 +81,7 @@ export function AccountingDashboard() {
       <FinancialMetricsCards
         monthlyBurn={monthlyTotal}
         unpaidTotal={unpaidTotal}
-        ytdTotal={ytdTotal}
+        ytdTotal={periodTotal}
         runwayMonths={latestMetric?.runway_months}
         cashBalance={cashBalanceZar}
         isLoading={invoicesLoading || metricsLoading}

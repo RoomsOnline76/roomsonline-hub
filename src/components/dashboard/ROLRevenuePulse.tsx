@@ -312,7 +312,7 @@ export function ROLRevenuePulse() {
       </TabsContent>
 
       <TabsContent value="accounting" className="mt-0">
-        <AccountingDashboard />
+        <AccountingDashboard dateRange={dateRange} />
       </TabsContent>
 
       <InsightPanelTrigger
