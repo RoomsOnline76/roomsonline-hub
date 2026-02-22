@@ -115,10 +115,13 @@ export function AddInvoiceModal({
     mutationFn: async (data: typeof formData) => {
       const { data: userData } = await supabase.auth.getUser();
 
+      const parsedUsd = parseFloat(data.cost_usd);
+      const parsedZar = parseFloat(data.cost_zar);
+
       const payload = {
         description: data.description,
-        cost_usd: parseFloat(data.cost_usd),
-        cost_zar: data.cost_zar ? parseFloat(data.cost_zar) : null,
+        cost_usd: isNaN(parsedUsd) ? 0 : parsedUsd,
+        cost_zar: data.cost_zar && !isNaN(parsedZar) ? parsedZar : null,
         billing_type: data.billing_type,
         category: data.category,
         vendor: data.vendor || null,
