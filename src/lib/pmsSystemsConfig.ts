@@ -139,8 +139,8 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
   },
   {
     key: 'roomsonline',
-    name: 'RoomsOnline',
-    description: "RoomsOnline's proprietary API (future project)",
+    name: "ROL'OS",
+    description: "RoomsOnline's proprietary operating system API",
     isInternal: true,
     hasCustomCard: true,
     deploymentStatus: 'in_development',
