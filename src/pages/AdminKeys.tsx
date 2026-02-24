@@ -2558,6 +2558,15 @@ export default function AdminKeys() {
               Property Management System integration using username/password authentication
             </p>
 
+            {/* Environment Toggle */}
+            <EnvironmentToggle
+              systemType="benson"
+              currentEnvironment={bensonActiveEnvironment === "production" ? "production" : "sandbox"}
+              onEnvironmentChange={(newEnv) => handleSaveBensonActiveEnvironment(newEnv === "production" ? "production" : "staging")}
+              disabled={savingBensonActiveEnv || (!isStagingConfigured && !isProductionConfigured)}
+              isLoading={savingBensonActiveEnv}
+            />
+
             {renderEnvironmentSection(
               "production",
               bensonProductionCredentials,
@@ -2572,6 +2581,22 @@ export default function AdminKeys() {
               setBensonProductionPassword,
               bensonProductionUrl,
               setBensonProductionUrl,
+            )}
+
+            {renderEnvironmentSection(
+              "staging",
+              bensonStagingCredentials,
+              !!isStagingConfigured,
+              editingBensonStaging,
+              setEditingBensonStaging,
+              savingBensonStaging,
+              handleSaveBensonStagingCredentials,
+              bensonStagingUsername,
+              setBensonStagingUsername,
+              bensonStagingPassword,
+              setBensonStagingPassword,
+              bensonStagingUrl,
+              setBensonStagingUrl,
             )}
 
             {/* Refresh Interval Setting */}
