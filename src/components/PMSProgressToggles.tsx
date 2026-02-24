@@ -1,5 +1,5 @@
 import React from 'react';
-import { Key, FileText, Code, HeartPulse, Download, Upload, Pencil, XCircle, FlaskConical, BadgeCheck, Rocket } from 'lucide-react';
+import { Key, FileText, Code, HeartPulse, Download, Upload, Pencil, XCircle, FlaskConical, BadgeCheck, Rocket, Ban } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -33,6 +33,22 @@ const integrationFields: ProgressField[] = [
 
 const allFields = [...setupFields, ...integrationFields];
 
+// PMS systems where modify is NOT supported by their API
+const MODIFY_NOT_SUPPORTED: string[] = [
+  'benson', 'nightsbridge', 'checkfront', 'cloudbeds',
+  'littlehotelier', 'hostfully', 'hotelbeds',
+  'profitroom', 'semper', 'siteminder', 'mews',
+  'roomkey', 'roomracoon',
+];
+
+// PMS systems where cancel is NOT supported by their API
+const CANCEL_NOT_SUPPORTED: string[] = [
+  'benson', 'nightsbridge', 'checkfront', 'cloudbeds',
+  'littlehotelier', 'hostfully',
+  'profitroom', 'semper', 'siteminder', 'mews',
+  'roomkey', 'roomracoon',
+];
+
 interface PMSProgressTogglesProps {
   systemType: string;
   trackerData: PMSTrackerStatus | null | undefined;
@@ -48,6 +64,12 @@ export const PMSProgressToggles: React.FC<PMSProgressTogglesProps> = ({
 }) => {
   const [saving, setSaving] = React.useState<string | null>(null);
 
+  const isNotSupported = (field: ProgressField): boolean => {
+    if (field.key === 'has_modify' && MODIFY_NOT_SUPPORTED.includes(systemType)) return true;
+    if (field.key === 'has_cancel' && CANCEL_NOT_SUPPORTED.includes(systemType)) return true;
+    return false;
+  };
+
   const getValue = (field: ProgressField): boolean => {
     if (!trackerData) return false;
     const value = trackerData[field.dbColumn as keyof PMSTrackerStatus];
@@ -59,6 +81,9 @@ export const PMSProgressToggles: React.FC<PMSProgressTogglesProps> = ({
   };
 
   const handleToggle = async (field: ProgressField) => {
+    // Don't allow toggling fields marked as not supported — they're auto-complete
+    if (isNotSupported(field)) return;
+
     const currentValue = getValue(field);
     const newValue = !currentValue;
 
@@ -84,6 +109,7 @@ export const PMSProgressToggles: React.FC<PMSProgressTogglesProps> = ({
   const renderToggle = (field: ProgressField) => {
     const isComplete = getValue(field);
     const isSaving = saving === field.key;
+    const notSupported = isNotSupported(field);
     const Icon = field.icon;
 
     return (
@@ -91,24 +117,36 @@ export const PMSProgressToggles: React.FC<PMSProgressTogglesProps> = ({
         <TooltipTrigger asChild>
           <button
             onClick={() => handleToggle(field)}
-            disabled={isSaving}
+            disabled={isSaving || notSupported}
             className={cn(
               'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all',
-              'border hover:scale-105 active:scale-95',
-              isComplete
-                ? 'bg-status-healthy/20 border-status-healthy/40 text-status-healthy'
-                : 'bg-muted/50 border-muted-foreground/20 text-muted-foreground hover:bg-muted',
+              'border',
+              notSupported
+                ? 'bg-muted/30 border-muted-foreground/15 text-muted-foreground/60 line-through cursor-default'
+                : isComplete
+                  ? 'bg-status-healthy/20 border-status-healthy/40 text-status-healthy hover:scale-105 active:scale-95'
+                  : 'bg-muted/50 border-muted-foreground/20 text-muted-foreground hover:bg-muted hover:scale-105 active:scale-95',
               isSaving && 'opacity-50 cursor-wait'
             )}
           >
-            <Icon className="h-3 w-3" />
+            {notSupported ? (
+              <Ban className="h-3 w-3" />
+            ) : (
+              <Icon className="h-3 w-3" />
+            )}
             {!compact && <span>{field.label}</span>}
           </button>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-[200px]">
           <p className="font-medium">{field.label}</p>
-          <p className="text-xs text-muted-foreground">{field.description}</p>
-          <p className="text-xs mt-1">Click to {isComplete ? 'mark incomplete' : 'mark complete'}</p>
+          {notSupported ? (
+            <p className="text-xs text-muted-foreground">Not supported by this PMS API</p>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">{field.description}</p>
+              <p className="text-xs mt-1">Click to {isComplete ? 'mark incomplete' : 'mark complete'}</p>
+            </>
+          )}
         </TooltipContent>
       </Tooltip>
     );

@@ -1689,15 +1689,15 @@ export default function AdminKeys() {
 
     if (error) {
       toast({
-        title: "Error toggling RoomsOnline",
+        title: "Error toggling ROL'OS",
         description: error.message,
         variant: "destructive",
       });
     } else {
       setRoomsonlineActive(enabled);
       toast({
-        title: enabled ? "RoomsOnline enabled" : "RoomsOnline disabled",
-        description: `RoomsOnline API is now ${enabled ? "active" : "inactive"}`,
+        title: enabled ? "ROL'OS enabled" : "ROL'OS disabled",
+        description: `ROL'OS is now ${enabled ? "active" : "inactive"}`,
       });
     }
     setTogglingRoomsonline(false);
@@ -1774,7 +1774,7 @@ export default function AdminKeys() {
       .filter(([key]) => !['roomsonline', 'recaptcha', 'google_maps'].includes(key));
     
     let completedFlags = 0;
-    const totalFlags = trackableSystems.length * 9; // 9 flags per system
+    const totalFlags = trackableSystems.length * 11; // 11 flags per system (including modify + cancel)
     let deployedCount = 0;
     
     trackableSystems.forEach(([_, data]) => {
@@ -1786,6 +1786,8 @@ export default function AdminKeys() {
       if (data.has_health) completedFlags++;
       if (data.has_get) completedFlags++;
       if (data.has_post) completedFlags++;
+      if (data.has_modify) completedFlags++;
+      if (data.has_cancel) completedFlags++;
       if (data.has_soft_test) completedFlags++;
       if (data.is_certified) completedFlags++;
       if (data.is_production) completedFlags++;
@@ -1796,7 +1798,7 @@ export default function AdminKeys() {
     
     return { 
       completedFlags, 
-      totalFlags: totalFlags || 117, // Default to 117 if no tracker data yet (13 systems × 9)
+      totalFlags: totalFlags || 143, // Default to 143 if no tracker data yet (13 systems × 11)
       deployedCount,
       systemCount: trackableSystems.length || 13
     };
@@ -4060,9 +4062,9 @@ export default function AdminKeys() {
         </Accordion>
       </div>
 
-      {/* RoomsOnline API Section */}
+      {/* ROL'OS Section */}
       <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">RoomsOnline API</h2>
+        <h2 className="text-xl font-semibold mb-4">ROL'OS</h2>
         <Accordion type="multiple" className="space-y-4">
           <AccordionItem
             value="roomsonline"
@@ -4072,7 +4074,7 @@ export default function AdminKeys() {
               <div className="flex items-center justify-between w-full pr-4">
                 <div className="flex items-center gap-3">
                   <Key className="h-5 w-5 text-primary" />
-                  <span className="font-semibold">RoomsOnline API</span>
+                  <span className="font-semibold">ROL'OS</span>
                   <Badge variant="default" className="text-xs">
                     Internal API
                   </Badge>
@@ -4096,9 +4098,9 @@ export default function AdminKeys() {
             <AccordionContent>
               <div className="pt-4 space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  RoomsOnline's proprietary API for direct property management.
+                  ROL'OS — RoomsOnline's proprietary operating system for direct property management.
                   <strong>
-                    This will become the primary interface for properties not using third-party PMS systems.
+                    {" "}This will become the primary interface for properties not using third-party PMS systems.
                   </strong>
                 </p>
                 <div className="p-4 rounded-lg border bg-background text-center space-y-2">
