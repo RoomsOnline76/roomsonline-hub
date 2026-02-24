@@ -925,34 +925,40 @@ const Bookings = () => {
                                         checked_in: booking.status?.toLowerCase() === "checked-in" ? undefined : undefined,
                                       }}
                                     />
-                                    {booking.status !== "cancelled" && (
-                                      <div className="flex items-center gap-1">
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="h-6 text-xs px-2"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setModifyModalBooking(booking);
-                                          }}
-                                        >
-                                          <Pencil className="h-3 w-3 mr-1" />
-                                          Modify
-                                        </Button>
-                                        <Button
-                                          variant="destructive"
-                                          size="sm"
-                                          className="h-6 text-xs px-2"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setCancelModalBooking(booking);
-                                          }}
-                                        >
-                                          <XCircle className="h-3 w-3 mr-1" />
-                                          Cancel All
-                                        </Button>
-                                      </div>
-                                    )}
+                                    {booking.status !== "cancelled" && (() => {
+                                      const bookingProperty = properties.find(p => p.id === booking.property_id);
+                                      const isBensonProperty = bookingProperty?.external_system === "benson";
+                                      return (
+                                        <div className="flex items-center gap-1">
+                                          {!isBensonProperty && (
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="h-6 text-xs px-2"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setModifyModalBooking(booking);
+                                              }}
+                                            >
+                                              <Pencil className="h-3 w-3 mr-1" />
+                                              Modify
+                                            </Button>
+                                          )}
+                                          <Button
+                                            variant="destructive"
+                                            size="sm"
+                                            className="h-6 text-xs px-2"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setCancelModalBooking(booking);
+                                            }}
+                                          >
+                                            <XCircle className="h-3 w-3 mr-1" />
+                                            Cancel All
+                                          </Button>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                   
                                   <p className="text-xs font-medium text-muted-foreground">Room Details</p>
@@ -1056,6 +1062,7 @@ const Bookings = () => {
           booking={cancelModalBooking}
           onSubmit={handleCancelViaEdge}
           loading={cancelLoading}
+          externalSystem={properties.find(p => p.id === cancelModalBooking.property_id)?.external_system}
         />
       )}
     </AppLayout>
