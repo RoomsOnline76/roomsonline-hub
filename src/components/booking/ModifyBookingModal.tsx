@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { format, addDays } from "date-fns";
+
+interface AvailabilityStatus {
+  loading: boolean;
+  available: boolean | null;
+  roomTypes: any[];
+  error: string | null;
+}
 
 interface ModifyBookingModalProps {
   open: boolean;
@@ -19,6 +28,7 @@ interface ModifyBookingModalProps {
   booking: {
     id: string;
     guest_name: string;
+    property_id: string;
     check_in_date: string;
     check_out_date: string;
     adults: number;
@@ -26,6 +36,7 @@ interface ModifyBookingModalProps {
     children?: number | null;
     infants?: number | null;
     special_requests?: string | null;
+    room_type_id?: string | null;
   };
   onSubmit: (modifications: Record<string, any>) => Promise<void>;
   loading?: boolean;
@@ -47,6 +58,97 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
   const [specialRequests, setSpecialRequests] = useState(booking.special_requests || "");
   const [note, setNote] = useState("");
 
+  const [propertyInfo, setPropertyInfo] = useState<{
+    external_system: string | null;
+    benson_property_code: string | null;
+  } | null>(null);
+
+  const [availability, setAvailability] = useState<AvailabilityStatus>({
+    loading: false,
+    available: null,
+    roomTypes: [],
+    error: null,
+  });
+
+  // Fetch property info on mount to know which PMS to call
+  useEffect(() => {
+    if (!open) return;
+    const fetchProperty = async () => {
+      const { data } = await supabase
+        .from("properties")
+        .select("external_system, benson_property_code")
+        .eq("id", booking.property_id)
+        .maybeSingle();
+      setPropertyInfo(data);
+    };
+    fetchProperty();
+  }, [open, booking.property_id]);
+
+  // Fetch live availability when dates change
+  const fetchAvailability = useCallback(async (startDate: string, endDate: string) => {
+    if (!propertyInfo?.external_system) return;
+    if (!startDate || !endDate || startDate >= endDate) {
+      setAvailability({ loading: false, available: null, roomTypes: [], error: null });
+      return;
+    }
+
+    setAvailability({ loading: true, available: null, roomTypes: [], error: null });
+
+    try {
+      const edgeFunction = `${propertyInfo.external_system}-api`;
+      const { data, error } = await supabase.functions.invoke(edgeFunction, {
+        body: {
+          action: "fetch_availability",
+          property_id: booking.property_id,
+          startDate: startDate,
+          endDate: endDate,
+        },
+      });
+
+      if (error) throw new Error(error.message);
+      if (data?.error) {
+        const msg = typeof data.error === "string" ? data.error : data.error.message || "Availability check failed";
+        throw new Error(msg);
+      }
+
+      const responseData = data?.data || data;
+      const roomTypes = responseData?.room_types || responseData?.roomTypes || [];
+
+      // Check if any room type has availability for all nights
+      const hasAvailability = roomTypes.some((rt: any) => {
+        const perNight = rt.rooms_available_per_night || rt.roomsAvailablePerNight || [];
+        return perNight.length > 0 && perNight.every((n: any) => (n.available_units ?? n.numberOfRoomsAvailable ?? 0) > 0);
+      });
+
+      setAvailability({
+        loading: false,
+        available: hasAvailability,
+        roomTypes,
+        error: null,
+      });
+    } catch (err: any) {
+      console.error("Availability check error:", err);
+      setAvailability({
+        loading: false,
+        available: null,
+        roomTypes: [],
+        error: err.message || "Failed to check availability",
+      });
+    }
+  }, [propertyInfo, booking.property_id]);
+
+  // Trigger availability fetch when dates change (and differ from original)
+  useEffect(() => {
+    if (checkInDate !== booking.check_in_date || checkOutDate !== booking.check_out_date) {
+      const timer = setTimeout(() => {
+        fetchAvailability(checkInDate, checkOutDate);
+      }, 500); // debounce
+      return () => clearTimeout(timer);
+    } else {
+      setAvailability({ loading: false, available: null, roomTypes: [], error: null });
+    }
+  }, [checkInDate, checkOutDate, booking.check_in_date, booking.check_out_date, fetchAvailability]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -62,7 +164,7 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
     if (note.trim()) modifications.note = note.trim();
 
     if (Object.keys(modifications).length === 0) {
-      return; // Nothing changed
+      return;
     }
 
     await onSubmit(modifications);
@@ -76,6 +178,8 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
     children !== (booking.children || 0) ||
     infants !== (booking.infants || 0) ||
     specialRequests !== (booking.special_requests || "");
+
+  const datesChanged = checkInDate !== booking.check_in_date || checkOutDate !== booking.check_out_date;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -111,6 +215,35 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
               />
             </div>
           </div>
+
+          {/* Availability Status Indicator */}
+          {datesChanged && propertyInfo?.external_system && (
+            <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50 text-xs">
+              {availability.loading ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                  <span className="text-muted-foreground">Checking {propertyInfo.external_system} availability…</span>
+                </>
+              ) : availability.error ? (
+                <>
+                  <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+                  <span className="text-amber-600">{availability.error}</span>
+                </>
+              ) : availability.available === true ? (
+                <>
+                  <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+                  <span className="text-emerald-600">
+                    Rooms available for selected dates ({availability.roomTypes.length} room type{availability.roomTypes.length !== 1 ? "s" : ""})
+                  </span>
+                </>
+              ) : availability.available === false ? (
+                <>
+                  <XCircle className="h-3.5 w-3.5 text-destructive" />
+                  <span className="text-destructive">No availability for selected dates</span>
+                </>
+              ) : null}
+            </div>
+          )}
 
           {/* Guest Counts */}
           <div className="grid grid-cols-4 gap-2">
@@ -191,7 +324,7 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
             <Button
               type="submit"
               size="sm"
-              disabled={!hasChanges || loading}
+              disabled={!hasChanges || loading || (datesChanged && availability.loading)}
               className="text-xs h-8"
             >
               {loading && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
