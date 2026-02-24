@@ -25,6 +25,7 @@ interface CancelBookingModalProps {
   };
   onSubmit: (reason: string) => Promise<void>;
   loading?: boolean;
+  externalSystem?: string | null;
 }
 
 export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
@@ -33,6 +34,7 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
   booking,
   onSubmit,
   loading = false,
+  externalSystem,
 }) => {
   const [reason, setReason] = useState("");
   const [confirmed, setConfirmed] = useState(false);
@@ -61,9 +63,17 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="bg-destructive/10 border border-destructive/20 rounded-md p-2 text-xs text-destructive">
-            This action will cancel the booking and notify the PMS (if connected). 
+            This action will cancel the booking in RoomsOnline. 
             This cannot be undone.
           </div>
+          {externalSystem === "benson" && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-2 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                This booking is on a <strong>Benson</strong> property. Cancelling here only removes it from RoomsOnline — you must also contact the property directly to cancel in Benson.
+              </span>
+            </div>
+          )}
 
           <div className="space-y-1">
             <Label className="text-xs">Cancellation Reason *</Label>
@@ -84,7 +94,7 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
               onCheckedChange={(checked) => setConfirmed(checked === true)}
             />
             <Label htmlFor="confirm-cancel" className="text-xs leading-tight cursor-pointer">
-              I confirm this cancellation and understand it will be sent to the PMS
+              I confirm this cancellation{externalSystem === "benson" ? " and understand the property must be contacted separately to cancel in Benson" : ""}
             </Label>
           </div>
 
