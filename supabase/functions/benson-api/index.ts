@@ -514,8 +514,18 @@ serve(async (req) => {
       );
     }
     
-    const { property_id, ...params } = body;
-    action = body.action;
+    // Normalize camelCase to snake_case for interoperability
+    const normalizedBody = {
+      ...body,
+      start_date: body.start_date || body.startDate,
+      end_date: body.end_date || body.endDate,
+      room_type_ids: body.room_type_ids || body.roomTypeIds,
+      rate_type_ids: body.rate_type_ids || body.rateTypeIds,
+      reservation_data: body.reservation_data || body.reservationData,
+      property_id: body.property_id || body.propertyId,
+    };
+    const { property_id, ...params } = normalizedBody;
+    action = normalizedBody.action;
 
     // Handle get_capabilities early (no credentials needed)
     if (action === "get_capabilities") {
