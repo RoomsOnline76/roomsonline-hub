@@ -7693,16 +7693,44 @@ export default function PropertyForm() {
                     <TabsContent value="rate-types" className="p-6 space-y-4">
                       <div className="flex justify-between items-center">
                         <p className="text-sm text-muted-foreground">
-                          Rate types imported from your PMS system. Use the "Sync from PMS" button to import or update
-                          rate types.
+                          Manage rate types for this property. Each room type needs at least one rate type linked.
                         </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const newId = `manual-rate-${Date.now()}`;
+                            setPmsRateTypes((prev) => [
+                              ...prev,
+                              {
+                                id: newId,
+                                name: "New Rate Type",
+                                priceType: "UnitRate",
+                                minStayDays: 1,
+                                maxStayDays: 0,
+                                minAdvanceDays: 0,
+                                maxAdvanceDays: 0,
+                                description: "Configure rate amount",
+                                baseRate: null,
+                                pms_synced: false,
+                                linkedRoomId: null,
+                              },
+                            ]);
+                            setIsDirty(true);
+                          }}
+                          className="gap-1"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add Rate Type
+                        </Button>
                       </div>
 
                       {pmsRateTypes.length === 0 ? (
                         <div className="border rounded-lg p-8 text-center text-muted-foreground">
                           <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
                           <p>No rate types configured yet.</p>
-                          <p className="text-sm">Add base rates in the onboarding wizard or connect to your PMS to import rate types.</p>
+                          <p className="text-sm">Click "Add Rate Type" above to create one, or sync from PMS.</p>
                         </div>
                       ) : (
                         <div className="space-y-4">
