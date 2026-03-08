@@ -39,7 +39,7 @@ export function BookingNotesTab({ bookingId, guestId, specialRequests, modificat
       setLoading(true);
       const { data } = await supabase.from("rolos_guest_profiles").select("complaints").eq("id", guestId).single();
       if (data?.complaints && Array.isArray(data.complaints)) {
-        setComplaints(data.complaints as Complaint[]);
+        setComplaints(data.complaints as unknown as Complaint[]);
       }
       setLoading(false);
     };
