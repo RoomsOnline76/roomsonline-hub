@@ -146,7 +146,7 @@ export default function PMSBranding() {
         });
       }
       if (propertyRes.data) {
-        const p = propertyRes.data as any;
+        const p = propertyRes.data;
         setVisual({
           brand_logo_url: p.brand_logo_url || "",
           brand_primary_color: p.brand_primary_color || "",
