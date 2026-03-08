@@ -119,8 +119,29 @@
 ### Files Modified
 - `src/pages/pms/PMSStaff.tsx` — full rewrite with 3-tab layout
 
-## Phase 6 — Security Hardening
-**Status:** Planned
+## Phase 6 — Security Hardening ✅ COMPLETED
+
+### XSS Prevention
+- ✅ Added DOMPurify sanitization to `PublicJournals.tsx` (public-facing journal content)
+- ✅ Added DOMPurify sanitization to `ContractSign.tsx` (2 instances of contract HTML rendering)
+- ✅ Added DOMPurify sanitization to `ContractPreviewPane.tsx` (admin contract preview)
+
+### Edge Function Auth Hardening
+- ✅ `pms-message-dispatcher`: Added `getClaims()` JWT validation (was previously unauthenticated with service role key)
+- ✅ `pms-channel-sync`: Migrated from `getUser()` to `getClaims()` for consistent auth pattern
+- ✅ Both functions now use separate service client for data ops and anon client for auth validation
+
+### Database Hardening
+- ✅ Fixed `update_bank_export_updated_at()` — added `SET search_path TO 'public'` + `SECURITY DEFINER`
+- ✅ Fixed `generate_batch_reference()` — added `SET search_path TO 'public'`
+- ✅ Reduced linter warnings from 146 to 144
+
+### Files Modified
+- `src/pages/PublicJournals.tsx` — DOMPurify import + sanitization
+- `src/pages/ContractSign.tsx` — DOMPurify import + 2x sanitization
+- `src/components/contract-editor/ContractPreviewPane.tsx` — DOMPurify import + sanitization
+- `supabase/functions/pms-message-dispatcher/index.ts` — getClaims() auth + service client separation
+- `supabase/functions/pms-channel-sync/index.ts` — getClaims() migration
 
 ## Phase 7 — Revenue Management UI & Multi-Property Dashboard
 **Status:** Planned
