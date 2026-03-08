@@ -282,7 +282,7 @@ export default function PMSPortfolio() {
                       <p className="text-xs text-muted-foreground">{prop.roomCount} rooms</p>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-4 gap-3">
                         <div>
                           <p className="text-xs text-muted-foreground">Revenue</p>
                           <p className="text-sm font-bold">R{fmt(prop.revenue)}</p>
@@ -294,6 +294,10 @@ export default function PMSPortfolio() {
                         <div>
                           <p className="text-xs text-muted-foreground">ADR</p>
                           <p className="text-sm font-bold">R{fmt(prop.adr)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">RevPAR</p>
+                          <p className="text-sm font-bold">R{fmt(prop.revpar)}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border">
