@@ -4219,7 +4219,7 @@ export default function PropertyForm() {
                     // Hide onboarding tab for new properties
                     if (tab.value === "onboarding" && !propertyId) return false;
                     // Hide integrations tab for non-ROL properties
-                    if ((tab as any).rolOnly && !isRolProperty) return false;
+                    if ((tab as any).rolOnly && selectedPMS !== "roomsonline") return false;
                     // NightsBridge filtering
                     if (selectedPMS === "nightsbridge") {
                       return tab.value === "general" || tab.value === "rol-spec" || 
