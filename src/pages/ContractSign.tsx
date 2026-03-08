@@ -904,7 +904,7 @@ export default function ContractSign() {
                   <ScrollArea className="h-[400px] p-4">
                     <div 
                       className="prose prose-sm max-w-none"
-                      dangerouslySetInnerHTML={{ __html: renderedContractHtml }}
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderedContractHtml) }}
                     />
                   </ScrollArea>
                 </CollapsibleContent>
