@@ -785,7 +785,7 @@ export default function ContractSign() {
                 <ScrollArea className="h-[500px] p-4">
                   <div className="prose prose-sm max-w-none">
                     {/* Render the full contract content (dynamic template if available) */}
-                    <div dangerouslySetInnerHTML={{ __html: renderedContractHtml }} />
+                    <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderedContractHtml) }} />
                     
                     {/* Signature block */}
                     {signatureData && (
