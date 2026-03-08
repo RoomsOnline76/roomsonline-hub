@@ -149,6 +149,7 @@ export default function PMSBranding() {
           brand_accent_color: p.brand_accent_color || "",
           brand_override_enabled: p.brand_override_enabled ?? false,
         });
+        setPropertySlugLocal(p.slug || null);
       }
       setLoaded(true);
     })();
