@@ -821,6 +821,7 @@ interface CalendarGridProps {
   ratePrices?: RatePrice[];
   overrideMap: Map<string, AvailabilityOverride>;
   getRateForDate: (roomTypeId: string, date: Date) => number | null;
+  getPricingSuffix: (roomTypeId: string) => string;
   getSeasonForDate: (date: Date) => RateSeason | null;
   getRestriction: (roomTypeName: string, date: Date) => AvailabilityOverride | undefined;
   onSelectBooking: (b: BookingRow) => void;
