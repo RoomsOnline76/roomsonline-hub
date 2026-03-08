@@ -21,6 +21,8 @@ import {
   CalendarHeart,
   Moon,
   MessageSquare,
+  Building2,
+  Gauge,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
