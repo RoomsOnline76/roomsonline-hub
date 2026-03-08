@@ -527,6 +527,8 @@ const App = () => (
             <Route path="/pms/calendar" element={<ProtectedRoute><PMSBrandProvider><PMSDashboard /></PMSBrandProvider></ProtectedRoute>} />
             <Route path="/pms/staff" element={<ProtectedRoute><PMSBrandProvider><PMSStaff /></PMSBrandProvider></ProtectedRoute>} />
             <Route path="/pms/channels" element={<ProtectedRoute><PMSBrandProvider><PMSChannels /></PMSBrandProvider></ProtectedRoute>} />
+            <Route path="/pms/groups" element={<ProtectedRoute><PMSBrandProvider><PMSGroups /></PMSBrandProvider></ProtectedRoute>} />
+            <Route path="/pms/events" element={<ProtectedRoute><PMSBrandProvider><PMSEvents /></PMSBrandProvider></ProtectedRoute>} />
             {/* Integration toolkit */}
             <Route
               path="/admin/integrations"
