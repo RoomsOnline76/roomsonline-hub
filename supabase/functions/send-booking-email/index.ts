@@ -209,12 +209,11 @@ function generateEmailHeader(brand: ReturnType<typeof resolveBranding>, property
 // Helper: generate the email footer row
 function generateEmailFooter(brand: ReturnType<typeof resolveBranding>, property: any): string {
   if (brand.isBranded) {
+    // For branded/ROL'OS properties: only the subtle "Powered by" line — no ROL logo, no "Kind regards"
     return `
       <tr>
-        <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
-          <p style="margin: 0 0 8px; font-family: Georgia, serif; font-style: italic; color: #666; font-size: 14px;">Kind regards</p>
-          <p style="margin: 0 0 15px; color: #333; font-size: 14px; font-weight: 600;">${property.name}</p>
-          <div style="border-top: 1px solid #e5e5e5; padding-top: 15px; margin-top: 10px;">
+        <td style="padding: 20px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
+          <div style="border-top: 1px solid #e5e5e5; padding-top: 15px;">
             <p style="margin: 0; color: #aaa; font-size: 11px;">Powered by <a href="https://roomsonline.co.za" style="color: #aaa; text-decoration: none;">RoomsOnline</a> · Rooms Done Right</p>
           </div>
         </td>
