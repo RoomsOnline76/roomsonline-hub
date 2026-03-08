@@ -22,7 +22,8 @@ export type PmsModule =
   | "branding"
   | "integrations"
   | "staff"
-  | "calendar";
+  | "calendar"
+  | "channels";
 
 export interface ModuleAccess {
   visible: boolean;
