@@ -409,16 +409,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
 
           {/* Status & Special Requests */}
           <div className="space-y-2">
-            <div>
-              <Label>Booking Status</Label>
-              <Select value={form.status} onValueChange={v => update("status", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <p className="text-xs text-muted-foreground">Status auto-set: Paid → Confirmed, otherwise → Pending</p>
             <div>
               <Label>Special Requests</Label>
               <Textarea value={form.special_requests} onChange={e => update("special_requests", e.target.value)} placeholder="Any special requirements..." rows={3} />
