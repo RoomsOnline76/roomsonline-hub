@@ -311,6 +311,7 @@ function HomeContent() {
                 name: aiProperty.name,
                 city: aiProperty.city,
                 country: aiProperty.country,
+                slug: aiProperty.slug || "",
               });
             }
 
