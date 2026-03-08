@@ -280,20 +280,29 @@ export default function AdminContracts() {
 
     try {
       setSending(true);
+      
+      // Determine which template to use based on contract type
+      const templateId = selectedContractType === "rolos" 
+        ? "b2c3d4e5-f6a7-4890-bcde-f12345678901"  // ROL'OS PMS template
+        : "f47ac10b-58cc-4372-a567-0e02b2c3d479"; // Standard template
+      
       const { error } = await supabase.functions.invoke("send-owner-contract", {
         body: { 
           owner_email: sendEmail, 
           owner_name: sendName || undefined,
           property_id: selectedProperty?.id || undefined,
+          template_id: templateId,
+          contract_type: selectedContractType,
         },
       });
 
       if (error) throw error;
 
-      toast.success("Contract sent successfully");
+      toast.success(`${selectedContractType === "rolos" ? "ROL'OS PMS" : "Standard"} contract sent successfully`);
       setSendModalOpen(false);
       setSendEmail("");
       setSendName("");
+      setSelectedContractType("standard");
       loadContracts();
     } catch (error: any) {
       toast.error(error.message || "Failed to send contract");
