@@ -94,10 +94,10 @@ function AuthContent() {
           title: "Welcome back!",
           description: "Successfully logged in",
         });
-        navigate("/");
+        resolveAndRedirect(session.user.id);
       } else if (event === 'INITIAL_SESSION' && session && !isRecoveryModeRef.current && !hashIndicatesRecovery) {
-        // Existing session on page load - redirect to home
-        navigate("/");
+        // Existing session on page load - redirect
+        resolveAndRedirect(session.user.id);
       } else if (event === 'TOKEN_REFRESHED' && isRecoveryModeRef.current) {
         // Session refreshed during recovery - stay on recovery form
         console.log('Token refreshed during recovery flow - staying on form');
