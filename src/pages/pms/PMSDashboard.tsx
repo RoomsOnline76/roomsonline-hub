@@ -579,6 +579,12 @@ export default function PMSDashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {/* New Booking */}
+            <Button size="sm" onClick={() => setManualBookingOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              New Booking
+            </Button>
+
             {/* Restrictions dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
