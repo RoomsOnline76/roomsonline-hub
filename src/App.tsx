@@ -40,6 +40,7 @@ import RoomAvailability from "./pages/RoomAvailability";
 import Booking from "./pages/Booking";
 import BookingConfirmation from "./pages/BookingConfirmation";
 import Auth from "./pages/Auth";
+import StaffLogin from "./pages/StaffLogin";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
