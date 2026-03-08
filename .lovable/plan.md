@@ -82,10 +82,29 @@
 
 ---
 
-## Phase 4 — Group Bookings & Events Completion
+## Phase 4 — Group Bookings & Events Completion ✅ COMPLETED
 
-## Phase 4 — Group Bookings & Events Completion
-**Status:** Planned
+### Database
+- ✅ Added `setup_minutes`, `teardown_minutes`, `linked_group_id` to `rolos_events`
+- ✅ Added `release_date`, `status` to `rolos_group_room_blocks`
+- ✅ Added `attrition_rate`, `release_date` to `rolos_groups`
+
+### UI: Groups (`/pms/groups`)
+- ✅ Group detail sheet with tabs: Room Blocks | Reservations
+- ✅ Room block allocation (room type, count, rate override, dates, release date)
+- ✅ Release blocks back to inventory
+- ✅ Link individual guest reservations to group
+- ✅ Attrition rate and release date in create form
+
+### UI: Events (`/pms/events`)
+- ✅ Space Calendar tab — 14-day visual timeline per space
+- ✅ Conflict detection with setup/teardown window checking
+- ✅ Link events to group bookings
+- ✅ Setup/teardown time display in event table
+
+### Files Modified
+- `src/pages/pms/PMSGroups.tsx` — full rewrite with room blocks + reservations
+- `src/pages/pms/PMSEvents.tsx` — full rewrite with calendar + conflict detection
 
 ## Phase 5 — Staff Shifts & Activity Log UI
 **Status:** Planned
