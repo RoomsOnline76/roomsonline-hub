@@ -529,6 +529,7 @@ const App = () => (
             <Route path="/pms/channels" element={<ProtectedRoute><PMSBrandProvider><PMSChannels /></PMSBrandProvider></ProtectedRoute>} />
             <Route path="/pms/groups" element={<ProtectedRoute><PMSBrandProvider><PMSGroups /></PMSBrandProvider></ProtectedRoute>} />
             <Route path="/pms/events" element={<ProtectedRoute><PMSBrandProvider><PMSEvents /></PMSBrandProvider></ProtectedRoute>} />
+            <Route path="/pms/night-audit" element={<ProtectedRoute><PMSBrandProvider><PMSNightAudit /></PMSBrandProvider></ProtectedRoute>} />
             {/* Integration toolkit */}
             <Route
               path="/admin/integrations"
