@@ -51,6 +51,26 @@ Route: `/embed/property/:slug` — public, minimal React page for iframe embeddi
 - Channel breakdown chart updated with integration type labels
 - Bookings with `integration_type` automatically appear in revenue analytics
 
+### Phase 7: PMS Integrations Menu & Property Overview Tab ✅
+- **PMS Sidebar:** Added "Integrations" menu item to ROL'OS PMS sidebar (`/pms/integrations`)
+- **PMS Integrations Page:** New page using `usePmsPropertyId` with property selector dropdown
+- **Property Form Tab:** Conditional "Integrations" tab visible only for ROL properties (`is_rol_property = true`)
+- **Comprehensive Documentation:** `IntegrationDocumentation` component with:
+  - Overview & Use Cases (collapsible accordion)
+  - Quick Start guide (numbered steps)
+  - Advanced Configuration (code examples, parameters)
+  - Troubleshooting (issue/solution pairs)
+  - Best Practices (checklists)
+
+#### Files Created/Modified (Phase 7):
+- `src/pages/pms/PMSIntegrations.tsx` — New PMS integrations management page
+- `src/components/integrations/IntegrationDocumentation.tsx` — Exhaustive docs for all 6 integration types
+- `src/components/property/PropertyFormIntegrationsTab.tsx` — Property-level integrations tab component
+- `src/config/navigation.ts` — Added Integrations item to pmsSection
+- `src/App.tsx` — Registered `/pms/integrations` route
+- `src/pages/pms/index.ts` — Exported PMSIntegrations
+- `src/pages/PropertyForm.tsx` — Added conditional Integrations tab for ROL properties
+
 ## Architecture Preserved
 - All bookings route through existing `push-booking` flow (NO_BOOKING_FROM_CACHE enforced)
 - RLS isolation via `is_property_owner()` / `is_linked_owner()` / `has_role()`
