@@ -58,7 +58,7 @@ export default function PMSHousekeeping() {
     } catch (e: any) { toast.error(e.message); }
   };
 
-  if (!propertyId) return <AppLayout><p className="text-muted-foreground">Select a property first.</p></AppLayout>;
+  if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
 
   const dirtyRooms = rooms.filter(r => r.status === "dirty");
   const maintenanceRooms = rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order");
