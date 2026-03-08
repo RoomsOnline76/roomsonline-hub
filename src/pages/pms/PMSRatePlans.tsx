@@ -102,6 +102,7 @@ export default function PMSRatePlans() {
           description: cleanDesc || null,
           is_active: true,
           min_stay: rt.minStayDays || 1,
+          pricing_model: rt.pricingModel || 'per_room',
           requires_deposit: false,
           base_rate: rt.baseRate || 0,
         };
