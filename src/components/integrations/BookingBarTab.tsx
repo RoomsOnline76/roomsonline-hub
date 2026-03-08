@@ -3,13 +3,14 @@ import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
 import { LayoutTemplate } from "lucide-react";
 
+const PRODUCTION_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
+
 interface BookingBarTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
 }
 
 export function BookingBarTab({ property }: BookingBarTabProps) {
-  const embedUrl = `${window.location.origin}/embed/property/${property.slug}?integration=booking_bar&property_id=${property.id}&mode=bar`;
-  const primaryColor = property.brand_primary_color || "#e91e63";
+  const embedUrl = `${PRODUCTION_DOMAIN}/embed/property/${property.slug}?integration=booking_bar&property_id=${property.id}&mode=bar`;
 
   const snippet = `<!-- RoomsOnline Floating Booking Bar -->
 <div id="rolos-booking-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;">
