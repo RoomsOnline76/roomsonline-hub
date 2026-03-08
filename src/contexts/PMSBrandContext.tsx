@@ -115,7 +115,7 @@ export function PMSBrandProvider({ children }: { children: ReactNode }) {
     async function fetchBrand() {
       const { data } = await supabase
         .from("properties")
-        .select("name, brand_override_enabled, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url")
+        .select("name, slug, brand_override_enabled, brand_primary_color, brand_secondary_color, brand_font_color, brand_accent_color, brand_logo_url")
         .eq("id", propertyId!)
         .single();
 
