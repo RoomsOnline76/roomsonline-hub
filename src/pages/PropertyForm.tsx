@@ -7719,7 +7719,7 @@ export default function PropertyForm() {
                                       </Badge>
                                     )}
                                   </div>
-                                  {rateType.pms_synced ? (
+                                  {rateType.pms_synced && !isRolProperty ? (
                                     <Badge variant="outline" className="text-xs bg-primary/10">
                                       <Cloud className="h-3 w-3 mr-1" />
                                       PMS
