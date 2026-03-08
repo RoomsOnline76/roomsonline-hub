@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,8 +36,7 @@ interface Room {
 }
 
 export default function PMSRooms() {
-  const [searchParams] = useSearchParams();
-  const propertyId = searchParams.get("property");
+  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +91,7 @@ export default function PMSRooms() {
     }
   };
 
+  if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
   if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
 
   return (

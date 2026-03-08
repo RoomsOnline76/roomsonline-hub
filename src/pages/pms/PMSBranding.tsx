@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,8 +34,7 @@ const defaultConfig: BrandConfig = {
 };
 
 export default function PMSBranding() {
-  const [searchParams] = useSearchParams();
-  const propertyId = searchParams.get("property");
+  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
   const { propertyName, logoUrl, primaryColor, brandEnabled } = usePMSBrand();
   const [config, setConfig] = useState<BrandConfig>(defaultConfig);
   const [saving, setSaving] = useState(false);
@@ -90,6 +89,7 @@ export default function PMSBranding() {
     setSaving(false);
   };
 
+  if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
   if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
 
   const addr = config.business_address;

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,8 +24,7 @@ interface Guest {
 }
 
 export default function PMSGuests() {
-  const [searchParams] = useSearchParams();
-  const propertyId = searchParams.get("property");
+  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
   const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -61,6 +60,7 @@ export default function PMSGuests() {
     } catch (e: any) { toast.error(e.message); }
   };
 
+  if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
   if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
 
   return (

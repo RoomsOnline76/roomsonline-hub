@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +6,7 @@ import { Building2, BedDouble, Users, CalendarCheck, AlertTriangle, Sparkles } f
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
+import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { format } from "date-fns";
 
 interface ArrivalDeparture {
@@ -20,8 +20,7 @@ interface ArrivalDeparture {
 
 export default function PMSDashboard() {
   const { user } = useAuth();
-  const [searchParams] = useSearchParams();
-  const propertyId = searchParams.get("property");
+  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
   const { propertyName: brandName } = usePMSBrand();
   const [stats, setStats] = useState({ totalRooms: 0, occupied: 0, dirty: 0, maintenance: 0, available: 0 });
   const [propertyName, setPropertyName] = useState("");
@@ -68,6 +67,16 @@ export default function PMSDashboard() {
     };
     fetchData();
   }, [propertyId]);
+
+  if (propertyLoading) {
+    return (
+      <PMSLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <p className="text-muted-foreground">Loading property…</p>
+        </div>
+      </PMSLayout>
+    );
+  }
 
   if (!propertyId) {
     return (
