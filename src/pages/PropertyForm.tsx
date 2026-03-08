@@ -8824,6 +8824,13 @@ export default function PropertyForm() {
                       </div>
                     </TabsContent>
 
+                    {/* Commission Sub-tab */}
+                    {(isAdmin || isDev) && (
+                      <TabsContent value="commission">
+                        <CommissionTab propertyId={id!} isAdmin={isAdmin || isDev} />
+                      </TabsContent>
+                    )}
+
                     {/* Overview Sub-tab */}
                     <TabsContent value="overview" className="p-6 space-y-6">
                       {(() => {
