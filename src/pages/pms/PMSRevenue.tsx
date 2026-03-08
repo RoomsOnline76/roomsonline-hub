@@ -108,7 +108,7 @@ export default function PMSRevenue() {
     enabled: !!propertyId,
   });
 
-  // === NEW: Historical revenue & channel data ===
+  // === Historical revenue & channel data ===
   const { data: historyBookings = [], isLoading: historyLoading } = useQuery({
     queryKey: ["rev-history", propertyId, historyStart, today],
     queryFn: async () => {
@@ -118,8 +118,7 @@ export default function PMSRevenue() {
         .eq("property_id", propertyId!)
         .gte("check_in_date", historyStart)
         .lte("check_in_date", today)
-        .in("status", ["confirmed", "completed"])
-        .neq("status", "cancelled");
+        .not("status", "in", '("cancelled","failed")');
       return data || [];
     },
     enabled: !!propertyId,
