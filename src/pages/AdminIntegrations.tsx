@@ -160,6 +160,9 @@ export default function AdminIntegrations() {
                   <DomainWhitelist propertyId={selectedProperty} integrationType="full_embed" />
                 </div>
               </TabsContent>
+              <TabsContent value="smart_button">
+                <SmartBookButtonGenerator property={currentProperty} />
+              </TabsContent>
               <TabsContent value="wordpress">
                 <WordPressTab property={currentProperty} />
               </TabsContent>
