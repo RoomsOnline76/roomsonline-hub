@@ -100,6 +100,7 @@ export default function PMSHousekeeping() {
   const [docketIssueType, setDocketIssueType] = useState("");
   const [docketPriority, setDocketPriority] = useState("normal");
   const [docketDescription, setDocketDescription] = useState("");
+  const [docketMarkUnavailable, setDocketMarkUnavailable] = useState(false);
   const [docketEstCost, setDocketEstCost] = useState("");
   const [saving, setSaving] = useState(false);
 
