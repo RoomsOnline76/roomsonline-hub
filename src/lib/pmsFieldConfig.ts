@@ -147,7 +147,7 @@ const generatePMSPopulatedFields = (): Record<PMSSystem, string[]> => {
   
   // Initialize with static configs for PMS not in master JSON
   const staticConfigs: Partial<Record<PMSSystem, string[]>> = {
-    roomsonline: ['name', 'description', 'room_types', 'rate_types', 'availability', 'rates'],
+    roomsonline: [], // Native PMS - all fields are user-managed, nothing locked
     nightsbridge: [], // External redirect, no data sync
     semper: ['name', 'room_types', 'rate_types', 'availability', 'rates', 'charge_types'],
     siteminder: ['name', 'room_types', 'rate_types', 'availability', 'rates'],
