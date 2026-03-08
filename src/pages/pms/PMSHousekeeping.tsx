@@ -115,10 +115,10 @@ export default function PMSHousekeeping() {
   const fetchAll = useCallback(async () => {
     if (!propertyId) return;
     setLoading(true);
-    const roomsQ = supabase.from("rolos_rooms").select("id, room_number, room_name, floor, status, room_type_id").eq("property_id", propertyId);
+    // Use type assertions on .from() to avoid TS2589 with deeply nested Supabase generics
+    const roomsQ = (supabase.from("rolos_rooms") as any).select("id, room_number, room_name, floor, status, room_type_id").eq("property_id", propertyId);
     const typesQ = supabase.from("rolos_room_types").select("id, name").eq("property_id", propertyId);
-    const tasksQ = supabase.from("rolos_housekeeping_tasks").select("id, room_id, task_type, priority, status, notes, assigned_to").eq("property_id", propertyId);
-    // Use type assertion to avoid TS2589 on deeply chained maintenance request query
+    const tasksQ = (supabase.from("rolos_housekeeping_tasks") as any).select("id, room_id, task_type, priority, status, notes, assigned_to").eq("property_id", propertyId);
     const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").eq("property_id", propertyId);
     const [roomsRes, typesRes, tasksRes, maintRes] = await Promise.all([roomsQ, typesQ, tasksQ, maintQ]);
 
