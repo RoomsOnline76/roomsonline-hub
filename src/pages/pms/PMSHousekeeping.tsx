@@ -33,8 +33,7 @@ interface HousekeepingRoom {
 }
 
 export default function PMSHousekeeping() {
-  const [searchParams] = useSearchParams();
-  const propertyId = searchParams.get("property");
+  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
   const [rooms, setRooms] = useState<HousekeepingRoom[]>([]);
   const [loading, setLoading] = useState(true);
 
