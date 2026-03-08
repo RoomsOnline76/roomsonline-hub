@@ -176,8 +176,12 @@ function wrapCustomTemplate(customContent: string, property: any): string {
 }
 
 // Helper: resolve branding for a property
+// ROL'OS properties (is_rol_property) get branded automatically when colours exist — no toggle needed.
+// Other properties require brand_override_enabled to be true.
 function resolveBranding(property: any): { accentColor: string; logoUrl: string; senderName: string; isBranded: boolean; secondaryColor: string; fontColor: string } {
-  const isBranded = !!property.brand_override_enabled;
+  const isRol = !!property.is_rol_property;
+  const hasColors = !!property.brand_primary_color;
+  const isBranded = isRol ? hasColors : (!!property.brand_override_enabled && hasColors);
   return {
     isBranded,
     accentColor: (isBranded && property.brand_primary_color) ? property.brand_primary_color : "#e91e8c",
@@ -578,7 +582,8 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
 
 // Generate property owner notification email for non-PMS properties
 function generatePropertyNotificationEmail(booking: any, property: any): string {
-  const accentColor = (property.brand_override_enabled && property.brand_primary_color) ? property.brand_primary_color : "#e91e8c";
+  const brand = resolveBranding(property);
+  const accentColor = brand.accentColor;
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
   const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
   const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
@@ -1119,8 +1124,9 @@ Deno.serve(async (req) => {
 
     const defaultFromEmail = emailConfig?.key_value || "RoomsOnline <hello@notify.roomsonline.co.za>";
     
-    // Use property name as sender when branding is enabled
-    const fromEmail = (property.brand_override_enabled && property.name)
+    // Use property name as sender when branding is active (ROL'OS auto, others via toggle)
+    const brand = resolveBranding(property);
+    const fromEmail = brand.isBranded
       ? `${property.name} <noreply@notify.roomsonline.co.za>`
       : defaultFromEmail;
 
