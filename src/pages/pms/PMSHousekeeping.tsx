@@ -350,7 +350,7 @@ export default function PMSHousekeeping() {
                         )}
 
                         {/* Open: show resolve button */}
-                        {(req.status === "open" || req.status === "in_progress") && (
+                        {STATUSES_OPEN.includes(req.status || "") && (
                           <Button size="sm" variant="outline" className="w-full" onClick={() => { setResolveReq(req); setResolveNotes(""); }}>
                             <CheckCircle className="h-3 w-3 mr-1" />Mark Resolved
                           </Button>
