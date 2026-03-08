@@ -403,12 +403,25 @@ export default function PMSStaff() {
                                 {dayShifts.length > 0 ? (
                                   <div className="space-y-0.5">
                                     {dayShifts.map((s: any) => (
-                                      <Badge key={s.id} variant="outline" className={`text-[10px] block ${getShiftBadgeClass(s.shift_type)}`}>
-                                        {s.shift_type === "custom"
-                                          ? `${format(parseISO(s.start_time), "HH:mm")}–${format(parseISO(s.end_time), "HH:mm")}`
-                                          : SHIFT_TYPES.find(t => t.value === s.shift_type)?.label || s.shift_type
-                                        }
-                                      </Badge>
+                                      <DropdownMenu key={s.id}>
+                                        <DropdownMenuTrigger asChild>
+                                          <button className={`text-[10px] w-full rounded-md border px-1.5 py-0.5 cursor-pointer hover:ring-1 hover:ring-primary/40 transition-all ${getShiftBadgeClass(s.shift_type)}`}>
+                                            {s.shift_type === "custom"
+                                              ? `${format(parseISO(s.start_time), "HH:mm")}–${format(parseISO(s.end_time), "HH:mm")}`
+                                              : SHIFT_TYPES.find(t => t.value === s.shift_type)?.label || s.shift_type
+                                            }
+                                          </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="center" className="min-w-[140px]">
+                                          <DropdownMenuItem onClick={() => handleEditShift(s)} className="text-xs gap-2">
+                                            <Pencil className="h-3 w-3" /> Edit Shift
+                                          </DropdownMenuItem>
+                                          <DropdownMenuSeparator />
+                                          <DropdownMenuItem onClick={() => handleDeleteShift(s.id)} className="text-xs gap-2 text-destructive focus:text-destructive">
+                                            <Trash2 className="h-3 w-3" /> Delete Shift
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
                                     ))}
                                   </div>
                                 ) : (
