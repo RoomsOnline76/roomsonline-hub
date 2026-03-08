@@ -35,48 +35,65 @@ export default function PMSRoomTypes() {
     default_rate: "",
   });
 
-  // Auto-sync: ensure all overview room types exist in rolos_room_types
-  // Queries hostfully_room_types (the Property Overview table used by ALL property types including ROL'OS)
+  // Auto-sync from the true Property Overview source for each property type
   const syncFromOverview = useCallback(async () => {
     if (!propertyId) return;
 
-    // hostfully_room_types is the universal "Property Overview" room types table for all PMS types
-    const { data: overviewTypes, error: overviewErr } = await supabase
-      .from("hostfully_room_types")
-      .select("id, name, description, max_guests, daily_rate, is_active")
-      .eq("property_id", propertyId);
+    const [{ data: property }, { data: hostfullyTypes, error: hostfullyErr }] = await Promise.all([
+      supabase.from("properties").select("is_rol_property, amenities").eq("id", propertyId).single(),
+      supabase
+        .from("hostfully_room_types")
+        .select("id, name, description, max_guests, daily_rate, is_active")
+        .eq("property_id", propertyId),
+    ]);
 
-    if (overviewErr) {
-      console.warn("[PMSRoomTypes] Failed to fetch overview types:", overviewErr);
-      return;
+    if (hostfullyErr) {
+      console.warn("[PMSRoomTypes] Failed to fetch hostfully_room_types:", hostfullyErr);
     }
 
-    // Include both active and inactive to get full picture; only sync active ones
-    const activeOverview = (overviewTypes || []).filter(ot => ot.is_active !== false);
-    if (activeOverview.length === 0) return;
+    const amenitiesRoomTypes = Array.isArray((property as any)?.amenities?.room_types)
+      ? ((property as any).amenities.room_types as any[])
+          .filter((rt) => rt?.name)
+          .map((rt, index) => ({
+            id: `amenity-${rt.id || index}`,
+            name: String(rt.name),
+            description: rt.description || null,
+            max_guests: Number(rt.maxPeople ?? rt.max_guests ?? rt.max_adults ?? 2) || 2,
+            daily_rate: rt.baseRate ?? rt.base_rate ?? null,
+            is_active: true,
+            source: "amenities" as const,
+          }))
+      : [];
+
+    const activeHostfully = (hostfullyTypes || [])
+      .filter((ot) => ot.is_active !== false)
+      .map((ot) => ({ ...ot, source: "hostfully" as const }));
+
+    const overviewTypes = (property as any)?.is_rol_property && amenitiesRoomTypes.length > 0
+      ? amenitiesRoomTypes
+      : activeHostfully;
+
+    if (overviewTypes.length === 0) return;
 
     const { data: existingRolos } = await supabase
       .from("rolos_room_types")
       .select("id, name, linked_overview_id")
       .eq("property_id", propertyId);
 
-    const linkedIds = new Set((existingRolos || []).map(r => r.linked_overview_id).filter(Boolean));
-    const existingNames = new Set((existingRolos || []).map(r => r.name.toLowerCase()));
+    const linkedIds = new Set((existingRolos || []).map((r) => r.linked_overview_id).filter(Boolean));
+    const existingNames = new Set((existingRolos || []).map((r) => r.name.toLowerCase()));
 
-    const missing = activeOverview.filter(ot =>
-      !linkedIds.has(ot.id) && !existingNames.has(ot.name.toLowerCase())
-    );
-
+    const missing = overviewTypes.filter((ot) => !linkedIds.has((ot as any).id) && !existingNames.has(ot.name.toLowerCase()));
     if (missing.length === 0) return;
 
-    const rows = missing.map(ot => ({
+    const rows = missing.map((ot) => ({
       property_id: propertyId,
       name: ot.name,
       description: ot.description || null,
       max_occupancy: ot.max_guests || 2,
       default_rate: ot.daily_rate || null,
       is_active: true,
-      linked_overview_id: ot.id,
+      linked_overview_id: (ot as any).source === "hostfully" ? (ot as any).id : null,
     }));
 
     const { error } = await supabase.from("rolos_room_types").insert(rows);
