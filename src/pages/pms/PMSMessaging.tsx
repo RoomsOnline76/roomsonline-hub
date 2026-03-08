@@ -57,8 +57,8 @@ function PMSMessaging() {
       await upsertTemplate.mutateAsync(editForm);
       toast.success("Template saved");
       setEditOpen(false);
-    } catch (e: any) {
-      toast.error(e.message || "Failed to save template");
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Failed to save template");
     }
   };
 
