@@ -101,10 +101,11 @@ function HomeContent() {
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
   const [heroImage, setHeroImage] = useState<string>(heroFallback);
   const [heroVideoUrl, setHeroVideoUrl] = useState<string | null>(null);
-  const [heroProperty, setHeroProperty] = useState<{ name: string; city: string; country: string; slug: string } | null>(null);
+  const [heroProperty, setHeroProperty] = useState<{ id: string; name: string; city: string; country: string; slug: string } | null>(null);
   const [originalHeroImage, setOriginalHeroImage] = useState<string>(heroFallback);
   const [originalHeroVideoUrl, setOriginalHeroVideoUrl] = useState<string | null>(null);
   const [originalHeroProperty, setOriginalHeroProperty] = useState<{
+    id: string;
     name: string;
     city: string;
     country: string;
@@ -242,13 +243,14 @@ function HomeContent() {
       try {
         const { data: heroProperties } = await supabase
           .from("properties")
-          .select("images, hero_video_url, name, city, country, slug")
+          .select("id, images, hero_video_url, name, city, country, slug")
           .eq("hero_listing", true)
           .eq("is_active", true)
           .eq("show_on_website", true);
 
         if (heroProperties && heroProperties.length > 0) {
           const validProperties: {
+            id: string;
             imageUrl: string;
             videoUrl: string | null;
             name: string;
@@ -260,6 +262,7 @@ function HomeContent() {
             const imageUrl = extractPrimaryImageUrl(prop.images);
             if (imageUrl) {
               validProperties.push({
+                id: prop.id,
                 imageUrl,
                 videoUrl: prop.hero_video_url || null,
                 name: prop.name,
@@ -275,10 +278,10 @@ function HomeContent() {
             const selected = validProperties[randomIndex];
             setHeroImage(selected.imageUrl);
             setHeroVideoUrl(selected.videoUrl);
-            setHeroProperty({ name: selected.name, city: selected.city, country: selected.country, slug: selected.slug });
+            setHeroProperty({ id: selected.id, name: selected.name, city: selected.city, country: selected.country, slug: selected.slug });
             setOriginalHeroImage(selected.imageUrl);
             setOriginalHeroVideoUrl(selected.videoUrl);
-            setOriginalHeroProperty({ name: selected.name, city: selected.city, country: selected.country, slug: selected.slug });
+            setOriginalHeroProperty({ id: selected.id, name: selected.name, city: selected.city, country: selected.country, slug: selected.slug });
           }
         }
       } catch (error) {
@@ -308,6 +311,7 @@ function HomeContent() {
               setHeroImage(aiImage);
               setHeroVideoUrl(aiProperty.hero_video_url || null);
               setHeroProperty({
+                id: aiProperty.id,
                 name: aiProperty.name,
                 city: aiProperty.city,
                 country: aiProperty.country,
@@ -339,6 +343,7 @@ function HomeContent() {
           setHeroImage(selectedImage);
           setHeroVideoUrl(null);
           setHeroProperty({
+            id: selectedProperty.id,
             name: selectedProperty.name,
             city: selectedProperty.city,
             country: selectedProperty.country,
@@ -452,7 +457,7 @@ function HomeContent() {
 
                 {/* Dropdown Menu */}
                 {isMenuOpen && (
-                  <div className="absolute top-12 right-0 w-56 bg-card/98 backdrop-blur-md border border-border rounded-xl shadow-2xl py-2 z-50 animate-fade-in">
+                  <div className="absolute top-12 right-0 w-56 bg-background border border-border rounded-xl shadow-2xl py-2 z-50 animate-fade-in">
                     {[
                       { to: "/journals", icon: BookOpen, label: "Journal" },
                       { to: "/about", icon: Users, label: "About Us" },
@@ -517,13 +522,13 @@ function HomeContent() {
         </div>
 
         {/* Hero property credit overlay */}
-        {heroProperty && heroProperty.slug && (
+        {heroProperty && (
           <Link
-            to={`/property/${heroProperty.slug}`}
-            className="absolute bottom-36 sm:bottom-40 right-4 sm:right-8 z-20 text-white/80 hover:text-white text-xs sm:text-sm transition-colors drop-shadow-lg flex items-center gap-1.5 bg-black/30 backdrop-blur-sm rounded-full px-3 py-1.5"
+            to={`/property/${heroProperty.slug || heroProperty.id}`}
+            className="absolute bottom-36 sm:bottom-40 right-4 sm:right-8 z-30 text-white/90 hover:text-white text-xs sm:text-sm transition-colors drop-shadow-lg flex items-center gap-1.5 bg-black/40 backdrop-blur-sm rounded-full px-3 py-1.5"
           >
             <span className="font-medium">{heroProperty.name}</span>
-            <span className="text-white/50">•</span>
+            <span className="text-white/60">•</span>
             <span>{heroProperty.city}</span>
           </Link>
         )}
