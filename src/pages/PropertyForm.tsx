@@ -3964,34 +3964,38 @@ export default function PropertyForm() {
         // For ROL properties, sync pmsRateTypes to rolos_rate_plans table
         if (isRolProperty && savedPropertyId && pmsRateTypes.length > 0) {
           try {
+            console.log(`[ROL Sync] Syncing ${pmsRateTypes.length} rate types to rolos_rate_plans...`, pmsRateTypes.map((r: any) => r.name));
             for (const rateType of pmsRateTypes) {
+              const rateCode = typeof rateType.id === 'string' ? rateType.id.substring(0, 20) : String(rateType.id);
               const ratePlanData = {
                 property_id: savedPropertyId,
                 name: rateType.name || 'Unnamed Rate',
-                code: typeof rateType.id === 'string' ? rateType.id.substring(0, 20) : String(rateType.id),
+                code: rateCode,
                 description: rateType.description || null,
                 is_active: true,
                 min_stay: rateType.minStayDays || 1,
                 requires_deposit: false,
               };
 
-              // Check if a rate plan with this code already exists
+              // Check if a rate plan with this code OR name already exists
               const { data: existingPlan } = await supabase
                 .from("rolos_rate_plans")
                 .select("id")
                 .eq("property_id", savedPropertyId)
-                .eq("code", ratePlanData.code)
+                .or(`code.eq.${rateCode},name.eq.${ratePlanData.name}`)
                 .maybeSingle();
 
               if (existingPlan) {
-                await supabase
+                const { error: updateErr } = await supabase
                   .from("rolos_rate_plans")
                   .update(ratePlanData)
                   .eq("id", existingPlan.id);
+                if (updateErr) console.warn("[ROL Sync] Rate plan update error:", updateErr);
               } else {
-                await supabase
+                const { error: insertErr } = await supabase
                   .from("rolos_rate_plans")
                   .insert(ratePlanData);
+                if (insertErr) console.warn("[ROL Sync] Rate plan insert error:", insertErr);
               }
             }
             console.log(`[ROL Sync] Synced ${pmsRateTypes.length} rate types to rolos_rate_plans`);
