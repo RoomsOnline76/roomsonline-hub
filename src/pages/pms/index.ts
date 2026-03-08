@@ -7,4 +7,3 @@ export { default as PMSHousekeeping } from "./PMSHousekeeping";
 export { default as PMSReports } from "./PMSReports";
 export { default as PMSBranding } from "./PMSBranding";
 export { default as PMSIntegrations } from "./PMSIntegrations";
-export { default as PMSCalendar } from "./PMSCalendar";
