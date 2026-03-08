@@ -20,10 +20,10 @@ interface StaffMember {
   user_id: string;
   staff_role: PmsStaffRole;
   display_name: string;
+  email: string | null;
   is_active: boolean;
   must_change_password: boolean;
   created_at: string;
-  profiles?: { email: string } | null;
 }
 
 const ASSIGNABLE_ROLES: PmsStaffRole[] = [
