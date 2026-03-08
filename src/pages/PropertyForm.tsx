@@ -9150,7 +9150,7 @@ export default function PropertyForm() {
                       className={cn(
                         "flex items-center justify-between p-2 rounded-md transition-colors text-xs",
                         selectedRoomType === room.id ? "bg-primary text-primary-foreground" : "hover:bg-muted",
-                        room.pms_synced && selectedRoomType !== room.id ? "bg-primary/5 border border-primary/20" : "",
+                        room.pms_synced && !isRolProperty && selectedRoomType !== room.id ? "bg-primary/5 border border-primary/20" : "",
                       )}
                     >
                       <span
