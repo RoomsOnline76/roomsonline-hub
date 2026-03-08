@@ -902,7 +902,7 @@ function WeekCalendarGrid(props: CalendarGridProps) {
 
 // ──────────── Month Calendar (stacked weekly rows, no horizontal scroll) ────────────
 function MonthCalendarGrid(props: CalendarGridProps) {
-  const { weekChunks = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
+  const { weekChunks = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getPricingSuffix, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
 
   // 7 columns for days + 1 for label. Use CSS grid with equal columns.
   return (
