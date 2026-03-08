@@ -1306,7 +1306,7 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
         if (!res.success) {
           // Handle ROOMS_NOT_READY: show reassignment dialog
           if (res.error?.code === "ROOMS_NOT_READY") {
-            setUnreadyRoomDetails(res.error.details?.unready_rooms || []);
+            setUnreadyRoomDetails((res.error?.details as any)?.unready_rooms || []);
             setReassignRoomIds(booking.rolos_room_ids || []);
             setReassignPrice(String(booking.total_price));
             setShowRoomReassign(true);
