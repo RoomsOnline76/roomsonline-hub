@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, KeyRound, UserX, UserCheck, Shield, MoreHorizontal } from "lucide-react";
+import { UserPlus, KeyRound, UserX, UserCheck, Shield, MoreHorizontal, Copy, Link2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, type PmsStaffRole } from "@/lib/pmsPermissions";
 
