@@ -149,7 +149,7 @@ export function PublicHeader({
 
         {/* Mobile dropdown menu */}
         {mobileMenuOpen && (
-          <div className="sm:hidden mt-4 pb-2 animate-fade-in bg-background border border-border shadow-lg rounded-lg">
+          <div className="md:hidden mt-4 pb-2 animate-fade-in bg-background border border-border shadow-lg rounded-lg">
             <nav className="flex flex-col gap-1 p-2">
               <Link
                 to="/journals"
