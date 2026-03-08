@@ -3960,9 +3960,11 @@ export type Database = {
           email_footer_text: string | null
           favicon_url: string | null
           id: string
+          is_vat_registered: boolean
           property_id: string
           updated_at: string | null
           vat_number: string | null
+          vat_rate: number | null
         }
         Insert: {
           business_address?: Json | null
@@ -3972,9 +3974,11 @@ export type Database = {
           email_footer_text?: string | null
           favicon_url?: string | null
           id?: string
+          is_vat_registered?: boolean
           property_id: string
           updated_at?: string | null
           vat_number?: string | null
+          vat_rate?: number | null
         }
         Update: {
           business_address?: Json | null
@@ -3984,9 +3988,11 @@ export type Database = {
           email_footer_text?: string | null
           favicon_url?: string | null
           id?: string
+          is_vat_registered?: boolean
           property_id?: string
           updated_at?: string | null
           vat_number?: string | null
+          vat_rate?: number | null
         }
         Relationships: [
           {

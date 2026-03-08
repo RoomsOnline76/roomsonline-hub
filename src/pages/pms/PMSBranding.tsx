@@ -18,6 +18,8 @@ interface BrandConfig {
   business_name: string;
   business_address: { street?: string; city?: string; state?: string; postal?: string; country?: string };
   vat_number: string;
+  is_vat_registered: boolean;
+  vat_rate: number;
   email_footer_text: string;
   custom_tagline: string;
   favicon_url: string;
@@ -36,6 +38,8 @@ const defaultConfig: BrandConfig = {
   business_name: "",
   business_address: {},
   vat_number: "",
+  is_vat_registered: false,
+  vat_rate: 15,
   email_footer_text: "",
   custom_tagline: "",
   favicon_url: "",
@@ -134,6 +138,8 @@ export default function PMSBranding() {
           business_name: d.business_name || "",
           business_address: d.business_address || {},
           vat_number: d.vat_number || "",
+          is_vat_registered: d.is_vat_registered ?? false,
+          vat_rate: d.vat_rate ?? 15,
           email_footer_text: d.email_footer_text || "",
           custom_tagline: d.custom_tagline || "",
           favicon_url: d.favicon_url || "",
@@ -183,6 +189,8 @@ export default function PMSBranding() {
         business_name: config.business_name || null,
         business_address: config.business_address,
         vat_number: config.vat_number || null,
+        is_vat_registered: config.is_vat_registered,
+        vat_rate: config.is_vat_registered ? config.vat_rate : null,
         email_footer_text: config.email_footer_text || null,
         custom_tagline: config.custom_tagline || null,
         favicon_url: config.favicon_url || null,
@@ -312,6 +320,15 @@ export default function PMSBranding() {
                 <div><Label>Business Name</Label><Input value={config.business_name} onChange={e => setConfig(p => ({ ...p, business_name: e.target.value }))} placeholder={propertyName || "Your business name"} /></div>
                 <div><Label>Custom Tagline</Label><Input value={config.custom_tagline} onChange={e => setConfig(p => ({ ...p, custom_tagline: e.target.value }))} placeholder="e.g. Where memories are made" /></div>
                 <div><Label>VAT / Tax Number</Label><Input value={config.vat_number} onChange={e => setConfig(p => ({ ...p, vat_number: e.target.value }))} placeholder="e.g. VAT4870123456" /></div>
+                <div className="flex items-center gap-3 pt-2">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="checkbox" checked={config.is_vat_registered} onChange={e => setConfig(p => ({ ...p, is_vat_registered: e.target.checked }))} className="rounded border-input" />
+                    VAT Registered (Tax Invoice)
+                  </label>
+                </div>
+                {config.is_vat_registered && (
+                  <div><Label>VAT Rate (%)</Label><Input type="number" step="0.01" value={config.vat_rate} onChange={e => setConfig(p => ({ ...p, vat_rate: parseFloat(e.target.value) || 0 }))} placeholder="15" /></div>
+                )}
               </CardContent>
             </Card>
 
