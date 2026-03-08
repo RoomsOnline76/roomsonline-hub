@@ -288,6 +288,56 @@ Deno.serve(async (req) => {
       case "set_rates":
         return await handleSetRates(body, supabase);
 
+      // ROL'OS Native PMS actions
+      case "get_physical_rooms":
+        return await handleGetPhysicalRooms(body, supabase);
+      case "create_physical_room":
+        return await handleCreatePhysicalRoom(body, supabase);
+      case "update_room_status":
+        return await handleUpdateRoomStatus(body, supabase);
+      case "get_rolos_room_types":
+        return await handleGetRolosRoomTypes(body, supabase);
+      case "create_rolos_room_type":
+        return await handleCreateRolosRoomType(body, supabase);
+      case "update_rolos_room_type":
+        return await handleUpdateRolosRoomType(body, supabase);
+      case "get_rate_plans":
+        return await handleGetRatePlans(body, supabase);
+      case "create_rate_plan":
+        return await handleCreateRatePlan(body, supabase);
+      case "get_rate_seasons":
+        return await handleGetRateSeasons(body, supabase);
+      case "create_rate_season":
+        return await handleCreateRateSeason(body, supabase);
+      case "set_rate_prices":
+        return await handleSetRatePrices(body, supabase);
+      case "get_guest_profiles":
+        return await handleGetGuestProfiles(body, supabase);
+      case "get_guest_profile":
+        return await handleGetGuestProfile(body, supabase);
+      case "create_guest_profile":
+        return await handleCreateGuestProfile(body, supabase);
+      case "update_guest_profile":
+        return await handleUpdateGuestProfile(body, supabase);
+      case "check_in":
+        return await handleCheckIn(body, supabase);
+      case "check_out":
+        return await handleCheckOut(body, supabase);
+      case "get_folio":
+        return await handleGetFolio(body, supabase);
+      case "add_folio_charge":
+        return await handleAddFolioCharge(body, supabase);
+      case "process_folio_payment":
+        return await handleProcessFolioPayment(body, supabase);
+      case "get_housekeeping_board":
+        return await handleGetHousekeepingBoard(body, supabase);
+      case "assign_housekeeping_task":
+        return await handleAssignHousekeepingTask(body, supabase);
+      case "complete_housekeeping_task":
+        return await handleCompleteHousekeepingTask(body, supabase);
+      case "get_daily_metrics":
+        return await handleGetDailyMetrics(body, supabase);
+
       default:
         return new Response(
           JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, `Unknown action: ${action}`, action)),
