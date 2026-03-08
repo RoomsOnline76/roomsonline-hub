@@ -32,7 +32,7 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
   });
   const [selectedPMSSystems, setSelectedPMSSystems] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activePMSSystems, setActivePMSSystems] = useState<{key: string, name: string}[]>([]);
+  
   
   // Multi-PMS toggle
   const [showMultiPMS, setShowMultiPMS] = useState(false);
