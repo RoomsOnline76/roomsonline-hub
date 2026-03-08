@@ -1,78 +1,125 @@
 
-# ROLOS Property Website Integration Toolkit — COMPLETED
 
-## What Was Delivered
+# Plan: Full Booking Lifecycle, Guest Profile Auto-Creation & Invoice System
 
-### Phase 1: Database Schema ✅
-- `integration_configs` table — property-scoped integration settings with API keys, domain whitelists, and jsonb config
-- `integration_logs` table — tracks widget loads, clicks, and booking initiations
-- `bookings` table extended with `integration_type` and `source_url` columns
-- Full RLS policies: owners manage their own, admin/dev have full access, anon can insert logs
+## Problem Summary
 
-### Phase 2: Edge Functions ✅
-- **`generate-integration-assets`** — Generates code snippets per integration type with AI-powered installation instructions (Lovable AI gemini-3-flash-preview)
-- **`track-embed-interaction`** — Public endpoint for widgets to log loads/clicks to `integration_logs`
-- **`wordpress-plugin-api`** — API key-authenticated endpoint for WordPress plugin (get_property_info, get_availability, create_booking_redirect)
-- **`push-booking` extended** — Now accepts and persists `integration_type` and `source_url` on every booking
+1. **No check-in/check-out workflow** in calendar — bookings can't progress through their lifecycle
+2. **No folio/billing UI** — folio APIs exist (`get_folio`, `add_folio_charge`, `process_folio_payment`) but no frontend
+3. **No invoice generation** — can't print or email a final bill
+4. **No guest profile auto-creation** — manual bookings and ROL'OS link bookings don't create `rolos_guest_profiles` records or link via `rolos_guest_id`
+5. **No complaints/comments capture** on guest profile for future reference
+6. **Status logic**: paid bookings should auto-set to `confirmed`, unpaid to `pending`
 
-### Phase 3: Admin UI ✅
-Route: `/admin/integrations` — accessible to all property owners via Workspace sidebar
+## Implementation
 
-6 integration tabs:
-- **Direct Link** — Copyable booking URL + HTML button snippet
-- **Widget** — iframe and JavaScript embed code for date-picker widget
-- **Booking Bar** — Fixed-position bottom bar embed code
-- **Full Embed** — Full booking engine iframe for dedicated pages
-- **WordPress** — PHP plugin code + shortcode, ready-to-install
-- **API** — API key generation/rotation, cURL examples, endpoint docs
+### 1. Auto-Create Guest Profile on Booking Creation
 
-Each tab includes:
-- Enable/disable toggle (persisted to `integration_configs`)
-- Copyable code snippets with syntax highlighting
-- Step-by-step installation instructions
-- Domain whitelist configuration (widget, booking bar, full embed)
+**Files**: `ManualBookingDialog.tsx`, `supabase/functions/roomsonline-pms-api/index.ts`
 
-### Phase 4: Analytics Dashboard ✅
-Integrated directly into the integrations page:
-- Widget Loads / Bookings via Integrations / Conversion Rate KPIs
-- Widget Activity bar chart (loads + clicks by integration type)
-- Bookings by Integration pie chart
-- Revenue Pulse channel breakdown updated to include integration types
+After inserting a booking in `ManualBookingDialog.tsx`:
+- Upsert into `rolos_guest_profiles` matching on `(property_id, email)` — if exists, increment `total_stays` and `total_spent`, update `last_stay_date`; if new, insert
+- Set `rolos_guest_id` on the booking record
+- Same logic added to the edge function for bookings coming through ROL'OS integration links (in `push-booking` or the PMS API)
 
-### Phase 5: Embeddable Assets ✅
-Route: `/embed/property/:slug` — public, minimal React page for iframe embedding
-- **Widget mode** — Card-style booking prompt with property hero image and branding
-- **Bar mode** — Compact horizontal bar with "Book Now" button
-- **Full mode** — Same as widget but for full-page embedding
-- Automatic load tracking via `integration_logs`
-- "Powered by ROL'OS" attribution footer
+### 2. Booking Status Auto-Logic
 
-### Phase 6: Revenue Pulse Integration ✅
-- Channel breakdown chart updated with integration type labels
-- Bookings with `integration_type` automatically appear in revenue analytics
+**File**: `ManualBookingDialog.tsx`
 
-### Phase 7: PMS Integrations Menu & Property Overview Tab ✅
-- **PMS Sidebar:** Added "Integrations" menu item to ROL'OS PMS sidebar (`/pms/integrations`)
-- **PMS Integrations Page:** New page using `usePmsPropertyId` with property selector dropdown
-- **Property Form Tab:** Conditional "Integrations" tab visible only for ROL properties (`is_rol_property = true`)
-- **Comprehensive Documentation:** `IntegrationDocumentation` component with:
-  - Overview & Use Cases (collapsible accordion)
-  - Quick Start guide (numbered steps)
-  - Advanced Configuration (code examples, parameters)
-  - Troubleshooting (issue/solution pairs)
-  - Best Practices (checklists)
+- Remove manual status selector
+- Auto-determine: if `payment_status === 'paid'` → `status: 'confirmed'`, else `status: 'pending'`
 
-#### Files Created/Modified (Phase 7):
-- `src/pages/pms/PMSIntegrations.tsx` — New PMS integrations management page
-- `src/components/integrations/IntegrationDocumentation.tsx` — Exhaustive docs for all 6 integration types
-- `src/components/property/PropertyFormIntegrationsTab.tsx` — Property-level integrations tab component
-- `src/config/navigation.ts` — Added Integrations item to pmsSection
-- `src/App.tsx` — Registered `/pms/integrations` route
-- `src/pages/pms/index.ts` — Exported PMSIntegrations
-- `src/pages/PropertyForm.tsx` — Added conditional Integrations tab for ROL properties
+### 3. Expand BookingDetail into Full Lifecycle Manager
 
-## Architecture Preserved
-- All bookings route through existing `push-booking` flow (NO_BOOKING_FROM_CACHE enforced)
-- RLS isolation via `is_property_owner()` / `is_linked_owner()` / `has_role()`
-- API key authentication for WordPress/API integrations (stored in `integration_configs`)
-- Integration tracking metadata flows through to commission calculation
+**File**: `PMSDashboard.tsx` — Replace current `BookingDetail` with a tabbed interface
+
+**Tabs:**
+- **Details** — Current view/edit form (guest info, dates, guests, room)
+- **Folio & Billing** — Charges, payments, extras, balance
+- **Invoice** — Generate, print, email PDF
+- **Notes & Complaints** — Comments, complaints log tied to guest profile
+
+**Lifecycle action buttons** in the header based on current status:
+| Current Status | Available Actions |
+|---|---|
+| `pending` | Mark Paid → Confirm, Cancel, No Show |
+| `confirmed` | Check In, Cancel, No Show |
+| `checked_in` | Add Charge, Record Payment, Check Out |
+| `checked_out` | (View only, print invoice) |
+
+Each action calls the existing PMS API (`check_in`, `check_out`) or direct Supabase update.
+
+### 4. Folio & Billing Tab
+
+**File**: New component `src/components/pms/BookingFolioTab.tsx`
+
+- On tab open, call `callPmsApi('get_folio', { booking_id })` — auto-creates if missing
+- Display transactions list (charges + payments) with running balance
+- **Add Charge** form: description, amount, type (room charge, minibar, extra, tax)
+- **Record Payment** form: amount, method (cash/card/eft), reference
+- Balance summary: total charges vs total payments
+
+### 5. Invoice Generation & Delivery
+
+**File**: New component `src/components/pms/BookingInvoice.tsx`
+
+- Build a printable invoice layout using the booking + folio data:
+  - Property header (name, address)
+  - Guest details
+  - Stay summary (dates, room, guests)
+  - Itemized charges from folio transactions
+  - Payments received
+  - Balance due
+- **Print**: `window.print()` with print-specific CSS
+- **Email as PDF**: Use `html2pdf.js` (already installed) to generate blob, then call an edge function to email it via Resend
+
+### 6. Notes & Complaints Tab
+
+**File**: New component `src/components/pms/BookingNotesTab.tsx`
+
+**Database**: Add `complaints` jsonb column to `rolos_guest_profiles` to store structured complaint/comment history
+
+Migration:
+```sql
+ALTER TABLE public.rolos_guest_profiles 
+  ADD COLUMN complaints jsonb DEFAULT '[]'::jsonb;
+```
+
+- Display existing notes from `booking.special_requests` and `booking.modification_notes`
+- **Add Comment** form — appends to booking's special_requests or a new `booking_notes` field
+- **Add Complaint** form — saves to `rolos_guest_profiles.complaints` array with timestamp, booking_id, description, resolution status
+- Guest profile card link showing total complaints count
+
+### 7. Guest History on Profile
+
+**File**: `PMSGuests.tsx` — Expand guest cards to show:
+- Click to open detail sheet
+- List all bookings for this guest (query `bookings` where `rolos_guest_id = guest.id`)
+- Each booking shows: dates, amount, status, complaints, comments
+- Aggregate: total stays, total spent, average stay length
+
+### 8. Edge Function Update for Guest Profile Sync
+
+**File**: `supabase/functions/roomsonline-pms-api/index.ts`
+
+Add a helper function `ensureGuestProfile(supabase, propertyId, guestName, guestEmail, guestPhone, bookingAmount)` that:
+1. Checks for existing profile by `(property_id, email)`
+2. If found: increments `total_stays`, adds to `total_spent`, updates `last_stay_date`
+3. If not: creates new profile
+4. Returns the `guest_id`
+
+Wire this into `check_in` and `check_out` handlers to update stats.
+
+## Files Modified
+
+| File | Change |
+|---|---|
+| **DB Migration** | Add `complaints` jsonb to `rolos_guest_profiles` |
+| `ManualBookingDialog.tsx` | Auto-create guest profile, link `rolos_guest_id`, auto-set status from payment |
+| `PMSDashboard.tsx` | Tabbed BookingDetail with lifecycle buttons, integrate folio/invoice/notes tabs |
+| `src/components/pms/BookingFolioTab.tsx` | **New** — Folio charges, payments, balance UI |
+| `src/components/pms/BookingInvoice.tsx` | **New** — Printable/emailable invoice |
+| `src/components/pms/BookingNotesTab.tsx` | **New** — Comments & complaints capture |
+| `PMSGuests.tsx` | Expandable guest detail with booking history |
+| `roomsonline-pms-api/index.ts` | `ensureGuestProfile` helper, wire into check-in/check-out |
+
