@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   LayoutDashboard,
   Building2,
@@ -33,6 +33,7 @@ import {
   Flag,
   FlaskConical,
   AlertTriangle,
+  BedDouble,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -138,6 +139,16 @@ const systemItems: NavItem[] = [
   { title: "Danger Zone", icon: AlertTriangle, href: "/dev/danger", requireDev: true },
 ];
 
+// ROL'OS PMS items - visible to all authenticated users with a property context
+const pmsItems: NavItem[] = [
+  { title: "PMS Dashboard", icon: LayoutDashboard, href: "/pms" },
+  { title: "Rooms", icon: BedDouble, href: "/pms/rooms" },
+  { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans" },
+  { title: "Guests", icon: Users, href: "/pms/guests" },
+  { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping" },
+  { title: "Reports", icon: BarChart3, href: "/pms/reports" },
+];
+
 export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -148,8 +159,10 @@ export function AppSidebar() {
   });
   const [systemOpen, setSystemOpen] = useState(false);
   const [editAuditOpen, setEditAuditOpen] = useState(false);
+  const [pmsOpen, setPmsOpen] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [hasRolProperties, setHasRolProperties] = useState(false);
   
   useEffect(() => {
     localStorage.setItem("sidebar-collapsed", JSON.stringify(collapsed));
@@ -160,6 +173,24 @@ export function AppSidebar() {
       loadPendingRequests();
     }
   }, [isAdmin]);
+
+  // Check if user has access to any ROL properties
+  useEffect(() => {
+    const checkRolProperties = async () => {
+      if (!user) return;
+      if (isDev || isAdmin) {
+        // Admins/devs always see PMS
+        setHasRolProperties(true);
+        return;
+      }
+      const { count } = await supabase
+        .from("properties")
+        .select("id", { count: "exact", head: true })
+        .eq("is_rol_property", true);
+      setHasRolProperties((count || 0) > 0);
+    };
+    checkRolProperties();
+  }, [user, isDev, isAdmin]);
 
   const loadPendingRequests = async () => {
     const { count } = await supabase
@@ -340,6 +371,36 @@ export function AppSidebar() {
             ))}
           </div>
         </div>
+
+        {/* ROL'OS PMS - visible when user has ROL properties */}
+        {hasRolProperties && (
+          <div>
+            <Collapsible open={pmsOpen} onOpenChange={setPmsOpen}>
+              <CollapsibleTrigger asChild>
+                <button
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
+                    "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    "text-sidebar-foreground/70"
+                  )}
+                >
+                  <BedDouble className="h-4 w-4 shrink-0" />
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1 text-left text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">ROL'OS PMS</span>
+                      <ChevronDown className={cn("h-3 w-3 transition-transform", pmsOpen && "rotate-180")} />
+                    </>
+                  )}
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-1 mt-1">
+                {pmsItems.map((item) => (
+                  <NavLink key={item.href} item={item} />
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+        )}
 
         {/* Settings - Admin only (not collapsible, always visible) */}
         {isAdmin && (
