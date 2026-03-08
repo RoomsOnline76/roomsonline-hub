@@ -223,7 +223,7 @@ export default function PMSHousekeeping() {
   const resetDocketForm = () => {
     setDocketRoomId("");
     setDocketIssueType("");
-    setDocketPriority("medium");
+    setDocketPriority("normal");
     setDocketDescription("");
     setDocketEstCost("");
   };
