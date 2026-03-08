@@ -137,10 +137,12 @@ export function PMSBrandProvider({ children }: { children: ReactNode }) {
 
       setBrand({
         propertyName: data.name,
+        propertySlug: (data as any).slug || null,
         logoUrl: data.brand_logo_url,
         primaryColor: data.brand_primary_color,
         secondaryColor: data.brand_secondary_color,
         fontColor: data.brand_font_color,
+        accentColor: (data as any).brand_accent_color || null,
         tagline: (brandConfig as any)?.custom_tagline || null,
         brandEnabled: hasColors,
         loading: false,
@@ -153,6 +155,7 @@ export function PMSBrandProvider({ children }: { children: ReactNode }) {
           data.brand_primary_color,
           data.brand_secondary_color,
           data.brand_font_color,
+          (data as any).brand_accent_color,
         );
       }
     }
