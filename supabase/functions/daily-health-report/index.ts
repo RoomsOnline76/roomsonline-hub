@@ -243,6 +243,71 @@ function generateEmailHtml(
     </tr>
   `).join('');
 
+  // Group tasks by status
+  const tasksByStatus = {
+    new: devTasks.filter(t => t.status === 'new'),
+    started: devTasks.filter(t => t.status === 'started'),
+    testing: devTasks.filter(t => t.status === 'testing'),
+    completed: devTasks.filter(t => t.status === 'completed'),
+  };
+
+  const taskTrackerSection = devTasks.length > 0 ? `
+    <!-- Dev Task Tracker -->
+    <div style="padding: 24px; background-color: #faf5ff; border-bottom: 1px solid #e9d5ff;">
+      <h3 style="margin: 0 0 16px 0; font-size: 18px; color: #7c3aed;">📋 Dev Task Tracker (${devTasks.length} Active Tasks)</h3>
+      
+      <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+        <span style="background-color: #6b728020; color: #374151; padding: 4px 12px; border-radius: 9999px; font-size: 12px;">
+          New: ${tasksByStatus.new.length}
+        </span>
+        <span style="background-color: #3b82f620; color: #1d4ed8; padding: 4px 12px; border-radius: 9999px; font-size: 12px;">
+          Started: ${tasksByStatus.started.length}
+        </span>
+        <span style="background-color: #f59e0b20; color: #b45309; padding: 4px 12px; border-radius: 9999px; font-size: 12px;">
+          Testing: ${tasksByStatus.testing.length}
+        </span>
+        <span style="background-color: #22c55e20; color: #15803d; padding: 4px 12px; border-radius: 9999px; font-size: 12px;">
+          Completed: ${tasksByStatus.completed.length}
+        </span>
+      </div>
+
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px; background-color: #ffffff; border-radius: 8px;">
+          <thead>
+            <tr style="border-bottom: 2px solid #e5e7eb;">
+              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Task</th>
+              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Priority</th>
+              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Status</th>
+              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Assigned To</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${devTasks.map(task => `
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 12px 8px; font-weight: 500;">${task.title}</td>
+                <td style="padding: 12px 8px;">
+                  ${getTaskPriorityEmoji(task.priority)} ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                </td>
+                <td style="padding: 12px 8px;">
+                  <span style="display: inline-block; padding: 4px 12px; border-radius: 9999px; background-color: ${getTaskStatusColor(task.status)}20; color: ${getTaskStatusColor(task.status)}; font-weight: 500; font-size: 12px;">
+                    ${task.status.toUpperCase()}
+                  </span>
+                </td>
+                <td style="padding: 12px 8px; color: #6b7280;">${task.assigned_name || 'Unassigned'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ` : `
+    <!-- No Active Tasks -->
+    <div style="padding: 24px; background-color: #faf5ff; border-bottom: 1px solid #e9d5ff;">
+      <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #7c3aed;">📋 Dev Task Tracker</h3>
+      <p style="margin: 0; color: #6b7280; font-size: 14px;">No active tasks in the worklist.</p>
+    </div>
+  `;
+
   return `
 <!DOCTYPE html>
 <html lang="en">
