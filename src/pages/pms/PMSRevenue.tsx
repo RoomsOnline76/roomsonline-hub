@@ -319,8 +319,8 @@ export default function PMSRevenue() {
               <CardHeader>
                 <CardTitle className="text-sm">Daily Breakdown</CardTitle>
               </CardHeader>
-              <CardContent>
-                <ScrollArea className="max-h-[400px]">
+              <CardContent className="p-0">
+                <ScrollArea className="h-[520px]">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b text-left text-xs text-muted-foreground">
