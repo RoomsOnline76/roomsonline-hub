@@ -205,6 +205,7 @@ export default function PMSStaff() {
           </Card>
         )}
 
+        <Card>
           <CardHeader>
             <CardTitle className="text-base">Property Staff</CardTitle>
           </CardHeader>
