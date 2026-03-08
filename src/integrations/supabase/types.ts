@@ -3625,6 +3625,60 @@ export type Database = {
           },
         ]
       }
+      property_staff: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          invited_by: string | null
+          is_active: boolean
+          must_change_password: boolean
+          property_id: string
+          staff_role: Database["public"]["Enums"]["pms_staff_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          invited_by?: string | null
+          is_active?: boolean
+          must_change_password?: boolean
+          property_id: string
+          staff_role: Database["public"]["Enums"]["pms_staff_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          invited_by?: string | null
+          is_active?: boolean
+          must_change_password?: boolean
+          property_id?: string
+          staff_role?: Database["public"]["Enums"]["pms_staff_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_staff_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_staff_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rol_bank_export_batches: {
         Row: {
           bank_provider: string
@@ -5712,6 +5766,14 @@ export type Database = {
         | "parked"
         | "in_testing"
         | "deployed"
+      pms_staff_role:
+        | "property_owner"
+        | "general_manager"
+        | "front_desk"
+        | "housekeeping"
+        | "maintenance"
+        | "accountant"
+        | "auditor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5869,6 +5931,15 @@ export const Constants = {
         "parked",
         "in_testing",
         "deployed",
+      ],
+      pms_staff_role: [
+        "property_owner",
+        "general_manager",
+        "front_desk",
+        "housekeeping",
+        "maintenance",
+        "accountant",
+        "auditor",
       ],
     },
   },
