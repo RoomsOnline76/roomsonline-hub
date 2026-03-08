@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AppLayout } from "@/components/layout/AppLayout";
+import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart3 } from "lucide-react";
 import { callPmsApi } from "@/hooks/usePmsApi";
@@ -33,12 +33,12 @@ export default function PMSReports() {
     fetch();
   }, [propertyId]);
 
-  if (!propertyId) return <AppLayout><p className="text-muted-foreground">Select a property first.</p></AppLayout>;
+  if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
 
   const latestMetric = metrics[metrics.length - 1];
 
   return (
-    <AppLayout>
+    <PMSLayout>
       <div className="space-y-6">
         <h1 className="text-2xl font-bold tracking-tight">PMS Reports</h1>
 
@@ -69,6 +69,6 @@ export default function PMSReports() {
           </>
         )}
       </div>
-    </AppLayout>
+    </PMSLayout>
   );
 }

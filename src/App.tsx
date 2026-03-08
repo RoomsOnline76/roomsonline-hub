@@ -72,7 +72,8 @@ import DevFeatures from "./pages/DevFeatures";
 import DevDanger from "./pages/DevDanger";
 import DevTesting from "./pages/DevTesting";
 import PMSComparison from "./pages/PMSComparison";
-import { PMSDashboard, PMSRooms, PMSRatePlans, PMSGuests, PMSHousekeeping, PMSReports } from "./pages/pms";
+import { PMSDashboard, PMSRooms, PMSRatePlans, PMSGuests, PMSHousekeeping, PMSReports, PMSBranding } from "./pages/pms";
+import { PMSBrandProvider } from "./contexts/PMSBrandContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -497,13 +498,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            {/* ROL'OS Native PMS Module */}
-            <Route path="/pms" element={<ProtectedRoute><PMSDashboard /></ProtectedRoute>} />
-            <Route path="/pms/rooms" element={<ProtectedRoute><PMSRooms /></ProtectedRoute>} />
-            <Route path="/pms/rate-plans" element={<ProtectedRoute><PMSRatePlans /></ProtectedRoute>} />
-            <Route path="/pms/guests" element={<ProtectedRoute><PMSGuests /></ProtectedRoute>} />
-            <Route path="/pms/housekeeping" element={<ProtectedRoute><PMSHousekeeping /></ProtectedRoute>} />
-            <Route path="/pms/reports" element={<ProtectedRoute><PMSReports /></ProtectedRoute>} />
+            {/* ROL'OS Native PMS Module — white-labeled with PMSBrandProvider */}
+            <Route path="/pms" element={<ProtectedRoute><PMSBrandProvider><PMSDashboard /></PMSBrandProvider></ProtectedRoute>} />
+            <Route path="/pms/rooms" element={<ProtectedRoute><PMSBrandProvider><PMSRooms /></PMSBrandProvider></ProtectedRoute>} />
+            <Route path="/pms/rate-plans" element={<ProtectedRoute><PMSBrandProvider><PMSRatePlans /></PMSBrandProvider></ProtectedRoute>} />
+            <Route path="/pms/guests" element={<ProtectedRoute><PMSBrandProvider><PMSGuests /></PMSBrandProvider></ProtectedRoute>} />
+            <Route path="/pms/housekeeping" element={<ProtectedRoute><PMSBrandProvider><PMSHousekeeping /></PMSBrandProvider></ProtectedRoute>} />
+            <Route path="/pms/reports" element={<ProtectedRoute><PMSBrandProvider><PMSReports /></PMSBrandProvider></ProtectedRoute>} />
+            <Route path="/pms/branding" element={<ProtectedRoute><PMSBrandProvider><PMSBranding /></PMSBrandProvider></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

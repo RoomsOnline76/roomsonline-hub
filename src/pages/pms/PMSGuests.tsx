@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AppLayout } from "@/components/layout/AppLayout";
+import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,10 +61,10 @@ export default function PMSGuests() {
     } catch (e: any) { toast.error(e.message); }
   };
 
-  if (!propertyId) return <AppLayout><p className="text-muted-foreground">Select a property first.</p></AppLayout>;
+  if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
 
   return (
-    <AppLayout>
+    <PMSLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight">Guest CRM</h1>
@@ -120,6 +120,6 @@ export default function PMSGuests() {
           </div>
         )}
       </div>
-    </AppLayout>
+    </PMSLayout>
   );
 }

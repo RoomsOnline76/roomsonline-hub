@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AppLayout } from "@/components/layout/AppLayout";
+import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Building2, BedDouble, Users, CalendarCheck, AlertTriangle, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { format } from "date-fns";
 
 interface ArrivalDeparture {
@@ -21,6 +22,7 @@ export default function PMSDashboard() {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const propertyId = searchParams.get("property");
+  const { propertyName: brandName } = usePMSBrand();
   const [stats, setStats] = useState({ totalRooms: 0, occupied: 0, dirty: 0, maintenance: 0, available: 0 });
   const [propertyName, setPropertyName] = useState("");
   const [arrivals, setArrivals] = useState<ArrivalDeparture[]>([]);
@@ -69,15 +71,15 @@ export default function PMSDashboard() {
 
   if (!propertyId) {
     return (
-      <AppLayout>
+      <PMSLayout>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
           <Sparkles className="h-12 w-12 text-primary" />
-          <h1 className="text-2xl font-bold">ROL'OS Native PMS</h1>
+          <h1 className="text-2xl font-bold">Property Management</h1>
           <p className="text-muted-foreground text-center max-w-md">
-            Select a ROL property from your Property Overview to access the PMS module.
+            Select a property from your Property Overview to access the PMS module.
           </p>
         </div>
-      </AppLayout>
+      </PMSLayout>
     );
   }
 
@@ -89,12 +91,14 @@ export default function PMSDashboard() {
     { label: "Maintenance", value: stats.maintenance, icon: AlertTriangle, color: "text-destructive" },
   ];
 
+  const displayName = brandName || propertyName;
+
   return (
-    <AppLayout>
+    <PMSLayout>
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight">{propertyName}</h1>
-          <Badge variant="outline" className="text-primary border-primary">ROL'OS PMS</Badge>
+          <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
+          <Badge variant="outline" className="text-primary border-primary">Dashboard</Badge>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -164,6 +168,6 @@ export default function PMSDashboard() {
           </Card>
         </div>
       </div>
-    </AppLayout>
+    </PMSLayout>
   );
 }

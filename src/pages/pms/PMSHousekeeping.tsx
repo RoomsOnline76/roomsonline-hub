@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AppLayout } from "@/components/layout/AppLayout";
+import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,14 +58,14 @@ export default function PMSHousekeeping() {
     } catch (e: any) { toast.error(e.message); }
   };
 
-  if (!propertyId) return <AppLayout><p className="text-muted-foreground">Select a property first.</p></AppLayout>;
+  if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
 
   const dirtyRooms = rooms.filter(r => r.status === "dirty");
   const maintenanceRooms = rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order");
   const cleanRooms = rooms.filter(r => r.status === "available");
 
   return (
-    <AppLayout>
+    <PMSLayout>
       <div className="space-y-6">
         <h1 className="text-2xl font-bold tracking-tight">Housekeeping Board</h1>
 
@@ -124,6 +124,6 @@ export default function PMSHousekeeping() {
           </div>
         </div>
       </div>
-    </AppLayout>
+    </PMSLayout>
   );
 }
