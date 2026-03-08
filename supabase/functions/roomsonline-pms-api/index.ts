@@ -1435,27 +1435,73 @@ async function handleUpdateGuestProfile(body: any, supabase: any): Promise<Respo
 
 // deno-lint-ignore no-explicit-any
 async function handleCheckIn(body: any, supabase: any): Promise<Response> {
-  const { booking_id } = body;
+  const { booking_id, override_room_ids, override_total_price } = body;
   if (!booking_id) {
     return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "booking_id required", "check_in")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
   }
-  const { data: booking, error } = await supabase.from("bookings").update({
+
+  // Fetch booking first to check room readiness
+  const { data: existingBooking, error: fetchErr } = await supabase.from("bookings").select("*").eq("id", booking_id).single();
+  if (fetchErr || !existingBooking) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, fetchErr?.message || "Booking not found", "check_in")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 });
+  }
+
+  // Determine which rooms to use (override or original)
+  const roomIdsToUse: string[] = override_room_ids || existingBooking.rolos_room_ids || [];
+
+  // Check room readiness
+  if (roomIdsToUse.length > 0) {
+    const { data: roomStatuses } = await supabase.from("rolos_rooms").select("id, room_number, status").in("id", roomIdsToUse);
+    const unreadyRooms = (roomStatuses || []).filter((r: any) => r.status !== "available" && r.status !== "occupied");
+    if (unreadyRooms.length > 0 && !override_room_ids) {
+      // Return error with room status details so UI can offer reassignment
+      return new Response(JSON.stringify({
+        success: false,
+        error: {
+          code: "ROOMS_NOT_READY",
+          message: `Room(s) not ready: ${unreadyRooms.map((r: any) => `${r.room_number} (${r.status})`).join(", ")}`,
+          details: { unready_rooms: unreadyRooms },
+        },
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 409 });
+    }
+  }
+
+  // If overriding rooms, update booking with new room assignments and optional price
+  const updatePayload: any = {
     status: "checked_in",
     rolos_check_in_time: new Date().toISOString(),
-  }).eq("id", booking_id).select().single();
+  };
+  if (override_room_ids) {
+    updatePayload.rolos_room_ids = override_room_ids;
+  }
+  if (override_total_price !== undefined && override_total_price !== null) {
+    updatePayload.total_price = override_total_price;
+  }
+
+  const { data: booking, error } = await supabase.from("bookings").update(updatePayload).eq("id", booking_id).select().single();
   if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "check_in")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+
   // Ensure guest profile exists and link
   if (booking && !booking.rolos_guest_id && booking.guest_email) {
     const guestId = await ensureGuestProfile(supabase, booking.property_id, booking.guest_name, booking.guest_email, booking.guest_phone, booking.total_price);
     if (guestId) await supabase.from("bookings").update({ rolos_guest_id: guestId }).eq("id", booking_id);
   }
-  // Mark assigned rooms as occupied
+
+  // Mark assigned rooms as occupied (use final room list)
+  const finalRoomIds = booking?.rolos_room_ids || [];
+  if (finalRoomIds.length > 0) {
+    await supabase.from("rolos_rooms").update({ status: "occupied" }).in("id", finalRoomIds);
+  }
+  // Also try rolos_booking_rooms table
   const { data: assignedRooms } = await supabase.from("rolos_booking_rooms").select("room_id").eq("booking_id", booking_id);
   if (assignedRooms?.length) {
-    await supabase.from("rolos_rooms").update({ status: "occupied" }).in("id", assignedRooms.map((r: any) => r.room_id));
+    const extraIds = assignedRooms.map((r: any) => r.room_id).filter((id: string) => !finalRoomIds.includes(id));
+    if (extraIds.length) await supabase.from("rolos_rooms").update({ status: "occupied" }).in("id", extraIds);
   }
+
   return new Response(JSON.stringify(createSuccessResponse(booking, "check_in")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
