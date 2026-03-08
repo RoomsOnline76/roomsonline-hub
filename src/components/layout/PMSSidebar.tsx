@@ -34,7 +34,6 @@ const pmsNavItems: NavItem[] = [
   { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans" },
   { title: "Guests", icon: Users, href: "/pms/guests" },
   { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping" },
-  { title: "Calendar", icon: CalendarDays, href: "/pms/calendar" },
   { title: "Reports", icon: BarChart3, href: "/pms/reports" },
   { title: "Branding", icon: Palette, href: "/pms/branding" },
   { title: "Integrations", icon: Code2, href: "/pms/integrations" },
