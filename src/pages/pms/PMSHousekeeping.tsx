@@ -114,10 +114,10 @@ export default function PMSHousekeeping() {
     const tasksQ = supabase.from("rolos_housekeeping_tasks" as any).select("id, room_id, task_type, priority, status, notes, assigned_to").eq("property_id", propertyId).neq("status", "completed").order("created_at", { ascending: false });
     const maintQ = supabase.from("rolos_maintenance_requests" as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").eq("property_id", propertyId).order("created_at", { ascending: false });
     const [roomsRes, typesRes, tasksRes, maintRes] = await Promise.all([roomsQ, typesQ, tasksQ, maintQ]);
-    setRooms((roomsRes.data as Room[]) || []);
-    setRoomTypes((typesRes.data as RoomType[]) || []);
-    setHkTasks((tasksRes.data as HKTask[]) || []);
-    setMaintenanceReqs((maintRes.data as MaintenanceRequest[]) || []);
+    setRooms((roomsRes.data as unknown as Room[]) || []);
+    setRoomTypes((typesRes.data as unknown as RoomType[]) || []);
+    setHkTasks((tasksRes.data as unknown as HKTask[]) || []);
+    setMaintenanceReqs((maintRes.data as unknown as MaintenanceRequest[]) || []);
     setLoading(false);
   }, [propertyId]);
 
