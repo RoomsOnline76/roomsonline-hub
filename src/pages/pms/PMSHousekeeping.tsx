@@ -100,6 +100,7 @@ export default function PMSHousekeeping() {
   const [docketIssueType, setDocketIssueType] = useState("");
   const [docketPriority, setDocketPriority] = useState("normal");
   const [docketDescription, setDocketDescription] = useState("");
+  const [docketMarkUnavailable, setDocketMarkUnavailable] = useState(false);
   const [docketEstCost, setDocketEstCost] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -172,8 +173,10 @@ export default function PMSHousekeeping() {
         status: "reported",
       });
       if (error) throw error;
-      // Set room to maintenance
-      await supabase.from("rolos_rooms").update({ status: "maintenance" }).eq("id", docketRoomId);
+      // Only set room to maintenance/out_of_order if user opted to mark unavailable
+      if (docketMarkUnavailable) {
+        await supabase.from("rolos_rooms").update({ status: "maintenance" }).eq("id", docketRoomId);
+      }
       toast.success("Maintenance docket created");
       setShowCreateDocket(false);
       resetDocketForm();
@@ -226,6 +229,7 @@ export default function PMSHousekeeping() {
     setDocketPriority("normal");
     setDocketDescription("");
     setDocketEstCost("");
+    setDocketMarkUnavailable(false);
   };
 
   // ── Derived data ──────────────────────────────────────────────────────
@@ -236,7 +240,7 @@ export default function PMSHousekeeping() {
 
   const tasksForRoom = (roomId: string) => hkTasks.filter(t => t.room_id === roomId);
   const openMaintenanceForRoom = (roomId: string) =>
-    maintenanceReqs.filter(m => m.room_id === roomId && m.status !== "resolved" || (m.status === "resolved" && !m.room_ready_confirmed));
+    maintenanceReqs.filter(m => m.room_id === roomId && (STATUSES_OPEN.includes(m.status || "") || (m.status === "resolved" && !m.room_ready_confirmed)));
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -372,14 +376,25 @@ export default function PMSHousekeeping() {
             <h2 className="font-semibold text-emerald-700 flex items-center gap-2">
               <ShieldCheck className="h-4 w-4" /> Ready ({cleanRooms.length})
             </h2>
-            {cleanRooms.map(room => (
-              <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
-                <CardContent className="py-3">
-                  <p className="font-bold">{room.room_number}</p>
-                  <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
-                </CardContent>
-              </Card>
-            ))}
+            {cleanRooms.map(room => {
+              const openDockets = openMaintenanceForRoom(room.id);
+              return (
+                <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
+                  <CardContent className="py-3 space-y-1.5">
+                    <p className="font-bold">{room.room_number}</p>
+                    <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
+                    {openDockets.length > 0 && (
+                      <div className="flex items-center gap-1.5 mt-1 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-1.5">
+                        <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
+                        <span className="text-xs text-amber-700 dark:text-amber-400">
+                          {openDockets.length} open docket{openDockets.length > 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -389,7 +404,7 @@ export default function PMSHousekeeping() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Maintenance Docket</DialogTitle>
-            <DialogDescription>Log a maintenance issue for a room. The room will be set to maintenance status.</DialogDescription>
+            <DialogDescription>Log a maintenance issue for a room. The room stays available unless you mark it unavailable.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -430,6 +445,16 @@ export default function PMSHousekeeping() {
             <div>
               <Label>Estimated Cost</Label>
               <Input type="number" step="0.01" value={docketEstCost} onChange={e => setDocketEstCost(e.target.value)} placeholder="0.00" />
+            </div>
+            <div className="flex items-center gap-2 pt-2 border-t border-border">
+              <Checkbox
+                id="docket-mark-unavailable"
+                checked={docketMarkUnavailable}
+                onCheckedChange={(checked) => setDocketMarkUnavailable(!!checked)}
+              />
+              <Label htmlFor="docket-mark-unavailable" className="text-sm cursor-pointer">
+                Mark room as unavailable (takes room offline)
+              </Label>
             </div>
           </div>
           <DialogFooter>
