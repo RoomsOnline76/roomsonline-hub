@@ -33,7 +33,7 @@ export default function PMSReports() {
     fetch();
   }, [propertyId]);
 
-  if (!propertyId) return <AppLayout><p className="text-muted-foreground">Select a property first.</p></AppLayout>;
+  if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
 
   const latestMetric = metrics[metrics.length - 1];
 
