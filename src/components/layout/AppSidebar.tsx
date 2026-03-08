@@ -141,15 +141,7 @@ const systemItems: NavItem[] = [
   { title: "Task Tracker", icon: CheckSquare, href: "/dev/tasks", requireDevOrFearless: true },
 ];
 
-// ROL'OS PMS items - visible to all authenticated users with a property context
-const pmsItems: NavItem[] = [
-  { title: "PMS Dashboard", icon: LayoutDashboard, href: "/pms" },
-  { title: "Rooms", icon: BedDouble, href: "/pms/rooms" },
-  { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans" },
-  { title: "Guests", icon: Users, href: "/pms/guests" },
-  { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping" },
-  { title: "Reports", icon: BarChart3, href: "/pms/reports" },
-];
+// ROL'OS PMS - single direct link to PMS UI (sub-navigation lives inside PMS layout)
 
 export function AppSidebar() {
   const location = useLocation();
