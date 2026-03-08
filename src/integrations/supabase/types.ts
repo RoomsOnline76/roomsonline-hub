@@ -2698,6 +2698,7 @@ export type Database = {
           bedrooms: number | null
           benson_environment: string | null
           benson_property_code: string | null
+          brand_accent_color: string | null
           brand_font_color: string | null
           brand_logo_url: string | null
           brand_override_enabled: boolean
@@ -2766,6 +2767,7 @@ export type Database = {
           bedrooms?: number | null
           benson_environment?: string | null
           benson_property_code?: string | null
+          brand_accent_color?: string | null
           brand_font_color?: string | null
           brand_logo_url?: string | null
           brand_override_enabled?: boolean
@@ -2834,6 +2836,7 @@ export type Database = {
           bedrooms?: number | null
           benson_environment?: string | null
           benson_property_code?: string | null
+          brand_accent_color?: string | null
           brand_font_color?: string | null
           brand_logo_url?: string | null
           brand_override_enabled?: boolean
