@@ -65,10 +65,13 @@ const ISSUE_TYPES = [
   "plumbing", "electrical", "hvac", "furniture", "appliance", "structural", "other",
 ];
 
+const PRIORITIES = ["low", "normal", "high", "emergency"];
+const STATUSES_OPEN = ["reported", "assigned", "in_progress"];
+
 const PRIORITY_BADGE: Record<string, string> = {
-  urgent: "bg-destructive text-destructive-foreground",
+  emergency: "bg-destructive text-destructive-foreground",
   high: "bg-destructive/80 text-destructive-foreground",
-  medium: "bg-amber-500 text-white",
+  normal: "bg-amber-500 text-white",
   low: "bg-muted text-muted-foreground",
 };
 
@@ -95,7 +98,7 @@ export default function PMSHousekeeping() {
   const [showCreateDocket, setShowCreateDocket] = useState(false);
   const [docketRoomId, setDocketRoomId] = useState("");
   const [docketIssueType, setDocketIssueType] = useState("");
-  const [docketPriority, setDocketPriority] = useState("medium");
+  const [docketPriority, setDocketPriority] = useState("normal");
   const [docketDescription, setDocketDescription] = useState("");
   const [docketEstCost, setDocketEstCost] = useState("");
   const [saving, setSaving] = useState(false);
@@ -166,7 +169,7 @@ export default function PMSHousekeeping() {
         priority: docketPriority,
         description: docketDescription.trim(),
         estimated_cost: docketEstCost ? parseFloat(docketEstCost) : null,
-        status: "open",
+        status: "reported",
       });
       if (error) throw error;
       // Set room to maintenance
@@ -220,7 +223,7 @@ export default function PMSHousekeeping() {
   const resetDocketForm = () => {
     setDocketRoomId("");
     setDocketIssueType("");
-    setDocketPriority("medium");
+    setDocketPriority("normal");
     setDocketDescription("");
     setDocketEstCost("");
   };
@@ -233,7 +236,7 @@ export default function PMSHousekeeping() {
 
   const tasksForRoom = (roomId: string) => hkTasks.filter(t => t.room_id === roomId);
   const openMaintenanceForRoom = (roomId: string) =>
-    maintenanceReqs.filter(m => m.room_id === roomId && m.status !== "closed");
+    maintenanceReqs.filter(m => m.room_id === roomId && m.status !== "resolved" || (m.status === "resolved" && !m.room_ready_confirmed));
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -347,7 +350,7 @@ export default function PMSHousekeeping() {
                         )}
 
                         {/* Open: show resolve button */}
-                        {(req.status === "open" || req.status === "in_progress") && (
+                        {STATUSES_OPEN.includes(req.status || "") && (
                           <Button size="sm" variant="outline" className="w-full" onClick={() => { setResolveReq(req); setResolveNotes(""); }}>
                             <CheckCircle className="h-3 w-3 mr-1" />Mark Resolved
                           </Button>
@@ -415,7 +418,7 @@ export default function PMSHousekeeping() {
                 <Select value={docketPriority} onValueChange={setDocketPriority}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {["low", "medium", "high", "urgent"].map(p => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}
+                    {PRIORITIES.map(p => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
