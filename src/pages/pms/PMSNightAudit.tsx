@@ -84,14 +84,25 @@ function AuditRow({ entry }: { entry: NightAuditLogEntry }) {
 }
 
 export default function PMSNightAudit() {
-  const { propertyId } = usePmsPropertyId();
+  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
   const { data: logs, isLoading } = useNightAuditLog(propertyId);
   const triggerAudit = useTriggerNightAudit(propertyId);
 
   const lastCompleted = logs?.find((l) => l.status === "completed");
 
+  if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
+  if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
+
   return (
-    <PMSPageWrapper title="Night Audit" subtitle="Automated nightly charge posting, housekeeping roll & metrics calculation">
+    <PMSLayout>
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Moon className="w-6 h-6 text-primary" />
+          <div>
+            <h2 className="text-2xl font-bold">Night Audit</h2>
+            <p className="text-sm text-muted-foreground">Automated nightly charge posting, housekeeping roll & metrics calculation</p>
+          </div>
+        </div>
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card>
