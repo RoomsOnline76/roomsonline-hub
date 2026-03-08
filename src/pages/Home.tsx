@@ -510,11 +510,11 @@ function HomeContent() {
           <AISearchInput />
         </div>
 
-        {/* Hero property credit overlay */}
+        {/* Hero property credit overlay - clickable link to property showcase */}
         {heroProperty && (
           <Link
             to={`/property/${heroProperty.slug || heroProperty.id}`}
-            className="absolute bottom-36 sm:bottom-40 right-4 sm:right-8 z-30 text-white/90 hover:text-white text-xs sm:text-sm transition-colors drop-shadow-lg flex items-center gap-1.5 bg-black/40 backdrop-blur-sm rounded-full px-3 py-1.5"
+            className="absolute bottom-[140px] sm:bottom-[160px] right-4 sm:right-8 z-30 text-white/90 hover:text-white text-xs sm:text-sm transition-all drop-shadow-lg flex items-center gap-1.5 bg-black/50 hover:bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5 cursor-pointer"
           >
             <span className="font-medium">{heroProperty.name}</span>
             <span className="text-white/60">•</span>
