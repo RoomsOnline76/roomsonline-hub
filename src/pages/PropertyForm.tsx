@@ -3877,12 +3877,19 @@ export default function PropertyForm() {
         try {
           // Upsert room types to hostfully_room_types
           for (const room of roomTypes) {
+            // Find matching rate type to get baseRate
+            const roomId = room.id || '';
+            const matchingRate = pmsRateTypes.find((rt: any) => 
+              rt.linkedRoomId === roomId || rt.id === `wizard-rate-${roomId}`
+            );
+            const baseRate = matchingRate?.baseRate || room.rates?.[0]?.baseRate || room.base_rate || room.baseRate || null;
+            
             const roomTypeData = {
               property_id: savedPropertyId,
               name: room.name || 'Unnamed Room',
               description: room.description || null,
               max_guests: room.maxPeople || room.maxAdults || 2,
-              daily_rate: room.rates?.[0]?.baseRate || null,
+              daily_rate: baseRate,
               is_active: true,
               // Use existing id if it looks like a UUID, otherwise generate
               ...(room.id && room.id.length === 36 ? { id: room.id } : {}),
