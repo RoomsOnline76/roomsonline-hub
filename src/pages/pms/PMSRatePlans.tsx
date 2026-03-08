@@ -323,7 +323,7 @@ export default function PMSRatePlans() {
         });
 
         if (matchIdx >= 0) {
-          pmsRateTypes[matchIdx] = { ...pmsRateTypes[matchIdx], baseRate: baseRate, name: form.name };
+          pmsRateTypes[matchIdx] = { ...pmsRateTypes[matchIdx], baseRate: baseRate, name: form.name, pricingModel: form.pricing_model };
         }
 
         await supabase
