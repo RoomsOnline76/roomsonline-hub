@@ -150,6 +150,103 @@ Deno.serve(async (req) => {
     const property = booking.property;
     const externalSystem = property.external_system;
 
+    // Check if this is a ROL'OS native property first
+    if (property.is_rol_property) {
+      console.log('ROL property detected - creating native reservation via roomsonline-pms-api');
+      
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+        
+        // Build rooms array
+        const bookingRooms = booking.rooms && Array.isArray(booking.rooms) && booking.rooms.length > 0
+          ? booking.rooms.map((r: any) => ({
+              room_type_id: r.roomTypeId || r.room_type_id || booking.room_type_id,
+              adults: r.numberOfAdults || r.adults || booking.adults || 1,
+              teens: r.numberOfTeens || r.teens || booking.teens || 0,
+              children: r.numberOfChildren || r.children || booking.children || 0,
+              infants: r.numberOfInfants || r.infants || booking.infants || 0,
+            }))
+          : [{
+              room_type_id: booking.room_type_id || 'default',
+              adults: booking.adults || 1,
+              teens: booking.teens || 0,
+              children: booking.children || 0,
+              infants: booking.infants || 0,
+            }];
+
+        const pmsResponse = await fetch(`${supabaseUrl}/functions/v1/roomsonline-pms-api`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${serviceKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'create_reservation',
+            propertyId: property.id,
+            arrival_date: booking.check_in_date,
+            departure_date: booking.check_out_date,
+            room_type_id: bookingRooms[0]?.room_type_id || 'default',
+            rate_type_id: booking.rate_type_id || 'default',
+            guest: {
+              name: booking.guest_name,
+              email: booking.guest_email,
+              phone: booking.guest_phone,
+            },
+            rooms: bookingRooms,
+            special_requests: booking.special_requests || '',
+            voucher: booking.voucher || '',
+          }),
+        });
+
+        const pmsResult = await pmsResponse.json();
+        
+        if (pmsResult.success) {
+          const reservationId = pmsResult.data?.reservation_id;
+          
+          // Update booking with confirmation
+          await supabaseClient.from('bookings').update({
+            status: 'confirmed',
+            external_reservation_id: reservationId,
+          }).eq('id', booking_id);
+
+          // Send owner notification
+          const ownerEmail = property.owner_email;
+          if (ownerEmail) {
+            try {
+              await fetch(`${supabaseUrl}/functions/v1/send-booking-email`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ booking_id, status: 'property_notification', recipient_email: ownerEmail }),
+              });
+            } catch (e) { console.error('Failed to send owner notification:', e); }
+          }
+
+          // Send guest email (skip for itineraries)
+          if (booking.booking_channel !== 'rol_itinerary') {
+            try {
+              await fetch(`${supabaseUrl}/functions/v1/send-booking-email`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ booking_id, status: 'success' }),
+              });
+            } catch (e) { console.error('Failed to send guest email:', e); }
+          }
+
+          return new Response(
+            JSON.stringify({ success: true, message: 'ROL reservation created', reservation_id: reservationId }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } else {
+          console.error('ROL PMS reservation failed:', pmsResult.error);
+          throw new Error(pmsResult.error?.message || 'ROL reservation creation failed');
+        }
+      } catch (rolError) {
+        console.error('Error creating ROL reservation:', rolError);
+        // Fall through to manual mode as fallback
+      }
+    }
+
     if (!externalSystem || externalSystem === 'none') {
       console.log('No external system configured for property - blocking dates and sending owner notification');
       
