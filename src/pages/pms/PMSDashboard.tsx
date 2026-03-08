@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, BedDouble, Users, CalendarCheck, AlertTriangle, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,7 +21,7 @@ interface ArrivalDeparture {
 
 export default function PMSDashboard() {
   const { user } = useAuth();
-  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
+  const { propertyId, properties, loading: propertyLoading, switchProperty } = usePmsPropertyId();
   const { propertyName: brandName } = usePMSBrand();
   const [stats, setStats] = useState({ totalRooms: 0, occupied: 0, dirty: 0, maintenance: 0, available: 0 });
   const [propertyName, setPropertyName] = useState("");
@@ -105,8 +106,20 @@ export default function PMSDashboard() {
   return (
     <PMSLayout>
       <div className="space-y-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
+          {properties.length > 1 && (
+            <Select value={propertyId || ""} onValueChange={switchProperty}>
+              <SelectTrigger className="w-[220px] h-8 text-sm">
+                <SelectValue placeholder="Switch property" />
+              </SelectTrigger>
+              <SelectContent>
+                {properties.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Badge variant="outline" className="text-primary border-primary">Dashboard</Badge>
         </div>
 
