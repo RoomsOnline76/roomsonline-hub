@@ -160,6 +160,7 @@ export default function PMSDashboard() {
   const [maxStayOpen, setMaxStayOpen] = useState(false);
   const [leadDaysAdvanceOpen, setLeadDaysAdvanceOpen] = useState(false);
   const [leadDaysPostOpen, setLeadDaysPostOpen] = useState(false);
+  const [manualBookingOpen, setManualBookingOpen] = useState(false);
 
   // Compute date range
   const dateRange = useMemo(() => {
