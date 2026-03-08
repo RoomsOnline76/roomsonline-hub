@@ -203,7 +203,9 @@ export function PMSTobiAssistant({ propertyName }: PMSTobiAssistantProps) {
     { label: "Rooms", path: "/pms/rooms" },
     { label: "Guests", path: "/pms/guests" },
     { label: "Rates", path: "/pms/rate-plans" },
+    { label: "Revenue", path: "/pms/revenue" },
     { label: "Channels", path: "/pms/channels" },
+    { label: "Messaging", path: "/pms/messaging" },
     { label: "Reports", path: "/pms/reports" },
     { label: "Staff", path: "/pms/staff" },
   ];
