@@ -137,7 +137,23 @@ export default function AdminContracts() {
 
   useEffect(() => {
     loadContracts();
+    loadContractTemplates();
   }, []);
+
+  const loadContractTemplates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("contract_templates")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+      
+      if (error) throw error;
+      setContractTemplates(data || []);
+    } catch (error) {
+      console.error("Failed to load contract templates:", error);
+    }
+  };
 
   const loadContracts = async () => {
     try {
