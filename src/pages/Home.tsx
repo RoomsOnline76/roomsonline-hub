@@ -387,7 +387,7 @@ function HomeContent() {
     <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
       {/* Hero Section */}
       <section ref={heroRef} className="relative h-[100dvh] sm:h-screen w-full flex-shrink-0 landscape:min-h-[500px]">
-        {/* Background media */}
+        {/* Background media - clickable to property */}
         <div
           className={`absolute inset-0 transition-opacity duration-700 ${isLoadingHero ? "opacity-0" : "opacity-100"}`}
         >
@@ -407,6 +407,14 @@ function HomeContent() {
           )}
           {/* Refined gradient overlay - 35% for elegance */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/40" />
+          {/* Clickable hero overlay to property page */}
+          {heroProperty && (
+            <Link
+              to={`/property/${heroProperty.slug || heroProperty.id}`}
+              className="absolute inset-0 z-[1]"
+              aria-label={`View ${heroProperty.name}`}
+            />
+          )}
         </div>
 
         {/* Navigation Header */}
@@ -514,11 +522,12 @@ function HomeContent() {
         {heroProperty && (
           <Link
             to={`/property/${heroProperty.slug || heroProperty.id}`}
-            className="absolute bottom-[140px] sm:bottom-[160px] right-4 sm:right-8 z-30 text-white/90 hover:text-white text-xs sm:text-sm transition-all drop-shadow-lg flex items-center gap-1.5 bg-black/50 hover:bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5 cursor-pointer"
+            className="absolute right-4 sm:right-8 z-[40] text-white hover:text-white text-xs sm:text-sm transition-all drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] flex items-center gap-1.5 bg-black/60 hover:bg-black/70 backdrop-blur-md rounded-full px-4 py-2 cursor-pointer border border-white/20"
+            style={{ bottom: "170px" }}
           >
-            <span className="font-medium">{heroProperty.name}</span>
+            <span className="font-semibold">{heroProperty.name}</span>
             <span className="text-white/60">•</span>
-            <span>{heroProperty.city}</span>
+            <span className="text-white/90">{heroProperty.city}</span>
           </Link>
         )}
 
