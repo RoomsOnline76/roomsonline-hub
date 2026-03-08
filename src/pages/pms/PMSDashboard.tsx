@@ -630,133 +630,98 @@ export default function PMSDashboard() {
           </div>
         </div>
 
-        {/* Calendar controls */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <p className="text-sm text-muted-foreground">
-              {format(dateRange.start, "d MMM")} – {format(dateRange.end, "d MMM yyyy")}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* New Booking */}
-            <Button size="sm" onClick={() => setManualBookingOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              New Booking
-            </Button>
+        {/* Calendar controls — matching admin style */}
+        <Card>
+          <CardContent className="p-3">
+            {/* Top bar: date range, actions, navigation */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              <Button size="sm" onClick={() => setManualBookingOpen(true)} className="h-7 text-xs px-2">
+                <Plus className="h-3 w-3 mr-1" />New Booking
+              </Button>
 
-            {/* Restrictions dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Settings2 className="h-4 w-4 mr-1" />
-                  Restrictions
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-7 text-xs px-2">
+                    <Settings2 className="h-3 w-3 mr-1" />Restrictions
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48 bg-popover">
+                  <DropdownMenuItem onClick={() => setStopSellOpen(true)}>
+                    <div className="w-2 h-2 rounded-full bg-red-500 mr-2" />Stop Sell
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setMinStayOpen(true)}>
+                    <div className="w-2 h-2 rounded-full bg-blue-500 mr-2" />Min Stay
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setMaxStayOpen(true)}>
+                    <div className="w-2 h-2 rounded-full bg-pink-500 mr-2" />Max Stay
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLeadDaysAdvanceOpen(true)}>
+                    <div className="w-2 h-2 rounded-full bg-yellow-500 mr-2" />Lead Days Advance
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLeadDaysPostOpen(true)}>
+                    <div className="w-2 h-2 rounded-full bg-orange-500 mr-2" />Lead Days Post
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <div className="ml-auto flex items-center gap-1">
+                <Button variant="outline" size="icon" onClick={() => navigateBy(-1)} className="h-7 w-7">
+                  <ChevronLeft className="h-3 w-3" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setStopSellOpen(true)}>
-                  <Ban className="h-4 w-4 mr-2 text-red-500" />
-                  Stop Sell
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setMinStayOpen(true)}>
-                  <CalendarDays className="h-4 w-4 mr-2 text-blue-500" />
-                  Min Stay
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setMaxStayOpen(true)}>
-                  <CalendarDays className="h-4 w-4 mr-2 text-pink-500" />
-                  Max Stay
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setLeadDaysAdvanceOpen(true)}>
-                  <CalendarDays className="h-4 w-4 mr-2 text-yellow-500" />
-                  Lead Days Advance
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setLeadDaysPostOpen(true)}>
-                  <CalendarDays className="h-4 w-4 mr-2 text-orange-500" />
-                  Lead Days Post
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* View mode */}
-            <div className="flex rounded-md border border-border overflow-hidden">
-              <button
-                onClick={() => setViewMode("week")}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-medium transition-colors",
-                  viewMode === "week" ? "bg-primary text-primary-foreground" : "bg-card hover:bg-accent text-foreground"
-                )}
-              >
-                Week
-              </button>
-              <button
-                onClick={() => setViewMode("month")}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-medium transition-colors",
-                  viewMode === "month" ? "bg-primary text-primary-foreground" : "bg-card hover:bg-accent text-foreground"
-                )}
-              >
-                Month
-              </button>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => navigateBy(-1)}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={goToToday}>
-              Today
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => navigateBy(1)}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <CalendarDays className="h-4 w-4 mr-1" />
-                  Jump
+                <span className="text-sm font-semibold min-w-[160px] text-center">
+                  {format(dateRange.start, "d MMM")} – {format(dateRange.end, "d MMM yyyy")}
+                </span>
+                <Button variant="outline" size="icon" onClick={() => navigateBy(1)} className="h-7 w-7">
+                  <ChevronRight className="h-3 w-3" />
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <Calendar
-                  mode="single"
-                  selected={anchorDate}
-                  onSelect={(d) => { if (d) { setAnchorDate(d); setDatePickerOpen(false); } }}
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div className="flex flex-wrap gap-3 text-xs">
-          {Object.entries(STATUS_COLORS).map(([status, colors]) => (
-            <div key={status} className="flex items-center gap-1.5">
-              <div className={cn("w-3 h-3 rounded-sm border", colors.bg, colors.border)} />
-              <span className="capitalize text-muted-foreground">{status.replace("_", " ")}</span>
+                <Button variant="outline" onClick={goToToday} className="h-7 text-xs px-2">Today</Button>
+                <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="h-7 text-xs px-2">
+                      <CalendarDays className="h-3 w-3 mr-1" />Jump
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      mode="single"
+                      selected={anchorDate}
+                      onSelect={(d) => { if (d) { setAnchorDate(d); setDatePickerOpen(false); } }}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <div className="flex gap-0.5 ml-1">
+                  <Button
+                    variant={viewMode === "week" ? "default" : "outline"}
+                    onClick={() => setViewMode("week")}
+                    className="h-7 text-xs px-2"
+                  >Week</Button>
+                  <Button
+                    variant={viewMode === "month" ? "default" : "outline"}
+                    onClick={() => setViewMode("month")}
+                    className="h-7 text-xs px-2"
+                  >Month</Button>
+                </div>
+              </div>
             </div>
-          ))}
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-red-500/20 border border-red-500/40" />
-            <span className="text-muted-foreground">Stop Sell</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-blue-500/20 border border-blue-500/40" />
-            <span className="text-muted-foreground">Min Stay</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-pink-500/20 border border-pink-500/40" />
-            <span className="text-muted-foreground">Max Stay</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-yellow-500/20 border border-yellow-500/40" />
-            <span className="text-muted-foreground">Lead Advance</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-orange-500/20 border border-orange-500/40" />
-            <span className="text-muted-foreground">Lead Post</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <AlertTriangle className="h-3 w-3 text-amber-500" />
-            <span className="text-muted-foreground">Needs attention</span>
-          </div>
-        </div>
+
+            {/* Legend row */}
+            <div className="flex flex-wrap items-center gap-3 mb-3 text-xs">
+              <span className="text-muted-foreground font-medium">Bookings:</span>
+              {Object.entries(STATUS_COLORS).map(([status, colors]) => (
+                <div key={status} className="flex items-center gap-1">
+                  <div className={cn("w-3 h-1.5 rounded-full", colors.bg, "border", colors.border)} />
+                  <span className="capitalize text-muted-foreground">{status.replace("_", " ")}</span>
+                </div>
+              ))}
+              <span className="text-muted-foreground">|</span>
+              <span className="text-muted-foreground font-medium">Restrictions:</span>
+              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-red-500" /><span className="text-muted-foreground">Stop Sell</span></div>
+              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-blue-500" /><span className="text-muted-foreground">Min Stay</span></div>
+              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-pink-500" /><span className="text-muted-foreground">Max Stay</span></div>
+              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-yellow-500" /><span className="text-muted-foreground">Lead Adv</span></div>
+              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-orange-500" /><span className="text-muted-foreground">Lead Post</span></div>
+              <div className="flex items-center gap-1"><AlertTriangle className="h-3 w-3 text-amber-500" /><span className="text-muted-foreground">Attention</span></div>
+            </div>
 
         {/* Calendar Grid — week view: horizontal scroll; month view: stacked weekly rows */}
         {viewMode === "week" ? (
