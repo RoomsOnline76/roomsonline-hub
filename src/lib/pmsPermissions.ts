@@ -25,7 +25,8 @@ export type PmsModule =
   | "calendar"
   | "channels"
   | "groups"
-  | "events";
+  | "events"
+  | "night-audit";
 
 export interface ModuleAccess {
   visible: boolean;
