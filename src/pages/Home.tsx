@@ -520,7 +520,7 @@ function HomeContent() {
         {heroProperty && heroProperty.slug && (
           <Link
             to={`/property/${heroProperty.slug}`}
-            className="absolute bottom-16 sm:bottom-20 right-4 sm:right-8 z-20 text-white/70 hover:text-white text-xs sm:text-sm transition-colors drop-shadow-md flex items-center gap-1.5"
+            className="absolute bottom-36 sm:bottom-40 right-4 sm:right-8 z-20 text-white/80 hover:text-white text-xs sm:text-sm transition-colors drop-shadow-lg flex items-center gap-1.5 bg-black/30 backdrop-blur-sm rounded-full px-3 py-1.5"
           >
             <span className="font-medium">{heroProperty.name}</span>
             <span className="text-white/50">•</span>
