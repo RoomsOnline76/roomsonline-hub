@@ -371,27 +371,45 @@ export default function PMSDashboard() {
   }, [rooms]);
 
   // Dynamic stats based on actual bookings for today
+  // Uses rolos_rooms if available, otherwise derives unit counts from room types
   const dynamicStats = useMemo(() => {
-    const totalRooms = rooms.filter(r => r.status !== "out_of_service").length;
-    // Count rooms occupied today based on active bookings
+    const WHOLE_PROPERTY_TYPES = ['self_catering', 'villa', 'cottage', 'holiday_house', 'house', 'holiday'];
+    const physicalRooms = rooms.filter(r => r.status !== "out_of_service").length;
+
+    // If no physical rooms registered, compute from room types (smart unit detection)
+    const totalRooms = physicalRooms > 0
+      ? physicalRooms
+      : roomTypes.reduce((sum, rt) => {
+          const isWhole = rt.property_type && WHOLE_PROPERTY_TYPES.some(t => rt.property_type!.toLowerCase().includes(t));
+          return sum + (isWhole ? 1 : Math.max(1, rt.max_occupancy ? Math.ceil(rt.max_occupancy / 2) : 1));
+        }, 0) || roomTypes.length;
+
     const todayStr = format(new Date(), "yyyy-MM-dd");
     const activeBookingsToday = bookings.filter(b =>
       todayStr >= b.check_in_date && todayStr < b.check_out_date &&
       !["cancelled", "no_show"].includes(b.status)
     );
-    // Count unique rooms occupied
-    const occupiedRoomIds = new Set<string>();
-    activeBookingsToday.forEach(b => {
-      b.rolos_room_ids?.forEach(rid => occupiedRoomIds.add(rid));
-    });
-    const occupied = occupiedRoomIds.size;
+
+    // Count occupied: use room IDs if available, else count bookings
+    let occupied: number;
+    if (physicalRooms > 0) {
+      const occupiedRoomIds = new Set<string>();
+      activeBookingsToday.forEach(b => {
+        b.rolos_room_ids?.forEach(rid => occupiedRoomIds.add(rid));
+      });
+      occupied = occupiedRoomIds.size;
+    } else {
+      // No physical rooms — count distinct bookings per room type today
+      occupied = activeBookingsToday.length;
+    }
+
     const available = Math.max(0, totalRooms - occupied);
     const occupancyPct = totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0;
     const dirty = rooms.filter(r => r.status === "dirty").length;
     const maintenance = rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order").length;
 
     return { totalRooms, occupied, available, occupancyPct, dirty, maintenance };
-  }, [rooms, bookings]);
+  }, [rooms, roomTypes, bookings]);
 
   // Get rate for a room type on a date
   const getRateForDate = (roomTypeId: string, date: Date): number | null => {
