@@ -195,7 +195,8 @@ function generateEmailHtml(
   pmsIntegrations: PmsIntegrationStats[],
   inactiveComponents: InactiveComponent[],
   nextCheckTime: string,
-  aiDigest: AIDigest | null
+  aiDigest: AIDigest | null,
+  devTasks: DevTask[]
 ): string {
   const overallStatusColor = getStatusColor(overallStatus);
   const overallStatusLabel = overallStatus === 'healthy' 
