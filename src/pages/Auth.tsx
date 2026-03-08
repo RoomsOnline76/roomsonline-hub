@@ -63,24 +63,41 @@ function AuthContent() {
       const isPureOwner = roleList.length > 0 && roleList.every(r => r === "user");
       
       if (isPureOwner) {
+        // Check property_owners table
         const { data: owned } = await supabase
           .from("property_owners")
           .select("property_id")
           .eq("user_id", userId);
         
-        if (owned && owned.length > 0) {
-          const ids = owned.map(o => o.property_id);
-          const { data: rolProps } = await supabase
-            .from("properties")
-            .select("id")
-            .in("id", ids)
-            .eq("is_rol_property", true)
-            .limit(1);
-          
-          if (rolProps && rolProps.length > 0) {
-            navigate(`/pms?property=${rolProps[0].id}`);
-            return;
-          }
+        // Also check owner_email on properties
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("email")
+          .eq("id", userId)
+          .single();
+
+        const linkedIds = (owned || []).map(o => o.property_id);
+
+        // Build query for ROL properties owned by this user (via property_owners OR owner_email)
+        let query = supabase
+          .from("properties")
+          .select("id")
+          .eq("is_rol_property", true)
+          .limit(1);
+
+        if (profile?.email && linkedIds.length > 0) {
+          query = query.or(`owner_email.eq.${profile.email},id.in.(${linkedIds.join(",")})`);
+        } else if (profile?.email) {
+          query = query.eq("owner_email", profile.email);
+        } else if (linkedIds.length > 0) {
+          query = query.in("id", linkedIds);
+        }
+
+        const { data: rolProps } = await query;
+        
+        if (rolProps && rolProps.length > 0) {
+          navigate(`/pms?property=${rolProps[0].id}`);
+          return;
         }
       }
       navigate("/");
