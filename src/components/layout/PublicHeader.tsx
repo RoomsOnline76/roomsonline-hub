@@ -120,7 +120,7 @@ export function PublicHeader({
             </nav>
 
             {showCurrency && (
-              <div className="hidden sm:block">
+              <div className="hidden md:block">
                 <CurrencySelector
                   compact
                   variant={transparent ? "hero" : "default"}
