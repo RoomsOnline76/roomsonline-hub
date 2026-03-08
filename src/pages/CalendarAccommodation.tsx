@@ -475,9 +475,12 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         body: {
           action: "fetch_availability",
           property_id: selectedPropertyData.id,
+          propertyId: selectedPropertyData.id,
           propertyUid: pmsPropertyCode,
           startDate: startDateStr,
           endDate: endDateStr,
+          start_date: startDateStr,
+          end_date: endDateStr,
         },
       });
 
