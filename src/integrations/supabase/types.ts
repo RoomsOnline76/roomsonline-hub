@@ -4074,6 +4074,255 @@ export type Database = {
           },
         ]
       }
+      rolos_channel_connections: {
+        Row: {
+          channel_name: Database["public"]["Enums"]["channel_name"]
+          created_at: string
+          credentials: Json | null
+          id: string
+          last_error: string | null
+          last_sync_at: string | null
+          property_id: string
+          settings: Json | null
+          status: Database["public"]["Enums"]["channel_connection_status"]
+          updated_at: string
+        }
+        Insert: {
+          channel_name: Database["public"]["Enums"]["channel_name"]
+          created_at?: string
+          credentials?: Json | null
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          property_id: string
+          settings?: Json | null
+          status?: Database["public"]["Enums"]["channel_connection_status"]
+          updated_at?: string
+        }
+        Update: {
+          channel_name?: Database["public"]["Enums"]["channel_name"]
+          created_at?: string
+          credentials?: Json | null
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          property_id?: string
+          settings?: Json | null
+          status?: Database["public"]["Enums"]["channel_connection_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_channel_connections_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_channel_connections_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_channel_rate_mapping: {
+        Row: {
+          connection_id: string
+          created_at: string
+          external_rate_id: string
+          external_rate_name: string | null
+          id: string
+          is_active: boolean
+          rate_plan_id: string
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string
+          external_rate_id: string
+          external_rate_name?: string | null
+          id?: string
+          is_active?: boolean
+          rate_plan_id: string
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string
+          external_rate_id?: string
+          external_rate_name?: string | null
+          id?: string
+          is_active?: boolean
+          rate_plan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_channel_rate_mapping_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_channel_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_channel_rate_mapping_rate_plan_id_fkey"
+            columns: ["rate_plan_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_channel_reservations: {
+        Row: {
+          booking_id: string | null
+          channel_name: Database["public"]["Enums"]["channel_name"]
+          connection_id: string
+          error_message: string | null
+          external_reservation_id: string
+          id: string
+          processed_at: string | null
+          processing_status: Database["public"]["Enums"]["channel_reservation_status"]
+          raw_data: Json
+          received_at: string
+        }
+        Insert: {
+          booking_id?: string | null
+          channel_name: Database["public"]["Enums"]["channel_name"]
+          connection_id: string
+          error_message?: string | null
+          external_reservation_id: string
+          id?: string
+          processed_at?: string | null
+          processing_status?: Database["public"]["Enums"]["channel_reservation_status"]
+          raw_data?: Json
+          received_at?: string
+        }
+        Update: {
+          booking_id?: string | null
+          channel_name?: Database["public"]["Enums"]["channel_name"]
+          connection_id?: string
+          error_message?: string | null
+          external_reservation_id?: string
+          id?: string
+          processed_at?: string | null
+          processing_status?: Database["public"]["Enums"]["channel_reservation_status"]
+          raw_data?: Json
+          received_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_channel_reservations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_channel_reservations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_channel_reservations_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_channel_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_channel_room_mapping: {
+        Row: {
+          connection_id: string
+          created_at: string
+          external_room_id: string
+          external_room_name: string | null
+          id: string
+          is_active: boolean
+          room_type_id: string
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string
+          external_room_id: string
+          external_room_name?: string | null
+          id?: string
+          is_active?: boolean
+          room_type_id: string
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string
+          external_room_id?: string
+          external_room_name?: string | null
+          id?: string
+          is_active?: boolean
+          room_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_channel_room_mapping_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_channel_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_channel_room_mapping_room_type_id_fkey"
+            columns: ["room_type_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_room_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_channel_sync_log: {
+        Row: {
+          completed_at: string | null
+          connection_id: string
+          duration_ms: number | null
+          errors: Json | null
+          id: string
+          records_processed: number
+          started_at: string
+          status: Database["public"]["Enums"]["channel_sync_status"]
+          sync_type: Database["public"]["Enums"]["channel_sync_type"]
+        }
+        Insert: {
+          completed_at?: string | null
+          connection_id: string
+          duration_ms?: number | null
+          errors?: Json | null
+          id?: string
+          records_processed?: number
+          started_at?: string
+          status: Database["public"]["Enums"]["channel_sync_status"]
+          sync_type: Database["public"]["Enums"]["channel_sync_type"]
+        }
+        Update: {
+          completed_at?: string | null
+          connection_id?: string
+          duration_ms?: number | null
+          errors?: Json | null
+          id?: string
+          records_processed?: number
+          started_at?: string
+          status?: Database["public"]["Enums"]["channel_sync_status"]
+          sync_type?: Database["public"]["Enums"]["channel_sync_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_channel_sync_log_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_channel_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_daily_metrics: {
         Row: {
           adr: number | null
@@ -5959,6 +6208,10 @@ export type Database = {
       }
     }
     Functions: {
+      can_access_channel_property: {
+        Args: { _property_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_view_rol_pulse: { Args: { user_id: string }; Returns: boolean }
       decrypt_sensitive_text: {
         Args: { encrypted_data: string }
@@ -6032,6 +6285,25 @@ export type Database = {
         | "cron"
         | "db_trigger"
       audit_user_role: "admin" | "dev" | "owner" | "system"
+      channel_connection_status: "active" | "paused" | "error" | "disconnected"
+      channel_name:
+        | "booking_com"
+        | "airbnb"
+        | "expedia"
+        | "agoda"
+        | "google_hotels"
+        | "manual"
+      channel_reservation_status:
+        | "pending"
+        | "processed"
+        | "failed"
+        | "duplicate"
+      channel_sync_status: "success" | "partial" | "failed"
+      channel_sync_type:
+        | "push_inventory"
+        | "pull_reservations"
+        | "push_rates"
+        | "full_sync"
       component_type: "pms" | "internal" | "external" | "infrastructure"
       dev_task_priority: "low" | "medium" | "high" | "critical"
       dev_task_status: "new" | "started" | "testing" | "completed"
@@ -6204,6 +6476,28 @@ export const Constants = {
         "db_trigger",
       ],
       audit_user_role: ["admin", "dev", "owner", "system"],
+      channel_connection_status: ["active", "paused", "error", "disconnected"],
+      channel_name: [
+        "booking_com",
+        "airbnb",
+        "expedia",
+        "agoda",
+        "google_hotels",
+        "manual",
+      ],
+      channel_reservation_status: [
+        "pending",
+        "processed",
+        "failed",
+        "duplicate",
+      ],
+      channel_sync_status: ["success", "partial", "failed"],
+      channel_sync_type: [
+        "push_inventory",
+        "pull_reservations",
+        "push_rates",
+        "full_sync",
+      ],
       component_type: ["pms", "internal", "external", "infrastructure"],
       dev_task_priority: ["low", "medium", "high", "critical"],
       dev_task_status: ["new", "started", "testing", "completed"],

@@ -173,3 +173,6 @@ schedule = "0 0 * * *"
 [functions.sync-rolos-room-types]
 verify_jwt = false
 schedule = "0 3 * * *"
+
+[functions.pms-channel-sync]
+verify_jwt = false
