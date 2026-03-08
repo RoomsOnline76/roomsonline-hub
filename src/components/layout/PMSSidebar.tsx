@@ -61,6 +61,7 @@ const pmsNavGroups: NavGroup[] = [
     label: "Revenue",
     items: [
       { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans", module: "rate-plans" },
+      { title: "Revenue Mgmt", icon: Gauge, href: "/pms/revenue", module: "revenue" },
       { title: "Channels", icon: Radio, href: "/pms/channels", module: "channels" },
       { title: "Groups", icon: UsersRound, href: "/pms/groups", module: "groups" },
       { title: "Events", icon: CalendarHeart, href: "/pms/events", module: "events" },
