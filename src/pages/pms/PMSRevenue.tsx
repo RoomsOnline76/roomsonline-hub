@@ -7,8 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   format, subDays, addDays, differenceInDays, parseISO, eachDayOfInterval, startOfDay,
 } from "date-fns";
@@ -19,7 +25,91 @@ import {
 import {
   TrendingUp, TrendingDown, AlertTriangle, Lightbulb, DollarSign,
   Calendar, Target, ArrowUpRight, ArrowDownRight, Minus, History, BarChart3,
+  Plus, Trash2, Settings2, Zap,
 } from "lucide-react";
+
+// ============================================================================
+// Yield Rules Hook
+// ============================================================================
+interface YieldRule {
+  id: string;
+  property_id: string;
+  name: string;
+  rule_type: string;
+  condition: Record<string, unknown>;
+  adjustment_percent: number;
+  priority: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+function useYieldRules(propertyId: string | null) {
+  return useQuery({
+    queryKey: ["yield-rules", propertyId],
+    enabled: !!propertyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rolos_yield_rules" as any)
+        .select("*")
+        .eq("property_id", propertyId!)
+        .order("priority", { ascending: true });
+      if (error) throw error;
+      return (data || []) as unknown as YieldRule[];
+    },
+  });
+}
+
+function useUpsertYieldRule(propertyId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (rule: Partial<YieldRule> & { property_id: string }) => {
+      const { data, error } = await supabase
+        .from("rolos_yield_rules" as any)
+        .upsert(rule as any)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["yield-rules", propertyId] });
+      toast.success("Yield rule saved");
+    },
+    onError: (err: Error) => toast.error("Failed to save rule", { description: err.message }),
+  });
+}
+
+function useDeleteYieldRule(propertyId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("rolos_yield_rules" as any)
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["yield-rules", propertyId] });
+      toast.success("Yield rule deleted");
+    },
+    onError: (err: Error) => toast.error("Failed to delete rule", { description: err.message }),
+  });
+}
+
+function useToggleYieldRule(propertyId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+      const { error } = await supabase
+        .from("rolos_yield_rules" as any)
+        .update({ is_active } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["yield-rules", propertyId] }),
+  });
+}
 
 const fmt = (n: number) => n.toLocaleString("en-ZA", { maximumFractionDigits: 0 });
 const fmtCurrency = (n: number) =>
