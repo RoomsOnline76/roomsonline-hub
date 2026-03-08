@@ -133,7 +133,7 @@ export default function PMSBranding() {
         supabase.from("properties").select("brand_logo_url, brand_primary_color, brand_secondary_color, brand_font_color, brand_accent_color, brand_override_enabled, slug").eq("id", propertyId).single(),
       ]);
       if (stationeryRes.data) {
-        const d = stationeryRes.data as any;
+        const d = stationeryRes.data;
         setConfig({
           business_name: d.business_name || "",
           business_address: d.business_address || {},
