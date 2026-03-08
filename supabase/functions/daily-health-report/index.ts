@@ -652,6 +652,43 @@ Deno.serve(async (req) => {
       bookingStats.failed = recentBookings.filter((b: { status: string }) => b.status === 'failed').length;
     }
 
+    // Fetch dev tasks (non-archived only)
+    const { data: rawDevTasks } = await supabase
+      .from('dev_tasks')
+      .select('id, title, description, status, priority, assigned_to, created_at')
+      .eq('is_archived', false)
+      .order('priority', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    // Fetch assignee names
+    let devTasks: DevTask[] = [];
+    if (rawDevTasks && rawDevTasks.length > 0) {
+      const assignedIds = [...new Set((rawDevTasks || []).filter(t => t.assigned_to).map(t => t.assigned_to))];
+      
+      let profilesMap: Record<string, string> = {};
+      if (assignedIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', assignedIds);
+        
+        (profiles || []).forEach((p: { id: string; full_name: string | null; email: string }) => {
+          profilesMap[p.id] = p.full_name || p.email || 'Unknown';
+        });
+      }
+
+      devTasks = (rawDevTasks || []).map(task => ({
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        status: task.status as DevTask['status'],
+        priority: task.priority as DevTask['priority'],
+        assigned_to: task.assigned_to,
+        assigned_name: task.assigned_to ? profilesMap[task.assigned_to] || null : null,
+        created_at: task.created_at,
+      }));
+    }
+
     const aiDigest = await generateAIDigest(
       overallStatus,
       overallUptime,
@@ -676,7 +713,8 @@ Deno.serve(async (req) => {
       pmsIntegrations,
       inactiveComponentsList,
       formatTime(nextCheckTime),
-      aiDigest
+      aiDigest,
+      devTasks
     );
 
     // Determine subject line
