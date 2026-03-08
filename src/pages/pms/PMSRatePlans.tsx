@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,9 +40,47 @@ export default function PMSRatePlans() {
   const [editingPlan, setEditingPlan] = useState<RatePlan | null>(null);
   const [form, setForm] = useState({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false });
 
-  const fetchData = async () => {
+  // Auto-sync rate types from overview into rolos_rate_plans
+  const syncRateTypesFromOverview = useCallback(async () => {
+    if (!propertyId) return;
+
+    const { data: overviewTypes } = await supabase
+      .from("pms_rate_types_cache")
+      .select("id, name, description, price_type, min_stay_days")
+      .eq("property_id", propertyId);
+
+    if (!overviewTypes || overviewTypes.length === 0) return;
+
+    const { data: existingPlans } = await supabase
+      .from("rolos_rate_plans")
+      .select("id, name")
+      .eq("property_id", propertyId);
+
+    const existingNames = new Set((existingPlans || []).map(p => p.name.toLowerCase()));
+    const toImport = overviewTypes.filter(rt => !existingNames.has(rt.name.toLowerCase()));
+
+    if (toImport.length === 0) return;
+
+    const rows = toImport.map(rt => ({
+      property_id: propertyId,
+      name: rt.name,
+      description: rt.description || null,
+      min_stay: rt.min_stay_days || 1,
+      is_active: true,
+    }));
+
+    const { error } = await supabase.from("rolos_rate_plans").insert(rows);
+    if (!error) {
+      toast.success(`Synced ${toImport.length} rate plan${toImport.length !== 1 ? 's' : ''} from Property Overview`);
+    }
+  }, [propertyId]);
+
+  const fetchData = useCallback(async () => {
     if (!propertyId) return;
     setLoading(true);
+
+    // Auto-sync from overview first
+    await syncRateTypesFromOverview();
 
     const [plansRes, overviewRes] = await Promise.all([
       supabase
@@ -60,9 +98,9 @@ export default function PMSRatePlans() {
     setPlans((plansRes.data || []) as RatePlan[]);
     setOverviewRateTypes((overviewRes.data || []) as OverviewRateType[]);
     setLoading(false);
-  };
+  }, [propertyId, syncRateTypesFromOverview]);
 
-  useEffect(() => { fetchData(); }, [propertyId]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const resetForm = () => {
     setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false });
@@ -119,34 +157,6 @@ export default function PMSRatePlans() {
     fetchData();
   };
 
-  const handleImportFromOverview = async () => {
-    if (!propertyId || overviewRateTypes.length === 0) return;
-
-    const existingNames = new Set(plans.map(p => p.name.toLowerCase()));
-    const toImport = overviewRateTypes.filter(rt => !existingNames.has(rt.name.toLowerCase()));
-
-    if (toImport.length === 0) {
-      toast.info("All rate types are already imported");
-      return;
-    }
-
-    const rows = toImport.map(rt => ({
-      property_id: propertyId,
-      name: rt.name,
-      description: rt.description || null,
-      min_stay: rt.min_stay_days || 1,
-      is_active: true,
-    }));
-
-    const { error } = await supabase.from("rolos_rate_plans").insert(rows);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success(`Imported ${toImport.length} rate type${toImport.length !== 1 ? 's' : ''} from Property Overview`);
-    fetchData();
-  };
-
   const handleToggleActive = async (plan: RatePlan) => {
     const { error } = await supabase
       .from("rolos_rate_plans")
@@ -162,10 +172,6 @@ export default function PMSRatePlans() {
   if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
   if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
 
-  const hasUnimported = overviewRateTypes.some(
-    rt => !plans.some(p => p.name.toLowerCase() === rt.name.toLowerCase())
-  );
-
   return (
     <PMSLayout>
       <div className="space-y-6">
@@ -173,15 +179,10 @@ export default function PMSRatePlans() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Rate Plans</h1>
             <p className="text-sm text-muted-foreground">
-              Manage rate plans. Import from Property Overview or create custom plans.
+              Rate plans are automatically synced from Property Overview configuration.
             </p>
           </div>
           <div className="flex gap-2">
-            {hasUnimported && (
-              <Button variant="outline" onClick={handleImportFromOverview}>
-                <Link2 className="h-4 w-4 mr-2" />Import from Overview
-              </Button>
-            )}
             <Button variant="outline" size="sm" onClick={fetchData}>
               <RefreshCw className="h-4 w-4 mr-2" />Refresh
             </Button>
@@ -204,27 +205,7 @@ export default function PMSRatePlans() {
           </div>
         </div>
 
-        {/* Overview rate types info */}
-        {overviewRateTypes.length > 0 && plans.length === 0 && (
-          <Card className="border-dashed">
-            <CardContent className="py-6">
-              <div className="flex items-center gap-4">
-                <Link2 className="h-8 w-8 text-muted-foreground shrink-0" />
-                <div className="flex-1">
-                  <p className="font-medium">
-                    {overviewRateTypes.length} rate type{overviewRateTypes.length !== 1 ? 's' : ''} found in Property Overview
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Import them to use as PMS rate plans: {overviewRateTypes.map(rt => rt.name).join(", ")}
-                  </p>
-                </div>
-                <Button onClick={handleImportFromOverview}>Import All</Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {loading ? <p className="text-muted-foreground">Loading...</p> : plans.length === 0 && overviewRateTypes.length === 0 ? (
+        {loading ? <p className="text-muted-foreground">Loading...</p> : plans.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -234,7 +215,7 @@ export default function PMSRatePlans() {
               </p>
             </CardContent>
           </Card>
-        ) : plans.length > 0 ? (
+        ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {plans.map((plan) => (
               <Card key={plan.id} className="group">
@@ -260,7 +241,7 @@ export default function PMSRatePlans() {
               </Card>
             ))}
           </div>
-        ) : null}
+        )}
       </div>
     </PMSLayout>
   );
