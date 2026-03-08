@@ -337,6 +337,8 @@ function generateEmailHtml(
       </p>
     </div>
 
+    ${taskTrackerSection}
+
     ${aiDigest ? `
     <!-- AI Executive Summary -->
     <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left: 4px solid #0ea5e9; padding: 20px; margin: 24px;">
