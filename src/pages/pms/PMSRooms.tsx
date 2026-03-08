@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, BedDouble, RefreshCw, AlertCircle } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Plus, BedDouble, RefreshCw, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -20,10 +21,7 @@ const STATUS_COLORS: Record<string, string> = {
   out_of_order: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
-interface RoomType {
-  id: string;
-  name: string;
-}
+interface RoomType { id: string; name: string; }
 
 interface Room {
   id: string;
@@ -36,15 +34,20 @@ interface Room {
   room_type_name?: string;
 }
 
+type RoomForm = { room_number: string; room_name: string; floor: string; room_type_id: string; max_occupancy: string };
+const emptyForm: RoomForm = { room_number: "", room_name: "", floor: "", room_type_id: "", max_occupancy: "" };
+
 export default function PMSRooms() {
   const { propertyId, loading: propertyLoading } = usePmsPropertyId();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newRoom, setNewRoom] = useState({ room_number: "", room_name: "", floor: "", room_type_id: "", max_occupancy: "" });
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [form, setForm] = useState<RoomForm>(emptyForm);
+  const [deleteRoom, setDeleteRoom] = useState<Room | null>(null);
 
-  // Auto-sync room types from the true Property Overview source for each property type
+  // Auto-sync room types from the true Property Overview source
   const syncRoomTypesFromOverview = useCallback(async () => {
     if (!propertyId) return;
 
@@ -56,9 +59,7 @@ export default function PMSRooms() {
         .eq("property_id", propertyId),
     ]);
 
-    if (hostfullyErr) {
-      console.warn("[PMS Rooms] Failed to fetch hostfully_room_types:", hostfullyErr);
-    }
+    if (hostfullyErr) console.warn("[PMS Rooms] Failed to fetch hostfully_room_types:", hostfullyErr);
 
     const amenitiesRoomTypes = Array.isArray((property as any)?.amenities?.room_types)
       ? ((property as any).amenities.room_types as any[])
@@ -106,13 +107,10 @@ export default function PMSRooms() {
     }));
 
     const { data: insertedTypes, error } = await supabase.from("rolos_room_types").insert(rows).select("id, name");
-    if (error) {
-      console.warn("[PMS Rooms] Auto-sync room types warning:", error);
-    }
+    if (error) console.warn("[PMS Rooms] Auto-sync room types warning:", error);
 
-    // Auto-create physical rooms for newly synced room types (ROL properties)
     if (insertedTypes && insertedTypes.length > 0) {
-      const physicalRooms = insertedTypes.map((rt, idx) => ({
+      const physicalRooms = insertedTypes.map((rt) => ({
         property_id: propertyId,
         room_number: rt.name,
         room_name: rt.name,
@@ -123,7 +121,7 @@ export default function PMSRooms() {
       if (roomErr) console.warn("[PMS Rooms] Auto-create physical rooms warning:", roomErr);
     }
 
-    // Also create physical rooms for existing room types that are missing them
+    // Backfill physical rooms for existing types missing them
     const { data: allRolosTypes } = await supabase
       .from("rolos_room_types")
       .select("id, name")
@@ -155,8 +153,6 @@ export default function PMSRooms() {
   const fetchData = useCallback(async () => {
     if (!propertyId) return;
     setLoading(true);
-
-    // First ensure room types are synced from overview
     await syncRoomTypesFromOverview();
 
     const [roomsRes, typesRes] = await Promise.all([
@@ -178,48 +174,72 @@ export default function PMSRooms() {
     setRoomTypes(types);
 
     const typeMap = new Map(types.map(t => [t.id, t.name]));
-    const roomsData = (roomsRes.data || []).map((r: any) => ({
+    setRooms((roomsRes.data || []).map((r: any) => ({
       ...r,
       room_type_name: r.room_type_id ? typeMap.get(r.room_type_id) : undefined,
-    }));
-    setRooms(roomsData);
+    })));
     setLoading(false);
   }, [propertyId, syncRoomTypesFromOverview]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleCreate = async () => {
-    if (!propertyId || !newRoom.room_number) return;
+  const openCreateDialog = () => {
+    setEditingRoom(null);
+    setForm(emptyForm);
+    setDialogOpen(true);
+  };
 
-    const { error } = await supabase.from("rolos_rooms").insert({
-      property_id: propertyId,
-      room_number: newRoom.room_number,
-      room_name: newRoom.room_name || null,
-      floor: newRoom.floor ? parseInt(newRoom.floor) : null,
-      room_type_id: newRoom.room_type_id || null,
-      max_occupancy: newRoom.max_occupancy ? parseInt(newRoom.max_occupancy) : null,
+  const openEditDialog = (room: Room) => {
+    setEditingRoom(room);
+    setForm({
+      room_number: room.room_number,
+      room_name: room.room_name || "",
+      floor: room.floor != null ? String(room.floor) : "",
+      room_type_id: room.room_type_id || "",
+      max_occupancy: room.max_occupancy != null ? String(room.max_occupancy) : "",
     });
+    setDialogOpen(true);
+  };
 
-    if (error) {
-      toast.error(error.message);
-      return;
+  const handleSave = async () => {
+    if (!propertyId || !form.room_number) return;
+
+    const payload = {
+      room_number: form.room_number,
+      room_name: form.room_name || null,
+      floor: form.floor ? parseInt(form.floor) : null,
+      room_type_id: form.room_type_id || null,
+      max_occupancy: form.max_occupancy ? parseInt(form.max_occupancy) : null,
+    };
+
+    if (editingRoom) {
+      const { error } = await supabase.from("rolos_rooms").update(payload).eq("id", editingRoom.id);
+      if (error) { toast.error(error.message); return; }
+      toast.success("Room updated");
+    } else {
+      const { error } = await supabase.from("rolos_rooms").insert({ ...payload, property_id: propertyId });
+      if (error) { toast.error(error.message); return; }
+      toast.success("Room created");
     }
-    toast.success("Room created");
+
     setDialogOpen(false);
-    setNewRoom({ room_number: "", room_name: "", floor: "", room_type_id: "", max_occupancy: "" });
+    setForm(emptyForm);
+    setEditingRoom(null);
+    fetchData();
+  };
+
+  const handleDelete = async () => {
+    if (!deleteRoom) return;
+    const { error } = await supabase.from("rolos_rooms").delete().eq("id", deleteRoom.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Room deleted");
+    setDeleteRoom(null);
     fetchData();
   };
 
   const handleStatusChange = async (roomId: string, status: string) => {
-    const { error } = await supabase
-      .from("rolos_rooms")
-      .update({ status })
-      .eq("id", roomId);
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
+    const { error } = await supabase.from("rolos_rooms").update({ status }).eq("id", roomId);
+    if (error) { toast.error(error.message); return; }
     toast.success("Status updated");
     fetchData();
   };
@@ -233,51 +253,13 @@ export default function PMSRooms() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Room Inventory</h1>
-            <p className="text-sm text-muted-foreground">
-              Physical rooms linked to room types from Property Overview.
-            </p>
+            <p className="text-sm text-muted-foreground">Physical rooms linked to room types from Property Overview.</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={fetchData}>
               <RefreshCw className="h-4 w-4 mr-2" />Refresh
             </Button>
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button><Plus className="h-4 w-4 mr-2" />Add Room</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader><DialogTitle>Add Physical Room</DialogTitle></DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label>Room Number *</Label>
-                    <Input value={newRoom.room_number} onChange={e => setNewRoom(p => ({ ...p, room_number: e.target.value }))} placeholder="e.g. 101" />
-                  </div>
-                  <div>
-                    <Label>Room Name</Label>
-                    <Input value={newRoom.room_name} onChange={e => setNewRoom(p => ({ ...p, room_name: e.target.value }))} placeholder="e.g. Ocean Suite" />
-                  </div>
-                  <div>
-                    <Label>Room Type</Label>
-                    <Select value={newRoom.room_type_id} onValueChange={v => setNewRoom(p => ({ ...p, room_type_id: v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select room type" /></SelectTrigger>
-                      <SelectContent>
-                        {roomTypes.length === 0 ? (
-                          <SelectItem value="none" disabled>No room types — add them in Property Overview first</SelectItem>
-                        ) : (
-                          roomTypes.map(rt => <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>)
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1">Room types are synced from Property Overview configuration.</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Floor</Label><Input type="number" value={newRoom.floor} onChange={e => setNewRoom(p => ({ ...p, floor: e.target.value }))} /></div>
-                    <div><Label>Max Occupancy</Label><Input type="number" value={newRoom.max_occupancy} onChange={e => setNewRoom(p => ({ ...p, max_occupancy: e.target.value }))} /></div>
-                  </div>
-                  <Button onClick={handleCreate} className="w-full">Create Room</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Button onClick={openCreateDialog}><Plus className="h-4 w-4 mr-2" />Add Room</Button>
           </div>
         </div>
 
@@ -312,9 +294,19 @@ export default function PMSRooms() {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
             {rooms.map((room) => (
-              <Card key={room.id} className="relative">
+              <Card key={room.id} className="relative group">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-lg font-bold">{room.room_number}</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg font-bold">{room.room_number}</CardTitle>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openEditDialog(room)}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => setDeleteRoom(room)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
                   {room.room_name && <p className="text-xs text-muted-foreground">{room.room_name}</p>}
                 </CardHeader>
                 <CardContent className="space-y-2">
@@ -332,6 +324,58 @@ export default function PMSRooms() {
           </div>
         )}
       </div>
+
+      {/* Create/Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingRoom(null); setForm(emptyForm); } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editingRoom ? "Edit Room" : "Add Physical Room"}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Room Number *</Label>
+              <Input value={form.room_number} onChange={e => setForm(p => ({ ...p, room_number: e.target.value }))} placeholder="e.g. 101" />
+            </div>
+            <div>
+              <Label>Room Name</Label>
+              <Input value={form.room_name} onChange={e => setForm(p => ({ ...p, room_name: e.target.value }))} placeholder="e.g. Ocean Suite" />
+            </div>
+            <div>
+              <Label>Room Type</Label>
+              <Select value={form.room_type_id} onValueChange={v => setForm(p => ({ ...p, room_type_id: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select room type" /></SelectTrigger>
+                <SelectContent>
+                  {roomTypes.length === 0 ? (
+                    <SelectItem value="none" disabled>No room types — add them in Property Overview first</SelectItem>
+                  ) : (
+                    roomTypes.map(rt => <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>)
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">Room types are synced from Property Overview configuration.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Floor</Label><Input type="number" value={form.floor} onChange={e => setForm(p => ({ ...p, floor: e.target.value }))} /></div>
+              <div><Label>Max Occupancy</Label><Input type="number" value={form.max_occupancy} onChange={e => setForm(p => ({ ...p, max_occupancy: e.target.value }))} /></div>
+            </div>
+            <Button onClick={handleSave} className="w-full">{editingRoom ? "Update Room" : "Create Room"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteRoom} onOpenChange={(open) => { if (!open) setDeleteRoom(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Room {deleteRoom?.room_number}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove this physical room. Any bookings assigned to this room will not be affected but will lose room assignment.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PMSLayout>
   );
 }
