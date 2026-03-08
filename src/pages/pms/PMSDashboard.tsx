@@ -1292,7 +1292,7 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
       special_requests: form.special_requests || null,
     }).eq("id", booking.id);
     setSaving(false);
-    if (error) { toast("Failed to save: " + error.message); return; }
+    if (error) { toast.error("Failed to save: " + error.message); return; }
     toast("Booking updated successfully");
     setIsEditing(false);
     onSaved();

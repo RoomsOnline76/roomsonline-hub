@@ -65,8 +65,8 @@ export default function PMSReports() {
         .from("bookings")
         .select("id, check_in_date, check_out_date, total_price, status, created_at, room_type_id, booking_channel")
         .eq("property_id", propertyId)
-        .gte("created_at", fromStr)
-        .lte("created_at", toStr + "T23:59:59");
+        .gte("check_in_date", fromStr)
+        .lte("check_in_date", toStr);
       return data || [];
     },
     enabled: !!propertyId,
@@ -132,7 +132,7 @@ export default function PMSReports() {
       const months = eachMonthOfInterval({ start: dateRange.from, end: dateRange.to });
       return months.map(m => {
         const mStr = format(m, "yyyy-MM");
-        const mBookings = active.filter((b: any) => b.created_at?.startsWith(mStr));
+        const mBookings = active.filter((b: any) => b.check_in_date?.startsWith(mStr));
         const rev = mBookings.reduce((s: number, b: any) => s + Number(b.total_price || 0), 0);
         const nights = mBookings.reduce((s: number, b: any) => {
           if (b.check_in_date && b.check_out_date) return s + Math.max(1, differenceInDays(parseISO(b.check_out_date), parseISO(b.check_in_date)));
@@ -153,7 +153,7 @@ export default function PMSReports() {
     const days = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
     return days.map(d => {
       const dStr = format(d, "yyyy-MM-dd");
-      const dBookings = active.filter((b: any) => b.created_at?.startsWith(dStr));
+      const dBookings = active.filter((b: any) => b.check_in_date?.startsWith(dStr));
       const rev = dBookings.reduce((s: number, b: any) => s + Number(b.total_price || 0), 0);
       const nights = dBookings.reduce((s: number, b: any) => {
         if (b.check_in_date && b.check_out_date) return s + Math.max(1, differenceInDays(parseISO(b.check_out_date), parseISO(b.check_in_date)));
