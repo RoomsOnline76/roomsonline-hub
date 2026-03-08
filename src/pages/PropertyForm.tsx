@@ -7693,16 +7693,44 @@ export default function PropertyForm() {
                     <TabsContent value="rate-types" className="p-6 space-y-4">
                       <div className="flex justify-between items-center">
                         <p className="text-sm text-muted-foreground">
-                          Rate types imported from your PMS system. Use the "Sync from PMS" button to import or update
-                          rate types.
+                          Manage rate types for this property. Each room type needs at least one rate type linked.
                         </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const newId = `manual-rate-${Date.now()}`;
+                            setPmsRateTypes((prev) => [
+                              ...prev,
+                              {
+                                id: newId,
+                                name: "New Rate Type",
+                                priceType: "UnitRate",
+                                minStayDays: 1,
+                                maxStayDays: 0,
+                                minAdvanceDays: 0,
+                                maxAdvanceDays: 0,
+                                description: "Configure rate amount",
+                                baseRate: null,
+                                pms_synced: false,
+                                linkedRoomId: null,
+                              },
+                            ]);
+                            setIsDirty(true);
+                          }}
+                          className="gap-1"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add Rate Type
+                        </Button>
                       </div>
 
                       {pmsRateTypes.length === 0 ? (
                         <div className="border rounded-lg p-8 text-center text-muted-foreground">
                           <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
                           <p>No rate types configured yet.</p>
-                          <p className="text-sm">Add base rates in the onboarding wizard or connect to your PMS to import rate types.</p>
+                          <p className="text-sm">Click "Add Rate Type" above to create one, or sync from PMS.</p>
                         </div>
                       ) : (
                         <div className="space-y-4">
@@ -7711,7 +7739,22 @@ export default function PropertyForm() {
                               <CardHeader className="pb-3">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-3">
-                                    <CardTitle className="text-lg">{rateType.name}</CardTitle>
+                                    {rateType.pms_synced ? (
+                                      <CardTitle className="text-lg">{rateType.name}</CardTitle>
+                                    ) : (
+                                      <Input
+                                        value={rateType.name}
+                                        onChange={(e) => {
+                                          setPmsRateTypes((prev) =>
+                                            prev.map((rt) =>
+                                              rt.id === rateType.id ? { ...rt, name: e.target.value } : rt
+                                            )
+                                          );
+                                          setIsDirty(true);
+                                        }}
+                                        className="text-lg font-semibold h-8 w-auto max-w-[250px]"
+                                      />
+                                    )}
                                     <Badge variant="outline" className="font-mono text-xs">
                                       ID: {rateType.id}
                                     </Badge>
@@ -7721,16 +7764,32 @@ export default function PropertyForm() {
                                       </Badge>
                                     )}
                                   </div>
-                                  {rateType.pms_synced && !isRolProperty ? (
-                                    <Badge variant="outline" className="text-xs bg-primary/10">
-                                      <Cloud className="h-3 w-3 mr-1" />
-                                      PMS
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700">
-                                      Manual
-                                    </Badge>
-                                  )}
+                                  <div className="flex items-center gap-2">
+                                    {!rateType.pms_synced && (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 text-destructive hover:text-destructive"
+                                        onClick={() => {
+                                          setPmsRateTypes((prev) => prev.filter((rt) => rt.id !== rateType.id));
+                                          setIsDirty(true);
+                                        }}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
+                                    {rateType.pms_synced && !isRolProperty ? (
+                                      <Badge variant="outline" className="text-xs bg-primary/10">
+                                        <Cloud className="h-3 w-3 mr-1" />
+                                        PMS
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700">
+                                        Manual
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </div>
                                 {rateType.description && (
                                   <p className="text-sm text-muted-foreground mt-2">{rateType.description}</p>
@@ -10031,7 +10090,7 @@ export default function PropertyForm() {
                             {availableRateTypesForRoom.length === 0 ? (
                               <div className="border rounded-md p-4 text-center text-muted-foreground">
                                 <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                                <p className="text-xs">No rate types available. Sync with PMS to load.</p>
+                                <p className="text-xs">No rate types available. Create rate types in the Rates tab first.</p>
                               </div>
                             ) : (
                               <div className="space-y-1">
