@@ -1501,15 +1501,18 @@ async function handleGetGuestProfiles(body: any, supabase: any): Promise<Respons
     return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId is required", "get_guest_profiles")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
   }
-  let query = supabase.from("rolos_guest_profiles").select("*").eq("property_id", body.propertyId).order("last_stay_date", { ascending: false, nullsFirst: false });
+  const queryLimit = Math.min(body.limit || 100, 500);
+  const queryOffset = body.offset || 0;
+  let query = supabase.from("rolos_guest_profiles").select("*", { count: "exact" }).eq("property_id", body.propertyId).order("last_stay_date", { ascending: false, nullsFirst: false });
   if (body.search) {
     query = query.or(`full_name.ilike.%${body.search}%,email.ilike.%${body.search}%`);
   }
-  if (body.limit) query = query.limit(body.limit);
-  const { data, error } = await query;
+  query = query.range(queryOffset, queryOffset + queryLimit - 1);
+  const { data, error, count } = await query;
   if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_guest_profiles")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
-  return new Response(JSON.stringify(createSuccessResponse({ guests: data || [] }, "get_guest_profiles")),
+  const totalCount = count || 0;
+  return new Response(JSON.stringify(createSuccessResponse({ guests: data || [], total_count: totalCount, has_more: queryOffset + queryLimit < totalCount }, "get_guest_profiles")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
