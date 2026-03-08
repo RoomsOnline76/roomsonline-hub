@@ -1473,7 +1473,11 @@ async function handleCheckOut(body: any, supabase: any): Promise<Response> {
   }).eq("id", booking_id).select().single();
   if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "check_out")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
-  // Release rooms and create housekeeping tasks
+  // Ensure guest profile on checkout too
+  if (booking && !booking.rolos_guest_id && booking.guest_email) {
+    const guestId = await ensureGuestProfile(supabase, booking.property_id, booking.guest_name, booking.guest_email, booking.guest_phone, booking.total_price);
+    if (guestId) await supabase.from("bookings").update({ rolos_guest_id: guestId }).eq("id", booking_id);
+  }
   const { data: assignedRooms } = await supabase.from("rolos_booking_rooms").select("room_id").eq("booking_id", booking_id);
   if (assignedRooms?.length) {
     const roomIds = assignedRooms.map((r: any) => r.room_id);
