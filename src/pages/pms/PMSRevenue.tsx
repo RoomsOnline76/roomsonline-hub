@@ -919,7 +919,7 @@ export default function PMSRevenue() {
               </Card>
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
-                {(ratePlans as Array<{ id: string; name: string; base_rate: number | null; pricing_model: string }>).map((plan) => (
+                {(ratePlans as unknown as Array<{ id: string; name: string; base_rate: number | null; pricing_model: string }>).map((plan) => (
                   <Card key={plan.id}>
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
