@@ -72,6 +72,8 @@ import DevFeatures from "./pages/DevFeatures";
 import DevDanger from "./pages/DevDanger";
 import DevTesting from "./pages/DevTesting";
 import PMSComparison from "./pages/PMSComparison";
+import AdminIntegrations from "./pages/AdminIntegrations";
+import EmbedProperty from "./pages/EmbedProperty";
 import { PMSDashboard, PMSRooms, PMSRatePlans, PMSGuests, PMSHousekeeping, PMSReports, PMSBranding } from "./pages/pms";
 import { PMSBrandProvider } from "./contexts/PMSBrandContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
