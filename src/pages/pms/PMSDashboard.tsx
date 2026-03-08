@@ -723,40 +723,42 @@ export default function PMSDashboard() {
               <div className="flex items-center gap-1"><AlertTriangle className="h-3 w-3 text-amber-500" /><span className="text-muted-foreground">Attention</span></div>
             </div>
 
-        {/* Calendar Grid — week view: horizontal scroll; month view: stacked weekly rows */}
-        {viewMode === "week" ? (
-          <WeekCalendarGrid
-            dates={dates}
-            roomTypes={roomTypes}
-            roomsByType={roomsByType}
-            bookings={bookings}
-            rateSeasons={rateSeasons}
-            ratePrices={ratePrices}
-            rooms={rooms}
-            overrideMap={overrideMap}
-            getRateForDate={getRateForDate}
-            getPricingSuffix={getPricingSuffix}
-            getSeasonForDate={getSeasonForDate}
-            getRestriction={getRestriction}
-            onSelectBooking={setSelectedBooking}
-            bookingsLoading={bookingsLoading}
-          />
-        ) : (
-          <MonthCalendarGrid
-            weekChunks={weekChunks}
-            roomTypes={roomTypes}
-            roomsByType={roomsByType}
-            bookings={bookings}
-            rooms={rooms}
-            overrideMap={overrideMap}
-            getRateForDate={getRateForDate}
-            getPricingSuffix={getPricingSuffix}
-            getSeasonForDate={getSeasonForDate}
-            getRestriction={getRestriction}
-            onSelectBooking={setSelectedBooking}
-            bookingsLoading={bookingsLoading}
-          />
-        )}
+            {/* Calendar Grid */}
+            {viewMode === "week" ? (
+              <WeekCalendarGrid
+                dates={dates}
+                roomTypes={roomTypes}
+                roomsByType={roomsByType}
+                bookings={bookings}
+                rateSeasons={rateSeasons}
+                ratePrices={ratePrices}
+                rooms={rooms}
+                overrideMap={overrideMap}
+                getRateForDate={getRateForDate}
+                getPricingSuffix={getPricingSuffix}
+                getSeasonForDate={getSeasonForDate}
+                getRestriction={getRestriction}
+                onSelectBooking={setSelectedBooking}
+                bookingsLoading={bookingsLoading}
+              />
+            ) : (
+              <MonthCalendarGrid
+                weekChunks={weekChunks}
+                roomTypes={roomTypes}
+                roomsByType={roomsByType}
+                bookings={bookings}
+                rooms={rooms}
+                overrideMap={overrideMap}
+                getRateForDate={getRateForDate}
+                getPricingSuffix={getPricingSuffix}
+                getSeasonForDate={getSeasonForDate}
+                getRestriction={getRestriction}
+                onSelectBooking={setSelectedBooking}
+                bookingsLoading={bookingsLoading}
+              />
+            )}
+          </CardContent>
+        </Card>
 
         {/* Today's Arrivals & Departures */}
         {(todayArrivals.length > 0 || todayDepartures.length > 0) && (
