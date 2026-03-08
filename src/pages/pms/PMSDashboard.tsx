@@ -772,6 +772,17 @@ export default function PMSDashboard() {
         </SheetContent>
       </Sheet>
 
+      {/* Manual Booking Dialog */}
+      <ManualBookingDialog
+        open={manualBookingOpen}
+        onOpenChange={setManualBookingOpen}
+        propertyId={propertyId || ""}
+        roomTypes={roomTypes}
+        rooms={rooms}
+        ratePlans={ratePlansWithRate}
+        onCreated={() => queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] })}
+      />
+
       {/* Restriction Dialogs */}
       <BulkStopSellDialog open={stopSellOpen} onOpenChange={setStopSellOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
       <BulkMinimumStayDialog open={minStayOpen} onOpenChange={setMinStayOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
