@@ -55,9 +55,6 @@ function applyPmsBrand(primary?: string | null, secondary?: string | null, font?
       set("--primary", hsl);
       set("--primary-foreground", autoForeground(primary));
       set("--ring", hsl);
-      // Sidebar active states & accent use primary
-      set("--accent", hsl);
-      set("--accent-foreground", autoForeground(primary));
       // Chart colour 1
       set("--chart-1", hsl);
     }
