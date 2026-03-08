@@ -50,7 +50,9 @@ import {
   LucideIcon,
   Cloud,
   Key,
+  ChevronsUpDown,
 } from "lucide-react";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { StarRating } from "@/components/StarRating";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
