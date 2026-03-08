@@ -832,12 +832,13 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     if (!propertyData) return;
     
     const isPms = !!propertyData.external_system && propertyData.external_system !== 'none';
+    const isNativeRolos = propertyData.external_system === 'roomsonline' && !!propertyData.is_rol_property;
     
-    if (isPms) {
-      // Always fetch on property change - the function will handle caching
+    if (isPms && !isNativeRolos) {
+      // External PMS properties fetch from adapter/cache
       fetchPmsAvailability(false);
     } else {
-      // Generate synthetic PMS data from wizard configuration
+      // ROL'OS native + manual properties use property overview data
       generateManualPropertyData(propertyData);
     }
   }, [selectedProperty, properties, fetchPmsAvailability, generateManualPropertyData, currentDate, viewMode]);
