@@ -977,6 +977,7 @@ export type Database = {
           last_synced_at: string | null
           latitude: number | null
           linked_rate_type_ids: string[] | null
+          linked_rolos_id: string | null
           longitude: number | null
           max_guests: number | null
           max_stay: number | null
@@ -1028,6 +1029,7 @@ export type Database = {
           last_synced_at?: string | null
           latitude?: number | null
           linked_rate_type_ids?: string[] | null
+          linked_rolos_id?: string | null
           longitude?: number | null
           max_guests?: number | null
           max_stay?: number | null
@@ -1079,6 +1081,7 @@ export type Database = {
           last_synced_at?: string | null
           latitude?: number | null
           linked_rate_type_ids?: string[] | null
+          linked_rolos_id?: string | null
           longitude?: number | null
           max_guests?: number | null
           max_stay?: number | null
@@ -4684,6 +4687,7 @@ export type Database = {
           id: string
           images: Json | null
           is_active: boolean | null
+          linked_overview_id: string | null
           max_occupancy: number | null
           name: string
           property_id: string
@@ -4699,6 +4703,7 @@ export type Database = {
           id?: string
           images?: Json | null
           is_active?: boolean | null
+          linked_overview_id?: string | null
           max_occupancy?: number | null
           name: string
           property_id: string
@@ -4714,6 +4719,7 @@ export type Database = {
           id?: string
           images?: Json | null
           is_active?: boolean | null
+          linked_overview_id?: string | null
           max_occupancy?: number | null
           name?: string
           property_id?: string
