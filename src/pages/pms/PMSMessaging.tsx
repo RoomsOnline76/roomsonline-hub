@@ -39,7 +39,7 @@ function PMSMessaging() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [sendOpen, setSendOpen] = useState(false);
-  const [editForm, setEditForm] = useState<Record<string, any>>({});
+  const [editForm, setEditForm] = useState<Partial<PmsMessageTemplate> & Record<string, unknown>>({});
   const [sendForm, setSendForm] = useState({ recipient_email: "", subject: "", body: "" });
 
   const openNewTemplate = () => {
