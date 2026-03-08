@@ -12,3 +12,4 @@ export { default as PMSChannels } from "./PMSChannels";
 export { default as PMSGroups } from "./PMSGroups";
 export { default as PMSEvents } from "./PMSEvents";
 export { default as PMSNightAudit } from "./PMSNightAudit";
+export { default as PMSMessaging } from "./PMSMessaging";

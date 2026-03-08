@@ -26,8 +26,8 @@ import {
 function PMSMessaging() {
   const [searchParams] = useSearchParams();
   const propertyId = searchParams.get("property");
-  const { currentPropertyId } = usePmsPropertyId();
-  const pid = propertyId || currentPropertyId;
+  const { propertyId: hookPropertyId } = usePmsPropertyId();
+  const pid = propertyId || hookPropertyId;
 
   const { data: templates = [], isLoading: templatesLoading } = useMessageTemplates(pid);
   const { data: log = [], isLoading: logLoading } = useMessageLog(pid);
