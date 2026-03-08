@@ -304,6 +304,7 @@ export type Database = {
           guest_phone_encrypted: string | null
           id: string
           infants: number | null
+          integration_type: string | null
           last_modified_at: string | null
           modification_notes: Json | null
           modified_by: string | null
@@ -324,6 +325,7 @@ export type Database = {
           rolos_room_ids: string[] | null
           room_type_id: string | null
           rooms: Json | null
+          source_url: string | null
           special_requests: string | null
           special_requests_parsed: Json | null
           status: string
@@ -355,6 +357,7 @@ export type Database = {
           guest_phone_encrypted?: string | null
           id?: string
           infants?: number | null
+          integration_type?: string | null
           last_modified_at?: string | null
           modification_notes?: Json | null
           modified_by?: string | null
@@ -375,6 +378,7 @@ export type Database = {
           rolos_room_ids?: string[] | null
           room_type_id?: string | null
           rooms?: Json | null
+          source_url?: string | null
           special_requests?: string | null
           special_requests_parsed?: Json | null
           status?: string
@@ -406,6 +410,7 @@ export type Database = {
           guest_phone_encrypted?: string | null
           id?: string
           infants?: number | null
+          integration_type?: string | null
           last_modified_at?: string | null
           modification_notes?: Json | null
           modified_by?: string | null
@@ -426,6 +431,7 @@ export type Database = {
           rolos_room_ids?: string[] | null
           room_type_id?: string | null
           rooms?: Json | null
+          source_url?: string | null
           special_requests?: string | null
           special_requests_parsed?: Json | null
           status?: string
@@ -1064,6 +1070,99 @@ export type Database = {
           },
           {
             foreignKeyName: "hostfully_room_types_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_configs: {
+        Row: {
+          allowed_domains: string[] | null
+          api_key: string | null
+          config: Json | null
+          created_at: string | null
+          id: string
+          integration_type: string
+          is_active: boolean | null
+          property_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          allowed_domains?: string[] | null
+          api_key?: string | null
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          integration_type: string
+          is_active?: boolean | null
+          property_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          allowed_domains?: string[] | null
+          api_key?: string | null
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          integration_type?: string
+          is_active?: boolean | null
+          property_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_configs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_configs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_logs: {
+        Row: {
+          created_at: string | null
+          event: string
+          id: string
+          integration_type: string
+          metadata: Json | null
+          property_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          event: string
+          id?: string
+          integration_type: string
+          metadata?: Json | null
+          property_id: string
+        }
+        Update: {
+          created_at?: string | null
+          event?: string
+          id?: string
+          integration_type?: string
+          metadata?: Json | null
+          property_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_logs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_logs_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "public_properties"
