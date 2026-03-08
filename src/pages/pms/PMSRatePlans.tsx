@@ -116,8 +116,7 @@ export default function PMSRatePlans() {
 
     // Clean stale "configure rate amount" descriptions on existing plans
     for (const plan of (existingPlans || [])) {
-      const planAny = plan as any;
-      if (planAny.description && typeof planAny.description === 'string' && planAny.description.toLowerCase().includes('configure rate amount')) {
+      if (plan.description && typeof plan.description === 'string' && plan.description.toLowerCase().includes('configure rate amount')) {
         await supabase
           .from("rolos_rate_plans")
           .update({ description: null })

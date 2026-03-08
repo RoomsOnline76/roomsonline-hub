@@ -89,7 +89,7 @@ export default function PMSGuests() {
     // Fetch complaints
     const { data: profileData } = await supabase.from("rolos_guest_profiles").select("complaints").eq("id", guest.id).single();
     if (profileData?.complaints) {
-      setSelectedGuest(prev => prev ? { ...prev, complaints: profileData.complaints as any[] } : prev);
+      setSelectedGuest(prev => prev ? { ...prev, complaints: profileData.complaints as Guest["complaints"] } : prev);
     }
     setLoadingHistory(false);
   };

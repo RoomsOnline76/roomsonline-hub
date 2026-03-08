@@ -302,22 +302,43 @@ export default function PMSDashboard() {
     enabled: !!propertyId,
   });
 
-  // Fetch bookings in range
-  const { data: bookings = [], isLoading: bookingsLoading } = useQuery({
+  // Fetch bookings in range with pagination guard (auto-fetch all pages)
+  const BOOKINGS_PAGE_SIZE = 500;
+  const bookingsInfinite = useInfiniteQuery({
     queryKey: ["pms-cal-bookings", propertyId, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
-    queryFn: async () => {
-      if (!propertyId) return [];
-      const { data } = await supabase
+    queryFn: async ({ pageParam = 0 }) => {
+      if (!propertyId) return { items: [] as BookingRow[], nextOffset: null as number | null };
+      const { data, count } = await supabase
         .from("bookings")
-        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id")
+        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id", { count: "exact" })
         .eq("property_id", propertyId)
         .neq("status", "cancelled")
         .lte("check_in_date", format(dateRange.end, "yyyy-MM-dd"))
-        .gte("check_out_date", format(dateRange.start, "yyyy-MM-dd"));
-      return (data || []) as BookingRow[];
+        .gte("check_out_date", format(dateRange.start, "yyyy-MM-dd"))
+        .range(pageParam, pageParam + BOOKINGS_PAGE_SIZE - 1);
+      const total = count || 0;
+      return {
+        items: (data || []) as BookingRow[],
+        nextOffset: pageParam + BOOKINGS_PAGE_SIZE < total ? pageParam + BOOKINGS_PAGE_SIZE : null,
+      };
     },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextOffset,
     enabled: !!propertyId,
   });
+
+  // Auto-fetch all pages for calendar completeness
+  useEffect(() => {
+    if (bookingsInfinite.hasNextPage && !bookingsInfinite.isFetchingNextPage) {
+      bookingsInfinite.fetchNextPage();
+    }
+  }, [bookingsInfinite.hasNextPage, bookingsInfinite.isFetchingNextPage, bookingsInfinite.data]);
+
+  const bookings: BookingRow[] = useMemo(
+    () => bookingsInfinite.data?.pages.flatMap(p => p.items) || [],
+    [bookingsInfinite.data]
+  );
+  const bookingsLoading = bookingsInfinite.isLoading;
 
   // Fetch today's arrivals & departures
   const today = format(new Date(), "yyyy-MM-dd");

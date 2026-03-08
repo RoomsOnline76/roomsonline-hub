@@ -195,7 +195,7 @@ export default function PMSBranding() {
         custom_tagline: config.custom_tagline || null,
         favicon_url: config.favicon_url || null,
       };
-      const { error: stErr } = await supabase.from("rolos_brand_config" as any).upsert(stationeryPayload as any, { onConflict: "property_id" });
+      const { error: stErr } = await supabase.from("rolos_brand_config").upsert(stationeryPayload, { onConflict: "property_id" });
       if (stErr) throw stErr;
 
       // Save visual brand to properties table (syncs with Property Overview)
