@@ -3867,6 +3867,57 @@ export default function PropertyForm() {
 
       const savedPropertyId = savedProperty?.id || propertyId;
 
+      // For ROL properties, sync room types to hostfully_room_types table
+      // This triggers the bidirectional sync to rolos_room_types
+      if (isRolProperty && savedPropertyId && roomTypes.length > 0) {
+        try {
+          // Upsert room types to hostfully_room_types
+          for (const room of roomTypes) {
+            const roomTypeData = {
+              property_id: savedPropertyId,
+              name: room.name || 'Unnamed Room',
+              description: room.description || null,
+              max_guests: room.maxPeople || room.maxAdults || 2,
+              daily_rate: room.rates?.[0]?.baseRate || null,
+              is_active: true,
+              // Use existing id if it looks like a UUID, otherwise generate
+              ...(room.id && room.id.length === 36 ? { id: room.id } : {}),
+            };
+
+            // Try to upsert - if room has an id that exists, update it
+            if (room.id && room.id.length === 36) {
+              const { error: upsertError } = await supabase
+                .from("hostfully_room_types")
+                .upsert(roomTypeData, { onConflict: "id" });
+              if (upsertError) console.warn("Room type upsert warning:", upsertError);
+            } else {
+              // Check if a room with same name exists for this property
+              const { data: existingRoom } = await supabase
+                .from("hostfully_room_types")
+                .select("id")
+                .eq("property_id", savedPropertyId)
+                .eq("name", room.name)
+                .maybeSingle();
+
+              if (existingRoom) {
+                await supabase
+                  .from("hostfully_room_types")
+                  .update(roomTypeData)
+                  .eq("id", existingRoom.id);
+              } else {
+                await supabase
+                  .from("hostfully_room_types")
+                  .insert(roomTypeData);
+              }
+            }
+          }
+          console.log(`[ROL Sync] Synced ${roomTypes.length} room types to hostfully_room_types`);
+        } catch (syncErr) {
+          console.warn("Room types sync warning:", syncErr);
+          // Don't fail the save, just warn
+        }
+      }
+
       // Trigger geocoding if coordinates are missing and we have address data
       if ((!latitude || !longitude) && formData.address && formData.city && formData.country) {
         // Fire and forget - don't block the save
