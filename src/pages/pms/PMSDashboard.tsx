@@ -1226,11 +1226,149 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking, cellW, labelW }: 
   );
 }
 
-// ──────────── Booking Detail Component ────────────
-function BookingDetail({ booking, rooms }: { booking: BookingRow; rooms: Room[] }) {
+// ──────────── Booking Detail Component (Editable) ────────────
+function BookingDetail({ booking, rooms, onSaved }: { booking: BookingRow; rooms: Room[]; onSaved: () => void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    guest_name: booking.guest_name,
+    guest_email: booking.guest_email,
+    guest_phone: booking.guest_phone || "",
+    check_in_date: booking.check_in_date,
+    check_out_date: booking.check_out_date,
+    adults: String(booking.adults),
+    children: String(booking.children ?? 0),
+    teens: String(booking.teens ?? 0),
+    infants: String(booking.infants ?? 0),
+    pets: String(booking.pets ?? 0),
+    total_price: String(booking.total_price),
+    payment_status: booking.payment_status || "unpaid",
+    payment_method: booking.payment_method || "",
+    status: booking.status,
+    special_requests: booking.special_requests || "",
+  });
+  const update = (key: string, value: string) => setForm(p => ({ ...p, [key]: value }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase.from("bookings").update({
+      guest_name: form.guest_name,
+      guest_email: form.guest_email,
+      guest_phone: form.guest_phone || null,
+      check_in_date: form.check_in_date,
+      check_out_date: form.check_out_date,
+      adults: parseInt(form.adults) || 1,
+      children: parseInt(form.children) || 0,
+      teens: parseInt(form.teens) || 0,
+      infants: parseInt(form.infants) || 0,
+      pets: parseInt(form.pets) || 0,
+      total_price: parseFloat(form.total_price) || 0,
+      payment_status: form.payment_status,
+      payment_method: form.payment_method || null,
+      status: form.status,
+      special_requests: form.special_requests || null,
+    }).eq("id", booking.id);
+    setSaving(false);
+    if (error) {
+      toast("Failed to save: " + error.message);
+      return;
+    }
+    toast("Booking updated successfully");
+    setIsEditing(false);
+    onSaved();
+  };
+
   const b = booking;
-  const nights = differenceInDays(parseISO(b.check_out_date), parseISO(b.check_in_date));
+  const nights = differenceInDays(parseISO(form.check_out_date), parseISO(form.check_in_date));
   const assignedRooms = rooms.filter(r => b.rolos_room_ids?.includes(r.id));
+
+  if (isEditing) {
+    return (
+      <>
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <Pencil className="h-4 w-4" /> Edit Booking
+          </SheetTitle>
+          <SheetDescription>Booking #{b.id.slice(0, 8)}</SheetDescription>
+        </SheetHeader>
+        <div className="space-y-4 mt-4">
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Guest</h4>
+            <div className="space-y-2">
+              <div><label className="text-xs text-muted-foreground">Name</label><input className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.guest_name} onChange={e => update("guest_name", e.target.value)} /></div>
+              <div><label className="text-xs text-muted-foreground">Email</label><input className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.guest_email} onChange={e => update("guest_email", e.target.value)} /></div>
+              <div><label className="text-xs text-muted-foreground">Phone</label><input className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.guest_phone} onChange={e => update("guest_phone", e.target.value)} /></div>
+            </div>
+          </div>
+          <Separator />
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dates</h4>
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className="text-xs text-muted-foreground">Check-in</label><input type="date" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.check_in_date} onChange={e => update("check_in_date", e.target.value)} /></div>
+              <div><label className="text-xs text-muted-foreground">Check-out</label><input type="date" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.check_out_date} onChange={e => update("check_out_date", e.target.value)} /></div>
+            </div>
+            {nights > 0 && <p className="text-xs text-muted-foreground">{nights} night{nights !== 1 ? "s" : ""}</p>}
+          </div>
+          <Separator />
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Guests</h4>
+            <div className="grid grid-cols-5 gap-2">
+              <div><label className="text-[10px] text-muted-foreground">Adults</label><input type="number" min={1} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={form.adults} onChange={e => update("adults", e.target.value)} /></div>
+              <div><label className="text-[10px] text-muted-foreground">Children</label><input type="number" min={0} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={form.children} onChange={e => update("children", e.target.value)} /></div>
+              <div><label className="text-[10px] text-muted-foreground">Teens</label><input type="number" min={0} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={form.teens} onChange={e => update("teens", e.target.value)} /></div>
+              <div><label className="text-[10px] text-muted-foreground">Infants</label><input type="number" min={0} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={form.infants} onChange={e => update("infants", e.target.value)} /></div>
+              <div><label className="text-[10px] text-muted-foreground">Pets</label><input type="number" min={0} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={form.pets} onChange={e => update("pets", e.target.value)} /></div>
+            </div>
+          </div>
+          <Separator />
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment</h4>
+            <div><label className="text-xs text-muted-foreground">Total Price (ZAR)</label><input type="number" min={0} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.total_price} onChange={e => update("total_price", e.target.value)} /></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground">Payment Status</label>
+                <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.payment_status} onChange={e => update("payment_status", e.target.value)}>
+                  <option value="unpaid">Unpaid</option>
+                  <option value="partial">Partial</option>
+                  <option value="paid">Paid</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Payment Method</label>
+                <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.payment_method} onChange={e => update("payment_method", e.target.value)}>
+                  <option value="">—</option>
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="eft">EFT</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <Separator />
+          <div className="space-y-2">
+            <label className="text-xs text-muted-foreground">Booking Status</label>
+            <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.status} onChange={e => update("status", e.target.value)}>
+              <option value="pending">Pending</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="checked_in">Checked In</option>
+              <option value="checked_out">Checked Out</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="no_show">No Show</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Special Requests</label>
+            <textarea className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.special_requests} onChange={e => update("special_requests", e.target.value)} rows={3} />
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={handleSave} disabled={saving} className="flex-1">{saving ? "Saving..." : "Save Changes"}</Button>
+            <Button variant="outline" onClick={() => setIsEditing(false)} className="flex-1">Cancel</Button>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -1239,7 +1377,12 @@ function BookingDetail({ booking, rooms }: { booking: BookingRow; rooms: Room[] 
           <User className="h-4 w-4" />
           {b.guest_name}
         </SheetTitle>
-        <SheetDescription>Booking #{b.id.slice(0, 8)}</SheetDescription>
+        <SheetDescription className="flex items-center justify-between">
+          <span>Booking #{b.id.slice(0, 8)}</span>
+          <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="ml-2">
+            <Pencil className="h-3 w-3 mr-1" />Edit
+          </Button>
+        </SheetDescription>
       </SheetHeader>
       <div className="space-y-5 mt-4">
         <div className="flex items-center gap-2">
