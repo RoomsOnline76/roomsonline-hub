@@ -47,6 +47,7 @@ interface Property {
   siteminder_property_code: string | null;
   hotelbeds_hotel_code: string | null;
   hostfully_property_uid: string | null;
+  is_rol_property?: boolean | null;
   property_type?: string | null;
 }
 
