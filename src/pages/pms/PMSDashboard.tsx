@@ -81,6 +81,8 @@ interface RoomType {
   name: string;
   default_rate: number | null;
   is_active: boolean | null;
+  max_occupancy: number | null;
+  property_type: string | null;
 }
 
 interface Room {
