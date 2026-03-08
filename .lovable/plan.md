@@ -1,71 +1,78 @@
 
+# ROLOS Property Website Integration Toolkit — COMPLETED
 
-# Frontend Pagination & Type Safety Cleanup
+## What Was Delivered
 
-## Current State
-- **PMSReports**: Already has `useInfiniteQuery` pagination -- complete
-- **PMSHousekeeping**: Already has fallback logic -- complete
-- **PMSDashboard**: Uses `useQuery` for bookings scoped to 30-day window -- low risk of hitting 1000-row limit, but should add pagination guard
-- **Type casts (`as any`)**: Found across 8 PMS files, ~121 instances total
+### Phase 1: Database Schema ✅
+- `integration_configs` table — property-scoped integration settings with API keys, domain whitelists, and jsonb config
+- `integration_logs` table — tracks widget loads, clicks, and booking initiations
+- `bookings` table extended with `integration_type` and `source_url` columns
+- Full RLS policies: owners manage their own, admin/dev have full access, anon can insert logs
 
-## Changes
+### Phase 2: Edge Functions ✅
+- **`generate-integration-assets`** — Generates code snippets per integration type with AI-powered installation instructions (Lovable AI gemini-3-flash-preview)
+- **`track-embed-interaction`** — Public endpoint for widgets to log loads/clicks to `integration_logs`
+- **`wordpress-plugin-api`** — API key-authenticated endpoint for WordPress plugin (get_property_info, get_availability, create_booking_redirect)
+- **`push-booking` extended** — Now accepts and persists `integration_type` and `source_url` on every booking
 
-### 1. PMSDashboard Pagination Guard
-The dashboard bookings query (line 306-320) fetches bookings for a 7-30 day window. For busy properties this could exceed 1000 rows. Add `useInfiniteQuery` with auto-fetch-all pattern (fetches all pages automatically on mount, no manual "Load More" needed since the calendar needs all data).
+### Phase 3: Admin UI ✅
+Route: `/admin/integrations` — accessible to all property owners via Workspace sidebar
 
-**File**: `src/pages/pms/PMSDashboard.tsx`
-- Replace `useQuery` for bookings with `useInfiniteQuery` using PAGE_SIZE=500 and `.range()` pagination
-- Flatten pages into single bookings array
-- Auto-trigger `fetchNextPage` when `hasNextPage` is true (via `useEffect`)
+6 integration tabs:
+- **Direct Link** — Copyable booking URL + HTML button snippet
+- **Widget** — iframe and JavaScript embed code for date-picker widget
+- **Booking Bar** — Fixed-position bottom bar embed code
+- **Full Embed** — Full booking engine iframe for dedicated pages
+- **WordPress** — PHP plugin code + shortcode, ready-to-install
+- **API** — API key generation/rotation, cURL examples, endpoint docs
 
-### 2. Type Safety Cleanup (remove `as any`)
+Each tab includes:
+- Enable/disable toggle (persisted to `integration_configs`)
+- Copyable code snippets with syntax highlighting
+- Step-by-step installation instructions
+- Domain whitelist configuration (widget, booking bar, full embed)
 
-**PMSBranding.tsx** (lines 132, 136, 149, 198):
-- Remove `as any` from `supabase.from("rolos_brand_config" as any)` -- table exists in types
-- Replace `stationeryRes.data as any` with proper destructuring since the type is known
-- Remove `as any` from upsert call
+### Phase 4: Analytics Dashboard ✅
+Integrated directly into the integrations page:
+- Widget Loads / Bookings via Integrations / Conversion Rate KPIs
+- Widget Activity bar chart (loads + clicks by integration type)
+- Bookings by Integration pie chart
+- Revenue Pulse channel breakdown updated to include integration types
 
-**PMSStaff.tsx** (line 86):
-- Remove `setStaff((data as any) || [])` -- `property_staff` Row type matches `StaffMember` interface
+### Phase 5: Embeddable Assets ✅
+Route: `/embed/property/:slug` — public, minimal React page for iframe embedding
+- **Widget mode** — Card-style booking prompt with property hero image and branding
+- **Bar mode** — Compact horizontal bar with "Book Now" button
+- **Full mode** — Same as widget but for full-page embedding
+- Automatic load tracking via `integration_logs`
+- "Powered by ROL'OS" attribution footer
 
-**PMSRooms.tsx** (lines 64-65, 82, 96, 106):
-- The `(property as any)?.amenities` casts are needed because `amenities` is typed as `Json | null` (generic JSON column). These are **safe to keep** -- the property amenities column is unstructured JSONB.
-- Clean the ones that can be typed more precisely
+### Phase 6: Revenue Pulse Integration ✅
+- Channel breakdown chart updated with integration type labels
+- Bookings with `integration_type` automatically appear in revenue analytics
 
-**PMSRatePlans.tsx** (lines 72-75, 119-120, 322-323):
-- Same pattern as Rooms -- `amenities` is `Json`, casts are structurally necessary
-- Clean `planAny = plan as any` by accessing `.description` directly (it's in the select)
+### Phase 7: PMS Integrations Menu & Property Overview Tab ✅
+- **PMS Sidebar:** Added "Integrations" menu item to ROL'OS PMS sidebar (`/pms/integrations`)
+- **PMS Integrations Page:** New page using `usePmsPropertyId` with property selector dropdown
+- **Property Form Tab:** Conditional "Integrations" tab visible only for ROL properties (`is_rol_property = true`)
+- **Comprehensive Documentation:** `IntegrationDocumentation` component with:
+  - Overview & Use Cases (collapsible accordion)
+  - Quick Start guide (numbered steps)
+  - Advanced Configuration (code examples, parameters)
+  - Troubleshooting (issue/solution pairs)
+  - Best Practices (checklists)
 
-**PMSGuests.tsx** (line 92):
-- `profileData.complaints as any[]` -- `complaints` is typed as `Json | null`, cast to `Json[]` instead
+#### Files Created/Modified (Phase 7):
+- `src/pages/pms/PMSIntegrations.tsx` — New PMS integrations management page
+- `src/components/integrations/IntegrationDocumentation.tsx` — Exhaustive docs for all 6 integration types
+- `src/components/property/PropertyFormIntegrationsTab.tsx` — Property-level integrations tab component
+- `src/config/navigation.ts` — Added Integrations item to pmsSection
+- `src/App.tsx` — Registered `/pms/integrations` route
+- `src/pages/pms/index.ts` — Exported PMSIntegrations
+- `src/pages/PropertyForm.tsx` — Added conditional Integrations tab for ROL properties
 
-**PMSDashboard.tsx** (lines 280, 1449, 1651):
-- Line 280: `(rt as any).linked_overview_id` -- this field IS selected but TypeScript doesn't narrow it from the chained query. Keep cast but add comment.
-- Line 1449: Error details cast -- necessary, keep
-- Line 1651: Form field access via dynamic key -- necessary pattern, keep
-
-**PMSHousekeeping.tsx** (lines 119, 121-122):
-- `supabase.from("rolos_rooms") as any` -- these are to avoid TS2589 deep instantiation errors. These are **structural TypeScript limitations** with complex Supabase chains. Keep but add explanatory comments.
-
-### 3. Summary of what gets cleaned vs kept
-
-| File | `as any` count | Removable | Structural (keep) |
-|------|---------------|-----------|-------------------|
-| PMSBranding | 6 | 6 | 0 |
-| PMSStaff | 1 | 1 | 0 |
-| PMSRatePlans | 6 | 2 | 4 (Json column) |
-| PMSGuests | 1 | 1 | 0 |
-| PMSRooms | 6 | 0 | 6 (Json column) |
-| PMSDashboard | 3 | 0 | 3 |
-| PMSHousekeeping | 3 | 0 | 3 (TS2589) |
-
-**Total**: ~10 `as any` removed, ~16 kept with explanatory comments.
-
-### Implementation Order
-1. Add pagination to PMSDashboard bookings query
-2. Clean PMSBranding type casts
-3. Clean PMSStaff type cast
-4. Clean PMSRatePlans (2 removable)
-5. Clean PMSGuests type cast
-6. Add comments to remaining structural casts
-
+## Architecture Preserved
+- All bookings route through existing `push-booking` flow (NO_BOOKING_FROM_CACHE enforced)
+- RLS isolation via `is_property_owner()` / `is_linked_owner()` / `has_role()`
+- API key authentication for WordPress/API integrations (stored in `integration_configs`)
+- Integration tracking metadata flows through to commission calculation

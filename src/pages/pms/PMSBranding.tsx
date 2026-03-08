@@ -129,14 +129,14 @@ export default function PMSBranding() {
     if (!propertyId) return;
     (async () => {
       const [stationeryRes, propertyRes] = await Promise.all([
-        supabase.from("rolos_brand_config" as any).select("*").eq("property_id", propertyId).maybeSingle(),
+        supabase.from("rolos_brand_config").select("*").eq("property_id", propertyId).maybeSingle(),
         supabase.from("properties").select("brand_logo_url, brand_primary_color, brand_secondary_color, brand_font_color, brand_accent_color, brand_override_enabled, slug").eq("id", propertyId).single(),
       ]);
       if (stationeryRes.data) {
-        const d = stationeryRes.data as any;
+        const d = stationeryRes.data;
         setConfig({
-          business_name: d.business_name || "",
-          business_address: d.business_address || {},
+          business_name: (d.business_name as string) || "",
+          business_address: (d.business_address as BrandConfig["business_address"]) || {},
           vat_number: d.vat_number || "",
           is_vat_registered: d.is_vat_registered ?? false,
           vat_rate: d.vat_rate ?? 15,
@@ -146,7 +146,7 @@ export default function PMSBranding() {
         });
       }
       if (propertyRes.data) {
-        const p = propertyRes.data as any;
+        const p = propertyRes.data;
         setVisual({
           brand_logo_url: p.brand_logo_url || "",
           brand_primary_color: p.brand_primary_color || "",
@@ -195,7 +195,7 @@ export default function PMSBranding() {
         custom_tagline: config.custom_tagline || null,
         favicon_url: config.favicon_url || null,
       };
-      const { error: stErr } = await supabase.from("rolos_brand_config" as any).upsert(stationeryPayload as any, { onConflict: "property_id" });
+      const { error: stErr } = await supabase.from("rolos_brand_config").upsert(stationeryPayload, { onConflict: "property_id" });
       if (stErr) throw stErr;
 
       // Save visual brand to properties table (syncs with Property Overview)

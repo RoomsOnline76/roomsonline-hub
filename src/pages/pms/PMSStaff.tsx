@@ -83,7 +83,7 @@ export default function PMSStaff() {
     if (error) {
       console.error("Error fetching staff:", error);
     } else {
-      setStaff((data as any) || []);
+      setStaff(data || []);
     }
     setLoading(false);
   };
