@@ -278,10 +278,10 @@ function HomeContent() {
             const selected = validProperties[randomIndex];
             setHeroImage(selected.imageUrl);
             setHeroVideoUrl(selected.videoUrl);
-            setHeroProperty({ name: selected.name, city: selected.city, country: selected.country, slug: selected.slug });
+            setHeroProperty({ id: selected.id, name: selected.name, city: selected.city, country: selected.country, slug: selected.slug });
             setOriginalHeroImage(selected.imageUrl);
             setOriginalHeroVideoUrl(selected.videoUrl);
-            setOriginalHeroProperty({ name: selected.name, city: selected.city, country: selected.country, slug: selected.slug });
+            setOriginalHeroProperty({ id: selected.id, name: selected.name, city: selected.city, country: selected.country, slug: selected.slug });
           }
         }
       } catch (error) {
