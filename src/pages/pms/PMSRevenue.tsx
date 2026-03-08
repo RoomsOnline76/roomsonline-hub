@@ -440,6 +440,7 @@ export default function PMSRevenue() {
             <TabsTrigger value="performance"><History className="w-4 h-4 mr-1" />Performance</TabsTrigger>
             <TabsTrigger value="suggestions"><Lightbulb className="w-4 h-4 mr-1" />Rate Suggestions</TabsTrigger>
             <TabsTrigger value="plans"><DollarSign className="w-4 h-4 mr-1" />Active Plans</TabsTrigger>
+            <TabsTrigger value="yield"><Zap className="w-4 h-4 mr-1" />Yield Rules</TabsTrigger>
           </TabsList>
 
           {/* === FORECAST TAB (existing) === */}
