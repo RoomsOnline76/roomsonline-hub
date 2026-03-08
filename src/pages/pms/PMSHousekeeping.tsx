@@ -110,18 +110,40 @@ export default function PMSHousekeeping() {
 
   // ── Fetch all data ────────────────────────────────────────────────────
 
+  const [usingFallback, setUsingFallback] = useState(false);
+
   const fetchAll = useCallback(async () => {
     if (!propertyId) return;
     setLoading(true);
-    const roomsQ = supabase.from("rolos_rooms" as any).select("id, room_number, room_name, floor, status, room_type_id").eq("property_id", propertyId).order("room_number");
-    const typesQ = supabase.from("rolos_room_types" as any).select("id, name").eq("property_id", propertyId);
-    const tasksQ = supabase.from("rolos_housekeeping_tasks" as any).select("id, room_id, task_type, priority, status, notes, assigned_to").eq("property_id", propertyId).neq("status", "completed").order("created_at", { ascending: false });
-    const maintQ = supabase.from("rolos_maintenance_requests" as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").eq("property_id", propertyId).order("created_at", { ascending: false });
+    // Use type assertions on .from() to avoid TS2589 with deeply nested Supabase generics
+    const roomsQ = (supabase.from("rolos_rooms") as any).select("id, room_number, room_name, floor, status, room_type_id").eq("property_id", propertyId);
+    const typesQ = supabase.from("rolos_room_types").select("id, name").eq("property_id", propertyId);
+    const tasksQ = (supabase.from("rolos_housekeeping_tasks") as any).select("id, room_id, task_type, priority, status, notes, assigned_to").eq("property_id", propertyId);
+    const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").eq("property_id", propertyId);
     const [roomsRes, typesRes, tasksRes, maintRes] = await Promise.all([roomsQ, typesQ, tasksQ, maintQ]);
-    setRooms((roomsRes.data as unknown as Room[]) || []);
-    setRoomTypes((typesRes.data as unknown as RoomType[]) || []);
-    setHkTasks((tasksRes.data as unknown as HKTask[]) || []);
-    setMaintenanceReqs((maintRes.data as unknown as MaintenanceRequest[]) || []);
+
+    const fetchedRoomTypes = (typesRes.data || []) as RoomType[];
+    setRoomTypes(fetchedRoomTypes);
+    setHkTasks((tasksRes.data || []) as HKTask[]);
+    setMaintenanceReqs((maintRes.data || []) as MaintenanceRequest[]);
+
+    const fetchedRooms = (roomsRes.data || []) as Room[];
+    if (fetchedRooms.length === 0 && fetchedRoomTypes.length > 0) {
+      // Fallback: derive synthetic rooms from room types
+      const syntheticRooms: Room[] = fetchedRoomTypes.map((rt, idx) => ({
+        id: `fallback-${rt.id}`,
+        room_number: rt.name,
+        room_name: rt.name,
+        floor: null,
+        status: "available",
+        room_type_id: rt.id,
+      }));
+      setRooms(syntheticRooms);
+      setUsingFallback(true);
+    } else {
+      setRooms(fetchedRooms);
+      setUsingFallback(false);
+    }
     setLoading(false);
   }, [propertyId]);
 
@@ -263,6 +285,16 @@ export default function PMSHousekeeping() {
           </div>
         </div>
 
+        {/* Fallback banner */}
+        {usingFallback && (
+          <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+            <CardContent className="py-3 flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+              <p className="text-xs text-amber-700 dark:text-amber-400">No physical rooms configured. Showing room types as fallback. Add rooms in the Room Inventory page for full housekeeping tracking.</p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* 3-Column Board */}
         <div className="grid md:grid-cols-3 gap-6">
           {/* ─── Needs Cleaning ─────────────────────── */}
@@ -299,7 +331,7 @@ export default function PMSHousekeeping() {
                       <div className="flex items-center justify-between pt-1 border-t border-border">
                         <p className="text-xs text-muted-foreground italic">No active task — room marked dirty</p>
                         <Button size="sm" variant="outline" onClick={async () => {
-                          const { error } = await supabase.from("rolos_rooms" as any).update({ status: "available" }).eq("id", room.id);
+                          const { error } = await supabase.from("rolos_rooms").update({ status: "available" }).eq("id", room.id);
                           if (error) { toast.error(error.message); return; }
                           toast.success("Room marked clean");
                           fetchAll();
