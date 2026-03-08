@@ -70,6 +70,7 @@ const pmsNavGroups: NavGroup[] = [
   {
     label: "Management",
     items: [
+      { title: "Portfolio", icon: Building2, href: "/pms/portfolio", module: "portfolio" },
       { title: "Night Audit", icon: Moon, href: "/pms/night-audit", module: "night-audit" },
       { title: "Messaging", icon: MessageSquare, href: "/pms/messaging", module: "messaging" },
       { title: "Reports", icon: BarChart3, href: "/pms/reports", module: "reports" },
