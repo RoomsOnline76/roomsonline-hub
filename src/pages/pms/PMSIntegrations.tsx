@@ -107,7 +107,7 @@ export default function PMSIntegrations() {
 
         {/* Integration Tabs */}
         <Tabs defaultValue="direct" className="space-y-4">
-          <TabsList className="grid grid-cols-6 w-full max-w-3xl">
+          <TabsList className="grid grid-cols-7 w-full max-w-4xl">
             <TabsTrigger value="direct" className="gap-1.5 text-xs">
               <Link2 className="h-3.5 w-3.5" />
               Direct Link
@@ -123,6 +123,10 @@ export default function PMSIntegrations() {
             <TabsTrigger value="full" className="gap-1.5 text-xs">
               <Globe className="h-3.5 w-3.5" />
               Full Embed
+            </TabsTrigger>
+            <TabsTrigger value="smart_button" className="gap-1.5 text-xs">
+              <Sparkles className="h-3.5 w-3.5" />
+              Smart Button
             </TabsTrigger>
             <TabsTrigger value="wordpress" className="gap-1.5 text-xs">
               <Puzzle className="h-3.5 w-3.5" />
