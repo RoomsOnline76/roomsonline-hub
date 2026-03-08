@@ -1,6 +1,6 @@
 // ============================================================================
-// PMS FINANCIAL ENGINE v2.0
-// Handles payments, refunds, invoices (with PDF), tax, deposits, gateway hooks
+// PMS FINANCIAL ENGINE v3.0
+// Payments, refunds, invoices, tax, deposits, gateway hooks, reconciliation
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -151,7 +151,6 @@ Deno.serve(async (req) => {
           .single();
         if (payErr) throw payErr;
 
-        // Create folio transaction for the payment
         await supabase.from("rolos_folio_transactions").insert({
           folio_id,
           transaction_type: "payment",
@@ -160,7 +159,6 @@ Deno.serve(async (req) => {
           created_by: user.id,
         });
 
-        // Update folio balance
         await updateFolioBalance(supabase, folio_id);
 
         return new Response(JSON.stringify({ success: true, payment }), {
@@ -185,7 +183,6 @@ Deno.serve(async (req) => {
           .single();
         if (refErr) throw refErr;
 
-        // Update payment status
         await supabase
           .from("rolos_payments")
           .update({ status: "refunded" })
@@ -200,7 +197,6 @@ Deno.serve(async (req) => {
       case "generate_invoice": {
         const { folio_id: invFolioId, property_id: invPropId, notes: invNotes } = body;
 
-        // Get folio transactions
         const { data: transactions } = await supabase
           .from("rolos_folio_transactions")
           .select("*")
@@ -210,7 +206,6 @@ Deno.serve(async (req) => {
         const charges = (transactions || []).filter((t: any) => (t.amount || 0) > 0);
         const subtotal = charges.reduce((sum: number, t: any) => sum + Number(t.amount), 0);
 
-        // Get tax rules for tax calculation
         const { data: taxRules } = await supabase
           .from("rolos_tax_rules")
           .select("*")
@@ -224,7 +219,6 @@ Deno.serve(async (req) => {
         const total = subtotal + taxTotal;
         const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
 
-        // Insert invoice
         const { data: invoice, error: invErr } = await supabase
           .from("rolos_invoices")
           .insert({
@@ -242,24 +236,20 @@ Deno.serve(async (req) => {
           .single();
         if (invErr) throw invErr;
 
-        // Get property info for branding
         const { data: property } = await supabase
           .from("properties")
           .select("name, brand_logo_url, brand_primary_color")
           .eq("id", invPropId)
           .single();
 
-        // Get branding config
         const { data: branding } = await supabase
           .from("rolos_brand_config")
           .select("*")
           .eq("property_id", invPropId)
           .maybeSingle();
 
-        // Generate PDF HTML
         const html = generateInvoiceHTML(invoice, transactions || [], property, branding);
 
-        // Store as HTML file (can be rendered as PDF by client)
         const filePath = `${invPropId}/${invoiceNumber}.html`;
         const encoder = new TextEncoder();
         const htmlBytes = encoder.encode(html);
@@ -308,7 +298,6 @@ Deno.serve(async (req) => {
       case "process_gateway_payment": {
         const { folio_id: gwFolioId, property_id: gwPropId, amount: gwAmount, gateway } = body;
 
-        // Create a pending payment record
         const { data: payment, error: gwErr } = await supabase
           .from("rolos_payments")
           .insert({
@@ -325,18 +314,84 @@ Deno.serve(async (req) => {
           .single();
         if (gwErr) throw gwErr;
 
-        // In production, this would call the gateway API (PayFast/PayGate)
-        // For now, return the payment_id for the frontend to initiate the gateway flow
         return new Response(JSON.stringify({ success: true, payment, gateway: gateway || "payfast" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
+
+      // ==================== INITIATE GATEWAY PAYMENT ====================
+      // Bridges to existing payfast-api / paygate-api edge functions
+      case "initiate_gateway_payment": {
+        const { folio_id: igFolioId, property_id: igPropId, amount: igAmount, gateway: igGateway, guest_email, guest_name, return_url } = body;
+
+        // Create pending payment record first
+        const { data: pendingPayment, error: ppErr } = await supabase
+          .from("rolos_payments")
+          .insert({
+            folio_id: igFolioId,
+            property_id: igPropId,
+            amount: igAmount,
+            currency: "ZAR",
+            method: "card",
+            status: "pending",
+            notes: `Gateway: ${igGateway || "payfast"}`,
+            created_by: user.id,
+          })
+          .select()
+          .single();
+        if (ppErr) throw ppErr;
+
+        // Determine which gateway to call
+        const selectedGateway = igGateway || "payfast";
+        const gatewayFnName = selectedGateway === "paygate" ? "paygate-api" : "payfast-api";
+
+        // Build gateway request payload
+        const gatewayPayload: Record<string, unknown> = {
+          amount: igAmount,
+          property_id: igPropId,
+          guest_email: guest_email || "",
+          guest_name: guest_name || "Guest",
+          item_name: `Folio Payment — ${igFolioId.substring(0, 8)}`,
+          return_url: return_url || `${supabaseUrl}/functions/v1/pms-financial`,
+          payment_id: pendingPayment.id,
+        };
+
+        // Call the gateway edge function internally
+        try {
+          const gatewayRes = await fetch(`${supabaseUrl}/functions/v1/${gatewayFnName}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify(gatewayPayload),
+          });
+
+          const gatewayData = await gatewayRes.json();
+
+          return new Response(JSON.stringify({
+            success: true,
+            payment: pendingPayment,
+            gateway: selectedGateway,
+            gateway_response: gatewayData,
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (gwCallErr) {
+          // Mark payment as failed
+          await supabase.from("rolos_payments")
+            .update({ status: "failed", notes: `Gateway call failed: ${String(gwCallErr)}` })
+            .eq("id", pendingPayment.id);
+
+          throw new Error(`Gateway ${selectedGateway} call failed: ${String(gwCallErr)}`);
+        }
       }
 
       // ==================== PAYMENT WEBHOOK ====================
       case "payment_webhook": {
         const { payment_id: whPaymentId, gateway_transaction_id, status: whStatus } = body;
 
-        const updateData: any = {
+        const updateData: Record<string, unknown> = {
           gateway_transaction_id,
           status: whStatus === "success" ? "completed" : "failed",
         };
@@ -352,7 +407,6 @@ Deno.serve(async (req) => {
           .single();
         if (whErr) throw whErr;
 
-        // If payment succeeded, add folio transaction
         if (whStatus === "success" && updatedPayment) {
           await supabase.from("rolos_folio_transactions").insert({
             folio_id: updatedPayment.folio_id,
@@ -364,6 +418,86 @@ Deno.serve(async (req) => {
         }
 
         return new Response(JSON.stringify({ success: true, payment: updatedPayment }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ==================== RECONCILE ====================
+      // Cross-checks folio balances against payment & transaction totals
+      case "reconcile": {
+        const { property_id: reconPropId } = body;
+
+        const { data: folios } = await supabase
+          .from("rolos_folios")
+          .select("id, balance, booking_id, guest_name, status")
+          .eq("property_id", reconPropId)
+          .eq("status", "open");
+
+        const discrepancies: Array<{ folio_id: string; guest_name: string; stored_balance: number; calculated_balance: number; diff: number }> = [];
+
+        for (const folio of (folios || [])) {
+          const { data: txs } = await supabase
+            .from("rolos_folio_transactions")
+            .select("amount")
+            .eq("folio_id", folio.id);
+
+          const calculatedBalance = (txs || []).reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+          const rounded = Math.round(calculatedBalance * 100) / 100;
+          const stored = Number(folio.balance) || 0;
+
+          if (Math.abs(rounded - stored) > 0.01) {
+            discrepancies.push({
+              folio_id: folio.id,
+              guest_name: folio.guest_name || "Unknown",
+              stored_balance: stored,
+              calculated_balance: rounded,
+              diff: Math.round((rounded - stored) * 100) / 100,
+            });
+
+            // Auto-fix
+            await supabase.from("rolos_folios")
+              .update({ balance: rounded })
+              .eq("id", folio.id);
+          }
+        }
+
+        // Also check: payments without folio transactions
+        const { data: orphanPayments } = await supabase
+          .from("rolos_payments")
+          .select("id, folio_id, amount, status, method")
+          .eq("property_id", reconPropId)
+          .eq("status", "completed");
+
+        let orphanCount = 0;
+        for (const payment of (orphanPayments || [])) {
+          if (!payment.folio_id) continue;
+          const { data: matchingTx } = await supabase
+            .from("rolos_folio_transactions")
+            .select("id")
+            .eq("folio_id", payment.folio_id)
+            .eq("transaction_type", "payment")
+            .limit(1);
+
+          if (!matchingTx?.length) {
+            // Create missing transaction
+            await supabase.from("rolos_folio_transactions").insert({
+              folio_id: payment.folio_id,
+              transaction_type: "payment",
+              description: `Reconciled payment via ${payment.method || "unknown"}`,
+              amount: -Math.abs(Number(payment.amount)),
+            });
+            await updateFolioBalance(supabase, payment.folio_id);
+            orphanCount++;
+          }
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          folios_checked: folios?.length || 0,
+          discrepancies_found: discrepancies.length,
+          discrepancies,
+          orphan_payments_fixed: orphanCount,
+        }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

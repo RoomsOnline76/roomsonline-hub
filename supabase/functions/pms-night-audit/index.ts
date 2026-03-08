@@ -1,6 +1,7 @@
 // ============================================================================
-// PMS NIGHT AUDIT ENGINE v2.0
+// PMS NIGHT AUDIT ENGINE v3.0
 // Runs hourly via cron — processes each property when local midnight has passed
+// Added: pre-arrival message queuing, reconciliation, audit summary email
 // ============================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -43,7 +44,7 @@ Deno.serve(async (req) => {
     // Get all active ROL properties with timezone
     const { data: properties, error: propErr } = await supabase
       .from("properties")
-      .select("id, name, timezone")
+      .select("id, name, timezone, owner_email")
       .eq("is_rol_property", true)
       .eq("is_active", true);
 
@@ -115,7 +116,6 @@ Deno.serve(async (req) => {
       try {
         // ========================================
         // TASK 1: Auto-post Room Charges to Folios
-        // For each checked-in booking, post nightly room rate
         // ========================================
         const { data: checkedInBookings } = await supabase
           .from("bookings")
@@ -129,7 +129,6 @@ Deno.serve(async (req) => {
           for (const booking of checkedInBookings) {
             if (!booking.rolos_folio_id) continue;
 
-            // Check if charge already posted for this date
             const { data: existingCharge } = await supabase
               .from("rolos_folio_transactions")
               .select("id")
@@ -140,7 +139,6 @@ Deno.serve(async (req) => {
 
             if (existingCharge) continue;
 
-            // Calculate nightly rate
             const nights = Math.max(1, Math.ceil(
               (new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) / 86400000
             ));
@@ -148,7 +146,6 @@ Deno.serve(async (req) => {
 
             if (nightlyRate <= 0) continue;
 
-            // Post room charge to folio
             const { error: chargeErr } = await supabase
               .from("rolos_folio_transactions")
               .insert({
@@ -162,7 +159,6 @@ Deno.serve(async (req) => {
               chargesPosted++;
               revenueTotal += nightlyRate;
 
-              // TASK 1b: Auto-post tax on room charge
               const { data: taxRules } = await supabase
                 .from("rolos_tax_rules")
                 .select("name, rate")
@@ -214,7 +210,6 @@ Deno.serve(async (req) => {
               await supabase.from("rolos_rooms").update({ status: "dirty" }).eq("id", room.id);
               roomsRolled++;
 
-              // Create housekeeping task if none exists
               const { data: existingTask } = await supabase
                 .from("rolos_housekeeping_tasks")
                 .select("id")
@@ -238,7 +233,7 @@ Deno.serve(async (req) => {
         tasks.push({ task: "roll_housekeeping", status: "success", count: roomsRolled });
 
         // ========================================
-        // TASK 3: Calculate Daily Metrics (ADR/RevPAR/Occupancy)
+        // TASK 3: Calculate Daily Metrics
         // ========================================
         const activeBookings = checkedInBookings || [];
         const { count: totalRooms } = await supabase
@@ -302,6 +297,102 @@ Deno.serve(async (req) => {
         }
         tasks.push({ task: "close_folios", status: "success", count: foliosClosed });
 
+        // ========================================
+        // TASK 5: Queue Pre-Arrival Messages
+        // Finds bookings arriving tomorrow and queues pre_arrival template
+        // ========================================
+        const tomorrowDate = new Date(localNow);
+        tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+        const tomorrowStr = tomorrowDate.toISOString().split("T")[0];
+
+        let preArrivalQueued = 0;
+        const { data: arrivingTomorrow } = await supabase
+          .from("bookings")
+          .select("id, guest_email, guest_name")
+          .eq("property_id", property.id)
+          .eq("check_in_date", tomorrowStr)
+          .in("status", ["confirmed"]);
+
+        if (arrivingTomorrow?.length) {
+          const { data: preArrivalTemplates } = await supabase
+            .from("rolos_message_templates")
+            .select("id, subject, body, channel, send_offset_hours")
+            .eq("property_id", property.id)
+            .eq("trigger_event", "pre_arrival")
+            .eq("is_active", true);
+
+          if (preArrivalTemplates?.length) {
+            for (const booking of arrivingTomorrow) {
+              for (const tpl of preArrivalTemplates) {
+                // Check if already queued
+                const { data: existingMsg } = await supabase
+                  .from("rolos_message_queue")
+                  .select("id")
+                  .eq("reservation_id", booking.id)
+                  .eq("template_id", tpl.id)
+                  .maybeSingle();
+
+                if (!existingMsg) {
+                  await supabase.from("rolos_message_queue").insert({
+                    property_id: property.id,
+                    reservation_id: booking.id,
+                    template_id: tpl.id,
+                    recipient_email: booking.guest_email,
+                    subject: tpl.subject,
+                    body: tpl.body,
+                    channel: tpl.channel,
+                    scheduled_at: new Date().toISOString(),
+                    status: "pending",
+                  });
+                  preArrivalQueued++;
+                }
+              }
+            }
+          }
+        }
+        tasks.push({ task: "queue_pre_arrival", status: "success", count: preArrivalQueued, details: `${arrivingTomorrow?.length || 0} arrivals tomorrow` });
+
+        // ========================================
+        // TASK 6: Folio Reconciliation
+        // Compare folio balances vs payment totals, flag discrepancies
+        // ========================================
+        let reconDiscrepancies = 0;
+        const { data: allOpenFolios } = await supabase
+          .from("rolos_folios")
+          .select("id, balance, booking_id")
+          .eq("property_id", property.id)
+          .eq("status", "open");
+
+        if (allOpenFolios?.length) {
+          for (const folio of allOpenFolios) {
+            // Sum all transactions
+            const { data: txs } = await supabase
+              .from("rolos_folio_transactions")
+              .select("amount")
+              .eq("folio_id", folio.id);
+
+            const calculatedBalance = (txs || []).reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+            const roundedCalc = Math.round(calculatedBalance * 100) / 100;
+            const storedBalance = Number(folio.balance) || 0;
+
+            if (Math.abs(roundedCalc - storedBalance) > 0.01) {
+              // Fix the discrepancy
+              await supabase.from("rolos_folios")
+                .update({ balance: roundedCalc })
+                .eq("id", folio.id);
+              reconDiscrepancies++;
+            }
+          }
+        }
+        tasks.push({
+          task: "reconcile_folios",
+          status: reconDiscrepancies > 0 ? "success" : "success",
+          count: reconDiscrepancies,
+          details: reconDiscrepancies > 0
+            ? `${reconDiscrepancies} balance discrepancies corrected`
+            : `${allOpenFolios?.length || 0} folios verified`,
+        });
+
         // Update audit log as completed
         if (auditLogId) {
           await supabase.from("rolos_night_audit_log").update({
@@ -314,6 +405,21 @@ Deno.serve(async (req) => {
             revenue_total: Math.round(revenueTotal * 100) / 100,
             completed_at: new Date().toISOString(),
           }).eq("id", auditLogId);
+        }
+
+        // ========================================
+        // TASK 7: Send Audit Summary Email
+        // ========================================
+        try {
+          await sendAuditSummaryEmail(property, auditDateStr, tasks, {
+            chargesPosted, taxPosted, foliosClosed, roomsRolled, revenueTotal,
+            preArrivalQueued, reconDiscrepancies,
+            occupancyRate, adr, revpar,
+          });
+          tasks.push({ task: "send_audit_email", status: "success" });
+        } catch (emailErr) {
+          console.error(`[pms-night-audit] Email send failed for ${property.id}:`, emailErr);
+          tasks.push({ task: "send_audit_email", status: "error", details: String(emailErr) });
         }
 
       } catch (err) {
@@ -348,3 +454,92 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// ============================================================================
+// Send audit summary email via Resend
+// ============================================================================
+async function sendAuditSummaryEmail(
+  property: { id: string; name: string; owner_email?: string },
+  auditDate: string,
+  tasks: AuditTask[],
+  metrics: {
+    chargesPosted: number; taxPosted: number; foliosClosed: number;
+    roomsRolled: number; revenueTotal: number; preArrivalQueued: number;
+    reconDiscrepancies: number; occupancyRate: number; adr: number; revpar: number;
+  }
+) {
+  const resendKey = Deno.env.get("RESEND_API_KEY");
+  if (!resendKey) {
+    console.log("[pms-night-audit] RESEND_API_KEY not set, skipping email");
+    return;
+  }
+
+  const recipientEmail = property.owner_email || "info@roomsonline.co.za";
+  const failedTasks = tasks.filter(t => t.status === "error");
+  const statusEmoji = failedTasks.length > 0 ? "⚠️" : "✅";
+
+  const taskRows = tasks.map(t => {
+    const icon = t.status === "success" ? "✅" : t.status === "skipped" ? "⏭️" : "❌";
+    const detail = [
+      t.count !== undefined ? `Count: ${t.count}` : "",
+      t.amount !== undefined ? `Amount: R ${t.amount.toFixed(2)}` : "",
+      t.details || "",
+    ].filter(Boolean).join(" · ");
+    return `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee;">${icon} ${t.task.replace(/_/g, " ")}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;">${t.status}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;color:#666;">${detail}</td></tr>`;
+  }).join("");
+
+  const html = `
+<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:40px;color:#1a1a2e;max-width:700px;margin:0 auto;">
+  <h1 style="font-size:22px;margin-bottom:4px;">${statusEmoji} Night Audit Summary</h1>
+  <p style="color:#666;margin-top:0;">${property.name} — ${auditDate}</p>
+
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin:20px 0;">
+    <div style="background:#f0fdf4;padding:12px 16px;border-radius:8px;flex:1;min-width:120px;">
+      <div style="font-size:24px;font-weight:700;">R ${metrics.revenueTotal.toFixed(2)}</div>
+      <div style="font-size:12px;color:#666;">Revenue Posted</div>
+    </div>
+    <div style="background:#eff6ff;padding:12px 16px;border-radius:8px;flex:1;min-width:120px;">
+      <div style="font-size:24px;font-weight:700;">${metrics.occupancyRate.toFixed(1)}%</div>
+      <div style="font-size:12px;color:#666;">Occupancy</div>
+    </div>
+    <div style="background:#fef3c7;padding:12px 16px;border-radius:8px;flex:1;min-width:120px;">
+      <div style="font-size:24px;font-weight:700;">R ${metrics.adr.toFixed(2)}</div>
+      <div style="font-size:12px;color:#666;">ADR</div>
+    </div>
+  </div>
+
+  <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+    <thead><tr style="background:#f8f8f8;">
+      <th style="padding:8px 12px;text-align:left;">Task</th>
+      <th style="padding:8px 12px;text-align:left;">Status</th>
+      <th style="padding:8px 12px;text-align:left;">Details</th>
+    </tr></thead>
+    <tbody>${taskRows}</tbody>
+  </table>
+
+  <div style="margin-top:16px;padding:12px;background:#f8f8f8;border-radius:6px;font-size:13px;color:#666;">
+    <strong>Quick Stats:</strong> ${metrics.chargesPosted} charges · R ${metrics.taxPosted.toFixed(2)} tax · ${metrics.foliosClosed} folios closed · ${metrics.roomsRolled} rooms rolled · ${metrics.preArrivalQueued} pre-arrival emails queued${metrics.reconDiscrepancies > 0 ? ` · ⚠️ ${metrics.reconDiscrepancies} recon fixes` : ""}
+  </div>
+
+  <p style="margin-top:24px;font-size:11px;color:#999;text-align:center;">
+    Generated by ROL'OS Night Audit Engine v3.0
+  </p>
+</body></html>`;
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: "ROL'OS <noreply@notify.roomsonline.co.za>",
+      to: [recipientEmail],
+      subject: `${statusEmoji} Night Audit — ${property.name} — ${auditDate}`,
+      html,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Resend API error: ${res.status} ${errText}`);
+  }
+}
