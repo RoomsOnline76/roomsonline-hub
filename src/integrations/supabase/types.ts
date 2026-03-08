@@ -683,6 +683,45 @@ export type Database = {
           },
         ]
       }
+      dev_tasks: {
+        Row: {
+          assigned_to: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_archived: boolean
+          priority: Database["public"]["Enums"]["dev_task_priority"]
+          status: Database["public"]["Enums"]["dev_task_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_archived?: boolean
+          priority?: Database["public"]["Enums"]["dev_task_priority"]
+          status?: Database["public"]["Enums"]["dev_task_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_archived?: boolean
+          priority?: Database["public"]["Enums"]["dev_task_priority"]
+          status?: Database["public"]["Enums"]["dev_task_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       experience_vouchers: {
         Row: {
           code: string
@@ -5591,6 +5630,8 @@ export type Database = {
         | "db_trigger"
       audit_user_role: "admin" | "dev" | "owner" | "system"
       component_type: "pms" | "internal" | "external" | "infrastructure"
+      dev_task_priority: "low" | "medium" | "high" | "critical"
+      dev_task_status: "new" | "started" | "testing" | "completed"
       health_status: "healthy" | "degraded" | "failed" | "unknown"
       help_impact_level: "critical" | "warning" | "info"
       pms_integration_status:
@@ -5746,6 +5787,8 @@ export const Constants = {
       ],
       audit_user_role: ["admin", "dev", "owner", "system"],
       component_type: ["pms", "internal", "external", "infrastructure"],
+      dev_task_priority: ["low", "medium", "high", "critical"],
+      dev_task_status: ["new", "started", "testing", "completed"],
       health_status: ["healthy", "degraded", "failed", "unknown"],
       help_impact_level: ["critical", "warning", "info"],
       pms_integration_status: [
