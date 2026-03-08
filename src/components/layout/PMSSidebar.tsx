@@ -38,19 +38,39 @@ interface NavItem {
   module: PmsModule;
 }
 
-const pmsNavItems: NavItem[] = [
-  { title: "Dashboard", icon: LayoutDashboard, href: "/pms", module: "dashboard" },
-  { title: "Rooms", icon: BedDouble, href: "/pms/rooms", module: "rooms" },
-  { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans", module: "rate-plans" },
-  { title: "Guests", icon: Users, href: "/pms/guests", module: "guests" },
-  { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping", module: "housekeeping" },
-  { title: "Channels", icon: Radio, href: "/pms/channels", module: "channels" },
-  { title: "Groups", icon: UsersRound, href: "/pms/groups", module: "groups" },
-  { title: "Events", icon: CalendarHeart, href: "/pms/events", module: "events" },
-  { title: "Reports", icon: BarChart3, href: "/pms/reports", module: "reports" },
-  { title: "Branding", icon: Palette, href: "/pms/branding", module: "branding" },
-  { title: "Integrations", icon: Code2, href: "/pms/integrations", module: "integrations" },
-  { title: "Staff", icon: UserCog, href: "/pms/staff", module: "staff" },
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const pmsNavGroups: NavGroup[] = [
+  {
+    label: "Operations",
+    items: [
+      { title: "Dashboard", icon: LayoutDashboard, href: "/pms", module: "dashboard" },
+      { title: "Rooms", icon: BedDouble, href: "/pms/rooms", module: "rooms" },
+      { title: "Guests", icon: Users, href: "/pms/guests", module: "guests" },
+      { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping", module: "housekeeping" },
+    ],
+  },
+  {
+    label: "Revenue",
+    items: [
+      { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans", module: "rate-plans" },
+      { title: "Channels", icon: Radio, href: "/pms/channels", module: "channels" },
+      { title: "Groups", icon: UsersRound, href: "/pms/groups", module: "groups" },
+      { title: "Events", icon: CalendarHeart, href: "/pms/events", module: "events" },
+    ],
+  },
+  {
+    label: "Management",
+    items: [
+      { title: "Reports", icon: BarChart3, href: "/pms/reports", module: "reports" },
+      { title: "Staff", icon: UserCog, href: "/pms/staff", module: "staff" },
+      { title: "Branding", icon: Palette, href: "/pms/branding", module: "branding" },
+      { title: "Integrations", icon: Code2, href: "/pms/integrations", module: "integrations" },
+    ],
+  },
 ];
 
 export function PMSSidebar() {
