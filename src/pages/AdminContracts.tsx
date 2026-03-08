@@ -105,6 +105,10 @@ export default function AdminContracts() {
   const [sendEmail, setSendEmail] = useState("");
   const [sendName, setSendName] = useState("");
   const [sending, setSending] = useState(false);
+  const [selectedContractType, setSelectedContractType] = useState<"standard" | "rolos">("standard");
+  
+  // Contract templates
+  const [contractTemplates, setContractTemplates] = useState<{ id: string; name: string }[]>([]);
   
   // Property search states
   const [propertySearch, setPropertySearch] = useState("");
