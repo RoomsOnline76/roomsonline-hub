@@ -263,6 +263,7 @@ export default function PropertyForm() {
 
   // Load owners list - only users with 'user' role (property owners)
   const [ownersLoaded, setOwnersLoaded] = useState(false);
+  const [ownerSearchOpen, setOwnerSearchOpen] = useState(false);
 
   useEffect(() => {
     const loadOwners = async () => {
