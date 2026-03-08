@@ -72,6 +72,7 @@ interface Booking {
   source?: "internal" | "pms";
   ai_metadata?: any;
   booking_channel?: string | null;
+  rolos_rate_plan_id?: string | null;
 }
 
 const Bookings = () => {
