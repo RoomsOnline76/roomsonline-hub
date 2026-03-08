@@ -71,15 +71,15 @@ export default function PMSDashboard() {
 
   if (!propertyId) {
     return (
-      <AppLayout>
+      <PMSLayout>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
           <Sparkles className="h-12 w-12 text-primary" />
-          <h1 className="text-2xl font-bold">ROL'OS Native PMS</h1>
+          <h1 className="text-2xl font-bold">Property Management</h1>
           <p className="text-muted-foreground text-center max-w-md">
-            Select a ROL property from your Property Overview to access the PMS module.
+            Select a property from your Property Overview to access the PMS module.
           </p>
         </div>
-      </AppLayout>
+      </PMSLayout>
     );
   }
 
