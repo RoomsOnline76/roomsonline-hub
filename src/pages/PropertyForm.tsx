@@ -7739,7 +7739,22 @@ export default function PropertyForm() {
                               <CardHeader className="pb-3">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-3">
-                                    <CardTitle className="text-lg">{rateType.name}</CardTitle>
+                                    {rateType.pms_synced ? (
+                                      <CardTitle className="text-lg">{rateType.name}</CardTitle>
+                                    ) : (
+                                      <Input
+                                        value={rateType.name}
+                                        onChange={(e) => {
+                                          setPmsRateTypes((prev) =>
+                                            prev.map((rt) =>
+                                              rt.id === rateType.id ? { ...rt, name: e.target.value } : rt
+                                            )
+                                          );
+                                          setIsDirty(true);
+                                        }}
+                                        className="text-lg font-semibold h-8 w-auto max-w-[250px]"
+                                      />
+                                    )}
                                     <Badge variant="outline" className="font-mono text-xs">
                                       ID: {rateType.id}
                                     </Badge>
@@ -7749,16 +7764,32 @@ export default function PropertyForm() {
                                       </Badge>
                                     )}
                                   </div>
-                                  {rateType.pms_synced && !isRolProperty ? (
-                                    <Badge variant="outline" className="text-xs bg-primary/10">
-                                      <Cloud className="h-3 w-3 mr-1" />
-                                      PMS
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700">
-                                      Manual
-                                    </Badge>
-                                  )}
+                                  <div className="flex items-center gap-2">
+                                    {!rateType.pms_synced && (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 text-destructive hover:text-destructive"
+                                        onClick={() => {
+                                          setPmsRateTypes((prev) => prev.filter((rt) => rt.id !== rateType.id));
+                                          setIsDirty(true);
+                                        }}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
+                                    {rateType.pms_synced && !isRolProperty ? (
+                                      <Badge variant="outline" className="text-xs bg-primary/10">
+                                        <Cloud className="h-3 w-3 mr-1" />
+                                        PMS
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700">
+                                        Manual
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </div>
                                 {rateType.description && (
                                   <p className="text-sm text-muted-foreground mt-2">{rateType.description}</p>
