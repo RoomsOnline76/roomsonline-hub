@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, BedDouble, RefreshCw } from "lucide-react";
+import { Plus, BedDouble, RefreshCw, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -44,11 +44,61 @@ export default function PMSRooms() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newRoom, setNewRoom] = useState({ room_number: "", room_name: "", floor: "", room_type_id: "", max_occupancy: "" });
 
-  const fetchData = async () => {
+  // Auto-sync room types from overview (hostfully_room_types) to rolos_room_types
+  const syncRoomTypesFromOverview = useCallback(async () => {
+    if (!propertyId) return;
+
+    // Get overview room types
+    const { data: overviewTypes } = await supabase
+      .from("hostfully_room_types")
+      .select("id, name, description, max_guests, daily_rate, is_active")
+      .eq("property_id", propertyId)
+      .eq("is_active", true);
+
+    if (!overviewTypes || overviewTypes.length === 0) return;
+
+    // Get existing rolos room types
+    const { data: existingRolos } = await supabase
+      .from("rolos_room_types")
+      .select("id, name, linked_overview_id")
+      .eq("property_id", propertyId);
+
+    const linkedIds = new Set((existingRolos || []).map(r => r.linked_overview_id).filter(Boolean));
+    const existingNames = new Set((existingRolos || []).map(r => r.name.toLowerCase()));
+
+    // Find overview types missing from rolos
+    const missing = overviewTypes.filter(ot =>
+      !linkedIds.has(ot.id) && !existingNames.has(ot.name.toLowerCase())
+    );
+
+    if (missing.length === 0) return;
+
+    // Insert missing room types
+    const rows = missing.map(ot => ({
+      property_id: propertyId,
+      name: ot.name,
+      description: ot.description || null,
+      max_occupancy: ot.max_guests || 2,
+      default_rate: ot.daily_rate || null,
+      is_active: true,
+      linked_overview_id: ot.id,
+    }));
+
+    const { error } = await supabase.from("rolos_room_types").insert(rows);
+    if (error) {
+      console.warn("Auto-sync room types warning:", error);
+    } else {
+      console.log(`[PMS Rooms] Auto-synced ${missing.length} room types from overview: ${missing.map(m => m.name).join(", ")}`);
+    }
+  }, [propertyId]);
+
+  const fetchData = useCallback(async () => {
     if (!propertyId) return;
     setLoading(true);
 
-    // Fetch room types from rolos_room_types (synced with overview)
+    // First ensure room types are synced from overview
+    await syncRoomTypesFromOverview();
+
     const [roomsRes, typesRes] = await Promise.all([
       supabase
         .from("rolos_rooms")
@@ -67,7 +117,6 @@ export default function PMSRooms() {
     const types = (typesRes.data || []) as RoomType[];
     setRoomTypes(types);
 
-    // Map room type names onto rooms
     const typeMap = new Map(types.map(t => [t.id, t.name]));
     const roomsData = (roomsRes.data || []).map((r: any) => ({
       ...r,
@@ -75,9 +124,9 @@ export default function PMSRooms() {
     }));
     setRooms(roomsData);
     setLoading(false);
-  };
+  }, [propertyId, syncRoomTypesFromOverview]);
 
-  useEffect(() => { fetchData(); }, [propertyId]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleCreate = async () => {
     if (!propertyId || !newRoom.room_number) return;

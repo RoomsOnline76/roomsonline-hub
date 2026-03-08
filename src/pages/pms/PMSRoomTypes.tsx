@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,9 +35,54 @@ export default function PMSRoomTypes() {
     default_rate: "",
   });
 
-  const fetchRoomTypes = async () => {
+  // Auto-sync: ensure all overview room types exist in rolos_room_types
+  const syncFromOverview = useCallback(async () => {
+    if (!propertyId) return;
+
+    const { data: overviewTypes } = await supabase
+      .from("hostfully_room_types")
+      .select("id, name, description, max_guests, daily_rate, is_active")
+      .eq("property_id", propertyId)
+      .eq("is_active", true);
+
+    if (!overviewTypes || overviewTypes.length === 0) return;
+
+    const { data: existingRolos } = await supabase
+      .from("rolos_room_types")
+      .select("id, name, linked_overview_id")
+      .eq("property_id", propertyId);
+
+    const linkedIds = new Set((existingRolos || []).map(r => r.linked_overview_id).filter(Boolean));
+    const existingNames = new Set((existingRolos || []).map(r => r.name.toLowerCase()));
+
+    const missing = overviewTypes.filter(ot =>
+      !linkedIds.has(ot.id) && !existingNames.has(ot.name.toLowerCase())
+    );
+
+    if (missing.length === 0) return;
+
+    const rows = missing.map(ot => ({
+      property_id: propertyId,
+      name: ot.name,
+      description: ot.description || null,
+      max_occupancy: ot.max_guests || 2,
+      default_rate: ot.daily_rate || null,
+      is_active: true,
+      linked_overview_id: ot.id,
+    }));
+
+    const { error } = await supabase.from("rolos_room_types").insert(rows);
+    if (!error) {
+      toast.success(`Synced ${missing.length} room type${missing.length !== 1 ? 's' : ''} from Property Overview`);
+    }
+  }, [propertyId]);
+
+  const fetchRoomTypes = useCallback(async () => {
     if (!propertyId) return;
     setLoading(true);
+
+    // Auto-sync from overview first
+    await syncFromOverview();
 
     const { data, error } = await supabase
       .from("rolos_room_types")
@@ -50,9 +95,9 @@ export default function PMSRoomTypes() {
       setRoomTypes((data as RoomType[]) || []);
     }
     setLoading(false);
-  };
+  }, [propertyId, syncFromOverview]);
 
-  useEffect(() => { fetchRoomTypes(); }, [propertyId]);
+  useEffect(() => { fetchRoomTypes(); }, [fetchRoomTypes]);
 
   const resetForm = () => {
     setForm({ name: "", description: "", max_occupancy: "2", default_rate: "" });
