@@ -512,6 +512,7 @@ const App = () => (
             {/* ROL'OS Native PMS Module — white-labeled with PMSBrandProvider */}
             <Route path="/pms" element={<ProtectedRoute><PMSBrandProvider><PMSDashboard /></PMSBrandProvider></ProtectedRoute>} />
             <Route path="/pms/rooms" element={<ProtectedRoute><PMSBrandProvider><PMSRooms /></PMSBrandProvider></ProtectedRoute>} />
+            <Route path="/pms/room-types" element={<ProtectedRoute><PMSBrandProvider><PMSRoomTypes /></PMSBrandProvider></ProtectedRoute>} />
             <Route path="/pms/rate-plans" element={<ProtectedRoute><PMSBrandProvider><PMSRatePlans /></PMSBrandProvider></ProtectedRoute>} />
             <Route path="/pms/guests" element={<ProtectedRoute><PMSBrandProvider><PMSGuests /></PMSBrandProvider></ProtectedRoute>} />
             <Route path="/pms/housekeeping" element={<ProtectedRoute><PMSBrandProvider><PMSHousekeeping /></PMSBrandProvider></ProtectedRoute>} />
