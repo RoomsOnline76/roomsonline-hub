@@ -911,9 +911,22 @@ function MonthCalendarGrid(props: CalendarGridProps) {
           {/* Room type rows */}
           {roomTypes.map((rt) => {
             const typeRooms = roomsByType.get(rt.id) || [];
+            const totalUnits = typeRooms.length || 1;
+
+            const getMonthAvail = (date: Date) => {
+              const dateStr = format(date, "yyyy-MM-dd");
+              const booked = bookings.filter(b => {
+                if (b.room_type_id === rt.id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
+                  return dateStr >= b.check_in_date && dateStr < b.check_out_date && !["cancelled", "no_show"].includes(b.status);
+                }
+                return false;
+              }).length;
+              return { booked, avail: Math.max(0, totalUnits - booked) };
+            };
+
             return (
               <div key={rt.id}>
-                {/* Room type header with rates + restrictions */}
+                {/* Room type header with rates + restrictions + availability */}
                 <div className="grid border-b border-border bg-muted/20" style={{ gridTemplateColumns: `160px repeat(${weekDates.length}, 1fr)` }}>
                   <div className="px-3 py-2 border-r border-border flex items-center gap-2">
                     <BedDouble className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -926,13 +939,19 @@ function MonthCalendarGrid(props: CalendarGridProps) {
                     const rate = getRateForDate(rt.id, date);
                     const restriction = getRestriction(rt.name, date);
                     const isStopSell = restriction?.is_stop_sell;
+                    const { booked, avail } = getMonthAvail(date);
                     return (
-                      <div key={i} className={cn("px-1 py-2 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
+                      <div key={i} className={cn("px-1 py-1.5 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
                         {rate != null ? (
                           <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}</span>
                         ) : (
                           <span className="text-[10px] text-muted-foreground/50">—</span>
                         )}
+                        <div className="text-[8px] mt-0.5">
+                          {booked > 0 && <span className="text-amber-600">{booked}b</span>}
+                          {booked > 0 && " · "}
+                          <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}a</span>
+                        </div>
                         <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
                           {isStopSell && <span className="text-[7px] bg-red-500/20 text-red-600 rounded px-0.5">STOP</span>}
                           {restriction?.minimum_stay != null && <span className="text-[7px] bg-blue-500/20 text-blue-600 rounded px-0.5">MIN {restriction.minimum_stay}</span>}
