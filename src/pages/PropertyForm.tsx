@@ -7857,7 +7857,7 @@ export default function PropertyForm() {
                                 maxStayDays: 0,
                                 minAdvanceDays: 0,
                                 maxAdvanceDays: 0,
-                                description: "Configure rate amount",
+                                description: "",
                                 baseRate: null,
                                 pms_synced: false,
                                 linkedRoomId: null,

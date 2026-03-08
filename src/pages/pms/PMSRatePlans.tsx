@@ -435,7 +435,7 @@ export default function PMSRatePlans() {
                     {plan.code && <p className="text-xs text-muted-foreground font-mono">{plan.code}</p>}
                   </CardHeader>
                   <CardContent>
-                    {plan.description && <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>}
+                    {plan.description && !plan.description.toLowerCase().includes('configure rate amount') && <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>}
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-2">
                       {plan.base_rate && plan.base_rate > 0 ? (
                         <div className="flex items-center gap-1">
