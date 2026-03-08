@@ -783,7 +783,7 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
     }
   }
 
-  // Create reservation in pms_reservations
+  // Create reservation in pms_reservations (cache)
   const { error: insertError } = await supabase
     .from("pms_reservations")
     .insert({
@@ -819,6 +819,74 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
     );
   }
 
+  // Also create in rolos_reservations (operational table)
+  const { data: rolosRes, error: rolosInsertErr } = await supabase
+    .from("rolos_reservations")
+    .insert({
+      property_id: propertyId,
+      status: "confirmed",
+      confirmation_number: confirmationNumber,
+      check_in: arrival_date,
+      check_out: departure_date,
+      guest_name: guest.name,
+      guest_email: guest.email || null,
+      guest_phone: guest.phone || null,
+      total_amount: totalAmount,
+      currency: "ZAR",
+      special_requests: parsed.data.special_requests || null,
+      source: "direct",
+    })
+    .select("id")
+    .single();
+
+  if (rolosInsertErr) {
+    console.warn("[roomsonline-pms-api] Warning: Failed to insert rolos_reservation:", rolosInsertErr.message);
+  } else if (rolosRes) {
+    // Insert reservation rooms
+    const roomInserts = rooms.map(r => ({
+      reservation_id: rolosRes.id,
+      room_type_id: r.room_type_id,
+      adults: r.adults,
+      children: r.children,
+      teens: r.teens,
+      infants: r.infants,
+    }));
+    await supabase.from("rolos_reservation_rooms").insert(roomInserts);
+
+    // Log status history
+    await supabase.from("rolos_reservation_status_history").insert({
+      reservation_id: rolosRes.id,
+      new_status: "confirmed",
+      reason: "Reservation created",
+    });
+
+    // Update inventory calendar - increment booked_units
+    for (const [roomTypeId, requiredCount] of requiredRooms.entries()) {
+      for (const date of dates) {
+        await supabase.from("rolos_inventory_calendar").upsert({
+          property_id: propertyId,
+          room_type_id: roomTypeId,
+          date,
+          booked_units: requiredCount,
+          total_units: 0,
+        }, { onConflict: "property_id,room_type_id,date" });
+        
+        // Increment booked_units for existing rows
+        const { data: existing } = await supabase.from("rolos_inventory_calendar")
+          .select("id, booked_units")
+          .eq("property_id", propertyId)
+          .eq("room_type_id", roomTypeId)
+          .eq("date", date)
+          .single();
+        if (existing) {
+          await supabase.from("rolos_inventory_calendar")
+            .update({ booked_units: (existing.booked_units || 0) + requiredCount })
+            .eq("id", existing.id);
+        }
+      }
+    }
+  }
+
   // Update availability cache - decrement available units
   for (const [roomTypeId, requiredCount] of requiredRooms.entries()) {
     for (const date of dates) {
@@ -844,6 +912,7 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
       reservation_id: reservationId,
       confirmation_number: confirmationNumber,
       status: "confirmed",
+      rolos_reservation_id: rolosRes?.id || null,
     }, "create_reservation")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
