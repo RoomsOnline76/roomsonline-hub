@@ -94,6 +94,20 @@ interface ErrorState {
   };
 }
 
+// Convert number to English words for contract text
+function numberToWords(n: number): string {
+  const ones = ['zero','one','two','three','four','five','six','seven','eight','nine',
+    'ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+  const tens = ['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+  if (n < 20) return ones[n] || String(n);
+  if (n < 100) {
+    const t = Math.floor(n / 10);
+    const o = n % 10;
+    return tens[t] + (o ? '-' + ones[o] : '');
+  }
+  return String(n);
+}
+
 export default function ContractSign() {
   const { token } = useParams<{ token: string }>();
 
