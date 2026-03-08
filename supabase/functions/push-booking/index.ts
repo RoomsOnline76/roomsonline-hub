@@ -8,6 +8,8 @@ const corsHeaders = {
 
 const requestSchema = z.object({
   booking_id: z.string().uuid({ message: 'Invalid booking ID format' }),
+  integration_type: z.string().optional(),
+  source_url: z.string().optional(),
 });
 
 // Map country names to ISO 2-letter codes for Hostfully API
