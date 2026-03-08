@@ -70,7 +70,7 @@ export default function PMSRatePlans() {
     // Get existing plans
     const { data: existingPlans } = await supabase
       .from("rolos_rate_plans")
-      .select("id, code, name")
+      .select("id, code, name, description")
       .eq("property_id", propertyId);
 
     const existingCodes = new Set((existingPlans || []).map(p => p.code));
