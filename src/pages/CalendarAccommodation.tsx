@@ -289,6 +289,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const getPmsPropertyCode = useCallback((property: Property | undefined): string | null => {
     if (!property?.external_system) return null;
     switch (property.external_system) {
+      case "roomsonline": return property.id; // Native PMS uses internal property UUID
       case "benson": return property.benson_property_code;
       case "checkfront": return property.checkfront_property_code;
       case "siteminder": return property.siteminder_property_code;
@@ -303,6 +304,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   }, []);
 
   const isPmsProperty = !!selectedPropertyData?.external_system;
+  const isNativeRolosProperty = selectedPropertyData?.external_system === "roomsonline" && !!selectedPropertyData?.is_rol_property;
   const pmsPropertyCode = getPmsPropertyCode(selectedPropertyData);
   const hasPmsPropertyCode = !!pmsPropertyCode;
 
