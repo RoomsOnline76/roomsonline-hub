@@ -111,6 +111,37 @@ interface PmsIntegrationStats {
   success_rate: number;
 }
 
+interface DevTask {
+  id: string;
+  title: string;
+  description: string | null;
+  status: 'new' | 'started' | 'testing' | 'completed';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  assigned_to: string | null;
+  assigned_name: string | null;
+  created_at: string;
+}
+
+function getTaskStatusColor(status: string): string {
+  switch (status) {
+    case 'new': return '#6b7280';
+    case 'started': return '#3b82f6';
+    case 'testing': return '#f59e0b';
+    case 'completed': return '#22c55e';
+    default: return '#6b7280';
+  }
+}
+
+function getTaskPriorityEmoji(priority: string): string {
+  switch (priority) {
+    case 'critical': return '🔴';
+    case 'high': return '🟠';
+    case 'medium': return '🟡';
+    case 'low': return '🟢';
+    default: return '⚪';
+  }
+}
+
 function formatDate(date: Date): string {
   return date.toLocaleDateString('en-ZA', {
     weekday: 'long',
@@ -164,7 +195,8 @@ function generateEmailHtml(
   pmsIntegrations: PmsIntegrationStats[],
   inactiveComponents: InactiveComponent[],
   nextCheckTime: string,
-  aiDigest: AIDigest | null
+  aiDigest: AIDigest | null,
+  devTasks: DevTask[]
 ): string {
   const overallStatusColor = getStatusColor(overallStatus);
   const overallStatusLabel = overallStatus === 'healthy' 
@@ -211,6 +243,71 @@ function generateEmailHtml(
     </tr>
   `).join('');
 
+  // Group tasks by status
+  const tasksByStatus = {
+    new: devTasks.filter(t => t.status === 'new'),
+    started: devTasks.filter(t => t.status === 'started'),
+    testing: devTasks.filter(t => t.status === 'testing'),
+    completed: devTasks.filter(t => t.status === 'completed'),
+  };
+
+  const taskTrackerSection = devTasks.length > 0 ? `
+    <!-- Dev Task Tracker -->
+    <div style="padding: 24px; background-color: #faf5ff; border-bottom: 1px solid #e9d5ff;">
+      <h3 style="margin: 0 0 16px 0; font-size: 18px; color: #7c3aed;">📋 Dev Task Tracker (${devTasks.length} Active Tasks)</h3>
+      
+      <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+        <span style="background-color: #6b728020; color: #374151; padding: 4px 12px; border-radius: 9999px; font-size: 12px;">
+          New: ${tasksByStatus.new.length}
+        </span>
+        <span style="background-color: #3b82f620; color: #1d4ed8; padding: 4px 12px; border-radius: 9999px; font-size: 12px;">
+          Started: ${tasksByStatus.started.length}
+        </span>
+        <span style="background-color: #f59e0b20; color: #b45309; padding: 4px 12px; border-radius: 9999px; font-size: 12px;">
+          Testing: ${tasksByStatus.testing.length}
+        </span>
+        <span style="background-color: #22c55e20; color: #15803d; padding: 4px 12px; border-radius: 9999px; font-size: 12px;">
+          Completed: ${tasksByStatus.completed.length}
+        </span>
+      </div>
+
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px; background-color: #ffffff; border-radius: 8px;">
+          <thead>
+            <tr style="border-bottom: 2px solid #e5e7eb;">
+              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Task</th>
+              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Priority</th>
+              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Status</th>
+              <th style="padding: 12px 8px; text-align: left; font-weight: 600; color: #374151;">Assigned To</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${devTasks.map(task => `
+              <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 12px 8px; font-weight: 500;">${task.title}</td>
+                <td style="padding: 12px 8px;">
+                  ${getTaskPriorityEmoji(task.priority)} ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                </td>
+                <td style="padding: 12px 8px;">
+                  <span style="display: inline-block; padding: 4px 12px; border-radius: 9999px; background-color: ${getTaskStatusColor(task.status)}20; color: ${getTaskStatusColor(task.status)}; font-weight: 500; font-size: 12px;">
+                    ${task.status.toUpperCase()}
+                  </span>
+                </td>
+                <td style="padding: 12px 8px; color: #6b7280;">${task.assigned_name || 'Unassigned'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ` : `
+    <!-- No Active Tasks -->
+    <div style="padding: 24px; background-color: #faf5ff; border-bottom: 1px solid #e9d5ff;">
+      <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #7c3aed;">📋 Dev Task Tracker</h3>
+      <p style="margin: 0; color: #6b7280; font-size: 14px;">No active tasks in the worklist.</p>
+    </div>
+  `;
+
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -239,6 +336,8 @@ function generateEmailHtml(
         Failed Components: <strong style="color: ${failedCount > 0 ? '#ef4444' : '#22c55e'};">${failedCount}/${totalComponents}</strong>
       </p>
     </div>
+
+    ${taskTrackerSection}
 
     ${aiDigest ? `
     <!-- AI Executive Summary -->
@@ -553,6 +652,43 @@ Deno.serve(async (req) => {
       bookingStats.failed = recentBookings.filter((b: { status: string }) => b.status === 'failed').length;
     }
 
+    // Fetch dev tasks (non-archived only)
+    const { data: rawDevTasks } = await supabase
+      .from('dev_tasks')
+      .select('id, title, description, status, priority, assigned_to, created_at')
+      .eq('is_archived', false)
+      .order('priority', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    // Fetch assignee names
+    let devTasks: DevTask[] = [];
+    if (rawDevTasks && rawDevTasks.length > 0) {
+      const assignedIds = [...new Set((rawDevTasks || []).filter(t => t.assigned_to).map(t => t.assigned_to))];
+      
+      let profilesMap: Record<string, string> = {};
+      if (assignedIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', assignedIds);
+        
+        (profiles || []).forEach((p: { id: string; full_name: string | null; email: string }) => {
+          profilesMap[p.id] = p.full_name || p.email || 'Unknown';
+        });
+      }
+
+      devTasks = (rawDevTasks || []).map(task => ({
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        status: task.status as DevTask['status'],
+        priority: task.priority as DevTask['priority'],
+        assigned_to: task.assigned_to,
+        assigned_name: task.assigned_to ? profilesMap[task.assigned_to] || null : null,
+        created_at: task.created_at,
+      }));
+    }
+
     const aiDigest = await generateAIDigest(
       overallStatus,
       overallUptime,
@@ -577,7 +713,8 @@ Deno.serve(async (req) => {
       pmsIntegrations,
       inactiveComponentsList,
       formatTime(nextCheckTime),
-      aiDigest
+      aiDigest,
+      devTasks
     );
 
     // Determine subject line
