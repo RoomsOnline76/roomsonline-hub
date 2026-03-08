@@ -61,7 +61,7 @@ export default function PMSStaff() {
   }, [propertyId]);
 
   const staffLoginUrl = propertySlug
-    ? `${window.location.origin}/staff-login/${propertySlug}`
+    ? `https://sleepinafrica.roomsonline.co.za/staff-login/${propertySlug}`
     : null;
 
   const copyLoginUrl = () => {
