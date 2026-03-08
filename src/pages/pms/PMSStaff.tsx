@@ -72,6 +72,8 @@ export default function PMSStaff() {
   // Hooks for shifts and activity
   const { data: shifts = [] } = useStaffShifts(propertyId);
   const createShift = useCreateShift(propertyId);
+  const updateShift = useUpdateShift(propertyId);
+  const deleteShift = useDeleteShift(propertyId);
   const { data: activityLog = [] } = useStaffActivityLog(propertyId);
 
   // Week days for shift calendar
