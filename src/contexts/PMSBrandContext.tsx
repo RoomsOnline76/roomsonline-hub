@@ -2,7 +2,8 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  applyBrandToDocument,
+  hexToHsl,
+  autoForeground,
   type PropertyBrand,
 } from "@/lib/brandOverride";
 
@@ -32,6 +33,58 @@ const PMSBrandContext = createContext<PMSBrandData>(defaultBrand);
 
 export function usePMSBrand() {
   return useContext(PMSBrandContext);
+}
+
+/**
+ * Build CSS vars for PMS white-label. Unlike the public booking flow,
+ * the PMS ALWAYS applies brand colours when they exist – no toggle needed.
+ * This makes the property feel like it has its own custom software.
+ */
+function applyPmsBrand(primary?: string | null, secondary?: string | null, font?: string | null): () => void {
+  const root = document.documentElement;
+  const applied: string[] = [];
+
+  const set = (key: string, val: string) => {
+    root.style.setProperty(key, val);
+    applied.push(key);
+  };
+
+  if (primary) {
+    const hsl = hexToHsl(primary);
+    if (hsl) {
+      set("--primary", hsl);
+      set("--primary-foreground", autoForeground(primary));
+      set("--ring", hsl);
+      // Sidebar active states & accent use primary
+      set("--accent", hsl);
+      set("--accent-foreground", autoForeground(primary));
+      // Chart colour 1
+      set("--chart-1", hsl);
+    }
+  }
+
+  if (secondary) {
+    const hsl = hexToHsl(secondary);
+    if (hsl) {
+      set("--secondary", hsl);
+      set("--secondary-foreground", autoForeground(secondary));
+      set("--muted", hsl);
+      set("--muted-foreground", autoForeground(secondary));
+    }
+  }
+
+  if (font) {
+    const hsl = hexToHsl(font);
+    if (hsl) {
+      set("--foreground", hsl);
+      set("--card-foreground", hsl);
+      set("--popover-foreground", hsl);
+    }
+  }
+
+  return () => {
+    applied.forEach((key) => root.style.removeProperty(key));
+  };
 }
 
 export function PMSBrandProvider({ children }: { children: ReactNode }) {
@@ -69,7 +122,7 @@ export function PMSBrandProvider({ children }: { children: ReactNode }) {
 
       if (cancelled) return;
 
-      const enabled = !!data.brand_override_enabled && !!data.brand_primary_color;
+      const hasColors = !!(data.brand_primary_color);
 
       setBrand({
         propertyName: data.name,
@@ -78,22 +131,18 @@ export function PMSBrandProvider({ children }: { children: ReactNode }) {
         secondaryColor: data.brand_secondary_color,
         fontColor: data.brand_font_color,
         tagline: (brandConfig as any)?.custom_tagline || null,
-        brandEnabled: enabled,
+        brandEnabled: hasColors,
         loading: false,
       });
 
-      // Apply CSS vars
-      if (enabled) {
-        cleanupRef.current?.();
-        const brandObj: PropertyBrand = {
-          enabled: true,
-          primaryColor: data.brand_primary_color,
-          secondaryColor: data.brand_secondary_color,
-          fontColor: data.brand_font_color,
-          logoUrl: data.brand_logo_url,
-          propertyId: propertyId!,
-        };
-        cleanupRef.current = applyBrandToDocument(brandObj);
+      // PMS always applies brand colours when they exist
+      cleanupRef.current?.();
+      if (hasColors) {
+        cleanupRef.current = applyPmsBrand(
+          data.brand_primary_color,
+          data.brand_secondary_color,
+          data.brand_font_color,
+        );
       }
     }
 
