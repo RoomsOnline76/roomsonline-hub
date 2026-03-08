@@ -1,5 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type {
+  PmsMessageTemplate, PmsMessageLogEntry, PmsQueueEntry, PmsProcessQueueResult,
+} from "@/types/pmsTypes";
 
 function invoke(action: string, payload: Record<string, unknown>) {
   return supabase.functions.invoke("pms-message-dispatcher", {
@@ -16,7 +19,7 @@ export function useMessageTemplates(propertyId: string | null) {
       if (!propertyId) return [];
       const { data, error } = await invoke("list_templates", { property_id: propertyId });
       if (error) throw error;
-      return (data as any[]) || [];
+      return (data as PmsMessageTemplate[]) || [];
     },
     enabled: !!propertyId,
   });
@@ -81,7 +84,7 @@ export function useMessageLog(propertyId: string | null) {
       if (!propertyId) return [];
       const { data, error } = await invoke("get_message_log", { property_id: propertyId });
       if (error) throw error;
-      return (data as any[]) || [];
+      return (data as PmsMessageLogEntry[]) || [];
     },
     enabled: !!propertyId,
   });
@@ -96,7 +99,7 @@ export function useMessageQueue(propertyId: string | null) {
       if (!propertyId) return [];
       const { data, error } = await invoke("get_queue", { property_id: propertyId });
       if (error) throw error;
-      return (data as any[]) || [];
+      return (data as PmsQueueEntry[]) || [];
     },
     enabled: !!propertyId,
   });
@@ -110,7 +113,7 @@ export function useProcessQueue(propertyId: string | null) {
     mutationFn: async () => {
       const { data, error } = await invoke("process_queue", { property_id: propertyId });
       if (error) throw error;
-      return data;
+      return data as PmsProcessQueueResult;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pms-message-queue", propertyId] });
