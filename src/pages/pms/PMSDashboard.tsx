@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { BulkStopSellDialog } from "@/components/BulkStopSellDialog";
@@ -23,6 +24,10 @@ import { BulkMinimumStayDialog } from "@/components/BulkMinimumStayDialog";
 import { BulkMaximumStayDialog } from "@/components/BulkMaximumStayDialog";
 import { BulkLeadDaysAdvanceDialog } from "@/components/BulkLeadDaysAdvanceDialog";
 import { BulkLeadDaysPostDialog } from "@/components/BulkLeadDaysPostDialog";
+import { BookingFolioTab } from "@/components/pms/BookingFolioTab";
+import { BookingInvoice } from "@/components/pms/BookingInvoice";
+import { BookingNotesTab } from "@/components/pms/BookingNotesTab";
+import { callPmsApi } from "@/hooks/usePmsApi";
 import {
   ChevronLeft,
   ChevronRight,
@@ -47,6 +52,14 @@ import {
   TrendingUp,
   Plus,
   Pencil,
+  LogIn,
+  LogOut,
+  XCircle,
+  EyeOff,
+  CheckCircle,
+  FileText,
+  Receipt,
+  MessageSquareText,
 } from "lucide-react";
 import { toast } from "sonner";
 
