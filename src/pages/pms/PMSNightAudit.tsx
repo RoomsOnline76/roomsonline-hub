@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { PMSPageWrapper } from "@/components/pms/PMSPageWrapper";
+import { PMSLayout } from "@/components/layout/PMSLayout";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { useNightAuditLog, useTriggerNightAudit, type NightAuditLogEntry } from "@/hooks/useNightAuditLog";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
