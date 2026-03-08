@@ -111,20 +111,26 @@ export default function PMSPortfolio() {
     }).sort((a, b) => b.revenue - a.revenue);
   }, [properties, allBookings, allRooms, today]);
 
-  const totals = useMemo(() => ({
-    properties: summaries.length,
-    rooms: summaries.reduce((s, p) => s + p.roomCount, 0),
-    bookings: summaries.reduce((s, p) => s + p.totalBookings, 0),
-    revenue: summaries.reduce((s, p) => s + p.revenue, 0),
-    avgOccupancy: summaries.length > 0
-      ? summaries.reduce((s, p) => s + p.occupancy, 0) / summaries.length
-      : 0,
-    avgAdr: summaries.length > 0
-      ? summaries.reduce((s, p) => s + p.adr, 0) / summaries.length
-      : 0,
-    arrivals: summaries.reduce((s, p) => s + p.todayArrivals, 0),
-    departures: summaries.reduce((s, p) => s + p.todayDepartures, 0),
-  }), [summaries]);
+  const totals = useMemo(() => {
+    const avgRevpar = summaries.length > 0
+      ? summaries.reduce((s, p) => s + p.revpar, 0) / summaries.length
+      : 0;
+    return {
+      properties: summaries.length,
+      rooms: summaries.reduce((s, p) => s + p.roomCount, 0),
+      bookings: summaries.reduce((s, p) => s + p.totalBookings, 0),
+      revenue: summaries.reduce((s, p) => s + p.revenue, 0),
+      avgOccupancy: summaries.length > 0
+        ? summaries.reduce((s, p) => s + p.occupancy, 0) / summaries.length
+        : 0,
+      avgAdr: summaries.length > 0
+        ? summaries.reduce((s, p) => s + p.adr, 0) / summaries.length
+        : 0,
+      avgRevpar,
+      arrivals: summaries.reduce((s, p) => s + p.todayArrivals, 0),
+      departures: summaries.reduce((s, p) => s + p.todayDepartures, 0),
+    };
+  }, [summaries]);
 
   const chartData = useMemo(() =>
     summaries.slice(0, 10).map(p => ({
