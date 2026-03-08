@@ -386,6 +386,20 @@ export default function PMSRatePlans() {
                   <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></div>
                   <div><Label>Code</Label><Input value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value }))} placeholder="e.g. BAR, PROMO" /></div>
                   <div><Label>Description</Label><Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} /></div>
+                  <div>
+                    <Label>Pricing Model *</Label>
+                    <Select value={form.pricing_model} onValueChange={v => setForm(p => ({ ...p, pricing_model: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PRICING_MODELS.map(m => (
+                          <SelectItem key={m.value} value={m.value}>
+                            <span>{m.label}</span>
+                            <span className="text-muted-foreground ml-1 text-xs">— {m.desc}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div><Label>Base Rate (ZAR)</Label><Input type="number" min={0} value={form.base_rate} onChange={e => setForm(p => ({ ...p, base_rate: e.target.value }))} placeholder="0.00" /></div>
                     <div><Label>Min Stay (nights)</Label><Input type="number" value={form.min_stay} onChange={e => setForm(p => ({ ...p, min_stay: e.target.value }))} /></div>
