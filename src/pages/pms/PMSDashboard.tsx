@@ -618,18 +618,14 @@ export default function PMSDashboard() {
             )}
           </div>
 
-          {/* Compact stat pills */}
-          <div className="grid grid-cols-5 gap-3">
+          {/* Compact stat pills — horizontal strip */}
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
             {statCards.map((stat) => (
-              <Card key={stat.label} className="py-2">
-                <CardContent className="flex items-center gap-2 p-0 px-3">
-                  <stat.icon className={cn("h-4 w-4 shrink-0", stat.color)} />
-                  <div className="min-w-0">
-                    <p className={cn("text-xl font-bold leading-none", stat.color)}>{stat.value}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{stat.label}</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <div key={stat.label} className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-card shrink-0">
+                <stat.icon className={cn("h-3.5 w-3.5 shrink-0", stat.color)} />
+                <span className={cn("text-sm font-semibold tabular-nums", stat.color)}>{stat.value}</span>
+                <span className="text-[10px] text-muted-foreground whitespace-nowrap">{stat.label}</span>
+              </div>
             ))}
           </div>
         </div>
