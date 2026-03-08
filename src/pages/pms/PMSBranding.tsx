@@ -451,6 +451,19 @@ export default function PMSBranding() {
                   </div>
                 )}
 
+                {/* Menu accent preview */}
+                {visual.brand_accent_color && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Menu Accent Preview</p>
+                    <div className="flex gap-2 items-center">
+                      <div className="px-3 py-1.5 rounded-md text-xs font-medium" style={{ backgroundColor: visual.brand_accent_color, color: visual.brand_font_color || '#000' }}>
+                        Active Menu
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">Sidebar highlight</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="border border-border rounded-lg p-3 space-y-2">
                   <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Email Footer</p>
                   {config.email_footer_text && <p className="text-xs text-muted-foreground">{config.email_footer_text}</p>}
