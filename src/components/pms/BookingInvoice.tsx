@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Printer, Mail, FileText } from "lucide-react";
+import { Printer, Mail } from "lucide-react";
 
 interface BookingInvoiceProps {
   bookingId: string;
@@ -25,9 +25,16 @@ interface Transaction {
   created_at: string;
 }
 
+interface VatConfig {
+  isVatRegistered: boolean;
+  vatRate: number;
+  vatNumber: string;
+}
+
 export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, checkOut, adults, totalPrice, propertyId }: BookingInvoiceProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [propertyName, setPropertyName] = useState("");
+  const [vatConfig, setVatConfig] = useState<VatConfig>({ isVatRegistered: false, vatRate: 15, vatNumber: "" });
   const [loading, setLoading] = useState(true);
   const [emailing, setEmailing] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
@@ -35,12 +42,21 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const [folioRes, propRes] = await Promise.all([
+      const [folioRes, propRes, brandRes] = await Promise.all([
         callPmsApi<{ transactions: Transaction[] }>("get_folio", { booking_id: bookingId }),
         supabase.from("properties").select("name").eq("id", propertyId).single(),
+        supabase.from("rolos_brand_config" as any).select("is_vat_registered, vat_rate, vat_number").eq("property_id", propertyId).maybeSingle(),
       ]);
       if (folioRes.success && folioRes.data) setTransactions(folioRes.data.transactions || []);
       if (propRes.data) setPropertyName(propRes.data.name);
+      if (brandRes.data) {
+        const b = brandRes.data as any;
+        setVatConfig({
+          isVatRegistered: b.is_vat_registered ?? false,
+          vatRate: b.vat_rate ?? 15,
+          vatNumber: b.vat_number || "",
+        });
+      }
       setLoading(false);
     };
     load();
@@ -48,11 +64,24 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
 
   const charges = transactions.filter(t => t.amount > 0);
   const payments = transactions.filter(t => t.amount < 0);
-  const totalCharges = charges.reduce((s, t) => s + t.amount, 0);
+
+  const subtotal = charges.length > 0
+    ? charges.reduce((s, t) => s + t.amount, 0)
+    : totalPrice;
+
+  const isVat = vatConfig.isVatRegistered;
+  const vatRate = vatConfig.vatRate / 100;
+
+  // If VAT registered, the subtotal is VAT-inclusive, so:
+  // Excl = subtotal / (1 + rate), VAT = subtotal - excl
+  const exclAmount = isVat ? subtotal / (1 + vatRate) : subtotal;
+  const vatAmount = isVat ? subtotal - exclAmount : 0;
+
   const totalPayments = payments.reduce((s, t) => s + Math.abs(t.amount), 0);
-  const balance = totalCharges - totalPayments;
+  const balance = subtotal - totalPayments;
   const invoiceNumber = `INV-${bookingId.slice(0, 8).toUpperCase()}`;
   const today = new Date().toLocaleDateString("en-ZA");
+  const invoiceTitle = isVat ? "Tax Invoice" : "Invoice";
 
   const handlePrint = () => {
     const content = invoiceRef.current;
@@ -111,7 +140,10 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
         <div className="flex justify-between items-start mb-6">
           <div>
             <h2 className="text-lg font-bold">{propertyName || "Property"}</h2>
-            <p className="text-xs text-muted-foreground">Tax Invoice</p>
+            <p className="text-xs text-muted-foreground">{invoiceTitle}</p>
+            {isVat && vatConfig.vatNumber && (
+              <p className="text-[10px] text-muted-foreground">VAT No: {vatConfig.vatNumber}</p>
+            )}
           </div>
           <div className="text-right">
             <p className="font-bold">{invoiceNumber}</p>
@@ -152,10 +184,28 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
                 <td className="py-1.5 text-right">R{totalPrice.toLocaleString()}</td>
               </tr>
             )}
-            <tr className="font-semibold">
-              <td className="py-1.5">Total Charges</td>
-              <td className="py-1.5 text-right">R{(charges.length > 0 ? totalCharges : totalPrice).toLocaleString()}</td>
-            </tr>
+
+            {isVat ? (
+              <>
+                <tr className="border-b border-border/50">
+                  <td className="py-1.5">Subtotal (excl. VAT)</td>
+                  <td className="py-1.5 text-right">R{exclAmount.toFixed(2)}</td>
+                </tr>
+                <tr className="border-b border-border/50">
+                  <td className="py-1.5">VAT ({vatConfig.vatRate}%)</td>
+                  <td className="py-1.5 text-right">R{vatAmount.toFixed(2)}</td>
+                </tr>
+                <tr className="font-semibold">
+                  <td className="py-1.5">Total (incl. VAT)</td>
+                  <td className="py-1.5 text-right">R{subtotal.toFixed(2)}</td>
+                </tr>
+              </>
+            ) : (
+              <tr className="font-semibold">
+                <td className="py-1.5">Total Charges</td>
+                <td className="py-1.5 text-right">R{subtotal.toLocaleString()}</td>
+              </tr>
+            )}
           </tbody>
         </table>
 

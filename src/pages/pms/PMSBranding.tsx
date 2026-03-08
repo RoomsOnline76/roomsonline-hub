@@ -320,6 +320,15 @@ export default function PMSBranding() {
                 <div><Label>Business Name</Label><Input value={config.business_name} onChange={e => setConfig(p => ({ ...p, business_name: e.target.value }))} placeholder={propertyName || "Your business name"} /></div>
                 <div><Label>Custom Tagline</Label><Input value={config.custom_tagline} onChange={e => setConfig(p => ({ ...p, custom_tagline: e.target.value }))} placeholder="e.g. Where memories are made" /></div>
                 <div><Label>VAT / Tax Number</Label><Input value={config.vat_number} onChange={e => setConfig(p => ({ ...p, vat_number: e.target.value }))} placeholder="e.g. VAT4870123456" /></div>
+                <div className="flex items-center gap-3 pt-2">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="checkbox" checked={config.is_vat_registered} onChange={e => setConfig(p => ({ ...p, is_vat_registered: e.target.checked }))} className="rounded border-input" />
+                    VAT Registered (Tax Invoice)
+                  </label>
+                </div>
+                {config.is_vat_registered && (
+                  <div><Label>VAT Rate (%)</Label><Input type="number" step="0.01" value={config.vat_rate} onChange={e => setConfig(p => ({ ...p, vat_rate: parseFloat(e.target.value) || 0 }))} placeholder="15" /></div>
+                )}
               </CardContent>
             </Card>
 
