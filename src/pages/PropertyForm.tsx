@@ -2008,7 +2008,9 @@ export default function PropertyForm() {
   };
 
   // Helper to check if a room field is synced from PMS
+  // ROL'OS native properties never have PMS-locked fields (data is internal)
   const isRoomFieldPmsSynced = (roomId: string, fieldName: string): boolean => {
+    if (isRolProperty) return false;
     const room = roomTypes.find((r) => r.id === roomId);
     const syncedFields = ensureArray(room?.pms_synced_fields);
     return syncedFields.includes(fieldName);
@@ -4745,7 +4747,7 @@ export default function PropertyForm() {
                       <CardHeader className="py-2 px-4">
                         <CardTitle className="text-sm flex items-center justify-between">
                           <span>Property</span>
-                          {selectedPMS && (
+                          {selectedPMS && !isRolProperty && (
                             <div className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
                               <div className="w-3 h-3 rounded bg-primary/10 border border-primary/30" />
                               <Cloud className="h-3 w-3" />
@@ -5994,7 +5996,7 @@ export default function PropertyForm() {
                           </div>
                         </div>
                       </div>
-                      {selectedPMS && (
+                      {selectedPMS && !isRolProperty && (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -6595,7 +6597,7 @@ export default function PropertyForm() {
                         <CardHeader className="py-1.5 px-3">
                           <CardTitle className="text-xs flex items-center gap-1">
                             Infant
-                            {selectedPMS === "benson" && <Cloud className="h-3 w-3 text-primary" />}
+                            {selectedPMS === "benson" && !isRolProperty && <Cloud className="h-3 w-3 text-primary" />}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="py-1.5 px-3 flex gap-1">
@@ -6621,7 +6623,7 @@ export default function PropertyForm() {
                         <CardHeader className="py-1.5 px-3">
                           <CardTitle className="text-xs flex items-center gap-1">
                             Teen
-                            {selectedPMS === "benson" && <Cloud className="h-3 w-3 text-primary" />}
+                            {selectedPMS === "benson" && !isRolProperty && <Cloud className="h-3 w-3 text-primary" />}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="py-1.5 px-3 flex gap-1">
@@ -6647,7 +6649,7 @@ export default function PropertyForm() {
                         <CardHeader className="py-1.5 px-3">
                           <CardTitle className="text-xs flex items-center gap-1">
                             Children
-                            {selectedPMS === "benson" && <Cloud className="h-3 w-3 text-primary" />}
+                            {selectedPMS === "benson" && !isRolProperty && <Cloud className="h-3 w-3 text-primary" />}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="py-1.5 px-3 flex gap-1">
@@ -7717,7 +7719,7 @@ export default function PropertyForm() {
                                       </Badge>
                                     )}
                                   </div>
-                                  {rateType.pms_synced ? (
+                                  {rateType.pms_synced && !isRolProperty ? (
                                     <Badge variant="outline" className="text-xs bg-primary/10">
                                       <Cloud className="h-3 w-3 mr-1" />
                                       PMS
@@ -9125,7 +9127,7 @@ export default function PropertyForm() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1">
                       <h3 className="font-semibold text-xs">ROOM TYPES</h3>
-                      {selectedPMS && isFieldPopulatedByPMS("room_types", selectedPMS) && (
+                      {selectedPMS && !isRolProperty && isFieldPopulatedByPMS("room_types", selectedPMS) && (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger>
@@ -9148,7 +9150,7 @@ export default function PropertyForm() {
                       className={cn(
                         "flex items-center justify-between p-2 rounded-md transition-colors text-xs",
                         selectedRoomType === room.id ? "bg-primary text-primary-foreground" : "hover:bg-muted",
-                        room.pms_synced && selectedRoomType !== room.id ? "bg-primary/5 border border-primary/20" : "",
+                        room.pms_synced && !isRolProperty && selectedRoomType !== room.id ? "bg-primary/5 border border-primary/20" : "",
                       )}
                     >
                       <span
@@ -9156,7 +9158,7 @@ export default function PropertyForm() {
                         onClick={() => setSelectedRoomType(room.id)}
                       >
                         {room.name}
-                        {room.pms_synced && <Cloud className="inline h-2.5 w-2.5 ml-1 opacity-50" />}
+                        {room.pms_synced && !isRolProperty && <Cloud className="inline h-2.5 w-2.5 ml-1 opacity-50" />}
                       </span>
                       <div className="flex gap-0.5">
                         {selectedPMS !== "nightsbridge" && (
@@ -9895,10 +9897,12 @@ export default function PropertyForm() {
                                   <div className="space-y-2">
                                     <Label className="flex items-center gap-2">
                                       Price Type (from linked Rate Types)
-                                      <Badge variant="outline" className="text-xs bg-primary/10">
-                                        <Cloud className="h-3 w-3 mr-1" />
-                                        PMS
-                                      </Badge>
+                                      {!isRolProperty && (
+                                        <Badge variant="outline" className="text-xs bg-primary/10">
+                                          <Cloud className="h-3 w-3 mr-1" />
+                                          PMS
+                                        </Badge>
+                                      )}
                                     </Label>
                                     <div className="flex flex-wrap gap-2">
                                       {priceTypes.length > 0 ? (
