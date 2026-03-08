@@ -72,7 +72,8 @@ import DevFeatures from "./pages/DevFeatures";
 import DevDanger from "./pages/DevDanger";
 import DevTesting from "./pages/DevTesting";
 import PMSComparison from "./pages/PMSComparison";
-import { PMSDashboard, PMSRooms, PMSRatePlans, PMSGuests, PMSHousekeeping, PMSReports } from "./pages/pms";
+import { PMSDashboard, PMSRooms, PMSRatePlans, PMSGuests, PMSHousekeeping, PMSReports, PMSBranding } from "./pages/pms";
+import { PMSBrandProvider } from "./contexts/PMSBrandContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
