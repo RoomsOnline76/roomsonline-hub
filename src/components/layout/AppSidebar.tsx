@@ -372,6 +372,36 @@ export function AppSidebar() {
           </div>
         </div>
 
+        {/* ROL'OS PMS - visible when user has ROL properties */}
+        {hasRolProperties && (
+          <div>
+            <Collapsible open={pmsOpen} onOpenChange={setPmsOpen}>
+              <CollapsibleTrigger asChild>
+                <button
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
+                    "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    "text-sidebar-foreground/70"
+                  )}
+                >
+                  <BedDouble className="h-4 w-4 shrink-0" />
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1 text-left text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">ROL'OS PMS</span>
+                      <ChevronDown className={cn("h-3 w-3 transition-transform", pmsOpen && "rotate-180")} />
+                    </>
+                  )}
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-1 mt-1">
+                {pmsItems.map((item) => (
+                  <NavLink key={item.href} item={item} />
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+        )}
+
         {/* Settings - Admin only (not collapsible, always visible) */}
         {isAdmin && (
           <div>
