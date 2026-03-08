@@ -36,16 +36,24 @@ export default function PMSRoomTypes() {
   });
 
   // Auto-sync: ensure all overview room types exist in rolos_room_types
+  // Queries hostfully_room_types (the Property Overview table used by ALL property types including ROL'OS)
   const syncFromOverview = useCallback(async () => {
     if (!propertyId) return;
 
-    const { data: overviewTypes } = await supabase
+    // hostfully_room_types is the universal "Property Overview" room types table for all PMS types
+    const { data: overviewTypes, error: overviewErr } = await supabase
       .from("hostfully_room_types")
       .select("id, name, description, max_guests, daily_rate, is_active")
-      .eq("property_id", propertyId)
-      .eq("is_active", true);
+      .eq("property_id", propertyId);
 
-    if (!overviewTypes || overviewTypes.length === 0) return;
+    if (overviewErr) {
+      console.warn("[PMSRoomTypes] Failed to fetch overview types:", overviewErr);
+      return;
+    }
+
+    // Include both active and inactive to get full picture; only sync active ones
+    const activeOverview = (overviewTypes || []).filter(ot => ot.is_active !== false);
+    if (activeOverview.length === 0) return;
 
     const { data: existingRolos } = await supabase
       .from("rolos_room_types")
@@ -55,7 +63,7 @@ export default function PMSRoomTypes() {
     const linkedIds = new Set((existingRolos || []).map(r => r.linked_overview_id).filter(Boolean));
     const existingNames = new Set((existingRolos || []).map(r => r.name.toLowerCase()));
 
-    const missing = overviewTypes.filter(ot =>
+    const missing = activeOverview.filter(ot =>
       !linkedIds.has(ot.id) && !existingNames.has(ot.name.toLowerCase())
     );
 
@@ -74,6 +82,8 @@ export default function PMSRoomTypes() {
     const { error } = await supabase.from("rolos_room_types").insert(rows);
     if (!error) {
       toast.success(`Synced ${missing.length} room type${missing.length !== 1 ? 's' : ''} from Property Overview`);
+    } else {
+      console.warn("[PMSRoomTypes] Sync insert error:", error);
     }
   }, [propertyId]);
 

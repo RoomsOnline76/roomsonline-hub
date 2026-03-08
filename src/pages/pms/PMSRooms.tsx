@@ -44,20 +44,24 @@ export default function PMSRooms() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newRoom, setNewRoom] = useState({ room_number: "", room_name: "", floor: "", room_type_id: "", max_occupancy: "" });
 
-  // Auto-sync room types from overview (hostfully_room_types) to rolos_room_types
+  // Auto-sync room types from Property Overview (hostfully_room_types is the universal overview table) to rolos_room_types
   const syncRoomTypesFromOverview = useCallback(async () => {
     if (!propertyId) return;
 
-    // Get overview room types
-    const { data: overviewTypes } = await supabase
+    // hostfully_room_types is used by ALL property types including ROL'OS for Property Overview data
+    const { data: overviewTypes, error: overviewErr } = await supabase
       .from("hostfully_room_types")
       .select("id, name, description, max_guests, daily_rate, is_active")
-      .eq("property_id", propertyId)
-      .eq("is_active", true);
+      .eq("property_id", propertyId);
 
-    if (!overviewTypes || overviewTypes.length === 0) return;
+    if (overviewErr) {
+      console.warn("[PMS Rooms] Failed to fetch overview types:", overviewErr);
+      return;
+    }
 
-    // Get existing rolos room types
+    const activeOverview = (overviewTypes || []).filter(ot => ot.is_active !== false);
+    if (activeOverview.length === 0) return;
+
     const { data: existingRolos } = await supabase
       .from("rolos_room_types")
       .select("id, name, linked_overview_id")
@@ -66,14 +70,12 @@ export default function PMSRooms() {
     const linkedIds = new Set((existingRolos || []).map(r => r.linked_overview_id).filter(Boolean));
     const existingNames = new Set((existingRolos || []).map(r => r.name.toLowerCase()));
 
-    // Find overview types missing from rolos
-    const missing = overviewTypes.filter(ot =>
+    const missing = activeOverview.filter(ot =>
       !linkedIds.has(ot.id) && !existingNames.has(ot.name.toLowerCase())
     );
 
     if (missing.length === 0) return;
 
-    // Insert missing room types
     const rows = missing.map(ot => ({
       property_id: propertyId,
       name: ot.name,
@@ -86,7 +88,7 @@ export default function PMSRooms() {
 
     const { error } = await supabase.from("rolos_room_types").insert(rows);
     if (error) {
-      console.warn("Auto-sync room types warning:", error);
+      console.warn("[PMS Rooms] Auto-sync room types warning:", error);
     } else {
       console.log(`[PMS Rooms] Auto-synced ${missing.length} room types from overview: ${missing.map(m => m.name).join(", ")}`);
     }
