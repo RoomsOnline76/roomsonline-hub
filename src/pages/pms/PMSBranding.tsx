@@ -34,8 +34,7 @@ const defaultConfig: BrandConfig = {
 };
 
 export default function PMSBranding() {
-  const [searchParams] = useSearchParams();
-  const propertyId = searchParams.get("property");
+  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
   const { propertyName, logoUrl, primaryColor, brandEnabled } = usePMSBrand();
   const [config, setConfig] = useState<BrandConfig>(defaultConfig);
   const [saving, setSaving] = useState(false);
