@@ -1229,21 +1229,6 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking, cellW, labelW }: 
 }
 
 // ──────────── Booking Detail Component (Tabbed Lifecycle) ────────────
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookingFolioTab } from "@/components/pms/BookingFolioTab";
-import { BookingInvoice } from "@/components/pms/BookingInvoice";
-import { BookingNotesTab } from "@/components/pms/BookingNotesTab";
-import { callPmsApi } from "@/hooks/usePmsApi";
-import {
-  LogIn,
-  LogOut,
-  XCircle,
-  EyeOff,
-  CheckCircle,
-  FileText,
-  Receipt,
-  MessageSquareText,
-} from "lucide-react";
 
 function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: BookingRow; rooms: Room[]; propertyId: string; onSaved: () => void }) {
   const [isEditing, setIsEditing] = useState(false);
