@@ -343,6 +343,7 @@ function HomeContent() {
           setHeroImage(selectedImage);
           setHeroVideoUrl(null);
           setHeroProperty({
+            id: selectedProperty.id,
             name: selectedProperty.name,
             city: selectedProperty.city,
             country: selectedProperty.country,
